@@ -28,6 +28,15 @@ const (
 	// commandTimeout is the hang guard around one planned subprocess.
 	// Rule 8's 2-minute figure is the local-gate target, not this kill.
 	commandTimeout = 5 * time.Minute
+	// publisherCommandDir is the tag-gated publisher entry point that
+	// `mise run build:publisher` compiles; the ordinary build excludes it.
+	publisherCommandDir = "cmd/stackkit-publisher"
+	// The packaged Architecture v2 contract proof that the public release
+	// candidate runs (`stackkit contract-proof`, scripts/public/export-public.sh).
+	contractProofPackage  = "internal/architecturecontractproof"
+	contractProofCommand  = "cmd/stackkit/commands/contract_proof.go"
+	contractProofManifest = "architecture/v2/fixtures/contract-fixtures.manifest.json"
+	cliBuildScript        = "scripts/dev/build-go.mjs"
 )
 
 type options struct {
@@ -102,6 +111,22 @@ func run(args []string, stdout, stderr io.Writer) error {
 		changedTests, changedTestTags, testDiscoveryWarning = loadChangedTestNames(repo, opts.mergeBase, changed)
 	}
 	inertGoFiles := declarationFreeGoFiles(repo, opts.mergeBase, changed)
+	publisherOnly, publisherWarning := publisherOnlyPackages(repo, opts.mergeBase, changed)
+	if publisherWarning != "" {
+		testDiscoveryWarning = strings.TrimSpace(testDiscoveryWarning + " " + publisherWarning)
+	}
+	publisherPresent, publisherClosure := false, map[string]struct{}(nil)
+	if hasGoChanges(changed) {
+		var closureErr error
+		publisherPresent, publisherClosure, closureErr = publisherBuildClosure(repo)
+		if closureErr != nil {
+			testDiscoveryWarning = strings.TrimSpace(testDiscoveryWarning + " Publisher build closure unavailable; compiling the publisher for every Go change: " + closureErr.Error())
+		}
+	}
+	contractProofPresent, contractProofDeps, closureErr := contractProofClosure(repo)
+	if closureErr != nil {
+		testDiscoveryWarning = strings.TrimSpace(testDiscoveryWarning + " Contract proof build closure unavailable; running the contract proof for every Go change: " + closureErr.Error())
+	}
 	statusSurfaceGate, err := statusSurfaceGateAvailability(repo)
 	if err != nil {
 		return err
@@ -119,6 +144,11 @@ func run(args []string, stdout, stderr io.Writer) error {
 		GoListWarning:        goListWarning,
 		ChangedTests:         changedTests,
 		ChangedTestTags:      changedTestTags,
+		PublisherOnly:        publisherOnly,
+		PublisherPresent:     publisherPresent,
+		PublisherClosure:     publisherClosure,
+		ContractProofPresent: contractProofPresent,
+		ContractProofClosure: contractProofDeps,
 		TestDiscoveryWarning: testDiscoveryWarning,
 		InertGoFiles:         inertGoFiles,
 	})
@@ -286,6 +316,68 @@ func hasGoChanges(files []string) bool {
 	return false
 }
 
+// publisherBuildClosure reports whether the tag-gated publisher entry point
+// exists and which repository package directories its publisher build
+// compiles. A nil closure with present=true means the graph is unknown and the
+// caller must compile the publisher conservatively.
+func publisherBuildClosure(repo string) (bool, map[string]struct{}, error) {
+	if !regularFileExists(repo, publisherCommandDir+"/main.go") {
+		return false, nil, nil
+	}
+	closure, err := goBuildClosure(repo, packagePattern(publisherCommandDir), "-tags", "publisher")
+	return true, closure, err
+}
+
+// contractProofClosure reports whether the packaged Architecture v2 contract
+// proof exists and which repository package directories its verifier builds.
+// A nil closure with present=true means the graph is unknown and the caller
+// must run the proof conservatively.
+func contractProofClosure(repo string) (bool, map[string]struct{}, error) {
+	for _, required := range []string{contractProofManifest, contractProofCommand, cliBuildScript} {
+		if !regularFileExists(repo, required) {
+			return false, nil, nil
+		}
+	}
+	closure, err := goBuildClosure(repo, packagePattern(contractProofPackage))
+	return true, closure, err
+}
+
+func regularFileExists(repo, relative string) bool {
+	info, err := os.Stat(filepath.Join(repo, filepath.FromSlash(relative)))
+	return err == nil && info.Mode().IsRegular()
+}
+
+// goBuildClosure lists the repository package directories one package's build
+// compiles, including itself.
+func goBuildClosure(repo, pattern string, buildFlags ...string) (map[string]struct{}, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), goPackageGraphTimeout)
+	defer cancel()
+	args := append([]string{"list", "-e", "-deps"}, buildFlags...)
+	args = append(args, "-f", "{{if not .Standard}}{{.Dir}}{{end}}", pattern)
+	command := exec.CommandContext(ctx, "go", args...)
+	command.Dir = repo
+	output, err := command.Output()
+	if err != nil {
+		return nil, err
+	}
+	// go list may report the symlink-resolved checkout path.
+	roots := []string{repo}
+	if resolved, err := filepath.EvalSymlinks(repo); err == nil && resolved != repo {
+		roots = append(roots, resolved)
+	}
+	closure := map[string]struct{}{}
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		for _, root := range roots {
+			if dir, err := filepath.Rel(root, line); line != "" && err == nil && !strings.HasPrefix(dir, "..") {
+				closure[filepath.ToSlash(dir)] = struct{}{}
+				break
+			}
+		}
+	}
+	return closure, nil
+}
+
 type lineRange struct {
 	First int
 	Last  int
@@ -342,6 +434,149 @@ func loadChangedTestNames(repo, mergeBase string, files []string) (map[string][]
 		tags[dir] = sortedUnique(names)
 	}
 	return result, tags, strings.Join(warnings, "; ")
+}
+
+// publisherOnlyPackages uses Go's selected file sets, not directory ownership,
+// to distinguish private publisher changes from ordinary production changes.
+// Unknown or mixed constraints retain the existing conservative package slice.
+func publisherOnlyPackages(repo, base string, changed []string) (map[string][]string, string) {
+	production := map[string][]string{}
+	for _, file := range changed {
+		if strings.HasSuffix(file, ".go") && !strings.HasSuffix(file, "_test.go") {
+			dir := filepath.ToSlash(filepath.Dir(file))
+			production[dir] = append(production[dir], file)
+		}
+	}
+	if len(production) == 0 {
+		return nil, ""
+	}
+	patterns := []string{}
+	for dir := range production {
+		patterns = append(patterns, packagePattern(dir))
+	}
+	patterns = sortedUnique(patterns)
+	type buildPackage struct {
+		Dir                                          string
+		GoFiles, CgoFiles, TestGoFiles, XTestGoFiles []string
+		Error                                        *struct{ Err string }
+	}
+	load := func(tags bool) (map[string]buildPackage, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), goPackageGraphTimeout)
+		defer cancel()
+		args := []string{"list", "-e", "-json=Dir,GoFiles,CgoFiles,TestGoFiles,XTestGoFiles,Error"}
+		if tags {
+			args = append(args, "-tags", "publisher")
+		}
+		args = append(args, patterns...)
+		command := exec.CommandContext(ctx, "go", args...)
+		command.Dir = repo
+		output, err := command.Output()
+		if err != nil {
+			return nil, err
+		}
+		decoder := json.NewDecoder(bytes.NewReader(output))
+		result := map[string]buildPackage{}
+		for {
+			var pkg buildPackage
+			if err := decoder.Decode(&pkg); err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				return nil, err
+			}
+			dir, err := filepath.Rel(repo, pkg.Dir)
+			if err != nil {
+				return nil, err
+			}
+			result[filepath.ToSlash(dir)] = pkg
+		}
+		return result, nil
+	}
+	ordinary, err := load(false)
+	if err != nil {
+		return nil, "Go build topology unavailable; retaining ordinary package checks: " + err.Error()
+	}
+	publisher, err := load(true)
+	if err != nil {
+		return nil, "Publisher Go build topology unavailable; retaining ordinary package checks: " + err.Error()
+	}
+	result := map[string][]string{}
+	for dir, files := range production {
+		normal, normalOK := ordinary[dir]
+		tagged, taggedOK := publisher[dir]
+		if !normalOK || !taggedOK || tagged.Error != nil {
+			continue
+		}
+		exclusive := true
+		for _, file := range files {
+			name := filepath.Base(file)
+			if slicesContain(normal.GoFiles, name) || slicesContain(normal.CgoFiles, name) ||
+				!(slicesContain(tagged.GoFiles, name) || slicesContain(tagged.CgoFiles, name)) {
+				exclusive = false
+				break
+			}
+			current, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(file)))
+			if err != nil || !exclusivePublisherConstraint(current) {
+				exclusive = false
+				break
+			}
+			previous, err := gitOutput(repo, "show", base+":"+file)
+			if err == nil && !exclusivePublisherConstraint([]byte(previous)) {
+				exclusive = false
+				break
+			}
+		}
+		if !exclusive {
+			continue
+		}
+		for _, file := range changed {
+			if filepath.ToSlash(filepath.Dir(file)) == dir && strings.HasSuffix(file, "_test.go") &&
+				(slicesContain(normal.TestGoFiles, filepath.Base(file)) || slicesContain(normal.XTestGoFiles, filepath.Base(file))) {
+				exclusive = false
+				break
+			}
+		}
+		if !exclusive {
+			continue
+		}
+		tests := []string{}
+		for _, name := range append(append([]string(nil), tagged.TestGoFiles...), tagged.XTestGoFiles...) {
+			if slicesContain(normal.TestGoFiles, name) || slicesContain(normal.XTestGoFiles, name) {
+				continue
+			}
+			fullPath := filepath.Join(repo, filepath.FromSlash(dir), name)
+			parsed, err := parser.ParseFile(token.NewFileSet(), fullPath, nil, 0)
+			if err != nil {
+				exclusive = false
+				break
+			}
+			for _, declaration := range parsed.Decls {
+				function, ok := declaration.(*ast.FuncDecl)
+				if ok && function.Recv == nil && isGoTestName(function.Name.Name) {
+					tests = append(tests, function.Name.Name)
+				}
+			}
+		}
+		if exclusive {
+			result[dir] = sortedUnique(tests)
+		}
+	}
+	return result, ""
+}
+
+func exclusivePublisherConstraint(source []byte) bool {
+	for _, line := range strings.Split(string(source), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "package ") {
+			break
+		}
+		if strings.HasPrefix(line, "//go:build ") {
+			expression, err := constraint.Parse(line)
+			tag, ok := expression.(*constraint.TagExpr)
+			return err == nil && ok && tag.Tag == "publisher"
+		}
+	}
+	return false
 }
 
 func publisherBuildTags(source []byte) []string {

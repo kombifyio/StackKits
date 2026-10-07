@@ -224,6 +224,16 @@
       "metadata": {
         "name": "modern-homelab-preview"
       },
+      "modules": {
+        "stackkits-bridge-publication-runtime": {
+          "computeProfile": "standard",
+          "enabled": true
+        },
+        "stackkits-federation-control-agent-runtime": {
+          "computeProfile": "standard",
+          "enabled": true
+        }
+      },
       "network": {
         "dns": {
           "searchDomains": [],

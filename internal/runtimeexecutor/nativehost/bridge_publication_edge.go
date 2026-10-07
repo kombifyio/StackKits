@@ -464,23 +464,22 @@ func probeBridgePublicationServed(ctx context.Context, root string, rule archite
 	if err != nil {
 		return nil, err
 	}
-	pinned := certificate.Certificate[0]
+	leaf, err := x509.ParseCertificate(certificate.Certificate[0])
+	if err != nil {
+		return nil, fmt.Errorf("bridge publication: custodied host certificate is unreadable: %w", err)
+	}
+	// The only trust anchor is the host certificate in node custody, so the
+	// probe needs no public CA and a listener presenting any other
+	// certificate fails standard verification (identity, host name, validity).
+	custodied := x509.NewCertPool()
+	custodied.AddCert(leaf)
 	token, err := newBridgeEdgeProbeToken(root, rule.Host, probePath, now)
 	if err != nil {
 		return nil, err
 	}
 	dialer := net.Dialer{Timeout: 5 * time.Second}
 	transport := &http.Transport{Proxy: nil, DisableKeepAlives: true, TLSClientConfig: &tls.Config{
-		MinVersion: tls.VersionTLS12, ServerName: rule.Host,
-		// The host certificate is pinned to the one in node custody, so the
-		// probe needs no public CA and cannot be answered by another listener.
-		InsecureSkipVerify: true, //nolint:gosec // VerifyConnection pins the custodied leaf below
-		VerifyConnection: func(state tls.ConnectionState) error {
-			if len(state.PeerCertificates) == 0 || !state.PeerCertificates[0].Equal(&x509.Certificate{Raw: pinned}) {
-				return errors.New("bridge publication: edge presented a certificate other than the custodied one")
-			}
-			return nil
-		},
+		MinVersion: tls.VersionTLS12, ServerName: rule.Host, RootCAs: custodied,
 	}, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return dialer.DialContext(ctx, "tcp", address)
 	}}

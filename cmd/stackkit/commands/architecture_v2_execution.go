@@ -16,6 +16,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/agentsurface"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/applyledger"
+	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/config"
@@ -1889,6 +1890,7 @@ func reportApplyLedgerForFailure(
 	ledger := applyledger.FromJournal(
 		plan.ApplyRequirements(), steps, plan.Binding().PlanHash, operationID, cause.Error(), observedAt,
 	)
+	ledger = applyledger.WithDegradedUnits(ledger, applyoutcome.DegradedUnits(cause))
 	reportApplyLedger(options, ledger)
 }
 
@@ -1907,6 +1909,15 @@ func printApplyLedger(ledger applyledger.Ledger) {
 		switch unit.Outcome {
 		case applyledger.OutcomeApplied:
 			printSuccess("  %s: applied", label)
+		case applyledger.OutcomeDegraded:
+			if unit.Failure == nil {
+				printWarning("  %s: %s", label, unit.Outcome)
+				continue
+			}
+			printWarning("  %s: degraded (%s)", label, unit.Failure.Class)
+			for _, guidance := range unit.Failure.Remediation {
+				printInfo("      %s", guidance)
+			}
 		case applyledger.OutcomeFailed:
 			detail := string(unit.Outcome)
 			if unit.Failure != nil {

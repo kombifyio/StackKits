@@ -1,8 +1,9 @@
-// Package game defines the Game Server use case (ADR-0043).
+// Package game defines the Game Server use case (ADR-0043, ADR-0048).
 //
-// Pterodactyl is the owner-decided platform: StackKits installs and
-// bootstraps the Panel and the Wings node, and the owner-approved setup action
-// creates curated game servers. Wings alone owns the game-server containers.
+// Calagopus is the recommended platform; Pelican and Pterodactyl are
+// selectable alternatives. StackKits installs and bootstraps the Panel and the
+// Wings node, and the owner-approved setup action creates curated game
+// servers. Wings alone owns the game-server containers.
 package game
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -12,29 +13,41 @@ Package: foundation.#UseCasePackage & {
 		name:        "game"
 		useCaseRef:  "game"
 		displayName: "Game Server"
-		version:     "0.2.0"
+		version:     "0.3.0"
 		layer:       "application"
 		category:    "game"
 		lifecycle:   "experimental"
-		description: "Game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles and secure defaults."
+		description: "Game servers for friends and family through Calagopus (or Pelican or Pterodactyl), with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles and secure defaults."
 	}
 
 	selection: {
 		role: "optional"
 		defaultTool: {
-			moduleSlug: "pterodactyl"
+			moduleSlug: "calagopus"
 			role:       "primary"
 			required:   true
-			rationale:  "Pterodactyl is the owner-decided game platform: a web Panel for players and worlds plus the Wings daemon that runs each game server in its own container."
+			rationale:  "Calagopus is the recommended game platform (ADR-0048): a stable Rust Panel with per-permission API keys plus the Wings daemon that runs each game server in its own container."
 			capabilities: ["game-server-hosting", "game-server-management"]
 		}
-		alternatives: []
+		alternatives: [{
+			moduleSlug: "pelican"
+			role:       "primary"
+			required:   false
+			rationale:  "Pelican Panel, the actively developed Pterodactyl successor (upstream beta), with its own Wings."
+			capabilities: ["game-server-hosting", "game-server-management"]
+		}, {
+			moduleSlug: "pterodactyl"
+			role:       "primary"
+			required:   false
+			rationale:  "Pterodactyl, the established platform; existing installations keep it."
+			capabilities: ["game-server-hosting", "game-server-management"]
+		}]
 	}
 
 	defaultRuntimeProfile: "self-hosted-game"
 	runtimeProfiles: "self-hosted-game": {
 		displayName: "Self-hosted Game Servers"
-		description: "Pterodactyl Panel, MariaDB, Valkey and Wings run on one owner-selected node through Standalone Compose; Wings publishes each game server's own ports on that node."
+		description: "The selected Panel with its database and the Wings node daemon run on one owner-selected node through Standalone Compose; Wings publishes each game server's own ports on that node."
 		realization: "oss"
 		placementModes: ["local-only", "standard"]
 		managedServerlessEligible: false
@@ -48,16 +61,32 @@ Package: foundation.#UseCasePackage & {
 
 	computeTiers: {
 		low: {included: false, reason: "Game servers need the standard profile and their own memory budget."}
-		standard: {included: true, moduleSlug: "pterodactyl", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Each running world needs its own memory: about 2 GB for Minecraft Java, 3 GB for Paper, 1.5 GB for Bedrock and Terraria, and 4 GB for Valheim."]}
-		high: {included: true, moduleSlug: "pterodactyl", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Same platform graph as standard; more worlds fit with more host memory."]}
+		standard: {included: true, moduleSlug: "calagopus", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Each running world needs its own memory: about 2 GB for Minecraft Java, 3 GB for Paper, 1.5 GB for Bedrock and Terraria, and 4 GB for Valheim."]}
+		high: {included: true, moduleSlug: "calagopus", functions: ["game-server-hosting", "game-server-management"], load: {residency: "on-demand", baseline: "idle-resident", burst: "interactive"}, notes: ["Same platform graph as standard; more worlds fit with more host memory."]}
 	}
 
-	tools: pterodactyl: {
-		moduleSlug: "pterodactyl"
-		role:       "primary"
-		required:   true
-		rationale:  "Digest-pinned Pterodactyl Panel and Wings with owner bootstrap from custody and curated game profiles."
-		capabilities: ["game-server-hosting", "game-server-management", "rest-api"]
+	tools: {
+		calagopus: {
+			moduleSlug: "calagopus"
+			role:       "primary"
+			required:   true
+			rationale:  "Digest-pinned Calagopus Panel and Wings with owner bootstrap from custody, scoped API keys and curated game profiles."
+			capabilities: ["game-server-hosting", "game-server-management", "rest-api"]
+		}
+		pelican: {
+			moduleSlug: "pelican"
+			role:       "primary"
+			required:   false
+			rationale:  "Digest-pinned Pelican Panel and Wings (upstream beta) with owner bootstrap from custody and curated game profiles."
+			capabilities: ["game-server-hosting", "game-server-management", "rest-api"]
+		}
+		pterodactyl: {
+			moduleSlug: "pterodactyl"
+			role:       "primary"
+			required:   false
+			rationale:  "Digest-pinned Pterodactyl Panel and Wings with owner bootstrap from custody and curated game profiles."
+			capabilities: ["game-server-hosting", "game-server-management", "rest-api"]
+		}
 	}
 
 	connectors: stackkit: {
@@ -71,6 +100,30 @@ Package: foundation.#UseCasePackage & {
 	}
 
 	productApis: {
+		"calagopus-client": {
+			protocol: "rest"
+			basePath: "/api/client"
+			auth:     "calagopus-client-api-key"
+			purpose:  "Routine owner operations on selected game servers with a key restricted to server read, power, console and files."
+		}
+		"calagopus-admin": {
+			protocol: "rest"
+			basePath: "/api/admin"
+			auth:     "calagopus-setup-api-key"
+			purpose:  "Administrative provisioning by the owner-approved setup action only; never handed to a conversational agent."
+		}
+		"pelican-client": {
+			protocol: "rest"
+			basePath: "/api/client"
+			auth:     "pelican-client-api-key"
+			purpose:  "Routine owner operations on selected game servers: state, resources, power, allow list and bounded file edits."
+		}
+		"pelican-application": {
+			protocol: "rest"
+			basePath: "/api/application"
+			auth:     "pelican-application-api-key"
+			purpose:  "Administrative provisioning by the owner-approved setup action only; never handed to a conversational agent."
+		}
 		"pterodactyl-client": {
 			protocol: "rest"
 			basePath: "/api/client"
@@ -95,7 +148,7 @@ Package: foundation.#UseCasePackage & {
 	}
 
 	evidence: {
-		healthChecks: ["pterodactyl-panel-http"]
+		healthChecks: ["calagopus-panel-http", "pelican-panel-http", "pterodactyl-panel-http"]
 		required: ["route", "backup", "owner-bootstrap", "runtime-owner", "removal"]
 	}
 
@@ -104,10 +157,20 @@ Package: foundation.#UseCasePackage & {
 	}
 
 	agentSurface: {
-		equipPolicy:  "on-generate"
+		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: []
 		apis: [{
+			id:       "calagopus-client"
+			protocol: "rest"
+			purpose:  "Scoped owner operations on selected game servers. Calagopus has no native product MCP; the admin API stays with the setup action."
+			auth:     "calagopus-client-api-key"
+		}, {
+			id:       "pelican-client"
+			protocol: "rest"
+			purpose:  "Scoped owner operations on selected game servers. Pelican has no native product MCP; the Application API stays with the setup action."
+			auth:     "pelican-client-api-key"
+		}, {
 			id:       "pterodactyl-client"
 			protocol: "rest"
 			purpose:  "Scoped owner operations on selected game servers. Pterodactyl has no native product MCP; the Application API stays with the setup action."
@@ -137,7 +200,7 @@ Package: foundation.#UseCasePackage & {
 		}]
 		configBaseline: {
 			status: "omitted"
-			reason: "Game servers are configured through the Pterodactyl APIs by the setup action; StackKits does not author a separate game configuration file."
+			reason: "Game servers are configured through the selected Panel's APIs by the setup action; StackKits does not author a separate game configuration file."
 		}
 	}
 }

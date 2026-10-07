@@ -1,37 +1,37 @@
 {
   "facts_schema_version": "1.0.0",
-  "layer": "L3-application",
   "slug": "pelican",
   "displayName": "Pelican Panel",
-  "description": "Pelican game server panel, the actively developed successor fork of Pterodactyl; runs game servers through Wings. Upstream is still in beta.",
-  "rationale": "Game alternative to Pterodactyl.",
+  "description": "Pelican Panel and Wings upstream catalog (upstream beta), a Game platform alternative. The native-v2 game workload owns executable configuration, owner bootstrap and the governed Wings lifecycle-owner approval (ADR-0043, ADR-0048).",
+  "layer": "L3-application",
+  "rationale": "Game alternative to Calagopus (ADR-0048).",
   "requires": {
     "infrastructure": {
       "docker": true,
       "persistentStorage": true,
-      "minMemory": "512m"
+      "minMemory": "768m"
     }
   },
   "services": [
     {
+      "name": "panel",
       "type": "application",
       "required": false,
-      "name": "panel",
-      "image": "ghcr.io/pelican/panel",
-      "tag": "v1.0.0-beta38",
+      "imageSource": {
+        "moduleRef": "stackkits-pelican-runtime",
+        "componentRef": "panel"
+      },
       "networks": [
         "game-internal"
       ],
-      "routed": true,
-      "traefik": {
-        "rule": "Host(`game.{{.domain}}`)",
-        "port": 80
-      },
-      "accessPolicy": {
-        "outerAuth": "self",
-        "appAuth": "oidc-sso",
-        "ownerBootstrap": "Pelican signs in through the first-party generic-oidc-providers plugin: register Pelican as an OIDC client in Pocket ID with issuer https://id.{{.domain}}."
-      },
+      "volumes": [
+        {
+          "source": "pelican-data",
+          "target": "/pelican-data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
       "healthCheck": {
         "type": "http",
         "path": "/up",
@@ -41,23 +41,51 @@
         "memory": "256m",
         "memoryMax": "1g"
       },
-      "volumes": [
-        {
-          "source": "pelican-data",
-          "target": "/pelican-data",
-          "type": "volume",
-          "backup": true
-        },
-        {
-          "source": "pelican-logs",
-          "target": "/var/www/html/storage/logs",
-          "type": "volume",
-          "backup": false
-        }
-      ],
       "upstream": {
         "github": "pelican-dev/panel",
         "registryImage": "ghcr.io/pelican/panel"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`game.{{.domain}}`)",
+        "port": 80
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "self-auth"
+      }
+    },
+    {
+      "name": "wings",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-pelican-runtime",
+        "componentRef": "wings"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "wings-data",
+          "target": "/stackkit/game-data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/api/system",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "pelican-dev/wings",
+        "registryImage": "ghcr.io/pelican/wings"
       }
     }
   ]

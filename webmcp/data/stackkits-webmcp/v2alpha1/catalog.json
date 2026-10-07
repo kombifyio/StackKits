@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "cc1a2b7ca85d81600195c91bc32d4703ce47450a",
-  "authority_bundle_sha256": "1e7ebfd7383c9320631e1a1e260f9e79ea42ffd96bc3638ea60d3b8edcf7333f",
+  "source_sha": "d044adb67839f6ab704043d8234876815efd9750",
+  "authority_bundle_sha256": "ccd246b1133618f301d8e2adf042478e388318c54d96c4d765fe31709bda3386",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -524,6 +524,100 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-calagopus-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "panel-keys",
+                "wings",
+                "wings-bootstrap"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "49d38bae327ff2760987372ec14107fbe119313304ea3788ad9c082047cc1b1b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "panel-keys",
+                "wings",
+                "wings-bootstrap"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "1ee359664d43314ed0c10f237378553849bb787e7e25c92a4e2b6262f9ba9873"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-cloudreve-runtime",
           "role": "workload",
           "required": false,
@@ -680,7 +774,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
@@ -718,12 +812,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "422dfa60b1bce332049fd9d65b0812fe9e16a00c15e9a903847e400e9a465e02"
+              "profile_sha256": "d4c9cef4279eb68d6ab48e1b8be9e703295928ac8edc57949ef6cc06d7cef40f"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
@@ -761,7 +855,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "1f50f782db2f0e323f6fcde252f8df43449acc1e99356df047c5461d6df0696b"
+              "profile_sha256": "b714ed982809653e0bf37ce22775db15ff568a90f50e536ed5f93e866ca8fd8e"
             }
           ],
           "storage_profiles": [],
@@ -1314,7 +1408,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
@@ -1343,12 +1437,12 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "c145bd7df579474e5e78a4075a283f0b484128a3bbc18f639749bd3dd0e2abe4"
+              "profile_sha256": "198bdc1d9a6017e26f49053b4ba352ca8f3992fc7159e349f0f840d31f22bebe"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
@@ -1377,7 +1471,7 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "ff718cdef0a201d337552ef1948856046f42eb61967bbcf6ca35e9dad41cf34f"
+              "profile_sha256": "0ea3ce556dd2edda2cc6879d88d6b63d61262a0c6daea73a9ed3facd35922935"
             }
           ],
           "storage_profiles": [],
@@ -2448,7 +2542,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
@@ -2486,12 +2580,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "70f07ce7eee9090816d7d84ec73583620e52c33457b2006bdf5a60422b6ea4e8"
+              "profile_sha256": "91916fc16c242a93d1922efa573da0615e887efe83e2f58cb8cff6792e72f38d"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
@@ -2529,7 +2623,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "d0956bc34350b4ff918124066bbae12498a5fe22ff3950925ce1b6ae675b5909"
+              "profile_sha256": "d965d3296b5eea8e3346be3e604b8ce47ba2fcb7aac8f9e74d5b81f8199706b3"
             }
           ],
           "storage_profiles": [],
@@ -2548,7 +2642,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes.",
@@ -2587,12 +2681,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "ece22e0dd18d36d10ffc297354790f824907fb46941fe74eea04d9727774fc47"
+              "profile_sha256": "16e21c75e33f869fa6c08fab673d8bb65399683b565d8d5c9afa1227f5dd0758"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes.",
@@ -2631,7 +2725,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "2205620eb117da1d70cad71477c9a4f995df7a4233d138de6a2d3334ff371e31"
+              "profile_sha256": "0eede9ef5fb05d3cfc8ff827d06bf8b32731a0f5fd9bde801b290b257493bbe1"
             }
           ],
           "storage_profiles": [],
@@ -2802,6 +2896,92 @@
                 }
               },
               "profile_sha256": "15afee6e1fadb02bd0caa3070ec3254ecab01a703bafe3c58fef53e912e91ede"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-pelican-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "d66f95519394508bcf3d4efa17a85fb70b15c52b8c6bb8797b4142a210188c60"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "78264691508e2b60c6b748a63ac4c73ce6aba39c993dc15b701d0c49cd6992db"
             }
           ],
           "storage_profiles": [],
@@ -3274,7 +3454,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
@@ -3305,12 +3485,12 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "1fd872bad69ecb56e34099d4b6d14f8ee3a43dffc6a922df47119b4b6215970f"
+              "profile_sha256": "2a6ab95ec65e43a49c31db37d3bb91e245322540d37cf6f9dee02390de2c3d6b"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
@@ -3341,7 +3521,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "5a3aced9a57dad57cabe5ce0f7a8e73f4998a6d58118d01d0ce997c99e538560"
+              "profile_sha256": "f5e6f825dfddd0ee0b57cd3c95266764bfcfc2ba9de0b6aca5ff63a4109d4de8"
             }
           ],
           "storage_profiles": [],
@@ -4062,12 +4242,38 @@
         {
           "use_case_id": "game",
           "title": "Game Server",
-          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
+          "description": "Self-hosted game servers for friends and family through Calagopus (or Pelican or Pterodactyl), with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
           "required": false,
           "selected_by_default": false,
-          "default_alternative_id": "pterodactyl",
+          "default_alternative_id": "calagopus",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "calagopus",
+              "module_id": "stackkits-calagopus-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "pelican",
+              "module_id": "stackkits-pelican-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "pterodactyl",
               "module_id": "stackkits-pterodactyl-runtime",
@@ -4742,6 +4948,100 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-calagopus-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "panel-keys",
+                "wings",
+                "wings-bootstrap"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "49d38bae327ff2760987372ec14107fbe119313304ea3788ad9c082047cc1b1b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "panel-keys",
+                "wings",
+                "wings-bootstrap"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "1ee359664d43314ed0c10f237378553849bb787e7e25c92a4e2b6262f9ba9873"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-cloud-core-runtime",
           "role": "workload",
           "required": false,
@@ -5133,7 +5433,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
@@ -5171,12 +5471,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "422dfa60b1bce332049fd9d65b0812fe9e16a00c15e9a903847e400e9a465e02"
+              "profile_sha256": "d4c9cef4279eb68d6ab48e1b8be9e703295928ac8edc57949ef6cc06d7cef40f"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
@@ -5214,7 +5514,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "1f50f782db2f0e323f6fcde252f8df43449acc1e99356df047c5461d6df0696b"
+              "profile_sha256": "b714ed982809653e0bf37ce22775db15ff568a90f50e536ed5f93e866ca8fd8e"
             }
           ],
           "storage_profiles": [],
@@ -5767,7 +6067,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
@@ -5796,12 +6096,12 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "c145bd7df579474e5e78a4075a283f0b484128a3bbc18f639749bd3dd0e2abe4"
+              "profile_sha256": "198bdc1d9a6017e26f49053b4ba352ca8f3992fc7159e349f0f840d31f22bebe"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
@@ -5830,7 +6130,7 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "ff718cdef0a201d337552ef1948856046f42eb61967bbcf6ca35e9dad41cf34f"
+              "profile_sha256": "0ea3ce556dd2edda2cc6879d88d6b63d61262a0c6daea73a9ed3facd35922935"
             }
           ],
           "storage_profiles": [],
@@ -6889,7 +7189,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
@@ -6927,12 +7227,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "70f07ce7eee9090816d7d84ec73583620e52c33457b2006bdf5a60422b6ea4e8"
+              "profile_sha256": "91916fc16c242a93d1922efa573da0615e887efe83e2f58cb8cff6792e72f38d"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
@@ -6970,7 +7270,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "d0956bc34350b4ff918124066bbae12498a5fe22ff3950925ce1b6ae675b5909"
+              "profile_sha256": "d965d3296b5eea8e3346be3e604b8ce47ba2fcb7aac8f9e74d5b81f8199706b3"
             }
           ],
           "storage_profiles": [],
@@ -6989,7 +7289,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes.",
@@ -7028,12 +7328,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "ece22e0dd18d36d10ffc297354790f824907fb46941fe74eea04d9727774fc47"
+              "profile_sha256": "16e21c75e33f869fa6c08fab673d8bb65399683b565d8d5c9afa1227f5dd0758"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes.",
@@ -7072,7 +7372,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "2205620eb117da1d70cad71477c9a4f995df7a4233d138de6a2d3334ff371e31"
+              "profile_sha256": "0eede9ef5fb05d3cfc8ff827d06bf8b32731a0f5fd9bde801b290b257493bbe1"
             }
           ],
           "storage_profiles": [],
@@ -7243,6 +7543,92 @@
                 }
               },
               "profile_sha256": "15afee6e1fadb02bd0caa3070ec3254ecab01a703bafe3c58fef53e912e91ede"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-pelican-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "d66f95519394508bcf3d4efa17a85fb70b15c52b8c6bb8797b4142a210188c60"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "78264691508e2b60c6b748a63ac4c73ce6aba39c993dc15b701d0c49cd6992db"
             }
           ],
           "storage_profiles": [],
@@ -7727,7 +8113,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
@@ -7758,12 +8144,12 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "1fd872bad69ecb56e34099d4b6d14f8ee3a43dffc6a922df47119b4b6215970f"
+              "profile_sha256": "2a6ab95ec65e43a49c31db37d3bb91e245322540d37cf6f9dee02390de2c3d6b"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
@@ -7794,7 +8180,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "5a3aced9a57dad57cabe5ce0f7a8e73f4998a6d58118d01d0ce997c99e538560"
+              "profile_sha256": "f5e6f825dfddd0ee0b57cd3c95266764bfcfc2ba9de0b6aca5ff63a4109d4de8"
             }
           ],
           "storage_profiles": [],
@@ -7813,7 +8199,7 @@
             {
               "id": "low",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
@@ -7842,12 +8228,12 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "09ab54b2d686a95421b6084be609624f89a410f7a46a5cf509a9edcc8b425c3f"
+              "profile_sha256": "7c71346782c5bf490eb0d0153f42aa75f60e68bca2232f35d8e63989128445d8"
             },
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
@@ -7876,12 +8262,12 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "42040caf9414d5d77b6a1fcb0210427874b746be603fc62aea8b6cf682f1f292"
+              "profile_sha256": "90f0409424dcb14a6105edc94803d5eaaeeb17f8116ed977c9239a4f049dd94b"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent.",
@@ -7910,7 +8296,7 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "c432e4421d8aecabff4bae7e47191cfae0d797ecb6f6f92bb12b00c7cc6abdc4"
+              "profile_sha256": "66f18943ad018cd41e59828b4e7fe1cf394b9c39df5084834f9997c36513521d"
             }
           ],
           "storage_profiles": [],
@@ -8612,12 +8998,38 @@
         {
           "use_case_id": "game",
           "title": "Game Server",
-          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
+          "description": "Self-hosted game servers for friends and family through Calagopus (or Pelican or Pterodactyl), with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
           "required": false,
           "selected_by_default": false,
-          "default_alternative_id": "pterodactyl",
+          "default_alternative_id": "calagopus",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "calagopus",
+              "module_id": "stackkits-calagopus-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "pelican",
+              "module_id": "stackkits-pelican-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "pterodactyl",
               "module_id": "stackkits-pterodactyl-runtime",
@@ -9061,6 +9473,18 @@
       "status": "preview",
       "planner_link": "/planner?stackkit_id=modern-homelab",
       "modules": [
+        {
+          "module_id": "security-baseline",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "security-baseline"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
         {
           "module_id": "stackkits-anythingllm-runtime",
           "role": "workload",
@@ -9574,6 +9998,166 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-bridge-publication-runtime",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "service-publication"
+          ],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Resident Cloud edge listener in the stackkit-server process; measured resource values are pending a Modern lane run.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "stackkits-edge-publication"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                }
+              },
+              "profile_sha256": "54eb2016c368313de8e8ffcad3b26b7519adf383cda16aec17cbbc5f6ff964ae"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-calagopus-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "panel-keys",
+                "wings",
+                "wings-bootstrap"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "49d38bae327ff2760987372ec14107fbe119313304ea3788ad9c082047cc1b1b"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "panel-cache",
+                "panel-database",
+                "panel-keys",
+                "wings",
+                "wings-bootstrap"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "1ee359664d43314ed0c10f237378553849bb787e7e25c92a4e2b6262f9ba9873"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-cloud-host-security-runtime",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "host-local-internet-firewall",
+            "internet-host-hardening"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-cloud-public-edge-runtime",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "public-edge"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-cloudreve-runtime",
           "role": "workload",
           "required": false,
@@ -9730,7 +10314,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
@@ -9768,12 +10352,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "422dfa60b1bce332049fd9d65b0812fe9e16a00c15e9a903847e400e9a465e02"
+              "profile_sha256": "d4c9cef4279eb68d6ab48e1b8be9e703295928ac8edc57949ef6cc06d7cef40f"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install.",
@@ -9811,7 +10395,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "1f50f782db2f0e323f6fcde252f8df43449acc1e99356df047c5461d6df0696b"
+              "profile_sha256": "b714ed982809653e0bf37ce22775db15ff568a90f50e536ed5f93e866ca8fd8e"
             }
           ],
           "storage_profiles": [],
@@ -10188,6 +10772,47 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-federation-control-agent-runtime",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "outbound-control-agent"
+          ],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Resident federation control receiver in the stackkit-server process; measured resource values are pending a Modern lane run.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "stackkits-federation-control-agent"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                }
+              },
+              "profile_sha256": "960354e6b04edf56ff85d5ccde38bbb6a3337e9ae65374e0f2a3c7013cf0c28f"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-forgejo-runtime",
           "role": "workload",
           "required": false,
@@ -10364,7 +10989,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
@@ -10393,12 +11018,12 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "c145bd7df579474e5e78a4075a283f0b484128a3bbc18f639749bd3dd0e2abe4"
+              "profile_sha256": "198bdc1d9a6017e26f49053b4ba352ca8f3992fc7159e349f0f840d31f22bebe"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat.",
@@ -10427,7 +11052,7 @@
                   "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
                 }
               },
-              "profile_sha256": "ff718cdef0a201d337552ef1948856046f42eb61967bbcf6ca35e9dad41cf34f"
+              "profile_sha256": "0ea3ce556dd2edda2cc6879d88d6b63d61262a0c6daea73a9ed3facd35922935"
             }
           ],
           "storage_profiles": [],
@@ -10667,6 +11292,19 @@
           "use_case_ids": [],
           "capabilities": [
             "local-backup-target"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-home-device-authority-policy-manifest",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "device-enrollment-home",
+            "local-control-authority"
           ],
           "compute_profiles": [],
           "storage_profiles": [],
@@ -11236,6 +11874,44 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-modern-cloud-identity-verifier-policy-manifest",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "edge-identity-verifier"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-modern-federation-policy-manifest",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "bridge-policy",
+            "partition-failure-contract"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-modern-home-identity-trust-policy-manifest",
+          "role": "platform",
+          "required": false,
+          "use_case_ids": [],
+          "capabilities": [
+            "device-trust-core",
+            "human-identity-core"
+          ],
+          "compute_profiles": [],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-mosquitto-runtime",
           "role": "workload",
           "required": false,
@@ -11498,7 +12174,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
@@ -11536,12 +12212,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "70f07ce7eee9090816d7d84ec73583620e52c33457b2006bdf5a60422b6ea4e8"
+              "profile_sha256": "91916fc16c242a93d1922efa573da0615e887efe83e2f58cb8cff6792e72f38d"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects.",
@@ -11579,7 +12255,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "d0956bc34350b4ff918124066bbae12498a5fe22ff3950925ce1b6ae675b5909"
+              "profile_sha256": "d965d3296b5eea8e3346be3e604b8ce47ba2fcb7aac8f9e74d5b81f8199706b3"
             }
           ],
           "storage_profiles": [],
@@ -11598,7 +12274,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes.",
@@ -11637,12 +12313,12 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "ece22e0dd18d36d10ffc297354790f824907fb46941fe74eea04d9727774fc47"
+              "profile_sha256": "16e21c75e33f869fa6c08fab673d8bb65399683b565d8d5c9afa1227f5dd0758"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes.",
@@ -11681,7 +12357,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "2205620eb117da1d70cad71477c9a4f995df7a4233d138de6a2d3334ff371e31"
+              "profile_sha256": "0eede9ef5fb05d3cfc8ff827d06bf8b32731a0f5fd9bde801b290b257493bbe1"
             }
           ],
           "storage_profiles": [],
@@ -11852,6 +12528,92 @@
                 }
               },
               "profile_sha256": "15afee6e1fadb02bd0caa3070ec3254ecab01a703bafe3c58fef53e912e91ede"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-pelican-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "game"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "d66f95519394508bcf3d4efa17a85fb70b15c52b8c6bb8797b4142a210188c60"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "panel",
+                "panel-bootstrap",
+                "wings"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "78264691508e2b60c6b748a63ac4c73ce6aba39c993dc15b701d0c49cd6992db"
             }
           ],
           "storage_profiles": [],
@@ -12324,7 +13086,7 @@
             {
               "id": "standard",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
@@ -12355,12 +13117,12 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "1fd872bad69ecb56e34099d4b6d14f8ee3a43dffc6a922df47119b4b6215970f"
+              "profile_sha256": "2a6ab95ec65e43a49c31db37d3bb91e245322540d37cf6f9dee02390de2c3d6b"
             },
             {
               "id": "high",
               "capacity_declaration": "declared",
-              "maturity": "experimental",
+              "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
               "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
@@ -12391,7 +13153,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "5a3aced9a57dad57cabe5ce0f7a8e73f4998a6d58118d01d0ce997c99e538560"
+              "profile_sha256": "f5e6f825dfddd0ee0b57cd3c95266764bfcfc2ba9de0b6aca5ff63a4109d4de8"
             }
           ],
           "storage_profiles": [],
@@ -13112,12 +13874,38 @@
         {
           "use_case_id": "game",
           "title": "Game Server",
-          "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
+          "description": "Self-hosted game servers for friends and family through Calagopus (or Pelican or Pterodactyl), with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
           "required": false,
           "selected_by_default": false,
-          "default_alternative_id": "pterodactyl",
+          "default_alternative_id": "calagopus",
           "availability": "available",
           "alternatives": [
+            {
+              "alternative_id": "calagopus",
+              "module_id": "stackkits-calagopus-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "pelican",
+              "module_id": "stackkits-pelican-runtime",
+              "functions": [
+                "game-server-hosting",
+                "game-server-management"
+              ],
+              "load": {
+                "residency": "on-demand",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
             {
               "alternative_id": "pterodactyl",
               "module_id": "stackkits-pterodactyl-runtime",
@@ -14921,5 +15709,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "2c868b5b76318d4d32fc2ca26309fbe3ae4b83b04b4c01c51594f128ad447727"
+  "catalog_sha256": "03752e6e0b7159b7908ed91f219e02b0c30ab9b49e7aea742029d6d9edc30451"
 }

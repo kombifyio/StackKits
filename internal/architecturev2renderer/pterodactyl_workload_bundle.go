@@ -25,9 +25,7 @@ const (
 
 	// PterodactylGameDataTarget is where Wings and the bootstrap see the game
 	// data volume; the executor additionally mounts it at its own host path.
-	PterodactylGameDataTarget = "/stackkit/game-data"
-	// PterodactylGameDataHostPathEnv names the host path the executor exports.
-	PterodactylGameDataHostPathEnv = "STACKKIT_GAME_DATA_HOST_PATH"
+	PterodactylGameDataTarget = GameDataTarget
 	// PterodactylBedrockEggSHA256 pins the imported official Bedrock Egg
 	// (pterodactyl/game-eggs 342628869f5e145b4e99691a6bedacfc06d3ec02).
 	PterodactylBedrockEggSHA256 = "7723befb387894afeccc042f25560550a22785bc867e12a2d0254f0259f75e6b"

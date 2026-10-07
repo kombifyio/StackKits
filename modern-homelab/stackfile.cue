@@ -344,6 +344,15 @@ Definition: foundation.#ProductKitDefinition & {
 					nodeRefs: ["home-main"]
 				}
 			}
+			// The required service-publication and outbound-control-agent
+			// capabilities always select these two modules, and each declares a
+			// compute profile. Native v2alpha2 resolves no profile implicitly, so
+			// the initial intent selects the declared profile explicitly. Both
+			// profiles are experimental until a Modern lane run measures them.
+			modules: {
+				"stackkits-bridge-publication-runtime": computeProfile:       "standard"
+				"stackkits-federation-control-agent-runtime": computeProfile: "standard"
+			}
 			availability: {}
 			deviceEnrollment: {
 				mode:                      "local-only"

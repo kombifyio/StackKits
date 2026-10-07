@@ -37,6 +37,10 @@
   },
   "allOf": [
     {
+      "if":{"required":["command","status"],"properties":{"command":{"const":"stackkit setup connector"},"status":{"const":"success"}}},
+      "then":{"properties":{"data":{"$ref":"stackkit-home-assistant-connector-result-v1.schema.json"}}}
+    },
+    {
       "if":{"required":["command","status"],"properties":{"command":{"enum":["stackkit application inspect","stackkit application adopt","stackkit application verify","stackkit application release","stackkit application control"]},"status":{"const":"success"}}},
       "then":{"properties":{"data":{"$ref":"stackkit-application-adoption-v1.schema.json"}}}
     },
@@ -173,7 +177,8 @@
             "stackkit application adopt",
             "stackkit application verify",
             "stackkit application release",
-            "stackkit application control"
+            "stackkit application control",
+            "stackkit setup connector"
           ]
         }
       }

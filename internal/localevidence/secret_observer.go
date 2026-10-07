@@ -88,6 +88,9 @@ func ResolveLocalSecretMaterial(workspaceRoot, secretRef string) ([]byte, error)
 		// Issued secrets are handed to the application exactly as issued.
 		return base64.RawStdEncoding.Strict().DecodeString(record.Material)
 	}
+	if record.Kind == localEncryptedIssuedSecretCustodyKind {
+		return decryptLocalIssuedSecret(workspaceRoot, record)
+	}
 	return append([]byte(nil), record.Material...), nil
 }
 
@@ -103,6 +106,10 @@ const (
 // replacing a previous one so that a rotation takes effect on the next apply.
 // Neither evidence nor diagnostics contain its value or ref.
 func StoreLocalIssuedSecret(workspaceRoot, secretRef string, material []byte) error {
+	return storeLocalIssuedSecret(workspaceRoot, secretRef, material, localIssuedSecretCustodyKind)
+}
+
+func storeLocalIssuedSecret(workspaceRoot, secretRef string, material []byte, kind string) error {
 	refDigest, err := localSecretRefDigest(secretRef)
 	if err != nil {
 		return err
@@ -114,9 +121,15 @@ func StoreLocalIssuedSecret(workspaceRoot, secretRef string, material []byte) er
 	if err != nil {
 		return fmt.Errorf("localevidence: load owner for issued secret custody: %w", err)
 	}
+	if kind == localEncryptedIssuedSecretCustodyKind {
+		material, err = encryptLocalIssuedSecret(workspaceRoot, refDigest, material)
+		if err != nil {
+			return err
+		}
+	}
 	materialDigest := sha256.Sum256(material)
 	record := localSecretCustody{
-		APIVersion: localSecretCustodyAPIVersion, Kind: localIssuedSecretCustodyKind,
+		APIVersion: localSecretCustodyAPIVersion, Kind: kind,
 		OwnerRef: owner.OwnerRef, KeyID: owner.KeyID, RefDigest: refDigest,
 		Material:       base64.RawStdEncoding.EncodeToString(material),
 		MaterialDigest: hex.EncodeToString(materialDigest[:]),
@@ -146,7 +159,7 @@ func RemoveLocalIssuedSecret(workspaceRoot, secretRef string) (returnErr error) 
 	if err != nil {
 		return err
 	}
-	if record.Kind != localIssuedSecretCustodyKind {
+	if record.Kind != localIssuedSecretCustodyKind && record.Kind != localEncryptedIssuedSecretCustodyKind {
 		return errors.New("localevidence: only an issued secret can be removed from custody")
 	}
 	root, err := confinedfs.Open(workspaceRoot)
@@ -238,7 +251,7 @@ func writeLocalSecretCustody(workspaceRoot, refDigest string, record localSecret
 		return err
 	}
 	result, err := view.WriteAtomic0600(refDigest+".json", raw)
-	if err != nil || !result.Installed || !result.FileSynced {
+	if err != nil || !result.Installed || !result.FileSynced || (record.Kind == localEncryptedIssuedSecretCustodyKind && !result.DirectorySynced) {
 		if err == nil {
 			err = errors.New("atomic write did not install and sync local secret custody")
 		}
@@ -288,11 +301,14 @@ func loadLocalSecretCustody(workspaceRoot, refDigest string) (localSecretCustody
 	if record.Kind == localIssuedSecretCustodyKind {
 		validLength = len(material) > 0 && len(material) <= maxIssuedSecretBytes
 	}
+	if record.Kind == localEncryptedIssuedSecretCustodyKind {
+		validLength = len(material) > 0 && len(material) <= maxIssuedSecretBytes+1024
+	}
 	if err != nil || !validLength {
 		return localSecretCustody{}, errors.New("localevidence: local secret custody material is malformed")
 	}
 	digest := sha256.Sum256(material)
-	if record.APIVersion != localSecretCustodyAPIVersion || (record.Kind != localSecretCustodyKind && record.Kind != localIssuedSecretCustodyKind) ||
+	if record.APIVersion != localSecretCustodyAPIVersion || (record.Kind != localSecretCustodyKind && record.Kind != localIssuedSecretCustodyKind && record.Kind != localEncryptedIssuedSecretCustodyKind) ||
 		record.RefDigest != refDigest || record.MaterialDigest != hex.EncodeToString(digest[:]) {
 		return localSecretCustody{}, errors.New("localevidence: local secret custody integrity check failed")
 	}

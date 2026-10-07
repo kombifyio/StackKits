@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
@@ -36,6 +37,16 @@ func criticalRuntimeTargets(targets []runtimeexecutor.RuntimeTarget) bool {
 		}
 	}
 	return len(targets) == 0
+}
+
+// stopsRollout reports whether a failed child abandons the remaining steps.
+// Only a critical child does, and only with a real failure: a child that
+// reports nothing but degraded units (applyoutcome.DegradedUnitError, for
+// example public TLS waiting for a delivered origin certificate) applied the
+// foundation the other steps need, so they are still attempted and the unit
+// is reported degraded instead of failing the rollout.
+func stopsRollout(child preparedExecution, err error) bool {
+	return child.critical && !applyoutcome.DegradedOnly(err)
 }
 
 func normalizeCompensationMode(mode runtimeapply.CompensationMode) (runtimeapply.CompensationMode, error) {
@@ -191,7 +202,7 @@ func executePrepared(
 			states = indexStepSnapshots(failureSnapshot)
 			settled = failureSnapshot
 			failures = append(failures, fmt.Errorf("%s: %w", child.label, invokeErr))
-			if child.critical {
+			if stopsRollout(child, invokeErr) {
 				return runtimeexecutor.ExecutionOutcome{}, newReconcileRequiredError(operation, failureSnapshot, errors.Join(failures...), true)
 			}
 			continue
@@ -261,7 +272,7 @@ func executePreparedDirect(ctx context.Context, prepared []preparedExecution) (r
 		result, err := invokePrepared(ctx, child)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("execute runtime owner for %q: %w", child.label, err))
-			if child.critical {
+			if stopsRollout(child, err) {
 				return runtimeexecutor.ExecutionOutcome{}, errors.Join(failures...)
 			}
 			continue

@@ -42,6 +42,8 @@ const (
 	SelectedPaaSApplicationDocling           SelectedPaaSApplication = "docling"
 	SelectedPaaSApplicationPaperless         SelectedPaaSApplication = "paperless-ngx"
 	SelectedPaaSApplicationPterodactyl       SelectedPaaSApplication = "pterodactyl"
+	SelectedPaaSApplicationCalagopus         SelectedPaaSApplication = "calagopus"
+	SelectedPaaSApplicationPelican           SelectedPaaSApplication = "pelican"
 	SelectedPaaSApplicationRoundcube         SelectedPaaSApplication = "roundcube"
 	SelectedPaaSApplicationStalwart          SelectedPaaSApplication = "stalwart"
 	SelectedPaaSApplicationJellyfin          SelectedPaaSApplication = "jellyfin"
@@ -75,8 +77,8 @@ type selectedPaaSApplicationSpec struct {
 	expectedStatuses []int
 	rendererContract func() architecturev2renderer.RendererContract
 	parse            func([]byte) (selectedPaaSApplicationIdentity, error)
-	// dockerLifecycleOwner marks the one workload whose render unit is bound
-	// to the approved docker-default daemon (ADR-0043, Pterodactyl Wings).
+	// dockerLifecycleOwner marks a Game platform workload whose render unit
+	// is bound to the approved docker-default daemon (ADR-0043, ADR-0048).
 	dockerLifecycleOwner bool
 	// entryComponent names the routed component when it differs from unitRef.
 	entryComponent string
@@ -341,6 +343,8 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 				}, err
 			},
 		}, true
+	case SelectedPaaSApplicationCalagopus, SelectedPaaSApplicationPelican:
+		return gamePlatformApplicationSpec(application), true
 	case SelectedPaaSApplicationPaperless:
 		return selectedPaaSApplicationSpec{
 			name: "Paperless-ngx", providerRef: "stackkits-paperless-ngx", moduleRef: "stackkits-paperless-runtime",
@@ -663,4 +667,30 @@ func (spec selectedPaaSApplicationSpec) validateHealth(
 		return fmt.Errorf("%s request requires exactly one module health target", spec.name)
 	}
 	return nil
+}
+
+// gamePlatformApplicationSpec is the executor contract of an ADR-0048 Game
+// platform: its Wings owns game containers through the docker-default daemon.
+func gamePlatformApplicationSpec(application SelectedPaaSApplication) selectedPaaSApplicationSpec {
+	slug := string(application)
+	spec := selectedPaaSApplicationSpec{
+		providerRef: "stackkits-" + slug, moduleRef: "stackkits-" + slug + "-runtime",
+		unitRef: slug, workloadRef: "game", artifactRef: slug + "-workload-bundle",
+		outputRef: "workloads/" + slug + "/bundle.json", healthRef: slug + "-panel-http", expectedStatuses: []int{200},
+		dockerLifecycleOwner: true, entryComponent: "panel",
+	}
+	parse := architecturev2renderer.ParseCalagopusWorkloadBundle
+	spec.name, spec.rendererContract = "Calagopus", architecturev2renderer.CalagopusWorkloadBundleRendererContract
+	if application == SelectedPaaSApplicationPelican {
+		parse = architecturev2renderer.ParsePelicanWorkloadBundle
+		spec.name, spec.rendererContract = "Pelican", architecturev2renderer.PelicanWorkloadBundleRendererContract
+	}
+	spec.parse = func(content []byte) (selectedPaaSApplicationIdentity, error) {
+		descriptor, err := parse(content)
+		return selectedPaaSApplicationIdentity{
+			workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
+			siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,
+		}, err
+	}
+	return spec
 }

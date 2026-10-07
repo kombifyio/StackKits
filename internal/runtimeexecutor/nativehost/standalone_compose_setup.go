@@ -87,6 +87,17 @@ func WithStandaloneComposeHTTP(ctx context.Context, workspace string, deployment
 	return o.withHTTP(ctx, deployment, run)
 }
 
+// WithStandaloneComposeReadOnlyHTTP admits the same local endpoint using only
+// retained identity custody. Reconciliation must never register clients or
+// repair configuration as a side effect of observing an existing credential.
+func WithStandaloneComposeReadOnlyHTTP(ctx context.Context, workspace string, deployment SelectedPaaSWorkloadDeployment, run func(*http.Client, string) error) error {
+	operations, err := NewOSStandaloneComposeWorkloadOperations(workspace)
+	if err != nil {
+		return err
+	}
+	return operations.(*osStandaloneComposeWorkloadOperations).withHTTPIdentityMutation(ctx, deployment, run, false)
+}
+
 // ObserveStandaloneComposeContainerCustody reads the exact Compose container
 // identity for every component in an already admitted deployment. It checks
 // the owner-controlled Compose files before and after the daemon readback, and
@@ -137,10 +148,14 @@ func (o *osStandaloneComposeWorkloadOperations) observeContainerCustody(
 }
 
 func (o *osStandaloneComposeWorkloadOperations) withHTTP(ctx context.Context, deployment SelectedPaaSWorkloadDeployment, run func(*http.Client, string) error) error {
+	return o.withHTTPIdentityMutation(ctx, deployment, run, true)
+}
+
+func (o *osStandaloneComposeWorkloadOperations) withHTTPIdentityMutation(ctx context.Context, deployment SelectedPaaSWorkloadDeployment, run func(*http.Client, string) error, ensureIdentity bool) error {
 	if run == nil {
 		return errors.New("application setup requires a bounded API action")
 	}
-	project, err := o.prepare(ctx, deployment)
+	project, err := o.prepareWithIdentityMutation(ctx, deployment, ensureIdentity)
 	if err != nil {
 		return err
 	}

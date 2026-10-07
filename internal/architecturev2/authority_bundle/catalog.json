@@ -3549,7 +3549,7 @@
         }
       },
       "metadata": {
-        "description": "Owner-controlled Pterodactyl game lifecycle; game servers are created by the owner-approved setup action (ADR-0043).",
+        "description": "Owner-controlled game platform lifecycle (Calagopus, Pelican or Pterodactyl); game servers are created by the owner-approved setup action (ADR-0043, ADR-0048).",
         "id": "game",
         "version": "1.0.0"
       },
@@ -8061,6 +8061,26 @@
       },
       {
         "governanceMatches": [
+          "stackkits-calagopus-runtime"
+        ],
+        "matches": [
+          "stackkits-calagopus"
+        ],
+        "module": "stackkits-calagopus-runtime",
+        "provider": "stackkits-calagopus"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-pelican-runtime"
+        ],
+        "matches": [
+          "stackkits-pelican"
+        ],
+        "module": "stackkits-pelican-runtime",
+        "provider": "stackkits-pelican"
+      },
+      {
+        "governanceMatches": [
           "stackkits-emby-runtime"
         ],
         "matches": [
@@ -9063,6 +9083,18 @@
             "documents"
           ],
           "providerID": "stackkits-paperless-ngx"
+        },
+        {
+          "contracts": [
+            "game"
+          ],
+          "providerID": "stackkits-calagopus"
+        },
+        {
+          "contracts": [
+            "game"
+          ],
+          "providerID": "stackkits-pelican"
         },
         {
           "contracts": [
@@ -10113,6 +10145,20 @@
         ],
         "module": "stackkits-paperless-runtime",
         "provider": "stackkits-paperless-ngx"
+      },
+      {
+        "matches": [
+          "stackkits-calagopus-runtime"
+        ],
+        "module": "stackkits-calagopus-runtime",
+        "provider": "stackkits-calagopus"
+      },
+      {
+        "matches": [
+          "stackkits-pelican-runtime"
+        ],
+        "module": "stackkits-pelican-runtime",
+        "provider": "stackkits-pelican"
       },
       {
         "matches": [
@@ -11367,6 +11413,62 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-calagopus"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-calagopus"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-calagopus"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-calagopus"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-pelican"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-pelican"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-pelican"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-pelican"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-pterodactyl"
       },
       {
@@ -12526,6 +12628,18 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-paperless-ngx"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-calagopus"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-pelican"
         },
         {
           "capabilityBindings": [],
@@ -14828,6 +14942,236 @@
             }
           ],
           "workloadID": "documents"
+        },
+        {
+          "alternativeID": "calagopus",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-calagopus-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "calagopus"
+                  ],
+                  "ref": "database-password"
+                },
+                {
+                  "matches": [
+                    "calagopus"
+                  ],
+                  "ref": "encryption-key"
+                },
+                {
+                  "matches": [
+                    "calagopus"
+                  ],
+                  "ref": "owner-password"
+                },
+                {
+                  "matches": [
+                    "calagopus"
+                  ],
+                  "ref": "application-api-key"
+                },
+                {
+                  "matches": [
+                    "calagopus"
+                  ],
+                  "ref": "client-api-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "game",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "calagopus",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-calagopus",
+              "workloadOwnership": [
+                "game"
+              ]
+            }
+          ],
+          "workloadID": "game"
+        },
+        {
+          "alternativeID": "pelican",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-pelican-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "pelican"
+                  ],
+                  "ref": "app-key"
+                },
+                {
+                  "matches": [
+                    "pelican"
+                  ],
+                  "ref": "owner-password"
+                },
+                {
+                  "matches": [
+                    "pelican"
+                  ],
+                  "ref": "application-api-key"
+                },
+                {
+                  "matches": [
+                    "pelican"
+                  ],
+                  "ref": "client-api-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "game",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "pelican",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-pelican",
+              "workloadOwnership": [
+                "game"
+              ]
+            }
+          ],
+          "workloadID": "game"
         },
         {
           "alternativeID": "pterodactyl",
@@ -30403,7 +30747,7 @@
             "minRamGB": 8,
             "minStorageGB": 40
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -30439,7 +30783,7 @@
             "minRamGB": 8,
             "minStorageGB": 40
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -30811,7 +31155,7 @@
             "minRamGB": 4,
             "minStorageGB": 20
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -30838,7 +31182,7 @@
             "minRamGB": 4,
             "minStorageGB": 20
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -31227,7 +31571,7 @@
             "minRamGB": 8,
             "minStorageGB": 40
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -31263,7 +31607,7 @@
             "minRamGB": 8,
             "minStorageGB": 40
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -31625,7 +31969,7 @@
             "minRamGB": 8,
             "minStorageGB": 20
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -31662,7 +32006,7 @@
             "minRamGB": 8,
             "minStorageGB": 20
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -32103,7 +32447,7 @@
             "minRamGB": 4,
             "minStorageGB": 20
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -32132,7 +32476,7 @@
             "minRamGB": 4,
             "minStorageGB": 20
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -35273,7 +35617,7 @@
             "minRamGB": 4,
             "minStorageGB": 20
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -35300,7 +35644,7 @@
             "minRamGB": 2,
             "minStorageGB": 10
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -35327,7 +35671,7 @@
             "minRamGB": 4,
             "minStorageGB": 20
           },
-          "maturity": "experimental",
+          "maturity": "beta",
           "provenance": {
             "hostFloor": {
               "ref": "Kombify host floor support policy",
@@ -36346,6 +36690,1398 @@
         "image": {
           "digest": "sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2",
           "ref": "ghcr.io/pterodactyl/panel:v1.15.1"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "panel",
+            "panel-database",
+            "panel-cache",
+            "panel-bootstrap",
+            "panel-keys",
+            "wings-bootstrap",
+            "wings"
+          ],
+          "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "panel",
+            "panel-database",
+            "panel-cache",
+            "panel-bootstrap",
+            "panel-keys",
+            "wings-bootstrap",
+            "wings"
+          ],
+          "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "calagopus-generated-runtime-contract",
+        "calagopus-wings-lifecycle-owner-governance"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "calagopus-panel-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "continuous",
+          "port": 8000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon, which owns game-server containers through a governed Docker approval (ADR-0043, ADR-0048).",
+        "id": "stackkits-calagopus-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-calagopus",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "calagopus-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/calagopus/bundle.json",
+              "required": true,
+              "unitRef": "calagopus"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "calagopus-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/calagopus/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "calagopus-workload-bundle",
+              "outputRef": "workloads/calagopus/bundle.json",
+              "unitRef": "calagopus"
+            },
+            {
+              "artifactRef": "calagopus-terramate-stack",
+              "outputRef": "platform/applications/calagopus/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "calagopus-workload-bundle",
+            "calagopus-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "calagopus-generated-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "database-password",
+            "encryption-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:2415872ef92a143a45d629218ddac23252b4798b1f1574d1dee9c1900f86be15",
+          "id": "calagopus",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/calagopus/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-daemon",
+            "daemonRef": "docker-default",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [
+            {
+              "coLocation": "same-node",
+              "daemonRef": "docker-default",
+              "endpoint": {
+                "pathSource": "daemon-binding",
+                "transport": "unix-socket",
+                "visibility": "node-local"
+              },
+              "id": "docker-game-node-lifecycle",
+              "kind": "docker-socket-direct-v1",
+              "policyProfile": "docker-game-node-lifecycle",
+              "protocol": "docker-engine",
+              "scopes": [
+                "docker-api:full"
+              ],
+              "version": "v1"
+            }
+          ],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "database-password",
+            "encryption-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "game",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "calagopus-panel-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "game",
+              "targetPort": 8000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/calagopus/bundle/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/calagopus/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-daemon",
+            "daemonRef": "docker-default",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "calagopus-workload-bundle"
+          ],
+          "contractHash": "sha256:e1b77536b3a5e5f2b16bb211d8ff144f447c474642632445c72f514465d7a3ef",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "encryption-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "calagopus"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "calagopus-workload-bundle"
+          ],
+          "contractHash": "sha256:e1a7c8de60103ddd1815f8ff4ed6ddbf97e2a14b76d207b36f7f4b87a28c0ae2",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "encryption-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "calagopus"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "calagopus-workload-bundle",
+            "calagopus-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "database-password",
+            "encryption-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "calagopus",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "panel-cache",
+              "panel-database"
+            ],
+            "entrypoint": [
+              "/bin/sh",
+              "/stackkit/panel-entrypoint.sh"
+            ],
+            "environment": {
+              "APP_ENABLE_WINGS_PROXY": "true",
+              "APP_LOG_DIRECTORY": "/var/log/calagopus",
+              "APP_PRIMARY": "true",
+              "APP_USE_DECRYPTION_CACHE": "false",
+              "APP_USE_INTERNAL_CACHE": "true",
+              "DATABASE_MIGRATE": "true",
+              "PORT": "8000",
+              "REDIS_URL": "redis://panel-cache",
+              "TZ": "UTC"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/",
+              "port": 8000
+            },
+            "id": "panel",
+            "image": {
+              "digest": "sha256:95ee4a9ea6b3c1567179610ca8f5637f7e8d7f6bc4f97a4207afba6b9cd21d1a",
+              "ref": "ghcr.io/calagopus/panel:1.2.4"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_DB_PASSWORD_FILE",
+                "slot": "database-password",
+                "target": "/run/secrets/database-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_ENCRYPTION_KEY_FILE",
+                "slot": "encryption-key",
+                "target": "/run/secrets/encryption-key",
+                "uid": 0
+              }
+            ],
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/var/lib/calagopus"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "logs",
+                "target": "/var/log/calagopus"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "stackkit",
+                "target": "/stackkit"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "environment": {
+              "POSTGRES_DB": "panel",
+              "POSTGRES_USER": "panel"
+            },
+            "health": {
+              "command": [
+                "pg_isready",
+                "-U",
+                "panel",
+                "-d",
+                "panel"
+              ],
+              "kind": "command"
+            },
+            "id": "panel-database",
+            "image": {
+              "digest": "sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873",
+              "ref": "docker.io/library/postgres:18-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "database",
+            "secretEnvironment": {
+              "POSTGRES_PASSWORD": "database-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "database",
+                "target": "/var/lib/postgresql"
+              }
+            ]
+          },
+          {
+            "command": [
+              "valkey-server"
+            ],
+            "dependsOn": [],
+            "health": {
+              "command": [
+                "valkey-cli",
+                "ping"
+              ],
+              "kind": "command"
+            },
+            "id": "panel-cache",
+            "image": {
+              "digest": "sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b",
+              "ref": "docker.io/valkey/valkey:9-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m",
+              "memoryReservation": "64m"
+            },
+            "role": "cache",
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "cache",
+                "target": "/data"
+              }
+            ]
+          },
+          {
+            "command": [
+              "/stackkit/bootstrap-owner.sh"
+            ],
+            "dependsOn": [
+              "panel"
+            ],
+            "entrypoint": [
+              "/bin/sh"
+            ],
+            "environment": {
+              "APP_ENABLE_WINGS_PROXY": "true",
+              "APP_LOG_DIRECTORY": "/var/log/calagopus",
+              "APP_PRIMARY": "true",
+              "APP_USE_DECRYPTION_CACHE": "false",
+              "APP_USE_INTERNAL_CACHE": "true",
+              "DATABASE_MIGRATE": "true",
+              "PORT": "8000",
+              "REDIS_URL": "redis://panel-cache",
+              "TZ": "UTC"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "panel-bootstrap",
+            "image": {
+              "digest": "sha256:95ee4a9ea6b3c1567179610ca8f5637f7e8d7f6bc4f97a4207afba6b9cd21d1a",
+              "ref": "ghcr.io/calagopus/panel:1.2.4"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "ownerEnvironment": {
+              "STACKKIT_OWNER_EMAIL": "email"
+            },
+            "role": "database-init",
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_DB_PASSWORD_FILE",
+                "slot": "database-password",
+                "target": "/run/secrets/database-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_ENCRYPTION_KEY_FILE",
+                "slot": "encryption-key",
+                "target": "/run/secrets/encryption-key",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_OWNER_PASSWORD_FILE",
+                "slot": "owner-password",
+                "target": "/run/secrets/owner-password",
+                "uid": 0
+              }
+            ],
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "stackkit",
+                "target": "/stackkit"
+              }
+            ]
+          },
+          {
+            "command": [
+              "/stackkit/keys.sh"
+            ],
+            "dependsOn": [
+              "panel-bootstrap"
+            ],
+            "entrypoint": [
+              "/bin/sh"
+            ],
+            "environment": {
+              "PGDATABASE": "panel",
+              "PGHOST": "panel-database",
+              "PGUSER": "panel"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "panel-keys",
+            "image": {
+              "digest": "sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873",
+              "ref": "docker.io/library/postgres:18-alpine"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "ownerEnvironment": {
+              "STACKKIT_OWNER_EMAIL": "email"
+            },
+            "role": "database-init",
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_DB_PASSWORD_FILE",
+                "slot": "database-password",
+                "target": "/run/secrets/database-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_APPLICATION_API_KEY_FILE",
+                "slot": "application-api-key",
+                "target": "/run/secrets/application-api-key",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_CLIENT_API_KEY_FILE",
+                "slot": "client-api-key",
+                "target": "/run/secrets/client-api-key",
+                "uid": 0
+              }
+            ],
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "stackkit",
+                "target": "/stackkit"
+              }
+            ]
+          },
+          {
+            "command": [
+              "/stackkit/node.sh"
+            ],
+            "dependsOn": [
+              "panel-keys"
+            ],
+            "entrypoint": [
+              "/bin/sh"
+            ],
+            "health": {
+              "kind": "completion"
+            },
+            "id": "wings-bootstrap",
+            "image": {
+              "digest": "sha256:61417524f2701e0fa614c0816f219268c7ae1043d4d45b07bbbbacbe781c2e5a",
+              "ref": "ghcr.io/calagopus/wings:1.2.4"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "role": "database-init",
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_APPLICATION_API_KEY_FILE",
+                "slot": "application-api-key",
+                "target": "/run/secrets/application-api-key",
+                "uid": 0
+              }
+            ],
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "stackkit",
+                "target": "/stackkit"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "sharedFrom": {
+                  "componentRef": "wings",
+                  "volumeRef": "data"
+                },
+                "target": "/stackkit/game-data"
+              }
+            ]
+          },
+          {
+            "command": [
+              "--config",
+              "/stackkit/game-data/config.yml"
+            ],
+            "dependsOn": [
+              "wings-bootstrap"
+            ],
+            "dockerLifecycleOwner": {
+              "daemonRef": "docker-default",
+              "policyProfile": "docker-game-node-lifecycle"
+            },
+            "entrypoint": [
+              "/bin/sh",
+              "-c",
+              "export CALAGOPUS_SYSTEM_ROOT_DIRECTORY=\"$STACKKIT_GAME_DATA_HOST_PATH\" CALAGOPUS_SYSTEM_PASSWD_DIRECTORY=\"$STACKKIT_GAME_DATA_HOST_PATH/passwd\"; exec /usr/bin/calagopus-wings \"$@\"",
+              "calagopus-wings"
+            ],
+            "environment": {
+              "CALAGOPUS_DOCKER_FIREWALL_BACKEND": "disabled",
+              "CALAGOPUS_DOCKER_NETWORK_INTERFACE": "10.213.0.1",
+              "CALAGOPUS_DOCKER_NETWORK_INTERFACES_V4_GATEWAY": "10.213.0.1",
+              "CALAGOPUS_DOCKER_NETWORK_INTERFACES_V4_SUBNET": "10.213.0.0/24",
+              "CALAGOPUS_DOCKER_NETWORK_MODE": "sk_game_nw",
+              "CALAGOPUS_DOCKER_NETWORK_NAME": "sk_game_nw",
+              "CALAGOPUS_IGNORE_PANEL_CONFIG_UPDATES": "true",
+              "CALAGOPUS_IGNORE_PANEL_WINGS_UPGRADES": "true",
+              "CALAGOPUS_SYSTEM_PASSWD_ENABLED": "true",
+              "TZ": "UTC",
+              "WINGS_GID": "988",
+              "WINGS_UID": "988",
+              "WINGS_USERNAME": "calagopus"
+            },
+            "health": {
+              "kind": "image"
+            },
+            "id": "wings",
+            "image": {
+              "digest": "sha256:61417524f2701e0fa614c0816f219268c7ae1043d4d45b07bbbbacbe781c2e5a",
+              "ref": "ghcr.io/calagopus/wings:1.2.4"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "selfPath": true,
+                "target": "/stackkit/game-data"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "logs",
+                "target": "/var/log/calagopus-wings"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "panel",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:95ee4a9ea6b3c1567179610ca8f5637f7e8d7f6bc4f97a4207afba6b9cd21d1a",
+          "ref": "ghcr.io/calagopus/panel:1.2.4"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "panel",
+            "panel-bootstrap",
+            "wings"
+          ],
+          "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "panel",
+            "panel-bootstrap",
+            "wings"
+          ],
+          "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "pelican-generated-runtime-contract",
+        "pelican-wings-lifecycle-owner-governance"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "pelican-panel-http",
+          "kind": "http",
+          "path": "/up",
+          "phase": "continuous",
+          "port": 80,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon, which owns game-server containers through a governed Docker approval (ADR-0043, ADR-0048).",
+        "id": "stackkits-pelican-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-pelican",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "pelican-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/pelican/bundle.json",
+              "required": true,
+              "unitRef": "pelican"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "pelican-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/pelican/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "pelican-workload-bundle",
+              "outputRef": "workloads/pelican/bundle.json",
+              "unitRef": "pelican"
+            },
+            {
+              "artifactRef": "pelican-terramate-stack",
+              "outputRef": "platform/applications/pelican/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "pelican-workload-bundle",
+            "pelican-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "pelican-generated-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "app-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:9dddd91cb3cae2a0bbc7db698d98102c5baad8f10d6c348929bffb20dfc35e82",
+          "id": "pelican",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/pelican/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-daemon",
+            "daemonRef": "docker-default",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [
+            {
+              "coLocation": "same-node",
+              "daemonRef": "docker-default",
+              "endpoint": {
+                "pathSource": "daemon-binding",
+                "transport": "unix-socket",
+                "visibility": "node-local"
+              },
+              "id": "docker-game-node-lifecycle",
+              "kind": "docker-socket-direct-v1",
+              "policyProfile": "docker-game-node-lifecycle",
+              "protocol": "docker-engine",
+              "scopes": [
+                "docker-api:full"
+              ],
+              "version": "v1"
+            }
+          ],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "app-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "game",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "pelican-panel-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "game",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/pelican/bundle/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/pelican/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-daemon",
+            "daemonRef": "docker-default",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "pelican-workload-bundle"
+          ],
+          "contractHash": "sha256:3b9ccaf901c0a8d69c1c94dce64ceaaae9913f5ada837c9b02bae947a7cf2bba",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "app-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "pelican"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "pelican-workload-bundle"
+          ],
+          "contractHash": "sha256:318fedc313af90a4416024bfba13cfeba80a43a982e138a1806282d56c00f1ae",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "app-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "pelican"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "pelican-workload-bundle",
+            "pelican-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "app-key",
+            "owner-password",
+            "application-api-key",
+            "client-api-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "pelican",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "supervisord",
+              "-n",
+              "-c",
+              "/etc/supervisord.conf"
+            ],
+            "dependsOn": [],
+            "entrypoint": [
+              "/bin/ash",
+              "/stackkit/panel-entrypoint.sh"
+            ],
+            "environment": {
+              "APP_DEBUG": "false",
+              "APP_ENV": "production",
+              "APP_INSTALLED": "true",
+              "APP_TIMEZONE": "UTC",
+              "BEHIND_PROXY": "true",
+              "CACHE_STORE": "file",
+              "DB_CONNECTION": "sqlite",
+              "MAIL_MAILER": "log",
+              "PHP_INI_SCAN_DIR": ":/tmp/stackkit/php",
+              "QUEUE_CONNECTION": "database",
+              "SESSION_DRIVER": "file",
+              "TRUSTED_PROXIES": "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/up",
+              "port": 80
+            },
+            "id": "panel",
+            "image": {
+              "digest": "sha256:46f356f3fda423b1d43f0dc3c71efc056cd8b9bec365d1d7817306a17ee5694a",
+              "ref": "ghcr.io/pelican/panel:v1.0.0-beta38"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "1g",
+              "memoryReservation": "256m"
+            },
+            "role": "application",
+            "routeHostLoopback": true,
+            "secretFiles": [
+              {
+                "gid": 82,
+                "pathEnvironment": "STACKKIT_APP_KEY_FILE",
+                "slot": "app-key",
+                "target": "/run/secrets/app-key",
+                "uid": 82
+              }
+            ],
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/pelican-data"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "caddy",
+                "target": "/etc/caddy"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "stackkit",
+                "target": "/stackkit"
+              }
+            ]
+          },
+          {
+            "command": [
+              "/stackkit/bootstrap.sh"
+            ],
+            "dependsOn": [
+              "panel"
+            ],
+            "entrypoint": [
+              "/bin/ash"
+            ],
+            "environment": {
+              "APP_DEBUG": "false",
+              "APP_ENV": "production",
+              "APP_INSTALLED": "true",
+              "APP_TIMEZONE": "UTC",
+              "BEHIND_PROXY": "true",
+              "CACHE_STORE": "file",
+              "DB_CONNECTION": "sqlite",
+              "MAIL_MAILER": "log",
+              "PHP_INI_SCAN_DIR": ":/tmp/stackkit/php",
+              "QUEUE_CONNECTION": "database",
+              "SESSION_DRIVER": "file",
+              "TRUSTED_PROXIES": "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "panel-bootstrap",
+            "image": {
+              "digest": "sha256:46f356f3fda423b1d43f0dc3c71efc056cd8b9bec365d1d7817306a17ee5694a",
+              "ref": "ghcr.io/pelican/panel:v1.0.0-beta38"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "ownerEnvironment": {
+              "STACKKIT_OWNER_EMAIL": "email"
+            },
+            "role": "database-init",
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_APP_KEY_FILE",
+                "slot": "app-key",
+                "target": "/run/secrets/app-key",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_OWNER_PASSWORD_FILE",
+                "slot": "owner-password",
+                "target": "/run/secrets/owner-password",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_APPLICATION_API_KEY_FILE",
+                "slot": "application-api-key",
+                "target": "/run/secrets/application-api-key",
+                "uid": 0
+              },
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_CLIENT_API_KEY_FILE",
+                "slot": "client-api-key",
+                "target": "/run/secrets/client-api-key",
+                "uid": 0
+              }
+            ],
+            "volumes": [
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "stackkit",
+                "target": "/stackkit"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "panel-data",
+                "sharedFrom": {
+                  "componentRef": "panel",
+                  "volumeRef": "data"
+                },
+                "target": "/pelican-data"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "sharedFrom": {
+                  "componentRef": "wings",
+                  "volumeRef": "data"
+                },
+                "target": "/stackkit/game-data"
+              }
+            ]
+          },
+          {
+            "command": [
+              "/usr/bin/wings",
+              "--config",
+              "/stackkit/game-data/config.yml"
+            ],
+            "dependsOn": [
+              "panel-bootstrap"
+            ],
+            "dockerLifecycleOwner": {
+              "daemonRef": "docker-default",
+              "policyProfile": "docker-game-node-lifecycle"
+            },
+            "environment": {
+              "TZ": "UTC",
+              "WINGS_GID": "988",
+              "WINGS_UID": "988",
+              "WINGS_USERNAME": "pelican"
+            },
+            "health": {
+              "kind": "image"
+            },
+            "id": "wings",
+            "image": {
+              "digest": "sha256:39837cfc49b0513313e57dc4b977a769cb784cf81af3f25a5ea46d869b4b0846",
+              "ref": "ghcr.io/pelican/wings:v1.0.0-beta29"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "game-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "selfPath": true,
+                "target": "/stackkit/game-data"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "logs",
+                "target": "/var/log/pelican"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "panel",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:46f356f3fda423b1d43f0dc3c71efc056cd8b9bec365d1d7817306a17ee5694a",
+          "ref": "ghcr.io/pelican/panel:v1.0.0-beta38"
         },
         "kind": "container"
       },
@@ -41849,7 +43585,18 @@
           ],
           "description": "Resident Cloud edge listener in the stackkit-server process; measured resource values are pending a Modern lane run.",
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready"
         }
       },
@@ -42257,7 +44004,18 @@
           ],
           "description": "Resident federation control receiver in the stackkit-server process; measured resource values are pending a Modern lane run.",
           "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
           "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            }
+          },
           "realization": "apply-ready"
         }
       },
@@ -44499,6 +46257,28 @@
       "providerRef": "stackkits-pterodactyl",
       "reasonCode": "lifecycle-owner",
       "unitRef": "pterodactyl"
+    },
+    {
+      "daemonRef": "docker-default",
+      "evidenceRef": "calagopus-wings-lifecycle-owner-governance",
+      "id": "approve-calagopus-wings-lifecycle-owner",
+      "kind": "docker-socket-direct-v1",
+      "moduleRef": "stackkits-calagopus-runtime",
+      "policyProfile": "docker-game-node-lifecycle",
+      "providerRef": "stackkits-calagopus",
+      "reasonCode": "lifecycle-owner",
+      "unitRef": "calagopus"
+    },
+    {
+      "daemonRef": "docker-default",
+      "evidenceRef": "pelican-wings-lifecycle-owner-governance",
+      "id": "approve-pelican-wings-lifecycle-owner",
+      "kind": "docker-socket-direct-v1",
+      "moduleRef": "stackkits-pelican-runtime",
+      "policyProfile": "docker-game-node-lifecycle",
+      "providerRef": "stackkits-pelican",
+      "reasonCode": "lifecycle-owner",
+      "unitRef": "pelican"
     }
   ],
   "providers": [
@@ -47343,6 +49123,102 @@
       ],
       "workloadRefs": [
         "documents"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "calagopus-generated-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-calagopus",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-calagopus-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "game"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "pelican-generated-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-pelican",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-pelican-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "game"
       ]
     },
     {
@@ -52589,6 +54465,366 @@
     {
       "alternatives": [
         {
+          "id": "calagopus",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "wings",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                },
+                {
+                  "componentRef": "panel-database",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "database"
+                },
+                {
+                  "componentRef": "panel",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "game",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "wings",
+                  "dataBindingRef": "game",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/stackkit/game-data",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "panel-database",
+                  "dataBindingRef": "game",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/postgresql",
+                  "volumeRef": "database"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "panel",
+                  "dataBindingRef": "game",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/calagopus",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel-cache",
+                  "dataClasses": [],
+                  "target": "/data",
+                  "volumeRef": "cache"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel",
+                  "dataClasses": [],
+                  "target": "/var/log/calagopus",
+                  "volumeRef": "logs"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel",
+                  "dataClasses": [],
+                  "target": "/stackkit",
+                  "volumeRef": "stackkit"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel-bootstrap",
+                  "dataClasses": [],
+                  "target": "/stackkit",
+                  "volumeRef": "stackkit"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel-keys",
+                  "dataClasses": [],
+                  "target": "/stackkit",
+                  "volumeRef": "stackkit"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "wings-bootstrap",
+                  "dataClasses": [],
+                  "target": "/stackkit",
+                  "volumeRef": "stackkit"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "wings",
+                  "dataClasses": [],
+                  "target": "/var/log/calagopus-wings",
+                  "volumeRef": "logs"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "database-password",
+                "encryption-key",
+                "owner-password",
+                "application-api-key",
+                "client-api-key"
+              ],
+              "requiredRefs": [
+                "database-password",
+                "encryption-key",
+                "owner-password",
+                "application-api-key",
+                "client-api-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-calagopus-runtime",
+          "providerRef": "stackkits-calagopus",
+          "route": {
+            "healthRef": "calagopus-panel-http",
+            "serviceRef": "game"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "calagopus-game-server-setup"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        },
+        {
+          "id": "pelican",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "wings",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                },
+                {
+                  "componentRef": "panel",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "game",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "wings",
+                  "dataBindingRef": "game",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/stackkit/game-data",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "panel",
+                  "dataBindingRef": "game",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/pelican-data",
+                  "volumeRef": "data"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel",
+                  "dataClasses": [],
+                  "target": "/etc/caddy",
+                  "volumeRef": "caddy"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel",
+                  "dataClasses": [],
+                  "target": "/stackkit",
+                  "volumeRef": "stackkit"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "panel-bootstrap",
+                  "dataClasses": [],
+                  "target": "/stackkit",
+                  "volumeRef": "stackkit"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "wings",
+                  "dataClasses": [],
+                  "target": "/var/log/pelican",
+                  "volumeRef": "logs"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "app-key",
+                "owner-password",
+                "application-api-key",
+                "client-api-key"
+              ],
+              "requiredRefs": [
+                "app-key",
+                "owner-password",
+                "application-api-key",
+                "client-api-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-pelican-runtime",
+          "providerRef": "stackkits-pelican",
+          "route": {
+            "healthRef": "pelican-panel-http",
+            "serviceRef": "game"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "pelican-game-server-setup"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        },
+        {
           "id": "pterodactyl",
           "infrastructure": {
             "backupSource": {
@@ -52781,7 +55017,7 @@
       ],
       "computeTiers": {
         "high": {
-          "alternativeID": "pterodactyl",
+          "alternativeID": "calagopus",
           "included": true
         },
         "low": {
@@ -52789,21 +55025,21 @@
           "reason": "Game servers need the standard profile and their own memory budget."
         },
         "standard": {
-          "alternativeID": "pterodactyl",
+          "alternativeID": "calagopus",
           "included": true
         }
       },
       "dataClasses": [
         "personal"
       ],
-      "defaultAlternative": "pterodactyl",
+      "defaultAlternative": "calagopus",
       "functionalCapabilities": [
         "game-server-hosting",
         "game-server-management"
       ],
       "kind": "application",
       "metadata": {
-        "description": "Self-hosted game servers through upstream Pterodactyl Panel and Wings with curated Minecraft profiles (ADR-0043).",
+        "description": "Self-hosted game servers through a Panel and its Wings node daemon with curated Minecraft profiles: Calagopus by default, Pelican or Pterodactyl as alternatives (ADR-0043, ADR-0048).",
         "id": "game",
         "version": "1.0.0"
       },

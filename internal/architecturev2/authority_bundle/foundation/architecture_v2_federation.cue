@@ -465,8 +465,10 @@ _architectureV2ProfileExtensionModules: [
 		// footprint is the stackkit-server unit; the lane samples that cgroup under
 		// this component name. No measured value exists yet, so the profile stays
 		// non-supported and declares no reservation or recommended budget until a
-		// Modern lane run (N6) measures it under the provenance gate.
-		computeProfiles: standard: {
+		// Modern lane run (N6) measures it under the provenance gate. The profile
+		// reuses the Kombify host floor (policy) of the node it runs on, so Apply
+		// admission can verify that node; the floor is not a measurement.
+		computeProfiles: standard: _architectureV2CoreHostFloor & {
 			description: "Resident Cloud edge listener in the stackkit-server process; measured resource values are pending a Modern lane run."
 			maturity:    "experimental", executable: true, realization: "apply-ready"
 			components: ["stackkits-edge-publication"]
@@ -523,8 +525,10 @@ _architectureV2ProfileExtensionModules: [
 		// footprint is the stackkit-server unit; the lane samples that cgroup under
 		// this component name. No measured value exists yet, so the profile stays
 		// non-supported and declares no reservation or recommended budget until a
-		// Modern lane run (N6) measures it under the provenance gate.
-		computeProfiles: standard: {
+		// Modern lane run (N6) measures it under the provenance gate. The profile
+		// reuses the Kombify host floor (policy) of the node it runs on, so Apply
+		// admission can verify that node; the floor is not a measurement.
+		computeProfiles: standard: _architectureV2CoreHostFloor & {
 			description: "Resident federation control receiver in the stackkit-server process; measured resource values are pending a Modern lane run."
 			maturity:    "experimental", executable: true, realization: "apply-ready"
 			components: ["stackkits-federation-control-agent"]

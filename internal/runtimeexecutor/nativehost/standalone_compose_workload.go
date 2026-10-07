@@ -186,10 +186,10 @@ func (o *osStandaloneComposeWorkloadOperations) CompleteWorkloadCompose(ctx cont
 }
 
 func (o *osStandaloneComposeWorkloadOperations) completeWorkloadCompose(ctx context.Context, project standaloneComposeProject) error {
-	if project.bundle.ModuleRef == standaloneComposeGameNodeModuleRef {
+	if gameNode, ok := architecturev2renderer.GameNodeModuleFor(project.bundle.ModuleRef); ok {
 		// Wings reads the configuration its bootstrap just converged only at
 		// start. Recreating Wings leaves running game servers attached.
-		if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "recreate-wings"), project.directory); err != nil {
+		if _, err := o.runner.Run(ctx, standaloneComposeRecreateArgs(project, gameNode.WingsComponent), project.directory); err != nil {
 			return fmt.Errorf("restart the game node with its converged configuration: %w", err)
 		}
 	}
@@ -639,11 +639,6 @@ func oomScoreAdjForRole(role string) *int {
 	return &score
 }
 
-// standaloneComposeGameNodeModuleRef is the only workload admitted to the
-// ADR-0043 game-node mounts: Wings' Docker socket, its self-path data volume
-// and the Panel's loopback route host.
-const standaloneComposeGameNodeModuleRef = "stackkits-pterodactyl-runtime"
-
 // standaloneComposeMailNodeModuleRef is the only workload admitted to the
 // ADR-0046 mail-node rights: mail ports published on every host address, the
 // route host as the mail host name and a TLS-ALPN-01 router passthrough.
@@ -765,14 +760,17 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			document.Networks[networkRef] = standaloneComposeNetwork{Internal: true}
 		}
 	}
-	gameNode := bundle.ModuleRef == standaloneComposeGameNodeModuleRef
+	// Only the admitted Game platform modules receive the ADR-0043 game-node
+	// mounts: Wings' Docker socket, its self-path data volume, the shared
+	// configuration volume and a Panel's loopback route host (ADR-0048).
+	gameNodeShape, gameNode := architecturev2renderer.GameNodeModuleFor(bundle.ModuleRef)
 	selfPaths := map[string]string{}
 	for _, component := range bundle.Components {
 		for _, volume := range component.Volumes {
 			if !volume.SelfPath {
 				continue
 			}
-			if !gameNode || component.ID != "wings" || volume.ID != "data" || dockerRoot == "" {
+			if !gameNode || component.ID != gameNodeShape.WingsComponent || volume.ID != "data" || dockerRoot == "" {
 				return nil, nil, nil, errors.New("a self-path volume is admitted only for the game node's Wings data")
 			}
 			ref := component.ID + "-" + volume.ID
@@ -911,7 +909,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			}
 			ref := component.ID + "-" + volume.ID
 			if volume.SharedFromComponent != "" {
-				if !gameNode || component.ID != "panel-bootstrap" || volume.SharedFromComponent != "wings" || volume.SharedFromVolume != "data" {
+				if !gameNode || component.ID != gameNodeShape.ConfigWriter || !slices.Contains(gameNodeShape.ConfigWriterShares, volume.SharedFromComponent+"/"+volume.SharedFromVolume) {
 					return nil, nil, nil, errors.New("a shared volume is admitted only for the game node bootstrap")
 				}
 				ref = volume.SharedFromComponent + "-" + volume.SharedFromVolume
@@ -926,7 +924,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 				// Wings hands this path to the daemon for game containers, so
 				// the same volume is also visible at its own host path.
 				service.Volumes = append(service.Volumes, ref+":"+hostPath)
-				service.Environment[architecturev2renderer.PterodactylGameDataHostPathEnv] = hostPath
+				service.Environment[architecturev2renderer.GameDataHostPathEnv] = hostPath
 			}
 		}
 		configDigest, mountedConfig := sha256.New(), 0
@@ -948,7 +946,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			service.Labels["io.stackkit.config-digest"] = "sha256:" + hex.EncodeToString(configDigest.Sum(nil))
 		}
 		if component.DockerLifecycleOwner {
-			if !gameNode || component.ID != "wings" || bundle.DaemonSocketPath == "" || dockerRoot == "" {
+			if !gameNode || component.ID != gameNodeShape.WingsComponent || bundle.DaemonSocketPath == "" || dockerRoot == "" {
 				return nil, nil, nil, errors.New("Docker lifecycle ownership is admitted only for the game node's Wings")
 			}
 			service.Volumes = append(service.Volumes,
@@ -974,13 +972,19 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			// and Roundcube keeps no in-flight state worth draining.
 			service.StopSignal = "SIGTERM"
 		}
-		if gameNode && (component.ID == "panel" || component.ID == "panel-bootstrap") {
-			// The Panel image declares SIGQUIT; supervisord stops cleanly on
-			// SIGTERM, which the backup quiesce owner admits.
+		if gameNode && slices.Contains(gameNodeShape.SIGTERMComponents, component.ID) {
+			// The Pterodactyl and Pelican Panel images declare SIGQUIT;
+			// supervisord stops cleanly on SIGTERM, which the backup quiesce
+			// owner admits.
 			service.StopSignal = "SIGTERM"
 		}
+		if gameNode && component.ID == gameNodeShape.RootComponent {
+			// The Pelican bootstrap writes Wings' configuration into the
+			// root-owned Wings data volume; its image declares www-data.
+			service.User = "0:0"
+		}
 		if component.RouteHostLoopback {
-			if !gameNode || component.ID != "panel" || bundle.Route.Host == "" {
+			if !gameNode || component.ID != gameNodeShape.LoopbackComponent || bundle.Route.Host == "" {
 				return nil, nil, nil, errors.New("a loopback route host is admitted only for the game node Panel")
 			}
 			service.ExtraHosts = []string{bundle.Route.Host + ":127.0.0.1"}
@@ -1224,6 +1228,11 @@ func (o *osStandaloneComposeWorkloadOperations) persistFiles(project standaloneC
 // directory still keeps host users out.
 func standaloneComposeReadableConfigFiles(bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor) map[string]bool {
 	readable := map[string]bool{}
+	if gameNode, ok := architecturev2renderer.GameNodeModuleFor(bundle.ModuleRef); ok && gameNode.ReadableConfigFiles {
+		for _, file := range bundle.ConfigFiles {
+			readable[architecturev2renderer.StandaloneComposeConfigRelPath(file.Path)] = true
+		}
+	}
 	for _, component := range bundle.Components {
 		if access := component.HomeIdentityAccess; access != nil {
 			readable[architecturev2renderer.StandaloneComposeConfigRelPath(access.CABundleTarget)] = true
@@ -1270,6 +1279,15 @@ func (o *osStandaloneComposeWorkloadOperations) verifyPersisted(project standalo
 	return nil
 }
 
+// standaloneComposeRecreateArgs recreates one service without its
+// dependencies, so a game node's Wings reads its converged configuration.
+func standaloneComposeRecreateArgs(project standaloneComposeProject, service string) []string {
+	return []string{
+		"compose", "--project-name", project.name, "--env-file", filepath.Join(project.directory, ".env"),
+		"-f", filepath.Join(project.directory, "compose.yaml"), "up", "-d", "--no-deps", "--force-recreate", service,
+	}
+}
+
 func standaloneComposeArgs(project standaloneComposeProject, operation string) []string {
 	prefix := []string{
 		"compose", "--project-name", project.name, "--env-file", filepath.Join(project.directory, ".env"),
@@ -1287,8 +1305,6 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 			}
 		}
 		return append(args, "--wait", "--wait-timeout", "600")
-	case "recreate-wings":
-		return append(prefix, "up", "-d", "--no-deps", "--force-recreate", "wings")
 	case "ps":
 		return append(prefix, "ps", "--all", "--no-trunc", "--format", "json")
 	case "port":

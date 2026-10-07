@@ -75,6 +75,9 @@ func NewOSPublicTLSOperations(workspaceRoot string) (*osPublicTLSOperations, err
 			retryInterval: certificateIssuanceInterval,
 			issuance:      dockerTraefikIssuanceEvidence{},
 			now:           func() time.Time { return time.Now().UTC() },
+			originCertificateMissing: func(host string) bool {
+				return originCertificateMissing(root, host)
+			},
 		},
 		now: func() time.Time { return time.Now().UTC() },
 	}, nil
@@ -198,6 +201,10 @@ func (o *osPublicTLSOperations) observe(ctx context.Context, policyDigest, evalu
 	routeRefs := make([]string, len(routes))
 	observedRoutes := make([]architecturev2renderer.PublicTLSRuntimeRoute, len(routes))
 	validUntil := time.Time{}
+	// A managed route waiting for its origin certificate does not stop the
+	// other routes from being proven: any other failure still fails closed,
+	// and only a set that is otherwise verified reports the pending routes.
+	var pending *publicTLSOriginCertificatePendingError
 	for index, route := range routes {
 		if err := validatePublicTLSRoute(route); err != nil {
 			return PublicTLSObservation{}, nil, err
@@ -205,7 +212,13 @@ func (o *osPublicTLSOperations) observe(ctx context.Context, policyDigest, evalu
 		if index > 0 && route.ID <= routeRefs[index-1] {
 			return PublicTLSObservation{}, nil, errors.New("public TLS routes are not unique and sorted")
 		}
+		routeRefs[index] = route.ID
 		observation, err := o.probeRoute(ctx, route)
+		var routePending *publicTLSOriginCertificatePendingError
+		if errors.As(err, &routePending) {
+			pending = pending.join(routePending)
+			continue
+		}
 		if err != nil {
 			return PublicTLSObservation{}, nil, fmt.Errorf("probe public TLS route %q: %w", route.ID, err)
 		}
@@ -215,8 +228,10 @@ func (o *osPublicTLSOperations) observe(ctx context.Context, policyDigest, evalu
 		if validUntil.IsZero() || observation.ValidUntil.Before(validUntil) {
 			validUntil = observation.ValidUntil
 		}
-		routeRefs[index] = route.ID
 		observedRoutes[index] = route
+	}
+	if pending != nil {
+		return PublicTLSObservation{}, nil, pending
 	}
 	materialSlotIDs := make([]string, len(slots))
 	for index, slot := range slots {
@@ -417,6 +432,10 @@ type traefikPublicTLSProbe struct {
 	// issuance reads the resolver's closed refusal for a route that has no
 	// certificate. It is optional: without it the probe outcome stays generic.
 	issuance publicTLSIssuanceEvidence
+	// originCertificateMissing reports a managed host no installed origin
+	// certificate covers. It is optional: without it a router without an ACME
+	// resolver stays the generic issuance failure.
+	originCertificateMissing func(host string) bool
 }
 
 type traefikHTTPRouter struct {
@@ -440,15 +459,26 @@ func (p *traefikPublicTLSProbe) Probe(ctx context.Context, route architecturev2r
 		if err != nil {
 			return err
 		}
-		matched := false
+		matched, originRouter := false, false
 		for _, router := range routers {
-			if !strings.EqualFold(router.Status, "enabled") || !publicTLSRouterMatches(router.Rule, route) || router.TLS == nil || strings.TrimSpace(router.TLS.CertResolver) == "" {
+			if !strings.EqualFold(router.Status, "enabled") || !publicTLSRouterMatches(router.Rule, route) || router.TLS == nil {
+				continue
+			}
+			if strings.TrimSpace(router.TLS.CertResolver) == "" {
+				originRouter = true
 				continue
 			}
 			matched = true
 			break
 		}
 		if !matched {
+			// ADR-0047: the Advanced renderer serves a managed route from the
+			// delivered origin certificate and gives its router no resolver.
+			// Without an installed certificate no ACME order can ever serve
+			// it, so the wait ends here instead of running out.
+			if originRouter && p.originCertificateMissing != nil && p.originCertificateMissing(route.Host) {
+				return &publicTLSOriginCertificatePendingError{routeRefs: []string{route.ID}, hosts: []string{route.Host}}
+			}
 			return errors.New("Traefik has no enabled TLS router with an ACME resolver for the declared route")
 		}
 		observation, err = p.verifyHTTPS(ctx, route)
@@ -460,6 +490,10 @@ func (p *traefikPublicTLSProbe) Probe(ctx context.Context, route architecturev2r
 		return err
 	})
 	if err != nil {
+		var pending *publicTLSOriginCertificatePendingError
+		if errors.As(err, &pending) {
+			return publicTLSRouteObservation{}, err
+		}
 		var refused *publicTLSIssuanceRefusedError
 		if !errors.As(err, &refused) {
 			if found := p.issuanceRefusal(ctx, route, err); found != nil {

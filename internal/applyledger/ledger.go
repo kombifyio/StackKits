@@ -245,9 +245,16 @@ func FromJournal(
 		SchemaVersion: SchemaVersion, Phase: "apply", PlanHash: planHash,
 		OperationID: operationID, ObservedAt: observedAt,
 	}
+	// Nested dispatch journals one requirement twice: once in the
+	// per-channel step that carries every runtime of the channel and once in
+	// its own per-owner step. The narrowest step is the requirement's own
+	// account; the channel step only aggregates its owners.
 	stateByRequirement := map[string]StepOutcome{}
 	for _, step := range steps {
 		for _, runtime := range step.Step.Runtime {
+			if current, exists := stateByRequirement[runtime.RequirementID]; exists && len(current.Step.Runtime) <= len(step.Step.Runtime) {
+				continue
+			}
 			stateByRequirement[runtime.RequirementID] = step
 		}
 	}
@@ -279,6 +286,47 @@ func FromJournal(
 		ledger.Next = &Next{Resumable: operationID != "", Command: "stackkit apply"}
 	}
 	return ledger
+}
+
+// WithDegradedUnits reports the failed units an owner proved degraded
+// (applyoutcome.DegradedUnitError) as degraded with their closed, retryable
+// class, and recomputes the aggregate. A degraded unit never fails the Apply,
+// whatever its criticality: its owner proved that only a prerequisite another
+// authority delivers is missing. Every other unit keeps its outcome.
+func WithDegradedUnits(ledger Ledger, degraded map[string]applyoutcome.DegradedUnit) Ledger {
+	if len(degraded) == 0 {
+		return ledger
+	}
+	result := ledger
+	result.Units = append([]Unit(nil), ledger.Units...)
+	changed := false
+	for index := range result.Units {
+		unit := &result.Units[index]
+		account, isDegraded := degraded[unit.Subject.RequirementID]
+		if !isDegraded || unit.Outcome != OutcomeFailed {
+			continue
+		}
+		code := ""
+		if unit.Failure != nil {
+			code = unit.Failure.Code
+		}
+		unit.Outcome = OutcomeDegraded
+		unit.Failure = &Failure{
+			Class: string(account.Class), Code: code,
+			Retryable: applyoutcome.Retryable(account.Class), Message: account.Message,
+			Remediation: applyoutcome.Remediation(account.Class),
+		}
+		changed = true
+	}
+	if !changed {
+		return ledger
+	}
+	result.Summary = Summary{}
+	if result.Overall != OverallBlocked {
+		result.Overall = ""
+	}
+	finalize(&result)
+	return result
 }
 
 func outcomeForStepState(state runtimeapply.StepState) Outcome {

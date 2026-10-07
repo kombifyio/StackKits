@@ -145,6 +145,10 @@
       "pattern": "^(start|stop|restart)$"
     },
     {
+      "name": "connectorRequestFile",
+      "description": "Workspace-relative private metadata-only Home Assistant connector request."
+    },
+    {
       "name": "ownerFile",
       "description": "Workspace-relative private native application Owner grant file."
     },
@@ -338,6 +342,104 @@
           "schemaVersion": "stackkit.application-adoption/v1",
           "schema": "schemas/stackkit-application-adoption-v1.schema.json",
           "description": "Source and authority-bound adoption evidence."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.connector",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Exact local Home Assistant connector setup or read-only signed receipt reconciliation; credential custody remains on the node.",
+      "command": "stackkit setup connector",
+      "argv": [
+        "setup",
+        "connector",
+        "--workload",
+        "smart-home",
+        "--request-file",
+        "{connectorRequestFile}",
+        "--operation-id",
+        "{operationId}",
+        "--json",
+        "--owner-approve"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "connectorRequestFile",
+          "schemaVersion": "stackkit.home-assistant-connector-request/v1",
+          "schema": "schemas/stackkit-home-assistant-connector-request-v1.schema.json",
+          "description": "Closed ensure/revoke request; external resource and revision are correlation only."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.home-assistant-connector-result/v1",
+          "schema": "schemas/stackkit-home-assistant-connector-result-v1.schema.json",
+          "description": "Exact signed setup receipt bytes verified against current node custody and local deployment."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.connector.verify",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Exact local Home Assistant connector setup or read-only signed receipt reconciliation; credential custody remains on the node.",
+      "command": "stackkit setup connector",
+      "argv": [
+        "setup",
+        "connector",
+        "--workload",
+        "smart-home",
+        "--request-file",
+        "{connectorRequestFile}",
+        "--operation-id",
+        "{operationId}",
+        "--json",
+        "--verify-only"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "connectorRequestFile",
+          "schemaVersion": "stackkit.home-assistant-connector-request/v1",
+          "schema": "schemas/stackkit-home-assistant-connector-request-v1.schema.json",
+          "description": "Closed ensure/revoke request; external resource and revision are correlation only."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.home-assistant-connector-result/v1",
+          "schema": "schemas/stackkit-home-assistant-connector-result-v1.schema.json",
+          "description": "Exact signed setup receipt bytes verified against current node custody and local deployment."
         }
       ],
       "events": [],

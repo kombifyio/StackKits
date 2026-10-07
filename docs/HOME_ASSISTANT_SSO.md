@@ -76,3 +76,158 @@ setup/retry, exact callback and PKCE exchange, private-CA trust, owner identity
 retention, ordinary household access, demotion, unauthorized/conflicting binding
 denials, app-local recovery login, and backup/restore of the persistent HA config.
 Capture user IDs, policy outcomes and digests without logging credentials/tokens.
+
+## Node-owned agent connector credential
+
+For the admitted native Standard Mode Home Assistant workload, the existing
+private owner setup JSON can also contain an explicit `connector` object with
+`action` (`ensure` or `revoke`), `lifespanDays` (1–365), and `binding`:
+`resourceId`, `containerId` (64 lowercase hexadecimal characters), `imageDigest`,
+`serviceRevision` (positive), and `node` (`siteRef`, `nodeRef`,
+`executionChannelRef`). Keep the existing username/password/display-name/language
+fields and private file permissions. No URL, token or workspace override is
+accepted. Run the existing owner-approved `stackkit setup smart-home` action;
+an owner-approved Apply also processes this explicit selection even when the
+owner setup has already succeeded. Omitting `connector` preserves ordinary
+setup behavior. Reading status never enrolls a credential.
+
+The CLI narrows the current signed Apply to the local workload bundle, verifies
+the requested image and node against that source and Owner custody, and reads
+the exact container through the existing persisted-Compose/Docker custody
+observer before issuance and after result readback. `setup --json` and signed
+setup lifecycle projection retain `homeAssistantConnector.issuer` and
+`verifiedLocalDeployment` (node, instance, container, image). Only the latter
+are independently verified local deployment facts. `issuer.requestedBinding`
+keeps `resourceId` and `serviceRevision` as caller-selected external correlation;
+it does not prove a Techstack inventory revision. A changed or missing container
+withholds a verified result and never authorizes silent replacement enrollment.
+External/imported Home Assistant instances have no native workload bundle and
+cannot enter this bootstrap path; their preservation-first adoption is unchanged.
+
+The local HTTP/WebSocket source fixture uses generated pinned workload source,
+synthetic daemon observations and real signed node/lifecycle custody. It proves
+binding denial, enrollment replay/revoke and secret-free receipt projection;
+it does not qualify a deployed Docker installation or native MCP tools.
+StackKits remains pinned at 2026.7.2, while the separately reviewed native MCP
+fixture uses 2026.9.4. Gateway connection eligibility, equipment assignment,
+Techstack handoff and actual agent use remain unavailable until those joins
+and the current-pin customer journey are qualified.
+
+### Metadata carrier and signed receipt reconciliation
+
+An orchestrator can select the same local setup with a separate private,
+workspace-relative metadata document (at most 64 KiB), without editing the
+owner credential file:
+
+```json
+{
+  "schemaVersion": "stackkit.home-assistant-connector-request/v1",
+  "connector": {
+    "action": "ensure",
+    "lifespanDays": 30,
+    "binding": {
+      "resourceId": "owned-service-reference",
+      "containerId": "<current full 64-character container identity>",
+      "imageDigest": "sha256:<current immutable image digest>",
+      "serviceRevision": 7,
+      "node": {
+        "siteRef": "<owned site>",
+        "nodeRef": "<owned node>",
+        "executionChannelRef": "<local owner channel>"
+      }
+    }
+  }
+}
+```
+
+Use `stackkit setup connector --workload smart-home --request-file <relative-file>
+--operation-id <stable-id> --owner-approve --json`. The request contains no
+workspace, URL, token, credential file override or account fields. The existing
+private owner credential document must omit its own `connector` selection when
+using this separate carrier. The node reads its existing owner credentials;
+this path never rewrites them or bootstraps an imported application.
+
+The admitted native bundle must declare its secure Pocket ID callback route.
+The source fixture uses current v2alpha2 authoring with catalog defaults and
+the declared HTTPS route. A compatibility bundle without that route remains
+unavailable and reports its admission error; this carrier does not infer or
+weaken the route contract.
+
+The command-result data uses `stackkit.home-assistant-connector-result/v1`:
+`signatureVerified`, `receiptBase64`, `receiptDigest` and
+`currentLocalDeployment`. Base64 retains the exact canonical bytes of the
+already signed immutable setup receipt, including the outer lifecycle
+signature covering the local deployment facts. Consumers must decode and
+verify those bytes and match the authenticated pinned-CLI result to their
+current service authority; an inner issuer signature alone does not prove the
+local deployment. External resource/revision correlation is still not a
+Techstack inventory attestation.
+
+If the command acknowledgement is lost, use the same request and operation
+with `--verify-only` instead of `--owner-approve`. Verification does not issue,
+revoke, initialize or reconfigure the application. It checks current signed
+Apply, node/source/container identity, the signed receipt and encrypted local
+credential state; active credentials also undergo the existing native owner
+and version read. A changed request conflicts with the retained operation
+intent. A completed operation cannot be submitted as another mutation. A
+missing/nonterminal receipt, changed deployment, expired active credential or
+older active receipt after revocation fails closed. Do not retry uncertain
+issuance under a new operation identity. A new explicit revoke request uses
+`action: revoke` and a new stable operation ID, retaining its own signed
+receipt. Revoked verification reports retained node revocation; it does not
+claim independent MCP reachability or current tool qualification.
+
+The release catalog exposes `application.connector` and
+`application.connector.verify` with fixed argv and the request/result schemas.
+These local lifecycle operations can be dispatched within an existing
+Techstack Advanced deployment once the normally published pinned release and
+its capability have been admitted; they do not introduce a standalone Advanced
+executor. Current source qualification does not activate a Gateway grant or
+agent equipment.
+
+The local `appsetup.BootstrapHomeAssistantOwner` API accepts an optional
+`HomeAssistantOwnerRequest.Connector`. Ordinary owner/OIDC setup does not issue
+an agent credential. An authorized local caller explicitly selects `ensure`
+or `revoke`, a lifetime of 1–365 days, and the requested resource/container/image/
+service-revision tuple and established local node binding. The API admits only
+the existing StackKits HA pin, currently 2026.7.2; this is credential setup
+compatibility, **not qualification of that release's native MCP tools**.
+
+The issuer uses the pinned upstream authenticated WebSocket commands
+`auth/long_lived_access_token`, `auth/refresh_tokens`, and
+`auth/delete_refresh_token`. A long-lived token carries the authenticated
+user's authority; it is not a scoped read-only key. The existing native local
+relay and current Gateway read/write lease remain the use-policy boundary.
+The upstream implementation is
+[HA 2026.7.2 auth](https://github.com/home-assistant/core/blob/2026.7.2/homeassistant/components/auth/__init__.py).
+
+Credential lifecycle uses the existing `secret://` local issued-secret store.
+The additive encrypted record kind uses the established Owner key, a distinct
+owner/node/reference wrapping context, and existing age encryption. Legacy
+issued records remain readable; a consumer requiring encrypted custody rejects
+a legacy record. There is no Wallet replica, new master key, or backup-key reuse.
+Local owner files and recovery remain the existing node custody authority.
+
+A cross-process node lock serializes enrollment and use. An encrypted, synced
+intent precedes token creation. Restart verifies the retained token and reuses
+it. An uncertain issuance never creates another token: the next invocation
+reconciles its unique random client name and creation time against the current
+owner's token list, deletes only that exact credential, and retains a revoked
+tombstone. Ambiguous identities fail closed. Explicit revoke verifies removal;
+restart cannot silently re-enroll. Temporary owner sessions are revoked on
+success and failure, including uncertain issuance. A filesystem that cannot
+confirm durable encrypted intent installation cannot dispatch issuance.
+
+`HomeAssistantConnectorEvidence` contains no token or endpoint. Its Owner
+signature covers JSON with the `Signature` field set to its zero value. It
+reports the HA owner/version observed and the **requested** container binding;
+this setup API does not observe Docker and must not promote that tuple to a
+verified installation. The downstream deployment owner must freshly verify
+the container identity/revision before projecting a Gateway connection.
+`WithHomeAssistantConnectorCredential` supplies an active credential to a
+local callback only, under the same lock and after current authenticated HA
+owner/version readback. The caller still owes current relay admission.
+
+Production deployment-to-node handoff, automatic Gateway connection creation,
+agent equipment and local relay consumption remain separate integration work.
+No plaintext credential may enter Techstack, Gateway, UI, logs, or receipts.

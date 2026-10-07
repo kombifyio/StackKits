@@ -396,6 +396,7 @@ var operatorOperations = []Contract{
 			optionalPositionalArg("v1_spec_file", "StackSpec v1 path; defaults to the workspace spec"),
 			flagArg("target_kit", ArgumentString, "--target-kit", "explicit target KitProfile"),
 			flagArg("complete_with", ArgumentString, "--complete-with", "full explicit StackSpec v2 candidate path"),
+			flagArg("inventory", ArgumentString, "--inventory", "observed Inventory path the completion resolves against"),
 			flagArg("output", ArgumentString, "--output", "write the migration result to this new workspace path instead of stdout"),
 			flagArg("spec_output", ArgumentString, "--spec-output", "write the completed canonical StackSpec v2 to this new workspace path"),
 			enumFlagArg("format", "--format", "output format", "json", "yaml"),

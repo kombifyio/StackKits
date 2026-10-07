@@ -559,7 +559,7 @@ _architectureV2DoclingComputeProfiles: {standard: _architectureV2DoclingComputeP
 // GPU-only. The model presets enforce these limits at download time.
 _architectureV2ComfyUIComputeProfile: #ModuleComputeProfileV2 & {
 	description: "ComfyUI image and video generation with owner-downloaded models, on the CPU (slow) or on a selected GPU. Text-to-image on the CPU needs about 32 GB of RAM; video needs a GPU with 16 GB of VRAM. No model is downloaded at install."
-	maturity:    "experimental", executable: true, realization: "apply-ready"
+	maturity:    "beta", executable: true, realization: "apply-ready"
 	hostFloor: {minCpuCores: 4, minRamGB: 8, minStorageGB: 40}
 	recommended: {cpuCores: 8, ramGB: 32, storageGB: 150}
 	reservation: ramGB: 2
@@ -578,7 +578,7 @@ _architectureV2ComfyUIComputeProfiles: {standard: _architectureV2ComfyUIComputeP
 // for its sentry, and repositories and package installs need their own disk.
 _architectureV2OpenHandsComputeProfile: #ModuleComputeProfileV2 & {
 	description: "OpenHands agent harness in one gVisor-isolated container with its own workspace: agent server, automations and editor. Models run in Ollama; the workspace grows with the owner's projects."
-	maturity:    "experimental", executable: true, realization: "apply-ready"
+	maturity:    "beta", executable: true, realization: "apply-ready"
 	hostFloor: {minCpuCores: 4, minRamGB: 8, minStorageGB: 40}
 	recommended: {cpuCores: 8, ramGB: 16, storageGB: 100}
 	reservation: ramGB: 1
@@ -597,7 +597,7 @@ _architectureV2OpenHandsComputeProfiles: {standard: _architectureV2OpenHandsComp
 // gVisor runtime adds memory for its sentry.
 _architectureV2PaperclipComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Paperclip agent control plane in one gVisor-isolated bundle: Node.js server and UI, PostgreSQL and the agent processes it starts. Models run in Ollama or the installed Hermes."
-	maturity:    "experimental", executable: true, realization: "apply-ready"
+	maturity:    "beta", executable: true, realization: "apply-ready"
 	hostFloor: {minCpuCores: 4, minRamGB: 8, minStorageGB: 20}
 	recommended: {cpuCores: 8, ramGB: 16, storageGB: 60}
 	reservation: ramGB: 1
@@ -629,7 +629,7 @@ _architectureV2ComfyUIAcceleratorProfiles: {
 // memory. The image bundles Python, Node and a headless browser runtime.
 _architectureV2HermesComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Hermes Agent personal assistant (gateway, scheduler and dashboard) on the node's local model. The model's memory belongs to the inference module; the assistant needs about 512 MB and up to 3 GB with its dashboard chat."
-	maturity:    "experimental", executable: true, realization: "apply-ready"
+	maturity:    "beta", executable: true, realization: "apply-ready"
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 0.5
 	components: ["hermes"]
@@ -646,7 +646,7 @@ _architectureV2HermesComputeProfiles: {standard: _architectureV2HermesComputePro
 // model memory.
 _architectureV2SpeechKitComputeProfile: #ModuleComputeProfileV2 & {
 	description: "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama."
-	maturity:    "experimental", executable: true, realization: "apply-ready"
+	maturity:    "beta", executable: true, realization: "apply-ready"
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 2
 	components: ["speechkit", "speechkit-whisper", "speechkit-tts"]
@@ -709,6 +709,32 @@ _architectureV2PterodactylComputeProfile: #ModuleComputeProfileV2 & {
 }
 _architectureV2PterodactylComputeProfiles: {standard: _architectureV2PterodactylComputeProfile, high: _architectureV2PterodactylComputeProfile}
 
+_architectureV2CalagopusComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor: {minCpuCores: 2, minRamGB: 4, minStorageGB: _architectureV2CoreComputeProfile.hostFloor.minStorageGB}
+	reservation: ramGB: 0.5
+	components: ["panel", "panel-database", "panel-cache", "panel-bootstrap", "panel-keys", "wings-bootstrap", "wings"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2PolicyReservationProvenance
+	}
+}
+_architectureV2CalagopusComputeProfiles: {standard: _architectureV2CalagopusComputeProfile, high: _architectureV2CalagopusComputeProfile}
+
+_architectureV2PelicanComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon. Game servers run in their own containers with the memory each curated profile declares; a Minecraft Java world typically needs 2 GB and Bedrock 1.5 GB on top of this platform reservation."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	hostFloor: {minCpuCores: 2, minRamGB: 4, minStorageGB: _architectureV2CoreComputeProfile.hostFloor.minStorageGB}
+	reservation: ramGB: 0.5
+	components: ["panel", "panel-bootstrap", "wings"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2PolicyReservationProvenance
+	}
+}
+_architectureV2PelicanComputeProfiles: {standard: _architectureV2PelicanComputeProfile, high: _architectureV2PelicanComputeProfile}
+
 _architectureV2RoundcubeComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Roundcube Webmail with SQLite as a client for an existing external IMAP/SMTP mailbox. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent. No mail server, spam filter or DNS is included; mail storage stays with the owner's provider."
 	maturity:    "beta", executable: true, realization: "apply-ready"
@@ -726,7 +752,7 @@ _architectureV2RoundcubeComputeProfiles: {
 // spam classifier and a handful of mailboxes.
 _architectureV2StalwartComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Stalwart Mail Server with its embedded RocksDB store for one owner domain and a few mailboxes. All profiles retain the same application and memory reservation; low declares a smaller host floor. Standard and high are equivalent."
-	maturity:    "experimental", executable: true, realization: "apply-ready"
+	maturity:    "beta", executable: true, realization: "apply-ready"
 	reservation: ramGB: 0.5 // 512 MiB component reservation.
 	components: ["stalwart"]
 	provenance: reservation: _architectureV2ComponentReservationProvenance

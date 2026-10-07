@@ -201,6 +201,10 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationJellyfin, deployment, observation)
 	case pterodactylWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPterodactyl, deployment, observation)
+	case "stackkits-calagopus-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationCalagopus, deployment, observation)
+	case "stackkits-pelican-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPelican, deployment, observation)
 	case paperlessWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPaperless, deployment, observation)
 	case roundcubeWorkloadModuleRef:

@@ -55,10 +55,13 @@ type WorkloadComposeService struct {
 	Devices     []string                             `yaml:"devices,omitempty"`
 	ExtraHosts  []string                             `yaml:"extra_hosts,omitempty"`
 	StopSignal  string                               `yaml:"stop_signal,omitempty"`
-	Init        *bool                                `yaml:"init,omitempty"`
-	Labels      map[string]string                    `yaml:"labels,omitempty"`
-	Healthcheck *WorkloadComposeHealthcheck          `yaml:"healthcheck,omitempty"`
-	Secrets     []WorkloadComposeServiceSecret       `yaml:"secrets,omitempty"`
+	// User overrides the image user; set only for a governed game-node
+	// bootstrap that writes into the root-owned Wings data (ADR-0048).
+	User        string                         `yaml:"user,omitempty"`
+	Init        *bool                          `yaml:"init,omitempty"`
+	Labels      map[string]string              `yaml:"labels,omitempty"`
+	Healthcheck *WorkloadComposeHealthcheck    `yaml:"healthcheck,omitempty"`
+	Secrets     []WorkloadComposeServiceSecret `yaml:"secrets,omitempty"`
 }
 
 // WorkloadComposeDependency is one depends_on entry.

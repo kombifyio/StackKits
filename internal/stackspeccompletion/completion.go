@@ -33,11 +33,14 @@ type Resolver interface {
 
 // Input contains the losslessly classified legacy document and a complete v2
 // candidate supplied by the operator. TargetKitProfile is always explicit;
-// context remains locality/hardware migration input only.
+// context remains locality/hardware migration input only. Inventory is the
+// optional observed Inventory the candidate resolves against; a Kit that binds
+// node facts cannot resolve without it, and completion never substitutes any.
 type Input struct {
 	Legacy           stackspecmigration.Document
 	LegacySourceRef  string
 	Candidate        []byte
+	Inventory        []byte
 	TargetKitProfile stackspecmigration.KitProfile
 }
 
@@ -239,6 +242,7 @@ func Complete(resolver Resolver, input Input) (Result, error) {
 
 	resolved, err := resolver.Resolve(architecturev2.ResolveInput{
 		StackSpec:        canonical,
+		Inventory:        input.Inventory,
 		TargetKitProfile: target,
 	})
 	if err != nil {

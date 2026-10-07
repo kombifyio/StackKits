@@ -45,17 +45,23 @@ func withGameServersHeld(ctx context.Context, workspace string, required bool, o
 	if err != nil {
 		return holdUnavailable(required, err, operation)
 	}
-	_, clientKey, err := pterodactylCustodyKeys(workspace, deployment)
+	keys, err := gameCustodyKeys(workspace, deployment)
 	if err != nil {
 		return holdUnavailable(required, err, operation)
 	}
 	journalPath := filepath.Join(workspace, filepath.FromSlash(gameServerHoldJournal))
-	panel := func(use func(client *http.Client, baseURL string) error) error {
-		return nativehost.WithStandaloneComposeHTTP(ctx, workspace, deployment, use)
+	panel := func(use func(panel appsetup.GamePanel) error) error {
+		return nativehost.WithStandaloneComposeHTTP(ctx, workspace, deployment, func(client *http.Client, baseURL string) error {
+			panel, err := keys.panel(client, baseURL)
+			if err != nil {
+				return err
+			}
+			return use(panel)
+		})
 	}
 	held := readGameServerHold(journalPath)
-	stopErr := panel(func(client *http.Client, baseURL string) error {
-		states, err := appsetup.OwnedGameServers(ctx, client, baseURL, clientKey)
+	stopErr := panel(func(game appsetup.GamePanel) error {
+		states, err := game.OwnedGameServers(ctx)
 		if err != nil {
 			return err
 		}
@@ -72,7 +78,7 @@ func withGameServersHeld(ctx context.Context, workspace string, required bool, o
 			if states[identifier] == "offline" {
 				continue
 			}
-			if err := appsetup.StopGameServer(ctx, client, baseURL, clientKey, identifier, 3*time.Minute); err != nil {
+			if err := game.StopGameServer(ctx, identifier, 3*time.Minute); err != nil {
 				return err
 			}
 		}
@@ -88,10 +94,10 @@ func withGameServersHeld(ctx context.Context, workspace string, required bool, o
 		deadline := time.Now().Add(4 * time.Minute)
 		for {
 			pending := []string{}
-			err := panel(func(client *http.Client, baseURL string) error {
+			err := panel(func(game appsetup.GamePanel) error {
 				var errs []error
 				for _, identifier := range held {
-					if err := appsetup.StartGameServer(context.WithoutCancel(ctx), client, baseURL, clientKey, identifier); err != nil {
+					if err := game.StartGameServer(context.WithoutCancel(ctx), identifier); err != nil {
 						pending = append(pending, identifier)
 						errs = append(errs, err)
 					}

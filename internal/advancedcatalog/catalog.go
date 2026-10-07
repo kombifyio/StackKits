@@ -473,6 +473,7 @@ func placeholders() []Placeholder {
 		{Name: "containerId", Description: "Exact immutable Docker container ID.", Pattern: `^[0-9a-f]{64}$`},
 		{Name: "planDigest", Description: "Reviewed source-bound application adoption digest.", Pattern: sha},
 		{Name: "applicationAction", Description: "Admitted adopted-container power action.", Pattern: `^(start|stop|restart)$`},
+		{Name: "connectorRequestFile", Description: "Workspace-relative private metadata-only Home Assistant connector request."},
 		{Name: "ownerFile", Description: "Workspace-relative private native application Owner grant file."},
 		{Name: "anchorId", Description: "Existing snapshot-anchor ID in local custody."},
 		{Name: "bundleFile", Description: "Path to the canonical Advanced trust bundle file."},

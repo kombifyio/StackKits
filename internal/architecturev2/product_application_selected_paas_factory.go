@@ -40,6 +40,16 @@ func NewProductPterodactylSelectedPaaSRegistration(
 	)
 }
 
+// NewProductGamePlatformSelectedPaaSRegistration binds the Calagopus or
+// Pelican alternative of the Game workload to the standalone application
+// adapter and lifecycle owner (ADR-0048).
+func NewProductGamePlatformSelectedPaaSRegistration(
+	application nativehost.SelectedPaaSApplication, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string,
+	operations nativehost.SelectedPaaSWorkloadOperations,
+) (ProductRuntimeOwnerRegistration, error) {
+	return newProductApplicationSelectedPaaSRegistration(application, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations)
+}
+
 // NewProductRoundcubeSelectedPaaSRegistration binds the client-first Mail
 // workload to the existing standalone application adapter and lifecycle owner.
 func NewProductRoundcubeSelectedPaaSRegistration(

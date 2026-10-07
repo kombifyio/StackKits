@@ -125,6 +125,7 @@ import "list"
 	if workloadRef != _|_ || alternativeRef != _|_ {
 		realization: "install"
 	}
+
 	// alternativeRefs lists every alternative of workloadRef that installs
 	// this tool (a bundle shared by several alternatives, such as Ollama in
 	// both chat compositions). alternativeRef is the one resolved when no
@@ -132,7 +133,7 @@ import "list"
 	// pick any listed alternative without a conflict.
 	alternativeRefs?: [...=~"^[a-z][a-z0-9-]+$"] & list.MinItems(1)
 	if alternativeRefs != _|_ {
-		realization: "install"
+		realization:                    "install"
 		_alternativeRefsIncludePrimary: list.Contains(alternativeRefs, alternativeRef) & true
 		_alternativeRefsUnique:         list.UniqueItems(alternativeRefs) & true
 	}
@@ -157,12 +158,13 @@ import "list"
 	if required {
 		enabledByDefault: true
 	}
+
 	// Capabilities that must be enabled together with this one.
 	requires: [...=~"^[a-z][a-z0-9-]+$"] | *[]
 	// The realizing module must run with an explicit accelerator profile.
 	requiresAccelerator: bool | *false
 	default:             #UseCaseCapabilityOption
-	alternative?:        #UseCaseCapabilityOption & {id: !=default.id}
+	alternative?: #UseCaseCapabilityOption & {id: !=default.id}
 	_notSelfRequired: [for ref in requires if ref == id {ref}] & []
 }
 
@@ -663,10 +665,10 @@ UseCaseCatalog: #UseCaseCatalog & {
 					alternative: {id: "docling", name: "Docling", note: "For scanned and complex layouts; needs more memory", realization: "install", workloadRef: "ai-documents", alternativeRef: "docling"}
 				},
 				{
-					id:                  "image-video"
-					name:                "Image and video"
-					help:                "Create and edit images and short videos from reviewed workflow templates."
-					requires:            ["inference"]
+					id:   "image-video"
+					name: "Image and video"
+					help: "Create and edit images and short videos from reviewed workflow templates."
+					requires: ["inference"]
 					default: {id: "comfyui", name: "ComfyUI", note: "Runs on the CPU (slow; upscaling, and text-to-image with 32 GB RAM); an NVIDIA GPU with 8 GB makes images fast, video needs 16 GB of VRAM", realization: "install", workloadRef: "ai-image-video", alternativeRef: "comfyui"}
 					alternative: {id: "invokeai", name: "InvokeAI", realization: "recorded"}
 				},
@@ -812,13 +814,14 @@ UseCaseCatalog: #UseCaseCatalog & {
 		game: {
 			slug:        "game"
 			displayName: "Game Server"
-			description: "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles."
+			description: "Self-hosted game servers for friends and family through Calagopus (or Pelican or Pterodactyl), with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles."
 			owner:       "stackkits"
 			mainUseCase: id: "game"
 			docs: "/guides/stackkits/use-cases/game"
 			components: {
-				pterodactyl: {id: "pterodactyl", name: "Pterodactyl", role: "primary", kind: "application"}
+				calagopus: {id: "calagopus", name: "Calagopus Panel", role: "primary", kind: "application"}
 				pelican: {id: "pelican", name: "Pelican Panel", role: "alternative", kind: "application"}
+				pterodactyl: {id: "pterodactyl", name: "Pterodactyl", role: "alternative", kind: "application"}
 			}
 			settings: [
 				{

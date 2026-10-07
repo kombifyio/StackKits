@@ -101,11 +101,34 @@ var filePublicTestBoundaries = map[string]struct {
 	},
 }
 
+var nativeSetupConsumerTests = []string{
+	"TestNativeHomeAssistantConnectorRequiresCurrentLocalTupleAndRetainsSecretFreeEvidence",
+	"TestAutomaticFilesOwnerSetupTreatsSuccessfulBootstrapAsSuccess",
+	"TestAutomaticOwnerSetupRunsOwnerAccountActionsFromTheOwnerIdentity",
+	"TestAutomaticSSOSetupReusesOwnerCustodyAcrossAuthorityChanges",
+}
+
 // fileFocusedTests keeps focused production and shared-fixture slices explicit
 // for packages whose historical full test suite is not a useful beta feedback
 // gate. Adding or renaming a test in one of these slices must update this
 // reviewable binding.
 var fileFocusedTests = map[string][]string{
+	// These reviewed setup consumers exercise the shared native admission and
+	// Files/automatic callers plus the complete HA custody journey. They do not
+	// qualify other native application branches or cover unrelated CLI sources.
+	"cmd/stackkit/commands/setup_native.go":         nativeSetupConsumerTests,
+	"cmd/stackkit/commands/setup_native_actions.go": nativeSetupConsumerTests,
+	"cmd/stackkit/commands/setup_home_assistant_connector.go": {
+		"TestNativeHomeAssistantConnectorRequiresCurrentLocalTupleAndRetainsSecretFreeEvidence",
+	},
+	"cmd/stackkit/commands/setup_home_assistant_connector_command.go": {
+		"TestNativeHomeAssistantConnectorRequiresCurrentLocalTupleAndRetainsSecretFreeEvidence",
+	},
+	"cmd/stackkit/commands/setup_automatic.go": {
+		"TestAutomaticFilesOwnerSetupTreatsSuccessfulBootstrapAsSuccess",
+		"TestAutomaticOwnerSetupRunsOwnerAccountActionsFromTheOwnerIdentity",
+		"TestAutomaticSSOSetupReusesOwnerCustodyAcrossAuthorityChanges",
+	},
 	"cmd/stackkit/commands/use_cases_add.go": {"TestUseCasesAddPreservesInstalledIntentAndCustody"},
 	"internal/architecturev2/addons.go": {
 		"TestListSupportedAddOnsUsesEmbeddedCatalogOutsideCheckout",
@@ -326,12 +349,26 @@ type plannerInput struct {
 	StatusSurfaceGate bool
 	// WebsiteSource is false in the curated public export, which ships the
 	// installers but not website/ or its dependency scripts.
-	WebsiteSource        bool
-	GoPackages           []goPackage
-	MaxReverse           int
-	GoListWarning        string
-	ChangedTests         map[string][]string
-	ChangedTestTags      map[string][]string
+	WebsiteSource   bool
+	GoPackages      []goPackage
+	MaxReverse      int
+	GoListWarning   string
+	ChangedTests    map[string][]string
+	ChangedTestTags map[string][]string
+	// PublisherOnly records packages whose changed production files are excluded
+	// by the ordinary Go build and owned exclusively by the publisher build.
+	// Values are the actual publisher-only tests discovered from Go metadata.
+	PublisherOnly map[string][]string
+	// PublisherPresent records that the tag-gated publisher entry point
+	// exists. PublisherClosure holds the repository package directories its
+	// publisher build compiles; nil means the graph is unknown.
+	PublisherPresent bool
+	PublisherClosure map[string]struct{}
+	// ContractProofPresent records that the packaged Architecture v2 contract
+	// proof exists. ContractProofClosure holds the repository package
+	// directories its verifier builds; nil means the graph is unknown.
+	ContractProofPresent bool
+	ContractProofClosure map[string]struct{}
 	TestDiscoveryWarning string
 	// InertGoFiles are changed Go files that both the selected base and the
 	// current revision parse as declaration-free metadata (for example a
@@ -406,6 +443,15 @@ func buildPlan(input plannerInput) testPlan {
 	}
 	focusedTests := focusedGoTests(files, input.ChangedTests)
 	applyPublicTestBoundaries(files, input.InertGoFiles, &goSelection, focusedTests)
+	testTags := make(map[string][]string, len(input.ChangedTestTags))
+	for dir, tags := range input.ChangedTestTags {
+		testTags[dir] = tags
+	}
+	for dir, tests := range input.PublisherOnly {
+		delete(goSelection.Required, dir)
+		focusedTests[dir] = sortedUnique(append(focusedTests[dir], tests...))
+		testTags[dir] = []string{"publisher"}
+	}
 	// Architecture v2 CUE changes must keep the embedded authority and renderer
 	// buildable. Bundle drift is `mise run generate:architecture-v2`. A CUE-only
 	// slice therefore compile-checks those packages instead of executing
@@ -465,7 +511,32 @@ func buildPlan(input plannerInput) testPlan {
 	}
 	goPatterns := sortedUnique(append(append(append([]string(nil), goSelection.Changed...), goSelection.CompileOnly...), goSelection.Reverse...))
 	classes.GoPackages = append([]string(nil), goPatterns...)
-	commands = append(commands, affectedGoCommands(goSelection, focusedTests, input.ChangedTestTags)...)
+	commands = append(commands, affectedGoCommands(goSelection, focusedTests, testTags)...)
+	if input.PublisherPresent && publisherBuildAffected(files, classes.GoShared, input.PublisherClosure) {
+		commands = append(commands, testCommand{
+			Kind:  "go",
+			Scope: "publisher-compile",
+			Argv:  []string{"go", "test", "-count=1", goTestTimeoutArg, "-tags", "publisher", "-run", "^$", packagePattern(publisherCommandDir)},
+			Reason: "compile the tag-gated publisher (mise run build:publisher) when go.mod, go.sum or a package in its build closure changes; " +
+				"the ordinary build never sees its publisher-only sources",
+		})
+	}
+	if input.ContractProofPresent && contractProofAffected(files, classes.GoShared, input.ContractProofClosure) {
+		commands = append(commands,
+			testCommand{
+				Kind:   "contract",
+				Scope:  "contract-proof-cli",
+				Argv:   []string{"node", cliBuildScript, "--target", "stackkit"},
+				Reason: "build the development CLI (mise run build:cli) for the packaged contract proof",
+			},
+			testCommand{
+				Kind:   "contract",
+				Scope:  "contract-proof",
+				Argv:   []string{"./build/stackkit", "contract-proof", "--repo-root", "."},
+				Reason: "reproduce the packaged Architecture v2 contract fixture the public release candidate verifies, after a module, Foundation CUE, fixture, authority or verifier change",
+			},
+		)
+	}
 
 	if classes.CUEShared {
 		commands = append(commands, testCommand{
@@ -786,6 +857,55 @@ func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGo
 	for dir := range unmappedProduction {
 		fallBackToPackageSlice(dir, nil)
 	}
+}
+
+// publisherBuildAffected selects the publisher compile for module metadata
+// changes and for production Go changes inside its build closure. An unknown
+// closure selects it for every production Go change.
+func publisherBuildAffected(files []string, moduleChanged bool, closure map[string]struct{}) bool {
+	if moduleChanged {
+		return true
+	}
+	for _, file := range files {
+		if !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		if closure == nil {
+			return true
+		}
+		if _, ok := closure[path.Dir(file)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// contractProofAffected selects the packaged contract proof for module
+// metadata, Foundation CUE, contract fixtures, the embedded Architecture v2
+// authority and production Go changes inside the verifier's build closure. An
+// unknown closure selects it for every production Go change.
+func contractProofAffected(files []string, moduleChanged bool, closure map[string]struct{}) bool {
+	if moduleChanged {
+		return true
+	}
+	for _, file := range files {
+		switch {
+		case strings.HasPrefix(file, "foundation/") && strings.HasSuffix(file, ".cue"),
+			strings.HasPrefix(file, "architecture/v2/fixtures/"),
+			strings.HasPrefix(file, "internal/architecturev2/"),
+			strings.HasPrefix(file, contractProofPackage+"/"),
+			file == contractProofCommand:
+			return true
+		case !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go"):
+			continue
+		case closure == nil:
+			return true
+		}
+		if _, ok := closure[path.Dir(file)]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func classifyFiles(files []string) classification {

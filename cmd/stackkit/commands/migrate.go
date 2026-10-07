@@ -29,12 +29,13 @@ const (
 )
 
 type migrateCLIOptions struct {
-	targetKit    string
-	completeWith string
-	outputPath   string
-	specOutput   string
-	format       string
-	force        bool
+	targetKit     string
+	completeWith  string
+	inventoryPath string
+	outputPath    string
+	specOutput    string
+	format        string
+	force         bool
 }
 
 type migrationResult struct {
@@ -129,6 +130,10 @@ the embedded governed Architecture v2 authority. A completed result contains the
 explicit canonical candidate and its ResolvedPlan hash. Generator eligibility is
 reported independently from CUE validity and follows ResolvedPlan readiness.
 
+--inventory supplies the observed Inventory the completion resolves against. A
+Kit whose plan binds node facts (Basement binds the node-site address of its
+LAN listener) cannot resolve without it, and completion never invents them.
+
 --spec-output writes the exact completed canonical StackSpec v2 as deterministic
 JSON. It is valid only with --complete-with, never defaults to an in-place rewrite,
 and refuses to replace an existing canonical target; canonical replacement
@@ -146,6 +151,9 @@ Context maps legacy locality and Pi hardware only; it never selects a Kit.`,
   # Reconcile with a full StackSpec v2 and write the completed canonical spec
   stackkit migrate legacy.yaml --target-kit basement-kit --complete-with explicit-v2.yaml --spec-output stack-spec.v2.json
 
+  # Resolve the completion against an observed Inventory
+  stackkit migrate legacy.yaml --target-kit basement-kit --complete-with explicit-v2.yaml --inventory inventory.yaml
+
   # Print the report as YAML
   stackkit migrate legacy.yaml --format yaml
 
@@ -158,6 +166,7 @@ Context maps legacy locality and Pi hardware only; it never selects a Kit.`,
 	}
 	cmd.Flags().StringVar(&options.targetKit, "target-kit", "", "Explicit target KitProfile supported by the authority (never inferred from context)")
 	cmd.Flags().StringVar(&options.completeWith, "complete-with", "", "Full explicit StackSpec v2 candidate to reconcile and resolve with the embedded authority (never a partial overlay)")
+	cmd.Flags().StringVar(&options.inventoryPath, "inventory", "", "Path to the observed Inventory document the completion resolves against (requires --complete-with)")
 	cmd.Flags().StringVarP(&options.outputPath, "output", "o", "", "Write the migration result beneath the working directory instead of stdout")
 	cmd.Flags().StringVar(&options.specOutput, "spec-output", "", "Write the completed canonical StackSpec v2 as deterministic JSON beneath the working directory (requires --complete-with)")
 	cmd.Flags().StringVar(&options.format, "format", "json", "Machine-readable output format: json or yaml")
@@ -180,6 +189,10 @@ func runMigrate(cmd *cobra.Command, args []string, options *migrateCLIOptions, w
 func runMigrateLocked(cmd *cobra.Command, args []string, options *migrateCLIOptions, wd string) (returnErr error) {
 	if strings.TrimSpace(options.specOutput) != "" && strings.TrimSpace(options.completeWith) == "" {
 		return fmt.Errorf("--spec-output requires --complete-with so only a governed completed StackSpec v2 can be persisted")
+	}
+
+	if strings.TrimSpace(options.inventoryPath) != "" && strings.TrimSpace(options.completeWith) == "" {
+		return fmt.Errorf("--inventory requires --complete-with because only the completion resolves a plan")
 	}
 
 	format, err := normalizeMigrationFormat(options.format)
@@ -236,6 +249,13 @@ func runMigrateLocked(cmd *cobra.Command, args []string, options *migrateCLIOpti
 			if candidateErr != nil {
 				return candidateErr
 			}
+			var inventory []byte
+			if strings.TrimSpace(options.inventoryPath) != "" {
+				var inventoryErr error
+				if inventory, inventoryErr = readMigrationFile(resolvePathFromWorkDir(wd, options.inventoryPath), "Inventory"); inventoryErr != nil {
+					return inventoryErr
+				}
+			}
 			service, serviceErr := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
 			if serviceErr != nil {
 				return fmt.Errorf("initialize embedded Architecture v2 authority for migration completion: %w", serviceErr)
@@ -244,6 +264,7 @@ func runMigrateLocked(cmd *cobra.Command, args []string, options *migrateCLIOpti
 				Legacy:           document,
 				LegacySourceRef:  result.Source.Ref,
 				Candidate:        candidate,
+				Inventory:        inventory,
 				TargetKitProfile: stackspecmigration.KitProfile(strings.TrimSpace(options.targetKit)),
 			})
 			result.Report = completed.Report
@@ -385,17 +406,21 @@ func normalizeMigrationFormat(raw string) (string, error) {
 }
 
 func readMigrationInput(path string) ([]byte, error) {
+	return readMigrationFile(path, "StackSpec")
+}
+
+func readMigrationFile(path, label string) ([]byte, error) {
 	file, err := os.Open(filepath.Clean(path)) // #nosec G304 -- explicit operator input, read-only and size-bounded below.
 	if err != nil {
-		return nil, fmt.Errorf("read StackSpec %s: %w", path, err)
+		return nil, fmt.Errorf("read %s %s: %w", label, path, err)
 	}
 	defer func() { _ = file.Close() }()
 	data, err := io.ReadAll(io.LimitReader(file, maxMigrationInputBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("read StackSpec %s: %w", path, err)
+		return nil, fmt.Errorf("read %s %s: %w", label, path, err)
 	}
 	if len(data) > maxMigrationInputBytes {
-		return nil, fmt.Errorf("StackSpec %s exceeds the %d byte migration limit", path, maxMigrationInputBytes)
+		return nil, fmt.Errorf("%s %s exceeds the %d byte migration limit", label, path, maxMigrationInputBytes)
 	}
 	return data, nil
 }

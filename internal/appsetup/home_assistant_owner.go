@@ -35,6 +35,8 @@ const (
 // HomeAssistantOwnerRequest contains the credentials used for the local
 // Home Assistant owner setup. Passwords and tokens are used only in memory.
 type HomeAssistantOwnerRequest struct {
+	// Connector is explicit local Owner authorization, never inferred from setup.
+	Connector *HomeAssistantConnectorRequest
 	// OIDC is supplied only from verified StackKits owner custody.
 	CompleteOnboarding bool
 	OIDC               *HomeAssistantOIDCBinding
@@ -49,12 +51,13 @@ type HomeAssistantOwnerRequest struct {
 // setup. A successful return proves the current authenticated user is both an
 // owner and an administrator; onboarding completion is reported separately.
 type HomeAssistantOwnerResult struct {
-	UserID             string `json:"userId"`
-	UserIsOwner        bool   `json:"userIsOwner"`
-	UserIsAdmin        bool   `json:"userIsAdmin"`
-	ServerInitialized  bool   `json:"serverInitialized"`
-	OnboardingComplete bool   `json:"onboardingComplete"`
-	Version            string `json:"version"`
+	Connector          *HomeAssistantConnectorEvidence `json:"connector,omitempty"`
+	UserID             string                          `json:"userId"`
+	UserIsOwner        bool                            `json:"userIsOwner"`
+	UserIsAdmin        bool                            `json:"userIsAdmin"`
+	ServerInitialized  bool                            `json:"serverInitialized"`
+	OnboardingComplete bool                            `json:"onboardingComplete"`
+	Version            string                          `json:"version"`
 }
 
 // BootstrapHomeAssistantOwner creates the local owner only when the user
@@ -91,6 +94,13 @@ func BootstrapHomeAssistantOwner(
 	if err != nil {
 		return result, err
 	}
+	connector, err := prepareHomeAssistantConnector(request.Connector, baseURL, expectedVersion)
+	if err != nil {
+		return result, err
+	}
+	if connector != nil {
+		defer connector.close()
+	}
 	setupCtx, cancelSetup := context.WithTimeout(ctx, homeAssistantSetupTimeout)
 	defer cancelSetup()
 	ctx = setupCtx
@@ -107,6 +117,7 @@ func BootstrapHomeAssistantOwner(
 	var transientAccessTokens []string
 	defer func() {
 		if cleanupErr := revokeHomeAssistantRefreshTokens(client, baseURL, refreshTokens); cleanupErr != nil {
+			result = HomeAssistantOwnerResult{}
 			cleanupFailure := fmt.Errorf("Home Assistant session cleanup failed: %w", cleanupErr)
 			if returnErr == nil {
 				returnErr = cleanupFailure
@@ -249,7 +260,15 @@ func BootstrapHomeAssistantOwner(
 	if request.CompleteOnboarding && !finalOnboarding.complete {
 		return result, errors.New("Home Assistant onboarding did not converge")
 	}
+	var connectorEvidence *HomeAssistantConnectorEvidence
+	if connector != nil {
+		connectorEvidence, err = connector.apply(ctx, client, accessToken, user.ID)
+		if err != nil {
+			return result, err
+		}
+	}
 	return HomeAssistantOwnerResult{
+		Connector:          connectorEvidence,
 		UserID:             strings.TrimSpace(user.ID),
 		UserIsOwner:        *user.IsOwner,
 		UserIsAdmin:        *user.IsAdmin,

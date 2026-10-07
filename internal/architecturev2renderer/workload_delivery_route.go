@@ -121,10 +121,10 @@ type ApplicationDeliveryComponentDescriptor struct {
 	HealthCommand     []string
 	Resources         *ApplicationDeliveryResourcesDescriptor
 	// RouteHostLoopback resolves the workload route host to loopback inside
-	// this component (ADR-0043, Pterodactyl Panel only).
+	// this component (ADR-0043, a game-node Panel only).
 	RouteHostLoopback bool
 	// DockerLifecycleOwner receives the approved Docker socket (ADR-0043,
-	// Pterodactyl Wings only).
+	// a game-node Wings only).
 	DockerLifecycleOwner bool
 	// PublishedTCPPorts are bound on every host address (ADR-0046, Stalwart
 	// only). RouteHostEnvironment names variables that receive the route host
@@ -314,7 +314,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			if !strings.HasPrefix(volume.Target, "/") {
 				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "volume target is invalid")
 			}
-			if (volume.SelfPath || volume.SharedFrom != nil) && bundle.Workload.ModuleRef != pterodactylWorkloadModuleID {
+			if _, gameNode := GameNodeModuleFor(bundle.Workload.ModuleRef); (volume.SelfPath || volume.SharedFrom != nil) && !gameNode {
 				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "self-path and shared volumes are admitted only for the governed game node")
 			}
 			volumes[volumeIndex] = ApplicationDeliveryVolumeDescriptor{
@@ -325,7 +325,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 				volumes[volumeIndex].SharedFromComponent, volumes[volumeIndex].SharedFromVolume = volume.SharedFrom.ComponentRef, volume.SharedFrom.VolumeRef
 			}
 		}
-		if (component.RouteHostLoopback || component.DockerLifecycleOwner != nil) && bundle.Workload.ModuleRef != pterodactylWorkloadModuleID {
+		if _, gameNode := GameNodeModuleFor(bundle.Workload.ModuleRef); (component.RouteHostLoopback || component.DockerLifecycleOwner != nil) && !gameNode {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath, "loopback route host and Docker lifecycle ownership are admitted only for the governed game node")
 		}
 		if err := validateStopBehavior(bundle.Workload.ModuleRef, component, componentPath); err != nil {
@@ -429,7 +429,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		descriptor.Route = bundle.DeliveryRoute.descriptor()
 	}
 	if bundle.DaemonSocketPath != "" {
-		if bundle.Workload.ModuleRef != pterodactylWorkloadModuleID || validateDockerSocketPath(bundle.DaemonSocketPath) != nil {
+		if _, gameNode := GameNodeModuleFor(bundle.Workload.ModuleRef); !gameNode || validateDockerSocketPath(bundle.DaemonSocketPath) != nil {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path+".daemonSocketPath", "a Docker socket is admitted only for the governed game node")
 		}
 		descriptor.DaemonSocketPath = bundle.DaemonSocketPath

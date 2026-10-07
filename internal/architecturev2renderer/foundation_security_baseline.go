@@ -236,6 +236,12 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(pterodactylWorkload.contract, pterodactylWorkload); err != nil {
 		return nil, err
 	}
+	for _, platform := range []gamePlatform{calagopusPlatform, pelicanPlatform} {
+		gameWorkload := newGamePlatformWorkloadBundleRenderer(platform)
+		if err := registry.Register(gameWorkload.contract, gameWorkload); err != nil {
+			return nil, err
+		}
+	}
 	paperlessWorkload := newPaperlessWorkloadBundleRenderer()
 	if err := registry.Register(paperlessWorkload.contract, paperlessWorkload); err != nil {
 		return nil, err

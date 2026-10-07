@@ -71,7 +71,7 @@ func NativeActionMetadata(action string) (NativeActionDescription, bool) {
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/smart-home/agent/homelab-mcp/SKILL.md#owner-setup",
 			SupportsOnboardingCompletion: true,
 		}, true
-	case "pterodactyl-game-server-setup":
+	case "pterodactyl-game-server-setup", "pelican-game-server-setup", "calagopus-game-server-setup":
 		return NativeActionDescription{
 			Title:                        "Game server setup",
 			CredentialFields:             []string{"profile", "name", "acceptEula", "allowList"},

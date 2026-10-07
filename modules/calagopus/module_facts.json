@@ -1,0 +1,155 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "calagopus",
+  "displayName": "Calagopus Panel",
+  "description": "Calagopus Panel and Wings upstream catalog, the recommended Game platform. The native-v2 game workload owns executable configuration, owner bootstrap and the governed Wings lifecycle-owner approval (ADR-0043, ADR-0048).",
+  "layer": "L3-application",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "768m"
+    }
+  },
+  "services": [
+    {
+      "name": "panel",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-calagopus-runtime",
+        "componentRef": "panel"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "panel-data",
+          "target": "/var/lib/calagopus",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 8000
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "calagopus/panel",
+        "registryImage": "ghcr.io/calagopus/panel"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`game.{{.domain}}`)",
+        "port": 8000
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "self-auth"
+      }
+    },
+    {
+      "name": "panel-database",
+      "type": "database",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-calagopus-runtime",
+        "componentRef": "panel-database"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "panel-database-data",
+          "target": "/var/lib/postgresql",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "pg_isready -U panel -d panel"
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "docker-library/postgres",
+        "registryImage": "docker.io/library/postgres"
+      }
+    },
+    {
+      "name": "panel-cache",
+      "type": "cache",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-calagopus-runtime",
+        "componentRef": "panel-cache"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "panel-cache-data",
+          "target": "/data",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "valkey-cli ping"
+      },
+      "resources": {
+        "memory": "64m",
+        "memoryMax": "256m"
+      },
+      "upstream": {
+        "github": "valkey-io/valkey",
+        "registryImage": "docker.io/valkey/valkey"
+      }
+    },
+    {
+      "name": "wings",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-calagopus-runtime",
+        "componentRef": "wings"
+      },
+      "networks": [
+        "game-internal"
+      ],
+      "volumes": [
+        {
+          "source": "wings-data",
+          "target": "/stackkit/game-data",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/api/system",
+        "port": 8080
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "calagopus/wings",
+        "registryImage": "ghcr.io/calagopus/wings"
+      }
+    }
+  ]
+}

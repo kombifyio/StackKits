@@ -112,6 +112,13 @@ func init() {
 	governedCustodyNodeRights[mosquittoWorkloadModuleID] = governedCommandSecretFile("mosquitto", mosquittoPasswordFile)
 	governedCustodyNodeRights[stalwartWorkloadModuleID] = governedCommandSecretFile("stalwart", stalwartAdminPasswordFile)
 	governedCustodyNodeRights[paperclipWorkloadModuleID] = governedEntrypointSecretFiles(map[string][]selectedPaaSSecretFile{"paperclip": paperclipSecretFiles})
+	governedCustodyNodeRights[calagopusWorkloadModuleID] = governedEntrypointSecretFiles(map[string][]selectedPaaSSecretFile{
+		"panel": calagopusPanelSecretFiles, "panel-bootstrap": calagopusOwnerSecretFiles,
+		"panel-keys": calagopusKeysSecretFiles, "wings-bootstrap": calagopusNodeSecretFiles,
+	})
+	governedCustodyNodeRights[pelicanWorkloadModuleID] = governedEntrypointSecretFiles(map[string][]selectedPaaSSecretFile{
+		"panel": pelicanPanelSecretFiles, "panel-bootstrap": pelicanBootstrapSecretFiles,
+	})
 	governedCustodyNodeRights[pterodactylWorkloadModuleID] = governedEntrypointSecretFiles(map[string][]selectedPaaSSecretFile{
 		"panel": pterodactylPanelSecretFiles, "panel-bootstrap": pterodactylBootstrapSecretFiles,
 	})

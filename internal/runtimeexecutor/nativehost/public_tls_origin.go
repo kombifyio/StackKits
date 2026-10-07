@@ -10,10 +10,13 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/originca"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 // originPublicTLSProbe proves a managed kombify.me route from the node: the
@@ -79,4 +82,51 @@ func (o *osPublicTLSOperations) probeRoute(ctx context.Context, route architectu
 		return originPublicTLSProbe{roots: originca.RootPool(), now: o.now, wait: certificateIssuanceWait, retryInterval: certificateIssuanceInterval}.Probe(ctx, route)
 	}
 	return o.probe.Probe(ctx, route)
+}
+
+// originCertificateMissing reports a managed kombify.me host that no installed
+// origin certificate covers. An installed certificate that has expired or is
+// presented wrongly still covers its host and stays a verification failure.
+func originCertificateMissing(workspace, host string) bool {
+	return originca.ManagedHost(host) && !originca.Covers(workspace, host)
+}
+
+// publicTLSOriginCertificatePendingError reports managed routes the local
+// router serves in origin-certificate mode (ADR-0047) while no installed
+// Cloudflare Origin CA certificate covers them. Techstack delivers the
+// certificate through the origin-certificate operations; until then the
+// routes cannot terminate TLS, and no ACME issuance wait can change that.
+type publicTLSOriginCertificatePendingError struct {
+	routeRefs []string
+	hosts     []string
+}
+
+func (e *publicTLSOriginCertificatePendingError) Error() string {
+	return fmt.Sprintf("managed public routes %s (%s) have no installed Cloudflare Origin CA certificate; the router serves them only from the delivered origin certificate",
+		strings.Join(e.routeRefs, ", "), strings.Join(e.hosts, ", "))
+}
+
+// issuanceTerminal stops the issuance wait: only a delivered origin
+// certificate can serve the route.
+func (e *publicTLSOriginCertificatePendingError) issuanceTerminal() bool { return true }
+
+func (e *publicTLSOriginCertificatePendingError) join(other *publicTLSOriginCertificatePendingError) *publicTLSOriginCertificatePendingError {
+	if e == nil {
+		return &publicTLSOriginCertificatePendingError{routeRefs: append([]string(nil), other.routeRefs...), hosts: append([]string(nil), other.hosts...)}
+	}
+	e.routeRefs = append(e.routeRefs, other.routeRefs...)
+	e.hosts = append(e.hosts, other.hosts...)
+	return e
+}
+
+// publicTLSOperationFailure wraps a failed public TLS operation. Routes that
+// wait only for their origin certificate make the unit degraded and
+// retryable instead of failed; every other failure stays a failure.
+func publicTLSOperationFailure(target runtimeexecutor.RuntimeTarget, operation string, err error) error {
+	wrapped := fmt.Errorf("%s: %w", operation, err)
+	var pending *publicTLSOriginCertificatePendingError
+	if errors.As(err, &pending) {
+		return &applyoutcome.DegradedUnitError{RequirementID: target.RequirementID, Class: applyoutcome.ClassOriginCertificateMissing, Err: wrapped}
+	}
+	return wrapped
 }

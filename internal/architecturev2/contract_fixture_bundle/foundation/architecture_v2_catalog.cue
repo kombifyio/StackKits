@@ -83,6 +83,17 @@ _architectureV2PterodactylWingsImage: {ref: "ghcr.io/pterodactyl/wings:v1.13.3",
 _architectureV2PterodactylDatabaseImage: {ref: "docker.io/library/mariadb:11.8", digest: "sha256:de4cf325ed1fc8a22460b4f285de7b9e06d89edbd593505e678ec480f86e501b"}
 _architectureV2PterodactylCacheImage: {ref: "docker.io/valkey/valkey:8.1-alpine", digest: "sha256:32627109abf6f741121096b45c732f758876803efd7b2e1018ebc0350d117119"}
 
+// Calagopus (ADR-0048) is the recommended Game platform: Panel and Wings are
+// one upstream release; PostgreSQL and Valkey are pinned independently.
+_architectureV2CalagopusPanelImage: {ref: "ghcr.io/calagopus/panel:1.2.4", digest: "sha256:95ee4a9ea6b3c1567179610ca8f5637f7e8d7f6bc4f97a4207afba6b9cd21d1a"}
+_architectureV2CalagopusWingsImage: {ref: "ghcr.io/calagopus/wings:1.2.4", digest: "sha256:61417524f2701e0fa614c0816f219268c7ae1043d4d45b07bbbbacbe781c2e5a"}
+_architectureV2CalagopusDatabaseImage: {ref: "docker.io/library/postgres:18-alpine", digest: "sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"}
+_architectureV2CalagopusCacheImage: _architectureV2PaperlessValkeyImage
+
+// Pelican (ADR-0048) is upstream beta; its Panel and Wings betas are a pair.
+_architectureV2PelicanPanelImage: {ref: "ghcr.io/pelican/panel:v1.0.0-beta38", digest: "sha256:46f356f3fda423b1d43f0dc3c71efc056cd8b9bec365d1d7817306a17ee5694a"}
+_architectureV2PelicanWingsImage: {ref: "ghcr.io/pelican/wings:v1.0.0-beta29", digest: "sha256:39837cfc49b0513313e57dc4b977a769cb784cf81af3f25a5ea46d869b4b0846"}
+
 // Roundcube Webmail is the client-first Mail default: a webmail client for an
 // existing external IMAP/SMTP mailbox; no mail server is installed. The pin
 // is the official 1.6.x Apache multi-arch index (amd64 and arm64 included).
@@ -333,6 +344,46 @@ _architectureV2GameInfrastructure: #WorkloadInfrastructureV1 & {
 	// The application-runtime snapshot owner quiesces the Compose graph; the
 	// CLI first stops running Wings-owned game servers with their own stop
 	// command and starts them again afterwards (ADR-0043 consequences).
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Calagopus game data (ADR-0048): Wings' worlds and node identities, the
+// Panel's PostgreSQL database and its own data directory.
+_architectureV2CalagopusGameInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "game", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "wings", volumeRef: "data", target: "/stackkit/game-data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel-database", volumeRef: "database", target: "/var/lib/postgresql", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel", volumeRef: "data", target: "/var/lib/calagopus", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel-cache", volumeRef: "cache", target: "/data", class: "cache", backup: false, dataClasses: []},
+		// Reproducible startup and log space.
+		{componentRef: "panel", volumeRef: "logs", target: "/var/log/calagopus", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel-bootstrap", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel-keys", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "wings-bootstrap", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "wings", volumeRef: "logs", target: "/var/log/calagopus-wings", class: "cache", backup: false, dataClasses: []},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Pelican game data (ADR-0048): Wings' worlds and the Panel's SQLite data.
+_architectureV2PelicanGameInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "game", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "wings", volumeRef: "data", target: "/stackkit/game-data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel", volumeRef: "data", target: "/pelican-data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "game"},
+		{componentRef: "panel", volumeRef: "caddy", target: "/etc/caddy", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "panel-bootstrap", volumeRef: "stackkit", target: "/stackkit", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "wings", volumeRef: "logs", target: "/var/log/pelican", class: "cache", backup: false, dataClasses: []},
+	]}
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
 	restore: moduleRef:  "stackkits-restore"
@@ -1640,20 +1691,72 @@ _architectureV2WorkloadContracts: [
 		metadata: {
 			id:          "game"
 			version:     "1.0.0"
-			description: "Self-hosted game servers through upstream Pterodactyl Panel and Wings with curated Minecraft profiles (ADR-0043)."
+			description: "Self-hosted game servers through a Panel and its Wings node daemon with curated Minecraft profiles: Calagopus by default, Pelican or Pterodactyl as alternatives (ADR-0043, ADR-0048)."
 		}
 		kind:       "application"
 		useCaseRef: "game"
 		functionalCapabilities: ["game-server-hosting", "game-server-management"]
 		supportedSiteKinds: ["home", "cloud"]
 		dataClasses: ["personal"]
-		defaultAlternative: "pterodactyl"
+		// ADR-0048: Calagopus is the recommendation for new installations; an
+		// existing installation keeps the alternative its spec records.
+		defaultAlternative: "calagopus"
 		computeTiers: {
 			low: {included: false, reason: "Game servers need the standard profile and their own memory budget."}
-			standard: {included: true, alternativeID: "pterodactyl"}
-			high: {included: true, alternativeID: "pterodactyl"}
+			standard: {included: true, alternativeID: "calagopus"}
+			high: {included: true, alternativeID: "calagopus"}
 		}
 		alternatives: [{
+			id:          "calagopus"
+			providerRef: "stackkits-calagopus"
+			moduleRef:   "stackkits-calagopus-runtime"
+			route: {serviceRef: "game", healthRef: "calagopus-panel-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// The bootstrap steps create the owner, custody keys and node;
+			// game servers are created by the owner-approved setup action.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["calagopus-game-server-setup"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs:  _architectureV2CalagopusSecretSlots
+					requiredRefs: _architectureV2CalagopusSecretSlots
+				}
+			}
+			infrastructure: _architectureV2CalagopusGameInfrastructure
+		}, {
+			id:          "pelican"
+			providerRef: "stackkits-pelican"
+			moduleRef:   "stackkits-pelican-runtime"
+			route: {serviceRef: "game", healthRef: "pelican-panel-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["pelican-game-server-setup"]}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs:  _architectureV2PelicanSecretSlots
+					requiredRefs: _architectureV2PelicanSecretSlots
+				}
+			}
+			infrastructure: _architectureV2PelicanGameInfrastructure
+		}, {
 			id:          "pterodactyl"
 			providerRef: "stackkits-pterodactyl"
 			moduleRef:   "stackkits-pterodactyl-runtime"
@@ -2224,7 +2327,7 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-tools", version: "1.0.0", description: "Library maintenance add-on of the photos use case."}, workloadRef: "photos-tools", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "dev", version: "1.0.0", description: "Private Git lifecycle; CI runners are a separate selection."}, workloadRef: "dev", useCaseRef: "dev", packageRef: "dev", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {
-		metadata: {id: "game", version: "1.0.0", description: "Owner-controlled Pterodactyl game lifecycle; game servers are created by the owner-approved setup action (ADR-0043)."}
+		metadata: {id: "game", version: "1.0.0", description: "Owner-controlled game platform lifecycle (Calagopus, Pelican or Pterodactyl); game servers are created by the owner-approved setup action (ADR-0043, ADR-0048)."}
 		workloadRef: "game", useCaseRef: "game", packageRef: "game"
 		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
@@ -3307,6 +3410,40 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["paperless-generated-runtime-contract"]
 	},
 	{
+		metadata: {id: "stackkits-calagopus", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["game"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-calagopus-runtime"]}
+		}
+		evidence: ["calagopus-generated-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-pelican", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["game"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {required: [], optional: ["stackkits-pelican-runtime"]}
+		}
+		evidence: ["pelican-generated-runtime-contract"]
+	},
+	{
 		metadata: {id: "stackkits-pterodactyl", version: "1.0.0"}
 		provides: []
 		workloadRefs: ["game"]
@@ -4355,6 +4492,8 @@ _architectureV2NextcloudTerramateStack: _architectureV2WorkloadTerramateStack & 
 _architectureV2VaultwardenTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "vaultwarden", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PassboltTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "passbolt", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PterodactylTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "pterodactyl", _placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}}
+_architectureV2CalagopusTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "calagopus", _placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}}
+_architectureV2PelicanTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "pelican", _placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}}
 _architectureV2PrivateAITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "private-ai", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2AnythingLLMTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "anythingllm", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2ComfyUITerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "comfyui", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -4596,6 +4735,48 @@ _architectureV2PassboltSupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2PassboltTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["passbolt-selected-paas-runtime-contract"]
+}
+
+_architectureV2CalagopusSecretSlots: ["database-password", "encryption-key", "owner-password", "application-api-key", "client-api-key"]
+
+_architectureV2CalagopusSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: _architectureV2CalagopusSecretSlots}
+	artifacts: {
+		requiredRefs: ["calagopus-workload-bundle", _architectureV2CalagopusTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "calagopus-workload-bundle", unitRef: "calagopus", outputRef: "workloads/calagopus/bundle.json"}, _architectureV2CalagopusTerramateStack.binding]
+		contracts: [{
+			id: "calagopus-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "calagopus", outputRef: "workloads/calagopus/bundle.json"
+		}, _architectureV2CalagopusTerramateStack.contract]
+	}
+	// A renderable runtime contract only; game joins, world persistence and
+	// restore stay pending until exercised against the pinned upstream pair.
+	evidence: requiredRefs: ["calagopus-generated-runtime-contract"]
+}
+
+_architectureV2PelicanSecretSlots: ["app-key", "owner-password", "application-api-key", "client-api-key"]
+
+_architectureV2PelicanSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: _architectureV2PelicanSecretSlots}
+	artifacts: {
+		requiredRefs: ["pelican-workload-bundle", _architectureV2PelicanTerramateStack.contract.id]
+		outputBindings: [{artifactRef: "pelican-workload-bundle", unitRef: "pelican", outputRef: "workloads/pelican/bundle.json"}, _architectureV2PelicanTerramateStack.binding]
+		contracts: [{
+			id: "pelican-workload-bundle", kind: "native-config", format: "json", mode: "0640", required: true
+			compatibleTargets: ["compose", "opentofu"], unitRef: "pelican", outputRef: "workloads/pelican/bundle.json"
+		}, _architectureV2PelicanTerramateStack.contract]
+	}
+	// A renderable runtime contract only; game joins, world persistence and
+	// restore stay pending until exercised against the pinned upstream pair.
+	evidence: requiredRefs: ["pelican-generated-runtime-contract"]
 }
 
 _architectureV2PterodactylSecretSlots: ["database-password", "database-root-password", "app-key", "hashids-salt", "owner-password", "application-api-key", "client-api-key"]
@@ -8571,7 +8752,7 @@ _architectureV2Modules: list.Concat([[
 				// token. It publishes no port, adds no route and keeps its metrics
 				// on loopback; Ollama stays unpublished. A connector that cannot
 				// reach kombify degrades the workload instead of blocking local chat.
-				id: "kombify-ai-connector", role: "application", lifecycle: "daemon", egress: true
+				id:               "kombify-ai-connector", role: "application", lifecycle: "daemon", egress: true
 				healthFailure:    "degraded"
 				enabledBySetting: "kombify-connector"
 				image: {ref: "docker.io/cloudflare/cloudflared:2026.9.3", digest: "sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c"}
@@ -8853,7 +9034,7 @@ _architectureV2Modules: list.Concat([[
 			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "comfyui"
 			components: [{
-				id: "comfyui", role: "application", lifecycle: "daemon"
+				id:    "comfyui", role: "application", lifecycle: "daemon"
 				image: _architectureV2ComfyUIImage
 				dependsOn: []
 				networkRefs: ["comfyui-internal"]
@@ -8968,7 +9149,7 @@ _architectureV2Modules: list.Concat([[
 			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "hermes"
 			components: [{
-				id: "hermes", role: "application", lifecycle: "daemon"
+				id:    "hermes", role: "application", lifecycle: "daemon"
 				image: _architectureV2HermesImage
 				dependsOn: []
 				networkRefs: ["hermes-internal"]
@@ -9099,7 +9280,7 @@ _architectureV2Modules: list.Concat([[
 			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "openhands"
 			components: [{
-				id: "openhands", role: "application", lifecycle: "daemon"
+				id:    "openhands", role: "application", lifecycle: "daemon"
 				image: _architectureV2OpenHandsImage
 				dependsOn: []
 				networkRefs: ["openhands-internal"]
@@ -9219,7 +9400,7 @@ _architectureV2Modules: list.Concat([[
 			entryComponentRef: "paperclip"
 			components: [
 				{
-					id: "paperclip", role: "application", lifecycle: "daemon"
+					id:    "paperclip", role: "application", lifecycle: "daemon"
 					image: _architectureV2PaperclipImage
 					dependsOn: ["paperclip-postgres"]
 					networkRefs: ["paperclip-internal"]
@@ -9262,7 +9443,7 @@ _architectureV2Modules: list.Concat([[
 					resources: {memoryLimit: "4g", memoryReservation: "512m", cpus: 2}
 				},
 				{
-					id: "paperclip-postgres", role: "database", lifecycle: "daemon"
+					id:    "paperclip-postgres", role: "database", lifecycle: "daemon"
 					image: _architectureV2PaperclipPostgresImage
 					dependsOn: [], networkRefs: ["paperclip-internal"]
 					environment: {POSTGRES_DB: "paperclip", POSTGRES_USER: "paperclip"}
@@ -9369,7 +9550,7 @@ _architectureV2Modules: list.Concat([[
 			image: [for component in components if component.id == entryComponentRef {component.image}][0]
 			entryComponentRef: "speechkit"
 			components: [{
-				id: "speechkit", role: "application", lifecycle: "daemon"
+				id:    "speechkit", role: "application", lifecycle: "daemon"
 				image: _architectureV2SpeechKitServerImage
 				dependsOn: ["speechkit-tts", "speechkit-whisper"]
 				networkRefs: ["speechkit-internal"]
@@ -9387,7 +9568,7 @@ _architectureV2Modules: list.Concat([[
 				health: {kind: "http", path: "/healthz", port: 8080}
 				resources: {memoryLimit: "1g", memoryReservation: "256m"}
 			}, {
-				id: "speechkit-whisper", role: "machine-learning", lifecycle: "daemon"
+				id:    "speechkit-whisper", role: "machine-learning", lifecycle: "daemon"
 				image: _architectureV2SpeechKitWhisperImage
 				dependsOn: []
 				networkRefs: ["speechkit-internal"]
@@ -9402,7 +9583,7 @@ _architectureV2Modules: list.Concat([[
 				health: {kind: "http", path: "/", port: 8080}
 				resources: {memoryLimit: "3g", memoryReservation: "1g"}
 			}, {
-				id: "speechkit-tts", role: "machine-learning", lifecycle: "daemon"
+				id:    "speechkit-tts", role: "machine-learning", lifecycle: "daemon"
 				image: _architectureV2SpeechKitTTSImage
 				dependsOn: []
 				networkRefs: ["speechkit-internal"]
@@ -10535,6 +10716,376 @@ _architectureV2Modules: list.Concat([[
 		realizationSupport: _architectureV2PterodactylSupport
 		health: [{id: "pterodactyl-panel-http", phase: "continuous", kind: "http", path: "/auth/login", port: 80, timeoutSeconds: 10, expectedStatuses: [200]}]
 		evidence: ["pterodactyl-generated-runtime-contract", "pterodactyl-wings-lifecycle-owner-governance"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-calagopus-runtime"
+			version:     "1.0.0"
+			description: "Calagopus Panel with PostgreSQL and Valkey plus the Calagopus Wings node daemon, which owns game-server containers through a governed Docker approval (ADR-0043, ADR-0048)."
+		}
+		role:        "workload"
+		providerRef: "stackkits-calagopus"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2CalagopusComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2CalagopusPanelImage
+			entryComponentRef: "panel"
+			components: [
+				{
+					id:    "panel", role: "application", lifecycle: "daemon"
+					image: _architectureV2CalagopusPanelImage
+					dependsOn: ["panel-cache", "panel-database"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/sh", "/stackkit/panel-entrypoint.sh"]
+					// The Panel forwards the console to Wings itself (ADR-0048).
+					environment: {
+						TZ:                       "UTC"
+						PORT:                     "8000"
+						REDIS_URL:                "redis://panel-cache"
+						DATABASE_MIGRATE:         "true"
+						APP_PRIMARY:              "true"
+						APP_LOG_DIRECTORY:        "/var/log/calagopus"
+						APP_ENABLE_WINGS_PROXY:   "true"
+						APP_USE_DECRYPTION_CACHE: "false"
+						APP_USE_INTERNAL_CACHE:   "true"
+					}
+					secretFiles: [
+						{slot: "database-password", target: "/run/secrets/database-password", pathEnvironment: "STACKKIT_DB_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "encryption-key", target: "/run/secrets/encryption-key", pathEnvironment: "STACKKIT_ENCRYPTION_KEY_FILE", uid: 0, gid: 0},
+					]
+					volumes: [
+						for allocation in _architectureV2CalagopusGameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+						},
+					]
+					health: {kind: "http", path: "/", port: 8000}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+				{
+					id:    "panel-database", role: "database", lifecycle: "daemon"
+					image: _architectureV2CalagopusDatabaseImage
+					dependsOn: [], networkRefs: ["game-internal"]
+					environment: {POSTGRES_DB: "panel", POSTGRES_USER: "panel"}
+					secretEnvironment: {POSTGRES_PASSWORD: "database-password"}
+					volumes: [
+						for allocation in _architectureV2CalagopusGameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel-database" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+						},
+					]
+					health: {kind: "command", command: ["pg_isready", "-U", "panel", "-d", "panel"]}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+				{
+					id:    "panel-cache", role: "cache", lifecycle: "daemon"
+					image: _architectureV2CalagopusCacheImage
+					dependsOn: [], networkRefs: ["game-internal"]
+					command: ["valkey-server"]
+					volumes: [
+						for allocation in _architectureV2CalagopusGameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel-cache" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+						},
+					]
+					health: {kind: "command", command: ["valkey-cli", "ping"]}
+					resources: {memoryLimit: "256m", memoryReservation: "64m"}
+				},
+				{
+					// Creates the owner and finishes the first-run wizard.
+					id:    "panel-bootstrap", role: "database-init", lifecycle: "one-shot"
+					image: _architectureV2CalagopusPanelImage
+					dependsOn: ["panel"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/sh"]
+					command: ["/stackkit/bootstrap-owner.sh"]
+					environment: {
+						TZ:                       "UTC"
+						PORT:                     "8000"
+						REDIS_URL:                "redis://panel-cache"
+						DATABASE_MIGRATE:         "true"
+						APP_PRIMARY:              "true"
+						APP_LOG_DIRECTORY:        "/var/log/calagopus"
+						APP_ENABLE_WINGS_PROXY:   "true"
+						APP_USE_DECRYPTION_CACHE: "false"
+						APP_USE_INTERNAL_CACHE:   "true"
+					}
+					ownerEnvironment: {STACKKIT_OWNER_EMAIL: "email"}
+					secretFiles: [
+						{slot: "database-password", target: "/run/secrets/database-password", pathEnvironment: "STACKKIT_DB_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "encryption-key", target: "/run/secrets/encryption-key", pathEnvironment: "STACKKIT_ENCRYPTION_KEY_FILE", uid: 0, gid: 0},
+						{slot: "owner-password", target: "/run/secrets/owner-password", pathEnvironment: "STACKKIT_OWNER_PASSWORD_FILE", uid: 0, gid: 0},
+					]
+					volumes: [
+						for allocation in _architectureV2CalagopusGameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel-bootstrap" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+						},
+					]
+					health: {kind: "completion"}
+				},
+				{
+					// Writes the custody keys as Calagopus key digests.
+					id:    "panel-keys", role: "database-init", lifecycle: "one-shot"
+					image: _architectureV2CalagopusDatabaseImage
+					dependsOn: ["panel-bootstrap"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/sh"]
+					command: ["/stackkit/keys.sh"]
+					environment: {PGHOST: "panel-database", PGUSER: "panel", PGDATABASE: "panel"}
+					ownerEnvironment: {STACKKIT_OWNER_EMAIL: "email"}
+					secretFiles: [
+						{slot: "database-password", target: "/run/secrets/database-password", pathEnvironment: "STACKKIT_DB_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "application-api-key", target: "/run/secrets/application-api-key", pathEnvironment: "STACKKIT_APPLICATION_API_KEY_FILE", uid: 0, gid: 0},
+						{slot: "client-api-key", target: "/run/secrets/client-api-key", pathEnvironment: "STACKKIT_CLIENT_API_KEY_FILE", uid: 0, gid: 0},
+					]
+					volumes: [
+						for allocation in _architectureV2CalagopusGameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel-keys" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+						},
+					]
+					health: {kind: "completion"}
+				},
+				{
+					// Converges location, node, allocations and Eggs, then
+					// enrolls Wings once.
+					id:    "wings-bootstrap", role: "database-init", lifecycle: "one-shot"
+					image: _architectureV2CalagopusWingsImage
+					dependsOn: ["panel-keys"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/sh"]
+					command: ["/stackkit/node.sh"]
+					secretFiles: [
+						{slot: "application-api-key", target: "/run/secrets/application-api-key", pathEnvironment: "STACKKIT_APPLICATION_API_KEY_FILE", uid: 0, gid: 0},
+					]
+					volumes: [
+						{id: "stackkit", target: "/stackkit", class: "cache", backup: false},
+						{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true, sharedFrom: {componentRef: "wings", volumeRef: "data"}},
+					]
+					health: {kind: "completion"}
+				},
+				{
+					id:    "wings", role: "application", lifecycle: "daemon"
+					image: _architectureV2CalagopusWingsImage
+					dependsOn: ["wings-bootstrap"]
+					networkRefs: ["game-internal"]
+					// Wings hands its data path to the Docker daemon, so its root
+					// is the host path the executor exports (ADR-0043).
+					entrypoint: ["/bin/sh", "-c", "export CALAGOPUS_SYSTEM_ROOT_DIRECTORY=\"$STACKKIT_GAME_DATA_HOST_PATH\" CALAGOPUS_SYSTEM_PASSWD_DIRECTORY=\"$STACKKIT_GAME_DATA_HOST_PATH/passwd\"; exec /usr/bin/calagopus-wings \"$@\"", "calagopus-wings"]
+					command: ["--config", "/stackkit/game-data/config.yml"]
+					// No host-network firewall helper, no Panel-pushed
+					// configuration or binary, a bridge name within 15
+					// characters (ADR-0048).
+					environment: {
+						TZ:                                             "UTC"
+						WINGS_UID:                                      "988"
+						WINGS_GID:                                      "988"
+						WINGS_USERNAME:                                 "calagopus"
+						CALAGOPUS_DOCKER_FIREWALL_BACKEND:              "disabled"
+						CALAGOPUS_SYSTEM_PASSWD_ENABLED:                "true"
+						CALAGOPUS_IGNORE_PANEL_CONFIG_UPDATES:          "true"
+						CALAGOPUS_IGNORE_PANEL_WINGS_UPGRADES:          "true"
+						CALAGOPUS_DOCKER_NETWORK_NAME:                  "sk_game_nw"
+						CALAGOPUS_DOCKER_NETWORK_MODE:                  "sk_game_nw"
+						CALAGOPUS_DOCKER_NETWORK_INTERFACE:             "10.213.0.1"
+						CALAGOPUS_DOCKER_NETWORK_INTERFACES_V4_SUBNET:  "10.213.0.0/24"
+						CALAGOPUS_DOCKER_NETWORK_INTERFACES_V4_GATEWAY: "10.213.0.1"
+					}
+					dockerLifecycleOwner: {daemonRef: "docker-default", policyProfile: "docker-game-node-lifecycle"}
+					volumes: [
+						for allocation in _architectureV2CalagopusGameInfrastructure.storageAllocation.allocations if allocation.componentRef == "wings" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+							if allocation.volumeRef == "data" {selfPath: true}
+						},
+					]
+					health: {kind: "image"}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id: "calagopus", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/calagopus/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:2415872ef92a143a45d629218ddac23252b4798b1f1574d1dee9c1900f86be15"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: _architectureV2CalagopusSecretSlots
+			outputs: ["workloads/calagopus/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}
+			requiresInterfaces: [{
+				id:       "docker-game-node-lifecycle"
+				kind:     "docker-socket-direct-v1"
+				protocol: "docker-engine"
+				version:  "v1"
+				endpoint: {visibility: "node-local", transport: "unix-socket", pathSource: "daemon-binding"}
+				scopes: ["docker-api:full"]
+				coLocation:    "same-node"
+				daemonRef:     "docker-default"
+				policyProfile: "docker-game-node-lifecycle"
+			}]
+			serviceEndpoints: [{
+				serviceRef:        "game", upstreamProtocol: "http", targetPort: 8000
+				requiredPrivilege: "user", ingressAuth:      "native", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "calagopus-panel-http"
+				data: {bindingRef: _architectureV2CalagopusGameInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2CalagopusGameInfrastructure.dataBinding.classes, locality: _architectureV2CalagopusGameInfrastructure.dataBinding.locality}
+			}]
+		}, _architectureV2CalagopusTerramateStack.unit]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:e1b77536b3a5e5f2b16bb211d8ff144f447c474642632445c72f514465d7a3ef", unitRefs: ["calagopus"], artifactRefs: ["calagopus-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2CalagopusSecretSlots, planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:e1a7c8de60103ddd1815f8ff4ed6ddbf97e2a14b76d207b36f7f4b87a28c0ae2", unitRefs: ["calagopus"], artifactRefs: ["calagopus-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2CalagopusSecretSlots, planInputRefs: []},
+			{id: "terramate", target: "terramate", rendererRef: "stackkit", contractHash: _architectureV2TerramateStackHashes.workload, unitRefs: ["calagopus", "terramate-stack"], artifactRefs: ["calagopus-workload-bundle", _architectureV2CalagopusTerramateStack.contract.id], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2CalagopusSecretSlots, planInputRefs: []},
+		]
+		realizationSupport: _architectureV2CalagopusSupport
+		health: [{id: "calagopus-panel-http", phase: "continuous", kind: "http", path: "/", port: 8000, timeoutSeconds: 10, expectedStatuses: [200]}]
+		evidence: ["calagopus-generated-runtime-contract", "calagopus-wings-lifecycle-owner-governance"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-pelican-runtime"
+			version:     "1.0.0"
+			description: "Pelican Panel (upstream beta) with SQLite plus the Pelican Wings node daemon, which owns game-server containers through a governed Docker approval (ADR-0043, ADR-0048)."
+		}
+		role:        "workload"
+		providerRef: "stackkits-pelican"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {authority: "control-authority-site", requiredRoles: ["worker"]}
+		computeProfiles:       _architectureV2PelicanComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container", delivery: "application-adapter", engine: "docker"
+			image:             _architectureV2PelicanPanelImage
+			entryComponentRef: "panel"
+			components: [
+				{
+					id:    "panel", role: "application", lifecycle: "daemon"
+					image: _architectureV2PelicanPanelImage
+					dependsOn: []
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/ash", "/stackkit/panel-entrypoint.sh"]
+					command: ["supervisord", "-n", "-c", "/etc/supervisord.conf"]
+					environment: {
+						APP_ENV:          "production"
+						APP_DEBUG:        "false"
+						APP_INSTALLED:    "true"
+						APP_TIMEZONE:     "UTC"
+						DB_CONNECTION:    "sqlite"
+						CACHE_STORE:      "file"
+						SESSION_DRIVER:   "file"
+						QUEUE_CONNECTION: "database"
+						MAIL_MAILER:      "log"
+						BEHIND_PROXY:     "true"
+						TRUSTED_PROXIES:  "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+						PHP_INI_SCAN_DIR: ":/tmp/stackkit/php"
+					}
+					secretFiles: [
+						{slot: "app-key", target: "/run/secrets/app-key", pathEnvironment: "STACKKIT_APP_KEY_FILE", uid: 82, gid: 82},
+					]
+					// The Panel reaches its node under its own route host on
+					// loopback, so console and API calls never cross the router.
+					routeHostLoopback: true
+					volumes: [
+						for allocation in _architectureV2PelicanGameInfrastructure.storageAllocation.allocations if allocation.componentRef == "panel" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+						},
+					]
+					health: {kind: "http", path: "/up", port: 80}
+					resources: {memoryLimit: "1g", memoryReservation: "256m"}
+				},
+				{
+					// Runs as root: it writes Wings' configuration (ADR-0048).
+					id:    "panel-bootstrap", role: "database-init", lifecycle: "one-shot"
+					image: _architectureV2PelicanPanelImage
+					dependsOn: ["panel"]
+					networkRefs: ["game-internal"]
+					entrypoint: ["/bin/ash"]
+					command: ["/stackkit/bootstrap.sh"]
+					environment: {
+						APP_ENV:          "production"
+						APP_DEBUG:        "false"
+						APP_INSTALLED:    "true"
+						APP_TIMEZONE:     "UTC"
+						DB_CONNECTION:    "sqlite"
+						CACHE_STORE:      "file"
+						SESSION_DRIVER:   "file"
+						QUEUE_CONNECTION: "database"
+						MAIL_MAILER:      "log"
+						BEHIND_PROXY:     "true"
+						TRUSTED_PROXIES:  "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+						PHP_INI_SCAN_DIR: ":/tmp/stackkit/php"
+					}
+					ownerEnvironment: {STACKKIT_OWNER_EMAIL: "email"}
+					secretFiles: [
+						{slot: "app-key", target: "/run/secrets/app-key", pathEnvironment: "STACKKIT_APP_KEY_FILE", uid: 0, gid: 0},
+						{slot: "owner-password", target: "/run/secrets/owner-password", pathEnvironment: "STACKKIT_OWNER_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "application-api-key", target: "/run/secrets/application-api-key", pathEnvironment: "STACKKIT_APPLICATION_API_KEY_FILE", uid: 0, gid: 0},
+						{slot: "client-api-key", target: "/run/secrets/client-api-key", pathEnvironment: "STACKKIT_CLIENT_API_KEY_FILE", uid: 0, gid: 0},
+					]
+					volumes: [
+						{id: "stackkit", target: "/stackkit", class: "cache", backup: false},
+						{id: "panel-data", target: "/pelican-data", class: "persistent", backup: true, sharedFrom: {componentRef: "panel", volumeRef: "data"}},
+						{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true, sharedFrom: {componentRef: "wings", volumeRef: "data"}},
+					]
+					health: {kind: "completion"}
+				},
+				{
+					id:    "wings", role: "application", lifecycle: "daemon"
+					image: _architectureV2PelicanWingsImage
+					dependsOn: ["panel-bootstrap"]
+					networkRefs: ["game-internal"]
+					command: ["/usr/bin/wings", "--config", "/stackkit/game-data/config.yml"]
+					environment: {TZ: "UTC", WINGS_UID: "988", WINGS_GID: "988", WINGS_USERNAME: "pelican"}
+					dockerLifecycleOwner: {daemonRef: "docker-default", policyProfile: "docker-game-node-lifecycle"}
+					volumes: [
+						for allocation in _architectureV2PelicanGameInfrastructure.storageAllocation.allocations if allocation.componentRef == "wings" {
+							id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+							if allocation.volumeRef == "data" {selfPath: true}
+						},
+					]
+					health: {kind: "image"}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id: "pelican", kind: "native-config", rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/pelican/bundle/v1.json", version: "1.0.0"
+			contractHash: "sha256:9dddd91cb3cae2a0bbc7db698d98102c5baad8f10d6c348929bffb20dfc35e82"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+			secretInputRefs: _architectureV2PelicanSecretSlots
+			outputs: ["workloads/pelican/bundle.json"]
+			placement: {scope: "node-local", cardinality: "one-per-daemon", daemonRef: "docker-default"}
+			requiresInterfaces: [{
+				id:       "docker-game-node-lifecycle"
+				kind:     "docker-socket-direct-v1"
+				protocol: "docker-engine"
+				version:  "v1"
+				endpoint: {visibility: "node-local", transport: "unix-socket", pathSource: "daemon-binding"}
+				scopes: ["docker-api:full"]
+				coLocation:    "same-node"
+				daemonRef:     "docker-default"
+				policyProfile: "docker-game-node-lifecycle"
+			}]
+			serviceEndpoints: [{
+				serviceRef:        "game", upstreamProtocol: "http", targetPort: 80
+				requiredPrivilege: "user", ingressAuth:      "native", allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site", healthRef: "pelican-panel-http"
+				data: {bindingRef: _architectureV2PelicanGameInfrastructure.dataBinding.bindingRef, requiredClasses: _architectureV2PelicanGameInfrastructure.dataBinding.classes, locality: _architectureV2PelicanGameInfrastructure.dataBinding.locality}
+			}]
+		}, _architectureV2PelicanTerramateStack.unit]
+		renderVariants: [
+			{id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:3b9ccaf901c0a8d69c1c94dce64ceaaae9913f5ada837c9b02bae947a7cf2bba", unitRefs: ["pelican"], artifactRefs: ["pelican-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PelicanSecretSlots, planInputRefs: []},
+			{id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:318fedc313af90a4416024bfba13cfeba80a43a982e138a1806282d56c00f1ae", unitRefs: ["pelican"], artifactRefs: ["pelican-workload-bundle"], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PelicanSecretSlots, planInputRefs: []},
+			{id: "terramate", target: "terramate", rendererRef: "stackkit", contractHash: _architectureV2TerramateStackHashes.workload, unitRefs: ["pelican", "terramate-stack"], artifactRefs: ["pelican-workload-bundle", _architectureV2PelicanTerramateStack.contract.id], publicInputRefs: ["delivery-route"], secretInputRefs: _architectureV2PelicanSecretSlots, planInputRefs: []},
+		]
+		realizationSupport: _architectureV2PelicanSupport
+		health: [{id: "pelican-panel-http", phase: "continuous", kind: "http", path: "/up", port: 80, timeoutSeconds: 10, expectedStatuses: [200]}]
+		evidence: ["pelican-generated-runtime-contract", "pelican-wings-lifecycle-owner-governance"]
 	},
 	{
 		metadata: {
@@ -12170,6 +12721,30 @@ _architectureV2PrivilegedInterfaceApprovals: list.Concat([[
 		reasonCode:    "lifecycle-owner"
 		evidenceRef:   "pterodactyl-wings-lifecycle-owner-governance"
 	},
+	{
+		// ADR-0048: Calagopus Wings owns its game-server containers.
+		id:            "approve-calagopus-wings-lifecycle-owner"
+		kind:          "docker-socket-direct-v1"
+		moduleRef:     "stackkits-calagopus-runtime"
+		unitRef:       "calagopus"
+		providerRef:   "stackkits-calagopus"
+		daemonRef:     "docker-default"
+		policyProfile: "docker-game-node-lifecycle"
+		reasonCode:    "lifecycle-owner"
+		evidenceRef:   "calagopus-wings-lifecycle-owner-governance"
+	},
+	{
+		// ADR-0048: Pelican Wings owns its game-server containers.
+		id:            "approve-pelican-wings-lifecycle-owner"
+		kind:          "docker-socket-direct-v1"
+		moduleRef:     "stackkits-pelican-runtime"
+		unitRef:       "pelican"
+		providerRef:   "stackkits-pelican"
+		daemonRef:     "docker-default"
+		policyProfile: "docker-game-node-lifecycle"
+		reasonCode:    "lifecycle-owner"
+		evidenceRef:   "pelican-wings-lifecycle-owner-governance"
+	},
 ], _architectureV2ProfileExtensionPrivilegedInterfaceApprovals])
 
 _architectureV2RILActionPrimitives: [
@@ -12293,7 +12868,7 @@ ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2HomeAssistantInstanceProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
 	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2HomeAssistantInstanceModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
-	workloads:             list.Concat([_architectureV2WorkloadContracts, _architectureV2InternalWorkloadContracts])
+	workloads: list.Concat([_architectureV2WorkloadContracts, _architectureV2InternalWorkloadContracts])
 	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2InternalApplicationLifecycleContracts])
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
 	rilActionExecutors: [for contract in _architectureV2RILActionExecutors {#RILActionExecutorContractV1 & contract}]

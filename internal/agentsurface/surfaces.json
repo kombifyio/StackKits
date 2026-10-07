@@ -54,6 +54,18 @@
       "productMcps": [],
       "apis": [
         {
+          "id": "calagopus-client",
+          "protocol": "rest",
+          "purpose": "Scoped owner operations on selected game servers. Calagopus has no native product MCP; the admin API stays with the setup action.",
+          "auth": "calagopus-client-api-key"
+        },
+        {
+          "id": "pelican-client",
+          "protocol": "rest",
+          "purpose": "Scoped owner operations on selected game servers. Pelican has no native product MCP; the Application API stays with the setup action.",
+          "auth": "pelican-client-api-key"
+        },
+        {
           "id": "pterodactyl-client",
           "protocol": "rest",
           "purpose": "Scoped owner operations on selected game servers. Pterodactyl has no native product MCP; the Application API stays with the setup action.",
@@ -92,7 +104,7 @@
       ],
       "configBaseline": {
         "status": "omitted",
-        "reason": "Game servers are configured through the Pterodactyl APIs by the setup action; StackKits does not author a separate game configuration file."
+        "reason": "Game servers are configured through the selected Panel's APIs by the setup action; StackKits does not author a separate game configuration file."
       }
     },
     "mail": {

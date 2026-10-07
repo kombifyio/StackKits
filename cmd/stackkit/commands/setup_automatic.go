@@ -174,6 +174,14 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 		}
 		outcome := automaticOwnerSetupOutcome{WorkloadRef: contract.WorkloadRef, ActionRef: action}
 		done, previouslySetUp, err := automaticSetupCompletion(store, contract)
+		if err == nil && done && action == "home-assistant-owner-bootstrap" {
+			requested, requestErr := requestedHomeAssistantConnector(s.workspace, description.CredentialsFile)
+			if requestErr != nil {
+				err = requestErr
+			} else if requested {
+				done = false
+			}
+		}
 		if err != nil {
 			outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
 			outcomes = append(outcomes, outcome)

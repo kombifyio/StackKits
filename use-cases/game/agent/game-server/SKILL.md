@@ -1,14 +1,16 @@
 ---
 name: game-server
-description: Operate the owner's Pterodactyl game servers installed by StackKits (Minecraft Java, Paper and Bedrock, Terraria, Valheim) - create a curated server, share join details, manage the allow list, power and backups - without exposing administrative credentials.
+description: Operate the owner's game servers installed by StackKits on Calagopus, Pelican or Pterodactyl (Minecraft Java, Paper and Bedrock, Terraria, Valheim) - create a curated server, share join details, manage the allow list, power and backups - without exposing administrative credentials.
 ---
 
 # Game server
 
-StackKits installs Pterodactyl (Panel and Wings) on the owner's node and keeps
-its credentials in owner custody. Game servers run as containers owned by
-Wings; the Panel at the workload's route (`https://game.<domain>`) is the
-owner's management surface.
+StackKits installs one game platform on the owner's node: Calagopus (the
+default), Pelican or Pterodactyl, each a Panel plus its Wings node daemon. It
+keeps every Panel credential in owner custody. Game servers run as containers
+owned by Wings; the Panel at the workload's route (`https://game.<domain>`) is
+the owner's management surface. The commands below work the same on every
+platform.
 
 ## Create a server
 

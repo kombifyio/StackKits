@@ -114,21 +114,21 @@ func (e *PublicTLSExecutor) Execute(ctx context.Context, request runtimeexecutor
 	}
 	materialized, err := e.operations.MaterializePublicTLS(ctx, clonePublicTLSApplyPolicy(policy))
 	if err != nil {
-		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("materialize exact public TLS policy: %w", err)
+		return runtimeexecutor.ExecutionOutcome{}, publicTLSOperationFailure(target, "materialize exact public TLS policy", err)
 	}
 	if !validPublicTLSObservation(materialized, expectation, "materialized") {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("materialization observation does not prove the exact public TLS policy")
 	}
 	renewed, err := e.operations.RenewPublicTLS(ctx, clonePublicTLSExpectation(expectation))
 	if err != nil {
-		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("renew exact public TLS policy: %w", err)
+		return runtimeexecutor.ExecutionOutcome{}, publicTLSOperationFailure(target, "renew exact public TLS policy", err)
 	}
 	if !validPublicTLSObservation(renewed, expectation, "renewed") {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("renewal observation does not prove fresh public TLS material")
 	}
 	verified, err := e.operations.VerifyPublicTLS(ctx, clonePublicTLSExpectation(expectation))
 	if err != nil {
-		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("verify exact public TLS policy: %w", err)
+		return runtimeexecutor.ExecutionOutcome{}, publicTLSOperationFailure(target, "verify exact public TLS policy", err)
 	}
 	if !validPublicTLSObservation(verified, expectation, "ready") {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("verification observation does not prove fresh public TLS termination")

@@ -2904,7 +2904,7 @@
       "group": "reference",
       "usage": "stackkit game [flags]",
       "short": "Operate the owner's game servers on the installed Game workload",
-      "description": "List game servers and run the routine owner operations (power, allow list) through the Pterodactyl Panel of the applied Game workload. Creating a server is `stackkit setup game`.",
+      "description": "List game servers and run the routine owner operations (power, allow list) through the Panel (Calagopus, Pelican or Pterodactyl) of the applied Game workload. Creating a server is `stackkit setup game`.",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -5066,7 +5066,7 @@
       "group": "reference",
       "usage": "stackkit migrate [v1-spec-file] [flags]",
       "short": "Classify a StackSpec v1 and emit its migration report",
-      "description": "Losslessly classify one StackSpec and run the bounded v1 to v2 migration\nadapter. The result always includes the complete migration report and, only\nwhen deterministic, an architecture-only migration projection.\n\nIMPORTANT: without --complete-with, the projection is NOT a CUE-valid StackSpec v2, is NOT a ResolvedPlan,\nand does NOT authorize generation or deployment. Complete the reported manual\nactions and pass a full StackSpec v2 through CUE resolution first.\n\n--complete-with accepts one full explicit StackSpec v2, never a partial overlay.\nIt reconciles deterministic legacy Site, node and hardware bindings, then uses\nthe embedded governed Architecture v2 authority. A completed result contains the\nexplicit canonical candidate and its ResolvedPlan hash. Generator eligibility is\nreported independently from CUE validity and follows ResolvedPlan readiness.\n\n--spec-output writes the exact completed canonical StackSpec v2 as deterministic\nJSON. It is valid only with --complete-with, never defaults to an in-place rewrite,\nand refuses to replace an existing canonical target; canonical replacement\nrequires an explicit CAS-authorized StackSpec authoring flow.\n\nA ready-for-shadow-resolution result exits successfully. A blocked result is\nstill emitted as machine-readable output, then the command exits unsuccessfully.\nContext maps legacy locality and Pi hardware only; it never selects a Kit.",
+      "description": "Losslessly classify one StackSpec and run the bounded v1 to v2 migration\nadapter. The result always includes the complete migration report and, only\nwhen deterministic, an architecture-only migration projection.\n\nIMPORTANT: without --complete-with, the projection is NOT a CUE-valid StackSpec v2, is NOT a ResolvedPlan,\nand does NOT authorize generation or deployment. Complete the reported manual\nactions and pass a full StackSpec v2 through CUE resolution first.\n\n--complete-with accepts one full explicit StackSpec v2, never a partial overlay.\nIt reconciles deterministic legacy Site, node and hardware bindings, then uses\nthe embedded governed Architecture v2 authority. A completed result contains the\nexplicit canonical candidate and its ResolvedPlan hash. Generator eligibility is\nreported independently from CUE validity and follows ResolvedPlan readiness.\n\n--inventory supplies the observed Inventory the completion resolves against. A\nKit whose plan binds node facts (Basement binds the node-site address of its\nLAN listener) cannot resolve without it, and completion never invents them.\n\n--spec-output writes the exact completed canonical StackSpec v2 as deterministic\nJSON. It is valid only with --complete-with, never defaults to an in-place rewrite,\nand refuses to replace an existing canonical target; canonical replacement\nrequires an explicit CAS-authorized StackSpec authoring flow.\n\nA ready-for-shadow-resolution result exits successfully. A blocked result is\nstill emitted as machine-readable output, then the command exits unsuccessfully.\nContext maps legacy locality and Pi hardware only; it never selects a Kit.",
       "runnable": true,
       "examples": [
         {
@@ -5080,6 +5080,10 @@
         {
           "command": "stackkit migrate legacy.yaml --target-kit basement-kit --complete-with explicit-v2.yaml --spec-output stack-spec.v2.json",
           "description": "Reconcile with a full StackSpec v2 and write the completed canonical spec"
+        },
+        {
+          "command": "stackkit migrate legacy.yaml --target-kit basement-kit --complete-with explicit-v2.yaml --inventory inventory.yaml",
+          "description": "Resolve the completion against an observed Inventory"
         },
         {
           "command": "stackkit migrate legacy.yaml --format yaml",
@@ -5108,6 +5112,12 @@
           "type": "string",
           "default": "json",
           "description": "Machine-readable output format: json or yaml",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Path to the observed Inventory document the completion resolves against (requires --complete-with)",
           "required": false
         },
         {
@@ -6402,7 +6412,8 @@
         }
       ],
       "subcommands": [
-        "stackkit setup ai-connect"
+        "stackkit setup ai-connect",
+        "stackkit setup connector"
       ]
     },
     {
@@ -6446,6 +6457,57 @@
           "name": "token-file",
           "type": "string",
           "description": "File with the connector token; \"-\" or no flag reads standard input",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit setup connector",
+      "name": "connector",
+      "parent": "stackkit setup",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup connector [flags]",
+      "short": "Issue, revoke or verify the exact local Home Assistant connector",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the authenticated exact signed receipt bytes and current local facts",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Exact stable connector setup operation identity",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve this exact connector ensure or revoke request",
+          "required": false
+        },
+        {
+          "name": "request-file",
+          "type": "string",
+          "description": "Workspace-relative private metadata-only connector request JSON; never contains credentials",
+          "required": false
+        },
+        {
+          "name": "verify-only",
+          "type": "bool",
+          "description": "Read and verify a retained receipt against current local binding without issuing or revoking",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact local workload; only smart-home is admitted",
           "required": false
         }
       ],

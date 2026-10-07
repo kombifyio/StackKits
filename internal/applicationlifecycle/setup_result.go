@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/appsetup"
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -45,25 +46,39 @@ const (
 	OwnerEmailVerificationVerified        = "verified"
 )
 
+// HomeAssistantConnectorDeployment contains the local facts observed by the node.
+// External resource/revision remain correlation in Issuer.RequestedBinding.
+type HomeAssistantConnectorDeployment struct {
+	Node        localevidence.LocalBinding `json:"node"`
+	InstanceRef string                     `json:"instanceRef"`
+	ContainerID string                     `json:"containerId"`
+	ImageDigest string                     `json:"imageDigest"`
+}
+type HomeAssistantConnectorObservation struct {
+	Issuer                  appsetup.HomeAssistantConnectorEvidence `json:"issuer"`
+	VerifiedLocalDeployment HomeAssistantConnectorDeployment        `json:"verifiedLocalDeployment"`
+}
+
 // SetupResult is a secret-free observation of the application API. It is
 // evidence for the existing application lifecycle, not a second setup state.
 type SetupResult struct {
-	APIVersion         string    `json:"apiVersion"`
-	Authority          Authority `json:"authority"`
-	WorkloadRef        string    `json:"workloadRef"`
-	OperationID        string    `json:"operationId"`
-	ActionRef          string    `json:"actionRef"`
-	ApplyResultHash    string    `json:"applyResultHash"`
-	ArtifactDigest     string    `json:"artifactDigest"`
-	InstanceRef        string    `json:"instanceRef"`
-	ApplicationVersion string    `json:"applicationVersion"`
-	AccountRef         string    `json:"accountRef"`
-	Initialized        bool      `json:"initialized"`
-	AdminLoginVerified bool      `json:"adminLoginVerified"`
-	OnboardingComplete bool      `json:"onboardingComplete"`
-	Preparation        string    `json:"preparation,omitempty"`
-	EmailVerification  string    `json:"emailVerification,omitempty"`
-	VerifiedAt         time.Time `json:"verifiedAt"`
+	HomeAssistantConnector *HomeAssistantConnectorObservation `json:"homeAssistantConnector,omitempty"`
+	APIVersion             string                             `json:"apiVersion"`
+	Authority              Authority                          `json:"authority"`
+	WorkloadRef            string                             `json:"workloadRef"`
+	OperationID            string                             `json:"operationId"`
+	ActionRef              string                             `json:"actionRef"`
+	ApplyResultHash        string                             `json:"applyResultHash"`
+	ArtifactDigest         string                             `json:"artifactDigest"`
+	InstanceRef            string                             `json:"instanceRef"`
+	ApplicationVersion     string                             `json:"applicationVersion"`
+	AccountRef             string                             `json:"accountRef"`
+	Initialized            bool                               `json:"initialized"`
+	AdminLoginVerified     bool                               `json:"adminLoginVerified"`
+	OnboardingComplete     bool                               `json:"onboardingComplete"`
+	Preparation            string                             `json:"preparation,omitempty"`
+	EmailVerification      string                             `json:"emailVerification,omitempty"`
+	VerifiedAt             time.Time                          `json:"verifiedAt"`
 }
 
 type signedSetupResult struct {
@@ -77,6 +92,15 @@ type signedSetupResult struct {
 func (store Store) SaveSetupResult(contract Contract, result SetupResult) (Evidence, error) {
 	if err := validateSetupResult(contract, result); err != nil {
 		return Evidence{}, err
+	}
+	if connector := result.HomeAssistantConnector; connector != nil {
+		issuer := connector.Issuer
+		signature := issuer.Signature
+		issuer.Signature = localevidence.OwnerPolicyStateSignature{}
+		payload, _ := json.Marshal(issuer)
+		if err := localevidence.VerifyOwnerPolicyState(store.Workspace, payload, signature); err != nil {
+			return Evidence{}, err
+		}
 	}
 	if result.ActionRef == VaultOwnerInviteActionRef && result.EmailVerification == "" {
 		return Evidence{}, errors.New("Vaultwarden invitation setup result omitted owner email verification")
@@ -176,6 +200,7 @@ func (store Store) SetupRuns(contract Contract, applyResultHash, actionRef strin
 				if result.ApplyResultHash == applyResultHash && result.Authority == authorityFromContract(contract) {
 					run.PlanHash = contract.PlanHash
 					run.authenticated = true
+					run.HomeAssistantConnector = result.HomeAssistantConnector
 				} else {
 					run.Message = "setup receipt belongs to an earlier Plan or Apply"
 				}
@@ -201,43 +226,85 @@ func (store Store) SetupRuns(contract Contract, applyResultHash, actionRef strin
 }
 
 func (store Store) readSetupResult(contract Contract, operation Operation, evidence Evidence) (SetupResult, error) {
+	result, _, err := store.readSetupResultBytes(contract, operation, evidence)
+	return result, err
+}
+
+// ExportSetupResult returns the exact immutable signed bytes after the same
+// verification used by lifecycle projection. Historical or nonterminal results
+// cannot become current dispatch evidence.
+func (store Store) ExportSetupResult(contract Contract, operationID, applyResultHash string) (SetupResult, json.RawMessage, error) {
+	state, err := store.Load(contract)
+	if err != nil {
+		return SetupResult{}, nil, err
+	}
+	for _, operation := range state.Operations {
+		if operation.ID != operationID {
+			continue
+		}
+		if operation.Stage != "setup" || operation.OperationRef != "stackkit.setup" || operation.Status != StatusSucceeded || operation.Authority != authorityFromContract(contract) {
+			return SetupResult{}, nil, errors.New("setup receipt is not a current successful operation")
+		}
+		var result SetupResult
+		var raw json.RawMessage
+		for _, evidence := range operation.Evidence {
+			if evidence.Kind != "setup-result" {
+				continue
+			}
+			if raw != nil {
+				return SetupResult{}, nil, errors.New("setup receipt is ambiguous")
+			}
+			result, raw, err = store.readSetupResultBytes(contract, operation, evidence)
+			if err != nil {
+				return SetupResult{}, nil, err
+			}
+		}
+		if raw == nil || result.Authority != authorityFromContract(contract) || result.ApplyResultHash != applyResultHash {
+			return SetupResult{}, nil, errors.New("setup receipt does not cover current Apply")
+		}
+		return result, raw, nil
+	}
+	return SetupResult{}, nil, errors.New("setup receipt is unavailable; do not repeat an uncertain effect")
+}
+
+func (store Store) readSetupResultBytes(contract Contract, operation Operation, evidence Evidence) (SetupResult, json.RawMessage, error) {
 	if !digestPattern.MatchString(evidence.Digest) || evidence.Ref != setupResultPath(contract.WorkloadRef, evidence.Digest) {
-		return SetupResult{}, errors.New("setup evidence has an invalid immutable reference")
+		return SetupResult{}, nil, errors.New("setup evidence has an invalid immutable reference")
 	}
 	root, err := confinedfs.Open(store.Workspace)
 	if err != nil {
-		return SetupResult{}, err
+		return SetupResult{}, nil, err
 	}
 	defer root.Close()
 	transaction, err := root.BeginTransaction()
 	if err != nil {
-		return SetupResult{}, err
+		return SetupResult{}, nil, err
 	}
 	defer transaction.Close()
 	if err := backupcustody.RequirePrivatePath(filepath.Join(root.Name(), filepath.FromSlash(evidence.Ref)), false); err != nil {
-		return SetupResult{}, err
+		return SetupResult{}, nil, err
 	}
 	raw, _, err := transaction.ReadStable(evidence.Ref)
 	if err != nil {
-		return SetupResult{}, err
+		return SetupResult{}, nil, err
 	}
 	if setupDigest(raw) != evidence.Digest {
-		return SetupResult{}, errors.New("setup evidence digest differs from its receipt")
+		return SetupResult{}, nil, errors.New("setup evidence digest differs from its receipt")
 	}
 	var envelope signedSetupResult
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return SetupResult{}, err
+		return SetupResult{}, nil, err
 	}
 	canonical, err := json.Marshal(envelope)
 	if err != nil || !bytes.Equal(canonical, raw) {
-		return SetupResult{}, errors.New("setup evidence is not canonical")
+		return SetupResult{}, nil, errors.New("setup evidence is not canonical")
 	}
 	payload, err := json.Marshal(envelope.Result)
 	if err != nil {
-		return SetupResult{}, err
+		return SetupResult{}, nil, err
 	}
 	if err := localevidence.VerifyOwnerLifecycleMutation(store.Workspace, payload, envelope.Signature); err != nil {
-		return SetupResult{}, err
+		return SetupResult{}, nil, err
 	}
 	result := envelope.Result
 	// Historical receipts stay readable as historical evidence; they never
@@ -245,15 +312,21 @@ func (store Store) readSetupResult(contract Contract, operation Operation, evide
 	historical := contract
 	historical.PlanHash, historical.ContractHash, historical.Version, historical.PackageRef = result.Authority.PlanHash, result.Authority.LifecycleContractHash, result.Authority.LifecycleVersion, result.Authority.PackageRef
 	if err := validateSetupResult(historical, result); err != nil {
-		return SetupResult{}, err
+		return SetupResult{}, nil, err
 	}
 	if result.OperationID != operation.ID || result.Authority != operation.Authority {
-		return SetupResult{}, errors.New("setup receipt differs from its lifecycle operation")
+		return SetupResult{}, nil, errors.New("setup receipt differs from its lifecycle operation")
 	}
-	return result, nil
+	return result, append(json.RawMessage(nil), raw...), nil
 }
 
 func validateSetupResult(contract Contract, result SetupResult) error {
+	if connector := result.HomeAssistantConnector; connector != nil {
+		local, issuer := connector.VerifiedLocalDeployment, connector.Issuer
+		if result.ActionRef != "home-assistant-owner-bootstrap" || local.InstanceRef != result.InstanceRef || local.Node != issuer.RequestedBinding.Node || local.Node.SiteRef == "" || local.Node.NodeRef == "" || local.Node.ChannelRef == "" || local.ContainerID != issuer.RequestedBinding.ContainerID || local.ImageDigest != issuer.RequestedBinding.ImageDigest || !digestPattern.MatchString(local.ImageDigest) || !digestPattern.MatchString("sha256:"+local.ContainerID) || issuer.HAUserID != result.AccountRef || issuer.HAVersion != result.ApplicationVersion || !strings.HasPrefix(issuer.SecretRef, "secret://home-assistant/connector/") || issuer.ObservedAt.IsZero() || (issuer.Status != "active" && issuer.Status != "revoked") {
+			return errors.New("Home Assistant connector observation differs from the verified setup deployment")
+		}
+	}
 	if result.APIVersion != SetupResultAPIVersion || result.Authority != authorityFromContract(contract) || result.WorkloadRef != contract.WorkloadRef ||
 		!operationIDPattern.MatchString(result.OperationID) || !contractIDPattern.MatchString(result.ActionRef) || !digestPattern.MatchString(result.ApplyResultHash) || !digestPattern.MatchString(result.ArtifactDigest) ||
 		result.InstanceRef == "" || result.ApplicationVersion == "" || result.AccountRef == "" || result.VerifiedAt.IsZero() ||

@@ -16,12 +16,13 @@ import (
 )
 
 type nativeOwnerSetupObservation struct {
-	AccountRef         string
-	Initialized        bool
-	AdminLoginVerified bool
-	OnboardingComplete bool
-	Preparation        string
-	EmailVerification  string
+	AccountRef             string
+	Initialized            bool
+	AdminLoginVerified     bool
+	OnboardingComplete     bool
+	Preparation            string
+	EmailVerification      string
+	HomeAssistantConnector *applicationlifecycle.HomeAssistantConnectorObservation
 }
 
 func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDeployment, action string, options nativeSetupOptions) error {
@@ -47,11 +48,23 @@ func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDe
 	case "home-assistant-owner-bootstrap":
 		_, err := architecturev2renderer.ParseHomeAssistantWorkloadBundle(deployment.Bundle)
 		return err
-	case "pterodactyl-game-server-setup":
+	case "pterodactyl-game-server-setup", "pelican-game-server-setup", "calagopus-game-server-setup":
 		if options.completeOnboarding {
 			return errors.New("game server setup has no separate onboarding; omit --complete-onboarding")
 		}
-		_, err := architecturev2renderer.ParsePterodactylWorkloadBundle(deployment.Bundle)
+		module, ok := gamePlatformModules[deployment.ModuleRef]
+		if !ok || action != module.platform+"-game-server-setup" {
+			return fmt.Errorf("setup action %s does not belong to the installed Game platform %s", action, deployment.ModuleRef)
+		}
+		var err error
+		switch module.platform {
+		case appsetup.GamePlatformCalagopus:
+			_, err = architecturev2renderer.ParseCalagopusWorkloadBundle(deployment.Bundle)
+		case appsetup.GamePlatformPelican:
+			_, err = architecturev2renderer.ParsePelicanWorkloadBundle(deployment.Bundle)
+		default:
+			_, err = architecturev2renderer.ParsePterodactylWorkloadBundle(deployment.Bundle)
+		}
 		return err
 	case appsetup.ComfyUIModelDownloadAction:
 		if options.completeOnboarding {
@@ -176,25 +189,33 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		}
 		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: observed.ServerInitialized, AdminLoginVerified: observed.UserIsAdmin, OnboardingComplete: observed.OnboardingComplete}, nil
 	case "home-assistant-owner-bootstrap":
-		var credentials struct {
-			Username    string `json:"username"`
-			Password    string `json:"password"`
-			DisplayName string `json:"displayName"`
-			Language    string `json:"language"`
-		}
+		var credentials homeAssistantSetupCredentials
 		if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
 			return nativeOwnerSetupObservation{}, err
 		}
 		defer func() { credentials.Password = "" }()
+		if options.connectorRequest != nil {
+			if credentials.Connector != nil {
+				return nativeOwnerSetupObservation{}, errors.New("select the Home Assistant connector request once")
+			}
+			credentials.Connector = options.connectorRequest
+		}
+		observe := nativehost.ObserveStandaloneComposeContainerCustody
+		if options.connectorDependencies != nil {
+			observe = options.connectorDependencies.observe
+		}
 		oidcBinding, err := homeAssistantOIDCOwnerCustody(workspace)
 		if err != nil {
 			return nativeOwnerSetupObservation{}, err
 		}
-		observed, err := appsetup.BootstrapHomeAssistantOwner(ctx, client, baseURL, appsetup.HomeAssistantOwnerRequest{
-			CompleteOnboarding: options.completeOnboarding,
-			OIDC:               &oidcBinding,
-			Username:           credentials.Username, Password: credentials.Password, DisplayName: credentials.DisplayName,
-			Language: credentials.Language, ExpectedVersion: release,
+		observed, connector, err := executeVerifiedHomeAssistantConnector(ctx, workspace, deployment, credentials.Connector, observe, func(request *appsetup.HomeAssistantConnectorRequest) (appsetup.HomeAssistantOwnerResult, error) {
+			return appsetup.BootstrapHomeAssistantOwner(ctx, client, baseURL, appsetup.HomeAssistantOwnerRequest{
+				Connector:          request,
+				CompleteOnboarding: options.completeOnboarding,
+				OIDC:               &oidcBinding,
+				Username:           credentials.Username, Password: credentials.Password, DisplayName: credentials.DisplayName,
+				Language: credentials.Language, ExpectedVersion: release,
+			})
 		})
 		if err != nil {
 			return nativeOwnerSetupObservation{}, err
@@ -202,11 +223,11 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		if !observed.UserIsOwner || !observed.UserIsAdmin || observed.Version != release {
 			return nativeOwnerSetupObservation{}, errors.New("Home Assistant did not verify the owner of the admitted application version")
 		}
-		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: observed.ServerInitialized, AdminLoginVerified: observed.UserIsOwner && observed.UserIsAdmin, OnboardingComplete: observed.OnboardingComplete}, nil
+		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: observed.ServerInitialized, AdminLoginVerified: observed.UserIsOwner && observed.UserIsAdmin, OnboardingComplete: observed.OnboardingComplete, HomeAssistantConnector: connector}, nil
 	case immichAddOnAPIKeyAction:
 		return executeImmichAddOnAPIKey(ctx, client, baseURL, workspace, deployment, options)
-	case "pterodactyl-game-server-setup":
-		return executePterodactylGameServerSetup(ctx, client, baseURL, workspace, deployment, release, options)
+	case "pterodactyl-game-server-setup", "pelican-game-server-setup", "calagopus-game-server-setup":
+		return executeGameServerSetup(ctx, client, baseURL, workspace, deployment, release, options)
 	case appsetup.ComfyUIModelDownloadAction:
 		return executeComfyUIModelDownload(ctx, client, baseURL, workspace, deployment, options)
 	case "roundcube-mailbox-login":
@@ -271,10 +292,11 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 	}
 }
 
-// executePterodactylGameServerSetup creates one curated game server through
-// the Panel APIs with keys derived from owner custody (ADR-0043). The owner's
-// EULA acceptance is part of the private input and never assumed.
-func executePterodactylGameServerSetup(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, release string, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
+// executeGameServerSetup creates one curated game server through the Panel
+// APIs of the installed Game platform with keys derived from owner custody
+// (ADR-0043, ADR-0048). The owner's EULA acceptance is part of the private
+// input and never assumed.
+func executeGameServerSetup(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, release string, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
 	var credentials struct {
 		Profile    string   `json:"profile"`
 		Name       string   `json:"name"`
@@ -285,7 +307,11 @@ func executePterodactylGameServerSetup(ctx context.Context, client *http.Client,
 	if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
-	applicationKey, clientKey, err := pterodactylCustodyKeys(workspace, deployment)
+	keys, err := gameCustodyKeys(workspace, deployment)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	panel, err := keys.panel(client, baseURL)
 	if err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
@@ -293,44 +319,15 @@ func executePterodactylGameServerSetup(ctx context.Context, client *http.Client,
 	if err != nil {
 		return nativeOwnerSetupObservation{}, fmt.Errorf("resolve the workload owner identity: %w", err)
 	}
-	result, err := appsetup.CreatePterodactylGameServer(ctx, client, baseURL, appsetup.GameServerRequest{
+	result, err := panel.CreateGameServer(ctx, appsetup.GameServerRequest{
 		Profile: credentials.Profile, Name: credentials.Name, AcceptEULA: credentials.AcceptEULA, AllowList: credentials.AllowList,
-		Password: credentials.Password, OwnerEmail: owner.PocketID.Email, ApplicationKey: applicationKey, ClientKey: clientKey, ExpectedVersion: release,
+		Password: credentials.Password, OwnerEmail: owner.PocketID.Email, ExpectedVersion: release,
 	})
 	if err != nil {
 		return nativeOwnerSetupObservation{}, err
 	}
 	printInfo("Game server %s is ready on port %d/%s; join check: %s", result.Identifier, result.Port, result.Protocol, result.Reachable)
 	return nativeOwnerSetupObservation{AccountRef: result.ServerUUID, Initialized: true, AdminLoginVerified: true, OnboardingComplete: true}, nil
-}
-
-// pterodactylCustodyKeys derives the Panel's Application and Client API keys
-// from owner custody exactly as the bootstrap minted them (ADR-0043).
-func pterodactylCustodyKeys(workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment) (string, string, error) {
-	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
-	if err != nil {
-		return "", "", err
-	}
-	derive := func(slot, prefix string) (string, error) {
-		material, err := localevidence.ResolveLocalSecretMaterial(workspace, bundle.SecretRefs[slot])
-		if err != nil {
-			return "", fmt.Errorf("resolve the owner-custodied %s: %w", slot, err)
-		}
-		defer clear(material)
-		if len(material) < 43 {
-			return "", fmt.Errorf("custody material for %s is too short", slot)
-		}
-		return prefix + string(material[:11]) + string(material[11:43]), nil
-	}
-	applicationKey, err := derive("application-api-key", "ptla_")
-	if err != nil {
-		return "", "", err
-	}
-	clientKey, err := derive("client-api-key", "ptlc_")
-	if err != nil {
-		return "", "", err
-	}
-	return applicationKey, clientKey, nil
 }
 
 // executeRoundcubeMailboxSetup stores the owner's IMAP and SMTP endpoints on

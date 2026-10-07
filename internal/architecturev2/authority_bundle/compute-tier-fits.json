@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:6e7b65a2454b51e07292aeec3078f33f9f4d745d9c60663d0a9f92f5297ab3d1",
+  "contentDigest": "sha256:d7f9d03a7bf0813ac42a6e85b7fd8a651a858e0cbb6878d5e3c480f2bd2551f9",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -19,7 +19,7 @@
                         "minRamGB": 4,
                         "minStorageGB": 20
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -42,7 +42,7 @@
                         "minRamGB": 4,
                         "minStorageGB": 20
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -86,7 +86,7 @@
                         "minRamGB": 8,
                         "minStorageGB": 20
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -118,7 +118,7 @@
                         "minRamGB": 8,
                         "minStorageGB": 20
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -299,7 +299,7 @@
                         "minRamGB": 8,
                         "minStorageGB": 40
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -331,7 +331,7 @@
                         "minRamGB": 8,
                         "minStorageGB": 40
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -398,7 +398,7 @@
                         "minRamGB": 8,
                         "minStorageGB": 40
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -430,7 +430,7 @@
                         "minRamGB": 8,
                         "minStorageGB": 40
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -550,7 +550,7 @@
                         "minRamGB": 4,
                         "minStorageGB": 20
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -573,7 +573,7 @@
                         "minRamGB": 4,
                         "minStorageGB": 20
                       },
-                      "maturity": "experimental",
+                      "maturity": "beta",
                       "provenance": {
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
@@ -1929,6 +1929,128 @@
     {
       "alternatives": [
         {
+          "id": "calagopus",
+          "modules": [
+            {
+              "computeProfileFacts": {
+                "high": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "beta",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.5
+                  }
+                },
+                "standard": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "beta",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.5
+                  }
+                }
+              },
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-calagopus-runtime"
+            }
+          ],
+          "name": "calagopus"
+        },
+        {
+          "id": "pelican",
+          "modules": [
+            {
+              "computeProfileFacts": {
+                "high": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.5
+                  }
+                },
+                "standard": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.5
+                  }
+                }
+              },
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-pelican-runtime"
+            }
+          ],
+          "name": "pelican"
+        },
+        {
           "id": "pterodactyl",
           "modules": [
             {
@@ -1992,17 +2114,24 @@
       ],
       "components": [
         {
+          "id": "calagopus",
+          "kind": "application",
+          "name": "Calagopus Panel",
+          "role": "primary"
+        },
+        {
           "id": "pelican",
           "kind": "application",
           "name": "Pelican Panel",
-          "realization": "recorded",
+          "realization": "install",
           "role": "alternative"
         },
         {
           "id": "pterodactyl",
           "kind": "application",
           "name": "Pterodactyl",
-          "role": "primary"
+          "realization": "install",
+          "role": "alternative"
         }
       ],
       "computeTiers": {
@@ -2017,7 +2146,7 @@
             "burst": "interactive",
             "residency": "on-demand"
           },
-          "moduleSlug": "pterodactyl",
+          "moduleSlug": "calagopus",
           "notes": [
             "Same platform graph as standard; more worlds fit with more host memory."
           ]
@@ -2037,14 +2166,14 @@
             "burst": "interactive",
             "residency": "on-demand"
           },
-          "moduleSlug": "pterodactyl",
+          "moduleSlug": "calagopus",
           "notes": [
             "Each running world needs its own memory: about 2 GB for Minecraft Java, 3 GB for Paper, 1.5 GB for Bedrock and Terraria, and 4 GB for Valheim."
           ]
         }
       },
-      "defaultAlternative": "pterodactyl",
-      "description": "Self-hosted game servers for friends and family through Pterodactyl, with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
+      "defaultAlternative": "calagopus",
+      "description": "Self-hosted game servers for friends and family through Calagopus (or Pelican or Pterodactyl), with curated Minecraft Java, Paper and Bedrock, Terraria and Valheim profiles.",
       "docs": "/guides/stackkits/use-cases/game",
       "id": "game",
       "mainUseCase": {
@@ -2297,7 +2426,7 @@
                     "minRamGB": 4,
                     "minStorageGB": 20
                   },
-                  "maturity": "experimental",
+                  "maturity": "beta",
                   "provenance": {
                     "hostFloor": {
                       "ref": "Kombify host floor support policy",
@@ -2320,7 +2449,7 @@
                     "minRamGB": 2,
                     "minStorageGB": 10
                   },
-                  "maturity": "experimental",
+                  "maturity": "beta",
                   "provenance": {
                     "hostFloor": {
                       "ref": "Kombify host floor support policy",
@@ -2343,7 +2472,7 @@
                     "minRamGB": 4,
                     "minStorageGB": 20
                   },
-                  "maturity": "experimental",
+                  "maturity": "beta",
                   "provenance": {
                     "hostFloor": {
                       "ref": "Kombify host floor support policy",

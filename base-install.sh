@@ -28,7 +28,7 @@
 # Environment variables (all optional; each pre-seeds one decision):
 #   STACKKIT_INSTALL_MODE  auto | guided | expert
 #   HOMELAB_DIR            Workspace (default: $HOME/my-homelab)
-#   DOMAIN                 Own domain (default: device-enrolled home zone)
+#   DOMAIN                 Own domain (default: local lab.home zone)
 #   STACKKIT_NAME          Deployment contract ID (default: workspace name)
 #   STACKKIT_ADMIN_EMAIL   Required owner email for logins (KOMBIFY_USER_EMAIL fallback)
 #   STACKKIT_OWNER_USERNAME   Login username (default: derived from the email)
@@ -641,7 +641,7 @@ if [ "$RESUME_EXISTING" != "1" ]; then
       ok "  Cloud execution-channel account is ready"
     fi
     case "$DOMAIN_VALUE" in
-      ""|home|home.localhost|homelab|stack.home|home.lab|home.kombify)
+      ""|home|lab.home|home.localhost|homelab|stack.home|home.lab|home.kombify)
         DOMAIN_VALUE=""
         ;;
     esac
@@ -657,20 +657,20 @@ if [ "$RESUME_EXISTING" != "1" ]; then
       _rec="1"
       if [ "$DETECTED_ENV" = "vps" ] || [ "$DETECTED_ENV" = "cloud" ]; then
         _rec="2"
-        echo "    Local *.home addresses are not reachable on a public server."
+        echo "    Local *.lab.home addresses are not reachable on a public server."
       fi
-      echo "    1) Local home addresses (*.home) — recommended on a home network"
+      echo "    1) Local home addresses (*.lab.home) — recommended on a home network"
       echo "    2) kombify.me public subdomain"
       echo "    3) Your own domain"
       _acc=$(prompt_select "Select" "$_rec")
       case "$_acc" in
         2) DOMAIN_VALUE="kombify.me" ;;
         3) DOMAIN_VALUE=$(prompt_default "Domain" "") ;;
-        *) DOMAIN_VALUE="home" ;;
+        *) DOMAIN_VALUE="lab.home" ;;
       esac
       echo ""
     else
-      DOMAIN_VALUE="home"
+      DOMAIN_VALUE="lab.home"
     fi
   fi
   if [ -z "$DOMAIN_VALUE" ]; then
@@ -678,14 +678,20 @@ if [ "$RESUME_EXISTING" != "1" ]; then
       DOMAIN_VALUE="kombify.me"
       info "No custom domain given; using kombify.me for public access"
     else
-      DOMAIN_VALUE="home"
+      DOMAIN_VALUE="lab.home"
     fi
   fi
+  # A bare "home" is a public suffix no browser shares a login session across;
+  # StackKits refuses it, so an old DOMAIN=home maps to the lab.home default.
   if [ "$SELECTED_KIT" = "basement-kit" ] && [ "$DOMAIN_VALUE" = "home" ]; then
+    DOMAIN_VALUE="lab.home"
+    info "DOMAIN=home is a public suffix without shared logins; using lab.home"
+  fi
+  if [ "$SELECTED_KIT" = "basement-kit" ] && [ "$DOMAIN_VALUE" = "lab.home" ]; then
     case "$DETECTED_ENV" in
       vps|cloud)
         DOMAIN_VALUE="kombify.me"
-        info "Local *.home addresses are not reachable on this public server; using kombify.me"
+        info "Local *.lab.home addresses are not reachable on this public server; using kombify.me"
         ;;
     esac
   fi
@@ -1009,7 +1015,7 @@ run_stackkit network watch enable >/dev/null 2>&1 || true
 
 # --- Done: print access summary -----------------------------------------------
 
-DOMAIN_EFFECTIVE="home"
+DOMAIN_EFFECTIVE="lab.home"
 if [ -f "$HOMELAB_DIR/stack-spec.yaml" ]; then
   _d=$(grep -o '"domain":{"base":"[^"]*"' "$HOMELAB_DIR/stack-spec.yaml" | head -1 | sed -E 's/.*"base":"([^"]+)".*/\1/' || true)
   [ -n "$_d" ] && DOMAIN_EFFECTIVE="$_d"

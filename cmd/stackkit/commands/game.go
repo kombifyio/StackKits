@@ -9,30 +9,33 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/appsetup"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/spf13/cobra"
 )
 
-// The game commands are the scoped owner operations on Pterodactyl game
-// servers (ADR-0043): they reach the Panel through the applied workload with
-// keys derived from owner custody, so neither the owner nor an agent calling
-// them through MCP ever handles a Panel key.
+// The game commands are the scoped owner operations on the game servers of
+// the installed Game platform (ADR-0043, ADR-0048): they reach the Panel
+// through the applied workload with keys derived from owner custody, so
+// neither the owner nor an agent calling them through MCP ever handles a
+// Panel key.
 
 func newGameCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "game",
 		Short: "Operate the owner's game servers on the installed Game workload",
-		Long:  "List game servers and run the routine owner operations (power, allow list) through the Pterodactyl Panel of the applied Game workload. Creating a server is `stackkit setup game`.",
+		Long:  "List game servers and run the routine owner operations (power, allow list) through the Panel (Calagopus, Pelican or Pterodactyl) of the applied Game workload. Creating a server is `stackkit setup game`.",
 	}
 	list := &cobra.Command{
 		Use: "list", Short: "List the owner's game servers with state and port", Args: cobra.NoArgs,
 		Example: "  stackkit game list --json",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			var servers []appsetup.GameServerSummary
-			err := withGamePanel(cmd, 2*time.Minute, func(ctx context.Context, client *http.Client, baseURL, _, clientKey string) error {
+			err := withGamePanel(cmd, 2*time.Minute, func(ctx context.Context, panel appsetup.GamePanel) error {
 				var err error
-				servers, err = appsetup.ListGameServers(ctx, client, baseURL, clientKey)
+				servers, err = panel.ListGameServers(ctx)
 				return err
 			})
 			if err != nil {
@@ -62,9 +65,9 @@ func newGameCommand() *cobra.Command {
 				return errors.New("game power requires --owner-approve")
 			}
 			var state string
-			err := withGamePanel(cmd, 10*time.Minute, func(ctx context.Context, client *http.Client, baseURL, _, clientKey string) error {
+			err := withGamePanel(cmd, 10*time.Minute, func(ctx context.Context, panel appsetup.GamePanel) error {
 				var err error
-				state, err = appsetup.GameServerPower(ctx, client, baseURL, clientKey, args[0], signal)
+				state, err = panel.GameServerPower(ctx, args[0], signal)
 				return err
 			})
 			if err != nil {
@@ -89,8 +92,8 @@ func newGameCommand() *cobra.Command {
 			if !allowApproved {
 				return errors.New("game allow requires --owner-approve")
 			}
-			err := withGamePanel(cmd, 2*time.Minute, func(ctx context.Context, client *http.Client, baseURL, applicationKey, clientKey string) error {
-				return appsetup.AllowGamePlayer(ctx, client, baseURL, applicationKey, clientKey, args[0], player)
+			err := withGamePanel(cmd, 2*time.Minute, func(ctx context.Context, panel appsetup.GamePanel) error {
+				return panel.AllowGamePlayer(ctx, args[0], player)
 			})
 			if err != nil {
 				return err
@@ -114,9 +117,9 @@ func newGameCommand() *cobra.Command {
 
 func init() { rootCmd.AddCommand(newGameCommand()) }
 
-// withGamePanel resolves the applied Game workload and calls use with a Panel
-// client and the custody-derived keys.
-func withGamePanel(cmd *cobra.Command, timeout time.Duration, use func(ctx context.Context, client *http.Client, baseURL, applicationKey, clientKey string) error) error {
+// withGamePanel resolves the applied Game workload and calls use with its
+// Panel bound to the custody-derived keys.
+func withGamePanel(cmd *cobra.Command, timeout time.Duration, use func(ctx context.Context, panel appsetup.GamePanel) error) error {
 	ctx, cancel := context.WithTimeout(commandContext(cmd), timeout)
 	defer cancel()
 	workspace := getWorkDir()
@@ -131,11 +134,73 @@ func withGamePanel(cmd *cobra.Command, timeout time.Duration, use func(ctx conte
 	if err != nil {
 		return err
 	}
-	applicationKey, clientKey, err := pterodactylCustodyKeys(workspace, deployment)
+	keys, err := gameCustodyKeys(workspace, deployment)
 	if err != nil {
 		return err
 	}
 	return nativehost.WithStandaloneComposeHTTP(ctx, workspace, deployment, func(client *http.Client, baseURL string) error {
-		return use(ctx, client, baseURL, applicationKey, clientKey)
+		panel, err := keys.panel(client, baseURL)
+		if err != nil {
+			return err
+		}
+		return use(ctx, panel)
 	})
+}
+
+// gamePanelKeys are the Panel keys of one applied Game platform.
+type gamePanelKeys struct {
+	platform, setupKey, clientKey string
+}
+
+func (k gamePanelKeys) panel(client *http.Client, baseURL string) (appsetup.GamePanel, error) {
+	return appsetup.NewGamePanel(k.platform, client, baseURL, k.setupKey, k.clientKey)
+}
+
+// gamePlatformModules maps each admitted Game platform module to its
+// platform and the key format its bootstrap minted from owner custody
+// (ADR-0043, ADR-0048).
+var gamePlatformModules = map[string]struct {
+	platform, setupPrefix, clientPrefix string
+	// split keys are an 11-character identifier plus a 32-character token;
+	// otherwise the whole custody material follows the prefix.
+	split bool
+}{
+	"stackkits-calagopus-runtime":   {platform: appsetup.GamePlatformCalagopus, setupPrefix: "c7sp_", clientPrefix: "c7sp_"},
+	"stackkits-pelican-runtime":     {platform: appsetup.GamePlatformPelican, setupPrefix: "papp_", clientPrefix: "pacc_", split: true},
+	"stackkits-pterodactyl-runtime": {platform: appsetup.GamePlatformPterodactyl, setupPrefix: "ptla_", clientPrefix: "ptlc_", split: true},
+}
+
+// gameCustodyKeys derives the Panel's setup and client keys from owner
+// custody exactly as the platform's bootstrap minted them.
+func gameCustodyKeys(workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment) (gamePanelKeys, error) {
+	module, ok := gamePlatformModules[deployment.ModuleRef]
+	if !ok {
+		return gamePanelKeys{}, fmt.Errorf("the Game workload module %q is not an admitted game platform", deployment.ModuleRef)
+	}
+	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
+	if err != nil {
+		return gamePanelKeys{}, err
+	}
+	derive := func(slot, prefix string) (string, error) {
+		material, err := localevidence.ResolveLocalSecretMaterial(workspace, bundle.SecretRefs[slot])
+		if err != nil {
+			return "", fmt.Errorf("resolve the owner-custodied %s: %w", slot, err)
+		}
+		defer clear(material)
+		if len(material) < 43 {
+			return "", fmt.Errorf("custody material for %s is too short", slot)
+		}
+		if module.split {
+			return prefix + string(material[:11]) + string(material[11:43]), nil
+		}
+		return prefix + string(material), nil
+	}
+	keys := gamePanelKeys{platform: module.platform}
+	if keys.setupKey, err = derive("application-api-key", module.setupPrefix); err != nil {
+		return gamePanelKeys{}, err
+	}
+	if keys.clientKey, err = derive("client-api-key", module.clientPrefix); err != nil {
+		return gamePanelKeys{}, err
+	}
+	return keys, nil
 }

@@ -152,6 +152,10 @@ func NormalizeHosts(hosts []string) ([]string, error) {
 	return out, nil
 }
 
+// ManagedHost reports whether host is a hostname in the managed zone, the only
+// zone an Origin CA certificate covers.
+func ManagedHost(host string) bool { return validManagedHost(strings.ToLower(host)) }
+
 func validManagedHost(host string) bool {
 	name := strings.TrimPrefix(host, "*.")
 	if !strings.HasSuffix(name, "."+ManagedZone) || len(name) > 253 {

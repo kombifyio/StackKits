@@ -48,6 +48,13 @@ const (
 	ClassHostResourceShortage Class = "host_resource_shortage"
 	ClassHostIncompatible     Class = "host_incompatible"
 	ClassCgroupMemoryMissing  Class = "cgroup_memory_controller_missing"
+
+	// ClassOriginCertificateMissing is a degraded-completion conclusion, not a
+	// text signature, so Classify never produces it: a managed kombify.me
+	// route runs in origin-certificate mode (ADR-0047) while no installed
+	// Cloudflare Origin CA certificate covers it. Only a typed
+	// DegradedUnitError carries it.
+	ClassOriginCertificateMissing Class = "origin_certificate_missing"
 )
 
 // Classification is the closed result of classifying one failure text.
@@ -226,6 +233,13 @@ var classProfiles = map[Class]classProfile{
 			"Enable the controller on this kernel (cmdline cgroup_enable=memory cgroup_memory=1 on Debian/Raspberry Pi OS; equivalent sysfs/cmdline on other distros) and reboot.",
 		},
 	},
+	ClassOriginCertificateMissing: {
+		retryable: true,
+		remediation: []string{
+			"The managed address has no installed Cloudflare Origin CA certificate on this node, so its public routes do not terminate TLS yet; the rest of the stack is applied.",
+			"Run `stackkit advanced origin-certificate request` and `install` on this node, then run `stackkit apply` again: it resumes and verifies only public TLS.",
+		},
+	},
 }
 
 // profile returns the closed retry semantics and guidance for a class.
@@ -285,5 +299,6 @@ func Classes() []Class {
 		ClassCgroupMemoryMissing,
 		ClassHostIncompatible,
 		ClassHostResourceShortage,
+		ClassOriginCertificateMissing,
 	}
 }

@@ -31,6 +31,9 @@ import (
 type nativeSetupOptions struct {
 	credentialsFile, operationID                  string
 	ownerApproved, completeOnboarding, outputJSON bool
+	connectorRequest                              *appsetup.HomeAssistantConnectorRequest
+	connectorIntent                               string
+	connectorDependencies                         *homeAssistantConnectorDependencies
 }
 
 func newSetupCommand() *cobra.Command {
@@ -55,7 +58,7 @@ func newSetupCommand() *cobra.Command {
 	command.Flags().BoolVar(&options.ownerApproved, "owner-approve", false, "Approve this Plan-bound application setup")
 	command.Flags().BoolVar(&options.completeOnboarding, "complete-onboarding", false, "Complete the app user and administrator onboarding after verifying the owner login")
 	command.Flags().BoolVar(&options.outputJSON, "json", false, "Emit the secret-free verified setup result")
-	command.AddCommand(newSetupAIConnectCommand())
+	command.AddCommand(newSetupAIConnectCommand(), newHomeAssistantConnectorCommand(nil))
 	return command
 }
 
@@ -153,7 +156,7 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 				return err
 			}
 			store := applicationlifecycle.Store{Workspace: workspace}
-			operationID, err := beginNativeSetup(store, contract, options.operationID)
+			operationID, err := beginNativeSetupWithIntent(store, contract, options.operationID, options.connectorIntent)
 			if err != nil {
 				return err
 			}
@@ -174,7 +177,11 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 					return fail(fmt.Errorf("the Immich add-on API key needs executable photos setup access: %w", err))
 				}
 			}
-			err = httpAdapter.WithHTTP(ctx, workspace, httpDeployment, func(client *http.Client, baseURL string) error {
+			withHTTP := httpAdapter.WithHTTP
+			if options.connectorDependencies != nil {
+				withHTTP = options.connectorDependencies.withHTTP
+			}
+			err = withHTTP(ctx, workspace, httpDeployment, func(client *http.Client, baseURL string) error {
 				value, setupErr := executeNativeOwnerSetupAction(ctx, client, baseURL, current.WorkspaceRoot, deployment, deployment.Release, setup.ActionRefs[0], options)
 				observed = value
 				return setupErr
@@ -197,6 +204,7 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 				AccountRef: observed.AccountRef, Initialized: observed.Initialized, AdminLoginVerified: observed.AdminLoginVerified,
 				OnboardingComplete: observed.OnboardingComplete, Preparation: observed.Preparation,
 				EmailVerification: observed.EmailVerification, VerifiedAt: time.Now().UTC(),
+				HomeAssistantConnector: observed.HomeAssistantConnector,
 			}
 			evidence, err := store.SaveSetupResult(contract, result)
 			if err != nil {
@@ -217,6 +225,10 @@ func nativeApplicationSetupAdapter(deployment nativehost.SelectedPaaSWorkloadDep
 }
 
 func beginNativeSetup(store applicationlifecycle.Store, contract applicationlifecycle.Contract, requested string) (string, error) {
+	return beginNativeSetupWithIntent(store, contract, requested, "")
+}
+
+func beginNativeSetupWithIntent(store applicationlifecycle.Store, contract applicationlifecycle.Contract, requested, intent string) (string, error) {
 	state, err := store.Load(contract)
 	if err != nil {
 		return "", err
@@ -227,6 +239,9 @@ func beginNativeSetup(store applicationlifecycle.Store, contract applicationlife
 			continue
 		}
 		if operation.Stage == "setup" && operation.OperationRef == "stackkit.setup" && operation.Authority == authority && (requested == "" || requested == operation.ID) {
+			if (operation.Status == applicationlifecycle.StatusRunning || operation.Status == applicationlifecycle.StatusFailed) && operation.IntentDigest != intent {
+				return "", errors.New("setup operation intent changed")
+			}
 			if operation.Status == applicationlifecycle.StatusRunning {
 				return operation.ID, nil
 			}
@@ -242,7 +257,7 @@ func beginNativeSetup(store applicationlifecycle.Store, contract applicationlife
 			return "", err
 		}
 	}
-	_, err = store.Begin(contract, applicationlifecycle.BeginRequest{ID: requested, Stage: "setup", OperationRef: "stackkit.setup", Now: time.Now().UTC()})
+	_, err = store.Begin(contract, applicationlifecycle.BeginRequest{ID: requested, IntentDigest: intent, Stage: "setup", OperationRef: "stackkit.setup", Now: time.Now().UTC()})
 	return requested, err
 }
 
@@ -348,6 +363,12 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 			}
 			bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(raw)
 			if err != nil {
+				var envelope struct {
+					Kind string `json:"kind"`
+				}
+				if json.Unmarshal(raw, &envelope) == nil && envelope.Kind == "HomeAssistantWorkloadBundle" {
+					return nativehost.SelectedPaaSWorkloadDeployment{}, fmt.Errorf("Home Assistant bundle failed local setup admission: %w", err)
+				}
 				continue
 			}
 			if !slices.Contains(applied.Artifacts, architecturev2.AppliedArtifactIdentity{Ref: artifact.ID, Digest: artifact.SHA256}) {

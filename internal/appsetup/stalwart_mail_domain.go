@@ -482,10 +482,33 @@ func stalwartDigest(value string) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// stalwartTLSConfig accepts Stalwart's self-signed certificate on the node's
-// own loopback address; trust is reported separately and never assumed.
-func stalwartTLSConfig(mailHost string) *tls.Config {
-	return &tls.Config{ServerName: mailHost, MinVersion: tls.VersionTLS12, InsecureSkipVerify: true} //nolint:gosec // Loopback to the node itself; trust is verified and reported below.
+// stalwartTLSConfig authenticates the mail endpoint before the mailbox
+// password is sent over it. A certificate that chains to a public root for the
+// mail host is accepted on any address. Until its ACME order completes,
+// Stalwart presents a self-signed certificate that no anchor known to the
+// setup can verify; that certificate is accepted only when the peer is the
+// node's own loopback address, where the connection never leaves the host.
+// Every other certificate on every other address fails the handshake, so the
+// credential is never written to it.
+func stalwartTLSConfig(mailHost string, peer net.Addr) *tls.Config {
+	return &tls.Config{
+		ServerName: mailHost, MinVersion: tls.VersionTLS12,
+		InsecureSkipVerify: true, // #nosec G402 -- chain verification is replaced by VerifyConnection below, which refuses everything but a public-root certificate for the mail host or a loopback peer.
+		VerifyConnection: func(state tls.ConnectionState) error {
+			if len(state.PeerCertificates) == 0 {
+				return errors.New("the mail server presented no certificate")
+			}
+			if stalwartCertificateTrusted(state, mailHost) || stalwartLoopbackPeer(peer) {
+				return nil
+			}
+			return fmt.Errorf("the certificate is not trusted for %s and the endpoint is not this node's loopback address", mailHost)
+		},
+	}
+}
+
+func stalwartLoopbackPeer(peer net.Addr) bool {
+	tcp, ok := peer.(*net.TCPAddr)
+	return ok && tcp.IP.IsLoopback()
 }
 
 func stalwartCertificateTrusted(state tls.ConnectionState, mailHost string) bool {
@@ -509,9 +532,9 @@ func verifyStalwartIMAPLogin(ctx context.Context, dial func(context.Context, int
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = raw.SetDeadline(deadline)
 	}
-	conn := tls.Client(raw, stalwartTLSConfig(mailHost))
+	conn := tls.Client(raw, stalwartTLSConfig(mailHost, raw.RemoteAddr()))
 	if err := conn.HandshakeContext(ctx); err != nil {
-		return false, errors.New("IMAPS on port 993 did not complete a TLS handshake")
+		return false, fmt.Errorf("IMAPS on port 993 did not complete a TLS handshake: %w", err)
 	}
 	trusted := stalwartCertificateTrusted(conn.ConnectionState(), mailHost)
 	reader := bufio.NewReader(conn)
@@ -570,8 +593,8 @@ func verifyStalwartSubmission(ctx context.Context, dial func(context.Context, in
 	if ok, _ := client.Extension("STARTTLS"); !ok {
 		return errors.New("submission on port 587 does not offer STARTTLS")
 	}
-	if err := client.StartTLS(stalwartTLSConfig(mailHost)); err != nil {
-		return errors.New("submission on port 587 did not complete STARTTLS")
+	if err := client.StartTLS(stalwartTLSConfig(mailHost, raw.RemoteAddr())); err != nil {
+		return fmt.Errorf("submission on port 587 did not complete STARTTLS: %w", err)
 	}
 	if err := client.Auth(smtp.PlainAuth("", address, password, mailHost)); err != nil {
 		return errors.New("the new mailbox did not authenticate for submission on port 587")

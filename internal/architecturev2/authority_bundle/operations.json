@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:eaab54116a5699c83c6523e419c9be2e41cdfd267450fdbee34c1b3b4ed554e7",
+  "contentDigest": "sha256:222ee81471583c5e2c678ef1dcfd133bf39882f32f740c8472dabd2c412f54bf",
   "operations": [
     {
       "command": [
@@ -1894,6 +1894,12 @@
           "flag": "--complete-with",
           "kind": "string",
           "name": "complete_with"
+        },
+        {
+          "description": "observed Inventory path the completion resolves against",
+          "flag": "--inventory",
+          "kind": "string",
+          "name": "inventory"
         },
         {
           "description": "write the migration result to this new workspace path instead of stdout",

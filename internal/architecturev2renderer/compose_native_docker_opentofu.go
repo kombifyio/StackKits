@@ -216,6 +216,7 @@ var nativeDockerSecretReaders = map[string]map[string]nativeDockerSecretReader{
 	"stackkits-paperless-runtime":   {"paperless": {FileSuffix: true}, "paperless-postgres": {FileSuffix: true}},
 	"stackkits-paperclip-runtime":   {"paperclip-postgres": {FileSuffix: true}},
 	"stackkits-pterodactyl-runtime": {"panel-database": {FileSuffix: true}},
+	"stackkits-calagopus-runtime":   {"panel-database": {FileSuffix: true}},
 	// immich-kiosk reads KIOSK_IMMICH_API_KEY_FILE (trimmed; overrides env).
 	"stackkits-immich-kiosk-runtime": {"immich-kiosk": {FileSuffix: true}},
 	// immich-power-tools reads IMMICH_API_KEY (and DB_PASSWORD) only from
@@ -384,7 +385,7 @@ var (
 var nativeDockerTranslatedServiceFields = map[string]struct{}{
 	"Image": {}, "Restart": {}, "Logging": {}, "OOMScoreAdj": {}, "Deploy": {}, "Command": {}, "Entrypoint": {},
 	"DependsOn": {}, "Environment": {}, "Volumes": {}, "Networks": {}, "Ports": {}, "ExtraHosts": {},
-	"StopSignal": {}, "Init": {}, "Labels": {}, "Healthcheck": {}, "Secrets": {}, "Devices": {},
+	"StopSignal": {}, "Init": {}, "Labels": {}, "Healthcheck": {}, "Secrets": {}, "Devices": {}, "User": {},
 }
 
 // nativeDockerRender is the state of one native root translation.
@@ -619,6 +620,12 @@ func (r *nativeDockerRender) service(servicePath, name string, service WorkloadC
 	}
 	if service.Init != nil {
 		block.SetAttributeValue("init", cty.BoolVal(*service.Init))
+	}
+	if service.User != "" {
+		if service.User != "0:0" {
+			return fail(ErrRendererFailure, servicePath+".user", "only the governed root user override is admitted")
+		}
+		block.SetAttributeValue("user", cty.StringVal(service.User))
 	}
 	if err := nativeResources(servicePath, block, service.Deploy); err != nil {
 		return err
@@ -1212,7 +1219,7 @@ func nativeServiceConfigDigest(service WorkloadComposeService) ([32]byte, error)
 	added := WorkloadComposeService{
 		Command: service.Command, Entrypoint: service.Entrypoint, DependsOn: service.DependsOn,
 		StopSignal: service.StopSignal, Init: service.Init, Healthcheck: service.Healthcheck, Secrets: service.Secrets,
-		Devices: service.Devices,
+		Devices: service.Devices, User: service.User,
 	}
 	if !reflect.ValueOf(added).IsZero() {
 		extension, err := json.Marshal(added)

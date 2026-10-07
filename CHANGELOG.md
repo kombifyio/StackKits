@@ -1,5 +1,9 @@
 # Changelog
 
+- Fix: an Advanced Apply whose managed kombify.me origin certificate is missing no longer fails. Public TLS used to wait three minutes for an ACME certificate the origin-certificate router can never request, then failed the whole Apply although the core was running. A managed route whose router has no ACME resolver and whose host no installed origin certificate covers now ends the wait at once. The Apply completes as `completed_degraded`, with the public TLS unit `degraded`, class `origin_certificate_missing` and retryable (ADR-0047 "Degraded completion"). The next `stackkit apply` after `stackkit advanced origin-certificate install` verifies public TLS again. Custom domains, Standard Mode, expired or wrongly presented origin certificates and every other failure still fail the Apply.
+
+- Add: Game platforms. Calagopus is the recommended Game platform for new installations; Pelican (upstream beta) and Pterodactyl stay selectable with `--use-case-alternative game=pelican|pterodactyl` (ADR-0048). An installation keeps the platform its StackSpec records. Each platform installs its Panel and Wings node daemon, converges the owner, node, curated Eggs and custody-derived keys without the web installer, and serves the live console through the Panel origin. On Calagopus the owner's client key carries only server read, power, console and file permissions, and Wings runs without its host-network firewall helper. `stackkit setup game`, `stackkit game list|power|allow` and the backup hold work the same on every platform.
+
 - Add: home network move. A Basement server set up in one network and carried to another (new DHCP address, gateway or subnet, cable or WiFi) re-binds itself. `stackkit network status` reports the current address, interface, gateway, WiFi SSID and the addresses recorded in the LAN resolver custody and the inventory, with a `moved`/`in-place` verdict. `stackkit network rebind` re-issues the signed LAN resolver record for the new address (Owner-MAC'd and re-signed through a replayable journal, previous record kept as a backup), then regenerates and applies. `stackkit network watch enable|disable|status` installs a systemd timer that runs the rebind every minute with a lock and a five-minute back-off; a successful `stackkit apply` enables it best-effort on systemd hosts (opt out with `STACKKIT_NETWORK_WATCH=off`). `stackkit network wifi add|list|remove` pre-stages the destination WiFi before the move through NetworkManager or a netplan `wifis` drop-in, leaves ethernet DHCP untouched and never prints or stores the passphrase elsewhere. Before this, a moved server kept the old address in the resolver record and the Compose listeners, `lan-dns` could not start and every LAN name went dark.
 
 - Fix: the host preflight namespace probe ran `unshare --mount --pid` without privilege, which fails on every host that restricts user namespaces (Ubuntu 24.04 default), so a non-root `curl -sSL https://base.stackkit.cc | sh` install was refused with `kernel-namespaces`. The probe now runs through non-interactive sudo and reports `unknown` when it cannot prove either way.
@@ -81,6 +85,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **application adoption:** `stackkit application inspect|adopt|verify|control|release` can bind an existing initialized Home Assistant 2026.7.2 Compose container to the resolved Smart Home lifecycle without recreating its container, accounts, configuration or data. Inspection requires the exact immutable image and container, an existing native Owner grant and an exclusive configuration mount. Signed Owner receipts use the existing lifecycle journal; start, stop and restart target only that binding, interrupted dispatch reconciles without repeating the action, and release retains the native application. Unsupported sources stay unstacked, and fresh generation, apply, setup and removal are refused while adoption custody is active.
 
 ### Fixed
+
+* **CI:** a release commit is delivered right away. `release-delivery.yml` runs when `chore: release StackKits <version>` reaches `main`: outside a test-window reservation it executes Delivery once for that source (reusing an execution already started for it) and reads the public release back. Before, Delivery for 0.52.0 was dispatched only after later merges had changed the delivery contract and was refused. The pull-request gate "Affected compile and tests" is now a required check on `main` and covers the release path: it compiles the tag-gated publisher and runs the packaged contract proof (`stackkit contract-proof`) when `go.mod`, `go.sum`, Foundation CUE, the contract fixtures, the embedded Architecture v2 authority or code they build changes, and it includes the shared release preparation dry run when the release preparation inputs change. cuelang.org/go 0.17.1, which broke both the publisher build and the contract proof, would have failed this gate.
+
+* **CI:** the deployment-standards full mode finds a local E2E gate. `mise run e2e:local` builds the static website, serves it with local Vite preview and drives it with Playwright Chromium, the same browser smoke the Delivery contract declares for the stable website validation. It needs no container engine and no remote host. The smoke's Basement Kit page assertion now matches the runnable init command the page has shown since the flags were added, so the smoke passes again.
+
+* **dependencies:** every npm lockfile resolves `devalue` 5.9.4, so the SvelteKit smoke example, the WebMCP package and its reference host no longer carry the cross-request process memory disclosure fixed in 5.9.3 (CVE-2026-92708).
+
+* **security:** the Modern edge served-traffic probe verifies the edge listener against the host certificate in node custody as its only trust anchor (`RootCAs`, host name and validity included) instead of skipping verification behind a leaf comparison, so any other certificate for the host is refused before the probe request leaves. The Stalwart mail setup no longer sends the new mailbox password over an unauthenticated TLS session: IMAPS and submission accept a certificate that chains to a public root for the mail host on any address, and Stalwart's pre-ACME self-signed certificate only on the node's own loopback address. Before, the certificate was only reported (IMAPS) or not checked at all (submission) after the password had been written, so an endpoint reached over the network with any certificate received it. The `gosec` G402 findings in both places are resolved (the security workflow's Go checks).
+
+* **Modern authoring:** `stackkit init modern-homelab` (and the authoring API and Fleet member join that share it) writes an explicit `standard` compute profile for `stackkits-bridge-publication-runtime` and `stackkits-federation-control-agent-runtime` into the initial StackSpec. Both modules declare a profile, and native `stackkit/v2alpha2` resolves none implicitly, so the spec the Modern use case authored failed `generate` with `undeclared_compute_profile`. The two experimental profiles also reuse the Kombify host floor (policy) of their node, so Apply admission can verify the node instead of blocking every Modern Apply on `inventory-fact-unverified`; they declare no reservation or recommended value and stay `experimental` until a Modern lane run measures them, and the measured-provenance gate is unchanged.
+
+* **migration:** `stackkit migrate --complete-with` takes `--inventory`, the observed Inventory the completion resolves against. Basement binds the node-site address of its LAN listener into the plan, so a completion without an Inventory failed closed for every Basement candidate with `a concrete non-loopback unicast target IP is required for the node-site listener`. The completion still never invents node facts; without `--inventory` it behaves as before and names what is missing.
+
+* **tests:** the Architecture v2 package tests share one embedded authority instead of building one per build version, so the package no longer exhausts memory partway through (it ran out of memory natively and hit the 10 minute package timeout on the Full Go tests runner). The relabeled-contract-plan test also relabels the network posture the Kit Definition binds, so it is decided by the catalog contract identity it covers.
 
 * **Apply recovery:** an Apply that recovers through refreshed evidence no longer leaves a result whose applied runtime request cannot be loaded. A node with an off-site backup target (or Home access) binding resumes a reconcile-required Apply through a continuation sealed to the fresh evidence, so the result binds the continuation's request digest while only the first attempt's recovery capsule was retained. Verify, upgrade checkpoints and Advanced drift reconcile then failed with `load applied runtime request: Product Apply recovery capsule does not exist` after the target had converged, and the reconcile rolled back. The continuation's exact request is now retained under its own digest before any mutation, bounded by the original recovery authority; a missing capsule still fails closed.
 
@@ -184,6 +202,92 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.52.2](https://github.com/kombifyio/StackKits/compare/v0.52.1...v0.52.2) (2026-10-07)
+
+
+### Fixed
+
+* **deps:** hold cuelang.org/go at v0.15.4 and follow the org Delivery ref
+
+## [0.52.1](https://github.com/kombifyio/StackKits/compare/v0.52.0...v0.52.1) (2026-10-07)
+
+
+### Fixed
+
+* **ci:** adopt scoped updater and repair publisher CUE traversal
+* **delivery:** admit checkpoints from two-digit patch baselines
+* **delivery:** adopt patch-19 release preparation authority
+* **delivery:** await the exact publisher child before success
+* **deps:** update dependency express to ^4.22.3
+* **deps:** update module cuelang.org/go to v0.17.1
+* **public-tls:** complete degraded when the managed origin certificate is missing
+* **release:** pair the preparation authority with the producer pin
+
+## [0.52.0] (2026-10-05)
+
+### Highlights
+
+This release line lets you choose the game platform for your friends-and-family servers and keeps the Home Assistant agent connector in your node's own custody.
+
+- **Choose your game platform:** new Game installations use Calagopus, a stable panel whose owner key can only read, power, use the console and edit files of your game servers. Pelican and Pterodactyl stay available as alternatives, and an existing installation keeps the platform it already runs.
+- **Same game commands on every platform:** `stackkit setup game` creates curated Minecraft Java, Paper and Bedrock, Terraria and Valheim servers with secure defaults, and `stackkit game list`, `power` and `allow` plus the backup hold that saves worlds work the same on Calagopus, Pelican and Pterodactyl.
+- **Home Assistant connector stays on your node:** the agent connector credential for Home Assistant is issued, reused after restarts and revoked through `stackkit setup`, and is kept only in encrypted local custody.
+
+Pelican is upstream beta software. Isolated restore of game worlds has not been exercised end to end yet.
+
+
+
+### Added
+
+* **backup:** sealed host delivery of the offsite backup target
+* **content-bridge:** node bridge with Immich summary (S2)
+* **game:** Calagopus default with Pelican and Pterodactyl alternatives (ADR-0048)
+* **home-assistant:** expose node-custodied connector lifecycle
+* **home-assistant:** retain node-owned connector credential lifecycle
+* **modern:** Cloud edge listener serving the signed bridge publication route table (N5f)
+* **network:** home network move re-binds a carried server
+* **stackkit:** prepare attested historical source cache
+* **tls:** Origin CA certificates for managed kombify.me origins in Advanced mode (ADR-0047)
+
+
+### Fixed
+
+* **advanced:** move backup target custody to the checkpoint's authority on coordinated rollback
+* **advanced:** re-issue the node's backup target binding for a change-set candidate
+* **apply:** retain the applied runtime request of an Apply recovered through fresh evidence
+* **backup:** initialize the offsite Kopia repository on a fresh bucket
+* **ci:** give the deployment-standards full mode a local E2E gate
+* **delivery:** repin Delivery v2 and its runtime to the PAT rate-limit fix
+* **deps:** raise devalue to 5.9.4 in every npm lockfile (CVE-2026-92708)
+* **deps:** update internal products
+* **installer-smoke:** run the full-installer smokes for real
+* **installer:** default Basement installs to lab.home, not the bare home suffix
+* **modern:** select the declared compute profile when authoring Modern specs
+* **public:** export the network move guide linked from the CLI reference
+* **rollback:** plan and restore the host pre-step root, reopen a rollback stranded at rollback-started
+* **security:** verify TLS for the edge probe and the Stalwart loopback instead of skipping it
+* **terramatehost:** judge only enforced host controls in the host pre-step
+* **window:** green the Full Go tests of w-2026-10-04-oca-proof
+* **window:** let the release train read the release PR's checks
+
+
+### Reverted
+
+* **window:** restore release-commit workflows so v0.51.9 can be reserved
+
+## [0.51.9](https://github.com/kombifyio/StackKits/compare/v0.51.8...v0.51.9) (2026-10-04)
+
+
+### Fixed
+
+* **ci:** give the deployment-standards full mode a local E2E gate
+* **deps:** raise devalue to 5.9.4 in every npm lockfile (CVE-2026-92708)
+* **installer-smoke:** run the full-installer smokes for real
+* **installer:** default Basement installs to lab.home, not the bare home suffix
+* **modern:** select the declared compute profile when authoring Modern specs
+* **security:** verify TLS for the edge probe and the Stalwart loopback instead of skipping it
+* **window:** green the Full Go tests of w-2026-10-04-oca-proof
 
 ## [0.51.8](https://github.com/kombifyio/StackKits/compare/v0.51.7...v0.51.8) (2026-10-04)
 

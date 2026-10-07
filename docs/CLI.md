@@ -837,6 +837,11 @@ stackkit migrate legacy.yaml \
   --output .stackkit/migration-result.json
 ```
 
+`--inventory inventory.yaml` supplies the observed Inventory the completion
+resolves against. A Kit whose plan binds node facts, such as the node-site
+address of the Basement LAN listener, cannot resolve without it, and the
+completion fails closed instead of inventing them. It requires `--complete-with`.
+
 `--spec-output` always writes deterministic canonical JSON, regardless of the
 report `--format`. The adapter owns `source.kind: migrated-v1` and its report
 hash; callers must not pre-author migration lineage. The canonical spec output
