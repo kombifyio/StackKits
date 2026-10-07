@@ -142,6 +142,11 @@ archives:
       - LICENSE-MPL-2.0
       - THIRD-PARTY-NOTICES.md
       - docs/CLI.md
+      - docs/OPEN-SPEC.md
+      - docs/OS_COMPATIBILITY.md
+      - architecture-snapshot.json
+      - architecture-snapshot.schema.json
+      - architecture/v2/authority-manifest.json
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
       - schemas/standalone-oss-e2e-receipt.schema.json
@@ -225,6 +230,11 @@ archives:
       - LICENSE-MPL-2.0
       - THIRD-PARTY-NOTICES.md
       - docs/CLI.md
+      - docs/OPEN-SPEC.md
+      - docs/OS_COMPATIBILITY.md
+      - architecture-snapshot.json
+      - architecture-snapshot.schema.json
+      - architecture/v2/authority-manifest.json
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
       - schemas/standalone-oss-e2e-receipt.schema.json
@@ -305,6 +315,11 @@ archives:
       - LICENSE-MPL-2.0
       - THIRD-PARTY-NOTICES.md
       - docs/CLI.md
+      - docs/OPEN-SPEC.md
+      - docs/OS_COMPATIBILITY.md
+      - architecture-snapshot.json
+      - architecture-snapshot.schema.json
+      - architecture/v2/authority-manifest.json
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
       - schemas/standalone-oss-e2e-receipt.schema.json
@@ -385,6 +400,11 @@ archives:
       - LICENSE-MPL-2.0
       - THIRD-PARTY-NOTICES.md
       - docs/CLI.md
+      - docs/OPEN-SPEC.md
+      - docs/OS_COMPATIBILITY.md
+      - architecture-snapshot.json
+      - architecture-snapshot.schema.json
+      - architecture/v2/authority-manifest.json
       - docs/ENTERPRISE_READINESS.md
       - schemas/release-evidence.schema.json
       - schemas/standalone-oss-e2e-receipt.schema.json

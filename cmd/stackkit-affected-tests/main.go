@@ -152,6 +152,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 		TestDiscoveryWarning: testDiscoveryWarning,
 		InertGoFiles:         inertGoFiles,
 	})
+	plan.Commands, err = routeGoModuleCommands(repo, plan.Commands)
+	if err != nil {
+		return err
+	}
 
 	if opts.format != "json" {
 		// A reduced or degraded slice must be visible where the plan runs, not

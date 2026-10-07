@@ -208,6 +208,14 @@ check_archive_contents() {
     cmd/stackkit/commands/backup_managed.go; do
     forbid_file "$list" "$p"
   done
+  # A reader of the bundled Open Spec must be able to follow its contracts.
+  # Scope navigation to this document: upstream provider docs are not ours.
+  local spec_dir="$tmp/spec-$(basename "$archive")"
+  mkdir -p "$spec_dir"
+  tar xzf "$archive" -C "$spec_dir" --wildcards \
+    'docs/*' 'schemas/*' 'architecture-snapshot*' \
+    'architecture/v2/authority-manifest.json' 'foundation/placement.cue'
+  node "$source_dir/scripts/release/check-markdown-links.mjs" "$spec_dir" docs/OPEN-SPEC.md
 }
 
 check_archive_contents "$full_archive" basement-kit/stackkit.yaml cloud-kit/stackkit.yaml modern-homelab/stackkit.yaml
