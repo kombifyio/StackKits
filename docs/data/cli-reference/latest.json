@@ -1625,6 +1625,30 @@
           "required": false
         },
         {
+          "name": "original-archive-sha256",
+          "type": "string",
+          "description": "Require the original release archive digest before historical recovery",
+          "required": false
+        },
+        {
+          "name": "original-index-sha256",
+          "type": "string",
+          "description": "Require the original signed release-index digest before historical recovery",
+          "required": false
+        },
+        {
+          "name": "original-release",
+          "type": "string",
+          "description": "Recover only through this exact originally admitted StackKits tag",
+          "required": false
+        },
+        {
+          "name": "original-release-cache",
+          "type": "string",
+          "description": "Absolute retained node release cache, used offline only when the workspace original cache is absent",
+          "required": false
+        },
+        {
           "name": "owner-approve",
           "type": "bool",
           "description": "Authorize recovery with the established local Owner custody",
@@ -4630,9 +4654,63 @@
       "examples": [],
       "flags": [
         {
+          "name": "cache-only",
+          "type": "bool",
+          "description": "Retain an exact attested public release independently of workspace lifecycle or Owner custody.",
+          "required": false
+        },
+        {
           "name": "json",
           "type": "bool",
           "description": "Emit bounded source-generation inspection proof after authenticated cache preparation.",
+          "required": false
+        },
+        {
+          "name": "release-cache",
+          "type": "string",
+          "description": "Absolute persistent release cache directory for cache-only preparation.",
+          "required": false
+        },
+        {
+          "name": "source-arch",
+          "type": "string",
+          "description": "Exact public source architecture.",
+          "required": false
+        },
+        {
+          "name": "source-archive-sha256",
+          "type": "string",
+          "description": "Require the exact public source archive digest.",
+          "required": false
+        },
+        {
+          "name": "source-cli-sha256",
+          "type": "string",
+          "description": "Require the installed source CLI digest to match the verified archive executable.",
+          "required": false
+        },
+        {
+          "name": "source-index-sha256",
+          "type": "string",
+          "description": "Require the exact signed source release-index digest.",
+          "required": false
+        },
+        {
+          "name": "source-kit",
+          "type": "string",
+          "description": "Exact public source kit for cache-only preparation.",
+          "required": false
+        },
+        {
+          "name": "source-os",
+          "type": "string",
+          "description": "Exact public source operating system.",
+          "required": false
+        },
+        {
+          "name": "source-release",
+          "type": "string",
+          "description": "Exact public source release tag, no newer than this CLI.",
           "required": false
         }
       ],

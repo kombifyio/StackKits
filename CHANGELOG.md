@@ -1,5 +1,9 @@
 # Changelog
 
+- Add: exact public releases can be retained in an explicit persistent cache with archive, signed index and installed CLI verification. Original-release restore recovery can use this cache offline when the workspace cache is absent; missing or altered retained evidence is refused without online fallback.
+
+- Fix: an upgraded CLI can recover an interrupted restore through the exact original public release, verified against its admitted archive and signed release index. It preserves the original Owner journal and verifies the persisted recovery result before reporting success; a missing or mismatched artifact is refused.
+
 - Fix: restore activation accepts an expected Plan hash and rechecks current Plan/Apply authority under the lifecycle lock before holding applications, taking a safety snapshot or changing live data. Recovery checks that hash against the original signed journal. Failed preparation releases application holds before unlocking; standalone owners may still omit the hash.
 
 - Fix: restore activation restarts native OpenTofu-managed containers without replacing them, preserving their identities and ordinary next-Apply convergence. Runtime execution is bound to the recovery graph's configuration and encrypted state; historical signed snapshots reconstruct that binding from authenticated retained configuration and reject ambiguous or substituted evidence before mutation.
@@ -210,6 +214,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.52.6](https://github.com/kombifyio/StackKits/compare/v0.52.5...v0.52.6) (2026-10-09)
+
+
+### Fixed
+
+* **api:** align OpenAPI license with existing project terms
+* **mcp:** terminate delegated CLI processes on Linux timeout
+* recover interrupted restores through the verified original release
+* retain verified public artifacts for offline recovery
 
 ## [0.52.5](https://github.com/kombifyio/StackKits/compare/v0.52.4...v0.52.5) (2026-10-09)
 

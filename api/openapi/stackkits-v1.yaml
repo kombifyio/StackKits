@@ -10,7 +10,7 @@ info:
     name: kombify
     url: https://kombify.io
   license:
-    name: MIT
+    name: Apache-2.0 OR GPL-3.0-or-later
 servers:
   - url: http://localhost:8082
     description: Local development

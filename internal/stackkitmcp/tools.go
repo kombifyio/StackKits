@@ -1005,6 +1005,7 @@ func (a *App) runStackkitCommand(ctx context.Context, tool string, in stackkitCo
 	args = appendSpecFlag(args, in.SpecPath)
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, a.cliBinding.Path(), args...) // #nosec G204 -- executable is the identity-bound packaged CLI and args are assembled from typed MCP inputs.
+	configureMCPCLIProcess(cmd)
 	cmd.Dir = baseDir
 	cmd.Env = commandEnv(in.ExtraEnv, env)
 	var stdout, stderr bytes.Buffer

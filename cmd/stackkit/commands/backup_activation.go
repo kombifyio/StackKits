@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -16,8 +18,11 @@ import (
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
+	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/spf13/cobra"
+	"golang.org/x/mod/semver"
 )
 
 var restoreActivationOperationPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{7,127}$`)
@@ -211,6 +216,9 @@ func runNativeV2RestoreRecoveryCommand(
 		ctx = context.Background()
 	}
 	workspace := getWorkDir()
+	if handled, err := runOriginalReleaseRestoreRecovery(cmd, workspace, operationID, expectedPlanHash); handled {
+		return err
+	}
 	runtime, err := restoreactivation.NewDockerRuntime(workspace)
 	if err != nil {
 		return err
@@ -291,6 +299,143 @@ func runNativeV2RestoreRecoveryCommand(
 		return err
 	}
 	return emitRestoreActivationResult(cmd, result)
+}
+
+type originalRecoveryReleaseProof struct {
+	Version            string                `json:"version"`
+	Platform           releaseindex.Platform `json:"platform"`
+	ArchiveSHA256      string                `json:"archiveSha256"`
+	ReleaseIndexSHA256 string                `json:"releaseIndexSha256"`
+}
+
+// Historical recovery runs through an attested private copy of A, while the
+// current signed B remains installed. The existing original journal is the
+// only mutation authority; cache preparation is not a new activation.
+func runOriginalReleaseRestoreRecovery(cmd *cobra.Command, workspace, operationID, expectedPlanHash string) (bool, error) {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	read := func(name string) string {
+		if cmd.Flags().Lookup(name) == nil {
+			return ""
+		}
+		value, _ := cmd.Flags().GetString(name)
+		return strings.TrimSpace(value)
+	}
+	tag, archive, index := read("original-release"), read("original-archive-sha256"), read("original-index-sha256")
+	cacheDirectory := read("original-release-cache")
+	if tag == "" && archive == "" && index == "" && cacheDirectory == "" {
+		return false, nil
+	}
+	hexDigest := regexp.MustCompile(`^[a-f0-9]{64}$`)
+	current, err := releaseindex.ExactTagForBuildVersion(version)
+	if err != nil || !semver.IsValid(tag) || !strings.HasPrefix(tag, "v") || semver.Compare(tag, "v0.52.5") < 0 || semver.Compare(tag, current) > 0 ||
+		!hexDigest.MatchString(archive) || !hexDigest.MatchString(index) || !nativeV2BackupDigestPattern.MatchString(expectedPlanHash) {
+		return true, errors.New("original recovery requires an exact prior release, archive/index digests and original admitted plan")
+	}
+	// Inspect under the existing lifecycle lock, then release it so A can open
+	// and revalidate the same original journal under that lock before effects.
+	session, record, err := lifecyclemutation.OpenRestoreActivationRecovery(workspace, operationID)
+	if err != nil {
+		return true, err
+	}
+	owner, ownerErr := localevidence.LoadOwnerCustody(workspace)
+	bound := ownerErr == nil && record.RestoreActivation != nil &&
+		record.RestoreActivation.Authority.OwnerRef == owner.OwnerRef &&
+		record.RestoreActivation.Authority.PlanHash == expectedPlanHash
+	closeErr := session.Close()
+	if !bound || closeErr != nil {
+		return true, errors.Join(errors.New("original recovery differs from the signed local Owner journal"), ownerErr, closeErr)
+	}
+	receipt, err := resolveOriginalRecoveryInstallation(ctx, workspace, tag, archive, index, cacheDirectory)
+	if err != nil {
+		return true, err
+	}
+	err = withVerifiedPublicUpgradeExecutable(ctx, receipt, func(binary string) error {
+		args := append(publicUpgradeCommandPrefix(workspace, specFile), "backup", "restore", "recover", operationID,
+			"--rollback", "--owner-approve", "--json", "--expected-plan-hash", expectedPlanHash)
+		if _, err := newUpgradeInspectionRunner().Run(ctx, binary, args, workspace); err != nil {
+			return fmt.Errorf("original verified release recovery: %w", err)
+		}
+		// Verify persisted Owner-signed evidence, never a success string from
+		// the subprocess. A itself rechecks the original journal under its lock.
+		result, err := restoreactivation.ReadResult(workspace, operationID)
+		if err != nil {
+			return err
+		}
+		original := record.RestoreActivation.Authority
+		if result.OperationID != operationID || result.PlanHash != expectedPlanHash || result.Verification.OwnerRef != original.OwnerRef ||
+			result.RestoreResultID != original.RestoreResultID || result.SafetySnapshotID != original.SafetySnapshotID || result.ManagedVolumeSetHash != original.ManagedVolumeSetHash {
+			return errors.New("original release recovery result differs from its signed journal")
+		}
+		if backupOutputJSON {
+			return writeCommandResult(cmd, cmd.CommandPath(), struct {
+				restoreactivation.Result
+				OriginalRecoveryRelease originalRecoveryReleaseProof `json:"originalRecoveryRelease"`
+			}{result, originalRecoveryReleaseProof{receipt.Version, receipt.Platform, receipt.ArchiveSHA256, receipt.IndexSHA256}})
+		}
+		return emitRestoreActivationResult(cmd, result)
+	})
+	return true, err
+}
+
+func resolveOriginalRecoveryInstallation(ctx context.Context, workspace, tag, archive, index string, cacheDirectories ...string) (releaseindex.Receipt, error) {
+	kit, err := loadWorkspaceKit(workspace)
+	if err != nil {
+		return releaseindex.Receipt{}, err
+	}
+	platform := currentReleasePlatform()
+	directory, err := releaseindex.CacheInstallationDirectory(filepath.Join(workspace, ".stackkit", "releases"), kit, tag, platform)
+	if err != nil {
+		return releaseindex.Receipt{}, err
+	}
+	cacheDirectory := ""
+	if len(cacheDirectories) > 0 {
+		cacheDirectory = strings.TrimSpace(cacheDirectories[0])
+	}
+	if cacheDirectory != "" && !filepath.IsAbs(cacheDirectory) {
+		return releaseindex.Receipt{}, errors.New("original release cache directory must be absolute")
+	}
+	installer := releaseindex.Installer{Source: newPublicReleaseSource(), Attestations: newPublicAttestationVerifier()}
+	if _, err := os.Lstat(directory); errors.Is(err, os.ErrNotExist) {
+		if cacheDirectory != "" {
+			// A configured retained node cache is an offline-only authority.
+			// Missing or invalid evidence never permits public reacquisition.
+			directory, err = releaseindex.CacheInstallationDirectory(cacheDirectory, kit, tag, platform)
+			if err != nil {
+				return releaseindex.Receipt{}, err
+			}
+		} else {
+			resolved, err := (releaseindex.Resolver{Source: installer.Source, Attestations: installer.Attestations}).Resolve(ctx,
+				releaseindex.ResolveRequest{Kit: kit, Target: tag, OS: platform.OS, Arch: platform.Arch})
+			if err != nil {
+				return releaseindex.Receipt{}, err
+			}
+			if resolved.Asset.Archive.SHA256 != archive || fmt.Sprintf("%x", sha256.Sum256(resolved.RawIndex)) != index {
+				return releaseindex.Receipt{}, errors.New("published original release differs from its immutable admission")
+			}
+			if _, err := installer.Install(ctx, resolved, workspace); err != nil {
+				return releaseindex.Receipt{}, err
+			}
+		}
+	} else if err != nil {
+		return releaseindex.Receipt{}, err
+	}
+	var receipt releaseindex.Receipt
+	err = installer.InspectInstalled(ctx, directory, func(proof releaseindex.VerifiedInstallation) error {
+		return proof.Inspect(func(current releaseindex.Receipt, _ releaseindex.Asset, _ io.Reader) error {
+			if err := validateExpectedCurrentReleaseReceipt(current, kit, tag, platform); err != nil {
+				return err
+			}
+			if current.ArchiveSHA256 != archive || current.IndexSHA256 != index {
+				return errors.New("cached original release differs from its immutable admission")
+			}
+			receipt = current
+			return nil
+		})
+	})
+	return receipt, err
 }
 
 func restoreActivationApplicationLifecycleEvidence(

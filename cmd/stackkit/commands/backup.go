@@ -289,6 +289,10 @@ func init() {
 		"Authorize rollback if the interrupted activation has not committed")
 	backupRestoreRecoverCmd.Flags().String("expected-plan-hash", "",
 		"Require the original journal's admitted sha256 ResolvedPlan before recovery or finalization")
+	backupRestoreRecoverCmd.Flags().String("original-release", "", "Recover only through this exact originally admitted StackKits tag")
+	backupRestoreRecoverCmd.Flags().String("original-archive-sha256", "", "Require the original release archive digest before historical recovery")
+	backupRestoreRecoverCmd.Flags().String("original-index-sha256", "", "Require the original signed release-index digest before historical recovery")
+	backupRestoreRecoverCmd.Flags().String("original-release-cache", "", "Absolute retained node release cache, used offline only when the workspace original cache is absent")
 	backupRestoreCmd.AddCommand(backupRestoreAbandonCmd, backupRestoreActivateCmd, backupRestoreRecoverCmd)
 	configureEmergencyBackupCommands()
 	backupMigrateResticCmd.Flags().BoolVar(&backupMigrateDryRun, "dry-run", false,

@@ -113,6 +113,12 @@ var nativeSetupConsumerTests = []string{
 // gate. Adding or renaming a test in one of these slices must update this
 // reviewable binding.
 var fileFocusedTests = map[string][]string{
+	// Source preparation owns public cache admission and historical Owner
+	// inspection; recovery consumes that same verified cache and executable.
+	"cmd/stackkit/commands/source_generation.go": {
+		"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
+		"TestSourceGenerationPlanCannotReinterpretUnattestedHistory",
+	},
 	// These reviewed setup consumers exercise the shared native admission and
 	// Files/automatic callers plus the complete HA custody journey. They do not
 	// qualify other native application branches or cover unrelated CLI sources.
@@ -144,6 +150,7 @@ var fileFocusedTests = map[string][]string{
 		"TestRequirePrivatePathAcceptsOnlyExpectedPrivateTypeAndMode",
 	},
 	"cmd/stackkit/commands/backup.go": {
+		"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
 		"TestLegacyV06BackupMigrationForwardsExactImporterArguments",
 		"TestNativeV2RetiresLegacyBackupUtilityCommandsBeforeSideEffects",
 		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
@@ -206,6 +213,8 @@ var fileFocusedTests = map[string][]string{
 	},
 	"cmd/stackkit/commands/backup_activation.go": {
 		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
+		"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
+		"TestRestoreActivationBootstrapRepeatsCompletionDuringRecovery",
 	},
 	"cmd/stackkit/commands/game_server_hold.go": {
 		"TestGameServerHoldResumeSurvivesCanceledOperation",

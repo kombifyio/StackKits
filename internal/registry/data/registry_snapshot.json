@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-10-09T02:24:35Z",
+  "generated_at": "2026-10-09T08:11:23Z",
   "tools": [
     {
       "slug": "adguard-home",

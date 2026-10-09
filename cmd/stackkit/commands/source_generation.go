@@ -2,16 +2,21 @@ package commands
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/semver"
 )
@@ -26,12 +31,32 @@ func init() {
 // inspection, remains read-only and cannot acquire missing release custody.
 func newSourceGenerationPrepareCmd() *cobra.Command {
 	var asJSON bool
+	var cacheOnly bool
+	var cache sourceReleaseCacheRequest
 	command := &cobra.Command{
 		Use:         "prepare-source-generation",
 		Short:       "Cache and verify the attested release that authored the retained generation",
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if cacheOnly {
+				receipt, cliDigest, err := prepareSourceReleaseCache(cmd.Context(), cache)
+				if err != nil {
+					return err
+				}
+				if asJSON {
+					return writeCommandResult(cmd, cmd.CommandPath(), struct {
+						Prepared      bool                         `json:"prepared"`
+						SourceRelease sourceGenerationReleaseProof `json:"sourceRelease"`
+						CLISHA256     string                       `json:"cliSha256"`
+					}{true, sourceGenerationProof(receipt), cliDigest})
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Verified retained source release %s\n", receipt.Version)
+				return err
+			}
+			if cache != (sourceReleaseCacheRequest{}) {
+				return errors.New("explicit source release cache arguments require --cache-only")
+			}
 			workspace := getWorkDir()
 			current, err := releaseindex.ExactTagForBuildVersion(version)
 			if err != nil {
@@ -88,7 +113,87 @@ func newSourceGenerationPrepareCmd() *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&asJSON, "json", false, "Emit bounded source-generation inspection proof after authenticated cache preparation.")
+	command.Flags().BoolVar(&cacheOnly, "cache-only", false, "Retain an exact attested public release independently of workspace lifecycle or Owner custody.")
+	command.Flags().StringVar(&cache.Directory, "release-cache", "", "Absolute persistent release cache directory for cache-only preparation.")
+	command.Flags().StringVar(&cache.Kit, "source-kit", "", "Exact public source kit for cache-only preparation.")
+	command.Flags().StringVar(&cache.Tag, "source-release", "", "Exact public source release tag, no newer than this CLI.")
+	command.Flags().StringVar(&cache.Platform.OS, "source-os", "", "Exact public source operating system.")
+	command.Flags().StringVar(&cache.Platform.Arch, "source-arch", "", "Exact public source architecture.")
+	command.Flags().StringVar(&cache.ArchiveSHA256, "source-archive-sha256", "", "Require the exact public source archive digest.")
+	command.Flags().StringVar(&cache.IndexSHA256, "source-index-sha256", "", "Require the exact signed source release-index digest.")
+	command.Flags().StringVar(&cache.CLISHA256, "source-cli-sha256", "", "Require the installed source CLI digest to match the verified archive executable.")
 	return command
+}
+
+type sourceReleaseCacheRequest struct {
+	Directory, Kit, Tag                   string
+	Platform                              releaseindex.Platform
+	ArchiveSHA256, IndexSHA256, CLISHA256 string
+}
+
+// Caller-provided identities select data only. Public attestations and the
+// extracted executable decide whether this cache may survive runtime replacement.
+func prepareSourceReleaseCache(ctx context.Context, request sourceReleaseCacheRequest) (releaseindex.Receipt, string, error) {
+	current, err := releaseindex.ExactTagForBuildVersion(version)
+	hexDigest := regexp.MustCompile(`^[a-f0-9]{64}$`)
+	if err != nil || !semver.IsValid(request.Tag) || semver.Canonical(request.Tag) != request.Tag || semver.Prerelease(request.Tag) != "" || semver.Compare(request.Tag, current) > 0 ||
+		!hexDigest.MatchString(request.ArchiveSHA256) || !hexDigest.MatchString(request.IndexSHA256) || !hexDigest.MatchString(request.CLISHA256) {
+		return releaseindex.Receipt{}, "", errors.New("cache-only preparation requires an exact prior public release and archive/index/CLI digests")
+	}
+	if err := productkits.Validate(request.Kit); err != nil {
+		return releaseindex.Receipt{}, "", err
+	}
+	if (request.Platform.OS != "linux" && request.Platform.OS != "windows" && request.Platform.OS != "darwin") ||
+		(request.Platform.Arch != "amd64" && request.Platform.Arch != "arm64") || !filepath.IsAbs(request.Directory) {
+		return releaseindex.Receipt{}, "", errors.New("cache-only preparation requires an exact public platform and absolute cache directory")
+	}
+	directory, err := releaseindex.CacheInstallationDirectory(request.Directory, request.Kit, request.Tag, request.Platform)
+	if err != nil {
+		return releaseindex.Receipt{}, "", err
+	}
+	validateCLI := func(proof releaseindex.VerifiedInstallation) error {
+		cli, _, err := upgradelifecycle.ReleaseExecutablesFromVerifiedRelease(proof)
+		if err != nil {
+			return err
+		}
+		if fmt.Sprintf("%x", sha256.Sum256(cli)) != request.CLISHA256 {
+			return errors.New("installed source CLI differs from the verified public archive executable")
+		}
+		return nil
+	}
+	installer := releaseindex.Installer{Source: newPublicReleaseSource(), Attestations: newPublicAttestationVerifier()}
+	if _, err := os.Lstat(directory); errors.Is(err, os.ErrNotExist) {
+		resolved, err := (releaseindex.Resolver{Source: installer.Source, Attestations: installer.Attestations}).Resolve(ctx,
+			releaseindex.ResolveRequest{Kit: request.Kit, Target: request.Tag, OS: request.Platform.OS, Arch: request.Platform.Arch})
+		if err != nil {
+			return releaseindex.Receipt{}, "", err
+		}
+		if resolved.Asset.Archive.SHA256 != request.ArchiveSHA256 || fmt.Sprintf("%x", sha256.Sum256(resolved.RawIndex)) != request.IndexSHA256 {
+			return releaseindex.Receipt{}, "", errors.New("published source release differs from the installed admission")
+		}
+		if _, err := installer.InstallToCache(ctx, resolved, request.Directory, validateCLI); err != nil {
+			return releaseindex.Receipt{}, "", err
+		}
+	} else if err != nil {
+		return releaseindex.Receipt{}, "", err
+	}
+	var receipt releaseindex.Receipt
+	err = installer.InspectInstalled(ctx, directory, func(proof releaseindex.VerifiedInstallation) error {
+		if err := proof.Inspect(func(current releaseindex.Receipt, _ releaseindex.Asset, _ io.Reader) error {
+			if err := validateExpectedCurrentReleaseReceipt(current, request.Kit, request.Tag, request.Platform); err != nil {
+				return err
+			}
+			if current.Channel != releaseindex.ChannelStable || current.ArchiveSHA256 != request.ArchiveSHA256 || current.IndexSHA256 != request.IndexSHA256 {
+				return errors.New("cached source release differs from the installed admission")
+			}
+			receipt = current
+			return nil
+		}); err != nil {
+			return err
+		}
+		return validateCLI(proof)
+	})
+	return receipt, request.CLISHA256, err
 }
 
 // Export public distribution identity only, never workspace paths or custody.
@@ -163,13 +268,7 @@ func inspectSourceGeneration(ctx context.Context, workspace, requestedSpec strin
 func writeSourceGenerationInspection(writer io.Writer, bridge publicUpgradeBridge) error {
 	// Preserve the original compiler, Inventory and applied evidence. This is
 	// preparation provenance, never permission to execute an old plan now.
-	publicRelease := sourceGenerationReleaseProof{
-		SchemaVersion: bridge.Receipt.SchemaVersion, Kit: bridge.Receipt.Kit,
-		Version: bridge.Receipt.Version, Channel: bridge.Receipt.Channel,
-		Platform: bridge.Receipt.Platform, ArchiveSHA256: bridge.Receipt.ArchiveSHA256,
-		IndexSHA256: bridge.Receipt.IndexSHA256, AttestationSHA256: bridge.Receipt.AttestationSHA256,
-		IndexAttestationSHA256: bridge.Receipt.IndexAttestationSHA256, TrustedRootSHA256: bridge.Receipt.TrustedRootSHA256,
-	}
+	publicRelease := sourceGenerationProof(bridge.Receipt)
 	raw, err := json.Marshal(struct {
 		APIVersion         string                            `json:"apiVersion"`
 		Inspection         generationartifact.PlanInspection `json:"inspection"`
@@ -186,6 +285,15 @@ func writeSourceGenerationInspection(writer io.Writer, bridge publicUpgradeBridg
 	}
 	_, err = writer.Write(append(raw, '\n'))
 	return err
+}
+
+func sourceGenerationProof(receipt releaseindex.Receipt) sourceGenerationReleaseProof {
+	return sourceGenerationReleaseProof{
+		SchemaVersion: receipt.SchemaVersion, Kit: receipt.Kit, Version: receipt.Version, Channel: receipt.Channel,
+		Platform: receipt.Platform, ArchiveSHA256: receipt.ArchiveSHA256, IndexSHA256: receipt.IndexSHA256,
+		AttestationSHA256: receipt.AttestationSHA256, IndexAttestationSHA256: receipt.IndexAttestationSHA256,
+		TrustedRootSHA256: receipt.TrustedRootSHA256,
+	}
 }
 
 func runSourceGenerationPlan(cmdContext context.Context, workspace, requestedSpec string, writer io.Writer) (bool, error) {

@@ -79,41 +79,90 @@ func (source *GitHubSource) ListReleases(ctx context.Context) ([]Release, error)
 	}
 	releases := []Release{}
 	for decoder.More() {
-		var item struct {
-			TagName     string    `json:"tag_name"`
-			Prerelease  bool      `json:"prerelease"`
-			Draft       bool      `json:"draft"`
-			PublishedAt time.Time `json:"published_at"`
-			Assets      []struct {
-				Name               string `json:"name"`
-				BrowserDownloadURL string `json:"browser_download_url"`
-			} `json:"assets"`
+		release, err := decodeGitHubRelease(decoder)
+		if err != nil {
+			return nil, err
 		}
-		if err := decoder.Decode(&item); err != nil {
-			return nil, fmt.Errorf("decode GitHub releases: %w", err)
+		if release != nil {
+			releases = append(releases, *release)
 		}
-		if item.Draft {
-			continue
-		}
-		assetURLs := make(map[string]string, len(item.Assets))
-		for _, asset := range item.Assets {
-			assetURLs[asset.Name] = asset.BrowserDownloadURL
-		}
-		indexURL := assetURLs[ReleaseIndexAssetName]
-		indexAttestationURL := assetURLs[ReleaseIndexAttestationAssetName]
-		trustedRootURL := assetURLs[TrustedRootAssetName]
-		if indexURL == "" || indexAttestationURL == "" || trustedRootURL == "" {
-			continue
-		}
-		releases = append(releases, Release{
-			TagName: item.TagName, Prerelease: item.Prerelease, PublishedAt: item.PublishedAt,
-			IndexURL: indexURL, IndexAttestationURL: indexAttestationURL, TrustedRootURL: trustedRootURL,
-		})
 	}
 	if err := expectReleaseListDelim(decoder, ']'); err != nil {
 		return nil, err
 	}
 	return releases, nil
+}
+
+// GetRelease resolves one exact tag independently of the newest release page.
+// It provides metadata only: Resolver and Installer still authenticate every
+// index, archive and cached receipt before an executable can be used.
+func (source *GitHubSource) GetRelease(ctx context.Context, tag string) (Release, error) {
+	if source == nil || source.Client == nil || source.Repository != "kombifyio/stackKits" {
+		return Release{}, fmt.Errorf("trusted GitHub release source is required")
+	}
+	_, exact, err := normalizeTarget(tag)
+	if err != nil || exact == "" {
+		return Release{}, fmt.Errorf("historical release requires an exact tag")
+	}
+	endpoint := strings.TrimRight(source.APIBaseURL, "/") + "/repos/" + source.Repository + "/releases/tags/" + url.PathEscape(exact)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return Release{}, err
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	response, err := source.Client.Do(request)
+	if err != nil {
+		return Release{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNotFound {
+		return Release{}, ErrNoRelease
+	}
+	if response.StatusCode != http.StatusOK {
+		return Release{}, fmt.Errorf("exact GitHub release returned HTTP %d", response.StatusCode)
+	}
+	decoder := json.NewDecoder(io.LimitReader(response.Body, maxReleaseListBytes))
+	release, err := decodeGitHubRelease(decoder)
+	if err != nil {
+		return Release{}, err
+	}
+	if release == nil || release.TagName != exact {
+		return Release{}, ErrNoRelease
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return Release{}, fmt.Errorf("exact GitHub release has trailing data")
+	}
+	return *release, nil
+}
+
+func decodeGitHubRelease(decoder *json.Decoder) (*Release, error) {
+	var item struct {
+		TagName     string    `json:"tag_name"`
+		Prerelease  bool      `json:"prerelease"`
+		Draft       bool      `json:"draft"`
+		PublishedAt time.Time `json:"published_at"`
+		Assets      []struct {
+			Name               string `json:"name"`
+			BrowserDownloadURL string `json:"browser_download_url"`
+		} `json:"assets"`
+	}
+	if err := decoder.Decode(&item); err != nil {
+		return nil, fmt.Errorf("decode GitHub release: %w", err)
+	}
+	if item.Draft {
+		return nil, nil
+	}
+	assetURLs := make(map[string]string, len(item.Assets))
+	for _, asset := range item.Assets {
+		assetURLs[asset.Name] = asset.BrowserDownloadURL
+	}
+	indexURL, attestationURL, rootURL := assetURLs[ReleaseIndexAssetName], assetURLs[ReleaseIndexAttestationAssetName], assetURLs[TrustedRootAssetName]
+	if indexURL == "" || attestationURL == "" || rootURL == "" {
+		return nil, nil
+	}
+	return &Release{TagName: item.TagName, Prerelease: item.Prerelease, PublishedAt: item.PublishedAt,
+		IndexURL: indexURL, IndexAttestationURL: attestationURL, TrustedRootURL: rootURL}, nil
 }
 
 func expectReleaseListDelim(decoder *json.Decoder, delim json.Delim) error {

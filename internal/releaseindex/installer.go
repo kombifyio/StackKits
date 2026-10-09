@@ -28,6 +28,25 @@ type Installer struct {
 	Now          func() time.Time
 }
 
+// CacheInstallationDirectory confines both existing and missing cache paths;
+// a missing leaf under a linked ancestor is never treated as an absent cache.
+func CacheInstallationDirectory(cacheDirectory, kit, tag string, platform Platform) (string, error) {
+	if !filepath.IsAbs(cacheDirectory) {
+		return "", errors.New("release cache directory must be absolute")
+	}
+	cacheDirectory = filepath.Clean(cacheDirectory)
+	target := filepath.Join(cacheDirectory, kit, tag, platform.OS+"-"+platform.Arch)
+	relative, err := filepath.Rel(cacheDirectory, target)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", errors.New("release cache path escapes the cache directory")
+	}
+	root := filepath.VolumeName(cacheDirectory) + string(filepath.Separator)
+	if err := ensureReleaseCachePathConfined(root, target); err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
 // VerifiedArchive is a short-lived, fully verified release payload. Paths are
 // valid only for the duration of InspectVerifiedArchive's callback.
 type VerifiedArchive struct {
@@ -125,7 +144,33 @@ func (installer Installer) InspectVerifiedArchive(ctx context.Context, resolutio
 }
 
 func (installer Installer) Install(ctx context.Context, resolution Resolution, workspaceRoot string) (Receipt, error) {
-	return installer.install(ctx, resolution, workspaceRoot, nil)
+	return installer.install(ctx, resolution, workspaceRoot, filepath.Join(workspaceRoot, ".stackkit", "releases"), nil)
+}
+
+// InstallToCache uses the same public trust chain and canonical receipt, with
+// an explicitly selected cache directory independent of a runtime workspace.
+func (installer Installer) InstallToCache(ctx context.Context, resolution Resolution, cacheDirectory string, inspect func(VerifiedInstallation) error) (Receipt, error) {
+	if !filepath.IsAbs(cacheDirectory) {
+		return Receipt{}, errors.New("release cache directory must be absolute")
+	}
+	cacheDirectory = filepath.Clean(cacheDirectory)
+	if _, err := CacheInstallationDirectory(cacheDirectory, resolution.Asset.Kit, resolution.Asset.Version, resolution.Asset.Platform); err != nil {
+		return Receipt{}, err
+	}
+	if err := os.MkdirAll(cacheDirectory, 0o700); err != nil {
+		return Receipt{}, fmt.Errorf("create release cache directory: %w", err)
+	}
+	var validate verifiedArchiveValidator
+	if inspect != nil {
+		validate = func(archive []byte, asset Asset) error {
+			target := filepath.Join(cacheDirectory, asset.Kit, asset.Version, asset.Platform.OS+"-"+asset.Platform.Arch)
+			return inspect(VerifiedInstallation{
+				token: &verifiedInstallationToken{}, receipt: receiptForResolution(resolution, target, time.Time{}),
+				asset: asset, archive: append([]byte(nil), archive...),
+			})
+		}
+	}
+	return installer.install(ctx, resolution, cacheDirectory, cacheDirectory, validate)
 }
 
 type verifiedArchiveValidator func([]byte, Asset) error
@@ -134,6 +179,7 @@ func (installer Installer) install(
 	ctx context.Context,
 	resolution Resolution,
 	workspaceRoot string,
+	releaseRoot string,
 	validateArchive verifiedArchiveValidator,
 ) (Receipt, error) {
 	if installer.Attestations == nil {
@@ -154,7 +200,10 @@ func (installer Installer) install(
 	if now == nil {
 		now = time.Now
 	}
-	releaseRoot := filepath.Join(workspaceRoot, ".stackkit", "releases")
+	releaseRoot, err = filepath.Abs(releaseRoot)
+	if err != nil {
+		return Receipt{}, fmt.Errorf("resolve release cache directory: %w", err)
+	}
 	target := filepath.Join(releaseRoot, resolution.Asset.Kit, resolution.Asset.Version, resolution.Asset.Platform.OS+"-"+resolution.Asset.Platform.Arch)
 	if err := ensureReleaseCachePathConfined(workspaceRoot, target); err != nil {
 		return Receipt{}, err
@@ -250,17 +299,7 @@ func (installer Installer) install(
 			return Receipt{}, err
 		}
 	}
-	receipt := Receipt{
-		SchemaVersion: ReceiptSchemaVersion, Kit: resolution.Asset.Kit, Version: resolution.Asset.Version,
-		Channel: resolution.Asset.Channel, Platform: resolution.Asset.Platform,
-		ArchiveSHA256: resolution.Asset.Archive.SHA256, SBOMSHA256: resolution.Asset.SBOM.SHA256,
-		AttestationSHA256: resolution.Asset.Attestation.SHA256,
-		AttestationIssuer: resolution.Asset.Attestation.Issuer, AttestationSubject: resolution.Asset.Attestation.Subject,
-		TrustedRootSHA256:      resolution.Index.Release.TrustedRoot.SHA256,
-		IndexSHA256:            digestBytes(resolution.RawIndex),
-		IndexAttestationSHA256: digestBytes(resolution.RawIndexAttestation),
-		VerifiedAt:             now().UTC(), InstallDir: target,
-	}
+	receipt := receiptForResolution(resolution, target, now().UTC())
 	receiptBytes, err := json.MarshalIndent(receipt, "", "  ")
 	if err != nil {
 		return Receipt{}, err
@@ -291,6 +330,20 @@ func (installer Installer) install(
 		return Receipt{}, fmt.Errorf("atomically install verified release: %w", err)
 	}
 	return receipt, nil
+}
+
+func receiptForResolution(resolution Resolution, target string, verifiedAt time.Time) Receipt {
+	return Receipt{
+		SchemaVersion: ReceiptSchemaVersion, Kit: resolution.Asset.Kit, Version: resolution.Asset.Version,
+		Channel: resolution.Asset.Channel, Platform: resolution.Asset.Platform,
+		ArchiveSHA256: resolution.Asset.Archive.SHA256, SBOMSHA256: resolution.Asset.SBOM.SHA256,
+		AttestationSHA256: resolution.Asset.Attestation.SHA256,
+		AttestationIssuer: resolution.Asset.Attestation.Issuer, AttestationSubject: resolution.Asset.Attestation.Subject,
+		TrustedRootSHA256:      resolution.Index.Release.TrustedRoot.SHA256,
+		IndexSHA256:            digestBytes(resolution.RawIndex),
+		IndexAttestationSHA256: digestBytes(resolution.RawIndexAttestation),
+		VerifiedAt:             verifiedAt, InstallDir: target,
+	}
 }
 
 func revalidateStagedReleaseTrustSet(

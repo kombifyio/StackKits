@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:110a20f00ccd6aa15afeba7af51eabc4ef355cf7403afd4205786a55075fd6fe",
+  "contentDigest": "sha256:333672b0940865810c84c55f008b77925ea2e71e9b1941fcfed9745b10f2ed21",
   "operations": [
     {
       "command": [
@@ -684,6 +684,24 @@
           "flag": "--expected-plan-hash",
           "kind": "string",
           "name": "expected_plan_hash"
+        },
+        {
+          "description": "exact originally admitted release; requires original archive/index digests",
+          "flag": "--original-release",
+          "kind": "string",
+          "name": "original_release"
+        },
+        {
+          "description": "original release archive digest for historical recovery",
+          "flag": "--original-archive-sha256",
+          "kind": "string",
+          "name": "original_archive_sha256"
+        },
+        {
+          "description": "original signed release-index digest for historical recovery",
+          "flag": "--original-index-sha256",
+          "kind": "string",
+          "name": "original_index_sha256"
         }
       ],
       "command": [

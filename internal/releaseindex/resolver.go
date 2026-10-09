@@ -29,7 +29,16 @@ func (resolver Resolver) Resolve(ctx context.Context, request ResolveRequest) (R
 	if err != nil {
 		return Resolution{}, err
 	}
-	releases, err := resolver.Source.ListReleases(ctx)
+	var releases []Release
+	if exactSource, ok := resolver.Source.(interface {
+		GetRelease(context.Context, string) (Release, error)
+	}); exact != "" && ok {
+		var release Release
+		release, err = exactSource.GetRelease(ctx, exact)
+		releases = []Release{release}
+	} else {
+		releases, err = resolver.Source.ListReleases(ctx)
+	}
 	if err != nil {
 		return Resolution{}, fmt.Errorf("list GitHub releases: %w", err)
 	}
