@@ -31,24 +31,32 @@ var errResultNotFound = errors.New("restoreactivation: persisted result is unava
 type LiveVerification = backuplifecycle.RestoreVerification
 
 type ActivateInput struct {
-	WorkspaceRoot        string
-	OperationID          string
-	OwnerApproved        bool
-	Plan                 generationartifact.VerifiedPlan
-	Manifest             generationartifact.ArtifactManifest
-	RestoreResult        backuplifecycle.RestoreResult
-	CurrentLineage       backuplifecycle.AuthorityLineage
+	WorkspaceRoot    string
+	OperationID      string
+	ExpectedPlanHash string
+	OwnerApproved    bool
+	Plan             generationartifact.VerifiedPlan
+	Manifest         generationartifact.ArtifactManifest
+	RestoreResult    backuplifecycle.RestoreResult
+	CurrentLineage   backuplifecycle.AuthorityLineage
+	// RevalidateCurrentAuthority reads the existing current authority while
+	// the shared lifecycle lock is held; cached preflight is not admission.
+	RevalidateCurrentAuthority func(context.Context) (generationartifact.VerifiedPlan, backuplifecycle.AuthorityLineage, error)
+	// PrepareMutation acquires existing application-specific quiescence only
+	// after admission. Its release runs before the lifecycle lock is closed.
+	PrepareMutation      func(context.Context) (func() error, error)
 	CreateSafetySnapshot func(context.Context, string) (backuplifecycle.SnapshotAnchor, error)
 	VerifyLive           func(context.Context) (LiveVerification, error)
 	FinalizeResult       func(context.Context, Result, error) error
 }
 
 type RecoverInput struct {
-	WorkspaceRoot  string
-	OperationID    string
-	OwnerApproved  bool
-	VerifyLive     func(context.Context) (LiveVerification, error)
-	FinalizeResult func(context.Context, Result, error) error
+	WorkspaceRoot    string
+	OperationID      string
+	ExpectedPlanHash string
+	OwnerApproved    bool
+	VerifyLive       func(context.Context) (LiveVerification, error)
+	FinalizeResult   func(context.Context, Result, error) error
 }
 
 type Result struct {
@@ -119,7 +127,7 @@ func NewService(runtime Runtime, resolver RecoveryAuthorityResolver) (*Service, 
 	return &Service{runtime: runtime, resolveRecovery: resolver}, nil
 }
 
-func (service *Service) Activate(ctx context.Context, input ActivateInput) (Result, error) {
+func (service *Service) Activate(ctx context.Context, input ActivateInput) (result Result, returnErr error) {
 	if service == nil || service.runtime == nil {
 		return Result{}, errors.New("restoreactivation: service is not initialized")
 	}
@@ -145,9 +153,44 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 	defer cancel()
 
 	var safety backuplifecycle.SnapshotAnchor
+	var resumeMutation func() error
+	releaseMutation := func() error {
+		if resumeMutation == nil {
+			return nil
+		}
+		resume := resumeMutation
+		resumeMutation = nil
+		return resume()
+	}
 	session, err := lifecyclemutation.BeginRestoreActivationPrepared(
 		input.WorkspaceRoot,
 		func() (lifecyclemutation.RestoreActivationBeginRequest, error) {
+			// The shared lifecycle lock fences the admitted Plan before even a
+			// safety snapshot can stop writers or persist repository state.
+			if err := input.Plan.RequireExpectedPlanHash(input.ExpectedPlanHash); err != nil {
+				return lifecyclemutation.RestoreActivationBeginRequest{}, err
+			}
+			if input.RevalidateCurrentAuthority == nil && strings.TrimSpace(input.ExpectedPlanHash) != "" {
+				return lifecyclemutation.RestoreActivationBeginRequest{}, errors.New("restoreactivation: admitted restore requires current authority readback under the lifecycle lock")
+			}
+			if input.RevalidateCurrentAuthority != nil {
+				current, lineage, err := input.RevalidateCurrentAuthority(bounded)
+				if err != nil {
+					return lifecyclemutation.RestoreActivationBeginRequest{}, err
+				}
+				if err := current.RequireExpectedPlanHash(input.ExpectedPlanHash); err != nil {
+					return lifecyclemutation.RestoreActivationBeginRequest{}, err
+				}
+				if current.Binding() != input.Plan.Binding() || lineage != input.CurrentLineage {
+					return lifecyclemutation.RestoreActivationBeginRequest{}, errors.New("restoreactivation: current Plan or Apply lineage changed while acquiring the lifecycle lock")
+				}
+			}
+			if input.PrepareMutation != nil {
+				resumeMutation, err = input.PrepareMutation(bounded)
+				if err != nil {
+					return lifecyclemutation.RestoreActivationBeginRequest{}, err
+				}
+			}
 			if err := service.runtime.Inspect(bounded, authority); err != nil {
 				return lifecyclemutation.RestoreActivationBeginRequest{}, err
 			}
@@ -165,11 +208,17 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 			}
 			return beginRequest(authority, safety.ID), nil
 		},
+		releaseMutation,
 	)
 	if err != nil {
 		return Result{}, &ActivationNotStartedError{Cause: err}
 	}
 	defer func() { _ = session.Close() }()
+	// LIFO: quiescence release must finish before session.Close releases the
+	// lifecycle lock, including finalization and automatic-recovery failures.
+	defer func() {
+		returnErr = errors.Join(returnErr, releaseMutation())
+	}()
 
 	verification, executionErr := service.activateLocked(
 		bounded, session, authority, input.VerifyLive,
@@ -181,7 +230,7 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (Resu
 		}
 		return Result{}, errors.Join(executionErr, rollbackErr)
 	}
-	result, err := signResult(
+	result, err = signResult(
 		input.WorkspaceRoot, authority, safety.ID, "activated", verification,
 	)
 	if err != nil {
@@ -245,6 +294,11 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 		return Result{}, err
 	}
 	defer func() { _ = session.Close() }()
+	// Recovery belongs to the immutable original journal, including terminal
+	// cleanup/finalization. Compare under its lock before resolving any runtime.
+	if err := requireExpectedRecoveryPlanHash(input.ExpectedPlanHash, record.RestoreActivation.Authority.PlanHash); err != nil {
+		return Result{}, err
+	}
 	authority, err := service.resolveRecovery(
 		bounded, record.RestoreActivation.Authority,
 	)
@@ -326,6 +380,20 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 		return Result{}, err
 	}
 	return result, nil
+}
+
+func requireExpectedRecoveryPlanHash(expected, original string) error {
+	expected = strings.TrimSpace(expected)
+	if expected == "" {
+		return nil
+	}
+	if !digestPattern.MatchString(expected) {
+		return errors.New("restoreactivation: expected recovery plan hash must be a lowercase sha256 digest")
+	}
+	if expected != original {
+		return fmt.Errorf("restoreactivation: original journal plan hash %s does not match expected recovery plan hash %s", original, expected)
+	}
+	return nil
 }
 
 func (service *Service) activateLocked(

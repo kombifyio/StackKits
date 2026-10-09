@@ -447,6 +447,9 @@ type SSHBootstrap struct {
 	PrivateKey       string
 	ClientPrivateKey string
 	ProxyJump        string
+	// HostKey is the verified OpenSSH public key of Host. It is required: the
+	// runner never connects to a node it cannot verify.
+	HostKey string
 }
 
 type NodePrepareResult struct {

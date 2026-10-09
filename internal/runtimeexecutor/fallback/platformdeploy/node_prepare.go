@@ -3,6 +3,7 @@ package platformdeploy
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -13,6 +14,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	sshpin "github.com/kombifyio/stackkits/internal/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 const komodoPeripherySetupURL = "https://raw.githubusercontent.com/moghtech/komodo/main/scripts/setup-periphery.py"
@@ -35,12 +39,23 @@ func (DefaultSSHRunner) Run(ctx context.Context, target SSHBootstrap, script str
 	if keyPath == "" {
 		return nil, fmt.Errorf("supplemental node SSH key path or private key is required")
 	}
-	args := nodeSSHArgs(target, keyPath)
+	knownHostsPath, cleanupKnownHosts, err := writeNodeKnownHosts(target)
+	if cleanupKnownHosts != nil {
+		defer cleanupKnownHosts()
+	}
+	if err != nil {
+		return nil, err
+	}
+	args := nodeSSHArgs(target, keyPath, knownHostsPath)
 	args = append(args, "sh", "-c", shellQuote(script))
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(runCtx, "ssh", args...) // #nosec G204 -- SSH argv is assembled without shell interpolation except a quoted script payload.
-	return cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
+	if err != nil && sshpin.SSHVerificationFailed(string(output)) {
+		return output, &sshpin.HostKeyError{Reason: sshpin.ReasonHostKeyMismatch, Address: target.Host, Err: err}
+	}
+	return output, err
 }
 
 func PrepareSupplementalNodeTargets(ctx context.Context, platform string, nodes []SupplementalNodeTarget, cfg HTTPConfig, runner SSHRunner) ([]NodePrepareResult, error) {
@@ -445,13 +460,40 @@ func materializeNodeSSHKey(target SSHBootstrap) (string, func(), error) {
 	return keyPath, func() { _ = os.RemoveAll(dir) }, nil
 }
 
-func nodeSSHArgs(target SSHBootstrap, keyPath string) []string {
+// writeNodeKnownHosts writes the node's pinned host key into a private
+// known_hosts file. A node without a pinned key is refused: ssh(1) must never
+// run without host key verification.
+func writeNodeKnownHosts(target SSHBootstrap) (string, func(), error) {
+	hostKey := strings.TrimSpace(target.HostKey)
+	if hostKey == "" {
+		return "", nil, fmt.Errorf("%s: supplemental node SSH host key is required", sshpin.ReasonHostKeyRequired)
+	}
+	key, err := sshpin.ParseHostKey(hostKey)
+	if err != nil {
+		return "", nil, fmt.Errorf("%s: %w", sshpin.ReasonHostKeyInvalid, err)
+	}
+	dir, err := os.MkdirTemp("", "stackkits-node-known-hosts-")
+	if err != nil {
+		return "", nil, fmt.Errorf("create supplemental node known_hosts dir: %w", err)
+	}
+	cleanup := func() { _ = os.RemoveAll(dir) }
+	pin := sshpin.HostKeyPin{Key: key, Address: knownhosts.Normalize(net.JoinHostPort(target.Host, strconv.Itoa(target.Port)))}
+	path := filepath.Join(dir, "known_hosts")
+	if err := pin.WriteKnownHosts(path); err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("write supplemental node known_hosts: %w", err)
+	}
+	return path, cleanup, nil
+}
+
+func nodeSSHArgs(target SSHBootstrap, keyPath, knownHostsPath string) []string {
 	args := []string{
 		"-i", keyPath,
 		"-p", strconv.Itoa(target.Port),
 		"-o", "IdentitiesOnly=yes",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "StrictHostKeyChecking=yes",
+		"-o", "UserKnownHostsFile=" + knownHostsPath,
+		"-o", "GlobalKnownHostsFile=/dev/null",
 		"-o", "ConnectTimeout=20",
 	}
 	if target.ProxyJump != "" {

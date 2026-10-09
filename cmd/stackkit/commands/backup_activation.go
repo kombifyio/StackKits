@@ -26,6 +26,7 @@ func runNativeV2RestoreActivationCommand(
 	cmd *cobra.Command,
 	restoreResultID, requestedOperationID string,
 	ownerApproved bool,
+	expectedPlanHash string,
 ) error {
 	if cmd == nil {
 		return errors.New("native v2 restore activation command is required")
@@ -60,6 +61,11 @@ func runNativeV2RestoreActivationCommand(
 	if plan.Binding() != authority.Lineage.Binding {
 		return errors.New("backup restore activation Plan differs from current Apply authority")
 	}
+	// Reject admission drift before opening application lifecycle records; the
+	// activation service repeats this comparison under the mutation lock.
+	if err := plan.RequireExpectedPlanHash(expectedPlanHash); err != nil {
+		return err
+	}
 	restoreResult, err := backuplifecycle.LoadRestoreResult(
 		workspace, strings.TrimSpace(restoreResultID),
 	)
@@ -92,29 +98,37 @@ func runNativeV2RestoreActivationCommand(
 	if err != nil {
 		return err
 	}
-	lifecycleRuns, err := beginArchitectureV2ApplicationLifecyclesWithID(
-		workspace,
-		plan,
-		"restore",
-		"stackkit.restore",
-		"",
-		operationID,
-		time.Now().UTC(),
-	)
-	if err != nil {
-		return err
-	}
+	var lifecycleRuns []architectureV2ApplicationLifecycleRun
 	var result restoreactivation.Result
-	err = withGameServersHeld(ctx, workspace, true, func() error {
+	err = func() error {
 		var activateErr error
 		result, activateErr = service.Activate(ctx, restoreactivation.ActivateInput{
-			WorkspaceRoot:  workspace,
-			OperationID:    operationID,
-			OwnerApproved:  ownerApproved,
-			Plan:           plan,
-			Manifest:       manifest,
-			RestoreResult:  restoreResult,
-			CurrentLineage: authority.Lineage,
+			WorkspaceRoot:    workspace,
+			OperationID:      operationID,
+			ExpectedPlanHash: expectedPlanHash,
+			OwnerApproved:    ownerApproved,
+			Plan:             plan,
+			Manifest:         manifest,
+			RestoreResult:    restoreResult,
+			CurrentLineage:   authority.Lineage,
+			RevalidateCurrentAuthority: func(readContext context.Context) (generationartifact.VerifiedPlan, backuplifecycle.AuthorityLineage, error) {
+				current, err := inspectNativeV2BackupAuthorityForRequest(readContext, workspace, specFile)
+				if err != nil {
+					return generationartifact.VerifiedPlan{}, backuplifecycle.AuthorityLineage{}, err
+				}
+				if !sameNativeV2BackupAuthority(authority, current) {
+					return generationartifact.VerifiedPlan{}, backuplifecycle.AuthorityLineage{}, errors.New("restore activation authority changed while acquiring the lifecycle lock")
+				}
+				return current.Plan, current.Lineage, nil
+			},
+			PrepareMutation: func(prepareContext context.Context) (func() error, error) {
+				var err error
+				lifecycleRuns, err = beginArchitectureV2ApplicationLifecyclesWithID(workspace, plan, "restore", "stackkit.restore", "", operationID, time.Now().UTC())
+				if err != nil {
+					return nil, err
+				}
+				return prepareGameServersHeld(prepareContext, workspace, true)
+			},
 			CreateSafetySnapshot: func(
 				snapshotContext context.Context,
 				_ string,
@@ -150,7 +164,7 @@ func runNativeV2RestoreActivationCommand(
 			},
 		})
 		return activateErr
-	})
+	}()
 	if err != nil {
 		var recovered *restoreactivation.ActivationRecoveredError
 		if errors.As(err, &recovered) {
@@ -180,6 +194,7 @@ func runNativeV2RestoreRecoveryCommand(
 	cmd *cobra.Command,
 	operationID string,
 	ownerApproved bool,
+	expectedPlanHash string,
 ) error {
 	if cmd == nil {
 		return errors.New("native v2 restore recovery command is required")
@@ -242,9 +257,10 @@ func runNativeV2RestoreRecoveryCommand(
 		return err
 	}
 	result, err := service.Recover(ctx, restoreactivation.RecoverInput{
-		WorkspaceRoot: workspace,
-		OperationID:   operationID,
-		OwnerApproved: ownerApproved,
+		WorkspaceRoot:    workspace,
+		OperationID:      operationID,
+		ExpectedPlanHash: expectedPlanHash,
+		OwnerApproved:    ownerApproved,
 		VerifyLive: func(verifyContext context.Context) (
 			restoreactivation.LiveVerification,
 			error,

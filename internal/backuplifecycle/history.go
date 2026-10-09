@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ type History struct {
 	Scope              string                        `json:"scope"`
 	Issue              string                        `json:"issue,omitempty"`
 	Snapshot           EvidenceAge                   `json:"snapshot"`
+	RecoveryPoints     []EvidenceAge                 `json:"recoveryPoints,omitempty"`
 	StagedRestore      EvidenceAge                   `json:"stagedRestore"`
 	Availability       *SnapshotAvailability         `json:"availability,omitempty"`
 	RecoveryObjectives []RecoveryObjectiveAssessment `json:"recoveryObjectives,omitempty"`
@@ -69,6 +71,13 @@ func (s *Service) history(ctx context.Context, configuration Configuration, now 
 					continue
 				}
 				result.Snapshot = newerEvidence(result.Snapshot, id, anchor.Lineage.Binding.PlanHash, anchor.Snapshot.CreatedAt, now)
+				point := newerEvidence(EvidenceAge{}, id, anchor.Lineage.Binding.PlanHash, anchor.Snapshot.CreatedAt, now)
+				point.CurrentPlan = point.PlanHash == configuration.Lineage.Binding.PlanHash
+				if anchor.Quiescence != nil && anchor.Quiescence.CaptureStartedAt != nil {
+					startedAt := *anchor.Quiescence.CaptureStartedAt
+					point.CaptureStartedAt = &startedAt
+				}
+				result.RecoveryPoints = append(result.RecoveryPoints, point)
 				if result.Snapshot.EvidenceID == id && anchor.Quiescence != nil && anchor.Quiescence.CaptureStartedAt != nil {
 					startedAt := *anchor.Quiescence.CaptureStartedAt
 					result.Snapshot.CaptureStartedAt = &startedAt
@@ -98,6 +107,15 @@ func (s *Service) history(ctx context.Context, configuration Configuration, now 
 			result.StagedRestore = newerEvidence(result.StagedRestore, id, restore.AuthorizationLineage.Binding.PlanHash, restore.Verification.VerifiedAt, now)
 		}
 	}
+	// These are authenticated recorded anchors, not an availability check of
+	// every historical snapshot. Keep the latest-only observation below intact.
+	sort.Slice(result.RecoveryPoints, func(i, j int) bool {
+		left, right := result.RecoveryPoints[i], result.RecoveryPoints[j]
+		if !left.RecordedAt.Equal(*right.RecordedAt) {
+			return left.RecordedAt.After(*right.RecordedAt)
+		}
+		return left.EvidenceID < right.EvidenceID
+	})
 	result.Snapshot.CurrentPlan = result.Snapshot.PlanHash != "" && result.Snapshot.PlanHash == configuration.Lineage.Binding.PlanHash
 	result.StagedRestore.CurrentPlan = result.StagedRestore.PlanHash != "" && result.StagedRestore.PlanHash == configuration.Lineage.Binding.PlanHash
 	availability, err := s.snapshotAvailability(ctx, configuration, result.Snapshot, now, repositoryReady)

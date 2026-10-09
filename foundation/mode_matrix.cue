@@ -10,6 +10,13 @@
 // a canonical verification path proves it (cite it in `evidence`). Everything
 // between "exists as code" and "proven" is "scaffolding".
 //
+// Fresh-VM lifecycle cells never claim more than the receipt-backed compat
+// projection: for the cells mapped in
+// scripts/release/validate-mode-matrix-compat-ledger.mjs the projection
+// (docs/data/os-compat/latest.json) is the only source of support, and
+// `mise run compat:ledger:check` fails when a cell is "supported" without a
+// supported projection row on the current release.
+//
 // Run via: cue vet ./foundation/...
 package foundation
 

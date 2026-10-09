@@ -8430,7 +8430,7 @@ components:
             format: uri
     StackActionTarget:
       type: object
-      description: "Primary runtime host with an opaque access-profile reference."
+      description: "Primary runtime host with an opaque access-profile reference and its expected SSH host key; absent host_key fails closed unless host_key_first_contact is set."
       additionalProperties: false
       required:
         - access_profile_ref
@@ -8453,6 +8453,11 @@ components:
           pattern: "^ssh://[^/?#]+$"
         access_profile_ref:
           $ref: "#/components/schemas/StackActionScopedReference"
+        host_key:
+          type: string
+          pattern: "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$"
+        host_key_first_contact:
+          type: boolean
     StackActionNodePlatformTarget:
       type: object
       description: "Observed platform placement identity; values are never synthesized."
@@ -8481,7 +8486,7 @@ components:
           type: string
     StackActionSSHBootstrap:
       type: object
-      description: "Supplemental-node SSH endpoint with an opaque access-profile reference."
+      description: "Supplemental-node SSH endpoint with an opaque access-profile reference and its expected SSH host key; absent host_key fails closed unless host_key_first_contact is set."
       additionalProperties: false
       required:
         - host
@@ -8497,6 +8502,11 @@ components:
           maximum: 65535
         access_profile_ref:
           $ref: "#/components/schemas/StackActionScopedReference"
+        host_key:
+          type: string
+          pattern: "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$"
+        host_key_first_contact:
+          type: boolean
         proxy_jump:
           type: string
     StackActionNodeBootstrap:

@@ -26,7 +26,6 @@ type Client struct {
 	keyPath         string
 	timeout         time.Duration
 	client          *ssh.Client
-	strictHostKey   bool
 	knownHostsPath  string
 	autoAddHostKeys bool
 }
@@ -69,13 +68,6 @@ func WithSSHTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
-// WithStrictHostKey enables strict host key checking
-func WithStrictHostKey(strict bool) ClientOption {
-	return func(c *Client) {
-		c.strictHostKey = strict
-	}
-}
-
 // WithKnownHostsPath sets custom known_hosts file path
 func WithKnownHostsPath(path string) ClientOption {
 	return func(c *Client) {
@@ -98,7 +90,6 @@ func NewClient(opts ...ClientOption) *Client {
 		port:            22,
 		user:            "root",
 		timeout:         30 * time.Second,
-		strictHostKey:   true,
 		knownHostsPath:  filepath.Join(home, ".ssh", "known_hosts"),
 		autoAddHostKeys: false,
 	}
@@ -162,24 +153,20 @@ func (c *Client) Connect() error {
 		return fmt.Errorf("failed to parse SSH key: %w", err)
 	}
 
-	// Configure host key callback
+	// Host keys are always verified: against known_hosts, or, when explicitly
+	// enabled, by recording an unknown host on first use. There is no
+	// verification-free mode.
 	var hostKeyCallback ssh.HostKeyCallback
-	if c.strictHostKey {
-		// Try to use known_hosts file
-		if _, statErr := os.Stat(c.knownHostsPath); statErr == nil {
-			hostKeyCallback, err = knownhosts.New(c.knownHostsPath)
-			if err != nil {
-				return fmt.Errorf("failed to load known_hosts: %w", err)
-			}
-		} else if c.autoAddHostKeys {
-			// Create a callback that adds unknown keys to known_hosts
-			hostKeyCallback = c.createAutoAddCallback()
-		} else {
-			return fmt.Errorf("strict host key checking enabled but known_hosts not found: %s", c.knownHostsPath)
+	if _, statErr := os.Stat(c.knownHostsPath); statErr == nil {
+		hostKeyCallback, err = knownhosts.New(c.knownHostsPath)
+		if err != nil {
+			return fmt.Errorf("failed to load known_hosts: %w", err)
 		}
+	} else if c.autoAddHostKeys {
+		// Create a callback that adds unknown keys to known_hosts
+		hostKeyCallback = c.createAutoAddCallback()
 	} else {
-		fmt.Fprintf(os.Stderr, "WARNING: SSH host key verification is disabled for %s:%d. This is insecure and should only be used for testing/development.\n", c.host, c.port)
-		hostKeyCallback = ssh.InsecureIgnoreHostKey() //nolint:gosec // G106: InsecureIgnoreHostKey is the fallback when no known_hosts file exists
+		return fmt.Errorf("host key verification requires known_hosts, which was not found: %s", c.knownHostsPath)
 	}
 
 	config := &ssh.ClientConfig{

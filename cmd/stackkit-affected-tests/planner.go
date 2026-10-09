@@ -207,6 +207,11 @@ var fileFocusedTests = map[string][]string{
 	"cmd/stackkit/commands/backup_activation.go": {
 		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
 	},
+	"cmd/stackkit/commands/game_server_hold.go": {
+		"TestGameServerHoldResumeSurvivesCanceledOperation",
+		"TestContinueNativeV2BackupProductionMapsEveryOperationToLifecycleInput",
+		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",
+	},
 	"cmd/stackkit/commands/init_architecture_v2.go": {
 		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
 		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",
@@ -665,6 +670,14 @@ func buildPlan(input plannerInput) testPlan {
 			Scope:  "public-release-draft",
 			Argv:   []string{"node", "--test", "scripts/release/public-release-draft.test.mjs"},
 			Reason: "fixture-only source binding and draft resume plan; live uploads stay in Publish OSS",
+		})
+	}
+	if anyPathUnder(files, "scripts/release/dispatch-techstack-release.mjs", "scripts/release/dispatch-techstack-release.test.mjs", "scripts/release/validate-docs-manifests.mjs", ".github/workflows/publish-oss.yml", ".github/workflows/stackkits-docs-sync.yml") {
+		commands = append(commands, testCommand{
+			Kind:   "node",
+			Scope:  "consumer-manifest-publication",
+			Argv:   []string{"node", "--test", "scripts/release/dispatch-techstack-release.test.mjs"},
+			Reason: "prevent repin notification before immutable consumer manifests bind the exact published source",
 		})
 	}
 	if anyPathUnder(files, "scripts/release/render-exact-sha-deploy.mjs", "scripts/release/render-exact-sha-deploy.test.mjs") {

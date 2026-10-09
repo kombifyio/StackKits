@@ -12,6 +12,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
@@ -23,6 +26,8 @@ import (
 type runtimeRecoveryGraphDerivation struct {
 	graph RuntimeRecoveryGraph
 }
+
+const nativeDockerExecution = "native-docker"
 
 func deriveRuntimeRecoveryGraph(
 	workspaceRoot string,
@@ -148,30 +153,156 @@ func bindOpenTofuRuntimes(
 	if err != nil {
 		return ComposeRuntime{}, nil, fmt.Errorf("restoreactivation: derive the Core Compose payload: %w", err)
 	}
-	bindState := func(runtime *ComposeRuntime) error {
-		statePath := openTofuStatePath(runtime.Path)
-		state, err := readStandaloneComposeCustodyFile(transaction, statePath, false)
-		if err != nil {
-			return fmt.Errorf("restoreactivation: OpenTofu state of Compose project %q is not a bounded plain file", runtime.Project)
-		}
-		runtime.StatePath, runtime.StateDigest = statePath, runtimeFileDigest(state)
-		return nil
-	}
 	core := ComposeRuntime{
 		Project: derived.composeProject,
 		Path:    path.Join(derived.coreRuntimeDir, "compose.yaml"),
 		Digest:  runtimeFileDigest(payload),
 	}
-	if err := bindState(&core); err != nil {
+	if err := bindOpenTofuRuntime(transaction, &core); err != nil {
 		return ComposeRuntime{}, nil, err
 	}
 	bound := cloneComposeRuntimes(applications)
 	for index := range bound {
-		if err := bindState(&bound[index]); err != nil {
+		if err := bindOpenTofuRuntime(transaction, &bound[index]); err != nil {
 			return ComposeRuntime{}, nil, err
 		}
 	}
 	return core, bound, nil
+}
+
+// Bind the execution before this graph enters owner-signed recovery custody.
+// State is encrypted, so its bytes are bound without inspecting secret values;
+// the owning configuration and identified root supply its execution kind.
+func bindOpenTofuRuntime(transaction *confinedfs.Transaction, runtime *ComposeRuntime) error {
+	statePath := openTofuStatePath(runtime.Path)
+	state, err := readStandaloneComposeCustodyFile(transaction, statePath, false)
+	if err != nil {
+		return fmt.Errorf("restoreactivation: OpenTofu state of Compose project %q is not a bounded plain file", runtime.Project)
+	}
+	configPath := path.Join(path.Dir(statePath), openTofuConfigFile)
+	config, err := readStandaloneComposeCustodyFile(transaction, configPath, false)
+	if err != nil {
+		return fmt.Errorf("restoreactivation: OpenTofu configuration of project %q is not a bounded plain file", runtime.Project)
+	}
+	native, err := nativeRuntimeConfiguration(config, runtime.Digest)
+	if err != nil {
+		return fmt.Errorf("restoreactivation: identify OpenTofu execution of project %q: %w", runtime.Project, err)
+	}
+	execution := ""
+	if native {
+		// The executor owns this marker schema. Read only its identity through
+		// confined custody: importing the executor would form a lifecycle cycle.
+		markerBytes, err := readStandaloneComposeCustodyFile(transaction, path.Join(path.Dir(statePath), "stackkit-root.json"), false)
+		if err != nil {
+			return fmt.Errorf("restoreactivation: native root of project %q has no bounded identity", runtime.Project)
+		}
+		var marker struct {
+			SchemaVersion  string `json:"schemaVersion"`
+			ModuleRef      string `json:"moduleRef"`
+			InstanceRef    string `json:"instanceRef"`
+			RuntimeDir     string `json:"runtimeDir"`
+			ComposeProject string `json:"composeProject"`
+			Kind           string `json:"kind"`
+			Execution      string `json:"execution"`
+		}
+		if err := json.Unmarshal(markerBytes, &marker); err != nil ||
+			marker.SchemaVersion != "stackkit.opentofu-root/v1" || marker.Kind != "workload" ||
+			marker.ModuleRef == "" || marker.InstanceRef == "" || marker.RuntimeDir != runtime.Project ||
+			marker.ComposeProject != runtime.Project || marker.Execution != nativeDockerExecution ||
+			runtime.Path != path.Join(".stackkit/runtime/applications", runtime.Project, "compose.yaml") {
+			return fmt.Errorf("restoreactivation: native root identity does not bind project %q", runtime.Project)
+		}
+		execution = nativeDockerExecution
+	}
+	runtime.StatePath, runtime.StateDigest = statePath, runtimeFileDigest(state)
+	runtime.Execution, runtime.RootConfigDigest = execution, runtimeFileDigest(config)
+	return nil
+}
+
+// A state-bearing root must positively identify its execution. False from
+// NativeDockerRootConfig alone also admits unrelated HCL, which must never
+// select a Compose mutation. Both historic Core and workload wrappers carry
+// a create-time terraform_data/local-exec trigger and the bound payload.
+func nativeRuntimeConfiguration(config []byte, composeDigest string) (bool, error) {
+	native, err := architecturev2renderer.NativeDockerRootConfig(config)
+	if err != nil || native {
+		return native, err
+	}
+	payload, err := architecturev2renderer.ExtractComposePayload(config)
+	if err != nil || runtimeFileDigest(payload) != composeDigest {
+		return false, errors.New("restoreactivation: OpenTofu root has no recognized wrapper bound to the Compose payload")
+	}
+	file, diagnostics := hclsyntax.ParseConfig(config, "main.tf", hcl.InitialPos)
+	if diagnostics.HasErrors() {
+		return false, errors.New("restoreactivation: OpenTofu wrapper configuration is invalid")
+	}
+	body := file.Body.(*hclsyntax.Body)
+	for _, resource := range body.Blocks {
+		if resource.Type != "resource" || len(resource.Labels) != 2 || resource.Labels[0] != "terraform_data" || resource.Body.Attributes["triggers_replace"] == nil {
+			continue
+		}
+		for _, provisioner := range resource.Body.Blocks {
+			if provisioner.Type == "provisioner" && len(provisioner.Labels) == 1 && provisioner.Labels[0] == "local-exec" &&
+				provisioner.Body.Attributes["when"] == nil && provisioner.Body.Attributes["command"] != nil {
+				return false, nil
+			}
+		}
+	}
+	return false, errors.New("restoreactivation: OpenTofu root has no recognized Compose wrapper trigger")
+}
+
+// ReconcileRuntimeExecution derives execution only from configuration bytes
+// the lifecycle caller has authenticated in the same retained checkpoint as
+// the graph's state. It does not read live files or rewrite signed history.
+func ReconcileRuntimeExecution(graph RuntimeRecoveryGraph, configurations map[string][]byte) (RuntimeRecoveryGraph, error) {
+	if err := graph.validate(); err != nil {
+		return RuntimeRecoveryGraph{}, err
+	}
+	graph = cloneRuntimeRecoveryGraph(graph)
+	for index := range graph.ComposeRuntimes {
+		runtime := &graph.ComposeRuntimes[index]
+		if runtime.StatePath == "" {
+			continue
+		}
+		configPath := path.Join(path.Dir(runtime.StatePath), openTofuConfigFile)
+		config, ok := configurations[configPath]
+		if !ok || len(config) == 0 || len(config) > 1<<20 {
+			return RuntimeRecoveryGraph{}, fmt.Errorf("restoreactivation: retained OpenTofu configuration is missing for project %q", runtime.Project)
+		}
+		native, err := nativeRuntimeConfiguration(config, runtime.Digest)
+		if err != nil {
+			return RuntimeRecoveryGraph{}, err
+		}
+		execution := ""
+		if native {
+			execution = nativeDockerExecution
+		}
+		digest := runtimeFileDigest(config)
+		if runtime.RootConfigDigest != "" && (runtime.RootConfigDigest != digest || runtime.Execution != execution) {
+			return RuntimeRecoveryGraph{}, errors.New("restoreactivation: retained configuration differs from signed execution")
+		}
+		runtime.Execution, runtime.RootConfigDigest = execution, digest
+	}
+	if err := graph.validate(); err != nil {
+		return RuntimeRecoveryGraph{}, err
+	}
+	return graph, nil
+}
+
+func validateRuntimeExecution(runtime ComposeRuntime, allowLegacyGraph bool) error {
+	if runtime.Execution != "" && runtime.Execution != nativeDockerExecution {
+		return errors.New("restoreactivation: runtime execution is unsupported")
+	}
+	if runtime.RootConfigDigest != "" || runtime.Execution != "" {
+		if runtime.StatePath != openTofuStatePath(runtime.Path) || !digestPattern.MatchString(runtime.StateDigest) ||
+			!digestPattern.MatchString(runtime.RootConfigDigest) {
+			return errors.New("restoreactivation: runtime execution has no bound OpenTofu state and configuration")
+		}
+	}
+	if !allowLegacyGraph && (runtime.StatePath != "" || runtime.StateDigest != "") && runtime.RootConfigDigest == "" {
+		return errors.New("restoreactivation: legacy OpenTofu recovery lacks authenticated execution; reconstruct it from the signed checkpoint before mutation")
+	}
+	return nil
 }
 
 // openTofuStatePath is the state file of the OpenTofu root beside a runtime
@@ -312,6 +443,12 @@ func (graph RuntimeRecoveryGraph) validate() error {
 			runtimePaths[runtime.EnvironmentPath] = struct{}{}
 		}
 		if openTofu {
+			if err := validateRuntimeExecution(runtime, true); err != nil {
+				return err
+			}
+			if runtime.Execution == nativeDockerExecution && runtime.Path != path.Join(".stackkit/runtime/applications", runtime.Project, "compose.yaml") {
+				return errors.New("restoreactivation: native execution is not a standalone workload root")
+			}
 			if runtime.StatePath != openTofuStatePath(runtime.Path) || !digestPattern.MatchString(runtime.StateDigest) {
 				return errors.New("restoreactivation: runtime recovery graph OpenTofu state binding is invalid")
 			}
@@ -319,12 +456,12 @@ func (graph RuntimeRecoveryGraph) validate() error {
 				return errors.New("restoreactivation: runtime recovery graph contains a duplicate state path")
 			}
 			runtimePaths[runtime.StatePath] = struct{}{}
-		} else if runtime.StatePath != "" || runtime.StateDigest != "" {
+		} else if runtime.StatePath != "" || runtime.StateDigest != "" || runtime.Execution != "" || runtime.RootConfigDigest != "" {
 			return errors.New("restoreactivation: runtime recovery graph binds OpenTofu state for the compose target")
 		}
 		if runtime.Project == graph.ComposeProject {
 			if coreFound || runtime.Path != graph.ComposePath || runtime.Digest != graph.ComposeDigest ||
-				runtime.EnvironmentPath != "" || runtime.EnvironmentDigest != "" || len(runtime.Readiness) != 0 {
+				runtime.EnvironmentPath != "" || runtime.EnvironmentDigest != "" || len(runtime.Readiness) != 0 || runtime.Execution != "" {
 				return errors.New("restoreactivation: runtime recovery graph core Compose binding is ambiguous")
 			}
 			coreFound = true

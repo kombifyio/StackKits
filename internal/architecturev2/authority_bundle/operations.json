@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:222ee81471583c5e2c678ef1dcfd133bf39882f32f740c8472dabd2c412f54bf",
+  "contentDigest": "sha256:110a20f00ccd6aa15afeba7af51eabc4ef355cf7403afd4205786a55075fd6fe",
   "operations": [
     {
       "command": [
@@ -646,6 +646,12 @@
           "flag": "--operation-id",
           "kind": "string",
           "name": "operation_id"
+        },
+        {
+          "description": "admitted lowercase sha256 ResolvedPlan; optional for standalone Owner operation",
+          "flag": "--expected-plan-hash",
+          "kind": "string",
+          "name": "expected_plan_hash"
         }
       ],
       "command": [
@@ -672,6 +678,12 @@
           "kind": "string",
           "name": "activation_operation_id",
           "required": true
+        },
+        {
+          "description": "original journal's admitted lowercase sha256 ResolvedPlan; optional for standalone Owner operation",
+          "flag": "--expected-plan-hash",
+          "kind": "string",
+          "name": "expected_plan_hash"
         }
       ],
       "command": [

@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 const runtimeRecoveryGraphArtifactID = "runtime-recovery-graph"
@@ -55,7 +56,8 @@ func currentStateRuntimeRecoveryGraph(input CurrentStateAuthorityInput) (Executo
 	for _, runtime := range graph.ComposeRuntimes {
 		if paths[runtime.Path] != runtime.Digest ||
 			(runtime.EnvironmentPath != "" && paths[runtime.EnvironmentPath] != runtime.EnvironmentDigest) ||
-			(runtime.StatePath != "" && paths[runtime.StatePath] != runtime.StateDigest) {
+			(runtime.StatePath != "" && paths[runtime.StatePath] != runtime.StateDigest) ||
+			(runtime.RootConfigDigest != "" && paths[path.Join(path.Dir(runtime.StatePath), opentofu.ConfigFile)] != runtime.RootConfigDigest) {
 			return ExecutorStateBlobInput{}, errors.New("current state authority: recovery graph differs from captured runtime files")
 		}
 	}

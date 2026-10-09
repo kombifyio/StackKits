@@ -14,6 +14,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 // MaterializedRuntimeCustody identifies exact checkpoint files within a private
@@ -205,10 +206,10 @@ func runtimeMaterializationFiles(
 	}
 	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
 		// Every root file the graph may bind: runtime Compose, .env, state,
-		// and the exact provider dependency lock.
+		// owning configuration and the exact provider dependency lock.
 		// Contract roots carry state and configuration only.
 		for _, root := range snapshot.RuntimeOpenTofu {
-			for _, blob := range []ExecutorStateBlob{root.Compose, root.Environment, root.State, root.Lock} {
+			for _, blob := range []ExecutorStateBlob{root.Compose, root.Environment, root.State, root.Config, root.Lock} {
 				if blob != (ExecutorStateBlob{}) {
 					blobs = append(blobs, blob)
 				}
@@ -247,6 +248,29 @@ func runtimeMaterializationFiles(
 			(runtime.StatePath != "" && paths[runtime.StatePath].SHA256 != runtime.StateDigest) {
 			return empty, nil, errors.New("executor state: runtime files differ from signed recovery graph")
 		}
+	}
+	// Legacy graphs predate explicit execution metadata. Reconstruct it from
+	// the retained configuration authenticated by this same owner-signed
+	// checkpoint, never from whatever happens to exist in the live workspace.
+	configurations := make(map[string][]byte)
+	for _, runtime := range graph.ComposeRuntimes {
+		if runtime.StatePath == "" {
+			continue
+		}
+		configPath := path.Join(path.Dir(runtime.StatePath), opentofu.ConfigFile)
+		configBlob, ok := paths[configPath]
+		if !ok {
+			return empty, nil, errors.New("executor state: signed recovery lacks the owning OpenTofu configuration")
+		}
+		config, err := readExecutorStateRecoveryBlob(transaction, configBlob)
+		if err != nil {
+			return empty, nil, err
+		}
+		configurations[configPath] = config
+	}
+	graph, err = restoreactivation.ReconcileRuntimeExecution(graph, configurations)
+	if err != nil {
+		return empty, nil, err
 	}
 	return graph, files, nil
 }

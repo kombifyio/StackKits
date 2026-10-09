@@ -1,7 +1,7 @@
 # ADR-0031 — StackKits Standalone Lifecycle Boundary
 
 **Status:** Accepted (2026-07-26)
-**Amended:** 2026-08-28; 2026-09-24 (Techstack-managed deployments always run Advanced Mode)
+**Amended:** 2026-08-28; 2026-09-24 (Techstack-managed deployments always run Advanced Mode); 2026-10-08 (Advanced issuer pinned to Techstack)
 **Owner:** StackKits
 **Related:** ADR-0016, ADR-0018, ADR-0029
 **Supersedes:** ADR-0018 server-side compatibility resolver, mandatory Admin
@@ -93,6 +93,21 @@ path, not an optional add-on. It provides the wiring, Day-2 operations and
 drift detection that Techstack sells. Techstack must not roll out or operate a
 StackKit in Standard Mode. A Standard-only Techstack rollout is a defect, not
 a supported variant.
+
+**Amendment 2026-10-08 (issuer pin).** The Advanced executors (Terramate change
+sets, coordinated rollback, restore drills, origin-certificate operations) are
+compiled into the standalone CLI binary. What gates them at runtime is the
+combination of a short-lived capability and Owner trust, not a build
+difference. The verifier pins the capability issuer to `techstack`
+(`advancedcapability.TrustedIssuerID`): a capability or an execution-channel
+digest signed by any other issuer is refused with
+`advanced_capability_untrusted_key`, even when the Owner trust bundle holds
+that issuer's key. Desired identity projections are not covered by the pin:
+kombify Cloud may issue them (`docs/IDENTITY-STACKKITS.md`), so they stay bound
+only to the Owner-approved trust-bundle issuer/key binding. A build seam that removes the Advanced executors from the
+standalone artifact is an open owner decision and is not implemented here. The
+capability wire shape is unchanged until `kombify-runtime-contracts-go`
+publishes the generated contract.
 
 ### 5. Techstack and kombify Cloud integration
 

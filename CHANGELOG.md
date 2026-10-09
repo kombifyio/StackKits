@@ -1,5 +1,13 @@
 # Changelog
 
+- Fix: restore activation accepts an expected Plan hash and rechecks current Plan/Apply authority under the lifecycle lock before holding applications, taking a safety snapshot or changing live data. Recovery checks that hash against the original signed journal. Failed preparation releases application holds before unlocking; standalone owners may still omit the hash.
+
+- Fix: restore activation restarts native OpenTofu-managed containers without replacing them, preserving their identities and ordinary next-Apply convergence. Runtime execution is bound to the recovery graph's configuration and encrypted state; historical signed snapshots reconstruct that binding from authenticated retained configuration and reject ambiguous or substituted evidence before mutation.
+
+- Fix: native host inventory recognizes systemd's `amazon` virtualization label as KVM for EC2 Nitro, so generation and backup operations no longer reject those hosts as an unsupported virtualization class.
+
+- Fix: `backup status` lists older owner-authenticated recovery points with their snapshot anchor IDs and capture times, so an owner can select an earlier backup for the existing restore flow. Recorded history remains distinct from current repository availability and successful restoration.
+
 - Fix: an Advanced Apply whose managed kombify.me origin certificate is missing no longer fails. Public TLS used to wait three minutes for an ACME certificate the origin-certificate router can never request, then failed the whole Apply although the core was running. A managed route whose router has no ACME resolver and whose host no installed origin certificate covers now ends the wait at once. The Apply completes as `completed_degraded`, with the public TLS unit `degraded`, class `origin_certificate_missing` and retryable (ADR-0047 "Degraded completion"). The next `stackkit apply` after `stackkit advanced origin-certificate install` verifies public TLS again. Custom domains, Standard Mode, expired or wrongly presented origin certificates and every other failure still fail the Apply.
 
 - Add: Game platforms. Calagopus is the recommended Game platform for new installations; Pelican (upstream beta) and Pterodactyl stay selectable with `--use-case-alternative game=pelican|pterodactyl` (ADR-0048). An installation keeps the platform its StackSpec records. Each platform installs its Panel and Wings node daemon, converges the owner, node, curated Eggs and custody-derived keys without the web installer, and serves the live console through the Panel origin. On Calagopus the owner's client key carries only server read, power, console and file permissions, and Wings runs without its host-network firewall helper. `stackkit setup game`, `stackkit game list|power|allow` and the backup hold work the same on every platform.
@@ -202,6 +210,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.52.5](https://github.com/kombifyio/StackKits/compare/v0.52.4...v0.52.5) (2026-10-09)
+
+
+### Fixed
+
+* **backup:** expose authenticated historical recovery points
+* **release:** publish consumer manifests before Techstack repin
+* **restore:** fence activation before application mutation
+* **restore:** preserve native container ownership during activation
+* **security:** pin StackAction SSH host keys and the Techstack issuer, add bundle-drift and Standard Mode ledger gates
 
 ## [0.52.4](https://github.com/kombifyio/StackKits/compare/v0.52.3...v0.52.4) (2026-10-07)
 

@@ -24,6 +24,13 @@ const (
 	maxTrustKeys     = 64
 )
 
+// TrustedIssuerID is the only issuer identity whose Advanced capabilities and
+// execution-channel digests the standalone CLI accepts: Techstack is the
+// Advanced control plane. A trust bundle can hold other issuer bindings (for
+// example the kombify Cloud issuer of desired identity projections), but none
+// of them is ever consulted for a capability or an execution channel.
+const TrustedIssuerID = "techstack"
+
 var (
 	uuidV7Pattern   = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 	stackIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
@@ -127,6 +134,9 @@ func Verify(raw []byte, request Request) (Grant, error) {
 	}
 	issuedAt, expiresAt, err := validateClaims(document)
 	if err != nil {
+		return Grant{}, err
+	}
+	if err := requireTechstackIssuer(document.IssuerID); err != nil {
 		return Grant{}, err
 	}
 	trustedKey, err := resolveTrustedKey(request.TrustBundle, document.KeyID, document.IssuerID)
@@ -354,6 +364,16 @@ func validateClaims(document envelope) (time.Time, time.Time, error) {
 	return issuedAt, expiresAt, nil
 }
 
+// requireTechstackIssuer refuses any issuer other than the pinned Advanced
+// control plane. It guards capabilities and execution channels only; desired
+// identity projections stay bound to the Owner-approved trust-bundle binding.
+func requireTechstackIssuer(issuerID string) error {
+	if issuerID != TrustedIssuerID {
+		return deny(ReasonCapabilityUntrustedKey, "issuerId", "is not the pinned Advanced issuer")
+	}
+	return nil
+}
+
 func resolveTrustedKey(bundle *TrustBundle, keyID, issuerID string) (TrustedKey, error) {
 	if bundle.SchemaVersion != TrustBundleSchemaVersion {
 		return TrustedKey{}, deny(ReasonTrustBundleUnavailable, "schemaVersion", "trust bundle version is unsupported")
@@ -423,6 +443,9 @@ func VerifyIdentityProjectionDigest(
 func VerifyTrustedDigest(bundle *TrustBundle, issuerID, keyID string, digest, signature []byte) error {
 	if bundle == nil {
 		return deny(ReasonTrustBundleUnavailable, "trustBundle", "is required")
+	}
+	if err := requireTechstackIssuer(issuerID); err != nil {
+		return err
 	}
 	trustedKey, err := resolveTrustedKey(bundle, keyID, issuerID)
 	if err != nil {

@@ -273,7 +273,8 @@ func normalizeArchitecture(value string) string {
 
 func normalizeVirtualization(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "qemu":
+	case "qemu", "amazon":
+		// systemd reports EC2 Nitro as amazon; it uses Linux KVM.
 		return "kvm"
 	case "hyper-v":
 		return "hyperv"

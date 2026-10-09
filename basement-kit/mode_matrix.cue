@@ -16,15 +16,20 @@ modeMatrix: foundation.#KitModeSupport & {
 		// Resolver + capability bindings are live (sqlite/local-fs/...), but the
 		// local-only Tier-3 E2E cell is still open (kombify-StackKits-vwe.12).
 		"local-only": "scaffolding"
-		// The historical SK-S1 run predates the current runtime. Current-line
-		// evidence from the external producer remains pending.
+		// This cell and install.bootstrapped never claim more than the
+		// receipt-backed compat projection (docs/data/os-compat/latest.json,
+		// environment basement-kit/ci-vm): "supported" only while that
+		// projection grades the fresh-VM lifecycle supported on the current
+		// release. The projection names v0.50.3; the current release has no
+		// producer receipt yet. `mise run compat:ledger:check` enforces this.
 		standard: "scaffolding"
 	}
 
 	install: {
 		// Composes and generates; no automated verification cell yet.
 		bare: "scaffolding"
-		// Implemented; the current released-archive lifecycle is not yet proven.
+		// Implemented; the released-archive lifecycle has no receipt on the
+		// current release (see placement.standard: one ledger, the projection).
 		bootstrapped: "scaffolding"
 		// Techstack-dispatched Advanced lifecycle with full bootstrap on a real
 		// Proxmox VE host from the published v0.47.7 archive (managed lab run

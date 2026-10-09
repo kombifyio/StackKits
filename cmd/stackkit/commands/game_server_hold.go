@@ -37,21 +37,32 @@ type gameServerHoldRecord struct {
 // required is false, a Panel that cannot be reached degrades to a warning so a
 // crash-consistent backup still happens; restore passes required=true.
 func withGameServersHeld(ctx context.Context, workspace string, required bool, operation func() error) error {
+	resume, err := prepareGameServersHeld(ctx, workspace, required)
+	if err != nil {
+		return err
+	}
+	return errors.Join(operation(), resume())
+}
+
+// prepareGameServersHeld lets the restore lifecycle acquire the existing hold
+// after locked admission and keep its matching resume inside that same lock.
+func prepareGameServersHeld(ctx context.Context, workspace string, required bool) (func() error, error) {
+	noop := func() error { return nil }
 	authority, err := inspectNativeV2AppliedAuthority(ctx, workspace, specFile)
 	if err != nil || !planSelectsWorkload(authority, "game") {
-		return operation()
+		return noop, nil
 	}
 	deployment, err := nativeAppliedWorkloadDeployment(authority, "game")
 	if err != nil {
-		return holdUnavailable(required, err, operation)
+		return noop, holdUnavailable(required, err, func() error { return nil })
 	}
 	keys, err := gameCustodyKeys(workspace, deployment)
 	if err != nil {
-		return holdUnavailable(required, err, operation)
+		return noop, holdUnavailable(required, err, func() error { return nil })
 	}
 	journalPath := filepath.Join(workspace, filepath.FromSlash(gameServerHoldJournal))
-	panel := func(use func(panel appsetup.GamePanel) error) error {
-		return nativehost.WithStandaloneComposeHTTP(ctx, workspace, deployment, func(client *http.Client, baseURL string) error {
+	panel := func(panelCtx context.Context, use func(panel appsetup.GamePanel) error) error {
+		return nativehost.WithStandaloneComposeHTTP(panelCtx, workspace, deployment, func(client *http.Client, baseURL string) error {
 			panel, err := keys.panel(client, baseURL)
 			if err != nil {
 				return err
@@ -60,7 +71,7 @@ func withGameServersHeld(ctx context.Context, workspace string, required bool, o
 		})
 	}
 	held := readGameServerHold(journalPath)
-	stopErr := panel(func(game appsetup.GamePanel) error {
+	stopErr := panel(ctx, func(game appsetup.GamePanel) error {
 		states, err := game.OwnedGameServers(ctx)
 		if err != nil {
 			return err
@@ -84,50 +95,57 @@ func withGameServersHeld(ctx context.Context, workspace string, required bool, o
 		}
 		return nil
 	})
-	resume := func() error {
-		if len(held) == 0 {
-			_ = os.Remove(journalPath)
-			return nil
-		}
-		// The operation may have recreated the Panel; reconnect and give it
-		// time to boot before the start signals.
-		deadline := time.Now().Add(4 * time.Minute)
-		for {
-			pending := []string{}
-			err := panel(func(game appsetup.GamePanel) error {
-				var errs []error
-				for _, identifier := range held {
-					if err := game.StartGameServer(context.WithoutCancel(ctx), identifier); err != nil {
-						pending = append(pending, identifier)
-						errs = append(errs, err)
-					}
-				}
-				return errors.Join(errs...)
-			})
-			if err == nil {
-				_ = os.Remove(journalPath)
-				printInfo("Started %d game server(s) again", len(held))
-				return nil
-			}
-			if time.Now().After(deadline) {
-				return fmt.Errorf("restart game servers after the operation (the next backup or restore retries them): %w", err)
-			}
-			if len(pending) > 0 {
-				held = pending
-			}
-			time.Sleep(10 * time.Second)
-		}
-	}
+	resume := func() error { return resumeGameServersHeld(ctx, journalPath, held, panel) }
 	if stopErr != nil {
 		if len(held) == 0 {
-			return holdUnavailable(required, stopErr, operation)
+			return noop, holdUnavailable(required, stopErr, func() error { return nil })
 		}
-		return errors.Join(fmt.Errorf("stop game servers before the operation: %w", stopErr), resume())
+		return noop, errors.Join(fmt.Errorf("stop game servers before the operation: %w", stopErr), resume())
 	}
 	if len(held) > 0 {
 		printInfo("Stopped %d game server(s) so their worlds are saved consistently", len(held))
 	}
-	return errors.Join(operation(), resume())
+	return resume, nil
+}
+
+func resumeGameServersHeld(ctx context.Context, journalPath string, held []string, panel func(context.Context, func(appsetup.GamePanel) error) error) error {
+	if len(held) == 0 {
+		_ = os.Remove(journalPath)
+		return nil
+	}
+	// The operation may have recreated the Panel; reconnect and give it
+	// time to boot before the start signals.
+	resumeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 4*time.Minute)
+	defer cancel()
+	for {
+		pending := []string{}
+		err := panel(resumeCtx, func(game appsetup.GamePanel) error {
+			var errs []error
+			for _, identifier := range held {
+				if err := game.StartGameServer(resumeCtx, identifier); err != nil {
+					pending = append(pending, identifier)
+					errs = append(errs, err)
+				}
+			}
+			return errors.Join(errs...)
+		})
+		if err == nil {
+			_ = os.Remove(journalPath)
+			printInfo("Started %d game server(s) again", len(held))
+			return nil
+		}
+		if resumeCtx.Err() != nil {
+			return fmt.Errorf("restart game servers after the operation (the next backup or restore retries them): %w", err)
+		}
+		if len(pending) > 0 {
+			held = pending
+		}
+		select {
+		case <-resumeCtx.Done():
+			return fmt.Errorf("restart game servers after the operation (the next backup or restore retries them): %w", errors.Join(err, resumeCtx.Err()))
+		case <-time.After(10 * time.Second):
+		}
+	}
 }
 
 func holdUnavailable(required bool, cause error, operation func() error) error {

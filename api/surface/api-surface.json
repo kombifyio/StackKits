@@ -3,7 +3,7 @@
   "product": "stackkits",
   "source": {
     "path": "api/openapi/stackkits-v1.yaml",
-    "sha256": "c4702a09ec235a4de4eb2a5416d37b4782b357152601d32796332023be5c23e6"
+    "sha256": "8129b6ff5df748b18154313c2570e0dd4aa3fc93caa72d990f966e762c0e2eb0"
   },
   "envelope": "data",
   "cli": {

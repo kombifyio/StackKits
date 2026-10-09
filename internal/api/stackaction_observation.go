@@ -171,7 +171,7 @@ func prepareRuntimeObservationTargetStackAction(ctx context.Context, target *sta
 	if err != nil {
 		return nil, nil, err
 	}
-	keyPath, homeDir, cleanup, err := materializeRuntimeTargetSSHKeyStackAction(ctx, target, resolver)
+	keyPath, homeDir, hostKey, cleanup, err := materializeRuntimeTargetSSHKeyStackAction(ctx, target, resolver)
 	if err != nil {
 		return nil, cleanup, err
 	}
@@ -187,6 +187,7 @@ func prepareRuntimeObservationTargetStackAction(ctx context.Context, target *sta
 		env:        env,
 		target:     target,
 		keyPath:    keyPath,
+		hostKey:    hostKey,
 	}, cleanup, nil
 }
 

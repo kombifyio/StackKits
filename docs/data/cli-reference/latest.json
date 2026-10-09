@@ -1569,6 +1569,12 @@
       ],
       "flags": [
         {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Require this admitted sha256 ResolvedPlan before the safety snapshot or live activation",
+          "required": false
+        },
+        {
           "name": "json",
           "type": "bool",
           "description": "Emit stackkit.command-result/v1 JSON",
@@ -1606,6 +1612,12 @@
         }
       ],
       "flags": [
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Require the original journal's admitted sha256 ResolvedPlan before recovery or finalization",
+          "required": false
+        },
         {
           "name": "json",
           "type": "bool",

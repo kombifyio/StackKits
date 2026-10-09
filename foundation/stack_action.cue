@@ -191,7 +191,7 @@ stackActionContract: {
 		}
 		RuntimeTarget: #StackActionType & {
 			order:       30, goName: "RuntimeTarget", openapiName: "StackActionTarget"
-			description: "Primary runtime host with an opaque access-profile reference."
+			description: "Primary runtime host with an opaque access-profile reference and its expected SSH host key; absent host_key fails closed unless host_key_first_contact is set."
 			fields: [
 				(#StackActionField & {json: "host", goName: "Host", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
 				(#StackActionField & {json: "public_ip", goName: "PublicIP", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
@@ -200,6 +200,8 @@ stackActionContract: {
 				(#StackActionField & {json: "port", goName: "Port", goType: "int", required: false, value: int & >=1 & <=65535, openapi: {kind: "integer", minimum: 1, maximum: 65535}}),
 				(#StackActionField & {json: "docker_host", goName: "DockerHost", goType: "string", required: false, value: string & =~"^ssh://[^/?#]+$", openapi: {kind: "string", format: "uri", pattern: "^ssh://[^/?#]+$"}}),
 				(#StackActionField & {json: "access_profile_ref", goName: "AccessProfileRef", goType: "*ScopedReference", required: true, value: types.ScopedReference.schema, openapi: {kind: "ref", ref: "StackActionScopedReference"}}),
+				(#StackActionField & {json: "host_key", goName: "HostKey", goType: "string", required: false, value: string & =~"^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$", openapi: {kind: "string", pattern: "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$"}}),
+				(#StackActionField & {json: "host_key_first_contact", goName: "HostKeyFirstContact", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
 			]
 		}
 		NodePlatformTarget: #StackActionType & {
@@ -216,12 +218,14 @@ stackActionContract: {
 		}
 		SSHBootstrap: #StackActionType & {
 			order:       50, goName: "SSHBootstrap", openapiName: "StackActionSSHBootstrap"
-			description: "Supplemental-node SSH endpoint with an opaque access-profile reference."
+			description: "Supplemental-node SSH endpoint with an opaque access-profile reference and its expected SSH host key; absent host_key fails closed unless host_key_first_contact is set."
 			fields: [
 				(#StackActionField & {json: "host", goName: "Host", goType: "string", required: true, value: #NonEmptyString, openapi: {kind: "string"}}),
 				(#StackActionField & {json: "user", goName: "User", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
 				(#StackActionField & {json: "port", goName: "Port", goType: "int", required: false, value: int & >=1 & <=65535, openapi: {kind: "integer", minimum: 1, maximum: 65535}}),
 				(#StackActionField & {json: "access_profile_ref", goName: "AccessProfileRef", goType: "*ScopedReference", required: true, value: types.ScopedReference.schema, openapi: {kind: "ref", ref: "StackActionScopedReference"}}),
+				(#StackActionField & {json: "host_key", goName: "HostKey", goType: "string", required: false, value: string & =~"^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$", openapi: {kind: "string", pattern: "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$"}}),
+				(#StackActionField & {json: "host_key_first_contact", goName: "HostKeyFirstContact", goType: "bool", required: false, value: bool, openapi: {kind: "boolean"}}),
 				(#StackActionField & {json: "proxy_jump", goName: "ProxyJump", goType: "string", required: false, value: string, openapi: {kind: "string"}}),
 			]
 		}

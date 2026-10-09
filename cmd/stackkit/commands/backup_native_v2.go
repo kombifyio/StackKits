@@ -649,6 +649,24 @@ func emitNativeV2BackupResult(cmd *cobra.Command, operation nativeV2BackupOperat
 					return err
 				}
 			}
+			if len(status.History.RecoveryPoints) != 0 {
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Recorded recovery points (historical content has not been checked):"); err != nil {
+					return err
+				}
+				for _, point := range status.History.RecoveryPoints {
+					plan := "historical plan"
+					if point.CurrentPlan {
+						plan = "current plan"
+					}
+					if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s  [%s, %s]\n",
+						point.RecordedAt.Format(time.RFC3339), point.EvidenceID, plan, point.State); err != nil {
+						return err
+					}
+				}
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Select a point with: stackkit backup restore <snapshot-anchor-id> --owner-approve"); err != nil {
+					return err
+				}
+			}
 			for _, event := range []struct {
 				label string
 				age   backuplifecycle.EvidenceAge

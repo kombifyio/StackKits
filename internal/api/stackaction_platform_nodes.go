@@ -3,12 +3,16 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
+	sshpin "github.com/kombifyio/stackkits/internal/ssh"
 	stackaction "github.com/kombifyio/stackkits/internal/stackaction"
 )
 
@@ -62,6 +66,9 @@ func normalizeStackActionPlatformNodeReferences(nodes []stackaction.PlatformNode
 		if err != nil {
 			return nil, fmt.Errorf("platform node %q access_profile_ref: %w", node.Name, err)
 		}
+		if hostKeyErr := validateSSHBootstrapHostKeyStackAction(node.Bootstrap.SSH); hostKeyErr != nil {
+			return nil, fmt.Errorf("platform node %q: %w", node.Name, hostKeyErr)
+		}
 		node.Bootstrap.OnboardingRef = onboardingRef
 		node.Bootstrap.SSH.AccessProfileRef = accessRef
 	}
@@ -88,13 +95,13 @@ func prepareRuntimePlatformNodesStackAction(ctx context.Context, deployDir strin
 	if platform == "" {
 		return nil, fmt.Errorf("supplemental nodes require a generated platform manifest or .stackkit/platform.json")
 	}
-	resolvedNodes, resolveErr := runtimePlatformDeployNodesStackAction(ctx, nodes, resolver)
+	resolvedNodes, pinChecks, resolveErr := runtimePlatformDeployNodesStackAction(ctx, nodes, resolver)
 	if resolveErr != nil {
-		return nil, resolveErr
+		return pinChecks, resolveErr
 	}
 	defer clearRuntimePlatformDeployNodeSecrets(resolvedNodes)
 	results, err := platformdeploy.PrepareSupplementalNodeTargets(ctx, platform, resolvedNodes, cfg, nil)
-	checks := runtimePlatformNodeChecksStackAction(results)
+	checks := append(pinChecks, runtimePlatformNodeChecksStackAction(results)...)
 	if err != nil {
 		return checks, err
 	}
@@ -167,21 +174,39 @@ func runtimePlatformNamesFromManifestsStackAction(deployDir string) []string {
 	return out
 }
 
-func runtimePlatformDeployNodesStackAction(ctx context.Context, nodes []stackaction.PlatformNode, resolver StackActionReferenceResolver) ([]platformdeploy.SupplementalNodeTarget, error) {
+// validateSSHBootstrapHostKeyStackAction refuses a supplemental-node SSH target
+// without a pinned host key unless first-contact pinning was requested.
+func validateSSHBootstrapHostKeyStackAction(target *stackaction.SSHBootstrap) *sshpin.HostKeyError {
+	hostKey := strings.TrimSpace(target.HostKey)
+	address := strings.TrimSpace(target.Host)
+	if hostKey == "" {
+		if target.HostKeyFirstContact {
+			return nil
+		}
+		return &sshpin.HostKeyError{Reason: sshpin.ReasonHostKeyRequired, Address: address}
+	}
+	if _, err := sshpin.ParseHostKey(hostKey); err != nil {
+		return &sshpin.HostKeyError{Reason: sshpin.ReasonHostKeyInvalid, Address: address, Err: err}
+	}
+	return nil
+}
+
+func runtimePlatformDeployNodesStackAction(ctx context.Context, nodes []stackaction.PlatformNode, resolver StackActionReferenceResolver) ([]platformdeploy.SupplementalNodeTarget, []stackActionCheck, error) {
 	out := make([]platformdeploy.SupplementalNodeTarget, 0, len(nodes))
+	var pinChecks []stackActionCheck
 	for _, node := range normalizeStackActionPlatformNodes(nodes) {
 		var bootstrap *platformdeploy.NodeBootstrap
 		if node.Bootstrap != nil {
 			if resolver == nil {
-				return nil, fmt.Errorf("StackAction reference resolver is not configured")
+				return nil, pinChecks, fmt.Errorf("StackAction reference resolver is not configured")
 			}
 			onboardingRef, err := normalizeStackActionReference(node.Bootstrap.OnboardingRef, stackActionScopeNodeOnboard, time.Now())
 			if err != nil {
-				return nil, fmt.Errorf("invalid platform node %q onboarding_ref: %w", node.Name, err)
+				return nil, pinChecks, fmt.Errorf("invalid platform node %q onboarding_ref: %w", node.Name, err)
 			}
 			onboarding, err := resolver.ResolveNodeOnboarding(ctx, *onboardingRef)
 			if err != nil {
-				return nil, fmt.Errorf("resolve platform node %q onboarding ref: %w", node.Name, err)
+				return nil, pinChecks, fmt.Errorf("resolve platform node %q onboarding ref: %w", node.Name, err)
 			}
 			bootstrap = &platformdeploy.NodeBootstrap{
 				KomodoCoreAddress:   node.Bootstrap.KomodoCoreAddress,
@@ -190,12 +215,18 @@ func runtimePlatformDeployNodesStackAction(ctx context.Context, nodes []stackact
 			if node.Bootstrap.SSH != nil {
 				accessRef, err := normalizeStackActionReference(node.Bootstrap.SSH.AccessProfileRef, stackActionScopeRuntimeSSH, time.Now())
 				if err != nil {
-					return nil, fmt.Errorf("invalid platform node %q access_profile_ref: %w", node.Name, err)
+					return nil, pinChecks, fmt.Errorf("invalid platform node %q access_profile_ref: %w", node.Name, err)
 				}
 				access, err := resolver.ResolveAccessProfile(ctx, *accessRef)
 				if err != nil {
-					return nil, fmt.Errorf("resolve platform node %q access profile: %w", node.Name, err)
+					return nil, pinChecks, fmt.Errorf("resolve platform node %q access profile: %w", node.Name, err)
 				}
+				hostKey, err := sshpin.ResolveHostKey(ctx, node.Bootstrap.SSH.Host, node.Bootstrap.SSH.Port, node.Bootstrap.SSH.HostKey, node.Bootstrap.SSH.HostKeyFirstContact)
+				if err != nil {
+					pinChecks = append(pinChecks, stackActionCheck{Name: "ssh_host_key", Status: stackaction.CheckStatusFailed, Detail: fmt.Sprintf("platform node %q: %s", node.Name, err.Error())})
+					return nil, pinChecks, fmt.Errorf("platform node %q: %w", node.Name, err)
+				}
+				pinChecks = append(pinChecks, recordSSHBootstrapHostKeyStackAction(node.Name, hostKey))
 				privateKey := append([]byte(nil), access.PrivateKey...)
 				bootstrap.SSH = &platformdeploy.SSHBootstrap{
 					Host:       node.Bootstrap.SSH.Host,
@@ -203,6 +234,7 @@ func runtimePlatformDeployNodesStackAction(ctx context.Context, nodes []stackact
 					Port:       node.Bootstrap.SSH.Port,
 					PrivateKey: string(privateKey),
 					ProxyJump:  node.Bootstrap.SSH.ProxyJump,
+					HostKey:    strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostKey.Key))),
 				}
 				clear(privateKey)
 			}
@@ -223,7 +255,7 @@ func runtimePlatformDeployNodesStackAction(ctx context.Context, nodes []stackact
 			Bootstrap: bootstrap,
 		})
 	}
-	return out, nil
+	return out, pinChecks, nil
 }
 
 func clearRuntimePlatformDeployNodeSecrets(nodes []platformdeploy.SupplementalNodeTarget) {
@@ -291,4 +323,17 @@ func normalizeStackActionNodeServices(values []string) []string {
 		out = append(out, key)
 	}
 	return out
+}
+
+func recordSSHBootstrapHostKeyStackAction(nodeName string, pin *sshpin.HostKeyPin) stackActionCheck {
+	source := "supplied"
+	if pin.FirstContact {
+		source = "first-contact"
+		slog.Warn("stackaction ssh host key pinned on first contact", "node", nodeName, "pin", pin.Address+" "+pin.Fingerprint)
+	}
+	return stackActionCheck{
+		Name:   "ssh_host_key",
+		Status: stackaction.CheckStatusOK,
+		Detail: fmt.Sprintf("platform node %q: %s pinned %s (%s)", nodeName, pin.Address, pin.Fingerprint, source),
+	}
 }

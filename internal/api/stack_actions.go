@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
@@ -25,6 +26,7 @@ import (
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
+	sshpin "github.com/kombifyio/stackkits/internal/ssh"
 	stackaction "github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 	"github.com/kombifyio/stackkits/internal/tofu"
@@ -302,6 +304,11 @@ func normalizeStackActionRequestTarget(resp *stackActionResponse, req *stackActi
 			skerrors.WithField("error", accessErr.Error()),
 		)
 	}
+	if hostKeyErr := validateRuntimeTargetHostKeyStackAction(target); hostKeyErr != nil {
+		resp.Status = stackaction.StatusFailed
+		resp.Checks = append(resp.Checks, stackActionCheck{Name: "runtime_target", Status: stackaction.CheckStatusFailed, Detail: hostKeyErr.Message})
+		return nil, hostKeyErr
+	}
 	target.AccessProfileRef = accessRef
 	resp.Checks = append(resp.Checks, stackActionCheck{Name: "runtime_target", Status: "ok", Detail: target.Host})
 	req.RuntimeTarget = target
@@ -570,8 +577,9 @@ func runOpenTofuRolloutStackAction(ctx context.Context, resp stackActionResponse
 		defer cleanup()
 	}
 	if remoteErr != nil {
-		return resp, http.StatusBadGateway, tofuActionErrorStackAction("runtime_target_prepare_failed", "Runtime target preparation failed", remoteErr, "")
+		return resp, http.StatusBadGateway, runtimeTargetPrepareErrorStackAction("runtime_target_prepare_failed", "Runtime target preparation failed", remoteErr)
 	}
+	recordRuntimeTargetHostKeyStackAction(&resp, remote)
 	opts := []tofu.ExecutorOption{tofu.WithWorkDir(resp.TofuDir), tofu.WithAutoApprove(true), tofu.WithTimeout(stackActionExecutionTimeout)}
 	if remote != nil {
 		opts = append(opts, tofu.WithEnv(remote.env...))
@@ -708,6 +716,7 @@ type preparedRuntimeTargetStackAction struct {
 	target        *stackActionTarget
 	keyPath       string
 	workspaceRoot string
+	hostKey       *sshpin.HostKeyPin
 }
 
 func prepareStackActionRemoteTarget(ctx context.Context, tofuDir string, target *stackActionTarget, resolver StackActionReferenceResolver) (*preparedRuntimeTargetStackAction, func(), error) {
@@ -719,7 +728,7 @@ func prepareStackActionRemoteTarget(ctx context.Context, tofuDir string, target 
 	if err != nil {
 		return nil, nil, err
 	}
-	keyPath, homeDir, cleanup, err := materializeRuntimeTargetSSHKeyStackAction(ctx, target, resolver)
+	keyPath, homeDir, hostKey, cleanup, err := materializeRuntimeTargetSSHKeyStackAction(ctx, target, resolver)
 	if err != nil {
 		return nil, cleanup, err
 	}
@@ -737,7 +746,7 @@ func prepareStackActionRemoteTarget(ctx context.Context, tofuDir string, target 
 	if keyPath != "" {
 		env = append(env, "DOCKER_SSH_COMMAND="+runtimeTargetSSHCommandStackAction(target, keyPath))
 	}
-	return &preparedRuntimeTargetStackAction{dockerHost: dockerHost, env: env, target: target, keyPath: keyPath, workspaceRoot: workspaceRoot}, cleanup, nil
+	return &preparedRuntimeTargetStackAction{dockerHost: dockerHost, env: env, target: target, keyPath: keyPath, workspaceRoot: workspaceRoot, hostKey: hostKey}, cleanup, nil
 }
 
 func normalizeStackActionTarget(target *stackActionTarget) *stackActionTarget {
@@ -803,50 +812,58 @@ func normalizeTechStackEnrollmentStackAction(enrollment *stackaction.TechStackEn
 	return &normalized, nil
 }
 
-func materializeRuntimeTargetSSHKeyStackAction(ctx context.Context, target *stackActionTarget, resolver StackActionReferenceResolver) (string, string, func(), error) {
+func materializeRuntimeTargetSSHKeyStackAction(ctx context.Context, target *stackActionTarget, resolver StackActionReferenceResolver) (string, string, *sshpin.HostKeyPin, func(), error) {
 	if target == nil {
-		return "", "", nil, fmt.Errorf("runtime target is required")
+		return "", "", nil, nil, fmt.Errorf("runtime target is required")
 	}
 	accessRef, err := normalizeStackActionReference(target.AccessProfileRef, stackActionScopeRuntimeSSH, time.Now())
 	if err != nil {
-		return "", "", nil, fmt.Errorf("invalid runtime access_profile_ref: %w", err)
+		return "", "", nil, nil, fmt.Errorf("invalid runtime access_profile_ref: %w", err)
 	}
 	if resolver == nil {
-		return "", "", nil, fmt.Errorf("StackAction reference resolver is not configured")
+		return "", "", nil, nil, fmt.Errorf("StackAction reference resolver is not configured")
 	}
 	material, err := resolver.ResolveAccessProfile(ctx, *accessRef)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("resolve runtime access profile: %w", err)
+		return "", "", nil, nil, fmt.Errorf("resolve runtime access profile: %w", err)
 	}
 	key := append([]byte(nil), material.PrivateKey...)
 	defer clear(key)
+	hostKey, err := sshpin.ResolveHostKey(ctx, target.Host, target.Port, target.HostKey, target.HostKeyFirstContact)
+	if err != nil {
+		return "", "", nil, nil, err
+	}
 	if len(bytes.TrimSpace(key)) == 0 {
-		return "", "", nil, fmt.Errorf("resolved runtime access profile has no SSH private key")
+		return "", "", nil, nil, fmt.Errorf("resolved runtime access profile has no SSH private key")
 	}
 	dir, err := os.MkdirTemp("", "stackkits-runtime-ssh-")
 	if err != nil {
-		return "", "", nil, fmt.Errorf("create runtime SSH key dir: %w", err)
+		return "", "", nil, nil, fmt.Errorf("create runtime SSH key dir: %w", err)
 	}
 	sshDir := filepath.Join(dir, ".ssh")
 	if err := os.MkdirAll(sshDir, 0700); err != nil {
 		_ = os.RemoveAll(dir)
-		return "", "", nil, fmt.Errorf("create runtime SSH config dir: %w", err)
+		return "", "", nil, nil, fmt.Errorf("create runtime SSH config dir: %w", err)
 	}
 	keyPath := filepath.Join(sshDir, "id_runtime")
 	keyData := append(bytes.TrimSpace(key), '\n')
 	if err := os.WriteFile(keyPath, keyData, 0600); err != nil {
 		_ = os.RemoveAll(dir)
-		return "", "", nil, fmt.Errorf("write runtime SSH key: %w", err)
+		return "", "", nil, nil, fmt.Errorf("write runtime SSH key: %w", err)
+	}
+	if err := hostKey.WriteKnownHosts(runtimeKnownHostsPathStackAction(keyPath)); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", "", nil, nil, fmt.Errorf("write runtime SSH known_hosts: %w", err)
 	}
 	config := runtimeSSHConfigStackAction(target, keyPath)
 	if err := os.WriteFile(filepath.Join(sshDir, "config"), []byte(config), 0600); err != nil {
 		_ = os.RemoveAll(dir)
-		return "", "", nil, fmt.Errorf("write runtime SSH config: %w", err)
+		return "", "", nil, nil, fmt.Errorf("write runtime SSH config: %w", err)
 	}
 	restoreUserConfig, err := installRuntimeUserSSHConfigStackAction(target, keyPath)
 	if err != nil {
 		_ = os.RemoveAll(dir)
-		return "", "", nil, err
+		return "", "", nil, nil, err
 	}
 	cleanup := func() {
 		if restoreUserConfig != nil {
@@ -854,7 +871,7 @@ func materializeRuntimeTargetSSHKeyStackAction(ctx context.Context, target *stac
 		}
 		_ = os.RemoveAll(dir)
 	}
-	return keyPath, dir, cleanup, nil
+	return keyPath, dir, hostKey, cleanup, nil
 }
 
 func runtimeSSHConfigStackAction(target *stackActionTarget, keyPath string) string {
@@ -863,11 +880,12 @@ func runtimeSSHConfigStackAction(target *stackActionTarget, keyPath string) stri
   User %s
   IdentityFile %s
   IdentitiesOnly yes
-  StrictHostKeyChecking no
-  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking yes
+  UserKnownHostsFile %s
+  GlobalKnownHostsFile /dev/null
   LogLevel ERROR
   Port %d
-`, target.Host, target.Host, target.User, keyPath, target.Port)
+`, target.Host, target.Host, target.User, keyPath, runtimeKnownHostsPathStackAction(keyPath), target.Port)
 }
 
 func installRuntimeUserSSHConfigStackAction(target *stackActionTarget, keyPath string) (func(), error) {
@@ -965,6 +983,10 @@ $SUDO docker info >/dev/null`
 		}
 		lastErr = err
 		lastOutput = strings.TrimSpace(string(output))
+		if sshpin.SSHVerificationFailed(lastOutput) {
+			// The pinned key was refused; waiting will not change the host.
+			return &sshpin.HostKeyError{Reason: sshpin.ReasonHostKeyMismatch, Address: target.Host, Err: fmt.Errorf("bootstrap remote Docker over SSH: %w", err)}
+		}
 		if runCtx.Err() != nil {
 			break
 		}
@@ -1300,10 +1322,68 @@ func runtimeTargetSSHBaseArgsStackAction(target *stackActionTarget, keyPath stri
 		"-i", keyPath,
 		"-p", strconv.Itoa(target.Port),
 		"-o", "IdentitiesOnly=yes",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "StrictHostKeyChecking=yes",
+		"-o", "UserKnownHostsFile=" + runtimeKnownHostsPathStackAction(keyPath),
+		"-o", "GlobalKnownHostsFile=/dev/null",
 		"-o", "ConnectTimeout=20",
 	}
+}
+
+// runtimeKnownHostsPathStackAction is the per-operation known_hosts file that
+// holds exactly the pinned host key; it lives next to the materialized key and
+// is removed with it.
+func runtimeKnownHostsPathStackAction(keyPath string) string {
+	return filepath.Join(filepath.Dir(keyPath), "known_hosts")
+}
+
+// validateRuntimeTargetHostKeyStackAction refuses a runtime target that has no
+// pinned SSH host key and did not explicitly request first-contact pinning.
+func validateRuntimeTargetHostKeyStackAction(target *stackActionTarget) *skerrors.StackKitError {
+	hostKey := strings.TrimSpace(target.HostKey)
+	if hostKey == "" {
+		if target.HostKeyFirstContact {
+			return nil
+		}
+		return skerrors.NewValidationError(
+			sshpin.ReasonHostKeyRequired,
+			"runtime_target host_key is required: supply the expected SSH host key, or set host_key_first_contact to pin the presented key for this action",
+		)
+	}
+	if _, err := sshpin.ParseHostKey(hostKey); err != nil {
+		return skerrors.NewValidationError(
+			sshpin.ReasonHostKeyInvalid,
+			"runtime_target host_key must be one OpenSSH public key",
+			skerrors.WithField("error", err.Error()),
+		)
+	}
+	return nil
+}
+
+// recordRuntimeTargetHostKeyStackAction writes the pin into the action
+// evidence. A first-contact pin is named explicitly so the receipt shows that
+// the key was observed rather than supplied.
+func recordRuntimeTargetHostKeyStackAction(resp *stackActionResponse, remote *preparedRuntimeTargetStackAction) {
+	if remote == nil || remote.hostKey == nil {
+		return
+	}
+	source := "supplied"
+	if remote.hostKey.FirstContact {
+		source = "first-contact"
+	}
+	detail := fmt.Sprintf("%s pinned %s (%s)", remote.hostKey.Address, remote.hostKey.Fingerprint, source)
+	if remote.hostKey.FirstContact {
+		slog.Warn("stackaction ssh host key pinned on first contact", "pin", detail)
+	}
+	resp.Checks = append(resp.Checks, stackActionCheck{Name: "ssh_host_key", Status: stackaction.CheckStatusOK, Detail: detail})
+}
+
+// runtimeTargetPrepareErrorStackAction keeps the host-key reason as the error
+// code so callers can tell a pin refusal from a transport failure.
+func runtimeTargetPrepareErrorStackAction(fallbackCode, message string, err error) *skerrors.StackKitError {
+	if reason := sshpin.HostKeyReason(err); reason != "" {
+		return tofuActionErrorStackAction(reason, "Runtime target SSH host key was refused", err, "")
+	}
+	return tofuActionErrorStackAction(fallbackCode, message, err, "")
 }
 
 func runOpenTofuVerifyStackAction(ctx context.Context, resp stackActionResponse, includeStackKitOutputs bool, target *stackActionTarget, resolver StackActionReferenceResolver) (stackActionResponse, int, *skerrors.StackKitError) {
@@ -1330,8 +1410,14 @@ func runOpenTofuVerifyStackAction(ctx context.Context, resp stackActionResponse,
 		defer cleanup()
 	}
 	if remoteErr != nil {
-		resp.Observation = runtimeObservationTargetFailureStackAction(target, "runtime_target_unreachable")
+		failureClass := "runtime_target_unreachable"
+		if reason := sshpin.HostKeyReason(remoteErr); reason != "" {
+			failureClass = reason
+			resp.Checks = append(resp.Checks, stackActionCheck{Name: "ssh_host_key", Status: stackaction.CheckStatusFailed, Detail: remoteErr.Error()})
+		}
+		resp.Observation = runtimeObservationTargetFailureStackAction(target, failureClass)
 	} else {
+		recordRuntimeTargetHostKeyStackAction(&resp, remote)
 		resp.Observation = collectRuntimeLiveObservationStackAction(ctx, resp, remote, nil)
 	}
 	if updated, status, observationErr := requireManagedRuntimeObservationStackAction(resp, normalizeStackActionTarget(target) != nil); observationErr != nil {
@@ -1580,8 +1666,12 @@ func runBuiltInRestoreDrillVerifierStackAction(ctx context.Context, resp stackAc
 		defer cleanup()
 	}
 	if remoteErr != nil {
+		if reason := sshpin.HostKeyReason(remoteErr); reason != "" {
+			return resp, http.StatusBadGateway, runtimeTargetPrepareErrorStackAction("restore_drill_failed", "Restore drill verifier failed", remoteErr)
+		}
 		return resp, http.StatusBadGateway, tofuActionErrorStackAction("restore_drill_failed", "Restore drill verifier failed", remoteErr, "runtime target preparation failed")
 	}
+	recordRuntimeTargetHostKeyStackAction(&resp, remote)
 
 	runCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()

@@ -91,6 +91,11 @@ type ComposeRuntime struct {
 	// so the state is restored and verified alongside the project's data.
 	StatePath   string `json:"statePath,omitempty"`
 	StateDigest string `json:"stateDigest,omitempty"`
+	// Execution and RootConfigDigest retain the execution owning that bound
+	// state. Empty execution is the Compose wrapper; native-docker must restart
+	// existing containers rather than replace OpenTofu's resources with Compose.
+	Execution        string `json:"execution,omitempty"`
+	RootConfigDigest string `json:"rootConfigDigest,omitempty"`
 }
 
 // ComposeRuntimeReadiness carries the CUE-owned component health impact into

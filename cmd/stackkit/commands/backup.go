@@ -277,6 +277,8 @@ func init() {
 		"Emit stackkit.command-result/v1 JSON")
 	backupRestoreActivateCmd.Flags().StringVar(&backupActivationOperationID, "operation-id", "",
 		"Stable idempotency key for this live restore activation")
+	backupRestoreActivateCmd.Flags().String("expected-plan-hash", "",
+		"Require this admitted sha256 ResolvedPlan before the safety snapshot or live activation")
 	backupRestoreActivateCmd.Flags().BoolVar(&backupActivationOwnerApproved, "owner-approve", false,
 		"Authorize live activation with the established local Owner custody")
 	backupRestoreRecoverCmd.Flags().BoolVar(&backupOutputJSON, "json", false,
@@ -285,6 +287,8 @@ func init() {
 		"Authorize recovery with the established local Owner custody")
 	backupRestoreRecoverCmd.Flags().Bool("rollback", false,
 		"Authorize rollback if the interrupted activation has not committed")
+	backupRestoreRecoverCmd.Flags().String("expected-plan-hash", "",
+		"Require the original journal's admitted sha256 ResolvedPlan before recovery or finalization")
 	backupRestoreCmd.AddCommand(backupRestoreAbandonCmd, backupRestoreActivateCmd, backupRestoreRecoverCmd)
 	configureEmergencyBackupCommands()
 	backupMigrateResticCmd.Flags().BoolVar(&backupMigrateDryRun, "dry-run", false,
@@ -402,9 +406,13 @@ func runBackupRestoreAbandon(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupRestoreActivate(cmd *cobra.Command, args []string) error {
+	expected, err := cmd.Flags().GetString("expected-plan-hash")
+	if err != nil {
+		return machineAwareCommandError(cmd, err)
+	}
 	return machineAwareCommandError(cmd, runNativeV2RestoreActivationCommand(
 		cmd, args[0], backupActivationOperationID,
-		backupActivationOwnerApproved,
+		backupActivationOwnerApproved, expected,
 	))
 }
 
@@ -416,8 +424,12 @@ func runBackupRestoreRecover(cmd *cobra.Command, args []string) error {
 	if !rollback {
 		return machineAwareCommandError(cmd, fmt.Errorf("backup restore recover requires --rollback"))
 	}
+	expected, err := cmd.Flags().GetString("expected-plan-hash")
+	if err != nil {
+		return machineAwareCommandError(cmd, err)
+	}
 	return machineAwareCommandError(cmd, runNativeV2RestoreRecoveryCommand(
-		cmd, args[0], backupRecoveryOwnerApproved,
+		cmd, args[0], backupRecoveryOwnerApproved, expected,
 	))
 }
 

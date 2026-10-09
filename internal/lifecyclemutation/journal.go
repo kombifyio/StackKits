@@ -293,15 +293,25 @@ func BeginUpgradePrepared(
 func BeginRestoreActivationPrepared(
 	workspace string,
 	prepare func() (RestoreActivationBeginRequest, error),
+	onAbort ...func() error,
 ) (*Session, error) {
 	if prepare == nil {
 		return nil, errors.New("restore activation preparation callback is required")
+	}
+	if len(onAbort) > 1 {
+		return nil, errors.New("restore activation preparation accepts one abort cleanup")
 	}
 	session, err := openLocked(workspace)
 	if err != nil {
 		return nil, err
 	}
 	fail := func(cause error) (*Session, error) {
+		// Preparation may have acquired an existing application hold. Every
+		// failure, including journal admission/persistence after preparation,
+		// releases it while this lifecycle lock is still held.
+		if len(onAbort) == 1 && onAbort[0] != nil {
+			cause = errors.Join(cause, onAbort[0]())
+		}
 		return nil, errors.Join(cause, session.Close())
 	}
 	current, _, exists, err := loadRecord(workspace, session.transaction)

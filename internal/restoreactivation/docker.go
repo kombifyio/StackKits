@@ -137,6 +137,9 @@ func (runtime *dockerRuntime) ValidateStaging(ctx context.Context, authority Aut
 }
 
 func (runtime *dockerRuntime) Stop(ctx context.Context, authority Authority) error {
+	if err := runtime.verifyCompose(authority); err != nil {
+		return err
+	}
 	// Killing the Docker CLI does not guarantee that its daemon-side helper
 	// stopped copying. End only helpers bound to this exact operation before
 	// any resumed copy or service restart can touch the same volumes.
@@ -238,6 +241,9 @@ func (runtime *dockerRuntime) RestoreVolume(
 }
 
 func (runtime *dockerRuntime) Start(ctx context.Context, authority Authority) error {
+	if err := runtime.verifyCompose(authority); err != nil {
+		return err
+	}
 	for _, composeRuntime := range authorityComposeRuntimes(authority) {
 		composePath, err := runtime.verifiedComposeRuntimePath(composeRuntime)
 		if err != nil {
@@ -248,14 +254,22 @@ func (runtime *dockerRuntime) Start(ctx context.Context, authority Authority) er
 			return err
 		}
 		start := append(prefix, "up", "-d")
+		if composeRuntime.Execution == nativeDockerExecution {
+			// Compose starts the provider's existing containers in dependency
+			// order. `up` would replace them and strand the owning root's state.
+			start = append(prefix, "start")
+		}
 		if len(composeRuntime.Readiness) == 0 {
 			start = append(start, "--wait", "--wait-timeout", "600")
 		}
-		// A workload that declares a restore-activation variable
-		// is recreated with it set, so it starts with side effects held until
-		// the owner resumes. Every other start leaves the variable unset.
-		restored := architecturev2renderer.RestoreActivationComposeVariable + "=true"
-		if _, err = runtime.dockerWithEnvironment(ctx, []string{restored}, start...); err != nil {
+		// Wrapper workloads declaring the restore-activation variable are
+		// recreated with side effects held. Native restart cannot rewrite the
+		// provider-owned environment; native admission excludes those workloads.
+		var extra []string
+		if composeRuntime.Execution == "" {
+			extra = []string{architecturev2renderer.RestoreActivationComposeVariable + "=true"}
+		}
+		if _, err = runtime.dockerWithEnvironment(ctx, extra, start...); err != nil {
 			return wrapDocker("start verified Compose runtime "+composeRuntime.Project, err)
 		}
 		if len(composeRuntime.Readiness) != 0 {
@@ -592,6 +606,9 @@ func (runtime *dockerRuntime) dockerWithEnvironment(ctx context.Context, extra [
 
 func (runtime *dockerRuntime) verifyCompose(authority Authority) error {
 	for _, composeRuntime := range authorityComposeRuntimes(authority) {
+		if err := validateRuntimeExecution(composeRuntime, false); err != nil {
+			return err
+		}
 		composePath, err := runtime.verifiedComposeRuntimePath(composeRuntime)
 		if err != nil {
 			return err
@@ -606,6 +623,23 @@ func (runtime *dockerRuntime) verifyCompose(authority Authority) error {
 				composeRuntime.StatePath, composeRuntime.StateDigest, "OpenTofu state",
 			); err != nil {
 				return err
+			}
+		}
+		if composeRuntime.RootConfigDigest != "" {
+			configPath, err := runtime.verifiedRuntimeFile(
+				path.Join(path.Dir(composeRuntime.StatePath), openTofuConfigFile),
+				composeRuntime.RootConfigDigest, "OpenTofu configuration",
+			)
+			if err != nil {
+				return err
+			}
+			config, err := os.ReadFile(configPath)
+			if err != nil {
+				return err
+			}
+			native, err := nativeRuntimeConfiguration(config, composeRuntime.Digest)
+			if err != nil || native != (composeRuntime.Execution == nativeDockerExecution) {
+				return errors.New("restoreactivation: bound OpenTofu execution differs from its configuration")
 			}
 		}
 	}

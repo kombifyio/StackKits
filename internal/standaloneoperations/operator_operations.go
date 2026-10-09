@@ -132,13 +132,14 @@ var operatorOperations = []Contract{
 		Arguments: []Argument{
 			positionalArg("restore_result_id", "exact staged restore result ID"),
 			flagArg("operation_id", ArgumentString, "--operation-id", "stable idempotency key for this activation"),
+			flagArg("expected_plan_hash", ArgumentString, "--expected-plan-hash", "admitted lowercase sha256 ResolvedPlan; optional for standalone Owner operation"),
 		},
 	},
 	{
 		ID: "stackkit.backup.restore.recover", ToolName: "stackkit_backup_restore_recover", Title: "Recover restore",
 		Description: "Roll back an interrupted restore activation or finish its committed result.",
 		Command:     []string{"backup", "restore", "recover", "--json", "--owner-approve", "--rollback"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true,
-		Arguments: []Argument{positionalArg("activation_operation_id", "exact interrupted activation operation ID")},
+		Arguments: []Argument{positionalArg("activation_operation_id", "exact interrupted activation operation ID"), flagArg("expected_plan_hash", ArgumentString, "--expected-plan-hash", "original journal's admitted lowercase sha256 ResolvedPlan; optional for standalone Owner operation")},
 	},
 	{
 		ID: "stackkit.backup.emergency-export", ToolName: "stackkit_backup_emergency_export", Title: "Emergency export",
