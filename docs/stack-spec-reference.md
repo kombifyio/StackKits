@@ -101,7 +101,7 @@ compute:
   tier: string            # "low", "standard" (default), "high"
 
 # PAAS Platform (optional — Coolify if omitted)
-paas: string              # explicit production choices: "coolify" or "komodo"; "dokploy" is draft
+paas: string              # explicit production choices: "coolify" or "komodo"; "dokploy" is historical, not pursued
 
 # Storage (optional — for devices with limited disk)
 storage:
@@ -210,7 +210,7 @@ domain: lab.home
 - **TLS:** HTTPS from the existing Owner CA; enrollment installs only its public root after OS approval.
 - **DNS:** StackKits-owned resolver; enrollment sends only the `lab.home` domain to it. A domain must have at least two labels below its public suffix (`lab.home`, not `home` or `home.arpa`): the login session cookie is scoped to it.
 
-> Note: "local-only" here means the informal deployment context (no domain, no pi). The CUE axis `placementMode: "local-only"` carries its own semantics (exposure=private, coupling=cloudless) and is a different thing — see `docs/placement/`.
+> Note: "local-only" here means the informal deployment context (no domain, no pi). The CUE axis `placementMode: "local-only"` carries its own semantics (exposure=private, coupling=cloudless) and is a different thing — see the [CUE placement contract](../foundation/placement.cue).
 - **Requires:** one Home-authority device enrollment. No router/DHCP/hosts-file edits, parallel alias, TLS bypass, or port suffix.
 
 ### Mode 4: Custom Domain
@@ -258,19 +258,27 @@ Basement host floors (CUE min): `low` 2C/2GB/10GB; `standard` and `high`
 roundtrip only and has no graph. Legacy v1 `compute.tier` remains a StackSpec v1
 sizer; native v2 init does not write it.
 
-## PAAS Platforms
+## Historical PaaS Compatibility
+
+**Status amendment, 2026-10-11:** this section records old v1 resolver and
+bootstrap behavior, not a new-installation recommendation. Native application
+delivery defaults to standalone Compose. Marketplace owns optional Coolify as
+an application outside default core; Komodo is the planned operations platform
+without a store. Dokploy is not pursued. Historical metadata such as
+beta/draft and old receipts do not establish support at the current pin.
+
 
 | Platform | When Used | Reverse Proxy |
 |----------|-----------|---------------|
 | `coolify` | Default when `paas` is omitted | Coolify's Traefik |
-| `komodo` | Explicit beta-supported alternative via `paas: komodo` | StackKit-owned Traefik |
-| `dokploy` | Draft adapter, not a beta/E2E standard | `dokploy-traefik` |
+| `komodo` | Historical explicit alternative via `paas: komodo` | StackKit-owned Traefik |
+| `dokploy` | Historical draft, not pursued | `dokploy-traefik` |
 
 `dockge` is a lightweight Compose manager, not a normal StackKit PaaS. It can exist as an experimental/constrained service mode, but `paas: dockge` and `paas: none` are invalid for normal Base/Modern/HA StackKits.
 
-User `apps:` require a selected PaaS. Beta-supported choices are `coolify` and `komodo`; the Dokploy adapter remains draft until promoted. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local Basement Kit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
+User `apps:` require a selected PaaS. The legacy choices were `coolify` and `komodo`; Dokploy was draft and is now not pursued. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local Basement Kit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
 
-When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. Use `paas: komodo` for the supported beta alternative path. Do not use `paas: dokploy` in standard beta or canonical E2E rollouts until Dokploy is promoted from draft.
+When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. The historical alternative used `paas: komodo`; its retained compatibility does not imply current-pin support. Dokploy is not pursued and is outside canonical E2E rollouts.
 
 During the current transition, `pkg/models.StackSpec.ResolvePAASForContext` is the canonical auto-selection resolver for omitted `paas` values. CUE remains the broader StackKit contract source, and the PaaS default should move fully back into CUE once the CUE export -> tfvars pipeline is complete.
 
@@ -278,7 +286,7 @@ Coolify bootstrap is part of the StackKits implementation. StackKits passes gene
 
 Komodo bootstrap is also generated when explicitly selected. StackKits installs Komodo Core, Periphery, and DB, creates the initial local admin with `KOMODO_INIT_ADMIN_USERNAME`/`KOMODO_INIT_ADMIN_PASSWORD`, disables public registration, creates a Komodo API key/secret through the HTTP API, and writes `.stackkit/platform.json` with `platform: "komodo"`, `apiKey`, `apiSecret`, and `serverId`. The first Komodo contract routes through StackKit-owned Traefik and deploys Compose bundles as Komodo Stack resources.
 
-Dokploy bootstrap exists only as draft adapter work. It is not part of the production PaaS standard or the canonical three-scenario E2E matrix until promoted.
+Dokploy bootstrap is historical draft adapter work. Dokploy is not pursued and has no promotion path or canonical E2E admission.
 
 `mode` is the StackKit installation automation and lifecycle contract: `bare`, `bootstrapped`, or `advanced`. Legacy `simple` is accepted as an alias for `bootstrapped`; legacy `terramate` and `advanced-terramate` inputs normalize to `advanced`.
 
@@ -455,7 +463,7 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 - `stackkit` must reference an existing public StackKit (`basement-kit` or `cloud-kit`)
 - `mode` must resolve to `bare`, `bootstrapped`, or `advanced`; legacy `simple` normalizes to `bootstrapped`, and legacy `terramate` / `advanced-terramate` normalize to `advanced`
 - `compute.tier` must be `low`, `standard`, or `high`
-- `paas` must be `coolify` or `komodo` for normal production StackKits (Coolify when omitted); `dokploy` is draft-only
+- The retained v1 `paas` compatibility choices are `coolify` or `komodo` (Coolify when omitted); `dokploy` is historical draft behavior, not pursued. These are not native defaults.
 - Native v2 Files authoring admits only `cloudreve`. The legacy `application.files.tool` compatibility field still accepts `cloudreve` or `nextcloud`; contradictory legacy `application.files.*` and `services.files.*` provider values fail validation.
 - `application.<useCase>.runtimeProfile` selects the package runtime profile when the kit declares one. For Smart Home, `kombify-managed` and `kombify-managed-hybrid` are Control Plane handoffs, not local OSS deployment fallbacks.
 - For Files/DMS, `self-hosted-lightweight` uses the admitted Cloudreve workload, while `kombify-managed-files` / `kombify-managed-dms` are Control Plane handoffs. A richer native collaboration workload has not been admitted.

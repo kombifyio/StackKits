@@ -16,6 +16,10 @@ var governedLANRights = map[string]struct {
 	listeners []selectedPaaSLANListener
 	device    *selectedPaaSDevicePassthrough
 }{
+	adguardHomeWorkloadModuleID: {
+		component: "adguard-home",
+		listeners: []selectedPaaSLANListener{{Port: 53535, Protocol: "udp", SettingRef: "lan-listener"}, {Port: 53535, Protocol: "tcp", SettingRef: "lan-listener"}},
+	},
 	mosquittoWorkloadModuleID: {
 		component: "mosquitto",
 		listeners: []selectedPaaSLANListener{{Port: 1883, Protocol: "tcp", SettingRef: "lan-listener"}},

@@ -102,13 +102,15 @@ type Document struct {
 
 // Policy binds the governed local Kopia runtime to one resolved Stack target.
 type Policy struct {
-	StackID            string              `json:"stackId"`
-	Target             Target              `json:"target"`
-	Runtime            Runtime             `json:"runtime"`
-	Source             Source              `json:"source"`
-	Retention          *Retention          `json:"retention,omitempty"`
-	Schedule           *Schedule           `json:"schedule,omitempty"`
-	RecoveryObjectives []RecoveryObjective `json:"recoveryObjectives,omitempty"`
+	StackID              string               `json:"stackId"`
+	Target               Target               `json:"target"`
+	Runtime              Runtime              `json:"runtime"`
+	Source               Source               `json:"source"`
+	Retention            *Retention           `json:"retention,omitempty"`
+	RetentionByDataClass map[string]Retention `json:"retentionByDataClass,omitempty"`
+	DataClasses          []string             `json:"dataClasses,omitempty"`
+	Schedule             *Schedule            `json:"schedule,omitempty"`
+	RecoveryObjectives   []RecoveryObjective  `json:"recoveryObjectives,omitempty"`
 }
 
 // Schedule is the resolved foundation.#BackupScheduleV1 UTC intent. It grants
@@ -540,6 +542,9 @@ func recognizedSnapshotSource(coreModuleRef, containerPath string, excludes []st
 // verifier additionally recognizes the pre-staging v1 snapshot selection so
 // upgrades do not invalidate existing anchors.
 func ValidateSnapshotPolicy(policy Policy) error {
+	if _, err := policy.SnapshotSources(); err != nil {
+		return err
+	}
 	if policy.Schedule != nil {
 		if err := policy.Schedule.Validate(); err != nil {
 			return err
@@ -675,6 +680,9 @@ func Digest(raw []byte) (string, error) {
 }
 
 func (policy Policy) validate() error {
+	if _, err := policy.SnapshotSources(); err != nil {
+		return err
+	}
 	if policy.Schedule != nil {
 		if err := policy.Schedule.Validate(); err != nil {
 			return err

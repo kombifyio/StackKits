@@ -1,4 +1,4 @@
-import { createPlanner, type PlannerService } from "./planner.js";
+import { createPlanner, type PlannerService, type PlannerOptions } from "./planner.js";
 import { abortedResult } from "./result.js";
 import type {
   AssessCapacityInput,
@@ -148,11 +148,11 @@ export class PlannerSession {
 
 let sharedSession: PlannerSession | undefined;
 
-export function createPlannerSession(catalog: unknown, options: { sourceSha?: string } = {}): PlannerSession {
+export function createPlannerSession(catalog: unknown, options: PlannerOptions = {}): PlannerSession {
   return new PlannerSession(createPlanner(catalog, options));
 }
 
-export function getSharedPlannerSession(catalog?: unknown, options: { sourceSha?: string } = {}): PlannerSession {
+export function getSharedPlannerSession(catalog?: unknown, options: PlannerOptions = {}): PlannerSession {
   if (!sharedSession || (catalog !== undefined && sharedSession.service.catalog !== catalog)) {
     sharedSession = createPlannerSession(catalog, options);
   }

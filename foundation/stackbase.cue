@@ -20,7 +20,8 @@
 //
 // PaaS Selection (intent/domain-driven, M2):
 //   - explicit paas config wins
-//   - omitted paas → Coolify
+//   - omitted paas → legacy v1 bridge still resolves Coolify; the native
+//     Architecture v2 default core runs without a PaaS (ADR-0049)
 //   - Komodo is the beta-supported alternative using StackKit-owned Traefik
 //   - Dokploy remains draft and outside the canonical E2E matrix
 //   - Dockge is a constrained compose-manager mode, not a normal PaaS default

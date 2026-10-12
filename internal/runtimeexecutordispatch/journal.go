@@ -15,6 +15,7 @@ import (
 
 type preparedExecution struct {
 	label        string
+	scope        string
 	executor     runtimeexecutor.Executor
 	request      runtimeexecutor.ExecutionRequest
 	compensation runtimeapply.CompensationMode
@@ -119,7 +120,7 @@ func executePrepared(
 		if reservation.Snapshot.State != runtimeapply.OperationCompleted {
 			return runtimeexecutor.ExecutionOutcome{}, errors.New("compensated runtime Apply operation cannot be replayed as successful Apply")
 		}
-		return replayPrepared(prepared, operation, *reservation.Snapshot)
+		return replayPrepared(ctx, prepared, operation, *reservation.Snapshot)
 	}
 
 	states := make(map[string]runtimeapply.StepSnapshot, len(operation.Steps))
@@ -146,7 +147,7 @@ func executePrepared(
 	outcome := runtimeexecutor.ExecutionOutcome{}
 	failures := make([]error, 0, len(prepared))
 	settled := runtimeapply.Snapshot{}
-	for _, child := range prepared {
+	for index, child := range prepared {
 		step, exists := stepByDigest[child.request.RequestDigest]
 		if !exists {
 			return runtimeexecutor.ExecutionOutcome{}, errors.New("prepared child is absent from runtime Apply operation")
@@ -157,6 +158,7 @@ func executePrepared(
 				return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("runtime Apply step %q has invalid replay evidence", child.label)
 			}
 			appendResult(&outcome, *state.Result)
+			observeReplayed(ctx, child, index+1, len(prepared))
 			continue
 		}
 		if state.State != runtimeapply.StepPending && state.State != runtimeapply.StepFailed {
@@ -180,7 +182,7 @@ func executePrepared(
 		}
 		states = indexStepSnapshots(snapshot)
 
-		result, invokeErr := invokePrepared(ctx, child)
+		result, invokeErr := invokeObserved(ctx, child, index+1, len(prepared))
 		if invokeErr != nil {
 			failed := runtimeapply.StepCommit{
 				OperationID: operation.OperationID, FenceToken: reservation.FenceToken,
@@ -268,8 +270,8 @@ func executePrepared(
 func executePreparedDirect(ctx context.Context, prepared []preparedExecution) (runtimeexecutor.ExecutionOutcome, error) {
 	outcome := runtimeexecutor.ExecutionOutcome{}
 	failures := make([]error, 0, len(prepared))
-	for _, child := range prepared {
-		result, err := invokePrepared(ctx, child)
+	for index, child := range prepared {
+		result, err := invokeObserved(ctx, child, index+1, len(prepared))
 		if err != nil {
 			failures = append(failures, fmt.Errorf("execute runtime owner for %q: %w", child.label, err))
 			if stopsRollout(child, err) {
@@ -287,6 +289,7 @@ func executePreparedDirect(ctx context.Context, prepared []preparedExecution) (r
 }
 
 func replayPrepared(
+	ctx context.Context,
 	prepared []preparedExecution,
 	operation runtimeapply.Operation,
 	snapshot runtimeapply.Snapshot,
@@ -297,7 +300,7 @@ func replayPrepared(
 		steps[step.RequestDigest] = step
 	}
 	outcome := runtimeexecutor.ExecutionOutcome{}
-	for _, child := range prepared {
+	for index, child := range prepared {
 		step, stepExists := steps[child.request.RequestDigest]
 		state, stateExists := states[child.request.RequestDigest]
 		if !stepExists || !stateExists || state.State != runtimeapply.StepSucceeded || state.Result == nil {
@@ -307,6 +310,7 @@ func replayPrepared(
 			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("verify runtime Apply replay for %q: %w", child.label, err)
 		}
 		appendResult(&outcome, *state.Result)
+		observeReplayed(ctx, child, index+1, len(prepared))
 	}
 	sortExecutionOutcome(&outcome)
 	return outcome, nil

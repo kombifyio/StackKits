@@ -97,16 +97,17 @@ type RepositoryStatus struct {
 }
 
 type RepositorySnapshotRequest struct {
-	OwnerRef             string           `json:"ownerRef"`
-	AuthorityRef         string           `json:"authorityRef"`
-	Lineage              AuthorityLineage `json:"lineage"`
-	PolicyArtifactDigest string           `json:"policyArtifactDigest"`
-	RepositoryID         string           `json:"repositoryId"`
-	OperationID          string           `json:"operationId"`
-	Source               string           `json:"source"`
-	Excludes             []string         `json:"excludes"`
-	Consistency          Consistency      `json:"consistency"`
-	ProtectRecovery      bool             `json:"protectRecovery,omitempty"`
+	OwnerRef             string                             `json:"ownerRef"`
+	AuthorityRef         string                             `json:"authorityRef"`
+	Lineage              AuthorityLineage                   `json:"lineage"`
+	PolicyArtifactDigest string                             `json:"policyArtifactDigest"`
+	RepositoryID         string                             `json:"repositoryId"`
+	OperationID          string                             `json:"operationId"`
+	Source               string                             `json:"source"`
+	Excludes             []string                           `json:"excludes"`
+	Sources              []localbackuppolicy.SnapshotSource `json:"sources,omitempty"`
+	Consistency          Consistency                        `json:"consistency"`
+	ProtectRecovery      bool                               `json:"protectRecovery,omitempty"`
 }
 
 type RepositorySnapshotReceipt struct {
@@ -504,7 +505,10 @@ func (s *Service) Status(ctx context.Context, input StatusInput) (RepositoryStat
 		}
 	}
 	status.History = &history
-	status.Coverage = sourceCoverage(configuration)
+	status.Coverage, err = sourceCoverage(configuration)
+	if err != nil {
+		return RepositoryStatus{}, err
+	}
 	return status, nil
 }
 
@@ -581,7 +585,10 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 		return SnapshotAnchor{}, err
 	}
 
-	request := snapshotRequest(configuration, input.OperationID)
+	request, err := snapshotRequest(configuration, input.OperationID)
+	if err != nil {
+		return SnapshotAnchor{}, err
+	}
 	request.ProtectRecovery = input.ProtectRecovery
 	quiescedRuntime, supportsQuiescence := s.runtime.(SnapshotQuiesceRuntime)
 	persistQuiescence := func(quiescence SnapshotQuiescence) error {
@@ -1092,13 +1099,9 @@ func VerifySnapshotAnchor(workspaceRoot string, anchor SnapshotAnchor) error {
 	if err := validateRepositoryReceipt(anchor.Repository, configuration); err != nil {
 		return err
 	}
-	request := RepositorySnapshotRequest{
-		OwnerRef: anchor.OwnerRef, AuthorityRef: anchor.AuthorityRef,
-		Lineage: anchor.Lineage, PolicyArtifactDigest: anchor.PolicyArtifactDigest,
-		RepositoryID: anchor.Repository.RepositoryID, OperationID: anchor.OperationID, ProtectRecovery: anchor.ProtectRecovery,
-		Source:      anchor.Policy.Source.ContainerPath,
-		Excludes:    append([]string(nil), anchor.Policy.Source.ExcludePaths...),
-		Consistency: ConsistencyCrashConsistent,
+	request, err := snapshotRequestFromAnchor(anchor)
+	if err != nil {
+		return err
 	}
 	if err := validateSnapshotReceipt(anchor.Snapshot, request); err != nil {
 		return err
@@ -1848,6 +1851,16 @@ func validateRestoreSource(configuration Configuration, anchor SnapshotAnchor) e
 }
 
 func restoreDataTopologyCompatible(historical, current localbackuppolicy.Source) bool {
+	// Classification changes policy scope, never the physical data identity.
+	// Preserve restoration of signed pre-classification whole-root anchors.
+	historical.ApplicationVolumes = append([]localbackuppolicy.ApplicationVolume(nil), historical.ApplicationVolumes...)
+	current.ApplicationVolumes = append([]localbackuppolicy.ApplicationVolume(nil), current.ApplicationVolumes...)
+	for i := range historical.ApplicationVolumes {
+		historical.ApplicationVolumes[i].BackupDataClass = ""
+	}
+	for i := range current.ApplicationVolumes {
+		current.ApplicationVolumes[i].BackupDataClass = ""
+	}
 	historicalDigest, err := localbackuppolicy.SourceDigest(historical)
 	if err != nil {
 		return false
@@ -1901,6 +1914,10 @@ func repositoryRestoreRequest(
 	if err != nil {
 		return RepositoryRestoreRequest{}, fmt.Errorf("backuplifecycle: digest snapshot source policy: %w", err)
 	}
+	snapshotRequest, err := snapshotRequestFromAnchor(anchor)
+	if err != nil {
+		return RepositoryRestoreRequest{}, err
+	}
 	return RepositoryRestoreRequest{
 		OwnerRef:             configuration.OwnerRef,
 		AuthorityRef:         configuration.AuthorityRef,
@@ -1909,7 +1926,7 @@ func repositoryRestoreRequest(
 		RepositoryID:         configuration.Repository.RepositoryID,
 		SnapshotAnchorID:     anchor.ID,
 		SnapshotSourceDigest: sourceDigest,
-		SnapshotRequest:      snapshotRequestFromAnchor(anchor),
+		SnapshotRequest:      snapshotRequest,
 		SnapshotReceipt:      anchor.Snapshot,
 		OperationID:          operationID,
 		StagingPath:          RestoreStagingPath(operationID),
@@ -1924,6 +1941,10 @@ func repositoryRestoreRequestFromRecovery(
 	if err != nil {
 		return RepositoryRestoreRequest{}, fmt.Errorf("backuplifecycle: digest recovered snapshot source policy: %w", err)
 	}
+	snapshotRequest, err := snapshotRequestFromAnchor(anchor)
+	if err != nil {
+		return RepositoryRestoreRequest{}, err
+	}
 	return RepositoryRestoreRequest{
 		OwnerRef:             recovery.OwnerRef,
 		AuthorityRef:         recovery.AuthorityRef,
@@ -1932,14 +1953,18 @@ func repositoryRestoreRequestFromRecovery(
 		RepositoryID:         recovery.RepositoryID,
 		SnapshotAnchorID:     recovery.SnapshotAnchorID,
 		SnapshotSourceDigest: sourceDigest,
-		SnapshotRequest:      snapshotRequestFromAnchor(anchor),
+		SnapshotRequest:      snapshotRequest,
 		SnapshotReceipt:      anchor.Snapshot,
 		OperationID:          recovery.OperationID,
 		StagingPath:          recovery.StagingPath,
 	}, nil
 }
 
-func snapshotRequestFromAnchor(anchor SnapshotAnchor) RepositorySnapshotRequest {
+func snapshotRequestFromAnchor(anchor SnapshotAnchor) (RepositorySnapshotRequest, error) {
+	sources, err := anchor.Policy.SnapshotSources()
+	if err != nil {
+		return RepositorySnapshotRequest{}, err
+	}
 	return RepositorySnapshotRequest{
 		OwnerRef: anchor.OwnerRef, AuthorityRef: anchor.AuthorityRef,
 		Lineage: anchor.Lineage, PolicyArtifactDigest: anchor.PolicyArtifactDigest,
@@ -1949,7 +1974,8 @@ func snapshotRequestFromAnchor(anchor SnapshotAnchor) RepositorySnapshotRequest 
 		Source:          anchor.Policy.Source.ContainerPath,
 		Excludes:        append([]string(nil), anchor.Policy.Source.ExcludePaths...),
 		Consistency:     ConsistencyCrashConsistent,
-	}
+		Sources:         sources,
+	}, nil
 }
 
 func validateRestoreReceipt(receipt RepositoryRestoreReceipt, request RepositoryRestoreRequest) error {
@@ -2014,6 +2040,7 @@ func validDigest(value string) bool {
 
 func clonePolicy(policy Policy) Policy {
 	policy.Source = policy.SourceProjection()
+	policy.DataClasses = append([]string(nil), policy.DataClasses...)
 	policy.Runtime = policy.RuntimeProjection()
 	if policy.Schedule != nil {
 		schedule := *policy.Schedule
@@ -2026,6 +2053,13 @@ func clonePolicy(policy Policy) Policy {
 	if policy.Retention != nil {
 		retention := *policy.Retention
 		policy.Retention = &retention
+	}
+	if policy.RetentionByDataClass != nil {
+		retentions := make(map[string]localbackuppolicy.Retention, len(policy.RetentionByDataClass))
+		for class, retention := range policy.RetentionByDataClass {
+			retentions[class] = retention
+		}
+		policy.RetentionByDataClass = retentions
 	}
 	policy.RecoveryObjectives = append([]localbackuppolicy.RecoveryObjective(nil), policy.RecoveryObjectives...)
 	for index := range policy.RecoveryObjectives {
@@ -2088,7 +2122,11 @@ func configurationOperationID(configuration RepositoryConfiguration) string {
 	return digestJSON(configuration)
 }
 
-func snapshotRequest(configuration Configuration, operationID string) RepositorySnapshotRequest {
+func snapshotRequest(configuration Configuration, operationID string) (RepositorySnapshotRequest, error) {
+	sources, err := configuration.Policy.SnapshotSources()
+	if err != nil {
+		return RepositorySnapshotRequest{}, err
+	}
 	return RepositorySnapshotRequest{
 		OwnerRef: configuration.OwnerRef, AuthorityRef: configuration.AuthorityRef,
 		Lineage: configuration.Lineage, PolicyArtifactDigest: configuration.PolicyArtifactDigest,
@@ -2096,7 +2134,8 @@ func snapshotRequest(configuration Configuration, operationID string) Repository
 		Source:      configuration.Policy.Source.ContainerPath,
 		Excludes:    append([]string(nil), configuration.Policy.Source.ExcludePaths...),
 		Consistency: ConsistencyCrashConsistent,
-	}
+		Sources:     sources,
+	}, nil
 }
 
 func canonicalAnchor(anchor SnapshotAnchor) ([]byte, error) {

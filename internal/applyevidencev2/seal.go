@@ -128,10 +128,7 @@ func validateRequest(request Request) error {
 }
 
 func validateReceiptUnsigned(receipt Receipt) error {
-	if receipt.APIVersion != ReceiptAPIVersion || receipt.Kind != ReceiptKind || receipt.ID != receipt.RequirementKind+"/"+receipt.RequirementID ||
-		!digestPattern.MatchString(receipt.RequirementHash) || !validBinding(receipt.Binding) || !digestPattern.MatchString(receipt.ManifestHash) ||
-		!validExecutor(receipt.Executor) || receipt.Subject.OwnerKind == "" || receipt.Subject.OwnerRef == "" || receipt.Result != "satisfied" ||
-		!idPattern.MatchString(receipt.Producer.ID) || !semVerPattern.MatchString(receipt.Producer.Version) || !keyPattern.MatchString(receipt.Producer.KeyID) {
+	if !validReceiptContract(receipt) {
 		return errors.New("applyevidence: invalid receipt contract")
 	}
 	prefix, valid := observationPrefix(receipt.RequirementKind)
@@ -279,4 +276,11 @@ func requireEOF(decoder *json.Decoder) error {
 func hash(value []byte) string {
 	digest := sha256.Sum256(value)
 	return "sha256:" + hex.EncodeToString(digest[:])
+}
+
+func validReceiptContract(receipt Receipt) bool {
+	return receipt.APIVersion == ReceiptAPIVersion && receipt.Kind == ReceiptKind && receipt.ID == receipt.RequirementKind+"/"+receipt.RequirementID &&
+		digestPattern.MatchString(receipt.RequirementHash) && validBinding(receipt.Binding) && digestPattern.MatchString(receipt.ManifestHash) &&
+		validExecutor(receipt.Executor) && receipt.Subject.OwnerKind != "" && receipt.Subject.OwnerRef != "" && receipt.Result == "satisfied" &&
+		idPattern.MatchString(receipt.Producer.ID) && semVerPattern.MatchString(receipt.Producer.Version) && keyPattern.MatchString(receipt.Producer.KeyID)
 }

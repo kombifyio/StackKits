@@ -168,8 +168,8 @@ import "list"
 	_notSelfRequired: [for ref in requires if ref == id {ref}] & []
 }
 
-// The owner-accepted main use cases (docs/use-case-expansion/portfolio.md,
-// 2026-09-24), keyed by id. Several catalog slugs share one main use case
+// The owner-accepted main use cases, including Marketplace (2026-10-10),
+// keyed by id. Several catalog slugs share one main use case
 // until their compatibility migrations merge them (files + documents, dev +
 // remote); network has no catalog entry yet.
 #MainUseCaseTitles: {
@@ -184,6 +184,7 @@ import "list"
 	network:           "Network"
 	automation:        "Automation"
 	ai:                "AI"
+	marketplace:       "Marketplace"
 }
 
 #MainUseCase: {
@@ -514,6 +515,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 			components: {
 				cloudreve: {id: "cloudreve", name: "Cloudreve", role: "primary", kind: "application"}
 				nextcloud: {id: "nextcloud", name: "Nextcloud", role: "alternative", kind: "application"}
+				opencloud: {id: "opencloud", name: "OpenCloud", role: "alternative", kind: "application"}
 				// kombify Paperwork has no distributable self-hosted edition; the
 				// alternative binds the owner's hosted Paperwork instance.
 				paperwork: {id: "paperwork", name: "kombify Paperwork", role: "alternative", kind: "connector"}
@@ -606,8 +608,61 @@ UseCaseCatalog: #UseCaseCatalog & {
 						{id: "medium", name: "Medium", note: "Around 8 GB of memory"},
 						{id: "large", name: "Large", note: "16 GB of memory or more"},
 					]
-					default:     "small"
+					default: "small"
+					// The ai workload setting of the same id: the size of every
+					// selected model pack (reviewed tags in the Private AI renderer).
+					realization: "install"
+				},
+				{
+					// Owner request 2026-10-10: offer "only my own interface" on top
+					// of a provider the operator already pays for. Recorded until an
+					// external-inference composition (chat without Ollama) lands.
+					id:    "inference-location"
+					name:  "Where the models run"
+					kind:  "choice"
+					group: "profile"
+					depth: "summary"
+					help:  "Run models on your own hardware, or use only your own interface with a provider you already pay for."
+					options: [
+						{id: "local", name: "On my own hardware", note: "Models run on this Node; private, no per-message cost"},
+						{id: "external", name: "Only my own interface", note: "Your own chat on top of OpenAI, Anthropic or another provider; no models on your hardware"},
+					]
+					default:     "local"
 					realization: "recorded"
+				},
+				{
+					// Owner request 2026-10-10: choose which models are pulled during
+					// setup. Each pack toggle is the ai workload setting of the same id
+					// (private-ai chat alternative): Apply pulls the selected packs into
+					// Ollama and verifies them; a failed pull fails the Apply.
+					id:          "model-pack-general"
+					name:        "General chat model"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Download an everyday chat model during setup so the first chat works offline."
+					default:     true
+					realization: "install"
+				},
+				{
+					id:          "model-pack-coding"
+					name:        "Coding model"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Download a code model for the agent harness and your editor."
+					default:     false
+					realization: "install"
+				},
+				{
+					id:          "model-pack-vision"
+					name:        "Vision model"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Download a model that understands images you drop into the chat."
+					default:     false
+					realization: "install"
 				},
 			]
 			// docs/use-case-expansion/ai-agents.md "Plan (owner request
@@ -839,6 +894,10 @@ UseCaseCatalog: #UseCaseCatalog & {
 					realization: "recorded"
 				},
 			]
+		}
+		network: {
+			slug: "network", displayName: "Network", description: "Filter DNS for selected clients while preserving the existing local resolver and device DNS choices.", owner: "stackkits", mainUseCase: id: "network", docs: "/guides/stackkits/use-cases/network"
+			components: "adguard-home": {id: "adguard-home", name: "AdGuard Home", role: "primary", kind: "application"}
 		}
 		remote: {
 			slug:        "remote"

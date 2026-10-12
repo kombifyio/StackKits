@@ -510,6 +510,13 @@ func (g *generator) mcp(id string, raw map[string]any, op *Operation) (*MCP, boo
 		}
 		m.CostBearing = b
 	}
+	if at, present := ext["actionType"]; present {
+		s, ok := at.(string)
+		if !ok || s == "" {
+			g.add(id, "mcp", "x-kombify-mcp.actionType must be a non-empty string")
+		}
+		m.ActionType = s
+	}
 	if m.ToolName == "" {
 		m.ToolName = SnakeCase(str(raw, "operationId"))
 	}

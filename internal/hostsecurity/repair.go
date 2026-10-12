@@ -170,6 +170,12 @@ func (e Engine) Repair(ctx context.Context, opts RepairOptions) RepairReport {
 	report.Outcome = outcomeOf(report.Steps)
 
 	if opts.Apply {
+		if state := opts.SSHAccess; state != nil && len(state.CleanupPending) > 0 && stepApplied(report.Steps, ControlSSHUserCA) {
+			// The repair finished the pending revocation cleanup.
+			cleaned := *state
+			cleaned.CleanupPending = nil
+			opts.Options.SSHAccess = &cleaned
+		}
 		after := e.Verify(ctx, opts.Options)
 		report.After = &after
 		for i := range report.Steps {
@@ -184,6 +190,10 @@ func (e Engine) Repair(ctx context.Context, opts RepairOptions) RepairReport {
 	}
 	report.FinishedAt = e.Host.Now().UTC()
 	return report
+}
+
+func stepApplied(steps []RepairStep, control string) bool {
+	return slices.ContainsFunc(steps, func(step RepairStep) bool { return step.Control == control && step.Status == StepApplied })
 }
 
 func outcomeOf(steps []RepairStep) Outcome {
@@ -222,7 +232,7 @@ func outcomeOf(steps []RepairStep) Outcome {
 // path the firewall already admits.
 var repairOrder = []string{
 	ControlSysctl, ControlUnattended, ControlBruteForce, ControlFirewall, ControlSSHPort,
-	ControlSSHPassword, ControlSSHRootLogin,
+	ControlSSHPassword, ControlSSHRootLogin, ControlSSHUserCA, ControlSSHHostCertificate,
 }
 
 //nolint:gocyclo // One linear selection over every control and the ways it can be unrepairable.
@@ -306,6 +316,10 @@ func (r *repairer) step(ctx context.Context, id string, repairable map[string]bo
 		err = r.repairBruteForce(ctx)
 	case ControlFirewall:
 		err = r.repairFirewall(ctx)
+	case ControlSSHUserCA:
+		err = r.repairSSHUserCA(ctx)
+	case ControlSSHHostCertificate:
+		err = r.repairSSHHostCertificate(ctx)
 	default:
 		ids = nil
 		for _, candidate := range []string{ControlSSHPassword, ControlSSHRootLogin} {

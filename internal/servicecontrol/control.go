@@ -78,8 +78,16 @@ type serviceDefinition struct {
 type Control = serviceDefinition
 
 type DesiredService struct {
-	State     string    `json:"state"`
-	ChangedAt time.Time `json:"changedAt"`
+	State     string                 `json:"state"`
+	ChangedAt time.Time              `json:"changedAt"`
+	Binding   *DesiredServiceBinding `json:"binding,omitempty"`
+}
+
+// DesiredServiceBinding retains a stopped service's original signed authority
+// when an unrelated service is controlled under a later plan.
+type DesiredServiceBinding struct {
+	PlanHash            string `json:"planHash"`
+	ServiceContractHash string `json:"serviceContractHash"`
 }
 
 type DesiredState struct {
@@ -237,7 +245,7 @@ func (c *Controller) Mutate(ctx context.Context, action, serviceKey string, owne
 	if err != nil {
 		return result, err
 	}
-	state, err := c.loadState(authority)
+	state, err := c.loadState(authority, result.ServiceKey)
 	if err != nil {
 		return result, err
 	}
@@ -269,7 +277,7 @@ func (c *Controller) Mutate(ctx context.Context, action, serviceKey string, owne
 	result.OperationRef = strings.TrimSpace(actionOutput.OperationRef)
 	if result.Action == ActionStart || result.Action == ActionStop {
 		state.Revision++
-		state.Services[result.ServiceKey] = DesiredService{State: desired, ChangedAt: c.now().UTC()}
+		state.Services[result.ServiceKey] = DesiredService{State: desired, ChangedAt: c.now().UTC(), Binding: &DesiredServiceBinding{PlanHash: authority.PlanHash, ServiceContractHash: authority.ServiceContractHash}}
 		state.UpdatedAt = c.now().UTC()
 		if err := c.persistState(&state); err != nil {
 			return result, err
@@ -357,7 +365,8 @@ func (c *Controller) Logs(ctx context.Context, serviceKey string, tail int, curs
 }
 
 // ReconcileAfterApply reapplies durable stopped intent through the declared adapter.
-// Any plan or service-contract change invalidates the state fail-closed.
+// Changes to selected services invalidate their stopped intent fail-closed.
+// A narrower Apply leaves signed intent for unselected services untouched.
 func (c *Controller) ReconcileAfterApply(ctx context.Context) error {
 	if _, err := os.Lstat(filepath.Join(c.workspace, filepath.FromSlash(stateRelativePath))); errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -368,7 +377,7 @@ func (c *Controller) ReconcileAfterApply(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	state, exists, err := c.loadStateIfExists(authority)
+	state, exists, err := c.loadSignedStateIfExists()
 	if err != nil || !exists {
 		return err
 	}
@@ -377,7 +386,13 @@ func (c *Controller) ReconcileAfterApply(ctx context.Context) error {
 			continue
 		}
 		definition, ok := authority.Services[serviceKey]
-		if !ok || definition.Critical || !slices.Contains(definition.AllowedActions, ActionStop) {
+		if !ok {
+			continue
+		}
+		if err := requireDesiredServiceAuthority(state, desired, authority); err != nil {
+			return err
+		}
+		if definition.Critical || !slices.Contains(definition.AllowedActions, ActionStop) {
 			return &Error{ReasonCode: ReasonContractChanged, Message: "persisted desired state references a service that is no longer stoppable"}
 		}
 		target, err := c.runtimeTarget(definition)
@@ -605,6 +620,17 @@ func (c *Controller) runtimeTarget(definition serviceDefinition) (runtimeTarget,
 }
 
 func loadKomodoDeploymentRef(workspace, runtimeRef string) (platformdeploy.DeploymentRef, error) {
+	if runtimeRef != "" {
+		project := "stackkit-" + runtimeRef
+		present, err := platformdeploy.HasOwnerHostDeployment(workspace, project)
+		if err != nil {
+			return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Message: "native Komodo deployment custody is invalid"}
+		}
+		if present {
+			state, err := platformdeploy.LoadOwnerHostDeployment(workspace, project)
+			return state.Deployment, err
+		}
+	}
 	payload, err := readOwnerFile(workspace, ".stackkit/state.yaml")
 	if err != nil {
 		return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied deployment state is unavailable: " + err.Error()}
@@ -660,12 +686,29 @@ func runtimeCommand(target runtimeTarget, args, componentRefs []string) runtimeC
 	return runtimeCommandRequest{Adapter: target.Adapter, RuntimeRef: target.RuntimeRef, ComposePath: target.ComposePath, ExternalID: target.ExternalID, HTTPConfig: target.HTTPConfig, Args: args, ComponentRefs: append([]string(nil), componentRefs...)}
 }
 
-func (c *Controller) loadState(authority runtimeAuthority) (DesiredState, error) {
-	state, exists, err := c.loadStateIfExists(authority)
+func (c *Controller) loadState(authority runtimeAuthority, serviceKey string) (DesiredState, error) {
+	state, exists, err := c.loadSignedStateIfExists()
 	if err != nil {
 		return DesiredState{}, err
 	}
 	if exists {
+		// Authenticate the whole ledger, but bind only the requested service.
+		// Every retained legacy entry keeps the authority that signed it.
+		for key, desired := range state.Services {
+			if desired.Binding == nil {
+				desired.Binding = &DesiredServiceBinding{PlanHash: state.PlanHash, ServiceContractHash: state.ServiceContractHash}
+				state.Services[key] = desired
+			}
+		}
+		if desired, found := state.Services[serviceKey]; found {
+			if err := requireDesiredServiceAuthority(state, desired, authority); err != nil {
+				if desired.State == DesiredStopped {
+					return DesiredState{}, err
+				}
+				delete(state.Services, serviceKey)
+			}
+		}
+		state.PlanHash, state.ServiceContractHash = authority.PlanHash, authority.ServiceContractHash
 		return state, nil
 	}
 	ownerRef, err := c.signer.OwnerRef(c.workspace)
@@ -675,7 +718,7 @@ func (c *Controller) loadState(authority runtimeAuthority) (DesiredState, error)
 	return DesiredState{APIVersion: StateAPIVersion, OwnerRef: ownerRef, PlanHash: authority.PlanHash, ServiceContractHash: authority.ServiceContractHash, Services: map[string]DesiredService{}}, nil
 }
 
-func (c *Controller) loadStateIfExists(authority runtimeAuthority) (DesiredState, bool, error) {
+func (c *Controller) loadSignedStateIfExists() (DesiredState, bool, error) {
 	path := filepath.Join(c.workspace, filepath.FromSlash(stateRelativePath))
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -694,30 +737,21 @@ func (c *Controller) loadStateIfExists(authority runtimeAuthority) (DesiredState
 	if err != nil || c.signer.Verify(c.workspace, canonical, state.Signature) != nil {
 		return DesiredState{}, false, &Error{ReasonCode: "desired_state_signature_invalid", Message: "desired service state signature does not verify"}
 	}
-	stale := state.PlanHash != authority.PlanHash || state.ServiceContractHash != authority.ServiceContractHash
-	if stale && !holdsStoppedIntent(state) {
-		// Only a stopped service is durable owner intent. A state that
-		// records every service as running asks for the Apply default, so a
-		// new plan supersedes it instead of blocking Apply and later
-		// service commands.
-		return DesiredState{}, false, nil
-	}
-	if state.PlanHash != authority.PlanHash {
-		return DesiredState{}, false, &Error{ReasonCode: ReasonPlanChanged, Message: "desired service state was invalidated by a plan change"}
-	}
-	if state.ServiceContractHash != authority.ServiceContractHash {
-		return DesiredState{}, false, &Error{ReasonCode: ReasonContractChanged, Message: "desired service state was invalidated by a service-contract change"}
-	}
 	return state, true, nil
 }
 
-func holdsStoppedIntent(state DesiredState) bool {
-	for _, service := range state.Services {
-		if service.State == DesiredStopped {
-			return true
-		}
+func requireDesiredServiceAuthority(state DesiredState, desired DesiredService, authority runtimeAuthority) error {
+	planHash, contractHash := state.PlanHash, state.ServiceContractHash
+	if desired.Binding != nil {
+		planHash, contractHash = desired.Binding.PlanHash, desired.Binding.ServiceContractHash
 	}
-	return false
+	if planHash != authority.PlanHash {
+		return &Error{ReasonCode: ReasonPlanChanged, Message: "desired service state was invalidated by a plan change"}
+	}
+	if contractHash != authority.ServiceContractHash {
+		return &Error{ReasonCode: ReasonContractChanged, Message: "desired service state was invalidated by a service-contract change"}
+	}
+	return nil
 }
 
 func (c *Controller) persistState(state *DesiredState) error {

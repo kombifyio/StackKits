@@ -77,8 +77,9 @@ type RuntimeRecoveryGraph struct {
 
 // ComposeRuntime binds one local Compose project to the exact owner-custody
 // bytes that were verified before restore mutation. The kit core runtime and
-// every selected standalone-compose Application runtime are represented
-// independently; no PaaS or remote runtime is admitted here.
+// every selected standalone-compose Application and native Marketplace
+// installation are represented independently. PaaS-deployed applications and
+// remote runtimes are outside this authority.
 type ComposeRuntime struct {
 	Project           string                    `json:"project"`
 	Path              string                    `json:"path"`

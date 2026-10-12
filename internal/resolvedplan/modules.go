@@ -3,6 +3,8 @@ package resolvedplan
 import (
 	"fmt"
 	"sort"
+
+	"github.com/kombifyio/stackkits/internal/capacityfit"
 )
 
 type providerModuleSelection struct {
@@ -743,28 +745,37 @@ func nodeRuntimeAdmission(requirements map[string]any, node nodeView) (string, e
 			status = mergeRuntimeAdmissionStatus(status, "unverified")
 		}
 	}
-	for _, minimum := range []struct {
+	minimum, capacity := capacityfit.Vector{}, capacityfit.Vector{}
+	for _, axis := range []struct {
 		requirement string
 		fact        string
-	}{{"minCpuCores", "cpuCores"}, {"minRamGB", "ramGB"}, {"minStorageGB", "storageGB"}} {
-		if _, exists := requirements[minimum.requirement]; !exists {
+		axis        capacityfit.Axis
+	}{{"minCpuCores", "cpuCores", capacityfit.CPU}, {"minRamGB", "ramGB", capacityfit.RAM}, {"minStorageGB", "storageGB", capacityfit.Storage}} {
+		if _, exists := requirements[axis.requirement]; !exists {
 			continue
 		}
-		wanted, err := intField(requirements, "runtimeRequirements", minimum.requirement)
+		wanted, err := intField(requirements, "runtimeRequirements", axis.requirement)
 		if err != nil {
 			return "", err
 		}
-		observed, attested, err := inventoryIntFact(node.inventoryFacts, minimum.fact)
+		minimum.Set(axis.axis, float64(wanted))
+		observed, attested, err := inventoryIntFact(node.inventoryFacts, axis.fact)
 		if err != nil {
 			return "", err
 		}
-		if !attested {
-			status = mergeRuntimeAdmissionStatus(status, "unverified")
-			continue
+		if attested {
+			capacity.Set(axis.axis, float64(observed))
 		}
-		if observed < wanted {
-			status = mergeRuntimeAdmissionStatus(status, "unsatisfied")
-		}
+	}
+	verdict, err := capacityfit.AdmitMinimum(minimum, capacityfit.NodeCapacity{NodeRef: node.id, Origin: capacityfit.Inventory, Values: capacity})
+	if err != nil {
+		return "", fail(ErrInvalidInput, "runtimeRequirements", "%v", err)
+	}
+	switch verdict {
+	case capacityfit.Fail:
+		status = mergeRuntimeAdmissionStatus(status, "unsatisfied")
+	case capacityfit.Unverified:
+		status = mergeRuntimeAdmissionStatus(status, "unverified")
 	}
 	if _, exists := requirements["minAMD64MicroarchitectureLevel"]; exists {
 		wanted, err := intField(requirements, "runtimeRequirements", "minAMD64MicroarchitectureLevel")
@@ -867,6 +878,11 @@ func resolveModuleProvides(moduleID, providerID string, contract map[string]any,
 
 func moduleProvidesTypedImplementation(moduleID string, contract map[string]any) (bool, error) {
 	path := "catalog.modules." + moduleID
+	if _, exists, err := optionalObjectField(contract, path, "runtimeAdapterBootstrap"); err != nil {
+		return false, err
+	} else if exists {
+		return true, nil
+	}
 	if _, exists, err := optionalObjectField(contract, path, "runtimeAdapter"); err != nil {
 		return false, err
 	} else if exists {
@@ -971,7 +987,7 @@ func (c *Compiler) resolveModuleContract(moduleID, providerID string, provides, 
 	}
 	for _, field := range []string{
 		"nodeSelection", "enforcementRequirement", "runtimeOwnerRequirement",
-		"runtimeAdapter", "runtimeAdapterAgent", "storageAllocationContract", "dataBindingContract",
+		"runtimeAdapter", "runtimeAdapterAgent", "runtimeAdapterBootstrap", "storageAllocationContract", "dataBindingContract",
 		"backupSourceContract", "snapshotContract", "restoreContract", "recoveryContract",
 	} {
 		contractValue, exists, err := optionalObjectField(contract, "catalog.modules."+moduleID, field)

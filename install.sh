@@ -16,6 +16,18 @@
 # =============================================================================
 set -eu
 
+# BEGIN STACKKIT_BOOTSTRAP_SOURCE
+# stdin has no script directory; the website projection inlines these helpers.
+case "$0" in
+  */install.sh|install.sh)
+    _INSTALL_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
+    # shellcheck source=install-host-bootstrap.sh
+    . "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh"
+    ;;
+  *) printf 'Use the complete entrypoint: curl -fsSL https://install.stackkit.cc | sh\n' >&2; exit 2 ;;
+esac
+# END STACKKIT_BOOTSTRAP_SOURCE
+
 # KIT_NAME controls which kit definitions are downloaded alongside the binary.
 # ""             → CLI + catalog, then ask to install a StackKit (default yes)
 # "basement-kit" → CLI + basement-kit definitions
@@ -58,6 +70,29 @@ if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]
     TARGET_HOME="$sudo_home"
   fi
 fi
+
+installer_journal_begin core "$TARGET_HOME/.stackkits/installer"
+TMP=""
+trap '_installer_exit_code=$?; installer_interrupted "$_installer_exit_code"; [ -z "$TMP" ] || rm -rf "$TMP"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+# An interrupted core install retries the same release, rather than silently
+# mixing a new Latest with the partially installed payload.
+if [ "$INSTALLER_PREVIOUS_STATE" != complete ] && [ "${STACKKIT_RELEASE_VERSION+x}" != x ]; then
+  _resume_release=$(installer_journal_read release)
+  if [ -n "$_resume_release" ]; then STACKKIT_RELEASE_VERSION="$_resume_release"; export STACKKIT_RELEASE_VERSION; fi
+fi
+if [ "$INSTALLER_PREVIOUS_STATE" != complete ]; then
+  [ "$#" -ne 0 ] || KIT_NAME=$(installer_journal_read kit)
+  if [ "${STACKKIT_CLI_ONLY+x}" != x ]; then
+    STACKKIT_CLI_ONLY=$(installer_journal_read cli_only)
+    export STACKKIT_CLI_ONLY
+  fi
+fi
+installer_journal_write kit "$KIT_NAME"
+installer_journal_write cli_only "${STACKKIT_CLI_ONLY:-}"
+installer_phase resolve-release
 
 GITHUB_AUTH_HEADER=""
 if [ -n "${STACKKIT_GITHUB_TOKEN:-}" ]; then
@@ -186,8 +221,9 @@ esac
 DOWNLOAD_BASE_OVERRIDE="${STACKKIT_RELEASE_DOWNLOAD_BASE_URL:-}"
 DOWNLOAD_BASE="${DOWNLOAD_BASE_OVERRIDE:-https://github.com/$REPO/releases/download/v${LATEST}}"
 URL="${DOWNLOAD_BASE%/}/${ARCHIVE}"
+installer_journal_write release "$LATEST"
+installer_phase download
 TMP=$(mktemp -d)
-trap 'rm -rf "$TMP"' EXIT
 
 release_asset_api_url() {
   asset_name="$1"
@@ -285,6 +321,7 @@ if [ "${STACKKIT_SKIP_CHECKSUM_VERIFY:-0}" != "1" ]; then
   echo "Verified ${ARCHIVE} against ${CHECKSUMS_FILE} (sha256 ${EXPECTED_SHA256})."
 fi
 
+installer_phase verify-archive
 tar xzf "$TMP/$ARCHIVE" -C "$TMP"
 
 if [ ! -f "$TMP/tofu" ]; then
@@ -293,6 +330,7 @@ if [ ! -f "$TMP/tofu" ]; then
   exit 1
 fi
 
+installer_phase install-toolchain
 if [ "$(id -u)" -eq 0 ]; then
   install -m 755 "$TMP/stackkit" "$INSTALL_DIR/stackkit"
   install -m 755 "$TMP/tofu" "$INSTALL_DIR/tofu"
@@ -411,6 +449,7 @@ install_kit_definitions() {
 }
 
 if [ -n "$INSTALL_KITS" ]; then
+  installer_phase install-definitions
   install_kit_definitions "$TARGET_HOME/.stackkits" "$TARGET_USER"
   # A root-run workspace (the Cloud Kit host installer runs as root) reads
   # root's own ~/.stackkits. When sudo sent the kits to the invoking user,
@@ -421,6 +460,8 @@ if [ -n "$INSTALL_KITS" ]; then
   fi
 fi
 fi
+command -v stackkit >/dev/null 2>&1 || { printf 'stackkit is not on PATH; add %s and re-run this installer.\n' "$INSTALL_DIR" >&2; exit 1; }
+installer_complete
 
 # --- Summary ------------------------------------------------------------------
 
@@ -436,6 +477,7 @@ fi
 
 print_cli_chain() {
   kit="$1"
+  [ "$kit" != all ] || kit=basement-kit
   echo "  CLI path (you drive every step; fully parameterizable/automatable):"
   echo "    mkdir my-homelab && cd my-homelab"
   case "$kit" in
@@ -444,7 +486,13 @@ print_cli_chain() {
   esac
   echo "    stackkit init $kit --catalog-defaults --non-interactive --owner-source=local --owner-email you@example.com$domain_arg"
   echo "    stackkit generate                            # resolve + render artifacts"
+  if [ "$kit" = modern-homelab ]; then
+    echo "    stackkit plan                               # inspect the authored topology"
+    echo "  Modern multi-site apply requires Techstack. The standalone CLI runs Standard Mode only."
+    return 0
+  fi
   echo "    stackkit apply --auto-approve                # deploy (installs Docker on demand)"
+  echo "    stackkit verify --json                       # inspect the observed result"
 }
 
 can_prompt() {
@@ -607,6 +655,5 @@ case "$DETECTED_ENV" in
 esac
 
 echo "  Continuing with the matching kit installer..."
-trap - EXIT
 export STACKKIT_NO_BANNER=1
-curl -sSL "$KIT_INSTALL_URL" | sh
+installer_run_entry "$KIT_INSTALL_URL"

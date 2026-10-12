@@ -58,7 +58,7 @@ func newSetupCommand() *cobra.Command {
 	command.Flags().BoolVar(&options.ownerApproved, "owner-approve", false, "Approve this Plan-bound application setup")
 	command.Flags().BoolVar(&options.completeOnboarding, "complete-onboarding", false, "Complete the app user and administrator onboarding after verifying the owner login")
 	command.Flags().BoolVar(&options.outputJSON, "json", false, "Emit the secret-free verified setup result")
-	command.AddCommand(newSetupAIConnectCommand(), newHomeAssistantConnectorCommand(nil))
+	command.AddCommand(newSetupAIConnectCommand(), newSetupAIProviderCommand(), newHomeAssistantConnectorCommand(nil))
 	return command
 }
 

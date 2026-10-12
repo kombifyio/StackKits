@@ -26,6 +26,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/originca"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -91,6 +92,10 @@ type osStandaloneComposeWorkloadOperations struct {
 	// the local owner service.
 	ensureOIDCClient func(context.Context, string, localowner.ApplicationOIDCClientRequest) error
 	mediaRootProbe   func(string) error
+	// A selected platform reuses preparation and read-only observation with
+	// its own exact binding. Apply remains owned by that platform.
+	adapterRef       string
+	adapterModuleRef string
 }
 
 // NewOSStandaloneComposeWorkloadOperations constructs the local no-PaaS
@@ -118,6 +123,19 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	ctx context.Context,
 	deployment SelectedPaaSWorkloadDeployment,
 ) (SelectedPaaSApplyReceipt, error) {
+	if o != nil && o.adapterRef != "" && o.adapterRef != standaloneComposeAdapterRef {
+		return SelectedPaaSApplyReceipt{}, errors.New("selected platform owns workload mutation")
+	}
+	if o != nil {
+		project := "stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef
+		present, err := platformdeploy.HasOwnerHostDeployment(o.workspaceRoot, project)
+		if err != nil {
+			return SelectedPaaSApplyReceipt{}, fmt.Errorf("read workload manager custody: %w", err)
+		}
+		if present {
+			return SelectedPaaSApplyReceipt{}, &WorkloadManagerConflictError{Project: project, CurrentManager: "komodo", RequestedManager: standaloneComposeAdapterRef}
+		}
+	}
 	prepared, err := o.PrepareWorkloadCompose(ctx, deployment)
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
@@ -474,9 +492,12 @@ func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
 	if o == nil || o.workspaceRoot == "" || o.runner == nil || o.prober == nil {
 		return standaloneComposeProject{}, errors.New("standalone Compose operations are not initialized")
 	}
-	if deployment.RuntimeAdapter.ID != standaloneComposeAdapterRef ||
-		deployment.RuntimeAdapter.ModuleRef != standaloneComposeModuleRef {
-		return standaloneComposeProject{}, errors.New("deployment is not bound to the standalone Compose adapter")
+	adapterRef, moduleRef := o.adapterRef, o.adapterModuleRef
+	if adapterRef == "" {
+		adapterRef, moduleRef = standaloneComposeAdapterRef, standaloneComposeModuleRef
+	}
+	if deployment.RuntimeAdapter.ID != adapterRef || deployment.RuntimeAdapter.ModuleRef != moduleRef {
+		return standaloneComposeProject{}, errors.New("deployment is not bound to the selected workload adapter")
 	}
 	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
 	if err != nil {
@@ -520,7 +541,11 @@ func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
 			return standaloneComposeProject{}, err
 		}
 	}
-	compose, environment, configFiles, err := o.renderWithDockerRoot(bundle, dockerRoot)
+	facts := standaloneComposeHostFacts{dockerRoot: dockerRoot}
+	if facts.notify, err = o.resolveHomeAssistantNotify(ctx, bundle, ensureIdentity); err != nil {
+		return standaloneComposeProject{}, err
+	}
+	compose, environment, configFiles, err := o.renderWithHostFacts(bundle, facts)
 	if err != nil {
 		return standaloneComposeProject{}, err
 	}
@@ -734,11 +759,19 @@ func (o *osStandaloneComposeWorkloadOperations) render(
 	return o.renderWithDockerRoot(bundle, "")
 }
 
-//nolint:gocyclo // One renderer keeps every admitted mount and exception visible together.
 func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
 	dockerRoot string,
 ) ([]byte, []byte, map[string][]byte, error) {
+	return o.renderWithHostFacts(bundle, standaloneComposeHostFacts{dockerRoot: dockerRoot})
+}
+
+//nolint:gocyclo // One renderer keeps every admitted mount and exception visible together.
+func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
+	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
+	facts standaloneComposeHostFacts,
+) ([]byte, []byte, map[string][]byte, error) {
+	dockerRoot := facts.dockerRoot
 	routingNetwork := ""
 	if bundle.Route.ID != "" {
 		var err error
@@ -843,11 +876,11 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 				if standaloneComposeVolumeOwnsPath(component.Volumes, file.Target) {
 					return nil, nil, nil, errors.New("a secret reference file must stay outside the workload volumes")
 				}
-				content, err := file.Content(string(material))
+				variable := standaloneComposeSecretVariable(component.ID, "FILE_"+slot)
+				content, err := o.secretReferenceFileContent(file, string(material), document.Name, variable)
 				if err != nil {
 					return nil, nil, nil, fmt.Errorf("secret slot %q: %w", slot, err)
 				}
-				variable := standaloneComposeSecretVariable(component.ID, "FILE_"+slot)
 				secretValues[variable] = content
 				if document.Secrets == nil {
 					document.Secrets = map[string]standaloneComposeSecret{}
@@ -1040,6 +1073,9 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithDockerRoot(
 			return nil, nil, nil, err
 		}
 		if err := applyHomeIdentityAccess(o.workspaceRoot, bundle.Route.CoreModuleRef, document.Networks["stackkit-routing"], component.HomeIdentityAccess, &service, configFiles); err != nil {
+			return nil, nil, nil, err
+		}
+		if err := applyHomeAssistantNotify(component.HomeAssistantNotify, facts.notify, &service, configFiles); err != nil {
 			return nil, nil, nil, err
 		}
 		if err := applyPocketIDClientEnvironment(o.workspaceRoot, bundle, component, &service, secretValues, configFiles); err != nil {
@@ -1314,7 +1350,7 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 	}
 }
 
-// standaloneComposeDockerRootArgs is the one read-only non-Compose query the
+// standaloneComposeDockerRootArgs is a read-only non-Compose query the
 // runner admits: the daemon's data root for the game node's self-path volume.
 var standaloneComposeDockerRootArgs = []string{"info", "--format", "{{.DockerRootDir}}"}
 
@@ -1327,7 +1363,7 @@ func (osStandaloneComposeProcessRunner) Run(
 ) ([]byte, error) {
 	dockerRootQuery := slices.Equal(args, standaloneComposeDockerRootArgs)
 	jellyfinDiscoveryQuery := validJellyfinDiscoveryQuery(args)
-	if !dockerRootQuery && !jellyfinDiscoveryQuery && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
+	if !dockerRootQuery && !jellyfinDiscoveryQuery && !validNetworkGatewayQuery(args) && !validWorkloadManagerQuery(args) && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
 		args[3] != "--env-file" || filepath.Dir(args[4]) != directory ||
 		filepath.Base(args[4]) != ".env" || args[5] != "-f" ||
 		filepath.Dir(args[6]) != directory || filepath.Base(args[6]) != "compose.yaml") {

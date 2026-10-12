@@ -52,6 +52,9 @@ type Options struct {
 	ExceptionsPath string
 	// WorkspaceRoot locates custody material (certificates). Empty skips it.
 	WorkspaceRoot string
+	// SSHAccess is the SSH certificate access recorded in node custody. nil
+	// leaves the SSH access controls out.
+	SSHAccess *SSHAccessState
 }
 
 // Engine observes and repairs one node through Host.
@@ -96,6 +99,7 @@ func (e Engine) Verify(ctx context.Context, options Options) Evidence {
 	run := observation{engine: e, options: options}
 	controls := []Control{run.firewall(ctx)}
 	controls = append(controls, run.ssh(ctx)...)
+	controls = append(controls, run.sshAccess(ctx)...)
 	controls = append(controls,
 		run.bruteForce(ctx), run.unattendedUpgrades(ctx), run.pendingSecurity(ctx),
 		run.rebootRequired(), run.sysctl(),

@@ -10,7 +10,7 @@
 #
 # Architecture:
 #   L1 Foundation  - socket-proxy (Docker API isolation), PocketID + TinyAuth (login gateway)
-#   L2 Platform    - Selected PaaS/router contract (Coolify default; Komodo beta-supported alternative; Dokploy draft), Node Hub
+#   L2 Platform    - Selected PaaS/router contract (none by default per ADR-0049; Coolify and Komodo explicit; Dokploy not pursued), Node Hub
 #   Dashboard      - Homepage/gethomepage as IaC-managed homelab start page
 #   L3 Application - Vaultwarden, Immich, Files/Cloudreve
 #

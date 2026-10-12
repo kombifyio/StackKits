@@ -18,9 +18,9 @@ As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu 
 | Area | Service | Status |
 |------|---------|--------|
 | Docker API isolation | Docker socket via target daemon | generated |
-| Reverse proxy | Coolify Traefik/proxy | the selected PaaS router owns the traffic path (default `paas: coolify`); a StackKit-owned Traefik runs only for explicit `paas: komodo` |
+| Reverse proxy | StackKits router | the native default core owns the traffic path; a PaaS router owns it only for an explicitly selected `paas: coolify` on the legacy path |
 | Local access | scoped LAN DNS + Owner-CA HTTPS | canonical `*.lab.home` URLs on enrolled devices; no router/DHCP change |
-| PaaS | `coolify` | enabled default for local/kombify.me/custom-domain routing; `komodo` is the beta-supported alternative; `dokploy` remains draft |
+| Optional platforms | none by default | Marketplace on Coolify is planned application work; Komodo is the explicit operations-platform path. Current support requires a receipt at the installed pin. Dokploy is not pursued (ADR-0049). |
 | Passkey identity | `pocketid` | mandatory default |
 | Login gateway | `tinyauth` | generated with PocketID OIDC provider config |
 | Node Hub | `dashboard` | StackKits node-local onboarding, protected technical bootstrap access reveal, service matrix, and public how-to links at `base.<domain>` |
@@ -34,11 +34,18 @@ As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu 
 
 PocketID is no longer optional in the Basement Kit default: until another passkey-capable identity provider exists, TinyAuth is generated with a PocketID OIDC provider and PocketID is provisioned as the local IdP. `admin-bootstrap`, Smart Home, and AI remain planned or opt-in until their modules can create a working first user and pass the same smoke path.
 
-The production-readiness path builds a fresh Ubuntu target inside Docker Desktop, installs prerequisites with `stackkit prepare`, generates OpenTofu, and applies it inside that Ubuntu target. OpenTofu is not required on the Windows host for this release gate. Product-bundled L3 applications are PaaS-intended by default in the StackKit contract. A passing SK-S1 Enterprise gate must show Vaultwarden, Immich, and any enabled StackKit-owned/default L3 module as manageable apps in the selected PaaS with external app IDs/status evidence. User-installed apps outside that manifest path are state-unmanaged by StackKit.
+The production-readiness path builds a fresh Ubuntu target inside Docker Desktop, installs prerequisites with `stackkit prepare`, generates OpenTofu, and applies it inside that Ubuntu target. OpenTofu is not required on the Windows host for this release gate. The native Basement default uses standalone Compose and the StackKits router,
+without a PaaS. Release evidence identifies each selected workload's execution
+owner, deployment identity, route and observed status. Explicit platform
+integrations need their own receipt at the current pin; generated bootstrap
+output and historical platform evidence do not establish current support.
 
-- expected healthy platform containers include Coolify/Coolify proxy plus `pocketid`, `tinyauth`, `homepage`, and `homepage-socket-proxy`; StackKit-owned apps must surface through Coolify with external IDs in strict default tests
-- expected default L3 apps are recorded in `.platform-apps-manifest.json` with `ownership: "stackkit"` and delivered through the selected PaaS, not started by direct Docker Compose fallback
-- disabled services such as `komodo`, `dokploy`, `dockge`, and `jellyfin` must not appear as enabled dashboard actions, how-to rows, or active outputs
+Marketplace will install Coolify as an optional application under ADR-0049.
+Apps installed through its store belong to Coolify and the user; curated
+kombify applications retain StackKits ownership. Each workload has exactly one
+execution and routing owner. Disabled services do not appear as enabled
+dashboard actions, how-to rows or active outputs.
+
 - TinyAuth is inspected for the v5 `TINYAUTH_OAUTH_PROVIDERS_POCKETID_*` contract and `TINYAUTH_OAUTH_AUTOREDIRECT=pocketid`
 - Local probes use the canonical `*.lab.home` routes over Owner-CA HTTPS. The StackKits LAN resolver and Step-CA are part of the local default; device enrollment installs only this zone and public root with explicit OS approval. Public/custom domains continue through the selected router and their declared certificate provider.
 
@@ -181,26 +188,35 @@ The domain transition itself does not create a sealed rollback checkpoint. The s
 
 Passkeys for `https://id.home` cannot sign in at `https://id.lab.home`. Activation waits until the running PocketID advertises the new issuer, then returns a one-time URL for the same owner or household subject. Existing household members use `user activate`, without deleting or recreating their accounts. Activation status becomes active only after a new credential appears following new-domain enrollment; old credentials remain preserved. Share each household activation URL only with that person.
 
-Custom domains remain explicit configuration. They do not create a second local alias: the selected domain becomes the one canonical service URL set and is routed by the selected Coolify/Traefik or Komodo/Traefik path.
+Custom domains remain explicit configuration. They do not create a second local alias: the selected domain becomes the one canonical service URL set and is routed by the selected workload's single admitted routing owner.
 
 TinyAuth receives a generated local break-glass password from the composition engine and is also preconfigured for PocketID OIDC. There is no static `admin/admin123` credential. During local generation the generated values are written to `terraform.tfvars.json`; treat that file as sensitive build output and do not commit it.
 
+### Legacy platform compatibility
+
+The bootstrap details below describe the existing explicit v1 platform
+compatibility adapters. They are not the native default, the Marketplace
+package or proof of support at the current pin. The legacy omitted-`paas`
+Coolify default and Full core alternatives have separate retirement work
+under ADR-0049. Marketplace identity instead requires the owner e-mail as the
+Coolify root identity and PocketID login for the owner and household members.
+
 Coolify receives a generated policy-compliant root password through its official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables. The root email is the same technical admin email rendered into the StackSpec; local-only rollouts synthesize the reserved `admin@example.com` address when no admin email is supplied. After Coolify is installed, the generated bootstrap disables public registration, clears Coolify onboarding, enables Coolify's API, creates a root-scoped StackKit platform token inside Coolify, resolves the StackKit project/environment/server/destination placement IDs, starts/reconciles the Coolify proxy, and writes `.stackkit/platform.json` for the app-deployment phase. That file includes `bootstrapEvidence` for API access, team management, proxy routing, secrets, backup volume labels plus restore-drill handoff, health checks, and service handoff. The user must never be expected to discover or create a Coolify root account or API token manually after opening the generated links.
 
-Komodo is the beta-supported alternative through explicit `paas: komodo`; Coolify remains the default. The generated rollout installs Komodo Core, Periphery, and MongoDB, creates the initial local admin from generated technical bootstrap credentials, disables further registration, creates a Komodo API key through the HTTP API, and writes `.stackkit/platform.json` with `apiKey`/`apiSecret` plus the same bootstrap-evidence shape. Initial Komodo routing is StackKit-owned Traefik, not a Komodo-owned router; the Core API host port is loopback-bound in bridge mode for node-local bootstrap.
+Komodo is selected explicitly through `paas: komodo` on this compatibility path. Its operations-platform implementation remains draft until a current-pin receipt covers bootstrap, deployment identity, routing, status and data operations. The paragraph above describes the explicit legacy `paas: coolify` path. The generated rollout installs Komodo Core, Periphery, and MongoDB, creates the initial local admin from generated technical bootstrap credentials, disables further registration, creates a Komodo API key through the HTTP API, and writes `.stackkit/platform.json` with `apiKey`/`apiSecret` plus the same bootstrap-evidence shape. Initial Komodo routing is StackKit-owned Traefik, not a Komodo-owned router; the Core API host port is loopback-bound in bridge mode for node-local bootstrap.
 
-Dokploy is draft. Its generated adapter code may remain available for explicit development diagnostics, but it is not part of the beta-supported alternative set and is not a canonical E2E scenario until promoted.
+Dokploy is not pursued. Remaining legacy adapter code does not establish a supported selection or a future promotion commitment.
 
 ## Current Gaps
 
 These are deliberate scope boundaries, not hidden defaults:
 
 - PocketID/OIDC is mandatory for passkey-capable login. The TinyAuth OIDC client is provisioned automatically; owner/passkey enrollment is the first dashboard onboarding step. Service admin passwords are not PocketID passwords; the Node Hub can reveal the generated technical bootstrap credentials once after Base is protected.
-- Coolify and Komodo have generated admin/API bootstrap and machine-readable platform bootstrap evidence. Backup scheduling is still marked `prepared`, not production-complete, until the v0.4 PaaS hardening work promotes concrete backup operations.
+- Existing compatibility adapters generate platform bootstrap evidence. Marketplace lifecycle work must cover Coolify database and volume backup, restore, status, verification, removal and upgrade. Unsupported data operations fail closed.
 - Uptime Kuma, Whoami, Files, Vaultwarden, and Immich carry automatic v0.4 beta setup drops. Node Hub setup actions remain visible as idempotent retry/fallback controls for Owner-dependent drops such as `immich-owner-bootstrap`.
 - Vaultwarden 1.37.2 receives a native PocketID SSO client restricted to `owners` and `admins`, matching the catalog's `vault` privilege. The client uses PKCE, the exact `/identity/connect/oidc-signin` callback, and the existing Home CA. Public signups stay closed; the Owner invitation, app-local email/master-password login and verified break-glass admin token remain available. PocketID authenticates the person; each user chooses and unlocks a personal master password. StackKit never generates a user vault password or shared decryption key. Browser SSO and existing-account association still require runtime qualification. The outer TinyAuth gate remains, so mobile/extension clients that cannot carry its session are not yet a supported path. Existing admin-saved `config.json` settings can override environment SSO settings; an older saved override requires explicit reconciliation before SSO can be claimed active. These settings follow the pinned upstream [SSO configuration](https://github.com/dani-garcia/vaultwarden/blob/1.37.2/src/config.rs) and [identity flow](https://github.com/dani-garcia/vaultwarden/blob/1.37.2/src/api/identity.rs).
 - Jellyfin/media and Dockge are opt-in/manual until their first-run UX matches the default path.
-- The Coolify-managed L3 application layer now has a strict generated bootstrap contract. Direct Docker Compose starts for StackKit-owned/default L3 apps are invalid managed release evidence; product-bundled L3 apps must be manageable selected-PaaS apps with platform external IDs in state. User-installed apps outside StackKit manifests are state-unmanaged.
+- Platform-managed workloads require the selected owner's external deployment identity. Standalone Compose workloads remain Compose-owned. A fallback result is not evidence of successful platform management; store applications outside StackKits manifests remain Coolify/user-owned.
 - The host `security-baseline` is mandatory for Basement Kit beta release evidence. `admin-bootstrap` and broader login-gateway follow-ups remain tracked in the roadmap.
 
 ## Architecture
@@ -212,9 +228,8 @@ enrolled LAN device
 scoped DNS (*.lab.home -> Home node) + Owner-CA HTTPS
       |
       v
-Coolify Traefik/proxy :443       (PaaS router = StackKit router; Golden Rules §3/§5.6)
+StackKits router :443           (native standalone default)
       |
-      +--> Coolify        coolify.lab.home   (platform management)
       +--> PocketID       id.lab.home
       +--> TinyAuth       auth.lab.home
       +--> Node Hub       base.lab.home
@@ -227,8 +242,8 @@ Coolify Traefik/proxy :443       (PaaS router = StackKit router; Golden Rules §
       |
       +--> socket-proxy   internal Docker API, never public
 
-With explicit `paas: komodo`, exactly one StackKit-owned Traefik replaces the
-Coolify proxy as the router (accepted adapter exception).
+Explicit Komodo retains StackKits routing. Marketplace proxy coexistence is
+separate planned work; it must preserve one routing owner per workload.
 ```
 
 Security defaults currently covered by generated resources:

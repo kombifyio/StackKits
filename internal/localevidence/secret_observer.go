@@ -91,6 +91,13 @@ func ResolveLocalSecretMaterial(workspaceRoot, secretRef string) ([]byte, error)
 	if record.Kind == localEncryptedIssuedSecretCustodyKind {
 		return decryptLocalIssuedSecret(workspaceRoot, record)
 	}
+	if record.Kind == localWalletBoundSecretCustodyKind {
+		binding, err := decodeWalletBindingMaterial(record)
+		if err != nil {
+			return nil, err
+		}
+		return resolveWalletBinding(workspaceRoot, binding)
+	}
 	return append([]byte(nil), record.Material...), nil
 }
 
@@ -159,8 +166,8 @@ func RemoveLocalIssuedSecret(workspaceRoot, secretRef string) (returnErr error) 
 	if err != nil {
 		return err
 	}
-	if record.Kind != localIssuedSecretCustodyKind && record.Kind != localEncryptedIssuedSecretCustodyKind {
-		return errors.New("localevidence: only an issued secret can be removed from custody")
+	if record.Kind != localIssuedSecretCustodyKind && record.Kind != localEncryptedIssuedSecretCustodyKind && record.Kind != localWalletBoundSecretCustodyKind {
+		return errors.New("localevidence: only an issued or Wallet-bound secret can be removed from custody")
 	}
 	root, err := confinedfs.Open(workspaceRoot)
 	if err != nil {
@@ -304,11 +311,14 @@ func loadLocalSecretCustody(workspaceRoot, refDigest string) (localSecretCustody
 	if record.Kind == localEncryptedIssuedSecretCustodyKind {
 		validLength = len(material) > 0 && len(material) <= maxIssuedSecretBytes+1024
 	}
+	if record.Kind == localWalletBoundSecretCustodyKind {
+		validLength = len(material) > 0 && len(material) <= maxWalletBindingBytes
+	}
 	if err != nil || !validLength {
 		return localSecretCustody{}, errors.New("localevidence: local secret custody material is malformed")
 	}
 	digest := sha256.Sum256(material)
-	if record.APIVersion != localSecretCustodyAPIVersion || (record.Kind != localSecretCustodyKind && record.Kind != localIssuedSecretCustodyKind && record.Kind != localEncryptedIssuedSecretCustodyKind) ||
+	if record.APIVersion != localSecretCustodyAPIVersion || (record.Kind != localSecretCustodyKind && record.Kind != localIssuedSecretCustodyKind && record.Kind != localEncryptedIssuedSecretCustodyKind && record.Kind != localWalletBoundSecretCustodyKind) ||
 		record.RefDigest != refDigest || record.MaterialDigest != hex.EncodeToString(digest[:]) {
 		return localSecretCustody{}, errors.New("localevidence: local secret custody integrity check failed")
 	}

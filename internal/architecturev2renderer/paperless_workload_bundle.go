@@ -22,14 +22,15 @@ const paperlessWorkloadRendererSchema = `stackkit.workload-bundle/v2|PaperlessWo
 // PaperlessWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected application adapter.
 type PaperlessWorkloadBundleDescriptor struct {
-	WorkloadRef string
-	ModuleRef   string
-	Release     string
-	SiteRef     string
-	NodeRef     string
-	InstanceRef string
-	Components  []SelectedPaaSWorkloadComponentDescriptor
-	Route       ApplicationDeliveryRouteDescriptor
+	OwnerPasswordRef string
+	WorkloadRef      string
+	ModuleRef        string
+	Release          string
+	SiteRef          string
+	NodeRef          string
+	InstanceRef      string
+	Components       []SelectedPaaSWorkloadComponentDescriptor
+	Route            ApplicationDeliveryRouteDescriptor
 }
 
 func PaperlessWorkloadBundleRendererContract() RendererContract {
@@ -98,7 +99,8 @@ func ParsePaperlessWorkloadBundle(data []byte) (PaperlessWorkloadBundleDescripto
 		return PaperlessWorkloadBundleDescriptor{}, err
 	}
 	descriptor := PaperlessWorkloadBundleDescriptor{
-		WorkloadRef: "documents", ModuleRef: paperlessWorkloadModuleID, Release: paperlessRelease,
+		OwnerPasswordRef: bundle.SecretRefs["owner-password"],
+		WorkloadRef:      "documents", ModuleRef: paperlessWorkloadModuleID, Release: paperlessRelease,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		Components: make([]SelectedPaaSWorkloadComponentDescriptor, len(components)), Route: bundle.DeliveryRoute.descriptor(),
 	}

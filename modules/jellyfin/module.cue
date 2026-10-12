@@ -158,7 +158,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "media", nested: "media", flat: "media"}
-		dashboard: {icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 Media", enableVar: "enable_jellyfin", guideUrl: "https://docs.kombify.io/stackkits/apps/jellyfin"}
+		dashboard: {icon: "&#127916;", order: 40, section: "Applications", badge: "L3 \u00b7 Media", enableVar: "enable_jellyfin", guideUrl: "https://docs.kombify.io/stackkits/apps/jellyfin", clients: [{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=org.jellyfin.mobile"}, {platform: "ios", kind: "store", url: "https://apps.apple.com/us/app/jellyfin-mobile/id1480192618"}, {platform: "windows", kind: "download", url: "https://github.com/jellyfin/jellyfin-media-player/releases"}], vendor: {name: "Jellyfin", website: "https://jellyfin.org", docs: "https://jellyfin.org/docs/", license: "GPL-2.0", support: [{kind: "donate", url: "https://opencollective.com/jellyfin"}]}}
 
 		output: {
 			url:         "https://media.{{.domain}}"

@@ -17,6 +17,7 @@ export {
   CatalogValidationError,
 } from "./catalog.js";
 export { createPlanner, overallCapacityStatus, PlannerService } from "./planner.js";
+export { loadCapacityEngine } from "./capacity-engine.js";
 export {
   createPlannerSession,
   getSharedPlannerSession,

@@ -69,6 +69,8 @@ var productAuthorityRole = embeddedAuthorityRole{
 		"foundation/application_lifecycle.cue",
 		"foundation/architecture_v2_definition_binding.cue",
 		"foundation/architecture_v2_catalog.cue",
+		"foundation/architecture_v2_komodo_bootstrap.cue",
+		"foundation/architecture_v2_marketplace.cue",
 		"foundation/architecture_v2_cloud_core.cue",
 	},
 }

@@ -40,6 +40,10 @@ type CatalogEntry struct {
 	EnableVar string
 	// Public Mintlify guide URL for this service.
 	GuideURL string
+	// Official end-user clients (store entries and installer downloads).
+	Clients []ServiceClient
+	// Upstream project metadata; nil when the module declares none.
+	Vendor *ServiceVendor
 }
 
 // ServiceCatalogFromModules reads all module contracts and builds the canonical service catalog.
@@ -131,6 +135,8 @@ func catalogEntryForService(mc ModuleContract, svc ServiceDef) CatalogEntry {
 		Order:       svc.DashboardOrder,
 		EnableVar:   svc.DashboardEnableVar,
 		GuideURL:    svc.DashboardGuideURL,
+		Clients:     append([]ServiceClient(nil), svc.DashboardClients...),
+		Vendor:      svc.DashboardVendor,
 	}
 }
 

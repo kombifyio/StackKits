@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyStaticAsset } from '../../scripts/copy-static-asset.mjs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -11,6 +12,14 @@ const removedV1Target = join(root, 'public', 'data', 'stackkits-webmcp', 'catalo
 const execFileAsync = promisify(execFile)
 const repositoryRoot = join(root, '..', '..')
 
+// Export the same local Go engine used by every capacity consumer.
+await execFileAsync(process.execPath, [join(root, '..', 'scripts', 'build-capacity-wasm.mjs')])
+const capacityTarget = join(root, 'public', 'data', 'stackkits-capacity')
+await mkdir(capacityTarget, { recursive: true })
+for (const file of ['capacityfit.wasm', 'wasm_exec.js', 'GO-LICENSE', 'manifest.json']) {
+  await copyStaticAsset(join(root, '..', 'assets', file), join(capacityTarget, file))
+}
+
 let bytes
 try {
   const marker = JSON.parse(await readFile(join(repositoryRoot, '.stackkits-public-export.json'), 'utf8'))
@@ -20,6 +29,9 @@ try {
   bytes = await readFile(source)
 } catch (error) {
   if (error?.code !== 'ENOENT') throw error
+  if (!await readFile(join(repositoryRoot, 'go.mod')).then(() => true, () => false)) {
+    bytes = await readFile(source)
+  } else {
   const { stdout } = await execFileAsync('git', ['-C', repositoryRoot, 'rev-parse', 'HEAD'])
   const sourceSha = stdout.trim().toLowerCase()
   if (!/^[a-f0-9]{40}$/.test(sourceSha)) throw new Error('repository source SHA is invalid')
@@ -31,6 +43,7 @@ try {
     '--schema', 'v2alpha1',
   ])
   bytes = await readFile(source)
+  }
 }
 const catalog = JSON.parse(bytes.toString('utf8'))
 if (!/^[a-f0-9]{40}$/.test(catalog.source_sha ?? '')) throw new Error('generated catalog source_sha is invalid')

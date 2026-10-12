@@ -891,6 +891,9 @@ func (r *Runtime) RestoreSnapshot(
 		OperationID: request.OperationID,
 		StagingPath: request.StagingPath,
 	}
+	if len(snapshot.Members) > 0 {
+		engineRestore.Snapshot = &snapshot
+	}
 	secret, err = r.loadAuthorizedSecret(request.OwnerRef, request.AuthorityRef, request.AuthorizationLineage)
 	if err != nil {
 		return backuplifecycle.RepositoryRestoreReceipt{}, fmt.Errorf("localbackupruntime: load backup custody for restore staging: %w", err)
@@ -933,6 +936,17 @@ func (r *Runtime) snapshotRequest(request backuplifecycle.RepositorySnapshotRequ
 	if !reflect.DeepEqual(request.Excludes, source.ExcludePaths) {
 		return backupexec.SnapshotRequest{}, errors.New("localbackupruntime: current snapshot request excludes differ from the governed policy")
 	}
+	var sources []localbackuppolicy.SnapshotSource
+	if r.policy != nil {
+		var err error
+		sources, err = r.policy.SnapshotSources()
+		if err != nil {
+			return backupexec.SnapshotRequest{}, err
+		}
+	}
+	if !reflect.DeepEqual(request.Sources, sources) {
+		return backupexec.SnapshotRequest{}, errors.New("localbackupruntime: class snapshot selection differs from the current policy")
+	}
 	return snapshotRequestShape(request)
 }
 
@@ -941,6 +955,14 @@ func (r *Runtime) historicalSnapshotRequest(
 ) (backupexec.SnapshotRequest, error) {
 	if request.RepositoryID != r.repositoryID() || !localbackuppolicy.IsRecognizedSnapshotSelectionForCoreModule(r.sourceProjection().CoreModuleRef, request.Source, request.Excludes) {
 		return backupexec.SnapshotRequest{}, errors.New("localbackupruntime: historical snapshot selection is not recognized")
+	}
+	if len(request.Sources) > 0 {
+		if r.policy == nil {
+			return backupexec.SnapshotRequest{}, errors.New("localbackupruntime: historical class selection requires the held topology")
+		}
+		if err := r.policy.ValidateSnapshotSourceSelection(request.Sources); err != nil {
+			return backupexec.SnapshotRequest{}, err
+		}
 	}
 	return snapshotRequestShape(request)
 }
@@ -958,6 +980,7 @@ func snapshotRequestShape(request backuplifecycle.RepositorySnapshotRequest) (ba
 		Description:     "stackkit-local-backup:" + request.OperationID,
 		OperationID:     request.OperationID,
 		ProtectRecovery: request.ProtectRecovery,
+		Sources:         localbackuppolicy.CloneSnapshotSources(request.Sources),
 	}, nil
 }
 

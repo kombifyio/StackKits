@@ -133,6 +133,16 @@ type BeginRequest struct {
 	Stage        string
 	OperationRef string
 	Now          time.Time
+	// ExclusiveApplyHeld is set only by an Apply that holds, right now, the
+	// workspace's exclusive lifecycle-mutation lock and the exact output-root
+	// lock. Both are operating-system advisory locks owned by the open file
+	// description, so the kernel releases them when their holder dies, SIGKILL
+	// included. While the caller holds them no other Apply can be running in
+	// this workspace, and a still-running Apply operation in the state can only
+	// belong to a process that is gone. Begin then records that operation as
+	// abandoned and admits the new Apply. It has no effect on any other
+	// operation kind.
+	ExclusiveApplyHeld bool
 }
 
 type TransitionRequest struct {
@@ -408,12 +418,18 @@ func (store Store) Begin(contract Contract, request BeginRequest) (State, error)
 				return errors.New("application lifecycle operation ID was already used")
 			}
 		}
+		now := normalizedNow(request.Now)
 		if current := currentOperation(*state); current != nil &&
 			(current.Status == StatusRunning || current.Status == StatusRecoveryRequired) &&
 			!applyRetrySupersedes(*current, request) {
-			return fmt.Errorf("application lifecycle operation %s requires completion or recovery", current.ID)
+			if !abandonedApplySupersedes(*current, request) {
+				return fmt.Errorf(
+					"application lifecycle operation %s (%s, %s) requires completion or recovery by the command that started it; it is not safe to take over automatically",
+					current.ID, current.OperationRef, current.Status,
+				)
+			}
+			abandonOperation(&state.Operations[len(state.Operations)-1], request.ID, now)
 		}
-		now := normalizedNow(request.Now)
 		previous := ""
 		if len(state.Operations) > 0 {
 			previous = state.Operations[len(state.Operations)-1].Digest
@@ -445,6 +461,30 @@ const applyOperationRef = "stackkit.apply"
 func applyRetrySupersedes(current Operation, request BeginRequest) bool {
 	return current.Status == StatusRecoveryRequired &&
 		current.OperationRef == applyOperationRef && request.OperationRef == applyOperationRef
+}
+
+// abandonedApplySupersedes admits a new Apply after an Apply that is still
+// recorded as running. Nothing records an outcome when the Apply process is
+// killed mid-step (a controller's wall-clock timeout, the OOM killer, power
+// loss), so the operation stays running for ever and every retry was refused
+// within seconds. A retry is that Apply's recovery, as for recovery-required,
+// but only once the caller has proved that no Apply is alive (see
+// BeginRequest.ExclusiveApplyHeld). A running operation of any other kind
+// (restore, backup, setup, upgrade) is not idempotent and keeps blocking until
+// its own recovery path completes it.
+func abandonedApplySupersedes(current Operation, request BeginRequest) bool {
+	return request.ExclusiveApplyHeld && current.Status == StatusRunning &&
+		current.OperationRef == applyOperationRef && request.OperationRef == applyOperationRef
+}
+
+// abandonOperation records, in the digest-chained history, that a running
+// operation ended without an outcome and which operation superseded it.
+func abandonOperation(operation *Operation, supersededBy string, now time.Time) {
+	operation.Status = StatusFailed
+	operation.UpdatedAt = now
+	operation.CompletedAt = now
+	operation.LastError = "abandoned: the Apply process ended without recording an outcome; superseded by " + supersededBy
+	operation.Digest = operationDigest(*operation)
 }
 
 func (store Store) Transition(contract Contract, request TransitionRequest) (State, error) {

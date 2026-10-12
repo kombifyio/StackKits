@@ -154,6 +154,10 @@ func currentWorkspaceOwnsListener(ctx context.Context, workspace string, listene
 }
 
 func currentWorkspaceOwnsListenerWithPriorCompose(ctx context.Context, workspace string, listener ListenerRequirement, priorCompose string) bool {
+	return currentWorkspaceOwnsListenerWithStoppedIntent(ctx, workspace, listener, priorCompose, false)
+}
+
+func currentWorkspaceOwnsListenerWithStoppedIntent(ctx context.Context, workspace string, listener ListenerRequirement, priorCompose string, allowStopped bool) bool {
 	port := listener.Port
 	root, err := filepath.Abs(strings.TrimSpace(workspace))
 	if err != nil || root == "" || port < 1 || port > 65535 {
@@ -163,24 +167,45 @@ func currentWorkspaceOwnsListenerWithPriorCompose(ctx context.Context, workspace
 	if len(directories) == 0 {
 		return false
 	}
-	ids, ok := boundedDockerOutput(ctx, root, nil, "ps", "--filter", "publish="+strconv.Itoa(port), "--format", "{{.ID}}")
-	if !ok {
-		return false
+	var container inspectedRuntimeContainer
+	if allowStopped {
+		// Docker's publish filter omits stopped containers, whose host-side
+		// port intent remains in HostConfig. Use the same complete inventory
+		// as listener admission and require exactly one overlapping intent.
+		containers, observed := inspectHostContainers(ctx, root)
+		if !observed {
+			return false
+		}
+		matches := 0
+		for _, candidate := range containers {
+			if containerBindingOverlaps(candidate, listener) {
+				container = candidate
+				matches++
+			}
+		}
+		if matches != 1 {
+			return false
+		}
+	} else {
+		ids, ok := boundedDockerOutput(ctx, root, nil, "ps", "--filter", "publish="+strconv.Itoa(port), "--format", "{{.ID}}")
+		if !ok {
+			return false
+		}
+		fields := strings.Fields(string(ids))
+		if len(fields) != 1 || !dockerObjectID.MatchString(fields[0]) {
+			return false
+		}
+		raw, ok := boundedDockerOutput(ctx, root, nil, "inspect", fields[0])
+		if !ok {
+			return false
+		}
+		var containers []inspectedRuntimeContainer
+		if json.Unmarshal(raw, &containers) != nil || len(containers) != 1 {
+			return false
+		}
+		container = containers[0]
 	}
-	fields := strings.Fields(string(ids))
-	if len(fields) != 1 || !dockerObjectID.MatchString(fields[0]) {
-		return false
-	}
-	raw, ok := boundedDockerOutput(ctx, root, nil, "inspect", fields[0])
-	if !ok {
-		return false
-	}
-	var containers []inspectedRuntimeContainer
-	if json.Unmarshal(raw, &containers) != nil || len(containers) != 1 {
-		return false
-	}
-	container := containers[0]
-	if !container.State.Running {
+	if !container.State.Running && !allowStopped {
 		return false
 	}
 	labels := container.Config.Labels

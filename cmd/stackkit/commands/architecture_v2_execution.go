@@ -127,6 +127,7 @@ type architectureV2ExecutionGate struct {
 	rejectV1           bool
 	now                func() time.Time
 	removeCompose      func(context.Context, string, workloadremoval.Request) (workloadremoval.Result, error)
+	removeMarketplace  func(context.Context, string, workloadremoval.Request) (workloadremoval.Result, error)
 }
 
 func newArchitectureV2ExecutionGate() architectureV2ExecutionGate {
@@ -977,6 +978,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if executionContext == nil {
 		executionContext = context.Background()
 	}
+	executionContext = applyOwnerProgressContext(executionContext)
 	now := time.Now
 	if g.now != nil {
 		now = g.now
@@ -998,6 +1000,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if strings.TrimSpace(lifecycleJoinOperation) == "" {
 		lifecycleRuns, err = beginArchitectureV2HostApplicationLifecycles(
 			wd, persisted, scopedPersisted, "install", "stackkit.apply", lifecycleStartedAt,
+			holdsExclusiveApplyLocks(transaction, outputLock, persisted.OutputRoot()),
 		)
 		if err != nil {
 			return err
@@ -1150,6 +1153,9 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		return options.applySink(applyOutput)
 	}
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
+	if access.ClientTrust != nil && access.ClientTrust.LinuxProfilePath != "" {
+		fmt.Printf("Client trust: copy %s to a Linux NetworkManager client, review CA %s, then run sudo sh enroll-linux.sh --approve.\n", filepath.Join(wd, access.ClientTrust.LinuxProfilePath), access.ClientTrust.CAFingerprint)
+	}
 	printStackKitsMCPAccess(wd, access)
 	return nil
 }
@@ -1229,7 +1235,7 @@ func removeLabeledDockerResources(wd string, ctx context.Context, reason error) 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := dockerFallbackCleanup(ctx, false); err != nil {
+	if err := dockerFallbackCleanup(ctx, false, false); err != nil {
 		return fmt.Errorf("remove labeled Docker resources: %w", err)
 	}
 	cleanupFiles(wd, false)
@@ -1287,7 +1293,12 @@ func (g architectureV2ExecutionGate) removeOneAppliedV2Workload(
 	if err != nil {
 		return err
 	}
-	placement, err := appliedWorkloadRemovalPlacement(applied, rootRequest.RequestDigest, workloadRef, options)
+	var placement workloadremoval.AppliedPlacement
+	if workloadRef == "marketplace" {
+		placement, err = appliedMarketplaceRemovalPlacement(applied, rootRequest, options)
+	} else {
+		placement, err = appliedWorkloadRemovalPlacement(applied, rootRequest.RequestDigest, workloadRef, options)
+	}
 	if err != nil {
 		return err
 	}
@@ -1296,7 +1307,10 @@ func (g architectureV2ExecutionGate) removeOneAppliedV2Workload(
 
 type architectureV2WorkloadRemovalKind string
 
-const architectureV2WorkloadRemovalStandaloneCompose architectureV2WorkloadRemovalKind = "standalone-compose"
+const (
+	architectureV2WorkloadRemovalStandaloneCompose architectureV2WorkloadRemovalKind = "standalone-compose"
+	architectureV2WorkloadRemovalMarketplace       architectureV2WorkloadRemovalKind = "marketplace"
+)
 
 func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
 	wd string,
@@ -1316,9 +1330,10 @@ func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
 		return err
 	}
 	processChannel := architectureV2TargetUsesProcessChannel(target, configured)
-	if _, err := architectureV2WorkloadRemovalDispatch(target, processChannel); err != nil {
+	removalKind, err := architectureV2WorkloadRemovalDispatch(target, processChannel)
+	if err != nil {
 		if options.dataDisposition == workloadremoval.DataDispositionDelete {
-			return fmt.Errorf("--delete-data requires canonical native standalone Compose removal: %w", err)
+			return fmt.Errorf("--delete-data requires canonical native workload removal: %w", err)
 		}
 		return err
 	}
@@ -1372,6 +1387,12 @@ func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
 	remove := g.removeCompose
 	if remove == nil {
 		remove = nativehost.RemoveStandaloneComposeWorkload
+	}
+	if removalKind == architectureV2WorkloadRemovalMarketplace {
+		remove = g.removeMarketplace
+		if remove == nil {
+			remove = nativehost.RemoveMarketplaceWorkload
+		}
 	}
 	result, err := remove(ctx, wd, request)
 	if err != nil {
@@ -1469,6 +1490,9 @@ func architectureV2WorkloadRemovalDispatch(
 	}
 	if adapterID == "standalone-compose" && moduleRef == "stackkits-standalone-compose-runtime" {
 		return architectureV2WorkloadRemovalStandaloneCompose, nil
+	}
+	if architectureV2MarketplaceRemovalTarget(target) {
+		return architectureV2WorkloadRemovalMarketplace, nil
 	}
 	if adapterID != "" {
 		return "", fmt.Errorf("applied runtime owner %q does not admit data-disposition-aware workload removal; keep or delete was not sent", adapterID)

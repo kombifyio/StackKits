@@ -276,7 +276,7 @@ Replaced by the per-tool role system:
 
 Service placement rules:
 
-> Note: "placement" here means node scheduling (`#ServiceDefinition.placement.nodeType`), not the `placementMode` axis (`docs/placement/`).
+> Note: "placement" here means node scheduling (`#ServiceDefinition.placement.nodeType`), not the `placementMode` axis ([CUE placement contract](../foundation/placement.cue)).
 
 1. Platform services (Traefik, Auth, PAAS) stay on primary node
 2. Use case services distributed by hardware requirements (GPU, storage)

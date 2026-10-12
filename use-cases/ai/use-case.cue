@@ -135,6 +135,10 @@ Package: foundation.#UseCasePackage & {
 			name:        "kombify-ai-connect"
 			policy:      "on_demand"
 			description: "Connect Ollama to the owner's kombify AI as an own model endpoint with `stackkit setup ai-connect`: the connector token from Companion Studio stays in local custody and an outbound-only connector starts on the next apply; nothing inbound is opened."
+		}, {
+			name:        "external-ai-provider"
+			policy:      "on_demand"
+			description: "Offer an external OpenAI-compatible provider in Open WebUI with `stackkit setup ai-provider`: the API key is a kombify Wallet item sealed to this node with `stackkit wallet-item import`; local custody keeps only its binding and each apply reads the newest delivered version."
 		}]
 	}
 	lifecycle: foundation.#StandardUseCaseLifecycle

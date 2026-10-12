@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
@@ -89,7 +90,7 @@ func runNativeV2RestoreActivationCommand(
 	if err != nil {
 		return err
 	}
-	if err := bootstrapRuntime.bind(plan, manifest, operationID); err != nil {
+	if err := bootstrapRuntime.bind(ctx, plan, manifest, operationID); err != nil {
 		return err
 	}
 	service, err := restoreactivation.NewService(
@@ -255,7 +256,7 @@ func runNativeV2RestoreRecoveryCommand(
 		if deriveErr != nil {
 			return restoreactivation.Authority{}, deriveErr
 		}
-		if bindErr := bootstrapRuntime.bind(plan, manifest, journal.OperationID); bindErr != nil {
+		if bindErr := bootstrapRuntime.bind(ctx, plan, manifest, journal.OperationID); bindErr != nil {
 			return restoreactivation.Authority{}, bindErr
 		}
 		return authority, nil
@@ -332,7 +333,7 @@ func runOriginalReleaseRestoreRecovery(cmd *cobra.Command, workspace, operationI
 	current, err := releaseindex.ExactTagForBuildVersion(version)
 	if err != nil || !semver.IsValid(tag) || !strings.HasPrefix(tag, "v") || semver.Compare(tag, "v0.52.5") < 0 || semver.Compare(tag, current) > 0 ||
 		!hexDigest.MatchString(archive) || !hexDigest.MatchString(index) || !nativeV2BackupDigestPattern.MatchString(expectedPlanHash) {
-		return true, errors.New("original recovery requires an exact prior release, archive/index digests and original admitted plan")
+		return true, actionableerror.WithDiagnostic("restore_original_release_required", errors.New("original recovery requires an exact prior release, archive/index digests and original admitted plan"))
 	}
 	// Inspect under the existing lifecycle lock, then release it so A can open
 	// and revalidate the same original journal under that lock before effects.
@@ -346,7 +347,7 @@ func runOriginalReleaseRestoreRecovery(cmd *cobra.Command, workspace, operationI
 		record.RestoreActivation.Authority.PlanHash == expectedPlanHash
 	closeErr := session.Close()
 	if !bound || closeErr != nil {
-		return true, errors.Join(errors.New("original recovery differs from the signed local Owner journal"), ownerErr, closeErr)
+		return true, actionableerror.WithDiagnostic("restore_original_release_required", errors.Join(errors.New("original recovery differs from the signed local Owner journal"), ownerErr, closeErr))
 	}
 	receipt, err := resolveOriginalRecoveryInstallation(ctx, workspace, tag, archive, index, cacheDirectory)
 	if err != nil {

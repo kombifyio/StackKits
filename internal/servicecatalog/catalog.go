@@ -30,33 +30,35 @@ const (
 // endpoint. Tool and module names describe implementation; Key and slugs
 // describe the product URL contract.
 type Service struct {
-	Key                     string   `json:"key"`
-	Name                    string   `json:"name"`
-	DisplayName             string   `json:"display_name"`
-	Description             string   `json:"description,omitempty"`
-	ToolName                string   `json:"tool_name"`
-	ModuleSlug              string   `json:"module_slug"`
-	Role                    string   `json:"role,omitempty"`
-	DefaultTool             string   `json:"default_tool,omitempty"`
-	Alternatives            []string `json:"alternatives,omitempty"`
-	LocalSlug               string   `json:"local_slug"`
-	PublicSlug              string   `json:"public_slug"`
-	LegacyAliases           []string `json:"legacy_aliases,omitempty"`
-	IdentityPolicy          string   `json:"identity_policy"`
-	OwnerProvisioningPolicy string   `json:"owner_provisioning_policy"`
-	Icon                    string   `json:"icon,omitempty"`
-	LogoURL                 string   `json:"logo_url,omitempty"`
-	Badge                   string   `json:"badge,omitempty"`
-	Layer                   string   `json:"layer,omitempty"`
-	Section                 string   `json:"section,omitempty"`
-	Order                   int      `json:"order,omitempty"`
-	EnableVar               string   `json:"enable_var,omitempty"`
-	GuideURL                string   `json:"guide_url,omitempty"`
-	SetupPolicy             string   `json:"setup_policy,omitempty"`
-	SetupActionLabel        string   `json:"setup_action_label,omitempty"`
-	Delivery                Delivery `json:"delivery,omitempty"`
-	BootstrapProvider       string   `json:"bootstrap_provider,omitempty"`
-	Default                 bool     `json:"default"`
+	Key                     string               `json:"key"`
+	Name                    string               `json:"name"`
+	DisplayName             string               `json:"display_name"`
+	Description             string               `json:"description,omitempty"`
+	ToolName                string               `json:"tool_name"`
+	ModuleSlug              string               `json:"module_slug"`
+	Role                    string               `json:"role,omitempty"`
+	DefaultTool             string               `json:"default_tool,omitempty"`
+	Alternatives            []string             `json:"alternatives,omitempty"`
+	LocalSlug               string               `json:"local_slug"`
+	PublicSlug              string               `json:"public_slug"`
+	LegacyAliases           []string             `json:"legacy_aliases,omitempty"`
+	IdentityPolicy          string               `json:"identity_policy"`
+	OwnerProvisioningPolicy string               `json:"owner_provisioning_policy"`
+	Icon                    string               `json:"icon,omitempty"`
+	LogoURL                 string               `json:"logo_url,omitempty"`
+	Badge                   string               `json:"badge,omitempty"`
+	Layer                   string               `json:"layer,omitempty"`
+	Section                 string               `json:"section,omitempty"`
+	Order                   int                  `json:"order,omitempty"`
+	EnableVar               string               `json:"enable_var,omitempty"`
+	GuideURL                string               `json:"guide_url,omitempty"`
+	Clients                 []registry.AppClient `json:"clients,omitempty"`
+	Vendor                  *registry.AppVendor  `json:"vendor,omitempty"`
+	SetupPolicy             string               `json:"setup_policy,omitempty"`
+	SetupActionLabel        string               `json:"setup_action_label,omitempty"`
+	Delivery                Delivery             `json:"delivery,omitempty"`
+	BootstrapProvider       string               `json:"bootstrap_provider,omitempty"`
+	Default                 bool                 `json:"default"`
 
 	// Template-compat fields used by the existing monolithic Base Kit template.
 	// They intentionally mirror LocalSlug/PublicSlug until the template is fully
@@ -225,6 +227,8 @@ func FromCUE(entries []cueval.CatalogEntry) []Service {
 				Order:                   entry.Order,
 				EnableVar:               entry.EnableVar,
 				GuideURL:                entry.GuideURL,
+				Clients:                 clientsFromCUE(entry.Clients),
+				Vendor:                  vendorFromCUE(entry.Vendor),
 			}
 			normalize(&svc)
 			byKey[key] = len(services)
@@ -281,6 +285,8 @@ func FromRegistry(entries []registry.Service) []Service {
 			Order:                   entry.Order,
 			EnableVar:               entry.EnableVar,
 			GuideURL:                entry.GuideURL,
+			Clients:                 append([]registry.AppClient(nil), entry.Clients...),
+			Vendor:                  entry.Vendor,
 			SetupPolicy:             entry.SetupPolicy,
 			SetupActionLabel:        entry.SetupActionLabel,
 			Delivery:                Delivery{ManagedBy: entry.Delivery.ManagedBy},
@@ -327,7 +333,35 @@ func overlayFromCUE(svc *Service, entry cueval.CatalogEntry) {
 	if entry.GuideURL != "" {
 		svc.GuideURL = entry.GuideURL
 	}
+	if len(entry.Clients) > 0 {
+		svc.Clients = clientsFromCUE(entry.Clients)
+	}
+	if entry.Vendor != nil {
+		svc.Vendor = vendorFromCUE(entry.Vendor)
+	}
 	normalize(svc)
+}
+
+func vendorFromCUE(vendor *cueval.ServiceVendor) *registry.AppVendor {
+	if vendor == nil {
+		return nil
+	}
+	out := &registry.AppVendor{Name: vendor.Name, Website: vendor.Website, Docs: vendor.Docs, License: vendor.License}
+	for _, link := range vendor.Support {
+		out.Support = append(out.Support, registry.AppSupportLink{Kind: link.Kind, URL: link.URL})
+	}
+	return out
+}
+
+func clientsFromCUE(clients []cueval.ServiceClient) []registry.AppClient {
+	if len(clients) == 0 {
+		return nil
+	}
+	out := make([]registry.AppClient, 0, len(clients))
+	for _, client := range clients {
+		out = append(out, registry.AppClient{Platform: client.Platform, Kind: client.Kind, URL: client.URL})
+	}
+	return out
 }
 
 // WithDefaultFallbacks merges default catalog metadata into a partial catalog
@@ -382,6 +416,12 @@ func mergeMissingDefaultFields(svc *Service, fallback Service) {
 	}
 	if svc.LogoURL == "" {
 		svc.LogoURL = fallback.LogoURL
+	}
+	if len(svc.Clients) == 0 {
+		svc.Clients = append([]registry.AppClient(nil), fallback.Clients...)
+	}
+	if svc.Vendor == nil {
+		svc.Vendor = fallback.Vendor
 	}
 	if svc.Layer == "" {
 		svc.Layer = fallback.Layer

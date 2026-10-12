@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/config"
 )
 
@@ -82,21 +83,21 @@ func adoptConventionalInstallerWorkspace(wd string) string {
 
 func missingNativeStackSpecError(wd, displayPath string, mode architectureV2ExecutionMode) error {
 	if mode != architectureV2Remove {
-		return fmt.Errorf(
+		return actionableerror.WithDiagnostic("workspace_missing", fmt.Errorf(
 			"%s: canonical StackSpec v2 is required on the v0.7 line; %s is missing and implicit legacy defaults are disabled (run stackkit init, then retry)",
 			mode,
 			displayPath,
-		)
+		))
 	}
 	hint := strings.Join(conventionalInstallerWorkspaceCandidates(), " or ")
 	if hint == "" {
 		hint = filepath.Join("$HOME", conventionalBasementWorkspace)
 	}
-	return fmt.Errorf(
+	return actionableerror.WithDiagnostic("workspace_missing", fmt.Errorf(
 		"%s: %s is missing in %s; cd into the project directory (often %s) or pass --chdir, then retry",
 		mode,
 		displayPath,
 		wd,
 		hint,
-	)
+	))
 }

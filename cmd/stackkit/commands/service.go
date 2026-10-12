@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -89,7 +88,7 @@ func runServiceMutation(cmd *cobra.Command, action, serviceKey string, ownerAppr
 		}
 		return writeServiceJSON(cmd, result)
 	}
-	controller, err := serviceController()
+	controller, err := serviceController(commandContext(cmd))
 	if err != nil {
 		return machineAwareCommandError(cmd, err)
 	}
@@ -110,7 +109,7 @@ func runServiceLogs(cmd *cobra.Command, serviceKey string, tail int, cursor stri
 	} else if bound {
 		return machineAwareCommandError(cmd, fmt.Errorf("adopted lifecycle does not admit logs; use application verify for current source evidence"))
 	}
-	controller, err := serviceController()
+	controller, err := serviceController(commandContext(cmd))
 	if err != nil {
 		return machineAwareCommandError(cmd, err)
 	}
@@ -127,21 +126,17 @@ func runServiceLogs(cmd *cobra.Command, serviceKey string, tail int, cursor stri
 	return nil
 }
 
-func serviceController() (*servicecontrol.Controller, error) {
+func serviceController(ctx context.Context) (*servicecontrol.Controller, error) {
 	workspace, err := filepath.Abs(workDir)
 	if err != nil {
 		return nil, err
 	}
-	authority, err := newArchitectureV2CLIService(workspace, "", os.Getenv(architectureAuthorityRootEnv))
+	authority, err := inspectNativeV2AppliedAuthority(ctx, workspace, specFile)
 	if err != nil {
 		return nil, err
 	}
-	planPath := filepath.Join(workspace, "deploy", ".stackkit", "resolved-plan.json")
-	plan, err := authority.ReadCanonicalPlan(planPath)
-	if err != nil {
-		return nil, err
-	}
-	return servicecontrol.NewOSController(workspace, planPath, plan)
+	planPath := filepath.Join(workspace, filepath.FromSlash(authority.OutputRoot), ".stackkit", "resolved-plan.json")
+	return servicecontrol.NewOSController(workspace, planPath, authority.Plan)
 }
 
 func commandContext(cmd *cobra.Command) context.Context {

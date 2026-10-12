@@ -9,10 +9,19 @@
   },
   "files": [
     "dist",
+    "assets",
+    "data",
     "schemas",
     "src",
     "scripts",
-    "reference-host",
+    "reference-host/src",
+    "reference-host/scripts",
+    "reference-host/package.json",
+    "reference-host/package-lock.json",
+    "reference-host/vite.config.ts",
+    "reference-host/svelte.config.js",
+    "reference-host/tsconfig.json",
+    "reference-host/index.html",
     "README.md",
     "LICENSE"
   ],
@@ -35,6 +44,7 @@
     "./StackKitsPlanner.svelte": "./src/StackKitsPlanner.svelte",
     "./StackKitsPlannerHost.svelte": "./src/StackKitsPlannerHost.svelte",
     "./schemas/*": "./schemas/*",
+    "./assets/*": "./assets/*",
     "./data/*": "./data/*",
     "./generator": {
       "types": "./src/generator.ts",
@@ -44,13 +54,15 @@
   },
   "scripts": {
     "generate:types": "node scripts/generate-types.mjs",
-    "build": "npm run generate:types && tsc -p tsconfig.json",
+    "build:capacity": "node scripts/build-capacity-wasm.mjs",
+    "prepack": "npm run build",
+    "build": "npm run build:capacity && npm run generate:types && tsc -p tsconfig.json",
     "generate:catalog": "npm run build && node scripts/generate-catalog.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "check": "npm run build"
   },
   "dependencies": {
-    "webmcp-types": "0.1.9"
+    "webmcp-types": "0.1.10"
   },
   "devDependencies": {
     "@types/node": "^24.19.1",

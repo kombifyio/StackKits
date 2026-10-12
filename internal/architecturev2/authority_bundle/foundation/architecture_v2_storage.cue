@@ -71,6 +71,10 @@ import "list"
 			componentRef: #ContractID
 			volumeRef:    #ContractID
 			dataClasses: [...#DataClass] & list.MinItems(1)
+			backupDataClass?: #BackupDataClassV1
+			if _architectureV2VolumeBackupClasses["\(componentRef)/\(volumeRef)"] != _|_ {
+				backupDataClass: _architectureV2VolumeBackupClasses["\(componentRef)/\(volumeRef)"]
+			}
 		})] & list.MinItems(1)
 	}
 	snapshot: moduleRef: #ContractID

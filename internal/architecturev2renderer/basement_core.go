@@ -36,8 +36,8 @@ const (
 	basementCoreOpenTofuResourcePrefix = "basement_core"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:26|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:29|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:27|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:30|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-and-lan-dns|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -96,6 +96,9 @@ services:
       - --ping=true
       - --providers.docker.endpoint=tcp://socket-proxy:2375
       - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/stackkits-security/tls-options.yaml
+      - --providers.file.watch=true
+      - --entrypoints.komodo-control.address=:8443
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
@@ -110,6 +113,7 @@ services:
       - --certificatesresolvers.stackkits.acme.caCertificates=/step-ca/root.crt
     volumes:
       - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/step-ca/certs/root_ca.crt:/step-ca/root.crt:ro
+      - ./tls-options.yaml:/stackkits-security/tls-options.yaml:ro
       - basement-tls-acme:/letsencrypt
     ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "127.0.0.1:8080:8080"]
     healthcheck:
@@ -118,7 +122,10 @@ services:
       timeout: 3s
       retries: 12
       start_period: 5s
-    networks: [basement-core, basement-control]
+    networks:
+      basement-core:
+        aliases: ["komodo-control.{{STACKKIT_DOMAIN}}"]
+      basement-control: {}
   pocketid:
     image: ghcr.io/pocket-id/pocket-id:v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea
     restart: unless-stopped

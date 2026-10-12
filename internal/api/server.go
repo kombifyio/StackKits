@@ -76,6 +76,7 @@ type Server struct {
 	stackActionBackupState *backupRunStateStackAction
 	// backupExec and hookExec override the docker-exec adapters in tests.
 	backupExec                   backupexec.Executor
+	backupSecretExec             backupexec.SecretExecutor
 	hookExec                     backupexec.ContainerExecutor
 	stackActionReferenceResolver StackActionReferenceResolver
 }
@@ -123,7 +124,7 @@ func (s *Server) Handler() http.Handler {
 
 func architectureV2NoStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v2/resolve" ||
+		if r.URL.Path == "/api/v2/resolve" || r.URL.Path == "/api/v2/assess-capacity" ||
 			strings.HasPrefix(r.URL.Path, stackaction.PathPrefix) {
 			w.Header().Set("Cache-Control", "no-store")
 		}
@@ -138,6 +139,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/v1/capabilities", s.handleCapabilities)
 	s.mux.HandleFunc("GET /api/v1/openapi.yaml", s.handleOpenAPISpec)
 	s.mux.HandleFunc("POST /api/v2/resolve", s.handleArchitectureV2Resolve)
+	s.mux.HandleFunc("POST /api/v2/assess-capacity", s.handleArchitectureV2Capacity)
 	s.registerMCPRoutes()
 
 	s.registerStackActionRoutes()

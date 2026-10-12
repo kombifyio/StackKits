@@ -14,7 +14,7 @@ func ComputeArtifactSetHash(input []Artifact) (string, error) {
 	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].ID < artifacts[j].ID })
 	for i := range artifacts {
 		if artifacts[i].ExecutionClass == "" {
-			if artifacts[i].OwnerKind == "plan" {
+			if artifacts[i].OwnerKind == artifactOwnerPlan {
 				artifacts[i].ExecutionClass = ArtifactExecutionClassPlan
 			} else {
 				artifacts[i].ExecutionClass = ArtifactExecutionClassExecutable

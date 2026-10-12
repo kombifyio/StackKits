@@ -1,0 +1,75 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "guacamole",
+  "displayName": "Apache Guacamole",
+  "description": "Immutable Guacamole and guacd image catalog. The executable native-v2 Remote workload owns explicit connection and node-custodied owner authentication; this legacy scaffold is not an unattended installer.",
+  "layer": "L3-application",
+  "maturity": "experimental",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "minMemory": "512m"
+    }
+  },
+  "services": [
+    {
+      "name": "guacd",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-guacamole-runtime",
+        "componentRef": "guacd"
+      },
+      "networks": [
+        "guacamole-internal"
+      ],
+      "upstream": {
+        "github": "apache/guacamole-server",
+        "registryImage": "guacamole/guacd"
+      },
+      "healthCheck": {
+        "type": "command",
+        "command": "nc -z 127.0.0.1 4822"
+      }
+    },
+    {
+      "name": "guacamole",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-guacamole-runtime",
+        "componentRef": "guacamole"
+      },
+      "networks": [
+        "guacamole-internal"
+      ],
+      "needs": [
+        "guacd"
+      ],
+      "environment": {
+        "GUACD_HOSTNAME": "guacd",
+        "GUACD_PORT": "4822",
+        "WEBAPP_CONTEXT": "ROOT",
+        "GUACAMOLE_HOME": "/dev/shm/stackkits-guacamole"
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 8080
+      },
+      "upstream": {
+        "github": "apache/guacamole-client",
+        "registryImage": "guacamole/guacamole"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`remote.{{.domain}}`)",
+        "port": 8080
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth"
+      }
+    }
+  ]
+}

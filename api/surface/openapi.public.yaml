@@ -232,6 +232,50 @@ paths:
             application/yaml:
               schema:
                 type: string
+  /api/v2/assess-capacity:
+    post:
+      operationId: assessArchitectureV2Capacity
+      summary: Assess capacity for a CUE-bound module selection
+      description: |
+        Resolves the same StackSpec and Inventory as /api/v2/resolve, then
+        reports advisory numeric demand through the shared capacity engine.
+        Missing facts stay unverified. The result is bound to the plan hash;
+        it does not attest a host or authorize Apply. The resolver's body,
+        nesting, collection and concurrency limits apply unchanged.
+      tags: [Architecture]
+      security:
+        - StackKitsAPIKey: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArchitectureV2ResolveRequest"
+      responses:
+        "200":
+          description: Plan-bound advisory capacity assessment
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+            X-StackKit-Plan-Hash:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2ContentHash"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArchitectureV2CapacityAssessment"
+        default:
+          description: Existing resolver request, authentication, rate limit or compilation refusal
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/ArchitectureV2NoStore"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ArchitectureV2ResolveError"
+                  - $ref: "#/components/schemas/ErrorResponse"
   /api/v2/resolve:
     post:
       operationId: resolveArchitectureV2
@@ -1131,6 +1175,78 @@ components:
               type: string
         meta:
           $ref: "#/components/schemas/ResponseMeta"
+    CapacityVerdict:
+      type: string
+      enum: [pass, warning, unverified, fail]
+    CapacityVector:
+      type: object
+      additionalProperties: false
+      properties:
+        cpuCores: {type: number, minimum: 0}
+        ramGB: {type: number, minimum: 0}
+        storageGB: {type: number, minimum: 0}
+    ArchitectureV2CapacityAssessment:
+      type: object
+      additionalProperties: false
+      required: [planHash, assessment]
+      properties:
+        planHash:
+          $ref: "#/components/schemas/ArchitectureV2ContentHash"
+        assessment:
+          type: object
+          additionalProperties: false
+          required: [schemaVersion, nodes, overall]
+          properties:
+            schemaVersion: {type: string, const: stackkit.capacity-assessment/v1}
+            overall:
+              $ref: "#/components/schemas/CapacityVerdict"
+            policyRef: {type: string}
+            nodes:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [nodeRef, origin, demand, checks, overall, reasonCodes, advice]
+                properties:
+                  nodeRef: {type: string}
+                  origin: {type: string, enum: [declared, inventory, unavailable]}
+                  overall:
+                    $ref: "#/components/schemas/CapacityVerdict"
+                  reasonCodes: {type: array, items: {type: string}}
+                  advice: {type: array, items: {type: string}}
+                  demand:
+                    type: object
+                    additionalProperties: false
+                    required: [nodeRef, moduleRefs, unverifiedModuleRefs, unverifiedAxes, hostFloor, reservation, recommended, headroom]
+                    properties:
+                      nodeRef: {type: string}
+                      moduleRefs: {type: array, items: {type: string}}
+                      unverifiedModuleRefs: {type: array, items: {type: string}}
+                      unverifiedAxes:
+                        type: array
+                        items: {type: string, enum: [cpuCores, ramGB, storageGB]}
+                      hostFloor:
+                        $ref: "#/components/schemas/CapacityVector"
+                      reservation:
+                        $ref: "#/components/schemas/CapacityVector"
+                      recommended:
+                        $ref: "#/components/schemas/CapacityVector"
+                      headroom:
+                        $ref: "#/components/schemas/CapacityVector"
+                  checks:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [axis, status, reasonCode]
+                      properties:
+                        axis: {type: string, enum: [cpuCores, ramGB, storageGB]}
+                        observed: {type: number, minimum: 0}
+                        minimum: {type: number, minimum: 0}
+                        recommended: {type: number, minimum: 0}
+                        status:
+                          $ref: "#/components/schemas/CapacityVerdict"
+                        reasonCode: {type: string}
     ArchitectureV2ResolveRequest:
       type: object
       description: Strict HTTP envelope for Architecture v2 resolution.

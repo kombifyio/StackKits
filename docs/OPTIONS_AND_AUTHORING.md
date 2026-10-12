@@ -21,9 +21,9 @@ depend on them.
 | Concern | Release value |
 | --- | --- |
 | Default core and application realization | Standalone Compose is the complete primary experience. New Basement and Cloud core choices resolve to `standalone-compose`; application delivery defaults to Compose. No Coolify or Komodo services are installed by the default core. |
-| Optional platform integration | Coolify and Komodo require explicit intent and retain exactly one execution and routing owner per workload. The CLI is an optional interface, not a full edition. See ADR-0042. |
-| PaaS alternative | `komodo` is Beta in the native workload compatibility contract. It does not have native application backup/restore parity. |
-| Draft PaaS adapter | `dokploy` |
+| Optional application and operations | Marketplace owns the optional Coolify application outside default core; Komodo is the planned operations platform without a store. Existing explicit compatibility adapters retain one execution and routing owner per workload. See ADR-0042 and ADR-0049. |
+| Komodo compatibility metadata | `komodo` is labelled Beta in the native workload compatibility contract; this does not prove current-pin runtime support or application backup/restore parity. |
+| Retired direction | Dokploy is not pursued; its historical draft is not a promotion target. |
 | Legacy PaaS values | Historical `paas: none` is not the native `standalone-compose` alternative. `dockge` is not a native platform alternative. |
 | Dockge status | Experimental/constrained Compose manager service only; not a normal Basement Kit PaaS. |
 | Native module profiles | `stackkit/v2alpha2` selects each module's `computeProfile` explicitly. The default standalone core supports its declared profiles without becoming a reduced edition. Historical `lite` module IDs remain stable; they do not force Photos or Media to the same profile. Immich Lite is a separate workload alternative. See ADR-0039 and ADR-0042. |

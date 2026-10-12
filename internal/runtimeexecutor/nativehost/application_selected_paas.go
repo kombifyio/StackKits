@@ -18,6 +18,9 @@ import (
 type SelectedPaaSApplication string
 
 const (
+	SelectedPaaSApplicationAdguardHome       SelectedPaaSApplication = "adguard-home"
+	SelectedPaaSApplicationOpencloud         SelectedPaaSApplication = "opencloud"
+	SelectedPaaSApplicationGuacamole         SelectedPaaSApplication = "guacamole"
 	SelectedPaaSApplicationGitea             SelectedPaaSApplication = "gitea"
 	SelectedPaaSApplicationForgejo           SelectedPaaSApplication = "forgejo"
 	SelectedPaaSApplicationEmby              SelectedPaaSApplication = "emby"
@@ -357,6 +360,31 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 					workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef,
 					siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef,
 				}, err
+			},
+		}, true
+	case SelectedPaaSApplicationAdguardHome:
+		return selectedPaaSApplicationSpec{
+			name: "AdguardHome", providerRef: "stackkits-adguard-home", moduleRef: "stackkits-adguard-home-runtime",
+			unitRef: "adguard-home", workloadRef: "network", artifactRef: "adguard-home-workload-bundle", outputRef: "workloads/adguard-home/bundle.json", healthRef: "adguard-home-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.AdguardHomeWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseAdguardHomeWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationOpencloud:
+		return selectedPaaSApplicationSpec{name: "Opencloud", providerRef: "stackkits-opencloud", moduleRef: "stackkits-opencloud-runtime", unitRef: "opencloud", workloadRef: "files", artifactRef: "opencloud-workload-bundle", outputRef: "workloads/opencloud/bundle.json", healthRef: "opencloud-http", expectedStatuses: []int{200}, rendererContract: architecturev2renderer.OpencloudWorkloadBundleRendererContract, parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+			descriptor, err := architecturev2renderer.ParseOpencloudWorkloadBundle(content)
+			return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+		}}, true
+	case SelectedPaaSApplicationGuacamole:
+		return selectedPaaSApplicationSpec{
+			name: "Guacamole", providerRef: "stackkits-guacamole", moduleRef: "stackkits-guacamole-runtime",
+			unitRef: "guacamole", workloadRef: "remote", artifactRef: "guacamole-workload-bundle", outputRef: "workloads/guacamole/bundle.json", healthRef: "guacamole-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.GuacamoleWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseGuacamoleWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
 	case SelectedPaaSApplicationRoundcube:

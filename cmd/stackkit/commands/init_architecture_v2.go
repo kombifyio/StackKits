@@ -118,6 +118,10 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		if err != nil {
 			return err
 		}
+		dataCapacity, err := parseInitDataCapacity(initDataCapacity)
+		if err != nil {
+			return err
+		}
 		validation, err = service.MaterializeInitialStackSpec(profile, architecturev2.AuthoringOverrides{
 			CatalogDefaults:     initCatalogDefaults,
 			APIVersion:          architectureV2InitAPIVersion(),
@@ -130,6 +134,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			ModuleProfiles:      moduleProfiles,
 			UseCaseAlternatives: useCaseAlternatives,
 			UseCaseCapabilities: useCaseCapabilities,
+			DataCapacityDemands: dataCapacity,
 			HardwareProfile:     initHardwareProfile,
 		})
 		if err != nil {

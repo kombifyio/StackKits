@@ -148,7 +148,7 @@
       "additionalProperties": false,
       "required": ["id", "title"],
       "properties": {
-        "id": { "enum": ["photos", "documents-files", "vault", "media", "smart-home", "dev", "mail", "game", "network", "automation", "ai"] },
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$", "$comment": "Accepted membership and titles are derived from foundation.#MainUseCaseTitles and validated by CUE; this transport schema does not duplicate that registry." },
         "title": { "type": "string", "minLength": 1 }
       }
     },

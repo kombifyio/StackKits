@@ -13,19 +13,20 @@ import (
 // placement stay in the artifact so consumers cannot widen the source to a
 // similarly named volume on another node.
 type ApplicationVolume struct {
-	WorkloadRef    string   `json:"workloadRef"`
-	SiteRef        string   `json:"siteRef"`
-	NodeRef        string   `json:"nodeRef"`
-	ComposeProject string   `json:"composeProject"`
-	ComponentRef   string   `json:"componentRef"`
-	VolumeRef      string   `json:"volumeRef"`
-	LogicalName    string   `json:"logicalName"`
-	VolumeName     string   `json:"volumeName"`
-	Target         string   `json:"target"`
-	Class          string   `json:"class"`
-	Backup         bool     `json:"backup"`
-	DataClasses    []string `json:"dataClasses"`
-	DataBindingRef string   `json:"dataBindingRef"`
+	WorkloadRef     string   `json:"workloadRef"`
+	SiteRef         string   `json:"siteRef"`
+	NodeRef         string   `json:"nodeRef"`
+	ComposeProject  string   `json:"composeProject"`
+	ComponentRef    string   `json:"componentRef"`
+	VolumeRef       string   `json:"volumeRef"`
+	LogicalName     string   `json:"logicalName"`
+	VolumeName      string   `json:"volumeName"`
+	Target          string   `json:"target"`
+	Class           string   `json:"class"`
+	Backup          bool     `json:"backup"`
+	DataClasses     []string `json:"dataClasses"`
+	DataBindingRef  string   `json:"dataBindingRef"`
+	BackupDataClass string   `json:"backupDataClass,omitempty"`
 	// CacheSubpaths are CUE-declared regenerable subtrees below Target.
 	// Portable emergency exports omit them; Kopia keeps the whole volume.
 	CacheSubpaths []string `json:"cacheSubpaths,omitempty"`
@@ -85,6 +86,9 @@ func canonicalApplicationVolumes(applicationVolumes []ApplicationVolume) ([]Appl
 	seen := make(map[string]struct{}, len(applications))
 	for index := range applications {
 		application := &applications[index]
+		if application.BackupDataClass != "" && !ValidBackupDataClass(application.BackupDataClass) {
+			return nil, fmt.Errorf("application volume %q declares an unknown backupDataClass", application.VolumeName)
+		}
 		if err := validateApplicationVolume(*application); err != nil {
 			return nil, fmt.Errorf("application volume %d: %w", index, err)
 		}
@@ -163,14 +167,20 @@ func validateApplicationVolume(application ApplicationVolume) error {
 		!applicationVolumeNameRegex.MatchString(application.VolumeName) {
 		return fmt.Errorf("Compose volume identities must use the portable Docker name subset")
 	}
-	if application.ComposeProject != StandaloneComposeProjectName(application.WorkloadRef, application.NodeRef) {
-		return fmt.Errorf("composeProject does not match the Standalone-Compose workload and node")
+	if application.ComposeProject != ApplicationComposeProjectName(application.WorkloadRef, application.NodeRef) {
+		return fmt.Errorf("composeProject does not match the selected application workload and node")
 	}
-	if application.LogicalName != StandaloneComposeLogicalVolumeName(application.ComponentRef, application.VolumeRef) {
+	if application.LogicalName != ApplicationLogicalVolumeName(application.WorkloadRef, application.ComponentRef, application.VolumeRef) {
 		return fmt.Errorf("logicalName does not match componentRef and volumeRef")
 	}
-	if application.VolumeName != StandaloneComposeVolumeName(application.WorkloadRef, application.NodeRef, application.ComponentRef, application.VolumeRef) {
+	if application.VolumeName != ApplicationVolumeName(application.WorkloadRef, application.NodeRef, application.ComponentRef, application.VolumeRef) {
 		return fmt.Errorf("volumeName does not match the qualified Compose volume identity")
+	}
+	if application.WorkloadRef == "marketplace" {
+		target, admitted := MarketplaceVolumeTarget(application.ComponentRef, application.VolumeRef)
+		if !admitted || application.Target != target {
+			return fmt.Errorf("Marketplace volume differs from its closed node installation layout")
+		}
 	}
 	if application.Class != "persistent" || !application.Backup {
 		return fmt.Errorf("must describe a persistent backup-enabled volume")

@@ -170,7 +170,7 @@ Contract: foundation.#ModuleContract & {
 			}
 
 			subdomain: {key: "photos", nested: "photos", flat: "photos"}
-			dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich", guideUrl: "https://docs.kombify.io/stackkits/apps/immich"}
+			dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich", guideUrl: "https://docs.kombify.io/stackkits/apps/immich", clients: [{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=app.alextran.immich"}, {platform: "android", kind: "download", url: "https://github.com/immich-app/immich/releases/latest/download/app-release.apk"}, {platform: "ios", kind: "store", url: "https://apps.apple.com/us/app/immich/id1613945652"}], vendor: {name: "Immich", website: "https://immich.app", docs: "https://docs.immich.app/", license: "AGPL-3.0", support: [{kind: "purchase", url: "https://buy.immich.app/"}]}}
 
 			output: {
 				url:         "https://photos.{{.domain}}"

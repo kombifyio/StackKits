@@ -1,12 +1,12 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:bc473445c447ed1ca60a5fc403ff7542402c7d5fce54b3d1a3f93632e163c927",
-    "compute-tier-fits.json": "sha256:d76847104ee0089b89d76fedb50d20eeace3d7f20399237db13a3db4ed1dbd0a",
-    "definitions/basement-kit.json": "sha256:d4cdab37ce51e41e07fe6df678f206e42f81520b47cf589087e79bae19c6d4dc",
-    "definitions/cloud-kit.json": "sha256:1c6b4aca9481901650f7a0bde9ab41fe08c8394bb01b83fef0ace8f7d097c32b",
+    "catalog.json": "sha256:ed36aecd3cb36c1644ab63067bc26d45fe9f593f1043575228371f7c46295901",
+    "compute-tier-fits.json": "sha256:5d53af094949e8248acf964c3958dba18c2451e3a869c839a1fd3171603c569c",
+    "definitions/basement-kit.json": "sha256:6788a4271dacbc96cad092579c55c98e010b7df2b3798e4d1a1a290e8690c442",
+    "definitions/cloud-kit.json": "sha256:ac659b67f7713679d199c140409dc9b3d347d46e054828654a71389363a88535",
     "definitions/modern-homelab.json": "sha256:ddb34b9eaac54d146266386e6cbc7b3d530f1aa8935f6e2735ffa788ec3cb81b",
     "neutral-image-profiles.json": "sha256:65a76fc6498a7a436c1e0f2064bb833d3e3ca3c4056a7c2e3755f748280e4b9f",
-    "operations.json": "sha256:4f167dc08c0db3ec809eb29649dcc490512b1850ddecd293bb13536089ef3453"
+    "operations.json": "sha256:5674aee1b14070d6294fd0d5b7ba4dc2e0d5e1139b60fb30b0c366b2fe684eb6"
   },
   "documents": {
     "catalog": "catalog.json",
@@ -25,16 +25,20 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:accec124889a00e3ea7cc24ed2cbb6af2c5d8b86b2b104dc6da284a4739a468c",
-    "foundation/architecture_v2.cue": "sha256:8cdcc1961631857bc3e854db3c627c9d7c6e346dddf4dc39bd241af94f227d09",
-    "foundation/architecture_v2_backup.cue": "sha256:750b23662d20956156394cf61ad1466e651372a18aa06075883a2a70199c93e0",
-    "foundation/architecture_v2_catalog.cue": "sha256:f68e977ff9586a85af1289d0a840a59c633a44f6d733199149ad16d827a0d4b8",
+    "foundation/architecture_v2.cue": "sha256:dd232a00c3ec1b983f228a1755b6db623c24fa2e0ab8023f6d16381adbd404c2",
+    "foundation/architecture_v2_adguard_home.cue": "sha256:30d1ed0852e884b00cebb15ebd8ed13d6a79e0286db2fd04a30886fe2fb3ca9e",
+    "foundation/architecture_v2_backup.cue": "sha256:d48b51ec2e8e11d9511a252e6e3a9f0b5310bedbe5859140d252cd2ba7f6e799",
+    "foundation/architecture_v2_catalog.cue": "sha256:ff78d006ac4fd5bb7ff45bd2613e681d8f26c616b66aed7ca21a300b452e52cf",
     "foundation/architecture_v2_cloud_core.cue": "sha256:e62ffb36ef1305078274022932bf41bf7e0737b0402254fcdbe8c1f3f1e5500a",
     "foundation/architecture_v2_definition_binding.cue": "sha256:a3bd59ab840c4d2775dfa1ca9703a76b22a836a38ca363d089c1322453cf947b",
     "foundation/architecture_v2_federation.cue": "sha256:720abfcfd924aacbd3388ee2b88066629f1dcbec3a5ff11d81ffb905e2716b74",
-    "foundation/architecture_v2_module_profiles.cue": "sha256:9fc9c275cea5c54d2a9c80fe05b552e518a6d411b62d719c43b8e2dd291a0d28",
+    "foundation/architecture_v2_guacamole.cue": "sha256:fc4116f33ec575e8f788e7efa69425d9ec11f7b62e49e91295576532682c297a",
+    "foundation/architecture_v2_komodo_bootstrap.cue": "sha256:b8b94a8e366e2b9715894dfe17a76f10a03ec777aeae665c6f2d3ab6e9ddc519",
+    "foundation/architecture_v2_marketplace.cue": "sha256:0cc590987ab3fac11ae10153f813bacd2e2e0c2ee5e1d61554f5974171b7f0c9",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:70de66461c64be970edc4ea4a5103f98213f305ad03cfd657998f8f16d9d838c",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",
-    "foundation/architecture_v2_storage.cue": "sha256:339e153f31cf2b98bb1782b23b50012f32cea007b18138276d8ee50fc8fd6559",
+    "foundation/architecture_v2_storage.cue": "sha256:16991ed128af7038c62ca2e77d4c3dce1f9e429f6c8bf29413a1e13b531bfcd2",
     "foundation/image_preparation.cue": "sha256:be793901dd9cb43db087813ee0ca52c9875c5951c5e7a7492c3d2bffd96c2648",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"
   }

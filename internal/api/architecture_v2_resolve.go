@@ -126,6 +126,14 @@ func (s *Server) architectureV2ResolveService() (*architecturev2.Service, error)
 }
 
 func (s *Server) handleArchitectureV2Resolve(w http.ResponseWriter, r *http.Request) {
+	s.handleArchitectureV2Resolution(w, r, false)
+}
+
+func (s *Server) handleArchitectureV2Capacity(w http.ResponseWriter, r *http.Request) {
+	s.handleArchitectureV2Resolution(w, r, true)
+}
+
+func (s *Server) handleArchitectureV2Resolution(w http.ResponseWriter, r *http.Request, capacityOnly bool) {
 	w.Header().Set("Cache-Control", "no-store")
 	if err := requireArchitectureV2JSONMediaType(r); err != nil {
 		writeArchitectureV2RequestError(w, err)
@@ -150,10 +158,21 @@ func (s *Server) handleArchitectureV2Resolve(w http.ResponseWriter, r *http.Requ
 		writeMappedArchitectureV2ResolveError(w, err)
 		return
 	}
-	result, err := service.Resolve(architecturev2.ResolveInput{
+	input := architecturev2.ResolveInput{
 		StackSpec: envelope.StackSpec,
 		Inventory: envelope.Inventory,
-	})
+	}
+	if capacityOnly {
+		result, err := service.AssessCapacity(input)
+		if err != nil {
+			writeMappedArchitectureV2ResolveError(w, err)
+			return
+		}
+		w.Header().Set("X-StackKit-Plan-Hash", result.PlanHash)
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+	result, err := service.Resolve(input)
 	if err != nil {
 		writeMappedArchitectureV2ResolveError(w, err)
 		return

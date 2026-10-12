@@ -4,6 +4,22 @@ StackKits v0.7 is agent-ready through canonical CUE Definitions, deterministic C
 
 Basement Kit and Cloud Kit are provider-free single-site profiles; Modern Homelab composes explicit home and cloud sites. StackSpec contains desired intent only. TechStack or another authorized external executor owns provider lifecycle, credentials, host observation, management addresses, and transport.
 
+Standard Mode remains standalone. The optional Techstack Advanced consumer
+proposes intent and sequences the exact published CLI; it consumes released
+catalog facts and never resolves CUE or interprets ResolvedPlan itself. The
+neutral Go wire's exact consumer version and checksum live in Techstack's
+[consumer lock](https://github.com/kombify/kombify-Techstack/blob/main/internal/runtimecontractcompat/consumer-lock.json).
+See its [architecture](https://github.com/kombify/kombify-Techstack/blob/main/docs/ARCHITECTURE.md)
+and [execution authority](https://github.com/kombify/kombify-Techstack/blob/main/docs/EXECUTION_AUTHORITY.md)
+for orchestration and release-bound evidence.
+
+For a Wallet host item, Techstack and Guard transport only node-recipient-sealed
+delivery and short-lived references. StackKits uses its existing fixed-path
+Wallet reader to open and bind the item locally, journal consumption and trigger
+retention. Do not introduce another reader, plaintext SSH/env handoff, or secrets
+in commands and receipts. Published command availability and current recipient
+generation are prerequisites; source support alone is not a consumed-item proof.
+
 ## Agent Contract
 
 CUE is the technical contract source of truth. StackSpec v2 records desired intent; observed Inventory is separate; ResolvedPlan binds both. Generated OpenTofu, Docker Compose, scripts, tfvars, state, and snapshots are outputs and must never be hand-edited.

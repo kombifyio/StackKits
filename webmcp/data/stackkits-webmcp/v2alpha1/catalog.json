@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "003a2e819ee4a1a281cb1ab666b2d9a951fc025c",
-  "authority_bundle_sha256": "ccf00bdc253cff43b4c331d4e52c19dc5297ac54cafd0b75702ebe073c2da655",
+  "source_sha": "f6cd6621eb72e721728502282551f1ef2a107203",
+  "authority_bundle_sha256": "29125deca0d8405b9fa52f5d68e427f8a55dd39b4f4f6352e3193a33c0941b9c",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -11,6 +11,88 @@
       "status": "supported",
       "planner_link": "/planner?stackkit_id=basement-kit",
       "modules": [
+        {
+          "module_id": "stackkits-adguard-home-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "network"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "adguard-home"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "d0579217763de7b121d823f893aaaaa9760ab53e4d67930894aa1d042f7483ec"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "adguard-home"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "149f0055e1dd823b12a1f85af6fe2ef5be71f5acd61d76a51c4088987b306a54"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
         {
           "module_id": "stackkits-anythingllm-runtime",
           "role": "workload",
@@ -1396,6 +1478,90 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-guacamole-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "remote"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "guacamole",
+                "guacd"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "480e1eadf68b6e7b41c7521a92c765219c2cf8837d5ca61128b8647a48541c0d"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "guacamole",
+                "guacd"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "3d98f1bbba121dddbb20e396b1d4419bc0e1b6bbdbe828cf563ed195c17d8250"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-hermes-runtime",
           "role": "workload",
           "required": false,
@@ -2280,6 +2446,110 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-marketplace-coolify-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "marketplace"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pinned Marketplace control application and its PostgreSQL/Redis dependencies. This declared policy envelope is not a measured capacity claim.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.5,
+                "ram_gb": 2.25
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 4
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "postgres",
+                "redis"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "60e484d00a0eeaa48865f7b38e3111abb364bfe12453b0e9bb9ef30fcfc23227"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pinned Marketplace control application and its PostgreSQL/Redis dependencies. This declared policy envelope is not a measured capacity claim.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.5,
+                "ram_gb": 2.25
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 4
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "postgres",
+                "redis"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "f885ba45e1dc44ebe2d4047384be60b39d90ac3922d49603980133fb3f48c84a"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-mosquitto-runtime",
           "role": "workload",
           "required": false,
@@ -2524,6 +2794,88 @@
                 }
               },
               "profile_sha256": "115d42779d67273eb5600482a7a35f91157ffacd6b9751ddd9b3d2b8a6c5c51d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-opencloud-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "opencloud"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "9096599019e53dc80c9205a05b4749aef0eb280ffc6f697dcb38ad3bc01c6e77"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "opencloud"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "a62058d10b68756e97e61800ee555afc8e931dfa5e955aff1d937470ecc5f9e1"
             }
           ],
           "storage_profiles": [],
@@ -3003,7 +3355,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "description": "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
               "host_floor": {
                 "cpu_cores": 4,
                 "ram_gb": 12,
@@ -3022,6 +3374,9 @@
               "components": [
                 "kombify-ai-connector",
                 "ollama",
+                "ollama-model-coding",
+                "ollama-model-general",
+                "ollama-model-vision",
                 "open-webui"
               ],
               "capabilities": [],
@@ -3040,7 +3395,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "875829b206f403317f290b33696055dbb601639a006385eb1fdabbdbe23d4786"
+              "profile_sha256": "5696c495077a590ed0cbfb2ac1bccd28adae335f8fc9296c3ae15e305fc309da"
             },
             {
               "id": "high",
@@ -3048,7 +3403,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "description": "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
               "host_floor": {
                 "cpu_cores": 4,
                 "ram_gb": 12,
@@ -3067,6 +3422,9 @@
               "components": [
                 "kombify-ai-connector",
                 "ollama",
+                "ollama-model-coding",
+                "ollama-model-general",
+                "ollama-model-vision",
                 "open-webui"
               ],
               "capabilities": [],
@@ -3085,7 +3443,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "d2c9486800bcbe420f05b63a9959f7f6afa3ae0d716cc654090d4aa9a21a8ada"
+              "profile_sha256": "34f09e94980226c24a98fd4c2ce2cd84847f20a418bc0b0bc77bf1c013fe96f7"
             }
           ],
           "storage_profiles": [],
@@ -4213,6 +4571,20 @@
                 "baseline": "idle-resident",
                 "burst": "interactive"
               }
+            },
+            {
+              "alternative_id": "opencloud",
+              "module_id": "stackkits-opencloud-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
             }
           ]
         },
@@ -4315,6 +4687,29 @@
           ]
         },
         {
+          "use_case_id": "marketplace",
+          "title": "Marketplace",
+          "description": "Your own app store for applications you run on your homelab, at home and in the cloud.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "coolify",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "coolify",
+              "module_id": "stackkits-marketplace-coolify-runtime",
+              "functions": [
+                "self-hosted-app-store"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "media",
           "title": "Media Library",
           "description": "Private media library and streaming intent for household media collections.",
@@ -4389,6 +4784,30 @@
               "module_id": "stackkits-navidrome-runtime",
               "functions": [
                 "music-stream"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "network",
+          "title": "Network",
+          "description": "Filter DNS for selected clients while preserving the existing local resolver and device DNS choices.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "adguard-home",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "adguard-home",
+              "module_id": "stackkits-adguard-home-runtime",
+              "functions": [
+                "dns-filtering",
+                "selected-client-dns"
               ],
               "load": {
                 "residency": "always-on",
@@ -4498,6 +4917,30 @@
               "module_id": "stackkits-immich-power-tools-runtime",
               "functions": [
                 "library-maintenance"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "remote",
+          "title": "Remote Desktop",
+          "description": "Private remote desktop and browser-accessible workspace intent.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "guacamole",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "guacamole",
+              "module_id": "stackkits-guacamole-runtime",
+              "functions": [
+                "browser-remote-access",
+                "remote-session"
               ],
               "load": {
                 "residency": "always-on",
@@ -6055,6 +6498,90 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-guacamole-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "remote"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "guacamole",
+                "guacd"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "480e1eadf68b6e7b41c7521a92c765219c2cf8837d5ca61128b8647a48541c0d"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "guacamole",
+                "guacd"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "3d98f1bbba121dddbb20e396b1d4419bc0e1b6bbdbe828cf563ed195c17d8250"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-hermes-runtime",
           "role": "workload",
           "required": false,
@@ -6927,6 +7454,110 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-marketplace-coolify-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "marketplace"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pinned Marketplace control application and its PostgreSQL/Redis dependencies. This declared policy envelope is not a measured capacity claim.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.5,
+                "ram_gb": 2.25
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 4
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "postgres",
+                "redis"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "60e484d00a0eeaa48865f7b38e3111abb364bfe12453b0e9bb9ef30fcfc23227"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Pinned Marketplace control application and its PostgreSQL/Redis dependencies. This declared policy envelope is not a measured capacity claim.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.5,
+                "ram_gb": 2.25
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 4
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "coolify",
+                "postgres",
+                "redis"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "f885ba45e1dc44ebe2d4047384be60b39d90ac3922d49603980133fb3f48c84a"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-mosquitto-runtime",
           "role": "workload",
           "required": false,
@@ -7171,6 +7802,88 @@
                 }
               },
               "profile_sha256": "115d42779d67273eb5600482a7a35f91157ffacd6b9751ddd9b3d2b8a6c5c51d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-opencloud-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "opencloud"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "9096599019e53dc80c9205a05b4749aef0eb280ffc6f697dcb38ad3bc01c6e77"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "opencloud"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "a62058d10b68756e97e61800ee555afc8e931dfa5e955aff1d937470ecc5f9e1"
             }
           ],
           "storage_profiles": [],
@@ -7650,7 +8363,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "description": "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
               "host_floor": {
                 "cpu_cores": 4,
                 "ram_gb": 12,
@@ -7669,6 +8382,9 @@
               "components": [
                 "kombify-ai-connector",
                 "ollama",
+                "ollama-model-coding",
+                "ollama-model-general",
+                "ollama-model-vision",
                 "open-webui"
               ],
               "capabilities": [],
@@ -7687,7 +8403,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "875829b206f403317f290b33696055dbb601639a006385eb1fdabbdbe23d4786"
+              "profile_sha256": "5696c495077a590ed0cbfb2ac1bccd28adae335f8fc9296c3ae15e305fc309da"
             },
             {
               "id": "high",
@@ -7695,7 +8411,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "description": "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
               "host_floor": {
                 "cpu_cores": 4,
                 "ram_gb": 12,
@@ -7714,6 +8430,9 @@
               "components": [
                 "kombify-ai-connector",
                 "ollama",
+                "ollama-model-coding",
+                "ollama-model-general",
+                "ollama-model-vision",
                 "open-webui"
               ],
               "capabilities": [],
@@ -7732,7 +8451,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "d2c9486800bcbe420f05b63a9959f7f6afa3ae0d716cc654090d4aa9a21a8ada"
+              "profile_sha256": "34f09e94980226c24a98fd4c2ce2cd84847f20a418bc0b0bc77bf1c013fe96f7"
             }
           ],
           "storage_profiles": [],
@@ -8969,6 +9688,20 @@
                 "baseline": "idle-resident",
                 "burst": "interactive"
               }
+            },
+            {
+              "alternative_id": "opencloud",
+              "module_id": "stackkits-opencloud-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
             }
           ]
         },
@@ -9087,6 +9820,29 @@
                 "mail-server",
                 "mailbox-hosting",
                 "smtp-delivery"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "marketplace",
+          "title": "Marketplace",
+          "description": "Your own app store for applications you run on your homelab, at home and in the cloud.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "coolify",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "coolify",
+              "module_id": "stackkits-marketplace-coolify-runtime",
+              "functions": [
+                "self-hosted-app-store"
               ],
               "load": {
                 "residency": "always-on",
@@ -9280,6 +10036,30 @@
               "module_id": "stackkits-immich-power-tools-runtime",
               "functions": [
                 "library-maintenance"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "remote",
+          "title": "Remote Desktop",
+          "description": "Private remote desktop and browser-accessible workspace intent.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "guacamole",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "guacamole",
+              "module_id": "stackkits-guacamole-runtime",
+              "functions": [
+                "browser-remote-access",
+                "remote-session"
               ],
               "load": {
                 "residency": "always-on",
@@ -12162,6 +12942,88 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-opencloud-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "files"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "opencloud"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "9096599019e53dc80c9205a05b4749aef0eb280ffc6f697dcb38ad3bc01c6e77"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 1
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "opencloud"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "a62058d10b68756e97e61800ee555afc8e931dfa5e955aff1d937470ecc5f9e1"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-openhands-runtime",
           "role": "workload",
           "required": false,
@@ -12635,7 +13497,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "description": "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
               "host_floor": {
                 "cpu_cores": 4,
                 "ram_gb": 12,
@@ -12654,6 +13516,9 @@
               "components": [
                 "kombify-ai-connector",
                 "ollama",
+                "ollama-model-coding",
+                "ollama-model-general",
+                "ollama-model-vision",
                 "open-webui"
               ],
               "capabilities": [],
@@ -12672,7 +13537,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "875829b206f403317f290b33696055dbb601639a006385eb1fdabbdbe23d4786"
+              "profile_sha256": "5696c495077a590ed0cbfb2ac1bccd28adae335f8fc9296c3ae15e305fc309da"
             },
             {
               "id": "high",
@@ -12680,7 +13545,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+              "description": "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
               "host_floor": {
                 "cpu_cores": 4,
                 "ram_gb": 12,
@@ -12699,6 +13564,9 @@
               "components": [
                 "kombify-ai-connector",
                 "ollama",
+                "ollama-model-coding",
+                "ollama-model-general",
+                "ollama-model-vision",
                 "open-webui"
               ],
               "capabilities": [],
@@ -12717,7 +13585,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "d2c9486800bcbe420f05b63a9959f7f6afa3ae0d716cc654090d4aa9a21a8ada"
+              "profile_sha256": "34f09e94980226c24a98fd4c2ce2cd84847f20a418bc0b0bc77bf1c013fe96f7"
             }
           ],
           "storage_profiles": [],
@@ -13845,6 +14713,20 @@
                 "baseline": "idle-resident",
                 "burst": "interactive"
               }
+            },
+            {
+              "alternative_id": "opencloud",
+              "module_id": "stackkits-opencloud-runtime",
+              "functions": [
+                "document-storage",
+                "file-sharing",
+                "files"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
             }
           ]
         },
@@ -14762,6 +15644,19 @@
       "command": [
         "break-glass",
         "show-bundle"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
+      "id": "stackkit.capacity",
+      "tool_name": "stackkit_assess_capacity",
+      "title": "Capacity",
+      "description": "Assess CUE-bound module demand against optional observed Inventory; missing facts remain unverified and no execution is authorized.",
+      "command": [
+        "capacity"
       ],
       "mutation": false,
       "destructive": false,
@@ -15709,5 +16604,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "589910ecd199c2ffbe910c33f938b34c4d3de499f8b560ddcf54d9b6b1b38fcf"
+  "catalog_sha256": "dbd824adf685b820c302b8a8251e375ea20f569f8561cb1bd9e240a846cd408f"
 }

@@ -1,6 +1,8 @@
 # Enterprise Readiness
 
-> Last verified: 2026-08-13
+> Last runtime verification recorded here: 2026-08-13
+> Contract reconciliation: 2026-10-11. Historical receipts below are retained;
+> they do not establish support at the current pin.
 
 This page is the release contract for Enterprise review of the curated
 StackKits OSS surface. It is intentionally stricter than the general beta
@@ -26,15 +28,15 @@ rollout matrices graduate.
 | Source surface | Curated public `kombifyio/stackKits` mirror only. A private-source build is not Enterprise release evidence. |
 | Operating system | Fresh Ubuntu target used by the production-style VM gate. |
 | Toolchain | `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, root `cue.mod`, shared `base/`, the released kit definitions, and required `modules/` from the release archive. |
-| Application layer | Platform baseline, protected routes, Node Hub, explicit setup drops, and ready-to-use use cases deployed as Coolify-managed applications with manageable UI (`kombify-StackKits-85x` closed 2026-06-30 with released-content SK-S1 evidence, run `28427006994`). |
+| Application layer | Platform baseline, protected routes, Node Hub, explicit setup drops, and ready-to-use selected use cases under their native standalone Compose lifecycle. Optional Marketplace installs Coolify outside default core; Komodo is the planned operations platform without a store. Historical Coolify evidence (`kombify-StackKits-85x`, run `28427006994`) proves only its recorded release and path, not current-pin readiness. |
 
 ## Non-Goals
 
 - No Enterprise claim for unreleased kit definitions.
-- No claim that any non-PaaS fallback proves the Coolify-managed application-layer rollout.
+- No claim that native Compose evidence proves an explicit legacy Coolify rollout, Marketplace, or Komodo operations; each selected path needs its own current-pin receipt.
 - No unsupported public release path from the private development repo.
 - No production claim for backup controller or backup agent scaffolds until durable storage, queueing, enrollment, and OIDC operator auth land.
-- Customer-owned user app lifecycle is owned by the selected PaaS or Admin product surface. Product-bundled ready-to-use use cases are in scope for the Coolify-managed application-layer gate.
+- Customer-installed app lifecycle outside StackKits is owned by its selected application/admin surface. Product-bundled use cases are in scope for their exact StackKits lifecycle; Coolify is not their default owner.
 
 ## Security Model
 
@@ -58,7 +60,7 @@ and include:
 - GitHub Artifact Attestation verification status for release artifacts and the GHCR server image,
 - security scan summaries for secret, vulnerability, static-analysis, repository, and image scans,
 - public export leak/link check status,
-- default StackKit-owned L3 PaaS-intent check status,
+- retained legacy L3 PaaS compatibility check status, distinct from native application runtime receipts,
 - live installer smoke status for `install.stackkit.cc` and `base.stackkit.cc`,
 - fresh Ubuntu BaseKit evidence from the published release or installer path,
 - scenario evidence rows for `SK-S1`, `SK-S2`, `SK-S3`, and `SK-S5`; missing
@@ -75,7 +77,7 @@ and include:
 | --- | --- |
 | Public export audit | `scripts/public/export-public.*` plus `scripts/public/check-public-surface.*` pass on exported contents. |
 | Archive validation | `scripts/release/validate-release-archives.sh dist` passes for the full and BaseKit archives. |
-| Default StackKit-owned L3 PaaS intent | `scripts/release/check-l3-paas-contract.mjs` passes for StackKit-owned/default module contracts and generated BaseKit output, and `release-evidence.json.checks.defaultL3PaaSDelivery.status` is `pass`. User-installed apps outside StackKit/PaaS manifests are state-unmanaged and out of release evidence scope. |
+| Retained legacy L3 PaaS compatibility | `scripts/release/check-l3-paas-contract.mjs` validates legacy module/template PaaS intent, retaining the evidence field `release-evidence.json.checks.defaultL3PaaSDelivery.status`. Its historical name does not change native Compose defaults or establish runtime support. Current-pin receipts for the exact selected application lifecycle remain required. User-installed apps outside StackKits lifecycle are out of scope. |
 | Live installer smoke | `tests/e2e/test_live_installers.sh` proves shell content instead of HTML fallback. |
 | Fresh Ubuntu BaseKit | Clean target installs from released archive or installer; Base Hub warning appears; protected services reject anonymous access; Photos setup runs. |
 | Supply chain | Checksums, SBOMs, and artifact/image attestations exist and verify before evidence marks them as passed. |
@@ -88,11 +90,11 @@ and include:
 - Rollout evidence lives under `.stackkit/runs/<runId>/` locally and may be mirrored to Admin/TechStack only after redaction.
 - Failure output must classify setup, auth, routing, image, platform, or app-layer causes without dumping provider tokens.
 - Open P0 Beads blockers that affect BaseKit production behavior must be closed with evidence before an Enterprise release is announced; non-core P1 deferrals must be labeled outside the Enterprise claim.
-- The Coolify-managed application-layer path for ready-to-use use cases is core Enterprise scope and cannot be deferred or excluded from the production-ready claim.
+- The complete native standalone application lifecycle is core Enterprise scope. Optional Marketplace/Coolify and Komodo operations are admitted separately by current-pin receipts; Dokploy is not pursued.
 
 ## Current Blockers
 
-Updated 2026-08-13. Landed since the 2026-07-08 revision: the Coolify-managed
+Historical verification snapshot, 2026-08-13. Landed since the 2026-07-08 revision: the Coolify-managed
 application-layer contract and evidence (`kombify-StackKits-85x`,
 released-content SK-S1 run `28427006994`), live installer endpoint smoke, the
 daily OSS mirror parity audit (`public-mirror-audit.yml`), and guided installers

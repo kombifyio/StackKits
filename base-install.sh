@@ -48,13 +48,17 @@
 # =============================================================================
 set -eu
 
-_INSTALL_SCRIPT_DIR=$(
-  cd "$(dirname "$0")" 2>/dev/null && pwd
-) || _INSTALL_SCRIPT_DIR=""
-if [ -n "$_INSTALL_SCRIPT_DIR" ] && [ -f "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh" ]; then
-  # shellcheck source=install-host-bootstrap.sh
-  . "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh"
-fi
+# BEGIN STACKKIT_BOOTSTRAP_SOURCE
+# stdin has no script directory; never load a helper from the caller's cwd.
+case "$0" in
+  */base-install.sh|base-install.sh)
+    _INSTALL_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
+    # shellcheck source=install-host-bootstrap.sh
+    . "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh"
+    ;;
+  *) printf 'Use the complete entrypoint: curl -fsSL https://base.stackkit.cc | sh\n' >&2; exit 2 ;;
+esac
+# END STACKKIT_BOOTSTRAP_SOURCE
 
 printf '\033[38;5;208m'
 cat <<'BANNER'
@@ -85,7 +89,7 @@ can_prompt() { [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; }
 workspace_spec_kit() {
   _spec="${1:-}"
   [ -f "$_spec" ] || return 0
-  for _kit in cloud-kit basement-kit; do
+  for _kit in cloud-kit basement-kit modern-homelab; do
     if grep -Eq "(^|[[:space:]])(stackkit|slug):[[:space:]]*$_kit([[:space:]]|\$)|\"(stackkit|slug)\"[[:space:]]*:[[:space:]]*\"$_kit\"" "$_spec"; then
       printf '%s' "$_kit"
       return 0
@@ -94,8 +98,8 @@ workspace_spec_kit() {
 }
 
 # `stackkit init` replaces an existing StackSpec only under compare-and-swap
-# (--expected-spec-hash). The installer re-initializes on purpose (kit switch or
-# first real owner), so it keeps the previous intent next to the new one.
+# (--expected-spec-hash). Replacing a placeholder with the first real Owner
+# keeps the previous intent; a rerun never changes the kit.
 set_aside_previous_spec() {
   _spec="$HOMELAB_DIR/stack-spec.yaml"
   [ -f "$_spec" ] || return 0
@@ -119,16 +123,6 @@ read_host_environment() {
     DETECTED_ENV="vps"
   fi
   refine_home_network_detection
-}
-
-remove_local_stack_if_present() {
-  command -v stackkit >/dev/null 2>&1 || return 0
-  info "Clearing any existing local StackKits stack so the matching kit can install"
-  if [ -n "${1:-}" ] && [ -d "$1" ]; then
-    (cd "$1" && stackkit remove --auto-approve) || warn "Could not fully remove the previous stack; continuing with the matching kit."
-  else
-    stackkit remove --auto-approve || warn "Could not fully remove the previous stack; continuing with the matching kit."
-  fi
 }
 
 env_value() { eval "printf '%s' \"\${$1:-}\""; }
@@ -298,6 +292,7 @@ HOMELAB_DIR="${HOMELAB_DIR:-$HOME/my-homelab}"
 if [ "$INSTALL_MODE" != "auto" ] && [ -z "$HOMELAB_DIR_SET" ]; then
   HOMELAB_DIR=$(prompt_default "Workspace directory" "$HOMELAB_DIR")
 fi
+installer_workspace_begin
 
 RESUME_EXISTING=0
 RESUME_INCOMPLETE=0
@@ -495,7 +490,6 @@ configure_stackkit_server_image() {
 
   STACKKIT_SERVER_LOCAL_IMAGE="${STACKKIT_SERVER_LOCAL_IMAGE:-stackkit-server:local}"
   STACKKIT_SERVER_IMAGE_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t stackkit-server-image)
-  trap 'rm -rf "$STACKKIT_SERVER_IMAGE_DIR"' EXIT HUP INT TERM
 
   cp "$(command -v stackkit-server)" "$STACKKIT_SERVER_IMAGE_DIR/stackkit-server"
   chmod +x "$STACKKIT_SERVER_IMAGE_DIR/stackkit-server" 2>/dev/null || true
@@ -537,18 +531,21 @@ EOF
     die "Local stackkit-server image build failed. Set STACKKIT_SERVER_IMAGE to a reachable image and retry."
   fi
   rm -rf "$STACKKIT_SERVER_IMAGE_DIR"
+  STACKKIT_SERVER_IMAGE_DIR=""
   STACKKIT_SERVER_IMAGE="$STACKKIT_SERVER_LOCAL_IMAGE"
   export STACKKIT_SERVER_IMAGE
   ok "  StackKit API image: $STACKKIT_SERVER_IMAGE"
 }
 
 stop_on_hypervisor_host
+installer_save_inputs
 
 # --- Step 1: Install CLI + basement-kit definitions -------------------------------
 
 info "Step 1/5 -- Installing stackkit CLI + basement-kit"
+installer_phase install-cli
 STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://install.stackkit.cc}"
-curl -sSL "$STACKKIT_INSTALL_URL" | STACKKIT_NO_BANNER=1 sh -s -- basement-kit
+STACKKIT_NO_BANNER=1 installer_run_entry "$STACKKIT_INSTALL_URL" basement-kit
 ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
 
 SELECTED_KIT="basement-kit"
@@ -558,26 +555,18 @@ info "Detected network: $DETECTED_ENV"
 PLACEMENT="${STACKKIT_PLACEMENT:-}"
 _existing_kit=$(workspace_spec_kit "$HOMELAB_DIR/stack-spec.yaml")
 if [ "$RESUME_EXISTING" = "1" ]; then
-  case "$DETECTED_ENV" in
-    vps|cloud)
-      if [ "$_existing_kit" != "cloud-kit" ] && [ "${STACKKIT_KIT_HANDOFF:-}" != "cloud" ]; then
-        warn "This workspace is not Cloud Kit. This host is a public server; continuing with Cloud Kit."
-        remove_local_stack_if_present "$HOMELAB_DIR"
-        RESUME_EXISTING=0
-        PLACEMENT="cloud"
-        if [ -z "$HOMELAB_DIR_SET" ]; then
-          HOMELAB_DIR="$HOME/my-cloud-homelab"
-        fi
-      fi
+  # Saved intent wins over network detection. A rerun is never a kit migration
+  # and never authorization to remove the existing applications or data.
+  case "$_existing_kit" in
+    basement-kit) PLACEMENT="home" ;;
+    cloud-kit)
+      info "Keeping the saved Cloud Kit intent; continuing with its installer."
+      export STACKKIT_PLACEMENT=cloud
+      installer_phase handoff-cloud
+      installer_run_entry "${STACKKIT_CLOUD_INSTALL_URL:-https://cloud.stackkit.cc}"
+      exit $?
       ;;
-    home)
-      if [ "$_existing_kit" = "cloud-kit" ]; then
-        warn "This workspace is Cloud Kit. This host is a home network; continuing with Basement Kit."
-        remove_local_stack_if_present "$HOMELAB_DIR"
-        RESUME_EXISTING=0
-        PLACEMENT="home"
-      fi
-      ;;
+    *) die "Cannot resume this workspace through the Basement installer. Inspect stackkit validate; use the entrypoint for its saved kit." ;;
   esac
 fi
 
@@ -628,13 +617,13 @@ if [ "$RESUME_EXISTING" != "1" ]; then
     SELECTED_KIT="cloud-kit"
     export STACKKIT_PLACEMENT=cloud
     if [ -z "$HOMELAB_DIR_SET" ]; then
-      HOMELAB_DIR="$HOME/my-cloud-homelab"
-    fi
-    if [ "$RESUME_EXISTING" != "1" ] && [ "$_existing_kit" != "cloud-kit" ]; then
-      remove_local_stack_if_present "${HOMELAB_DIR}"
+      if [ "$RESUME_EXISTING" != "1" ]; then
+        HOMELAB_DIR="$HOME/my-cloud-homelab"
+        installer_workspace_begin
+      fi
     fi
     info "Using Cloud Kit on this public host"
-    curl -sSL "$STACKKIT_INSTALL_URL" | STACKKIT_NO_BANNER=1 sh -s -- cloud-kit
+    STACKKIT_NO_BANNER=1 installer_run_entry "$STACKKIT_INSTALL_URL" cloud-kit
     if workspace_has_deployment_intent; then
       info "Preparing Cloud execution-channel access for this host"
       prepare_cloud_install_host || die "Could not prepare this host for Cloud Kit apply. Run the installer again as root on this VPS."
@@ -724,6 +713,7 @@ if [ "$INSTALL_MODE" = "expert" ] && [ -n "$USE_CASES" ] && [ -z "$PLATFORM_SELE
   PLATFORM_SELECTION=$(prompt_default "Platform adapter for the use cases (standalone-compose|komodo|coolify)" "standalone-compose")
 fi
 info "Step 2/5 -- Initializing $SELECTED_KIT"
+installer_phase init
 mkdir -p "$HOMELAB_DIR"
 cd "$HOMELAB_DIR"
 
@@ -736,6 +726,7 @@ if [ "$RESUME_EXISTING" = "1" ] && ! workspace_needs_owner_identity; then
   fi
 else
   collect_owner_identity
+  installer_save_intent
   set_aside_previous_spec
   # Materialize the release catalog defaults as explicit native intent.
   # Existing workspaces above keep their persisted alternatives and adapters.
@@ -747,8 +738,8 @@ else
     set -- "$@" --name "$STACK_NAME"
   fi
   set -- "$@" --owner-email "$ADMIN_EMAIL" --owner-username "$OWNER_USERNAME"
+  set -- "$@" --use-case "$USE_CASES"
   if [ -n "$USE_CASES" ]; then
-    set -- "$@" --use-case "$USE_CASES"
     if [ -n "$PLATFORM_SELECTION" ]; then
       set -- "$@" --platform "$PLATFORM_SELECTION"
     fi
@@ -844,6 +835,7 @@ provision_storage_roots() {
 }
 
 info "Step 3/5 -- Preparing container runtime (Docker)"
+installer_phase prepare-runtime
 ensure_docker
 provision_storage_roots
 ok "  System ready"
@@ -851,6 +843,7 @@ ok "  System ready"
 # --- Step 4: Local stackkit-server image ---------------------------------------
 
 info "Step 4/5 -- Configuring stackkit-server image"
+installer_phase prepare-image
 configure_stackkit_server_image
 
 # Cloudflare DNS credentials for custom public domains stay environment-driven.
@@ -866,6 +859,7 @@ persist_platform_config
 # --- Step 5: Generate + Deploy ------------------------------------------------
 
 info "Step 5/5 -- Deploying homelab stack"
+installer_phase host-preflight
 
 # Read-only host admission first: naming an unusable device here costs seconds,
 # while discovering it during Apply costs a half-mutated host.
@@ -923,6 +917,7 @@ fi
 # resolution is deterministic, so an unchanged host yields the same plan and
 # the apply journal still resumes what already succeeded.
 info "Preparing deployment artifacts (stackkit generate)"
+installer_phase generate
 info "This can take a minute with little extra CLI output"
 run_stackkit_step generate
 ok "Deployment artifacts are ready"
@@ -932,6 +927,7 @@ if [ "$INSTALL_MODE" != "auto" ]; then
   if ! prompt_yn "Deploy the homelab now (stackkit apply)?" "y"; then
     echo ""
     ok "Deployment intent is ready; apply skipped on request."
+    installer_journal_write state prepared
     echo "  Continue manually:"
     echo "    cd $HOMELAB_DIR"
     echo "    stackkit plan"
@@ -952,6 +948,7 @@ fi
 # operator without a summary or a next step. Capture the status instead and end
 # with something actionable.
 info "Installing services (stackkit apply)"
+installer_phase apply
 info "Image download and health waits can take several minutes with little extra output"
 if [ "${SELECTED_KIT:-}" = "cloud-kit" ]; then
   prepare_cloud_install_host || die "Could not prepare this host for Cloud Kit apply. Run the installer again as root on this VPS."
@@ -1014,6 +1011,10 @@ fi
 run_stackkit network watch enable >/dev/null 2>&1 || true
 
 # --- Done: print access summary -----------------------------------------------
+
+installer_phase verify
+run_stackkit_step verify
+installer_complete
 
 DOMAIN_EFFECTIVE="lab.home"
 if [ -f "$HOMELAB_DIR/stack-spec.yaml" ]; then
@@ -1112,9 +1113,17 @@ case "$DOMAIN_EFFECTIVE" in
     echo ""
     ;;
   *.local|*.lab|*.lan|*.home|*.internal|*.test|home|homelab)
-    echo "  Local DNS: resolve *.${DOMAIN_EFFECTIVE} to this host inside your network."
-    echo "  Temporary workstation hosts entries:"
-    echo "    ${SERVER_IP}  base.${DOMAIN_EFFECTIVE} auth.${DOMAIN_EFFECTIVE} id.${DOMAIN_EFFECTIVE}${PAAS_ROUTE:+ ${PAAS_ROUTE}.${DOMAIN_EFFECTIVE}}"
+    if [ -f "$HOMELAB_DIR/.stackkit/client-trust/enroll-linux.sh" ]; then
+      echo "  Linux client trust: copy this public profile through your trusted server access:"
+      echo "    $HOMELAB_DIR/.stackkit/client-trust/enroll-linux.sh"
+      echo "  Review the Owner-CA fingerprint in $ACCESS_JSON, then approve on the client:"
+      echo "    sudo sh enroll-linux.sh --approve"
+      echo "  Sign in using the same printed HTTPS URLs. Trust does not grant a service session."
+    else
+      echo "  The public client trust profile is unavailable; second-device DNS/TLS remains unverified."
+      echo "  Inspect the cause in the original workspace:"
+      echo "    stackkit -C \"$HOMELAB_DIR\" verify client-trust --export"
+    fi
     echo ""
     ;;
 esac

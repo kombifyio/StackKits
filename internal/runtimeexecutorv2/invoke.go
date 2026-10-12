@@ -38,18 +38,18 @@ func InvokeAt(ctx context.Context, executor Executor, request ExecutionRequest, 
 	if identity != request.Executor {
 		return ExecutionResult{}, wrapError(ErrorIdentityMismatch, "executor", "identity differs from sealed request", nil)
 	}
-	if err := validateExternalBindingFreshness(request.AccessBindings, request.BackupTargetBindings, request.AuthorizationTime, at); err != nil {
-		return ExecutionResult{}, err
+	if freshnessErr := validateExternalBindingFreshness(request.AccessBindings, request.BackupTargetBindings, request.AuthorizationTime, at); freshnessErr != nil {
+		return ExecutionResult{}, freshnessErr
 	}
 	outcome, err := safeExecute(ctx, executor, CloneExecutionRequest(request))
 	if err != nil {
 		return ExecutionResult{}, err
 	}
-	if err := ctx.Err(); err != nil {
-		return ExecutionResult{}, wrapError(ErrorCancelled, "context", "canceled during execution", err)
+	if contextErr := ctx.Err(); contextErr != nil {
+		return ExecutionResult{}, wrapError(ErrorCancelled, "context", "canceled during execution", contextErr)
 	}
-	if err := validateExactOutcome(request, outcome); err != nil {
-		return ExecutionResult{}, err
+	if outcomeErr := validateExactOutcome(request, outcome); outcomeErr != nil {
+		return ExecutionResult{}, outcomeErr
 	}
 	result := ExecutionResult{
 		APIVersion: APIVersion, Executor: request.Executor, PlanHash: request.PlanHash,

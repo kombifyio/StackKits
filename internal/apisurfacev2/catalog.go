@@ -80,6 +80,7 @@ type CatalogTool struct {
 	CapabilityBundle      string           `json:"capabilityBundle"`
 	RequiredCapabilities  []string         `json:"requiredCapabilities"`
 	ResourceBinding       *ResourceBinding `json:"resourceBinding,omitempty"`
+	ActionType            string           `json:"actionType,omitempty"`
 	CostBearing           bool             `json:"costBearing"`
 	UpstreamKind          string           `json:"upstreamKind"`
 	LiveEnabled           bool             `json:"liveEnabled"`
@@ -184,6 +185,7 @@ func (s *Surface) CatalogFragment(c *Catalog) *CatalogFragment {
 			CapabilityBundle:      capability,
 			RequiredCapabilities:  []string{capability},
 			ResourceBinding:       op.MCP.ResourceBinding,
+			ActionType:            op.MCP.ActionType,
 			CostBearing:           op.MCP.CostBearing,
 			UpstreamKind:          c.Upstream.Kind,
 			LiveEnabled:           !op.MCP.Derived,

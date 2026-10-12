@@ -64,7 +64,7 @@ type backupRunStateStackAction struct {
 
 func (s *Server) backupEngineStackAction() backupexec.Engine {
 	if s.backupExec != nil {
-		return backupexec.Engine{Exec: s.backupExec}
+		return backupexec.Engine{Exec: s.backupExec, SecretExec: s.backupSecretExec}
 	}
 	return backupexec.NewDockerEngine(backupexec.DefaultContainer)
 }
@@ -352,7 +352,7 @@ func (s *Server) executeDetachedBackupRunStackAction(parent context.Context, eng
 	}
 
 	description := fmt.Sprintf("stackkit backup_run %s classes=%s", state.RunID, strings.Join(state.Classes, ","))
-	_, snapErr := engine.Snapshot(ctx, backupexec.DefaultVolumeSource, description)
+	snapshot, snapErr := engine.SnapshotForOperation(ctx, backupexec.DefaultVolumeSource, description, state.RunID)
 
 	finished.FinishedAt = time.Now().UTC()
 	if snapErr != nil {
@@ -361,16 +361,7 @@ func (s *Server) executeDetachedBackupRunStackAction(parent context.Context, eng
 		s.storeBackupStateStackAction(&finished)
 		return
 	}
-	if raw, err := engine.ListSnapshotsJSON(ctx); err == nil {
-		if snapshots, err := backupexec.ParseSnapshots(raw); err == nil {
-			for _, snap := range snapshots {
-				if snap.StartTime.Before(state.StartedAt.Add(-time.Minute)) {
-					continue
-				}
-				finished.Snapshots = append(finished.Snapshots, backupSnapshotFromEngineStackAction(snap, state.Classes))
-			}
-		}
-	}
+	finished.Snapshots = []stackaction.BackupSnapshot{backupSnapshotFromEngineStackAction(snapshot, state.Classes)}
 	finished.Phase = backupPhaseCompletedStackAction
 	s.storeBackupStateStackAction(&finished)
 }

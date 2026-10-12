@@ -177,7 +177,7 @@ func validateInternalPKIPlanInputs(raw []byte, path string) ([]string, error) {
 	authority := pki.Authority
 	if authority.ID != "stackkits-home-root-ca" || authority.Role != "root-ca" ||
 		authority.TrustDomainRef != plan.StackID || authority.SubjectRef != "stackkits-home-root-ca" ||
-		authority.KeyAlgorithm != "ed25519" || !authority.BasicConstraints.CA ||
+		!containsExecutorBundleString([]string{"ecdsa-p256", "ed25519"}, authority.KeyAlgorithm) || !authority.BasicConstraints.CA ||
 		authority.BasicConstraints.PathLen != -1 ||
 		!exactStringList(authority.KeyUsage, []string{"cert-sign", "crl-sign", "digital-signature"}) {
 		return nil, fail(ErrInvalidPlan, path+".internalPKI.authority", "root CA authority is ambiguous or widened")

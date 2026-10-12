@@ -4,7 +4,7 @@ package hostconformance
 
 import (
 	"fmt"
-	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"unsafe"
@@ -48,15 +48,20 @@ func platformMemoryBytes() (uint64, error) {
 }
 
 func platformStorageBytes() (uint64, error) {
-	return platformStorageBytesForPath(`C:\`)
+	windowsDirectory, err := windows.GetWindowsDirectory()
+	if err != nil {
+		return 0, fmt.Errorf("read Windows system volume: %w", err)
+	}
+	volume := filepath.VolumeName(windowsDirectory)
+	if volume == "" {
+		return 0, fmt.Errorf("Windows system volume is unobserved")
+	}
+	// Legacy host capacity describes the system volume, independently of the
+	// caller's working directory. Exact data-target capacity is probed separately.
+	return platformStorageBytesForPath(volume + `\`)
 }
 
 func platformStorageBytesForPath(root string) (uint64, error) {
-	if wd, err := os.Getwd(); err == nil && wd != "" {
-		if root == `C:\` {
-			root = wd
-		}
-	}
 	path, err := windows.UTF16PtrFromString(root)
 	if err != nil {
 		return 0, fmt.Errorf("encode storage root: %w", err)

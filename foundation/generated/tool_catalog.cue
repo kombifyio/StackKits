@@ -5,7 +5,7 @@
 //   stackkit registry bake-from-cue
 //   stackkit registry emit-cue
 //
-// Snapshot: source=cue generated_at=2026-09-20T15:05:18Z
+// Snapshot: source=cue generated_at=2026-10-11T15:36:55Z
 // Snapshot content_hash: (none — CUE-baked snapshot)
 // Services: rendered from CUE module contracts (modules/<slug>/module.cue),
 // the same source 'registry bake-from-cue' uses.
@@ -59,6 +59,21 @@ package foundation
 	order:              int
 	enableVar?:         string
 	guideUrl?:          string
+	clients?: [...{
+		platform: "android" | "ios" | "windows" | "macos" | "linux"
+		kind:     "store" | "download"
+		url:      string
+	}]
+	vendor?: {
+		name:     string
+		website?: string
+		docs?:    string
+		license?: string
+		support?: [...{
+			kind: "donate" | "sponsor" | "purchase"
+			url:  string
+		}]
+	}
 	setupPolicy?:       #SetupPolicy
 	setupActionLabel?:  string
 	delivery?: {
@@ -431,6 +446,15 @@ package foundation
 		order:            60
 		enableVar:        "enable_files"
 		guideUrl:         "https://docs.kombify.io/guides/stackkits/use-cases/files"
+		vendor: {
+			name:    "Cloudreve"
+			website: "https://cloudreve.org"
+			docs:    "https://docs.cloudreve.org"
+			license: "GPL-3.0"
+			support: [
+				{kind: "purchase", url: "https://cloudreve.org/pricing"},
+			]
+		}
 		setupPolicy:      "on_demand"
 		setupActionLabel: "Automatisierter Bootstrap"
 		default:          true
@@ -520,6 +544,15 @@ package foundation
 		order:            10
 		enableVar:        "enable_uptime_kuma"
 		guideUrl:         "https://docs.kombify.io/stackkits/apps/uptime-kuma"
+		vendor: {
+			name:    "Uptime Kuma"
+			website: "https://uptime.kuma.pet"
+			license: "MIT"
+			support: [
+				{kind: "donate", url: "https://opencollective.com/uptime-kuma"},
+				{kind: "sponsor", url: "https://github.com/sponsors/louislam"},
+			]
+		}
 		setupPolicy:      "automatic"
 		default:          true
 	}
@@ -557,6 +590,20 @@ package foundation
 		order:            40
 		enableVar:        "enable_jellyfin"
 		guideUrl:         "https://docs.kombify.io/stackkits/apps/jellyfin"
+		clients: [
+			{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=org.jellyfin.mobile"},
+			{platform: "ios", kind: "store", url: "https://apps.apple.com/us/app/jellyfin-mobile/id1480192618"},
+			{platform: "windows", kind: "download", url: "https://github.com/jellyfin/jellyfin-media-player/releases"},
+		]
+		vendor: {
+			name:    "Jellyfin"
+			website: "https://jellyfin.org"
+			docs:    "https://jellyfin.org/docs/"
+			license: "GPL-2.0"
+			support: [
+				{kind: "donate", url: "https://opencollective.com/jellyfin"},
+			]
+		}
 		setupPolicy:      "manual"
 		default:          false
 	}
@@ -579,6 +626,20 @@ package foundation
 		order:            50
 		enableVar:        "enable_immich"
 		guideUrl:         "https://docs.kombify.io/stackkits/apps/immich"
+		clients: [
+			{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=app.alextran.immich"},
+			{platform: "android", kind: "download", url: "https://github.com/immich-app/immich/releases/latest/download/app-release.apk"},
+			{platform: "ios", kind: "store", url: "https://apps.apple.com/us/app/immich/id1613945652"},
+		]
+		vendor: {
+			name:    "Immich"
+			website: "https://immich.app"
+			docs:    "https://docs.immich.app/"
+			license: "AGPL-3.0"
+			support: [
+				{kind: "purchase", url: "https://buy.immich.app/"},
+			]
+		}
 		setupPolicy:      "on_demand"
 		setupActionLabel: "Automatisierter Bootstrap"
 		default:          true
@@ -622,6 +683,17 @@ package foundation
 		section:          "Applications"
 		order:            55
 		enableVar:        "enable_home_assistant"
+		guideUrl:         "https://docs.kombify.io/guides/stackkits/use-cases/smart-home"
+		clients: [
+			{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=io.homeassistant.companion.android"},
+			{platform: "ios", kind: "store", url: "https://apps.apple.com/app/id1099568401"},
+		]
+		vendor: {
+			name:    "Home Assistant"
+			website: "https://www.home-assistant.io"
+			docs:    "https://www.home-assistant.io/docs/"
+			license: "Apache-2.0"
+		}
 		setupPolicy:      "manual"
 		default:          false
 	}
@@ -666,6 +738,20 @@ package foundation
 		order:            30
 		enableVar:        "enable_vaultwarden"
 		guideUrl:         "https://docs.kombify.io/stackkits/apps/vaultwarden"
+		clients: [
+			{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=com.x8bit.bitwarden"},
+			{platform: "ios", kind: "store", url: "https://apps.apple.com/app/bitwarden-free-password-manager/id1137397744"},
+			{platform: "windows", kind: "download", url: "https://bitwarden.com/download/?app=desktop&platform=windows&variant=exe"},
+		]
+		vendor: {
+			name:    "Vaultwarden"
+			website: "https://github.com/dani-garcia/vaultwarden"
+			docs:    "https://github.com/dani-garcia/vaultwarden/wiki"
+			license: "AGPL-3.0"
+			support: [
+				{kind: "sponsor", url: "https://github.com/sponsors/dani-garcia"},
+			]
+		}
 		setupPolicy:      "on_demand"
 		setupActionLabel: "Automatisierter Bootstrap"
 		default:          true

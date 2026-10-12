@@ -170,12 +170,13 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	var inputs struct {
 		homeBackupTargetPlanInputs
 		BackupPolicy struct {
-			APIVersion          string                      `json:"apiVersion"`
-			Kind                string                      `json:"kind"`
-			Schedule            localbackuppolicy.Schedule  `json:"schedule"`
-			DataClasses         []string                    `json:"dataClasses"`
-			Retention           localbackuppolicy.Retention `json:"retention"`
-			RestoreVerification json.RawMessage             `json:"restoreVerification"`
+			APIVersion           string                                 `json:"apiVersion"`
+			Kind                 string                                 `json:"kind"`
+			Schedule             localbackuppolicy.Schedule             `json:"schedule"`
+			DataClasses          []string                               `json:"dataClasses"`
+			Retention            localbackuppolicy.Retention            `json:"retention"`
+			RetentionByDataClass map[string]localbackuppolicy.Retention `json:"retentionByDataClass"`
+			RestoreVerification  json.RawMessage                        `json:"restoreVerification"`
 		} `json:"backupPolicy"`
 	}
 	if err := decodeStrict(unit.PlanInputsJSON(), &inputs); err != nil {
@@ -228,6 +229,8 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".planInputs.backupPolicy.retention", "validate resolved backup retention", err)
 	}
 	policy.Retention = &inputs.BackupPolicy.Retention
+	policy.DataClasses = append([]string(nil), inputs.BackupPolicy.DataClasses...)
+	policy.RetentionByDataClass = inputs.BackupPolicy.RetentionByDataClass
 	if err := inputs.BackupPolicy.Schedule.Validate(); err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".planInputs.backupPolicy.schedule", "validate resolved backup schedule", err)
 	}

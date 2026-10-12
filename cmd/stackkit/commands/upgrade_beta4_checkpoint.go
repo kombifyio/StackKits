@@ -199,6 +199,10 @@ func inspectNativeV2BackupAuthorityForCommand(
 	if currentErr == nil {
 		return current, nil
 	}
+	var unsupported *unsupportedBackupDelivery
+	if errors.As(currentErr, &unsupported) {
+		return nativeV2BackupAuthority{}, currentErr
+	}
 	legacy, legacyErr := inspectExactBeta4BackupAuthorityForRequest(
 		ctx, workspace, requestedSpec, "basement-kit",
 		releaseindex.Resolution{Asset: releaseindex.Asset{

@@ -472,6 +472,9 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductPassboltSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductOpencloudSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductNextcloudSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
@@ -542,6 +545,12 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductGamePlatformSelectedPaaSRegistration(nativehost.SelectedPaaSApplicationPelican, runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductAdguardHomeSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductGuacamoleSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductRoundcubeSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
@@ -636,7 +645,22 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 				registrations = append(registrations, registration)
 			}
 		}
+	} else {
+		komodo, err := architectureV2LocalKomodoRegistrations(workspaceRoot, runtimeVersion)
+		if err != nil {
+			return nil, fmt.Errorf("register local Komodo application owners: %w", err)
+		}
+		registrations = append(registrations, komodo...)
 	}
+	marketplaceOperations, err := nativehost.NewOSMarketplaceOperations(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	marketplaceRegistration, err := architecturev2.NewProductMarketplaceRegistration(runtimeVersion, marketplaceOperations)
+	if err != nil {
+		return nil, err
+	}
+	registrations = append(registrations, marketplaceRegistration)
 	return registrations, nil
 }
 

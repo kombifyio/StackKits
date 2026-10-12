@@ -552,11 +552,33 @@
       "examples": [],
       "flags": [],
       "subcommands": [
+        "stackkit agent diagnose",
         "stackkit agent install-plan",
         "stackkit agent mcp-config",
         "stackkit agent prompt",
         "stackkit agent self-check"
       ]
+    },
+    {
+      "path": "stackkit agent diagnose",
+      "name": "diagnose",
+      "parent": "stackkit agent",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent diagnose <error-id> [flags]",
+      "short": "Explain a stable error ID and its recovery action",
+      "description": "Read the same recovery guidance used by CLI failures, the MCP self-check plan and docs/TROUBLESHOOTING.md. This lookup does not observe or change the host.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the shared recovery contract as JSON; this is guidance, not an observed failure",
+          "required": false
+        }
+      ],
+      "subcommands": []
     },
     {
       "path": "stackkit agent install-plan",
@@ -2081,6 +2103,33 @@
       "subcommands": []
     },
     {
+      "path": "stackkit capacity",
+      "name": "capacity",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit capacity [spec-file] [flags]",
+      "short": "Assess selected module demand against observed host capacity",
+      "description": "Resolve the current CUE-bound selection and print its advisory capacity assessment as JSON. Missing measurements remain unverified. No files or runtime state are changed; this does not replace Apply admission.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Observed Inventory; missing capacity remains unverified",
+          "required": false
+        },
+        {
+          "name": "module-root",
+          "type": "string",
+          "description": "Architecture authority root",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit cluster",
       "name": "cluster",
       "parent": "stackkit",
@@ -2239,6 +2288,7 @@
         "stackkit docs emit-advanced-operations",
         "stackkit docs emit-cli-reference",
         "stackkit docs emit-release-manifests",
+        "stackkit docs emit-troubleshooting",
         "stackkit docs emit-use-case-overview"
       ]
     },
@@ -2362,6 +2412,34 @@
       "subcommands": []
     },
     {
+      "path": "stackkit docs emit-troubleshooting",
+      "name": "emit-troubleshooting",
+      "parent": "stackkit docs",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit docs emit-troubleshooting [flags]",
+      "short": "Generate the shared standalone troubleshooting authority",
+      "description": "Generate stable error IDs, causes and recovery actions from the same authority used by CLI failures and MCP self-check. With --check, refuse missing or stale documentation without writing.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "check",
+          "type": "bool",
+          "description": "Write nothing; fail when the generated guide differs",
+          "required": false
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "default": "docs/TROUBLESHOOTING.md",
+          "description": "Output path, relative to --chdir",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit docs emit-use-case-overview",
       "name": "emit-use-case-overview",
       "parent": "stackkit docs",
@@ -2389,7 +2467,13 @@
           "name": "source-sha",
           "type": "string",
           "description": "exact source SHA",
-          "required": true
+          "required": false
+        },
+        {
+          "name": "tables-only",
+          "type": "bool",
+          "description": "render truth tables without overview, evidence output or test claims",
+          "required": false
         },
         {
           "name": "test-receipt",
@@ -2401,6 +2485,24 @@
           "name": "tests-passed-for-source",
           "type": "bool",
           "description": "mark tests complete after the caller synchronously passed catalog tests for source-sha",
+          "required": false
+        },
+        {
+          "name": "truth-table-counts-output",
+          "type": "string",
+          "description": "CUE-derived intent and catalog count JSON output path (tables-only)",
+          "required": false
+        },
+        {
+          "name": "truth-table-output",
+          "type": "string",
+          "description": "shared CUE-derived truth table Markdown output path",
+          "required": false
+        },
+        {
+          "name": "truth-table-public-output",
+          "type": "string",
+          "description": "public-filtered truth table Markdown output path",
           "required": false
         }
       ],
@@ -3139,12 +3241,15 @@
       "subcommands": [
         "stackkit host attach-conformance",
         "stackkit host conformance",
+        "stackkit host delivery",
         "stackkit host environment",
+        "stackkit host migrate-browser-ca",
         "stackkit host preflight",
         "stackkit host prepare",
         "stackkit host reboot",
         "stackkit host remediate",
         "stackkit host security",
+        "stackkit host ssh",
         "stackkit host updates"
       ]
     },
@@ -3211,6 +3316,112 @@
       "subcommands": []
     },
     {
+      "path": "stackkit host delivery",
+      "name": "delivery",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host delivery [flags]",
+      "short": "Manage this node's sealed host delivery recipient",
+      "description": "Sealed host delivery brings Wallet items, backup targets and SSH access to\nthis node. A delivering authority seals each value to this node's recipient key\n(HPKE, pkg/hostdelivery); only this node opens it into its own custody.\nTechstack and Guard carry ciphertext and references only.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit host delivery detach",
+        "stackkit host delivery recipient",
+        "stackkit host delivery status"
+      ]
+    },
+    {
+      "path": "stackkit host delivery detach",
+      "name": "detach",
+      "parent": "stackkit host delivery",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host delivery detach [flags]",
+      "short": "Stop host delivery to this node and list the delivered secrets to rotate",
+      "description": "Detach this node from host delivery: every delivered secret is marked as\nneeding rotation, retired recipient keys are destroyed, and no delivery opens\nuntil the node is re-enrolled with 'host delivery recipient --rotate'. The\nresult lists the references and versions to rotate where they came from; it\nnever contains a value. Values already in local custody stay usable here.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit host delivery detach --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize detaching this node",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host delivery recipient",
+      "name": "recipient",
+      "parent": "stackkit host delivery",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host delivery recipient [flags]",
+      "short": "Prove this node's recipient key, pin the delivering authority, or rotate the key",
+      "description": "Print a statement, signed by the local Owner key, that binds this node's\nrecipient key and its generation to this Site and node and echoes the caller's\nchallenge. The private key never leaves local custody.\n\n--authority-key pins the delivering authority's Ed25519 public key for the\ncurrent generation; Wallet items and SSH access open only when signed by it.\nA pinned key is never replaced in place. --rotate re-enrolls the node under the\nnext generation (and with --authority-key pins a new authority): the previous\nkey still opens deliveries issued before the rotation for at most their\n15-minute lifetime and is then destroyed. Rotation also ends a detach.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit host delivery recipient --challenge \"$CHALLENGE\" --authority-key \"$WALLET_KEY\" --authority-key-id wallet-1 --owner-approve\nstackkit host delivery recipient --challenge \"$CHALLENGE\" --rotate --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "authority-key",
+          "type": "string",
+          "description": "Delivering authority Ed25519 public key (base64) to pin for this generation",
+          "required": false
+        },
+        {
+          "name": "authority-key-id",
+          "type": "string",
+          "description": "Key ID the delivering authority signs envelopes with",
+          "required": false
+        },
+        {
+          "name": "challenge",
+          "type": "string",
+          "description": "Fresh value from the delivering authority that the statement must echo",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize this node's recipient change",
+          "required": false
+        },
+        {
+          "name": "rotate",
+          "type": "bool",
+          "description": "Re-enroll under the next recipient generation",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host delivery status",
+      "name": "status",
+      "parent": "stackkit host delivery",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host delivery status [flags]",
+      "short": "Show the recipient generation, pinned authority, detach state and delivered references",
+      "description": "Report this node's recipient generation and fingerprint, retired generations\nstill openable, the pinned delivering authority, whether the node is detached,\nand every delivered secret by reference and version, with its rotation mark.\nNo value is read.",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
       "path": "stackkit host environment",
       "name": "environment",
       "parent": "stackkit host",
@@ -3239,6 +3450,33 @@
           "name": "json",
           "type": "bool",
           "description": "Emit the observation as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host migrate-browser-ca",
+      "name": "migrate-browser-ca",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host migrate-browser-ca [flags]",
+      "short": "Migrate this node's authenticated legacy CA to the browser-capable policy",
+      "description": "Explicitly migrate legacy Basement CA signing keys while preserving the Owner signing key, PocketID identities, runtime secrets, ingress leaf keys, addresses and volumes. Retain an already current root. Apply and verify the current native plan before --complete. Clients must approve a changed public root through the existing client-trust handoff.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "complete",
+          "type": "bool",
+          "description": "Retire the recovery journal after current native Apply and ordinary TLS verification",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize this node's explicit CA transition",
           "required": false
         }
       ],
@@ -3420,7 +3658,7 @@
       "group": "reference",
       "usage": "stackkit host security [flags]",
       "short": "Verify and repair the host security baseline with versioned evidence",
-      "description": "Observe this node against the StackKits host security baseline, and restore what\ndrifted without cutting the management path.\n\n'verify' never changes the host. It produces stackkit.host-security-evidence/v1\nfor the firewall, sshd, brute-force protection, automatic and pending security\nupdates, reboot state, kernel parameters, exposed listeners and certificate\nexpiry. Every control is compliant, drifted, unknown or an owner-approved\nexception, and the evidence expires: a stale observation is unknown, and an\nunknown control never counts as compliant.\n\nIt works on its own (Standard Mode, no account) and through the pinned CLI when\nTechstack manages the deployment (--mode advanced).",
+      "description": "Observe this node against the StackKits host security baseline, and restore what\ndrifted without cutting the management path.\n\n'verify' never changes the host. It produces stackkit.host-security-evidence/v1\nfor the firewall, sshd, brute-force protection, automatic and pending security\nupdates, reboot state, kernel parameters, exposed listeners and certificate\nexpiry, and for the SSH CA trust and host certificate delivered to this node\n('host ssh apply') once they are recorded. Every control is compliant, drifted, unknown or an owner-approved\nexception, and the evidence expires: a stale observation is unknown, and an\nunknown control never counts as compliant.\n\nIt works on its own (Standard Mode, no account) and through the pinned CLI when\nTechstack manages the deployment (--mode advanced).",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -3481,6 +3719,12 @@
           "type": "duration",
           "default": "15m0s",
           "description": "How long the evidence may be relied on before it expires (1m to 24h)",
+          "required": false
+        },
+        {
+          "name": "host-name",
+          "type": "stringArray",
+          "description": "Name the delivered SSH host certificate must carry (repeatable; default: the system hostname)",
           "required": false
         },
         {
@@ -3632,6 +3876,12 @@
           "required": false
         },
         {
+          "name": "host-name",
+          "type": "stringArray",
+          "description": "Name the delivered SSH host certificate must carry (repeatable; default: the system hostname)",
+          "required": false
+        },
+        {
           "name": "json",
           "type": "bool",
           "description": "Emit the result as machine-readable JSON",
@@ -3678,6 +3928,59 @@
           "name": "site-kind",
           "type": "string",
           "description": "Site kind of this host: home or cloud (default: inferred from the kit; modern-homelab needs it)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host ssh",
+      "name": "ssh",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host ssh [flags]",
+      "short": "SSH certificate access delivered to this node",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit host ssh apply"
+      ]
+    },
+    {
+      "path": "stackkit host ssh apply",
+      "name": "apply",
+      "parent": "stackkit host ssh",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host ssh apply [flags]",
+      "short": "Apply a sealed SSH CA trust, revocation or host certificate delivery from stdin",
+      "description": "Read one sealed ssh-ca-trust, ssh-ca-revoke or ssh-host-certificate envelope on\nstdin, signed by the pinned delivering authority, and apply it to this server's\nsshd:\n\n  - ssh-ca-trust installs the owner's user CA keys as TrustedUserCAKeys\n    (/etc/ssh/stackkit/trusted_user_ca_keys) and one AuthorizedPrincipalsFile\n    per local user (/etc/ssh/stackkit/principals/<user>). Root is never a\n    target. An empty key list revokes like ssh-ca-revoke.\n  - ssh-ca-revoke removes that trust. Revocations take effect at once and are\n    never rolled back; one sshd cannot reload for is recorded as cleanup\n    pending and finished by 'host security repair'.\n  - ssh-host-certificate installs a host certificate beside the host key it\n    certifies, only if it names every --host-name (default: the system\n    hostname) and is currently valid.\n\nsshd is reloaded only after 'sshd -t' accepts the new configuration; a change\nthat fails is rolled back. The applied state is recorded in owner custody, so\n'host security verify' reports drift and 'host security repair' reinstalls it.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit host ssh apply --tenant-ref \"$TENANT\" --owner-approve < envelope.json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "host-name",
+          "type": "stringArray",
+          "description": "Name a host certificate must carry as a principal (repeatable; default: the system hostname)",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize changing this server's SSH access",
+          "required": false
+        },
+        {
+          "name": "tenant-ref",
+          "type": "string",
+          "description": "Tenant the sealed delivery must be addressed to",
           "required": false
         }
       ],
@@ -4415,6 +4718,12 @@
           "name": "compute-tier",
           "type": "string",
           "description": "Legacy v2alpha1 only: declared kit graph (low, standard, high)",
+          "required": false
+        },
+        {
+          "name": "data-capacity",
+          "type": "stringArray",
+          "description": "Native v2alpha2: binding=JSON with explicit initialGiB, growthGiBPerMonth, horizonMonths and reservePercent; repeat per selected data binding",
           "required": false
         },
         {
@@ -6026,7 +6335,7 @@
       "group": "care",
       "usage": "stackkit remove [flags]",
       "short": "Uninstall the local StackKits deployment",
-      "description": "Uninstall the StackKits runtime on this machine.\n\nWith no --workload, this is the product uninstall: it stops and deletes every\nCompose project named stackkit-* (Basement core, Cloud core, and selected use\ncases), including their networks and volumes. It looks in the current\ndirectory, then ~/my-homelab or ~/my-cloud-homelab.\n\n--workload removes one exact Architecture v2 workload through its applied\nruntime owner. That path keeps application volumes unless --delete-data is set.",
+      "description": "Uninstall the StackKits runtime on this machine.\n\nWith no --workload, this is the product uninstall: it stops and deletes every\nCompose project named stackkit-* (Basement core, Cloud core, and selected use\ncases), including their networks, while retaining named data volumes. Add\n--delete-data to delete those volumes intentionally. --purge also deletes\nthe selected workspace's state, deploy directory and cached images.\nIt looks in the current\ndirectory, then ~/my-homelab or ~/my-cloud-homelab.\n\n--workload removes one exact Architecture v2 workload through its applied\nruntime owner. That path keeps application volumes unless --delete-data is set.",
       "runnable": true,
       "examples": [
         {
@@ -6036,6 +6345,10 @@
         {
           "command": "stackkit remove --auto-approve",
           "description": "Uninstall without the confirmation prompt"
+        },
+        {
+          "command": "stackkit remove --delete-data --auto-approve",
+          "description": "Uninstall the local deployment and intentionally delete its named volumes"
         },
         {
           "command": "stackkit remove --workload files",
@@ -6062,13 +6375,13 @@
         {
           "name": "delete-data",
           "type": "bool",
-          "description": "Delete named volumes owned by this exact applied workload (default keeps application data)",
+          "description": "Delete named volumes in the selected removal scope (default keeps application data)",
           "required": false
         },
         {
           "name": "force",
           "type": "bool",
-          "description": "Force remove even with errors",
+          "description": "Legacy compatibility flag; incomplete removal still fails and retains recovery state",
           "required": false
         },
         {
@@ -6110,7 +6423,7 @@
         {
           "name": "purge",
           "type": "bool",
-          "description": "Remove all StackKit data including images, state, and deploy directory",
+          "description": "Delete named runtime volumes, selected workspace state and deploy directory, and cached StackKit images",
           "required": false
         },
         {
@@ -6503,6 +6816,7 @@
       ],
       "subcommands": [
         "stackkit setup ai-connect",
+        "stackkit setup ai-provider",
         "stackkit setup connector"
       ]
     },
@@ -6547,6 +6861,60 @@
           "name": "token-file",
           "type": "string",
           "description": "File with the connector token; \"-\" or no flag reads standard input",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit setup ai-provider",
+      "name": "ai-provider",
+      "parent": "stackkit setup",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup ai-provider [flags]",
+      "short": "Offer an external OpenAI-compatible provider in Private AI with a key from your kombify Wallet",
+      "description": "Let Open WebUI of the Private AI use case use an external OpenAI-compatible\ninference provider (for example OpenAI, Mistral, Groq or OpenRouter) next to\nthe node's Ollama. The provider's API key never passes through this command,\nthe StackSpec or the generated bundle: keep it as an AI credential in your\nkombify Wallet, allow this node on the item, and deliver it sealed to this node\nwith \"stackkit wallet-item import\". This command binds the provider key to that\ndelivered item and sets the provider's https base URL. Every apply then reads\nthe newest delivered version, so a rotation in the Wallet takes effect after\n\"stackkit wallet-item import\" of the rotated item and the next apply. Apply\nfails closed when the item is not in this node's custody.\n\n--disable removes the provider from Open WebUI and the binding from local\ncustody. The delivered item stays in the node's Wallet item custody.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit setup ai-provider --base-url https://api.openai.com/v1 --tenant-ref \"$TENANT\" --wallet-item itm_abc...",
+          "description": "Bind the provider key delivered as Wallet item itm_... and set the provider"
+        },
+        {
+          "command": "stackkit setup ai-provider --disable",
+          "description": "Remove the provider"
+        }
+      ],
+      "flags": [
+        {
+          "name": "base-url",
+          "type": "string",
+          "description": "https base URL of the OpenAI-compatible provider API",
+          "required": false
+        },
+        {
+          "name": "disable",
+          "type": "bool",
+          "description": "Remove the external provider and its key binding",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the secret-free stackkit.command-result/v1 result",
+          "required": false
+        },
+        {
+          "name": "tenant-ref",
+          "type": "string",
+          "description": "Tenant the Wallet item was delivered under",
+          "required": false
+        },
+        {
+          "name": "wallet-item",
+          "type": "string",
+          "description": "Wallet item reference of the delivered provider key",
           "required": false
         }
       ],
@@ -7358,6 +7726,35 @@
           "required": false
         }
       ],
+      "subcommands": [
+        "stackkit verify client-trust"
+      ]
+    },
+    {
+      "path": "stackkit verify client-trust",
+      "name": "client-trust",
+      "parent": "stackkit verify",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit verify client-trust [flags]",
+      "short": "Verify public Owner-CA and scoped DNS custody for a client",
+      "description": "Verify the signed public CA and LAN resolver handoff on this installed host. With --export, prepare the Linux OS trust adapter. This does not verify the application runtime, approve client trust, issue device credentials or establish a service session.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "export",
+          "type": "bool",
+          "description": "Export .stackkit/client-trust/enroll-linux.sh from authenticated public custody",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the prepared public trust handoff as JSON",
+          "required": false
+        }
+      ],
       "subcommands": []
     },
     {
@@ -7376,6 +7773,68 @@
           "description": "Show the installed CLI version"
         }
       ],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit wallet-item",
+      "name": "wallet-item",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit wallet-item [flags]",
+      "short": "Wallet items delivered to this node's encrypted local custody",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit wallet-item import",
+        "stackkit wallet-item status"
+      ]
+    },
+    {
+      "path": "stackkit wallet-item import",
+      "name": "import",
+      "parent": "stackkit wallet-item",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit wallet-item import [flags]",
+      "short": "Open a sealed Wallet item delivery from stdin into encrypted local custody",
+      "description": "Read one sealed wallet-item-import or wallet-item-rotate envelope on stdin,\nsigned by the pinned delivering authority. The node opens it, records it as\nconsumed, and stores the value encrypted under its local custody key, keyed by\nitem reference and version. A rotation removes every older version. The result\nnames the reference and version only.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit wallet-item import --tenant-ref \"$TENANT\" --owner-approve < envelope.json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize storing this Wallet item",
+          "required": false
+        },
+        {
+          "name": "tenant-ref",
+          "type": "string",
+          "description": "Tenant the sealed delivery must be addressed to",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit wallet-item status",
+      "name": "status",
+      "parent": "stackkit wallet-item",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit wallet-item status [flags]",
+      "short": "List Wallet items in local custody by reference and version",
+      "description": "List every Wallet item in local custody by tenant, item reference and versions, and whether it needs rotation after a detach. No value is read.",
+      "runnable": true,
+      "examples": [],
       "flags": [],
       "subcommands": []
     }

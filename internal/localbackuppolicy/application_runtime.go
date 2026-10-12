@@ -110,8 +110,8 @@ func validateApplicationRuntime(runtime ApplicationRuntime) error {
 	if !applicationVolumeNameRegex.MatchString(runtime.ComposeProject) {
 		return fmt.Errorf("composeProject must use the portable Docker name subset")
 	}
-	if runtime.ComposeProject != StandaloneComposeProjectName(runtime.WorkloadRef, runtime.NodeRef) {
-		return fmt.Errorf("composeProject does not match the Standalone-Compose workload and node")
+	if runtime.ComposeProject != ApplicationComposeProjectName(runtime.WorkloadRef, runtime.NodeRef) {
+		return fmt.Errorf("composeProject does not match the selected application workload and node")
 	}
 	if len(runtime.Components) == 0 {
 		return fmt.Errorf("components must not be empty")

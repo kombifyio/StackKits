@@ -1,7 +1,9 @@
 package architecturev2renderer
 
 import (
+	"encoding/base64"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
 	"regexp"
 )
 
@@ -20,12 +22,15 @@ type WorkloadSecretReferenceFile struct {
 	Reference string
 	// UID and GID own the file (mode 0400) as the image's reader needs.
 	UID, GID int
+	// BcryptBase64 delivers only a bcrypt verifier, encoded for exact .env transport.
+	BcryptBase64 bool
 }
 
 // workloadSecretReferenceFiles is the governed inventory, keyed by module,
 // component and secret variable. Each entry is verified against the
 // upstream source of the pinned image; an image upgrade re-verifies it.
 var workloadSecretReferenceFiles = map[string]map[string]map[string]WorkloadSecretReferenceFile{
+	"stackkits-adguard-home-runtime": {"adguard-home": {"STACKKITS_OWNER_HASH_FILE": {Target: "/run/secrets/adguard-owner-bcrypt", Reference: "/run/secrets/adguard-owner-bcrypt", BcryptBase64: true}}},
 	// zigbee2mqtt 2.14.1 writes every ZIGBEE2MQTT_CONFIG_* variable into
 	// configuration.yaml in its data volume on each start
 	// (lib/util/settings.ts write), so a plain password variable persists
@@ -59,5 +64,32 @@ func (f WorkloadSecretReferenceFile) Content(value string) (string, error) {
 	if len(value) > 4096 || !workloadSecretReferenceValuePattern.MatchString(value) {
 		return "", fail(ErrInvalidPlan, "workloadSecretReferenceFile."+f.Key, "secret value cannot be written exactly as a YAML reference file")
 	}
+	if f.BcryptBase64 {
+		if len(value) < 16 || len(value) > 72 {
+			return "", fail(ErrInvalidPlan, "workloadSecretReferenceFile", "bcrypt custody requires 16 to 72 bytes")
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(value), bcrypt.DefaultCost)
+		if err != nil {
+			return "", fail(ErrInvalidPlan, "workloadSecretReferenceFile", "bcrypt custody encoding failed")
+		}
+		return base64.StdEncoding.EncodeToString(hash), nil
+	}
 	return fmt.Sprintf("%s: %q", f.Key, value), nil
+}
+
+// ContentWithPrevious keeps the existing verifier stable only while it still
+// authenticates the current custody material. A changed or invalid verifier is
+// regenerated; plaintext never enters the verifier transport.
+func (f WorkloadSecretReferenceFile) ContentWithPrevious(value, previous string) (string, error) {
+	if f.BcryptBase64 && (len(value) < 16 || len(value) > 72 || !workloadSecretReferenceValuePattern.MatchString(value)) {
+		return f.Content(value)
+	}
+	if f.BcryptBase64 && len(previous) <= 128 && workloadSecretReferenceValuePattern.MatchString(previous) {
+		verifier, err := base64.StdEncoding.DecodeString(previous)
+		cost, costErr := bcrypt.Cost(verifier)
+		if err == nil && costErr == nil && cost == bcrypt.DefaultCost && bcrypt.CompareHashAndPassword(verifier, []byte(value)) == nil {
+			return previous, nil
+		}
+	}
+	return f.Content(value)
 }

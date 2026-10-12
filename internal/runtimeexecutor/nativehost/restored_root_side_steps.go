@@ -87,7 +87,7 @@ func prepareNativeComposeRoot(ctx context.Context, runtime *osNativeComposeRunti
 		if err != nil {
 			return nil, err
 		}
-		steps.preparation = NativeComposePreparation{moduleRef: moduleRef, originReload: preparation.originReload, recreateServer: preparation.recreateServer}
+		steps.preparation = NativeComposePreparation{moduleRef: moduleRef, originReload: preparation.originReload, browserCAReload: preparation.browserCAReload, recreateServer: preparation.recreateServer}
 	default:
 		cloud, err := runtime.cloud(moduleRef)
 		if err != nil {
@@ -137,7 +137,7 @@ func (s *NativeComposeRootSteps) complete(ctx context.Context, retainIdentity bo
 			return err
 		}
 		preparation := basementApplyPreparation{
-			originReload: s.preparation.originReload, recreateServer: s.preparation.recreateServer,
+			originReload: s.preparation.originReload, browserCAReload: s.preparation.browserCAReload, recreateServer: s.preparation.recreateServer,
 		}
 		if retainIdentity {
 			_, err = s.runtime.basement.completeRestoredApply(ctx, s.composePath, environment, preparation)

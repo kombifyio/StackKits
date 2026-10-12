@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
@@ -71,9 +72,15 @@ func diagnoseExecutorFailure(err error) executorFailureDiagnostic {
 		if current == nil {
 			continue
 		}
+		if detail, ok := actionableerror.FromError(current); ok && cause == "" {
+			cause = detail.ReasonCode
+		}
 		message := current.Error()
 		if len(message) > 16384 {
 			message = message[:16384]
+		}
+		if cause == "" && strings.Contains(message, "HTTP 526") {
+			cause = "origin_tls_rejected"
 		}
 		if classified := applyoutcome.Classify(message); classified.Class != applyoutcome.ClassUnknown {
 			if cause == "" {
@@ -112,6 +119,9 @@ func diagnoseExecutorFailure(err error) executorFailureDiagnostic {
 			}
 		}
 		if typed, ok := current.(*runtimeexecutor.Error); ok {
+			if typed.Code == runtimeexecutor.ErrorInvalidRequest && typed.Field == "authorization_time" {
+				cause = "authorization_time_mismatch"
+			}
 			switch typed.Code {
 			case runtimeexecutor.ErrorInvalidRequest, runtimeexecutor.ErrorInvalidResult,
 				runtimeexecutor.ErrorIdentityMismatch, runtimeexecutor.ErrorSetMismatch,

@@ -118,5 +118,6 @@
   "output.needSpecRollout": "Create or load a canonical StackSpec v2 before running the governed flow.",
   "output.reviewPlanFirst": "Review the current plan before requesting Apply approval.",
   "output.applyNever": "The State Console never invokes Apply directly. Ask the connected agent to present the registered StackKits Apply operation for operation-specific confirmation and Owner approval.",
-  "output.setupNever": "The State Console does not invoke setup directly. Prepare the private credential file, then ask the connected agent to present this registered setup operation for confirmation."
+  "output.setupNever": "The State Console does not invoke setup directly. Prepare the private credential file, then ask the connected agent to present this registered setup operation for confirmation.",
+  "review.capacity": "Assess capacity"
 }

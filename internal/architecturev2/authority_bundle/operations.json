@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:333672b0940865810c84c55f008b77925ea2e71e9b1941fcfed9745b10f2ed21",
+  "contentDigest": "sha256:b866f782dbd51a0684680ec76251cb318c821ac0298265711da31b76cb675525",
   "operations": [
     {
       "command": [
@@ -858,6 +858,28 @@
       "ownerApproval": false,
       "title": "Show break-glass bundle",
       "toolName": "stackkit_break_glass_show_bundle"
+    },
+    {
+      "arguments": [
+        {
+          "description": "Path to the local observed Inventory document.",
+          "flag": "--inventory",
+          "kind": "string",
+          "name": "inventory_file"
+        }
+      ],
+      "command": [
+        "capacity"
+      ],
+      "description": "Assess CUE-bound module demand against optional observed Inventory; missing facts remain unverified and no execution is authorized.",
+      "destructive": false,
+      "id": "stackkit.capacity",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Capacity",
+      "toolName": "stackkit_assess_capacity"
     },
     {
       "command": [

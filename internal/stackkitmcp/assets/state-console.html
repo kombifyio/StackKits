@@ -649,6 +649,7 @@
         <div class="actions">
           <button type="button" class="primary" id="createSpec" data-i18n="review.createSpec">Create Spec</button>
           <button type="button" id="validateSpec" data-i18n="review.validate">Validate</button>
+          <button type="button" id="assessCapacity" data-i18n="review.capacity">Assess capacity</button>
           <button type="button" id="generatePreview" data-i18n="review.preview">Preview</button>
           <button type="button" id="planFlow" data-i18n="review.resolveAndPlan">Resolve and Plan</button>
         </div>
@@ -1426,6 +1427,7 @@
     document.getElementById("createSpec").dataset.write = "true";
     document.getElementById("createSpec").addEventListener("click", createSpec);
     document.getElementById("validateSpec").addEventListener("click", () => callTool("stackkit_validate", baseArgs()));
+    document.getElementById("assessCapacity").addEventListener("click", () => callTool("stackkit_assess_capacity", { ...baseArgs(), inventory_file: clean(state.form.inventory_path) }));
     document.getElementById("generatePreview").addEventListener("click", () => callTool("stackkit_generate_preview", baseArgs()));
     document.getElementById("planFlow").dataset.write = "true";
     document.getElementById("planFlow").addEventListener("click", runPlanFlow);

@@ -226,7 +226,10 @@ func VerifyBasementOriginProvisioner(ctx context.Context, workspaceRoot string) 
 	for _, wanted := range expected {
 		found := false
 		for _, provisioner := range result.Provisioners {
-			if provisioner.Type == wanted.Type && provisioner.Name == wanted.Name && provisioner.Key["kid"] == wanted.Key["kid"] && provisioner.Key["x"] == wanted.Key["x"] && provisioner.Key["kty"] == "OKP" && provisioner.Key["crv"] == "Ed25519" {
+			// ACME has no JWK. Both kinds must match their custody-owned
+			// public key exactly; the signed local configuration verifies the
+			// claims and templates that this public readback does not expose.
+			if provisioner.Type == wanted.Type && provisioner.Name == wanted.Name && reflect.DeepEqual(provisioner.Key, wanted.Key) {
 				found = true
 			}
 		}

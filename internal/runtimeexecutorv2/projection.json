@@ -1,29 +1,35 @@
 {
   "schemaVersion": "stackkits.runtimeexecutor-projection/v1",
   "source": "kombify-go-common/runtimeexecutor",
-  "sourceVersion": "v0.7.8",
-  "sourceCommit": "c26a7b5a385f93aa69c6db76ad80e3002b22191a",
-  "sourceSum": "h1:jF5F/wgABTbNcr6ir8kkT6gZ/+ILRCTNfzyMxjLS1p4=",
+  "sourceVersion": "v0.7.13",
+  "sourceCommit": "dd8c3157c9009dc84883865ec37b360f587285ac",
+  "sourceSum": "h1:YiREBX9yohivni8Phn8Fh2mfFOmp/O1OaYw0JzjVpCM=",
   "sourceFiles": [
     "README.md",
     "access_binding_test.go",
+    "artifact_validation.go",
     "backup_target_binding_test.go",
     "clone.go",
     "digest.go",
     "execution_channel.go",
     "execution_channel_test.go",
+    "external_binding_validation.go",
     "invoke.go",
     "runtimeexecutor_test.go",
     "route_health_test.go",
     "runtime_adapter_binding_test.go",
+    "runtime_target_validation.go",
     "types.go",
     "validation.go"
   ],
   "projectedFiles": [
+    "artifact_validation.go",
     "clone.go",
     "digest.go",
     "execution_channel.go",
+    "external_binding_validation.go",
     "invoke.go",
+    "runtime_target_validation.go",
     "types.go",
     "validation.go"
   ]

@@ -53,7 +53,27 @@ func DockerExecutorUncapped(container string) Executor {
 
 // NewDockerEngine wires Engine to the shared docker exec adapter.
 func NewDockerEngine(container string) Engine {
-	return Engine{Exec: DockerExecutor(container)}
+	return Engine{Exec: DockerExecutor(container), SecretExec: DockerSecretExecutor(container)}
+}
+
+// DockerSecretExecutor keeps legacy repository custody behind the same fixed
+// stdin adapter and redaction boundary as native-v2. Legacy nodes retain their
+// own runtime identity; this does not adopt them into the native-v2 lifecycle.
+func DockerSecretExecutor(container string) SecretExecutor {
+	return func(ctx context.Context, command []string, input []byte) (string, error) {
+		client := docker.NewClient(docker.WithTimeout(dockerTimeout(ctx, LongOperationTimeout)))
+		if !client.IsInstalled() || !client.IsRunning(ctx) {
+			return "", errors.New("local Docker backup runtime is unavailable")
+		}
+		if _, err := client.InspectContainer(ctx, container); err != nil {
+			return "", fmt.Errorf("inspect local backup runtime: %w", err)
+		}
+		argv, err := kopiaPasswordCommand(command)
+		if err != nil {
+			return "", err
+		}
+		return client.ExecWithStdin(ctx, container, argv, input)
+	}
 }
 
 // kopiaAgentMemoryLimitBytes mirrors the kopia-agent `resources.memoryLimit`
@@ -87,13 +107,9 @@ func NewDockerV2EngineForPolicy(policy localbackuppolicy.Policy) (V2Engine, erro
 		return V2Engine{}, fmt.Errorf("decode local Kopia policy for Docker engine: %w", err)
 	}
 	source := held.SourceProjection()
-	engine := NewV2Engine(dockerV2ExecutorForSource(dockerV2ClientFactory(func(timeout time.Duration) dockerV2Client {
+	return newV2EngineForHeldPolicy(dockerV2ExecutorForSource(dockerV2ClientFactory(func(timeout time.Duration) dockerV2Client {
 		return docker.NewLocalClient(docker.WithTimeout(timeout))
-	}), source))
-	engine.retention = held.Retention
-	engine.hostname = held.Runtime.Hostname
-	engine.coreModuleRef = held.Source.CoreModuleRef
-	return engine, nil
+	}), source), held)
 }
 
 // NewDockerV2OffsiteEngineForPolicy admits only the finite Cloud outbound
@@ -542,6 +558,9 @@ func kopiaPasswordCommand(command []string) ([]string, error) {
 		"--",
 	}
 	if len(command) >= 6 && command[1] == "--config-file" && (command[2] == DefaultConfigFile || command[2] == OffsiteConfigFile) && command[3] == "repository" && (command[4] == "connect" || command[4] == "create") && command[5] == "s3" {
+		argv[2] = `IFS= read -r KOPIA_PASSWORD; IFS= read -r AWS_ACCESS_KEY_ID; IFS= read -r AWS_SECRET_ACCESS_KEY; export KOPIA_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; unset AWS_SESSION_TOKEN; exec "$@"`
+	}
+	if len(command) >= 4 && command[1] == "repository" && (command[2] == "connect" || command[2] == "create") && command[3] == "s3" {
 		argv[2] = `IFS= read -r KOPIA_PASSWORD; IFS= read -r AWS_ACCESS_KEY_ID; IFS= read -r AWS_SECRET_ACCESS_KEY; export KOPIA_PASSWORD AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; unset AWS_SESSION_TOKEN; exec "$@"`
 	}
 	if len(command) >= 3 && command[1] == "--config-file" && command[2] == OffsiteConfigFile {

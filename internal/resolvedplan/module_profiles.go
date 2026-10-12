@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"math"
 	"sort"
-)
 
-type moduleResourceBudget struct {
-	cpu, ram, storage          float64
-	hasCPU, hasRAM, hasStorage bool
-}
+	"github.com/kombifyio/stackkits/internal/capacityfit"
+)
 
 // moduleProfileSelection is the compiler-owned binding between one selected
 // module and one catalog profile. The catalog body is retained so the exact
@@ -558,16 +555,44 @@ func anyStringSlice(value any) ([]string, bool) {
 	return result, true
 }
 
-// aggregateModuleResourceDemand computes only declared resource axes. Host
-// floors are maxima because every module must fit; reservations, recommended
-// and headroom are additive because modules share a node's capacity.
+// aggregateModuleResourceDemand projects the shared engine's demand into the
+// original persisted shape. New assessment diagnostics never change plan hashes.
 func aggregateModuleResourceDemand(modules []any) ([]any, error) {
-	type budget = moduleResourceBudget
-	type demand struct {
-		modules, unverified                      []string
-		host, reservation, recommended, headroom budget
+	selected, err := capacityModules(modules)
+	if err != nil {
+		return nil, err
 	}
-	byNode := make(map[string]*demand)
+	demands, err := capacityfit.Aggregate(selected)
+	if err != nil {
+		return nil, fail(ErrInvalidInput, "resolvedPlan.resourceDemand", "%v", err)
+	}
+	result := make([]any, 0, len(demands))
+	for _, demand := range demands {
+		value := map[string]any{
+			"nodeRef":              demand.NodeRef,
+			"moduleRefs":           stringSliceAny(demand.ModuleRefs),
+			"unverifiedModuleRefs": stringSliceAny(demand.UnverifiedModuleRefs),
+		}
+		for _, field := range []struct {
+			name  string
+			value capacityfit.Vector
+		}{
+			{"hostFloor", demand.HostFloor}, {"reservation", demand.Reservation},
+			{"recommended", demand.Recommended}, {"headroom", demand.Headroom},
+		} {
+			if encoded := field.value.Map(); encoded != nil {
+				value[field.name] = encoded
+			}
+		}
+		result = append(result, value)
+	}
+	return result, nil
+}
+
+// capacityModules decodes already catalog-bound profile bodies. It performs no
+// aggregation, sizing, profile selection or inventory attestation.
+func capacityModules(modules []any) ([]capacityfit.Module, error) {
+	result := make([]capacityfit.Module, 0, len(modules))
 	for _, raw := range modules {
 		module, err := asObject(raw, "resolvedPlan.modules")
 		if err != nil {
@@ -588,25 +613,23 @@ func aggregateModuleResourceDemand(modules []any) ([]any, error) {
 		if err != nil {
 			return nil, err
 		}
-		host, err := profileBudget(binding, "hostFloor", true)
-		if err != nil {
-			return nil, err
+		selected := capacityfit.Module{ID: moduleID, NodeRefs: nodeRefs}
+		for _, field := range []struct {
+			name   string
+			target *capacityfit.Vector
+			floor  bool
+		}{
+			{"hostFloor", &selected.Compute.HostFloor, true},
+			{"reservation", &selected.Compute.Reservation, false},
+			{"recommended", &selected.Compute.Recommended, false},
+			{"headroom", &selected.Compute.Headroom, false},
+		} {
+			value, err := profileBudget(binding, field.name, field.floor)
+			if err != nil {
+				return nil, err
+			}
+			*field.target = value
 		}
-		reservation, err := profileBudget(binding, "reservation", false)
-		if err != nil {
-			return nil, err
-		}
-		recommended, err := profileBudget(binding, "recommended", false)
-		if err != nil {
-			return nil, err
-		}
-		headroom, err := profileBudget(binding, "headroom", false)
-		if err != nil {
-			return nil, err
-		}
-		recommended = maxBudget(recommended, reservation)
-		minimum := maxBudget(host, reservation)
-		complete := minimum.hasCPU && minimum.hasRAM && minimum.hasStorage
 		for _, axisField := range []string{"storageProfileBinding", "acceleratorProfileBinding"} {
 			axis, declared, err := optionalObjectField(module, "resolvedPlan.modules."+moduleID, axisField)
 			if err != nil {
@@ -615,146 +638,48 @@ func aggregateModuleResourceDemand(modules []any) ([]any, error) {
 			if !declared {
 				continue
 			}
-			axisReservation, err := profileBudget(axis, "reservation", false)
+			reservation, err := profileBudget(axis, "reservation", false)
 			if err != nil {
 				return nil, err
 			}
-			reservation = addBudget(reservation, axisReservation)
-			recommended = addBudget(recommended, axisReservation)
-			// A missing axis is unknown, never an implicit zero. Orthogonal
-			// profiles therefore need a complete declared vector before the
-			// module can leave the unverified set.
-			complete = complete && axisReservation.hasCPU && axisReservation.hasRAM && axisReservation.hasStorage
+			selected.OrthogonalReservations = append(selected.OrthogonalReservations, reservation)
 		}
-		for _, nodeRef := range nodeRefs {
-			entry := byNode[nodeRef]
-			if entry == nil {
-				entry = &demand{}
-				byNode[nodeRef] = entry
-			}
-			entry.modules = append(entry.modules, moduleID)
-			if !complete {
-				entry.unverified = append(entry.unverified, moduleID)
-			}
-			entry.host = maxBudget(entry.host, host)
-			entry.reservation = addBudget(entry.reservation, reservation)
-			entry.recommended = addBudget(entry.recommended, recommended)
-			entry.headroom = addBudget(entry.headroom, headroom)
-		}
-	}
-	nodes := make([]string, 0, len(byNode))
-	for nodeRef := range byNode {
-		nodes = append(nodes, nodeRef)
-	}
-	sort.Strings(nodes)
-	result := make([]any, 0, len(nodes))
-	for _, nodeRef := range nodes {
-		entry := byNode[nodeRef]
-		minimum := maxBudget(entry.host, entry.reservation)
-		entry.recommended = maxBudget(minimum, addBudget(entry.recommended, entry.headroom))
-		moduleRefs := sortStringsUnique(entry.modules)
-		value := map[string]any{
-			"nodeRef": nodeRef, "moduleRefs": stringSliceAny(moduleRefs),
-			"unverifiedModuleRefs": stringSliceAny(sortStringsUnique(entry.unverified)),
-		}
-		for _, axis := range []struct {
-			name  string
-			value budget
-		}{
-			{"hostFloor", entry.host}, {"reservation", entry.reservation},
-			{"recommended", entry.recommended}, {"headroom", entry.headroom},
-		} {
-			if encoded := encodeBudget(axis.value); encoded != nil {
-				value[axis.name] = encoded
-			}
-		}
-		result = append(result, value)
+		result = append(result, selected)
 	}
 	return result, nil
 }
 
-func profileBudget(profile map[string]any, field string, hostFloor bool) (moduleResourceBudget, error) {
-	type budget = moduleResourceBudget
+func profileBudget(profile map[string]any, field string, hostFloor bool) (capacityfit.Vector, error) {
 	value, exists, err := optionalObjectField(profile, "resolvedPlan.computeProfile", field)
 	if err != nil || !exists {
-		return budget{}, err
+		return capacityfit.Vector{}, err
 	}
-	result := budget{}
+	result := capacityfit.Vector{}
 	for _, axis := range []struct {
-		name string
-		dest *float64
-		set  *bool
+		axis         capacityfit.Axis
+		name, legacy string
 	}{
-		{"cpuCores", &result.cpu, &result.hasCPU}, {"ramGB", &result.ram, &result.hasRAM}, {"storageGB", &result.storage, &result.hasStorage},
+		{capacityfit.CPU, "cpuCores", "minCpuCores"},
+		{capacityfit.RAM, "ramGB", "minRamGB"},
+		{capacityfit.Storage, "storageGB", "minStorageGB"},
 	} {
-		if _, exists := value[axis.name]; exists {
-			parsed, err := resourceNumberField(value, "resolvedPlan.computeProfile."+field, axis.name)
-			if err != nil {
-				return budget{}, err
+		name := axis.name
+		if _, present := value[name]; !present {
+			if !hostFloor {
+				continue
 			}
-			*axis.dest, *axis.set = parsed, true
-		} else if hostFloor {
-			legacyName := map[string]string{"cpuCores": "minCpuCores", "ramGB": "minRamGB", "storageGB": "minStorageGB"}[axis.name]
-			if legacyName != "" {
-				if _, exists := value[legacyName]; exists {
-					parsed, err := resourceNumberField(value, "resolvedPlan.computeProfile."+field, legacyName)
-					if err != nil {
-						return budget{}, err
-					}
-					*axis.dest, *axis.set = parsed, true
-				}
+			name = axis.legacy
+			if _, present := value[name]; !present {
+				continue
 			}
 		}
+		parsed, err := resourceNumberField(value, "resolvedPlan.computeProfile."+field, name)
+		if err != nil {
+			return capacityfit.Vector{}, err
+		}
+		result.Set(axis.axis, parsed)
 	}
 	return result, nil
-}
-
-func maxBudget(left, right moduleResourceBudget) moduleResourceBudget {
-	result := left
-	if right.hasCPU && (!result.hasCPU || right.cpu > result.cpu) {
-		result.cpu, result.hasCPU = right.cpu, true
-	}
-	if right.hasRAM && (!result.hasRAM || right.ram > result.ram) {
-		result.ram, result.hasRAM = right.ram, true
-	}
-	if right.hasStorage && (!result.hasStorage || right.storage > result.storage) {
-		result.storage, result.hasStorage = right.storage, true
-	}
-	return result
-}
-
-func addBudget(left, right moduleResourceBudget) moduleResourceBudget {
-	result := left
-	if right.hasCPU {
-		result.cpu += right.cpu
-		result.hasCPU = true
-	}
-	if right.hasRAM {
-		result.ram += right.ram
-		result.hasRAM = true
-	}
-	if right.hasStorage {
-		result.storage += right.storage
-		result.hasStorage = true
-	}
-	return result
-}
-
-func encodeBudget(value moduleResourceBudget) map[string]any {
-	result := make(map[string]any)
-	if value.hasCPU {
-		result["cpuCores"] = value.cpu
-	}
-	if value.hasRAM {
-		result["ramGB"] = value.ram
-	}
-	if value.hasStorage {
-		result["storageGB"] = value.storage
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
 }
 
 func resourceNumberField(object map[string]any, path, name string) (float64, error) {
@@ -802,13 +727,13 @@ func applyModuleResourceAdmission(modules, demands []any, nodes []nodeView) erro
 		if err != nil {
 			return err
 		}
-		minimum := encodeBudget(maxBudget(floor, reservation))
+		minimum := capacityfit.InventoryMinimum(capacityfit.Max(floor, reservation)).Map()
 		requirements := map[string]any{}
 		for axis, field := range map[string]string{"cpuCores": "minCpuCores", "ramGB": "minRamGB", "storageGB": "minStorageGB"} {
 			if value, declared := minimum[axis]; declared {
 				// Inventory currently attests whole GiB/cores. Round only this
 				// comparison threshold, never the persisted module budgets.
-				requirements[field] = math.Ceil(value.(float64))
+				requirements[field] = value
 			}
 		}
 		admission, err := evaluateRuntimeAdmission(requirements, []string{nodeRef}, nodes)

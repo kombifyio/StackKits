@@ -358,6 +358,9 @@ func serviceCatalogEntriesFromContracts(contracts []skcue.ModuleContract) []skcu
 				Section:     svc.DashboardSection,
 				Order:       svc.DashboardOrder,
 				EnableVar:   svc.DashboardEnableVar,
+				GuideURL:    svc.DashboardGuideURL,
+				Clients:     append([]skcue.ServiceClient(nil), svc.DashboardClients...),
+				Vendor:      svc.DashboardVendor,
 			})
 		}
 	}
@@ -387,6 +390,8 @@ func registryServicesFromCatalog(catalog []servicecatalog.Service) []registry.Se
 			EnableVar:               svc.EnableVar,
 			Default:                 svc.Default,
 			GuideURL:                svc.GuideURL,
+			Clients:                 append([]registry.AppClient(nil), svc.Clients...),
+			Vendor:                  svc.Vendor,
 			SetupPolicy:             svc.SetupPolicy,
 			SetupActionLabel:        svc.SetupActionLabel,
 		})

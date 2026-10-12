@@ -146,7 +146,7 @@ func (r *OwnerRouter) Execute(ctx context.Context, request runtimeexecutor.Execu
 			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("seal runtime-owner child request for %q: %w", route.requirementID, err)
 		}
 		prepared = append(prepared, preparedExecution{
-			label: route.requirementID, executor: route.executor, request: childRequest, compensation: route.compensation,
+			label: route.requirementID, scope: ScopeOwner, executor: route.executor, request: childRequest, compensation: route.compensation,
 			critical: criticalRuntimeTargets(groups[targetHash].runtime),
 		})
 	}

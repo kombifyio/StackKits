@@ -24,6 +24,13 @@ StackKits host preflight.
 
 Use Node 24 or newer:
 
+The build also needs the repository's pinned Go toolchain. Capacity runs through
+`internal/capacityfit`, compiled into a static Go WebAssembly module with the
+matching `wasm_exec.js`; the browser carries no parallel sizing arithmetic.
+Published npm packages include the verified WASM, runtime, Go license and
+asset manifest. Consumers outside the StackKits source repository reuse those
+packaged bytes; their build does not require Go or a surrounding Go checkout.
+
 ```sh
 npm ci
 npm run build
@@ -93,8 +100,13 @@ Use only the calls needed for the current question. When the user has already
 chosen the complete module selection and declared capacity, call
 `stackkits_prepare_handoff` directly: it includes the capacity assessment.
 There is no mandatory list → profile → assess → handoff round trip. No tool
-performs network requests or model inference; the catalog is fetched once per
-load attempt and verified immutable data is reused within that page session.
+calls a capacity HTTP service or model inference. The catalog and same-origin
+static capacity assets load at session initialization and are reused for all
+assessments and handoffs, including while the page is offline. Missing engine
+assets return `CAPACITY_ENGINE_UNAVAILABLE`; no JavaScript sizing fallback exists.
+Library consumers can set `capacityAssetBaseURL` in the planner/session options
+or the host component to their own same-origin static directory. The reference
+host copies the engine/runtime next to its public catalog and honors its base path.
 
 Compute profiles may include `host_requirements` for CPU instruction sets and
 the persistent local data filesystem. Profile discovery groups identical

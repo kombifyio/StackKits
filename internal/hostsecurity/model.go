@@ -69,6 +69,12 @@ const (
 	ControlListeners         = "exposure.listeners"
 	ControlPublishedPorts    = "exposure.published_ports"
 	ControlCertificateExpiry = "tls.certificate_expiry"
+	// ControlSSHUserCA and ControlSSHHostCertificate judge the SSH certificate
+	// access delivered to this node (owner user CA trust, host certificate).
+	// They appear once node custody records SSH access, or when StackKits
+	// SSH access files are found without such a record.
+	ControlSSHUserCA          = "ssh.user_ca_trust"
+	ControlSSHHostCertificate = "ssh.host_certificate"
 )
 
 // enforcedControls are the controls the baseline itself enforces. They gate an

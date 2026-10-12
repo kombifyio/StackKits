@@ -32,6 +32,13 @@ func nativeBackupApplicationCustody(authority nativeV2BackupAuthority) (backupex
 		if index < 0 || !reflect.DeepEqual(requested, runtimes[index]) {
 			return nil, errors.New("application backup custody request differs from the held source graph")
 		}
+		if requested.WorkloadRef == "marketplace" {
+			d, err := nativeBackupMarketplaceDocument(ctx, authority)
+			if err != nil {
+				return nil, err
+			}
+			return nativehost.ObserveMarketplaceContainerCustody(ctx, authority.WorkspaceRoot, d)
+		}
 		return nativehost.ObserveStandaloneComposeContainerCustody(ctx, authority.WorkspaceRoot, deployments[requested.ComposeProject])
 	}, nil
 }
@@ -49,6 +56,9 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 	}
 	deployments := make(map[string]nativehost.SelectedPaaSWorkloadDeployment, len(runtimes))
 	for _, graph := range runtimes {
+		if graph.WorkloadRef == "marketplace" {
+			continue
+		}
 		deployment, err := nativeAppliedWorkloadDeployment(*authority.AppliedAuthority, graph.WorkloadRef)
 		if err != nil {
 			return nil, err
@@ -95,6 +105,20 @@ func verifyNativeV2BackupApplications(ctx context.Context, authority nativeV2Bac
 	if err != nil {
 		return err
 	}
+	for _, graph := range runtimes {
+		if graph.WorkloadRef == "marketplace" {
+			d, err := nativeBackupMarketplaceDocument(ctx, authority)
+			if err != nil {
+				return err
+			}
+			if err := nativehost.VerifyMarketplaceReady(ctx, authority.WorkspaceRoot, d); err != nil {
+				return fmt.Errorf("verify restored Marketplace node installation: %w", err)
+			}
+		}
+	}
+	if len(deployments) == 0 {
+		return nil
+	}
 	operations, err := nativehost.NewOSStandaloneComposeWorkloadOperations(authority.WorkspaceRoot)
 	if err != nil {
 		return fmt.Errorf("initialize selected application restore verifier: %w", err)
@@ -104,6 +128,9 @@ func verifyNativeV2BackupApplications(ctx context.Context, authority nativeV2Bac
 		return errors.New("selected application restore verifier has no product-owned observation validator")
 	}
 	for _, graph := range runtimes {
+		if graph.WorkloadRef == "marketplace" {
+			continue
+		}
 		deployment, exists := deployments[graph.ComposeProject]
 		if !exists {
 			return errors.New("selected application restore verifier has no exact signed deployment")

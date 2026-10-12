@@ -59,6 +59,9 @@ type AuthoringOverrides struct {
 	// UseCaseCatalog projection. It is v2alpha2 only and resolves into
 	// UseCases and UseCaseAlternatives before materialization.
 	UseCaseCapabilities map[string]map[string]string
+	// DataCapacityDemands is explicit new-data intent per selected binding.
+	// CUE owns validation and the projected/reserved formula; omission stays unknown.
+	DataCapacityDemands map[string]DataCapacityIntent
 	// HardwareProfile writes nodes[0].hardware.profile (standard|pi|gpu|storage).
 	// pi is a constrained homelab device class, not Raspberry-only. Empty leaves
 	// the CUE default. This is never auto-detected from inventory.
@@ -568,6 +571,9 @@ func materializeInitialStackSpec(
 		if err := projectInitialWorkloadAccess(spec, authoring, workloadSelections); err != nil {
 			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "project selected workload access: "+err.Error(), err)
 		}
+	}
+	if err := applyInitialDataCapacityIntent(spec, workloadSelections, overrides.DataCapacityDemands, nativeProfiles); err != nil {
+		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, "author data capacity: "+err.Error(), err)
 	}
 	candidate, err := resolvedplan.CanonicalJSON(spec)
 	if err != nil {

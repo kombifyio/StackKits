@@ -15,6 +15,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/appsetup"
+	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
@@ -191,6 +192,18 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 			outcomes = append(outcomes, outcome)
 			continue
 		}
+		if appsetup.CustodiedOwnerLoginAction(action) {
+			// The application already bootstrapped from its sealed workload
+			// secret. Observe that account through the same setup lifecycle;
+			// never generate a replacement password or credential document.
+			if err := s.execute(ctx, contract.WorkloadRef, nativeSetupOptions{ownerApproved: true}); err != nil {
+				outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
+			} else {
+				outcome.Status = automaticSetupSucceeded
+			}
+			outcomes = append(outcomes, outcome)
+			continue
+		}
 		credentials, automatic := automaticOwnerCredentials(action, s.owner)
 		if !automatic {
 			outcome.Status = automaticSetupOwnerRequired
@@ -324,7 +337,7 @@ func ensureAutomaticSetupCredentials(workspace, relative string, derive func() (
 		if !info.Mode().IsRegular() {
 			return errors.New("setup credential file is not a regular file")
 		}
-		return nil
+		return backupcustody.RequirePrivatePath(target, false)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -345,6 +358,12 @@ func ensureAutomaticSetupCredentials(workspace, relative string, derive func() (
 		return err
 	}
 	defer func() { _ = root.Close() }()
+	// Validate the plain confined parent before restricting its ACL, and secure
+	// it before any secret or atomic staging file is persisted. Unix modes
+	// alone do not create an owner-only DACL on Windows.
+	if err := backupcustody.ProtectPrivatePath(filepath.Dir(target), true); err != nil {
+		return fmt.Errorf("protect the private setup directory: %w", err)
+	}
 	view, err := root.View(".")
 	if err != nil {
 		return err
@@ -356,5 +375,5 @@ func ensureAutomaticSetupCredentials(workspace, relative string, derive func() (
 	if !result.Installed || !result.FileSynced {
 		return errors.New("private setup credentials were not durably installed")
 	}
-	return nil
+	return backupcustody.ProtectPrivatePath(target, false)
 }

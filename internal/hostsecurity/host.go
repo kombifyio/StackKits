@@ -35,6 +35,9 @@ type Host interface {
 	ReadFile(path string) ([]byte, error)
 	// Stat reports file metadata like os.Stat.
 	Stat(path string) (fs.FileInfo, error)
+	// ReadDirNames lists the entry names of a directory, sorted. A missing
+	// directory is an fs.ErrNotExist error.
+	ReadDirNames(path string) ([]string, error)
 	// Run executes a command by name or absolute path. A nonzero exit is
 	// reported in Output.ExitCode with a nil error; the error is for a command
 	// that could not run or a context that ended.
@@ -68,6 +71,18 @@ func (LocalHost) LookPath(name string) (string, error) { return exec.LookPath(na
 func (LocalHost) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
 
 func (LocalHost) Stat(path string) (fs.FileInfo, error) { return os.Stat(path) }
+
+func (LocalHost) ReadDirNames(path string) ([]string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return names, nil
+}
 
 func (LocalHost) Run(ctx context.Context, name string, args ...string) (Output, error) {
 	bounded, cancel := context.WithTimeout(ctx, commandTimeout)

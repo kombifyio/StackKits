@@ -146,3 +146,6 @@ coverage.out
 /.kombify/context-cache/
 
 *.gate.lock*
+
+# Go capacity engine and matching runtime are built with the WebMCP package.
+/webmcp/assets/

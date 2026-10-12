@@ -156,6 +156,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(passboltWorkload.contract, passboltWorkload); err != nil {
 		return nil, err
 	}
+	opencloudWorkload := newOpencloudWorkloadBundleRenderer()
+	if err := registry.Register(opencloudWorkload.contract, opencloudWorkload); err != nil {
+		return nil, err
+	}
 	nextcloudWorkload := newNextcloudWorkloadBundleRenderer()
 	if err := registry.Register(nextcloudWorkload.contract, nextcloudWorkload); err != nil {
 		return nil, err
@@ -246,6 +250,14 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(paperlessWorkload.contract, paperlessWorkload); err != nil {
 		return nil, err
 	}
+	adguardHomeWorkload := newAdguardHomeWorkloadBundleRenderer()
+	if err := registry.Register(adguardHomeWorkload.contract, adguardHomeWorkload); err != nil {
+		return nil, err
+	}
+	guacamoleWorkload := newGuacamoleWorkloadBundleRenderer()
+	if err := registry.Register(guacamoleWorkload.contract, guacamoleWorkload); err != nil {
+		return nil, err
+	}
 	roundcubeWorkload := newRoundcubeWorkloadBundleRenderer()
 	if err := registry.Register(roundcubeWorkload.contract, roundcubeWorkload); err != nil {
 		return nil, err
@@ -328,6 +340,13 @@ func NewProductRegistry() (*Registry, error) {
 		return nil, err
 	}
 	komodoCore := newKomodoCoreRenderer()
+	komodoBootstrap := newKomodoBootstrapRenderer()
+	if err := registry.Register(MarketplaceCoolifyRendererContract(), marketplaceCoolifyRenderer{}); err != nil {
+		return nil, err
+	}
+	if err := registry.Register(KomodoBootstrapRendererContract(), komodoBootstrap); err != nil {
+		return nil, err
+	}
 	if err := registry.Register(komodoCore.contract, komodoCore); err != nil {
 		return nil, err
 	}

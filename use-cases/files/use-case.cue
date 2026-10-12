@@ -34,6 +34,11 @@ Package: foundation.#UseCasePackage & {
 			role:       "primary"
 			rationale:  "Full collaboration suite with calendars, contacts and office integration."
 			capabilities: ["files", "document-storage", "file-sharing", "collaboration"]
+		}, {
+			moduleSlug: "opencloud"
+			role:       "primary"
+			rationale:  "OpenCloud provides native filesystem storage, sharing and WebDAV; office integration is an explicit add-on."
+			capabilities: ["files", "document-storage", "file-sharing", "collaboration"]
 		}]
 	}
 
@@ -84,7 +89,7 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "cloudreve"
 			functions: ["files", "document-storage", "file-sharing"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
-			notes: ["Lightweight sharing. Nextcloud is a recorded alternative until its native workload lands."]
+			notes: ["Lightweight sharing. Nextcloud and OpenCloud have separate native alternatives; selecting a larger profile never changes the application."]
 		}
 		standard: {
 			included:   true
@@ -116,6 +121,7 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Collaboration-suite alternative to Cloudreve for the same files route."
 			capabilities: ["files", "document-storage", "file-sharing", "collaboration"]
 		}
+		opencloud: {moduleSlug: "opencloud", role: "primary", rationale: "Native filesystem alternative for file storage, sharing and WebDAV; office is an explicit add-on.", capabilities: ["files", "document-storage", "file-sharing", "collaboration"]}
 		"euro-office": {
 			moduleSlug: "euro-office"
 			role:       "supporting"
@@ -234,7 +240,7 @@ Package: foundation.#UseCasePackage & {
 			audience: "product-user"
 			source:   "stackkits"
 			path:     "use-cases/files/agent/owner-setup/SKILL.md"
-		}]
+		}, {id: "opencloud", audience: "stack-operator", source: "stackkits", path: "use-cases/files/agent/opencloud/SKILL.md"}]
 		apis: [{
 			id:       "cloudreve"
 			protocol: "rest"

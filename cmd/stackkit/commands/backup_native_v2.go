@@ -279,6 +279,15 @@ func nativeV2BackupApplicationLifecycleEvidence(
 }
 
 func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpec string) (nativeV2BackupAuthority, error) {
+	// Deny unsupported application data operations from the verified current
+	// delivery contract before opening Kopia or reading a historical checkpoint.
+	generated, err := inspectNativeV2GeneratedAuthority(ctx, workspace, requestedSpec)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	if err := requireNativeBackupDelivery(generated.Plan); err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
 	applied, err := inspectNativeV2AppliedAuthority(ctx, workspace, requestedSpec)
 	if err != nil {
 		return nativeV2BackupAuthority{}, err

@@ -70,18 +70,22 @@ const (
 // Engine exposes granular Kopia operations. Orchestration (messages, retry,
 // sequencing) stays with the caller so the CLI keeps its exact behavior.
 type Engine struct {
-	Exec Executor
+	Exec       Executor
+	SecretExec SecretExecutor
 }
 
 // V2Engine is the fail-closed native-v2 Kopia path. It deliberately does not
-// reuse Engine because the historical Executor contract permits credentials
-// in argv and must remain compatible until its callers migrate.
+// reuse Engine because it owns native-v2 runtime and recovery contracts.
+// Both engines share the sensitive stdin boundary for repository credentials.
 type V2Engine struct {
 	Exec          SecretExecutor
 	retention     *localbackuppolicy.Retention
 	hostname      string
 	offsite       bool
 	coreModuleRef string
+	policy        *localbackuppolicy.Policy
+	sources       []localbackuppolicy.SnapshotSource
+	selection     *localbackuppolicy.SnapshotSource
 }
 
 // NewV2Engine binds native-v2 operations to explicit persistent config and
@@ -104,11 +108,11 @@ func NewV2OffsiteEngineForPolicy(exec SecretExecutor, policy localbackuppolicy.P
 	if policy.Source.CoreModuleRef != localbackuppolicy.CloudCoreModuleRef || policy.Runtime.NetworkMode != "outbound-no-peer" {
 		return V2Engine{}, fmt.Errorf("offsite Kopia requires the governed Cloud outbound profile")
 	}
-	engine := NewV2Engine(exec)
+	engine, err := newV2EngineForHeldPolicy(exec, policy)
+	if err != nil {
+		return V2Engine{}, err
+	}
 	engine.offsite = true
-	engine.hostname = policy.Runtime.Hostname
-	engine.retention = policy.Retention
-	engine.coreModuleRef = policy.Source.CoreModuleRef
 	return engine, nil
 }
 
@@ -134,15 +138,16 @@ type S3Repository struct {
 }
 
 type Snapshot struct {
-	ID          string    `json:"id"`
-	SourcePath  string    `json:"sourcePath"`
-	SourceHost  string    `json:"sourceHost"`
-	Description string    `json:"description,omitempty"`
-	OperationID string    `json:"operationId,omitempty"`
-	Pins        []string  `json:"pins,omitempty"`
-	StartTime   time.Time `json:"startTime"`
-	EndTime     time.Time `json:"endTime"`
-	TotalSize   int64     `json:"totalSize"`
+	ID          string           `json:"id"`
+	SourcePath  string           `json:"sourcePath"`
+	SourceHost  string           `json:"sourceHost"`
+	Description string           `json:"description,omitempty"`
+	OperationID string           `json:"operationId,omitempty"`
+	Pins        []string         `json:"pins,omitempty"`
+	StartTime   time.Time        `json:"startTime"`
+	EndTime     time.Time        `json:"endTime"`
+	TotalSize   int64            `json:"totalSize"`
+	Members     []SnapshotMember `json:"members,omitempty"`
 }
 
 // SnapshotRequest is the closed native-v2 snapshot input. OperationID is
@@ -155,6 +160,7 @@ type SnapshotRequest struct {
 	// Recovery protection is set before Kopia assigns the manifest ID. Pinning
 	// an existing manifest would replace that ID and invalidate signed anchors.
 	ProtectRecovery bool
+	Sources         []localbackuppolicy.SnapshotSource
 }
 
 // RestoreRequest is the closed native-v2 staged-restore input. StagingPath
@@ -163,6 +169,7 @@ type RestoreRequest struct {
 	SnapshotID  string
 	OperationID string
 	StagingPath string
+	Snapshot    *Snapshot
 }
 
 type RestoreResult struct {
@@ -189,9 +196,10 @@ type RepositoryStatus struct {
 // SourcePolicy is the typed effective-policy verdict for the governed source.
 // Exact is true only for the CUE-owned ignore set and manual-only behavior.
 type SourcePolicy struct {
-	Source       string   `json:"source"`
-	ExcludePaths []string `json:"excludePaths"`
-	Exact        bool     `json:"exact"`
+	Source       string         `json:"source"`
+	ExcludePaths []string       `json:"excludePaths"`
+	Exact        bool           `json:"exact"`
+	Sources      []SourcePolicy `json:"sources,omitempty"`
 }
 
 func (e Engine) RepositoryStatusJSON(ctx context.Context) (string, error) {
@@ -211,11 +219,11 @@ func (e Engine) ConnectFilesystemRepository(ctx context.Context, path string) (s
 }
 
 func (e Engine) CreateS3Repository(ctx context.Context, repo S3Repository, password string) (string, error) {
-	return e.Exec(ctx, s3RepositoryArgs("create", repo, password))
+	return e.attachLegacyS3Repository(ctx, "create", repo, password)
 }
 
 func (e Engine) ConnectS3Repository(ctx context.Context, repo S3Repository, password string) (string, error) {
-	return e.Exec(ctx, s3RepositoryArgs("connect", repo, password))
+	return e.attachLegacyS3Repository(ctx, "connect", repo, password)
 }
 
 // CreateFilesystemRepository initializes a native-v2 local repository. The
@@ -379,6 +387,9 @@ func exactFilesystemRepository(status RepositoryStatus) bool {
 // ConfigureSourcePolicy applies the CUE-resolved exclusions to the exact
 // snapshot source using a closed argv construction.
 func (e V2Engine) ConfigureSourcePolicy(ctx context.Context, source string, excludePaths []string, password []byte) error {
+	if len(e.sources) > 0 {
+		return e.configureClassSources(ctx, source, excludePaths, password)
+	}
 	if e.retention != nil {
 		if err := e.retention.Validate(); err != nil {
 			return err
@@ -442,6 +453,9 @@ func (e V2Engine) ConfigureSourcePolicy(ctx context.Context, source string, excl
 // .kopiaignore, traversal/error filters, timers, actions, and future fields
 // all fail closed instead of changing selection or autonomous behavior.
 func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths []string, password []byte) (SourcePolicy, error) {
+	if len(e.sources) > 0 {
+		return e.classSourcePolicy(ctx, source, excludePaths, password)
+	}
 	expected, err := e.governedRelativeExcludes(source, excludePaths)
 	if err != nil {
 		return SourcePolicy{}, err
@@ -464,8 +478,12 @@ func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths 
 		return SourcePolicy{}, fmt.Errorf("parse effective kopia source policy: %w", err)
 	}
 	var ignores []string
-	if err := json.Unmarshal(files["ignore"], &ignores); err != nil {
-		return SourcePolicy{}, fmt.Errorf("parse effective kopia source policy ignores: %w", err)
+	if raw, exists := files["ignore"]; exists {
+		if err := json.Unmarshal(raw, &ignores); err != nil {
+			return SourcePolicy{}, fmt.Errorf("parse effective kopia source policy ignores: %w", err)
+		}
+	} else if e.selection == nil || len(expected) != 0 {
+		return SourcePolicy{}, fmt.Errorf("effective kopia source policy omits governed ignores")
 	}
 	var scheduling map[string]json.RawMessage
 	if err := json.Unmarshal(row["scheduling"], &scheduling); err != nil {
@@ -488,7 +506,7 @@ func (e V2Engine) SourcePolicy(ctx context.Context, source string, excludePaths 
 	slices.Sort(relative)
 	slices.Sort(expected)
 	exactShape := exactKopiaSourcePolicyShape(row, e.retention) &&
-		len(files) == 1 &&
+		(len(files) == 1 || (e.selection != nil && len(expected) == 0 && len(files) == 0)) &&
 		len(scheduling) == 1 &&
 		manual
 	return SourcePolicy{
@@ -569,6 +587,9 @@ func exactKopiaRetention(raw json.RawMessage, expected *localbackuppolicy.Retent
 }
 
 func (e V2Engine) governedRelativeExcludes(source string, excludePaths []string) ([]string, error) {
+	if e.selection != nil {
+		return selectedRelativeExcludes(*e.selection, source, excludePaths)
+	}
 	governed := localbackuppolicy.GovernedSource()
 	if source != governed.ContainerPath {
 		return nil, fmt.Errorf("snapshot source must be %q", governed.ContainerPath)
@@ -646,8 +667,12 @@ func validOperationID(value string) bool {
 // into the stable StackKits snapshot shape. Missing or malformed identity is
 // rejected rather than being reported as a successful snapshot.
 func (e V2Engine) CreateSnapshot(ctx context.Context, request SnapshotRequest, password []byte) (Snapshot, error) {
-	if err := validateSnapshotRequest(request); err != nil {
+	request.Sources = localbackuppolicy.CloneSnapshotSources(request.Sources)
+	if err := e.validateSnapshotSelection(request, true); err != nil {
 		return Snapshot{}, err
+	}
+	if len(request.Sources) > 0 {
+		return e.createClassSnapshots(ctx, request, password)
 	}
 	existing, found, err := e.FindSnapshot(ctx, request, password)
 	if err != nil {
@@ -700,8 +725,12 @@ func (e V2Engine) CreateSnapshot(ctx context.Context, request SnapshotRequest, p
 // creating a snapshot. Pending lifecycle recovery uses this read-only seam
 // before deciding whether a create side effect is still required.
 func (e V2Engine) FindSnapshot(ctx context.Context, request SnapshotRequest, password []byte) (Snapshot, bool, error) {
-	if err := validateSnapshotRequest(request); err != nil {
+	request.Sources = localbackuppolicy.CloneSnapshotSources(request.Sources)
+	if err := e.validateSnapshotSelection(request, false); err != nil {
 		return Snapshot{}, false, err
+	}
+	if len(request.Sources) > 0 {
+		return e.findClassSnapshots(ctx, request, password)
 	}
 	input, err := repositoryPasswordInput(password, 1)
 	if err != nil {
@@ -754,6 +783,12 @@ func (e V2Engine) RestoreSnapshot(
 ) (RestoreResult, error) {
 	if err := validateRestoreRequest(request); err != nil {
 		return RestoreResult{}, err
+	}
+	if request.Snapshot != nil && len(request.Snapshot.Members) > 0 {
+		return e.restoreClassSnapshots(ctx, request, password)
+	}
+	if strings.HasPrefix(request.SnapshotID, "stackkit-set.") {
+		return RestoreResult{}, fmt.Errorf("class snapshot set requires its exact observed members")
 	}
 	if err := e.verifySnapshotContent(ctx, request.SnapshotID, password); err != nil {
 		return RestoreResult{}, fmt.Errorf("verify Kopia snapshot before restore: %w", err)
@@ -873,9 +908,25 @@ func (e V2Engine) invoke(ctx context.Context, command []string, sensitiveInput [
 // the repository already exists. CLI configure and the backup_run local
 // branch share this single sequence.
 func (e Engine) EnsureFilesystemRepository(ctx context.Context, path string) (string, error) {
+	if path == "" || !strings.HasPrefix(path, "/") || strings.ContainsAny(path, "\x00\r\n") {
+		return "", errors.New("filesystem repository target must be an absolute container path")
+	}
+	exact := func(out string) bool {
+		status, err := parseRepositoryStatusJSON(out)
+		return err == nil && status.Configured && status.Storage == "filesystem" && status.StoragePath == path
+	}
 	out, err := e.RepositoryStatusJSON(ctx)
-	if err == nil && StatusConfigured(out) {
-		return out, nil
+	if err == nil {
+		status, parseErr := parseRepositoryStatusJSON(out)
+		if parseErr != nil {
+			return "", errors.New("cannot verify the configured filesystem repository identity")
+		}
+		if status.Configured && !exact(out) {
+			return "", errors.New("configured Kopia repository identity is missing or differs from the requested filesystem target")
+		}
+		if status.Configured {
+			return out, nil
+		}
 	}
 	if err != nil && !OutputLooksNotConfigured(out, err) {
 		return out, fmt.Errorf("check kopia repository status: %w", err)
@@ -893,6 +944,10 @@ func (e Engine) EnsureFilesystemRepository(ctx context.Context, path string) (st
 			return out, fmt.Errorf("connect existing kopia repository %s: %w", path, err)
 		}
 	}
+	out, err = e.RepositoryStatusJSON(ctx)
+	if err != nil || !exact(out) {
+		return "", errors.New("connected Kopia repository does not match the requested filesystem target")
+	}
 	return out, nil
 }
 
@@ -900,6 +955,11 @@ func (e Engine) EnsureFilesystemRepository(ctx context.Context, path string) (st
 // repository. An already connected repository must prove the requested target
 // before reuse; checking identity never disconnects or switches repositories.
 func (e Engine) EnsureS3Repository(ctx context.Context, repo S3Repository, password string) (string, error) {
+	canonical, err := CanonicalS3Repository(repo, []byte(password))
+	if err != nil {
+		return "", err
+	}
+	repo = canonical
 	out, err := e.RepositoryStatusJSON(ctx)
 	if err == nil {
 		status, parseErr := parseRepositoryStatusJSON(out)
@@ -927,6 +987,16 @@ func (e Engine) EnsureS3Repository(ctx context.Context, repo S3Repository, passw
 			return out, fmt.Errorf("connect existing kopia s3 repository %s/%s: %w", repo.Endpoint, repo.Bucket, err)
 		}
 	}
+	out, err = e.RepositoryStatusJSON(ctx)
+	if err != nil {
+		return "", errors.New("connected Kopia repository identity could not be verified")
+	}
+	status, parseErr := parseRepositoryStatusJSON(out)
+	if parseErr != nil || !status.Configured || status.Storage != "s3" || status.InsecureTLS ||
+		status.S3Endpoint != repo.Endpoint || status.S3Bucket != repo.Bucket || status.S3Prefix != repo.Prefix ||
+		(repo.Region != "" && status.S3Region != repo.Region) {
+		return "", errors.New("connected Kopia repository does not match the requested S3 target")
+	}
 	return out, nil
 }
 
@@ -935,6 +1005,27 @@ func (e Engine) Snapshot(ctx context.Context, source, description string) (strin
 		"kopia", "snapshot", "create", source,
 		"--description", description,
 	})
+}
+
+// SnapshotForOperation binds a legacy run to the same operation tag used by
+// native-v2 recovery. A wall-clock window never identifies a backup run.
+func (e Engine) SnapshotForOperation(ctx context.Context, source, description, operationID string) (Snapshot, error) {
+	if !validOperationID(operationID) {
+		return Snapshot{}, errors.New("snapshot operation id is invalid")
+	}
+	out, err := e.Exec(ctx, []string{"kopia", "snapshot", "create", source,
+		"--description", description, "--tags", "stackkit.operation:" + operationID, "--json"})
+	if err != nil {
+		return Snapshot{}, err
+	}
+	snapshot, err := ParseSnapshotCreate(out)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("parse snapshot operation receipt: %w", err)
+	}
+	if snapshot.SourcePath != source || snapshot.OperationID != operationID || snapshot.Description != description {
+		return Snapshot{}, errors.New("snapshot receipt does not match the requested operation and source")
+	}
+	return snapshot, nil
 }
 
 func (e Engine) ListSnapshotsJSON(ctx context.Context) (string, error) {
@@ -1013,55 +1104,45 @@ func (e Engine) Disconnect(ctx context.Context) (string, error) {
 	return e.Exec(ctx, []string{"kopia", "repository", "disconnect"})
 }
 
-func s3RepositoryArgs(verb string, repo S3Repository, password string) []string {
-	args := []string{
-		"kopia", "repository", verb, "s3",
-		"--bucket", repo.Bucket,
-		"--endpoint", repo.Endpoint,
-		"--access-key", repo.AccessKeyID,
-		"--secret-access-key", repo.SecretAccessKey,
+func (e Engine) attachLegacyS3Repository(ctx context.Context, verb string, repo S3Repository, password string) (string, error) {
+	if e.SecretExec == nil {
+		return "", errors.New("S3 repository requires the sensitive stdin executor")
 	}
+	endpoint, input, err := prepareS3Repository(repo, []byte(password))
+	if err != nil {
+		return "", err
+	}
+	defer clear(input)
+	command := []string{"kopia", "repository", verb, "s3",
+		"--bucket", repo.Bucket, "--endpoint", endpoint}
 	if repo.Region != "" {
-		args = append(args, "--region", repo.Region)
+		command = append(command, "--region", repo.Region)
 	}
 	if repo.Prefix != "" {
-		args = append(args, "--prefix", repo.Prefix)
+		command = append(command, "--prefix", repo.Prefix)
 	}
-	if password != "" {
-		args = append(args, "--password", password)
+	out, err := e.SecretExec(ctx, command, input)
+	if err != nil {
+		return redactSensitiveValue(out, input), &safeDiagnosticError{message: redactSensitiveValue(err.Error(), input)}
 	}
-	return args
+	return redactSensitiveValue(out, input), nil
 }
 
 // ParseSnapshots decodes Kopia's `snapshot list --json` output into the
 // engine's snapshot shape. Unknown fields are ignored so Kopia schema drift
 // degrades gracefully.
 func ParseSnapshots(raw string) ([]Snapshot, error) {
-	var rows []struct {
-		ID     string `json:"id"`
-		Source struct {
-			Path string `json:"path"`
-			Host string `json:"host"`
-		} `json:"source"`
-		StartTime time.Time `json:"startTime"`
-		EndTime   time.Time `json:"endTime"`
-		Stats     struct {
-			TotalSize int64 `json:"totalSize"`
-		} `json:"stats"`
-	}
+	var rows []snapshotJSONRow
 	if err := json.Unmarshal([]byte(raw), &rows); err != nil {
 		return nil, err
 	}
 	snapshots := make([]Snapshot, 0, len(rows))
 	for _, row := range rows {
-		snapshots = append(snapshots, Snapshot{
-			ID:         row.ID,
-			SourcePath: row.Source.Path,
-			SourceHost: row.Source.Host,
-			StartTime:  row.StartTime,
-			EndTime:    row.EndTime,
-			TotalSize:  row.Stats.TotalSize,
-		})
+		snapshot, err := row.snapshot()
+		if err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, snapshot)
 	}
 	return snapshots, nil
 }

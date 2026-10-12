@@ -64,6 +64,8 @@ type accessClientTrust struct {
 	// ResolverSteps describe verification after the device client has applied
 	// the profile. They never ask the owner to edit router or device DNS.
 	ResolverSteps []string `json:"resolverSteps"`
+	// LinuxProfilePath is an executable OS trust adapter, not a device credential.
+	LinuxProfilePath string `json:"linuxProfilePath,omitempty"`
 }
 
 type accessRemoteAccess struct {
@@ -312,6 +314,9 @@ func writeAccessSummary(wd string, summary *accessSummary) error {
 	if summary == nil {
 		return nil
 	}
+	if err := writeAccessClientProfile(wd, summary); err != nil {
+		return err
+	}
 	dir := filepath.Join(wd, ".stackkit")
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("create .stackkit directory: %w", err)
@@ -381,17 +386,18 @@ func attachAccessClientTrust(wd string, summary *accessSummary) {
 		RouterConfigurationRequired: false,
 		InstalledScopes:             []string{"dns-zone:" + summary.Domain, "owner-ca"},
 		EnrollmentSteps: []string{
-			"Connect the device to this Homelab's LAN and start device enrollment from the Base Hub or a Kombify device client.",
-			"Authenticate as a Homelab user and approve the OS profile that installs scoped DNS for " + summary.Domain + " and this Owner CA.",
-			"Register or confirm the device-bound passkey, then open the same printed https service URLs.",
+			"Copy .stackkit/client-trust/enroll-linux.sh from this workspace to a Linux NetworkManager client through your trusted server access.",
+			"Review the printed Owner-CA fingerprint, then approve the local OS trust profile with sudo sh enroll-linux.sh --approve.",
+			"Open the printed id URL to register or confirm your passkey, then sign in through auth. DNS and CA trust grant no service session or Home device credential.",
 		},
 		RemoteAccess: accessRemoteAccess{
 			Selection: "optional", Status: remoteStatus, CapabilityRef: "private-remote-access",
 			TrafficMode: "split-tunnel", PreservesServiceURLs: true, PublicExposure: false,
 			ReachabilityRule: "requires an authenticated reachable coordination or relay path",
 		},
-		Resolver:        "lan-dns:unbound",
-		ResolverAddress: resolverAddress,
+		Resolver:         "lan-dns:unbound",
+		ResolverAddress:  resolverAddress,
+		LinuxProfilePath: ".stackkit/client-trust/enroll-linux.sh",
 		ResolverSteps: []string{
 			"The kit runs the site resolver on this node and the enrollment profile sends only " + summary.Domain + " lookups to it.",
 			"Verify from the enrolled device that a printed hostname resolves to " + resolverAddress + " and that regular DNS remains unchanged.",

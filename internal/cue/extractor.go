@@ -56,6 +56,31 @@ type ServiceDef struct {
 	DashboardBadge     string
 	DashboardEnableVar string
 	DashboardGuideURL  string
+	DashboardClients   []ServiceClient
+	DashboardVendor    *ServiceVendor
+}
+
+// ServiceVendor mirrors #ServiceVendor: the upstream project of an application.
+type ServiceVendor struct {
+	Name    string
+	Website string
+	Docs    string
+	License string
+	Support []ServiceSupportLink
+}
+
+// ServiceSupportLink is one place to support the developers (donate, sponsor, purchase).
+type ServiceSupportLink struct {
+	Kind string
+	URL  string
+}
+
+// ServiceClient mirrors #ServiceClient: one official store entry or installer
+// download of an application for one platform.
+type ServiceClient struct {
+	Platform string
+	Kind     string
+	URL      string
 }
 
 // UpstreamDef mirrors #ServiceDefinition.upstream (ADR-0028): watch
@@ -444,6 +469,31 @@ func (e *Extractor) extractService(v cue.Value) (ServiceDef, error) {
 		svc.DashboardBadge = stringField(dash, "badge")
 		svc.DashboardEnableVar = stringField(dash, "enableVar")
 		svc.DashboardGuideURL = stringField(dash, "guideUrl")
+		if list, err := dash.LookupPath(cue.ParsePath("clients")).List(); err == nil {
+			for list.Next() {
+				item := list.Value()
+				svc.DashboardClients = append(svc.DashboardClients, ServiceClient{
+					Platform: stringField(item, "platform"),
+					Kind:     stringField(item, "kind"),
+					URL:      stringField(item, "url"),
+				})
+			}
+		}
+		if vendor := dash.LookupPath(cue.ParsePath("vendor")); vendor.Exists() {
+			v := &ServiceVendor{
+				Name:    stringField(vendor, "name"),
+				Website: stringField(vendor, "website"),
+				Docs:    stringField(vendor, "docs"),
+				License: stringField(vendor, "license"),
+			}
+			if list, err := vendor.LookupPath(cue.ParsePath("support")).List(); err == nil {
+				for list.Next() {
+					item := list.Value()
+					v.Support = append(v.Support, ServiceSupportLink{Kind: stringField(item, "kind"), URL: stringField(item, "url")})
+				}
+			}
+			svc.DashboardVendor = v
+		}
 		if order := dash.LookupPath(cue.ParsePath("order")); order.Exists() {
 			n, _ := order.Int64()
 			svc.DashboardOrder = int(n)

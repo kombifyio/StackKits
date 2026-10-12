@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
@@ -19,10 +20,11 @@ import (
 // data, so both outcomes leave Core identity and workload routing configured.
 type restoreActivationBootstrapRuntime struct {
 	restoreactivation.Runtime
-	workspace  string
-	executable string
-	coreModule string
-	workloads  map[string][]byte
+	workspace   string
+	executable  string
+	coreModule  string
+	workloads   map[string][]byte
+	marketplace *architecturev2renderer.MarketplaceCoolifyDocument
 
 	prepareCore      func(context.Context, string, string, string) (func(context.Context) error, error)
 	completeWorkload func(context.Context, string, []byte) error
@@ -60,6 +62,7 @@ func newRestoreActivationBootstrapRuntime(
 // owner custody to prove the persisted runtime files still match; it never
 // materializes or rotates a credential during restore activation.
 func (runtime *restoreActivationBootstrapRuntime) bind(
+	ctx context.Context,
 	plan generationartifact.VerifiedPlan,
 	manifest generationartifact.ArtifactManifest,
 	operationID string,
@@ -73,6 +76,17 @@ func (runtime *restoreActivationBootstrapRuntime) bind(
 	)
 	if err != nil {
 		return fmt.Errorf("bind restore activation workload completion: %w", err)
+	}
+	marketplace, err := restoreactivation.DeriveMarketplaceRuntimeCustody(runtime.workspace, plan, manifest, operationID)
+	if err != nil {
+		return err
+	}
+	if marketplace != nil {
+		if _, err := nativehost.ObserveMarketplaceContainerCustody(ctx, runtime.workspace, marketplace.Document); err != nil {
+			return fmt.Errorf("bind restore activation native Marketplace custody: %w", err)
+		}
+		copy := marketplace.Document
+		runtime.marketplace = &copy
 	}
 	workloads := make(map[string][]byte, len(custody))
 	for _, retained := range custody {
@@ -111,6 +125,9 @@ func (runtime *restoreActivationBootstrapRuntime) Start(
 	for project := range runtime.workloads {
 		expected[project] = struct{}{}
 	}
+	if runtime.marketplace != nil {
+		expected["stackkit-marketplace"] = struct{}{}
+	}
 	for _, composeRuntime := range runtimes {
 		if _, exists := expected[composeRuntime.Project]; !exists {
 			return fmt.Errorf("restore activation bootstrap has no completion authority for Compose project %q", composeRuntime.Project)
@@ -139,6 +156,11 @@ func (runtime *restoreActivationBootstrapRuntime) Start(
 	for _, project := range projects {
 		if err := runtime.completeWorkload(ctx, runtime.workspace, runtime.workloads[project]); err != nil {
 			return fmt.Errorf("complete restore activation workload %q: %w", project, err)
+		}
+	}
+	if runtime.marketplace != nil {
+		if err := nativehost.VerifyMarketplaceReady(ctx, runtime.workspace, *runtime.marketplace); err != nil {
+			return fmt.Errorf("verify restored native Marketplace: %w", err)
 		}
 	}
 	return nil

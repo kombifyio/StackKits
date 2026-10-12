@@ -118,5 +118,6 @@
   "output.needSpecRollout": "Crea o carga una StackSpec v2 canónica antes de ejecutar el flujo gobernado.",
   "output.reviewPlanFirst": "Revisa el plan actual antes de solicitar la aprobación de Apply.",
   "output.applyNever": "La State Console nunca invoca Apply directamente. Pide al agente conectado que presente la operación Apply registrada de StackKits para su confirmación específica y la aprobación del Owner.",
-  "output.setupNever": "La State Console no invoca la configuración directamente. Prepara el archivo privado de credenciales y pide después al agente conectado que presente esta operación de configuración registrada para su confirmación."
+  "output.setupNever": "La State Console no invoca la configuración directamente. Prepara el archivo privado de credenciales y pide después al agente conectado que presente esta operación de configuración registrada para su confirmación.",
+  "review.capacity": "Evaluar capacidad"
 }

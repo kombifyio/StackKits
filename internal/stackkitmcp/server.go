@@ -229,6 +229,7 @@ func (a *App) addServerTools(server *mcp.Server, nativeActions bool) {
 	if nativeActions {
 		return
 	}
+	mcp.AddTool(server, operationMCPTool(standaloneoperations.Capacity), a.assessCapacity)
 	mcp.AddTool(server, mcpTool("stackkit_status", "GET /api/v1/status from stackkit-server.", true, false, true), a.status)
 	mcp.AddTool(server, mcpTool("stackkit_logs_list", "GET /api/v1/logs from stackkit-server.", true, false, true), a.logsList)
 	mcp.AddTool(server, mcpTool("stackkit_log_get", "GET /api/v1/logs/{runID} from stackkit-server.", true, false, true), a.logGet)

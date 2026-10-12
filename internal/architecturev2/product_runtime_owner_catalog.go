@@ -13,6 +13,8 @@ type ProductRuntimeOwnerID string
 const (
 	ProductRuntimeOwnerSecurityBaseline        ProductRuntimeOwnerID = "security-baseline"
 	ProductRuntimeOwnerCoreHostBootstrap       ProductRuntimeOwnerID = "stackkits-core-host-bootstrap"
+	ProductRuntimeOwnerKomodoBootstrap         ProductRuntimeOwnerID = "stackkits-komodo-bootstrap-runtime"
+	ProductRuntimeOwnerMarketplace             ProductRuntimeOwnerID = "stackkits-marketplace-coolify-runtime"
 	ProductRuntimeOwnerHomeBackupTarget        ProductRuntimeOwnerID = "stackkits-home-backup-target"
 	ProductRuntimeOwnerBasementCompose         ProductRuntimeOwnerID = "socket-proxy"
 	ProductRuntimeOwnerBasementIdentityTrust   ProductRuntimeOwnerID = "stackkits-basement-identity-trust-policy-manifest"
@@ -63,6 +65,8 @@ func ProductStaticRuntimeOwnerCatalog() []ProductRuntimeOwnerDescriptor {
 		{ID: ProductRuntimeOwnerHomeAssistantImported, Selector: productHomeAssistantInstanceSelector(ProductRuntimeOwnerHomeAssistantImported)},
 		{ID: ProductRuntimeOwnerSecurityBaseline, Selector: productSecurityBaselineSelector()},
 		{ID: ProductRuntimeOwnerCoreHostBootstrap, Selector: productCoreHostBootstrapSelector()},
+		{ID: ProductRuntimeOwnerKomodoBootstrap, Selector: productKomodoBootstrapSelector()},
+		{ID: ProductRuntimeOwnerMarketplace, Selector: productMarketplaceSelector()},
 		{ID: ProductRuntimeOwnerHomeBackupTarget, Selector: productHomeBackupTargetSelector()},
 		{ID: ProductRuntimeOwnerBasementCompose, Selector: productBasementComposeSelector()},
 		{ID: ProductRuntimeOwnerBasementIdentityTrust, Selector: productBasementIdentityTrustSelector()},

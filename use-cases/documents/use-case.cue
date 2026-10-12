@@ -54,4 +54,39 @@ Package: foundation.#UseCasePackage & {
 	}
 	lifecycle: foundation.#StandardUseCaseLifecycle
 	evidence: {healthChecks: ["paperless-http"], required: ["route", "backup", "runtime-owner", "removal"]}
+	setup: {
+		defaultPolicy: "on_demand"
+		drops: [
+			{name: "paperless-owner-login", policy: "on_demand", description: "Verify the existing custodied administrator through the exact applied workload and record the plan-bound setup result."},
+		]
+	}
+	agentSurface: {
+		equipPolicy: "on-generate"
+		lifecycleMcp: {}
+		productMcps: []
+		apis: [{
+			id:       "paperless"
+			protocol: "rest"
+			purpose:  "Observe the existing administrator through the selected upstream application's admitted API; application features remain upstream-owned."
+			auth:     "custodied-owner-login"
+		}]
+		skills: [{
+			id:       "owner-setup"
+			audience: "stack-operator"
+			source:   "stackkits"
+			path:     "use-cases/documents/agent/owner-setup/SKILL.md"
+		}]
+		cliHelpers: [{
+			command: "stackkit setup documents --owner-approve --json"
+			purpose: "Verify the existing local administrator after apply using the plan-bound setup flow and existing secret custody."
+		}, {
+			command: "stackkit agent mcp-config"
+			purpose: "Connect to the existing StackKits lifecycle MCP."
+		}]
+		configBaseline: {
+			status: "omitted"
+			reason: "The selected upstream bundle owns its configuration; setup observes the custodied administrator and creates no separate initializer or credential store."
+		}
+	}
+
 }

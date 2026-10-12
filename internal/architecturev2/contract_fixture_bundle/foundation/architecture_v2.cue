@@ -7,6 +7,7 @@ package foundation
 
 import (
 	"list"
+	"math"
 	"net"
 	"path"
 	"strings"
@@ -886,11 +887,20 @@ import (
 	}
 }
 
-#BackupRetentionV1: {
-	keepDaily:   int & >=1 & <=365 | *7
-	keepWeekly:  int & >=0 & <=104 | *4
-	keepMonthly: int & >=0 & <=60 | *6
-	keepYearly:  int & >=0 & <=10 | *0
+// Bounds are shared without carrying the configuration defaults into a
+// media-class override. Defaults remain at their owning policy.
+#BackupRetentionBoundsV1: {
+	keepDaily:   int & >=1 & <=365
+	keepWeekly:  int & >=0 & <=104
+	keepMonthly: int & >=0 & <=60
+	keepYearly:  int & >=0 & <=10
+}
+
+#BackupRetentionV1: #BackupRetentionBoundsV1 & {
+	keepDaily:   *7 | int
+	keepWeekly:  *4 | int
+	keepMonthly: *6 | int
+	keepYearly:  *0 | int
 }
 
 // _backupRetentionCeiling is the upper bound #BackupRetentionV1 declares,
@@ -967,6 +977,33 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 		keepMonthly: <=grant.retention.keepMonthly
 		keepYearly:  <=grant.retention.keepYearly
 	}
+	// Independent Kopia sources retain media separately within one repository.
+	// Every override stays inside the same grant and selected coverage.
+	if list.Contains(dataClasses, "photos") || list.Contains(dataClasses, "large-media") {
+		retentionByDataClass: {}
+	}
+	retentionByDataClass?: {
+		[Class=#BackupDataClassV1]: #BackupRetentionBoundsV1 & {
+			_selectedClass: list.Contains(dataClasses, Class) & true
+			keepDaily:      <=grant.retention.keepDaily
+			keepWeekly:     <=grant.retention.keepWeekly
+			keepMonthly:    <=grant.retention.keepMonthly
+			keepYearly:     <=grant.retention.keepYearly
+			if schedule.cadence == "weekly" {keepDaily: 1}
+		}
+		for class in ["photos", "large-media"] if list.Contains(dataClasses, class) {
+			"\(class)": {
+				if grant.retention.keepDaily >= 7 {keepDaily: *7 | int}
+				if grant.retention.keepDaily < 7 {keepDaily: *grant.retention.keepDaily | int}
+				if grant.retention.keepWeekly >= 4 {keepWeekly: *4 | int}
+				if grant.retention.keepWeekly < 4 {keepWeekly: *grant.retention.keepWeekly | int}
+				if grant.retention.keepMonthly >= 3 {keepMonthly: *3 | int}
+				if grant.retention.keepMonthly < 3 {keepMonthly: *grant.retention.keepMonthly | int}
+				keepYearly: *0 | int
+			}
+		}
+	}
+
 	restoreVerification: #BackupRestoreVerificationV1
 
 	_dataClassesUnique: list.UniqueItems(dataClasses) & true
@@ -991,7 +1028,10 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	kind:       "BackupPolicy"
 	schedule:   #BackupScheduleV1
 	dataClasses: [...#BackupDataClassV1] & list.MinItems(1)
-	retention:           #BackupRetentionV1
+	retention: #BackupRetentionV1
+	retentionByDataClass?: {
+		[Class=#BackupDataClassV1]: #BackupRetentionBoundsV1 & {_selectedClass: list.Contains(dataClasses, Class) & true}
+	}
 	restoreVerification: #BackupRestoreVerificationV1
 
 	_dataClassesUnique: list.UniqueItems(dataClasses) & true
@@ -1755,8 +1795,16 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	growthGiBPerMonth: number & >=0
 	horizonMonths:     int & >=1 & <=120
 	reservePercent:    number & >=0 & <=100
-	projectedGiB:      initialGiB + growthGiBPerMonth*horizonMonths
-	requiredGiB:       projectedGiB * (1 + reservePercent/100)
+	projectedGiB:      number
+	requiredGiB:       number
+	// Canonical JSON encodes integral decimals as integers. Normalize only
+	// their numeric kind; fractional budgets and the original formula stay exact.
+	_projectedGiB: initialGiB + growthGiBPerMonth*horizonMonths
+	if math.Floor(_projectedGiB) == _projectedGiB {projectedGiB: math.Floor(_projectedGiB)}
+	if math.Floor(_projectedGiB) != _projectedGiB {projectedGiB: _projectedGiB}
+	_requiredGiB: projectedGiB * (1 + reservePercent/100)
+	if math.Floor(_requiredGiB) == _requiredGiB {requiredGiB: math.Floor(_requiredGiB)}
+	if math.Floor(_requiredGiB) != _requiredGiB {requiredGiB: _requiredGiB}
 })
 
 // #RecoveryObjectiveV1 is a per-binding recovery goal. It is declarative
@@ -3300,6 +3348,14 @@ _servicePublicationShape: {
 	// Exact maintained plugin artifact, admitted only for Jellyfin.
 	jellyfinSSOPlugin?: {version: string, sha256: string, sourceURL: string}
 	homeAssistantOIDC?: {version: string, sha256: string, patch: string, patchSHA256: string, aiofilesSHA256: string, joserfcSHA256: string}
+	// homeAssistantNotify is the owner-opt-in "kombify notify" right of the
+	// governed Home Assistant component: a REST notify target that posts the
+	// automation author's text to the node's local Techstack agent. It stays
+	// inert until the owner turns on the named workload setting. The target
+	// directory holds the generated platform file and its secrets file; the
+	// node adapter binds the container-network address and the node-held
+	// bearer token at Apply. Renderers admit it only for Home Assistant.
+	homeAssistantNotify?: {settingRef: #ContractID, target: #AbsolutePath}
 	pocketIDClient?: {
 		publicClient?: bool
 		// callbackPath is the single same-origin callback used by existing
@@ -3416,8 +3472,8 @@ _servicePublicationShape: {
 	// so a lane can sample that process by component name.
 	residentComponents?: [...#ContractID] & list.MinItems(1)
 	if residentComponents != _|_ {
-		components?: _|_
-		kind:        "native" | "host"
+		components?:               _|_
+		kind:                      "native" | "host"
 		_residentComponentsUnique: list.UniqueItems(residentComponents) & true
 	}
 	settings?: #PublicSettings
@@ -4343,7 +4399,8 @@ _servicePublicationShape: {
 		class:          "persistent"
 		backup:         true
 		dataClasses: [...#DataClass] & list.MinItems(1)
-		dataBindingRef: #ContractID
+		dataBindingRef:   #ContractID
+		backupDataClass?: #BackupDataClassV1
 	})]
 	// applicationRuntimes is the closed, compiler-owned Standalone-Compose
 	// component graph used by local backup quiescence. Its component facts are
@@ -4664,6 +4721,7 @@ _servicePublicationShape: {
 		cardinality: "single"
 		if required == false {defaultValue: #ModulePublicLocalKopiaBackupSourceV1}
 	}
+
 	// The selected add-on workloads that join this module's workload network
 	// on the same node (peerNetworks); an empty list when none is selected.
 	if sourceRef == "workloads.companions" {
@@ -4840,7 +4898,7 @@ _servicePublicationShape: {
 		nodeRef:        #NodeID
 		trustDomainRef: #ContractID
 		subjectRef:     "stackkits-home-root-ca"
-		keyAlgorithm:   "ed25519"
+		keyAlgorithm:   "ecdsa-p256"
 		basicConstraints: {
 			ca:      true
 			pathLen: -1
@@ -5627,6 +5685,15 @@ _guardOTLPSinkIntentV1: {
 	evidenceRequired:  true
 }
 
+// A selected adapter's own-node bootstrap is an implementation dependency,
+// separate from workload execution, transport and server-provider lifecycle.
+#RuntimeAdapterBootstrapContractV1: {
+	adapterRef:        #ContractID
+	credentialCustody: "local-owner"
+	providerLifecycle: "not-owned"
+	evidenceRequired:  true
+}
+
 // #ModuleContractV2 is the governed provider-to-runtime seam. Capability
 // providers reference these contracts by moduleRefs; a provider ID is never
 // synthesized into a module ID.
@@ -5718,6 +5785,7 @@ _guardOTLPSinkIntentV1: {
 		_capabilitiesUnique:        list.UniqueItems(capabilities) & true
 	}
 	runtimeAdapterAgent?:       #RuntimeAdapterAgentContractV1
+	runtimeAdapterBootstrap?:   #RuntimeAdapterBootstrapContractV1
 	storageAllocationContract?: #StorageAllocationModuleContractV1
 	dataBindingContract?:       #WorkloadDataBindingModuleContractV1
 	backupSourceContract?:      #BackupSourceModuleContractV1
@@ -5830,6 +5898,7 @@ _guardOTLPSinkIntentV1: {
 			for contract in unit.providesInterfaces {"\(unit.id)/\(contract.id)"},
 			if runtimeAdapter != _|_ {"runtime-adapter/\(runtimeAdapter.id)"},
 			if runtimeAdapterAgent != _|_ {"runtime-adapter-agent/\(runtimeAdapterAgent.id)"},
+			if runtimeAdapterBootstrap != _|_ {"runtime-adapter-bootstrap/\(runtimeAdapterBootstrap.adapterRef)"},
 		] & list.MinItems(1)
 	}
 	if runtimeAdapter != _|_ {
@@ -5837,6 +5906,10 @@ _guardOTLPSinkIntentV1: {
 	}
 	if runtimeAdapterAgent != _|_ {
 		role: "platform"
+	}
+	if runtimeAdapterBootstrap != _|_ {
+		role: "platform"
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
 	}
 	if requires != _|_ {
 		_requiresUnique: list.UniqueItems(requires) & true
@@ -6926,8 +6999,8 @@ _guardOTLPSinkIntentV1: {
 		// Container runtimes the node's Docker daemon has registered (runc,
 		// runsc, ...). Present only when the daemon was observed.
 		containerRuntimes?: [...(string & =~"^[a-z][a-z0-9._-]*$")]
-		externalHostBinding?:         #ExternalHostBindingV1
-		hostConformanceReceipt?:      #HostConformanceReceiptV1
+		externalHostBinding?:    #ExternalHostBindingV1
+		hostConformanceReceipt?: #HostConformanceReceiptV1
 		runtimeDaemons: {
 			[#ContractID]: #RuntimeDaemonFactV1
 		} | *{}
@@ -7354,6 +7427,7 @@ _guardOTLPSinkIntentV1: {
 		capabilities: [...#ContractID] | *[]
 	}
 	runtimeAdapterAgent?:       #RuntimeAdapterAgentContractV1
+	runtimeAdapterBootstrap?:   #RuntimeAdapterBootstrapContractV1
 	storageAllocationContract?: #StorageAllocationModuleContractV1
 	dataBindingContract?:       #WorkloadDataBindingModuleContractV1
 	backupSourceContract?:      #BackupSourceModuleContractV1
@@ -7430,6 +7504,7 @@ _guardOTLPSinkIntentV1: {
 			for contract in unit.providesInterfaces {"\(unit.id)/\(contract.id)"},
 			if runtimeAdapter != _|_ {"runtime-adapter/\(runtimeAdapter.id)"},
 			if runtimeAdapterAgent != _|_ {"runtime-adapter-agent/\(runtimeAdapterAgent.id)"},
+			if runtimeAdapterBootstrap != _|_ {"runtime-adapter-bootstrap/\(runtimeAdapterBootstrap.adapterRef)"},
 		] & list.MinItems(1)
 	}
 	if runtimeAdapter != _|_ {
@@ -7437,6 +7512,10 @@ _guardOTLPSinkIntentV1: {
 	}
 	if runtimeAdapterAgent != _|_ {
 		role: "platform"
+	}
+	if runtimeAdapterBootstrap != _|_ {
+		role: "platform"
+		runtime: {execution: "executable", kind: "host", delivery: "stackkit"}
 	}
 	if requires != _|_ {
 		_requiresUnique: list.UniqueItems(requires) & true

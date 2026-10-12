@@ -145,7 +145,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "kuma", nested: "kuma", flat: "kuma"}
-		dashboard: {icon: "&#128202;", order: 10, section: "Platform", badge: "L2 \u00b7 Monitoring", enableVar: "enable_uptime_kuma", guideUrl: "https://docs.kombify.io/stackkits/apps/uptime-kuma"}
+		dashboard: {icon: "&#128202;", order: 10, section: "Platform", badge: "L2 \u00b7 Monitoring", enableVar: "enable_uptime_kuma", guideUrl: "https://docs.kombify.io/stackkits/apps/uptime-kuma", vendor: {name: "Uptime Kuma", website: "https://uptime.kuma.pet", license: "MIT", support: [{kind: "donate", url: "https://opencollective.com/uptime-kuma"}, {kind: "sponsor", url: "https://github.com/sponsors/louislam"}]}}
 
 		output: {
 			url:         "https://kuma.{{.domain}}"

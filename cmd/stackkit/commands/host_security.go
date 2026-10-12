@@ -42,6 +42,7 @@ type hostSecurityFlags struct {
 	localNode         string
 	declaredPorts     []string
 	managementSources []string
+	hostNames         []string
 	noRecord          bool
 	failOnDrift       bool
 	driftScope        string
@@ -59,7 +60,8 @@ drifted without cutting the management path.
 'verify' never changes the host. It produces stackkit.host-security-evidence/v1
 for the firewall, sshd, brute-force protection, automatic and pending security
 updates, reboot state, kernel parameters, exposed listeners and certificate
-expiry. Every control is compliant, drifted, unknown or an owner-approved
+expiry, and for the SSH CA trust and host certificate delivered to this node
+('host ssh apply') once they are recorded. Every control is compliant, drifted, unknown or an owner-approved
 exception, and the evidence expires: a stale observation is unknown, and an
 unknown control never counts as compliant.
 
@@ -81,6 +83,7 @@ func bindHostSecurityFlags(cmd *cobra.Command, flags *hostSecurityFlags) {
 	cmd.Flags().StringVar(&flags.localNode, "local-node", "", "Exact local Node in the supplied ResolvedPlan")
 	cmd.Flags().StringArrayVar(&flags.declaredPorts, "declared-port", nil, "Declared service port as tcp/443 or udp/5353 (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.managementSources, "management-source", nil, "Network that must always reach ssh, as a CIDR (repeatable)")
+	cmd.Flags().StringArrayVar(&flags.hostNames, "host-name", nil, "Name the delivered SSH host certificate must carry (repeatable; default: the system hostname)")
 }
 
 func bindFailOnDriftFlags(cmd *cobra.Command, flags *hostSecurityFlags) {
@@ -125,6 +128,7 @@ func (flags hostSecurityFlags) options(workspace string) (hostsecurity.Options, 
 	options := hostsecurity.Options{
 		Kit: kit, Mode: mode, SiteKind: site, Freshness: flags.freshness,
 		ExceptionsPath: flags.exceptions, WorkspaceRoot: workspace,
+		SSHAccess: sshAccessState(workspace, flags.hostNames),
 	}
 	for _, raw := range flags.managementSources {
 		prefix, err := netip.ParsePrefix(strings.TrimSpace(raw))
@@ -355,6 +359,11 @@ of a compliant control changes nothing.`,
 			}
 			engine := hostsecurity.Engine{Host: hostsecurity.LocalHost{}}
 			report := engine.Repair(cmd.Context(), hostsecurity.RepairOptions{Options: options, Controls: flags.controls, Apply: flags.apply})
+			if flags.apply && report.After != nil {
+				if err := settleSSHAccessCleanup(workspace, report); err != nil {
+					report.After.Notices = append(report.After.Notices, "the completed SSH access cleanup was not recorded: "+err.Error())
+				}
+			}
 			if flags.apply && report.After != nil && !flags.noRecord {
 				if _, saveErr := engine.SaveEvidence(workspace, *report.After); saveErr != nil {
 					report.After.Notices = append(report.After.Notices, "evidence was not recorded locally: "+saveErr.Error())

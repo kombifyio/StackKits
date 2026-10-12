@@ -44,7 +44,11 @@ func (s *Service) snapshotAvailability(ctx context.Context, configuration Config
 		result.Reason = "snapshot-authority-changed"
 		return result, nil
 	}
-	request := snapshotRequestFromAnchor(anchor)
+	request, err := snapshotRequestFromAnchor(anchor)
+	if err != nil {
+		result.Reason = "snapshot-source-selection-invalid"
+		return result, nil
+	}
 	receipt, found, lookupErr := s.runtime.LookupSnapshot(ctx, request)
 	result.ObservedAt = time.Now().UTC()
 	if err := ctx.Err(); err != nil {

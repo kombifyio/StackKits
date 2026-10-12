@@ -147,10 +147,13 @@ type ApplicationDeliveryComponentDescriptor struct {
 	PeerNetworks []ApplicationDeliveryPeerNetwork
 	// HomeIdentityAccess and PocketIDClient are the governed native OIDC
 	// rights of the component (nil when not declared).
-	JellyfinSSOPlugin  *JellyfinSSOPluginDescriptor
-	HomeAssistantOIDC  *HomeAssistantOIDCDescriptor
-	HomeIdentityAccess *ApplicationDeliveryHomeIdentityAccess
-	PocketIDClient     *ApplicationDeliveryPocketIDClient
+	JellyfinSSOPlugin *JellyfinSSOPluginDescriptor
+	HomeAssistantOIDC *HomeAssistantOIDCDescriptor
+	// HomeAssistantNotify is the owner-enabled kombify notify right; the node
+	// adapter binds its address and secret at Apply.
+	HomeAssistantNotify *HomeAssistantNotifyDescriptor
+	HomeIdentityAccess  *ApplicationDeliveryHomeIdentityAccess
+	PocketIDClient      *ApplicationDeliveryPocketIDClient
 	// SecretFiles are custody secrets mounted read-only as files, and
 	// RestoreActivationEnvironment names variables that are "true" only when
 	// restore activation created the container (governed per module).
@@ -352,6 +355,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if err := validateHomeIdentityRights(bundle.Workload.ModuleRef, component, componentPath); err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
+		if err := validateHomeAssistantNotify(bundle.Workload.ModuleRef, component, componentPath); err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
 		if component.PocketIDClient != nil && bundle.DeliveryRoute == nil {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".pocketIDClient", "a Pocket ID client needs the declared HTTPS route for its callback")
 		}
@@ -401,6 +407,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			RestoreActivationEnvironment: restoreEnvironment,
 			JellyfinSSOPlugin:            component.JellyfinSSOPlugin,
 			HomeAssistantOIDC:            component.HomeAssistantOIDC,
+			HomeAssistantNotify:          component.HomeAssistantNotify,
 		}
 	}
 	if !entryFound || len(components) == 0 {

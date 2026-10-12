@@ -27,6 +27,8 @@
         "terramate.check",
         "telemetry.handshake",
         "resources.check",
+        "apply.channel",
+        "apply.owner",
         "advanced.change-set.materialize-host",
         "advanced.change-set.run-order",
         "advanced.change-set.converge",
@@ -46,7 +48,7 @@
       ]
     },
     "status": {
-      "description": "Lifecycle phases report started, running, succeeded, failed or skipped. The per-stack Advanced phases advanced.change-set.converge and advanced.drift.stack report the stack status instead: converged, drifted, failed, pending_root or (change sets only) other_host; advanced.change-set.reconcile reports converged or failed; advanced.rollback.stack reports converged, failed or skipped. docs/data/advanced-operations/latest.json lists the statuses per phase.",
+      "description": "Lifecycle phases report started, running, succeeded, failed or skipped. apply.channel and apply.owner report started, then running (a liveness event while the child executes, with attributes.elapsed_ms), then succeeded or failed. The per-stack Advanced phases advanced.change-set.converge and advanced.drift.stack report the stack status instead: converged, drifted, failed, pending_root or (change sets only) other_host; advanced.change-set.reconcile reports converged or failed; advanced.rollback.stack reports converged, failed or skipped. docs/data/advanced-operations/latest.json lists the statuses per phase.",
       "type": "string",
       "enum": [
         "started",

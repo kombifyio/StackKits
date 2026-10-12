@@ -12,15 +12,19 @@ import (
 )
 
 var (
-	docsReleaseTag      string
-	docsSourceSHA       string
-	docsPublicSourceSHA string
-	docsReleaseURL      string
-	docsOutputDir       string
-	docsOverviewOutput  string
-	docsEvidenceOutput  string
-	docsTestReceipt     string
-	docsTestsPassed     bool
+	docsReleaseTag             string
+	docsSourceSHA              string
+	docsPublicSourceSHA        string
+	docsReleaseURL             string
+	docsOutputDir              string
+	docsOverviewOutput         string
+	docsTruthTableOutput       string
+	docsTruthTablePublicOutput string
+	docsTruthTableCountsOutput string
+	docsTablesOnly             bool
+	docsEvidenceOutput         string
+	docsTestReceipt            string
+	docsTestsPassed            bool
 )
 
 var docsCmd = &cobra.Command{
@@ -69,6 +73,41 @@ var docsEmitUseCaseOverviewCmd = &cobra.Command{
 		root, err := filepath.Abs(getWorkDir())
 		if err != nil {
 			return err
+		}
+		if docsTablesOnly {
+			if docsTruthTableOutput == "" {
+				return fmt.Errorf("--tables-only requires --truth-table-output")
+			}
+			table, err := usecasecatalog.GenerateTruthTable(root)
+			if err != nil {
+				return err
+			}
+			if docsTruthTableCountsOutput != "" {
+				if err := usecasecatalog.WriteJSON(docsTruthTableCountsOutput, usecasecatalog.CountTruthTable(table)); err != nil {
+					return err
+				}
+			}
+			for _, target := range []struct {
+				path   string
+				public bool
+			}{{docsTruthTableOutput, false}, {docsTruthTablePublicOutput, true}} {
+				if target.path == "" {
+					continue
+				}
+				if err := os.MkdirAll(filepath.Dir(target.path), 0o755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(target.path, []byte(usecasecatalog.RenderTruthTableMarkdown(table, target.public)), 0o644); err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), target.path); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		if docsSourceSHA == "" {
+			return fmt.Errorf("--source-sha is required outside --tables-only")
 		}
 		release := usecasecatalog.ReleaseIdentity{Tag: "v0.0.0", Version: "0.0.0", SourceSHA: docsSourceSHA, PublicSourceSHA: docsSourceSHA, ReleaseURL: "https://github.com/kombifyio/StackKits/releases/tag/v0.0.0"}
 		var receipt *usecasecatalog.TestReceipt
@@ -129,9 +168,13 @@ func init() {
 	}
 	docsEmitUseCaseOverviewCmd.Flags().StringVar(&docsSourceSHA, "source-sha", "", "exact source SHA")
 	docsEmitUseCaseOverviewCmd.Flags().StringVar(&docsOverviewOutput, "output", "", "Markdown output path")
+	docsEmitUseCaseOverviewCmd.Flags().BoolVar(&docsTablesOnly, "tables-only", false, "render truth tables without overview, evidence output or test claims")
+	docsEmitUseCaseOverviewCmd.Flags().StringVar(&docsTruthTablePublicOutput, "truth-table-public-output", "", "public-filtered truth table Markdown output path")
+	docsEmitUseCaseOverviewCmd.Flags().StringVar(&docsTruthTableOutput, "truth-table-output", "", "shared CUE-derived truth table Markdown output path")
+	docsEmitUseCaseOverviewCmd.Flags().StringVar(&docsTruthTableCountsOutput, "truth-table-counts-output", "", "CUE-derived intent and catalog count JSON output path (tables-only)")
 	docsEmitUseCaseOverviewCmd.Flags().StringVar(&docsEvidenceOutput, "evidence-output", "", "evidence manifest output path")
 	docsEmitUseCaseOverviewCmd.Flags().StringVar(&docsTestReceipt, "test-receipt", "", "source-SHA-bound passed test receipt")
 	docsEmitUseCaseOverviewCmd.Flags().BoolVar(&docsTestsPassed, "tests-passed-for-source", false, "mark tests complete after the caller synchronously passed catalog tests for source-sha")
-	_ = docsEmitUseCaseOverviewCmd.MarkFlagRequired("source-sha")
+
 	docsCmd.AddCommand(docsEmitReleaseManifestsCmd, docsEmitUseCaseOverviewCmd)
 }

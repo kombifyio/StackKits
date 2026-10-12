@@ -36,9 +36,10 @@ type NativeComposeRequest struct {
 // NativeComposePreparation carries the pre-Compose results that decide the
 // native follow-up steps after the other executor's `up`.
 type NativeComposePreparation struct {
-	moduleRef      string
-	originReload   bool
-	recreateServer bool
+	moduleRef       string
+	originReload    bool
+	browserCAReload bool
+	recreateServer  bool
 }
 
 // NativeComposeObservation is the secret-free result of a native observation.
@@ -135,7 +136,7 @@ func (r *osNativeComposeRuntime) PrepareCompose(ctx context.Context, request Nat
 		if err != nil {
 			return NativeComposePreparation{}, err
 		}
-		return NativeComposePreparation{moduleRef: moduleRef, originReload: preparation.originReload, recreateServer: preparation.recreateServer}, nil
+		return NativeComposePreparation{moduleRef: moduleRef, originReload: preparation.originReload, browserCAReload: preparation.browserCAReload, recreateServer: preparation.recreateServer}, nil
 	case isCloudCoreModule(moduleRef):
 		operations, project, err := r.cloudProject(request)
 		if err != nil {
@@ -171,7 +172,7 @@ func (r *osNativeComposeRuntime) CompleteCompose(ctx context.Context, request Na
 			return err
 		}
 		_, err = r.basement.completeApply(ctx, request.ComposePath, environment, basementApplyPreparation{
-			originReload: preparation.originReload, recreateServer: preparation.recreateServer,
+			originReload: preparation.originReload, browserCAReload: preparation.browserCAReload, recreateServer: preparation.recreateServer,
 		})
 		return err
 	case isCloudCoreModule(request.Target.ModuleRef):

@@ -188,7 +188,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "smart_home", nested: "smart-home", flat: "smart-home"}
-		dashboard: {icon: "&#127968;", order: 55, section: "Applications", badge: "L3 · Smart Home", enableVar: "enable_home_assistant", guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/smart-home"}
+		dashboard: {icon: "&#127968;", order: 55, section: "Applications", badge: "L3 · Smart Home", enableVar: "enable_home_assistant", guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/smart-home", clients: [{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=io.homeassistant.companion.android"}, {platform: "ios", kind: "store", url: "https://apps.apple.com/app/id1099568401"}], vendor: {name: "Home Assistant", website: "https://www.home-assistant.io", docs: "https://www.home-assistant.io/docs/", license: "Apache-2.0"}}
 
 		output: {
 			url:         "https://smart-home.{{.domain}}"

@@ -362,9 +362,10 @@ func restartDockerForDNS(ctx context.Context) {
 }
 
 // baseKitImages returns the Docker images used by the basement-kit for a given compute tier.
-// Coolify is installed through its official installer, but its runtime images
-// are still pre-pulled for the default standard tier so registry/auth/rate-limit
-// problems fail early in stackkit prepare instead of halfway through apply.
+// PaaS runtime images are pre-pulled only when STACKKIT_PLATFORM or
+// STACKKIT_PAAS names a platform explicitly: the default core runs without a
+// PaaS (ADR-0049), so registry/auth/rate-limit problems of a selected platform
+// still fail early in stackkit prepare instead of halfway through apply.
 // Empty tier returns ALL images (used for destroy/cleanup), unless an explicit
 // installer service profile scopes the prepare pass before a spec exists.
 func baseKitImages(tier string) []string {
@@ -497,10 +498,10 @@ func selectedPrePullPlatform() string {
 	}
 	platform = strings.ToLower(platform)
 	switch platform {
-	case "komodo", "dokploy", "coolify", "none":
+	case "komodo", "dokploy", "coolify":
 		return platform
 	default:
-		return "coolify"
+		return "none"
 	}
 }
 

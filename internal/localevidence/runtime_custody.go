@@ -2,7 +2,10 @@ package localevidence
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -305,7 +308,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	if err != nil {
 		return nil, err
 	}
-	_, intermediatePrivate, err := ed25519.GenerateKey(rand.Reader)
+	intermediatePrivate, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("localevidence: generate step-ca runtime intermediate key: %w", err)
 	}
@@ -748,9 +751,13 @@ func validateBasementStepCA(directory string, owner OwnerCustody) error {
 	if err != nil {
 		return errors.New("localevidence: Basement runtime step-ca intermediate key cannot be decrypted")
 	}
-	private, privateOK := parsed.(ed25519.PrivateKey)
-	public, publicOK := intermediateCertificate.PublicKey.(ed25519.PublicKey)
-	if !privateOK || !publicOK || !bytes.Equal(private.Public().(ed25519.PublicKey), public) {
+	private, privateOK := parsed.(crypto.Signer)
+	if !privateOK {
+		return errors.New("localevidence: Basement runtime step-ca intermediate key is not a signer")
+	}
+	public, publicErr := x509.MarshalPKIXPublicKey(intermediateCertificate.PublicKey)
+	privatePublic, privateErr := x509.MarshalPKIXPublicKey(private.Public())
+	if publicErr != nil || privateErr != nil || !bytes.Equal(privatePublic, public) {
 		return errors.New("localevidence: Basement runtime step-ca intermediate key does not match its certificate")
 	}
 	return nil

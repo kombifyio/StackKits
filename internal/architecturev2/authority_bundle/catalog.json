@@ -3306,6 +3306,28 @@
               "state-console"
             ]
           },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
           "upgrade": {
             "destructive": true,
             "evidence": [
@@ -3703,6 +3725,28 @@
               "activate",
               "verify",
               "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
             ],
             "surfaces": [
               "cli",
@@ -5477,6 +5521,645 @@
       "packageRef": "smart-home",
       "useCaseRef": "smart-home",
       "workloadRef": "smart-home"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Remote application lifecycle using shared standalone operations and the plan-bound owner login setup action.",
+        "id": "remote",
+        "version": "1.0.0"
+      },
+      "packageRef": "remote",
+      "useCaseRef": "remote",
+      "workloadRef": "remote"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+        "id": "network",
+        "version": "1.0.0"
+      },
+      "packageRef": "network",
+      "useCaseRef": "network",
+      "workloadRef": "network"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
+        "description": "Node-owned Marketplace installation and operations. Application features remain upstream-owned.",
+        "id": "marketplace",
+        "version": "1.0.0"
+      },
+      "packageRef": "marketplace",
+      "useCaseRef": "marketplace",
+      "workloadRef": "marketplace"
     }
   ],
   "capabilities": [
@@ -7881,6 +8564,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-opencloud-runtime"
+        ],
+        "matches": [
+          "stackkits-opencloud"
+        ],
+        "module": "stackkits-opencloud-runtime",
+        "provider": "stackkits-opencloud"
+      },
+      {
+        "governanceMatches": [
           "stackkits-passbolt-runtime"
         ],
         "matches": [
@@ -8391,6 +9084,26 @@
       },
       {
         "governanceMatches": [
+          "stackkits-marketplace-coolify-runtime"
+        ],
+        "matches": [
+          "stackkits-marketplace"
+        ],
+        "module": "stackkits-marketplace-coolify-runtime",
+        "provider": "stackkits-marketplace"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-komodo-bootstrap-runtime"
+        ],
+        "matches": [
+          "stackkits-komodo"
+        ],
+        "module": "stackkits-komodo-bootstrap-runtime",
+        "provider": "stackkits-komodo"
+      },
+      {
+        "governanceMatches": [
           "stackkits-home-assistant-haos-runtime"
         ],
         "matches": [
@@ -8418,6 +9131,26 @@
         ],
         "module": "stackkits-home-assistant-imported-runtime",
         "provider": "stackkits-home-assistant-appliance"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-guacamole-runtime"
+        ],
+        "matches": [
+          "stackkits-guacamole"
+        ],
+        "module": "stackkits-guacamole-runtime",
+        "provider": "stackkits-guacamole"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-adguard-home-runtime"
+        ],
+        "matches": [
+          "stackkits-adguard-home"
+        ],
+        "module": "stackkits-adguard-home-runtime",
+        "provider": "stackkits-adguard-home"
       }
     ],
     "moduleRequirements": [
@@ -8626,6 +9359,13 @@
       },
       {
         "matches": [
+          "stackkits-komodo-bootstrap-runtime"
+        ],
+        "module": "stackkits-komodo-core-runtime",
+        "requires": "stackkits-komodo-bootstrap-runtime"
+      },
+      {
+        "matches": [
           "stackkits-komodo-core-runtime"
         ],
         "module": "stackkits-komodo-periphery-runtime",
@@ -8728,6 +9468,27 @@
         ],
         "module": "stackkits-modern-federation-policy-manifest",
         "requires": "stackkits-home-device-authority-policy-manifest"
+      },
+      {
+        "matches": [
+          "stackkits-core-host-bootstrap"
+        ],
+        "module": "stackkits-marketplace-coolify-runtime",
+        "requires": "stackkits-core-host-bootstrap"
+      },
+      {
+        "matches": [
+          "stackkits-core-host-bootstrap"
+        ],
+        "module": "stackkits-komodo-bootstrap-runtime",
+        "requires": "stackkits-core-host-bootstrap"
+      },
+      {
+        "matches": [
+          "stackkits-basement-core-lite-runtime"
+        ],
+        "module": "stackkits-komodo-bootstrap-runtime",
+        "requires": "stackkits-basement-core-lite-runtime"
       }
     ],
     "ownership": {
@@ -8993,6 +9754,12 @@
             "files"
           ],
           "providerID": "stackkits-cloudreve"
+        },
+        {
+          "contracts": [
+            "files"
+          ],
+          "providerID": "stackkits-opencloud"
         },
         {
           "contracts": [
@@ -9311,9 +10078,27 @@
         },
         {
           "contracts": [
+            "marketplace"
+          ],
+          "providerID": "stackkits-marketplace"
+        },
+        {
+          "contracts": [
             "smart-home"
           ],
           "providerID": "stackkits-home-assistant-appliance"
+        },
+        {
+          "contracts": [
+            "remote"
+          ],
+          "providerID": "stackkits-guacamole"
+        },
+        {
+          "contracts": [
+            "network"
+          ],
+          "providerID": "stackkits-adguard-home"
         }
       ]
     },
@@ -10043,6 +10828,13 @@
       },
       {
         "matches": [
+          "stackkits-opencloud-runtime"
+        ],
+        "module": "stackkits-opencloud-runtime",
+        "provider": "stackkits-opencloud"
+      },
+      {
+        "matches": [
           "stackkits-passbolt-runtime"
         ],
         "module": "stackkits-passbolt-runtime",
@@ -10274,6 +11066,13 @@
       },
       {
         "matches": [
+          "stackkits-komodo-bootstrap-runtime"
+        ],
+        "module": "stackkits-komodo-bootstrap-runtime",
+        "provider": "stackkits-komodo"
+      },
+      {
+        "matches": [
           "stackkits-komodo-core-runtime"
         ],
         "module": "stackkits-komodo-core-runtime",
@@ -10400,6 +11199,13 @@
       },
       {
         "matches": [
+          "stackkits-marketplace-coolify-runtime"
+        ],
+        "module": "stackkits-marketplace-coolify-runtime",
+        "provider": "stackkits-marketplace"
+      },
+      {
+        "matches": [
           "stackkits-home-assistant-haos-runtime"
         ],
         "module": "stackkits-home-assistant-haos-runtime",
@@ -10418,6 +11224,20 @@
         ],
         "module": "stackkits-home-assistant-imported-runtime",
         "provider": "stackkits-home-assistant-appliance"
+      },
+      {
+        "matches": [
+          "stackkits-guacamole-runtime"
+        ],
+        "module": "stackkits-guacamole-runtime",
+        "provider": "stackkits-guacamole"
+      },
+      {
+        "matches": [
+          "stackkits-adguard-home-runtime"
+        ],
+        "module": "stackkits-adguard-home-runtime",
+        "provider": "stackkits-adguard-home"
       }
     ],
     "providerRequirements": [
@@ -11029,6 +11849,34 @@
           "backup-core"
         ],
         "provider": "stackkits-cloudreve"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-opencloud"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-opencloud"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-opencloud"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-opencloud"
       },
       {
         "capability": "runtime-paas",
@@ -12163,6 +13011,55 @@
           "topology-core"
         ],
         "provider": "stackkits-ha-modern-quorum"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-marketplace"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-marketplace"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-marketplace"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-guacamole"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-guacamole"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-adguard-home"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-adguard-home"
       }
     ],
     "tls": {
@@ -12543,6 +13440,12 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-opencloud"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-passbolt"
         },
         {
@@ -12855,7 +13758,25 @@
           "capabilityBindings": [],
           "issuerBindings": [],
           "issuerIDsUnique": true,
+          "provider": "stackkits-marketplace"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
           "provider": "stackkits-home-assistant-appliance"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-guacamole"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-adguard-home"
         }
       ]
     },
@@ -13482,6 +14403,100 @@
           "workloadID": "files"
         },
         {
+          "alternativeID": "opencloud",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-opencloud-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "opencloud"
+                  ],
+                  "ref": "owner-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "files",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "opencloud",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-opencloud",
+              "workloadOwnership": [
+                "files"
+              ]
+            }
+          ],
+          "workloadID": "files"
+        },
+        {
           "alternativeID": "nextcloud",
           "moduleMatches": [
             {
@@ -13867,6 +14882,36 @@
                     "private-ai"
                   ],
                   "ref": "kombify-connector"
+                },
+                {
+                  "matches": [
+                    "private-ai"
+                  ],
+                  "ref": "model-pack-general"
+                },
+                {
+                  "matches": [
+                    "private-ai"
+                  ],
+                  "ref": "model-pack-coding"
+                },
+                {
+                  "matches": [
+                    "private-ai"
+                  ],
+                  "ref": "model-pack-vision"
+                },
+                {
+                  "matches": [
+                    "private-ai"
+                  ],
+                  "ref": "model-size"
+                },
+                {
+                  "matches": [
+                    "private-ai"
+                  ],
+                  "ref": "external-provider"
                 }
               ]
             }
@@ -16553,7 +17598,14 @@
                   ]
                 }
               ],
-              "settingsRefs": []
+              "settingsRefs": [
+                {
+                  "matches": [
+                    "home-assistant"
+                  ],
+                  "ref": "kombify-notify"
+                }
+              ]
             }
           ],
           "providerMatches": [
@@ -16783,6 +17835,302 @@
             }
           ],
           "workloadID": "smart-home"
+        },
+        {
+          "alternativeID": "coolify",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-marketplace-coolify-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "stackkit"
+              ],
+              "runtimeKind": [
+                "host"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "marketplace",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal",
+                      "secret"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    },
+                    {
+                      "class": "secret",
+                      "matches": [
+                        "secret"
+                      ]
+                    }
+                  ],
+                  "unitID": "marketplace",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    },
+                    {
+                      "class": "secret",
+                      "matches": [
+                        "secret"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-marketplace",
+              "workloadOwnership": [
+                "marketplace"
+              ]
+            }
+          ],
+          "workloadID": "marketplace"
+        },
+        {
+          "alternativeID": "guacamole",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-guacamole-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "guacamole"
+                  ],
+                  "ref": "owner-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "remote",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "guacamole",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": [
+                {
+                  "matches": [
+                    "guacamole"
+                  ],
+                  "ref": "remote-connection"
+                }
+              ]
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-guacamole",
+              "workloadOwnership": [
+                "remote"
+              ]
+            }
+          ],
+          "workloadID": "remote"
+        },
+        {
+          "alternativeID": "adguard-home",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-adguard-home-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "adguard-home"
+                  ],
+                  "ref": "owner-password"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "network",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "adguard-home",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": [
+                {
+                  "matches": [
+                    "adguard-home"
+                  ],
+                  "ref": "dns-policy"
+                },
+                {
+                  "matches": [
+                    "adguard-home"
+                  ],
+                  "ref": "lan-listener"
+                }
+              ]
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-adguard-home",
+              "workloadOwnership": [
+                "network"
+              ]
+            }
+          ],
+          "workloadID": "network"
         }
       ]
     }
@@ -23756,7 +25104,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:25196644774dc64f1eb1d8bef146b469b6282395820fb0feed596bfa67df6de4",
+          "contractHash": "sha256:a34fa26daf4086a852664f1dbbd18eae15f3c74858ebac41286ce9e54dd38b57",
           "id": "compose",
           "inputBindings": [
             {
@@ -23986,7 +25334,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:37cdaefa58c3db20f0cfe15f89b01103b8de74a049c4f197cfe4fbd5b235fd42",
+          "contractHash": "sha256:14a8c8894512f82eda21ed133f24335be7d73dbdb45fd082e1f2d35c69ead5fc",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -24216,7 +25564,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:24f02599c66b117b48c52470907300b28aca30f83c60e1336974be4dee21632f",
+          "contractHash": "sha256:5472be9308a00e68937f0b502c3f2b7d3509d3f687b8fcb6417f4f24bce87602",
           "id": "terramate",
           "inputBindings": [
             {
@@ -24551,7 +25899,7 @@
             "basement-core-terramate-stack",
             "local-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:24f02599c66b117b48c52470907300b28aca30f83c60e1336974be4dee21632f",
+          "contractHash": "sha256:5472be9308a00e68937f0b502c3f2b7d3509d3f687b8fcb6417f4f24bce87602",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -25456,7 +26804,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:faabf13c3aa81a4e9168ef5969474cce35e2969c91dbe6625899221bd82cb545",
+          "contractHash": "sha256:41af158c529486e41e46a13179d2e5005dc350cc4ca6565dfdef9ee50e083745",
           "id": "compose",
           "inputBindings": [
             {
@@ -25658,7 +27006,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:b164d52ad3001d5f3903417d9c621114546f4722d86f1037eed25e8da050b4ec",
+          "contractHash": "sha256:389f0038b407a8fa28cd5894a9a9e08869cdc28df4491ab8775613957e7c39c0",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -25860,7 +27208,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:66c2fee8f1d3b99323c588f4fdcb806e9a809ad29bdcdc8bb5a330ac21809480",
+          "contractHash": "sha256:e951ad882e6e1b44b79445bd5b35b584f7908aee5647eb9faf9f7c8a24747715",
           "id": "terramate",
           "inputBindings": [
             {
@@ -26167,7 +27515,7 @@
             "basement-core-lite-terramate-stack",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:66c2fee8f1d3b99323c588f4fdcb806e9a809ad29bdcdc8bb5a330ac21809480",
+          "contractHash": "sha256:e951ad882e6e1b44b79445bd5b35b584f7908aee5647eb9faf9f7c8a24747715",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -26750,7 +28098,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:ed17e67b131e5525b1e4436cf2794ab121a82b2164b3532d0a99ec1970f344a5",
+          "contractHash": "sha256:18d3cc6d4e6b8575a0a11e84e6d07c1551ad504b41a9186e1e762ef9a94ebf99",
           "id": "immich-server",
           "inputBindings": [
             {
@@ -26810,7 +28158,7 @@
             }
           ],
           "templateRef": "builtin://workloads/immich/bundle/v2.json",
-          "version": "3.2.0"
+          "version": "3.3.0"
         },
         {
           "applyMode": "artifact-only",
@@ -27032,10 +28380,11 @@
               "callbackURLs": [
                 "{{origin}}/auth/login",
                 "{{origin}}/user-settings",
-                "app.immich:///oauth-callback"
+                "app.immich:///oauth-callback",
+                "https://kombify.io/app/immich-oauth"
               ],
               "configuration": {
-                "body": "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":false,\"mobileRedirectUri\":\"\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}",
+                "body": "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":true,\"mobileRedirectUri\":\"https://kombify.io/app/immich-oauth\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}",
                 "target": "/etc/stackkit/immich.json"
               },
               "environment": {
@@ -27379,7 +28728,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5",
+          "contractHash": "sha256:ccbc6de993362c7f5ac1dc96d1572982fa9ddbb0a3ab2cf3a68064ac93b16ade",
           "id": "immich-server",
           "inputBindings": [
             {
@@ -27439,7 +28788,7 @@
             }
           ],
           "templateRef": "builtin://workloads/immich-lite/bundle/v2.json",
-          "version": "3.2.0"
+          "version": "3.3.0"
         },
         {
           "applyMode": "artifact-only",
@@ -27475,7 +28824,7 @@
           "artifactRefs": [
             "immich-lite-workload-bundle"
           ],
-          "contractHash": "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5",
+          "contractHash": "sha256:ccbc6de993362c7f5ac1dc96d1572982fa9ddbb0a3ab2cf3a68064ac93b16ade",
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
@@ -27494,7 +28843,7 @@
           "artifactRefs": [
             "immich-lite-workload-bundle"
           ],
-          "contractHash": "sha256:a95e4ce488d83f6dca0e914f49a8e9f318b0da3d08002b47affe55580825ede5",
+          "contractHash": "sha256:ccbc6de993362c7f5ac1dc96d1572982fa9ddbb0a3ab2cf3a68064ac93b16ade",
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
@@ -27573,10 +28922,11 @@
               "callbackURLs": [
                 "{{origin}}/auth/login",
                 "{{origin}}/user-settings",
-                "app.immich:///oauth-callback"
+                "app.immich:///oauth-callback",
+                "https://kombify.io/app/immich-oauth"
               ],
               "configuration": {
-                "body": "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":false,\"mobileRedirectUri\":\"\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}",
+                "body": "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":true,\"mobileRedirectUri\":\"https://kombify.io/app/immich-oauth\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}",
                 "target": "/etc/stackkit/immich.json"
               },
               "environment": {
@@ -28601,6 +29951,389 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "opencloud"
+          ],
+          "description": "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1
+          }
+        },
+        "standard": {
+          "components": [
+            "opencloud"
+          ],
+          "description": "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 1
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "opencloud-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200,
+            302
+          ],
+          "id": "opencloud-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "continuous",
+          "port": 9200,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Opencloud file service contract bound to one selected site and its personal-data primary.",
+        "id": "stackkits-opencloud-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-opencloud",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "opencloud-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/opencloud/bundle.json",
+              "required": true,
+              "unitRef": "opencloud"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "opencloud-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/opencloud/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "opencloud-workload-bundle",
+              "outputRef": "workloads/opencloud/bundle.json",
+              "unitRef": "opencloud"
+            },
+            {
+              "artifactRef": "opencloud-terramate-stack",
+              "outputRef": "platform/applications/opencloud/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "opencloud-workload-bundle",
+            "opencloud-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "opencloud-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "owner-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:227eb55d828a386f85a5b331f9df49b6c3c170ba776caa92c97f1e4b67d750a0",
+          "id": "opencloud",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/opencloud/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "files",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "opencloud-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "files",
+              "targetPort": 9200,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/opencloud/bundle/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/opencloud/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "opencloud-workload-bundle"
+          ],
+          "contractHash": "sha256:351ef1abec597588906c6abedfeb95c85fe8fed5be63937c16a0c178c1210130",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "opencloud"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "opencloud-workload-bundle"
+          ],
+          "contractHash": "sha256:58609d10adde5f149301184cd8f24c375da1f8eadd6f2ce8e83c58c3dca34520",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "opencloud"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "opencloud-workload-bundle",
+            "opencloud-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "opencloud",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "environment": {
+              "IDM_CREATE_DEMO_USERS": "false",
+              "OC_BASE_DATA_PATH": "/var/lib/opencloud",
+              "OC_CONFIG_DIR": "/etc/opencloud",
+              "OC_INSECURE": "false",
+              "PROXY_ENABLE_BASIC_AUTH": "false",
+              "PROXY_TLS": "false"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/",
+              "port": 9200
+            },
+            "id": "opencloud",
+            "image": {
+              "digest": "sha256:8fc64ca861739cc62095cd558814f2eba6a90acf5998d884e439b33a47875da8",
+              "ref": "docker.io/opencloudeu/opencloud-rolling:8.1.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "opencloud-internal"
+            ],
+            "resources": {
+              "cpus": 1,
+              "memoryLimit": "2g",
+              "memoryReservation": "1g"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "IDM_ADMIN_PASSWORD": "owner-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "config",
+                "target": "/etc/opencloud"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "data",
+                "target": "/var/lib/opencloud"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "opencloud",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:8fc64ca861739cc62095cd558814f2eba6a90acf5998d884e439b33a47875da8",
+          "ref": "docker.io/opencloudeu/opencloud-rolling:8.1.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "passbolt",
             "passbolt-mariadb"
           ],
@@ -29547,9 +31280,12 @@
           "components": [
             "open-webui",
             "ollama",
-            "kombify-ai-connector"
+            "kombify-ai-connector",
+            "ollama-model-general",
+            "ollama-model-coding",
+            "ollama-model-vision"
           ],
-          "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+          "description": "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 4,
@@ -29585,9 +31321,12 @@
           "components": [
             "open-webui",
             "ollama",
-            "kombify-ai-connector"
+            "kombify-ai-connector",
+            "ollama-model-general",
+            "ollama-model-coding",
+            "ollama-model-vision"
           ],
-          "description": "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
+          "description": "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 4,
@@ -29727,7 +31466,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:d223e07b016c095daf6dbce99d30735f54f0cd1d51587140725776650d68941d",
+          "contractHash": "sha256:511dab2fbf4b1cdec9663d0233719b3412ec915ef483457eaf515962fc2a9330",
           "id": "private-ai",
           "inputBindings": [
             {
@@ -29760,7 +31499,12 @@
           "publicInputRefs": [
             "delivery-route",
             "companions",
-            "kombify-connector"
+            "kombify-connector",
+            "model-pack-general",
+            "model-pack-coding",
+            "model-pack-vision",
+            "model-size",
+            "external-provider"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -29840,7 +31584,12 @@
           "publicInputRefs": [
             "delivery-route",
             "companions",
-            "kombify-connector"
+            "kombify-connector",
+            "model-pack-general",
+            "model-pack-coding",
+            "model-pack-vision",
+            "model-size",
+            "external-provider"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -29862,7 +31611,12 @@
           "publicInputRefs": [
             "delivery-route",
             "companions",
-            "kombify-connector"
+            "kombify-connector",
+            "model-pack-general",
+            "model-pack-coding",
+            "model-pack-vision",
+            "model-size",
+            "external-provider"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -29885,7 +31639,12 @@
           "publicInputRefs": [
             "delivery-route",
             "companions",
-            "kombify-connector"
+            "kombify-connector",
+            "model-pack-general",
+            "model-pack-coding",
+            "model-pack-vision",
+            "model-size",
+            "external-provider"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -30117,6 +31876,105 @@
                 "uid": 65532
               }
             ]
+          },
+          {
+            "command": [
+              "set -u; model=\"$1\"; i=0; until ollama list \u003e/dev/null 2\u003e\u00261; do i=$((i+1)); if [ \"$i\" -ge 120 ]; then echo \"Ollama did not answer at $OLLAMA_HOST, so $model was not pulled\" \u003e\u00262; exit 1; fi; sleep 1; done; if ollama show \"$model\" \u003e/dev/null 2\u003e\u00261; then echo \"$model is already present\"; else ollama pull \"$model\" || { echo \"Pulling $model into Ollama failed\" \u003e\u00262; exit 1; }; fi; ollama list | awk 'NR \u003e 1 {print $1}' | grep -qxF \"$model\" || { echo \"$model is not in the Ollama model list (/api/tags) after the pull\" \u003e\u00262; exit 1; }; echo \"$model is installed\"",
+              "ollama-model-pull"
+            ],
+            "dependsOn": [
+              "ollama"
+            ],
+            "enabledBySetting": "model-pack-general",
+            "entrypoint": [
+              "/bin/sh",
+              "-c"
+            ],
+            "environment": {
+              "OLLAMA_HOST": "http://ollama:11434"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "ollama-model-general",
+            "image": {
+              "digest": "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba",
+              "ref": "docker.io/ollama/ollama:0.34.0"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "private-ai-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
+          },
+          {
+            "command": [
+              "set -u; model=\"$1\"; i=0; until ollama list \u003e/dev/null 2\u003e\u00261; do i=$((i+1)); if [ \"$i\" -ge 120 ]; then echo \"Ollama did not answer at $OLLAMA_HOST, so $model was not pulled\" \u003e\u00262; exit 1; fi; sleep 1; done; if ollama show \"$model\" \u003e/dev/null 2\u003e\u00261; then echo \"$model is already present\"; else ollama pull \"$model\" || { echo \"Pulling $model into Ollama failed\" \u003e\u00262; exit 1; }; fi; ollama list | awk 'NR \u003e 1 {print $1}' | grep -qxF \"$model\" || { echo \"$model is not in the Ollama model list (/api/tags) after the pull\" \u003e\u00262; exit 1; }; echo \"$model is installed\"",
+              "ollama-model-pull"
+            ],
+            "dependsOn": [
+              "ollama"
+            ],
+            "enabledBySetting": "model-pack-coding",
+            "entrypoint": [
+              "/bin/sh",
+              "-c"
+            ],
+            "environment": {
+              "OLLAMA_HOST": "http://ollama:11434"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "ollama-model-coding",
+            "image": {
+              "digest": "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba",
+              "ref": "docker.io/ollama/ollama:0.34.0"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "private-ai-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
+          },
+          {
+            "command": [
+              "set -u; model=\"$1\"; i=0; until ollama list \u003e/dev/null 2\u003e\u00261; do i=$((i+1)); if [ \"$i\" -ge 120 ]; then echo \"Ollama did not answer at $OLLAMA_HOST, so $model was not pulled\" \u003e\u00262; exit 1; fi; sleep 1; done; if ollama show \"$model\" \u003e/dev/null 2\u003e\u00261; then echo \"$model is already present\"; else ollama pull \"$model\" || { echo \"Pulling $model into Ollama failed\" \u003e\u00262; exit 1; }; fi; ollama list | awk 'NR \u003e 1 {print $1}' | grep -qxF \"$model\" || { echo \"$model is not in the Ollama model list (/api/tags) after the pull\" \u003e\u00262; exit 1; }; echo \"$model is installed\"",
+              "ollama-model-pull"
+            ],
+            "dependsOn": [
+              "ollama"
+            ],
+            "enabledBySetting": "model-pack-vision",
+            "entrypoint": [
+              "/bin/sh",
+              "-c"
+            ],
+            "environment": {
+              "OLLAMA_HOST": "http://ollama:11434"
+            },
+            "health": {
+              "kind": "completion"
+            },
+            "id": "ollama-model-vision",
+            "image": {
+              "digest": "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba",
+              "ref": "docker.io/ollama/ollama:0.34.0"
+            },
+            "lifecycle": "one-shot",
+            "networkRefs": [
+              "private-ai-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
           }
         ],
         "delivery": "application-adapter",
@@ -42487,7 +44345,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:efe2146a150b11a0d77514036e60022c2830d63975ed0edd27029a52d8447710",
+          "contractHash": "sha256:7da50322d031da6f5c672faed4396ec37bd80e8f2594a4c7ab8d32683994fc61",
           "id": "home-assistant",
           "inputBindings": [
             {
@@ -42510,7 +44368,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "kombify-notify"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -42585,7 +44444,8 @@
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "kombify-notify"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -42602,7 +44462,8 @@
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "kombify-notify"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -42620,7 +44481,8 @@
           "id": "terramate",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "kombify-notify"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -42645,6 +44507,10 @@
               "kind": "http",
               "path": "/",
               "port": 8123
+            },
+            "homeAssistantNotify": {
+              "settingRef": "kombify-notify",
+              "target": "/config/stackkit-notify"
             },
             "homeAssistantOIDC": {
               "aiofilesSHA256": "sha256:abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695",
@@ -43058,7 +44924,7 @@
         }
       ],
       "metadata": {
-        "description": "Workload-scoped Komodo Core API adapter contract; installation, endpoints, credentials, leases, and provider lifecycle remain outside StackKits.",
+        "description": "Workload-scoped Komodo Core API adapter; StackKits bootstraps its own node-local dependency and retains node custody; server-provider lifecycle remains external.",
         "id": "stackkits-komodo-core-runtime",
         "version": "1.0.0"
       },
@@ -43179,6 +45045,9 @@
             "komodo-core-adapter"
           ]
         }
+      ],
+      "requires": [
+        "stackkits-komodo-bootstrap-runtime"
       ],
       "rilActionPrimitives": [],
       "role": "platform",
@@ -45789,6 +47658,590 @@
     },
     {
       "computeProfiles": {
+        "high": {
+          "components": [
+            "coolify",
+            "postgres",
+            "redis"
+          ],
+          "description": "Pinned Marketplace control application and its PostgreSQL/Redis dependencies. This declared policy envelope is not a measured capacity claim.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 2,
+            "ramGB": 4
+          },
+          "reservation": {
+            "cpuCores": 0.5,
+            "ramGB": 2.25
+          }
+        },
+        "standard": {
+          "components": [
+            "coolify",
+            "postgres",
+            "redis"
+          ],
+          "description": "Pinned Marketplace control application and its PostgreSQL/Redis dependencies. This declared policy envelope is not a measured capacity claim.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 2,
+            "ramGB": 4
+          },
+          "reservation": {
+            "cpuCores": 0.5,
+            "ramGB": 2.25
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "marketplace-native-installation"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "marketplace-bootstrap-ready",
+          "kind": "http",
+          "path": "/api/health",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Node-custodied Marketplace installation with a pinned Coolify control application, private API, closed root bootstrap and PocketID. It does not acquire a workload execution adapter.",
+        "id": "stackkits-marketplace-coolify-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-marketplace",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose"
+              ],
+              "format": "json",
+              "id": "marketplace-installation",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "workloads/marketplace/installation.json",
+              "required": true,
+              "unitRef": "marketplace"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "marketplace-installation",
+              "outputRef": "workloads/marketplace/installation.json",
+              "unitRef": "marketplace"
+            }
+          ],
+          "requiredRefs": [
+            "marketplace-installation"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "marketplace-native-installation"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "kit"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose"
+          ],
+          "contractHash": "sha256:da9344f190d12d566365c28618922dd94147c82cfff141f0f68c41da7aa6d396",
+          "id": "marketplace",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/marketplace/installation.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "kit"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "marketplace",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal",
+                  "secret"
+                ]
+              },
+              "healthRef": "marketplace-bootstrap-ready",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "marketplace",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/marketplace/installation/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap"
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "postgres",
+              "redis"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/api/health",
+              "port": 8080
+            },
+            "id": "coolify",
+            "image": {
+              "digest": "sha256:7c54f42d64c0d20fed4a8f4561df9018a561fecba9931ed3f64a4f3e0d34a3be",
+              "ref": "coollabsio/coolify:4.4.6"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "marketplace",
+              "kit-core"
+            ],
+            "resources": {
+              "memoryLimit": "1536m"
+            },
+            "role": "application",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "ssh",
+                "target": "/var/www/html/storage/app/ssh"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "applications",
+                "target": "/var/www/html/storage/app/applications"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "databases",
+                "target": "/var/www/html/storage/app/databases"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "services",
+                "target": "/var/www/html/storage/app/services"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "backups",
+                "target": "/var/www/html/storage/app/backups"
+              },
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "images",
+                "target": "/var/www/html/storage/app/images"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "postgres",
+            "image": {
+              "digest": "sha256:f7d23353e1b15400d22ebe31189f4d314b87a4c129cc400c8c2d8d4ca127bf81",
+              "ref": "postgres:15-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "marketplace"
+            ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
+            "role": "database",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "postgres",
+                "target": "/var/lib/postgresql/data"
+              }
+            ]
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "redis",
+            "image": {
+              "digest": "sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+              "ref": "redis:7-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "marketplace"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "cache",
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "redis",
+                "target": "/data"
+              }
+            ]
+          }
+        ],
+        "delivery": "stackkit",
+        "entryComponentRef": "coolify",
+        "execution": "executable",
+        "kind": "host"
+      },
+      "serviceControls": [
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "logs",
+            "restart",
+            "start",
+            "stop"
+          ],
+          "componentRefs": [
+            "coolify",
+            "postgres",
+            "redis"
+          ],
+          "critical": false,
+          "key": "marketplace",
+          "runtimeRef": "marketplace",
+          "serviceRef": "marketplace"
+        }
+      ],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "komodo-native-bootstrap"
+      ],
+      "health": [
+        {
+          "id": "komodo-bootstrap-ready",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Node-local Komodo Core and outbound Periphery bootstrap for an explicitly selected Basement Standard installation.",
+        "id": "stackkits-komodo-bootstrap-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-komodo",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose"
+              ],
+              "format": "json",
+              "id": "komodo-bootstrap",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "platform/komodo/bootstrap.json",
+              "required": true,
+              "unitRef": "bootstrap"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "komodo-bootstrap",
+              "outputRef": "platform/komodo/bootstrap.json",
+              "unitRef": "bootstrap"
+            }
+          ],
+          "requiredRefs": [
+            "komodo-bootstrap"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "komodo-native-bootstrap"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "kit"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose"
+          ],
+          "contractHash": "sha256:fb498163b0aae017eb15961d0096cab5b7b2ef20edc61dfeb995d44f53e849c6",
+          "id": "bootstrap",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "platform/komodo/bootstrap.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "kit"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://platform/komodo/bootstrap/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap",
+        "stackkits-basement-core-lite-runtime"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "mongo",
+            "image": {
+              "digest": "sha256:1f995ad6fdb93244a1addab1b58f934a0bc2f5643c38e02f5e9d7f0c7d227a7b",
+              "ref": "mongo:7"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "komodo-control"
+            ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
+            "role": "database"
+          },
+          {
+            "dependsOn": [
+              "mongo"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/version",
+              "port": 9120
+            },
+            "id": "core",
+            "image": {
+              "digest": "sha256:bca73d0eee143066228fb9b80c38a5a2726e573ad2758f7aa92b5c91a8aef1c7",
+              "ref": "ghcr.io/moghtech/komodo-core:2.3.3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "komodo-control",
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
+            "role": "application"
+          },
+          {
+            "dependsOn": [
+              "core"
+            ],
+            "health": {
+              "kind": "image"
+            },
+            "id": "periphery",
+            "image": {
+              "digest": "sha256:fa3f1a641a265216066676950d5eecdf506955a7bafe2f01996135ae93115cd5",
+              "ref": "ghcr.io/moghtech/komodo-periphery:2.3.3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
+          }
+        ],
+        "delivery": "stackkit",
+        "entryComponentRef": "core",
+        "execution": "executable",
+        "kind": "host"
+      },
+      "runtimeAdapterBootstrap": {
+        "adapterRef": "komodo",
+        "credentialCustody": "local-owner",
+        "evidenceRequired": true,
+        "providerLifecycle": "not-owned"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "computeProfiles": {
         "standard": {
           "description": "External Home Assistant API owner; guest capacity is admitted by its provisioning owner, not reserved on the StackKits core host.",
           "executable": true,
@@ -46206,6 +48659,813 @@
       "supportedSiteKinds": [
         "home",
         "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "guacd",
+            "guacamole"
+          ],
+          "description": "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "guacd",
+            "guacamole"
+          ],
+          "description": "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "guacamole-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "guacamole-http",
+          "kind": "http",
+          "path": "/",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Digest-pinned Guacamole and internal guacd on one selected node. Connection intent is required; destination credentials stay with the upstream prompt and owner authentication is generated in private tmpfs.",
+        "id": "stackkits-guacamole-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-guacamole",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "guacamole-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/guacamole/bundle.json",
+              "required": true,
+              "unitRef": "guacamole"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "guacamole-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/guacamole/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "guacamole-workload-bundle",
+              "outputRef": "workloads/guacamole/bundle.json",
+              "unitRef": "guacamole"
+            },
+            {
+              "artifactRef": "guacamole-terramate-stack",
+              "outputRef": "platform/applications/guacamole/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "guacamole-workload-bundle",
+            "guacamole-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "guacamole-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "remote-connection",
+            "owner-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:4a168f443d13cb8596ac00fd4777cb4689b8a627224bcfcbf8add58175fdcdbc",
+          "id": "guacamole",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/guacamole/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "remote-connection"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "remote",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "guacamole-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "remote",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/guacamole/bundle/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/guacamole/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "guacamole-workload-bundle"
+          ],
+          "contractHash": "sha256:c29cb073dde154d4aa38789b506874de7f2d2364fe8deb2dbb181a507fcc346a",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "remote-connection"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "guacamole"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "guacamole-workload-bundle"
+          ],
+          "contractHash": "sha256:c13901023f2cb0271580070c4e115940afa77510e42b9aad549bfd8981ed5690",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "remote-connection"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "guacamole"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "guacamole-workload-bundle",
+            "guacamole-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "remote-connection"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "guacamole",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "egress": true,
+            "health": {
+              "command": [
+                "nc",
+                "-z",
+                "127.0.0.1",
+                "4822"
+              ],
+              "kind": "command"
+            },
+            "id": "guacd",
+            "image": {
+              "digest": "sha256:8974eaa9ba32f713daf311e7cc8cd7e4cdfba1edea39eed75524e78ef4b08f4f",
+              "ref": "docker.io/guacamole/guacd:1.6.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "guacamole-internal"
+            ],
+            "role": "application"
+          },
+          {
+            "command": [
+              "/bin/sh",
+              "-ec",
+              "set +x; set -eu; umask 077; [ \"$GUACAMOLE_HOME\" = /dev/shm/stackkits-guacamole ]; [ \"$(stat -f -c %T /dev/shm)\" = tmpfs ]; [ \"$STACKKITS_OWNER_PASSWORD_FILE\" = /run/secrets/owner-password ]; [ -s \"$STACKKITS_OWNER_PASSWORD_FILE\" ]; [ -n \"$STACKKITS_REMOTE_CONNECTION_XML\" ]; [ ! -L \"$GUACAMOLE_HOME\" ]; mkdir -p \"$GUACAMOLE_HOME\"; chmod 700 \"$GUACAMOLE_HOME\"; sum=$(sha256sum \u003c \"$STACKKITS_OWNER_PASSWORD_FILE\"); hash=${sum%% *}; [ \"${#hash}\" = 64 ]; case \"$hash\" in *[!0-9a-f]*) exit 1 ;; esac; mapping=$(mktemp \"$GUACAMOLE_HOME/.user-mapping.XXXXXX\"); trap 'rm -f \"$mapping\"' EXIT HUP INT TERM; printf '\u003c?xml version=\"1.0\" encoding=\"UTF-8\"?\u003e\u003cuser-mapping\u003e\u003cauthorize username=\"owner\" password=\"%s\" encoding=\"sha256\"\u003e%s\u003c/authorize\u003e\u003c/user-mapping\u003e\\n' \"$hash\" \"$STACKKITS_REMOTE_CONNECTION_XML\" \u003e \"$mapping\"; chmod 600 \"$mapping\"; mv -f \"$mapping\" \"$GUACAMOLE_HOME/user-mapping.xml\"; trap - EXIT HUP INT TERM; unset hash sum mapping STACKKITS_REMOTE_CONNECTION_XML STACKKITS_OWNER_PASSWORD_FILE; exec /opt/guacamole/bin/entrypoint.sh"
+            ],
+            "dependsOn": [
+              "guacd"
+            ],
+            "environment": {
+              "GUACAMOLE_HOME": "/dev/shm/stackkits-guacamole",
+              "GUACD_HOSTNAME": "guacd",
+              "GUACD_PORT": "4822",
+              "WEBAPP_CONTEXT": "ROOT"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/",
+              "port": 8080
+            },
+            "id": "guacamole",
+            "image": {
+              "digest": "sha256:f344085e618bb05e22b964b0208dbd06d3468275bac70206f93805245e067b40",
+              "ref": "docker.io/guacamole/guacamole:1.6.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "guacamole-internal"
+            ],
+            "role": "application",
+            "secretFiles": [
+              {
+                "gid": 1001,
+                "pathEnvironment": "STACKKITS_OWNER_PASSWORD_FILE",
+                "slot": "owner-password",
+                "target": "/run/secrets/owner-password",
+                "uid": 1001
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "guacamole",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:f344085e618bb05e22b964b0208dbd06d3468275bac70206f93805245e067b40",
+          "ref": "docker.io/guacamole/guacamole:1.6.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "adguard-home"
+          ],
+          "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        },
+        "standard": {
+          "components": [
+            "adguard-home"
+          ],
+          "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "adguard-home-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "adguard-home-http",
+          "kind": "http",
+          "path": "/login.html",
+          "phase": "continuous",
+          "port": 8080,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+        "id": "stackkits-adguard-home-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-adguard-home",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "adguard-home-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/adguard-home/bundle.json",
+              "required": true,
+              "unitRef": "adguard-home"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "adguard-home-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/adguard-home/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "adguard-home-workload-bundle",
+              "outputRef": "workloads/adguard-home/bundle.json",
+              "unitRef": "adguard-home"
+            },
+            {
+              "artifactRef": "adguard-home-terramate-stack",
+              "outputRef": "platform/applications/adguard-home/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "adguard-home-workload-bundle",
+            "adguard-home-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "adguard-home-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "dns-policy",
+            "owner-password"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:854bda8cab993e8165bc47d4382db4823e23a9c65d8f051f8d6361bb739d6e9f",
+          "id": "adguard-home",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/adguard-home/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "dns-policy",
+            "lan-listener"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "network",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "adguard-home-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "network",
+              "targetPort": 8080,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/adguard-home/bundle/v1.json",
+          "version": "1.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/adguard-home/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "adguard-home-workload-bundle"
+          ],
+          "contractHash": "sha256:c29cb073dde154d4aa38789b506874de7f2d2364fe8deb2dbb181a507fcc346a",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "dns-policy",
+            "lan-listener"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "adguard-home"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "adguard-home-workload-bundle"
+          ],
+          "contractHash": "sha256:c13901023f2cb0271580070c4e115940afa77510e42b9aad549bfd8981ed5690",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "dns-policy",
+            "lan-listener"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "adguard-home"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "adguard-home-workload-bundle",
+            "adguard-home-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route",
+            "dns-policy",
+            "lan-listener"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "owner-password"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "adguard-home",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "-ec",
+              "set +x; set -eu; umask 077; [ \"$STACKKITS_OWNER_HASH_FILE\" = /run/secrets/adguard-owner-bcrypt ]; [ -s \"$STACKKITS_OWNER_HASH_FILE\" ]; [ -n \"$STACKKITS_DNS_CONFIG_JSON\" ]; hash=$(base64 -d \u003c \"$STACKKITS_OWNER_HASH_FILE\"); case \"$hash\" in '$2a$'*|'$2b$'*|'$2y$'*) ;; *) exit 1 ;; esac; [ \"${#hash}\" = 60 ]; case \"$hash\" in *[!A-Za-z0-9./$]*) exit 1 ;; esac; conf=/opt/adguardhome/conf; [ ! -L \"$conf\" ]; mkdir -p \"$conf\"; chmod 700 \"$conf\"; file=$(mktemp \"$conf/.AdGuardHome.XXXXXX\"); trap 'rm -f \"$file\"' EXIT HUP INT TERM; printf '%s\\n' \"$STACKKITS_DNS_CONFIG_JSON\" | sed \"s|@@OWNER_BCRYPT@@|$hash|g\" \u003e \"$file\"; chmod 600 \"$file\"; mv -f \"$file\" \"$conf/AdGuardHome.yaml\"; trap - EXIT HUP INT TERM; unset hash file STACKKITS_DNS_CONFIG_JSON STACKKITS_OWNER_HASH_FILE; exec /opt/adguardhome/AdGuardHome -c \"$conf/AdGuardHome.yaml\" -w /opt/adguardhome/work --no-check-update"
+            ],
+            "dependsOn": [],
+            "egress": true,
+            "entrypoint": [
+              "/bin/sh"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/login.html",
+              "port": 8080
+            },
+            "id": "adguard-home",
+            "image": {
+              "digest": "sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0",
+              "ref": "docker.io/adguard/adguardhome:v0.107.79"
+            },
+            "lanListeners": [
+              {
+                "port": 53535,
+                "protocol": "udp",
+                "settingRef": "lan-listener"
+              },
+              {
+                "port": 53535,
+                "protocol": "tcp",
+                "settingRef": "lan-listener"
+              }
+            ],
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "adguard-home-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "STACKKITS_OWNER_HASH_FILE": "owner-password"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "config",
+                "target": "/opt/adguardhome/conf"
+              },
+              {
+                "backup": false,
+                "class": "persistent",
+                "id": "work",
+                "target": "/opt/adguardhome/work"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "adguard-home",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0",
+          "ref": "docker.io/adguard/adguardhome:v0.107.79"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home"
       ]
     }
   ],
@@ -48432,6 +51692,54 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "opencloud-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-opencloud",
+        "version": "1.1.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-opencloud-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "files"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "passbolt-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -50019,6 +53327,7 @@
         "moduleRefs": {
           "optional": [],
           "required": [
+            "stackkits-komodo-bootstrap-runtime",
             "stackkits-komodo-core-runtime",
             "stackkits-komodo-periphery-runtime"
           ]
@@ -50940,6 +54249,50 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "marketplace-native-installation"
+      ],
+      "metadata": {
+        "id": "stackkits-marketplace",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-marketplace-coolify-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "marketplace"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "home-assistant-instance-evidence"
       ],
       "metadata": {
@@ -50968,6 +54321,85 @@
       ],
       "workloadRefs": [
         "smart-home"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "guacamole-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-guacamole",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-guacamole-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "remote"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "adguard-home-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-adguard-home",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-adguard-home-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": [
+        "network"
       ]
     }
   ],
@@ -51927,6 +55359,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "photos",
                   "componentRef": "immich-server",
                   "dataClasses": [
                     "personal"
@@ -51934,6 +55367,7 @@
                   "volumeRef": "library"
                 },
                 {
+                  "backupDataClass": "database",
                   "componentRef": "immich-postgres",
                   "dataClasses": [
                     "personal"
@@ -52077,6 +55511,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "photos",
                   "componentRef": "immich-server",
                   "dataClasses": [
                     "personal"
@@ -52084,6 +55519,7 @@
                   "volumeRef": "library"
                 },
                 {
+                  "backupDataClass": "database",
                   "componentRef": "immich-postgres",
                   "dataClasses": [
                     "personal"
@@ -52234,6 +55670,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "cloudreve",
                   "dataClasses": [
                     "personal"
@@ -52349,11 +55786,132 @@
           }
         },
         {
+          "id": "opencloud",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "backupDataClass": "config",
+                  "componentRef": "opencloud",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "config"
+                },
+                {
+                  "backupDataClass": "user-content",
+                  "componentRef": "opencloud",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "files",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "opencloud",
+                  "dataBindingRef": "files",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/etc/opencloud",
+                  "volumeRef": "config"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "opencloud",
+                  "dataBindingRef": "files",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/opencloud",
+                  "volumeRef": "data"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "owner-password"
+              ],
+              "requiredRefs": [
+                "owner-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-opencloud-runtime",
+          "providerRef": "stackkits-opencloud",
+          "route": {
+            "healthRef": "opencloud-http",
+            "serviceRef": "files"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        },
+        {
           "id": "nextcloud",
           "infrastructure": {
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "nextcloud",
                   "dataClasses": [
                     "personal"
@@ -52361,6 +55919,7 @@
                   "volumeRef": "html"
                 },
                 {
+                  "backupDataClass": "database",
                   "componentRef": "nextcloud-postgres",
                   "dataClasses": [
                     "personal"
@@ -52519,6 +56078,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "secret-material",
                   "componentRef": "vaultwarden",
                   "dataClasses": [
                     "secret"
@@ -52643,6 +56203,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "secret-material",
                   "componentRef": "passbolt",
                   "dataClasses": [
                     "secret"
@@ -52650,6 +56211,7 @@
                   "volumeRef": "gpg"
                 },
                 {
+                  "backupDataClass": "secret-material",
                   "componentRef": "passbolt",
                   "dataClasses": [
                     "secret"
@@ -52657,6 +56219,7 @@
                   "volumeRef": "jwt"
                 },
                 {
+                  "backupDataClass": "database",
                   "componentRef": "passbolt-mariadb",
                   "dataClasses": [
                     "secret"
@@ -52818,6 +56381,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "open-webui",
                   "dataClasses": [
                     "personal"
@@ -52888,7 +56452,12 @@
             },
             "settings": {
               "allowedRefs": [
-                "kombify-connector"
+                "kombify-connector",
+                "model-pack-general",
+                "model-pack-coding",
+                "model-pack-vision",
+                "model-size",
+                "external-provider"
               ],
               "requiredRefs": []
             }
@@ -52936,6 +56505,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "anythingllm",
                   "dataClasses": [
                     "personal"
@@ -53090,6 +56660,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "comfyui",
                   "dataClasses": [
                     "personal"
@@ -53097,6 +56668,7 @@
                   "volumeRef": "user"
                 },
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "comfyui",
                   "dataClasses": [
                     "personal"
@@ -53104,6 +56676,7 @@
                   "volumeRef": "input"
                 },
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "comfyui",
                   "dataClasses": [
                     "personal"
@@ -53258,6 +56831,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "hermes",
                   "dataClasses": [
                     "personal"
@@ -53390,6 +56964,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "openhands",
                   "dataClasses": [
                     "personal"
@@ -53397,6 +56972,7 @@
                   "volumeRef": "settings"
                 },
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "openhands",
                   "dataClasses": [
                     "personal"
@@ -53526,6 +57102,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "paperclip",
                   "dataClasses": [
                     "personal"
@@ -53533,6 +57110,7 @@
                   "volumeRef": "home"
                 },
                 {
+                  "backupDataClass": "database",
                   "componentRef": "paperclip-postgres",
                   "dataClasses": [
                     "personal"
@@ -53668,6 +57246,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "speechkit",
                   "dataClasses": [
                     "personal"
@@ -53998,6 +57577,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "gitea",
                   "dataClasses": [
                     "personal"
@@ -54005,6 +57585,7 @@
                   "volumeRef": "data"
                 },
                 {
+                  "backupDataClass": "config",
                   "componentRef": "gitea",
                   "dataClasses": [
                     "personal"
@@ -54105,9 +57686,11 @@
             "defaultFallbackAdapterRefs": []
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "gitea-owner-login"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         },
         {
@@ -54116,6 +57699,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "forgejo",
                   "dataClasses": [
                     "personal"
@@ -54205,9 +57789,11 @@
             "defaultFallbackAdapterRefs": []
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "forgejo-owner-login"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],
@@ -54254,6 +57840,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "paperless",
                   "dataClasses": [
                     "personal"
@@ -54261,6 +57848,7 @@
                   "volumeRef": "data"
                 },
                 {
+                  "backupDataClass": "documents",
                   "componentRef": "paperless",
                   "dataClasses": [
                     "personal"
@@ -54268,6 +57856,7 @@
                   "volumeRef": "media"
                 },
                 {
+                  "backupDataClass": "documents",
                   "componentRef": "paperless",
                   "dataClasses": [
                     "personal"
@@ -54275,6 +57864,7 @@
                   "volumeRef": "consume"
                 },
                 {
+                  "backupDataClass": "database",
                   "componentRef": "paperless-postgres",
                   "dataClasses": [
                     "personal"
@@ -54420,9 +58010,11 @@
             "defaultFallbackAdapterRefs": []
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "paperless-owner-login"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],
@@ -54470,6 +58062,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "wings",
                   "dataClasses": [
                     "personal"
@@ -54477,6 +58070,7 @@
                   "volumeRef": "data"
                 },
                 {
+                  "backupDataClass": "database",
                   "componentRef": "panel-database",
                   "dataClasses": [
                     "personal"
@@ -54484,6 +58078,7 @@
                   "volumeRef": "database"
                 },
                 {
+                  "backupDataClass": "config",
                   "componentRef": "panel",
                   "dataClasses": [
                     "personal"
@@ -54672,6 +58267,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "wings",
                   "dataClasses": [
                     "personal"
@@ -54679,6 +58275,7 @@
                   "volumeRef": "data"
                 },
                 {
+                  "backupDataClass": "config",
                   "componentRef": "panel",
                   "dataClasses": [
                     "personal"
@@ -54830,6 +58427,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "wings",
                   "dataClasses": [
                     "personal"
@@ -54837,6 +58435,7 @@
                   "volumeRef": "data"
                 },
                 {
+                  "backupDataClass": "database",
                   "componentRef": "panel-database",
                   "dataClasses": [
                     "personal"
@@ -54844,6 +58443,7 @@
                   "volumeRef": "database"
                 },
                 {
+                  "backupDataClass": "config",
                   "componentRef": "panel",
                   "dataClasses": [
                     "personal"
@@ -55057,6 +58657,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "database",
                   "componentRef": "roundcube",
                   "dataClasses": [
                     "personal"
@@ -55064,6 +58665,7 @@
                   "volumeRef": "database"
                 },
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "roundcube",
                   "dataClasses": [
                     "personal"
@@ -55231,6 +58833,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "user-content",
                   "componentRef": "stalwart",
                   "dataClasses": [
                     "personal"
@@ -55380,6 +58983,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "jellyfin",
                   "dataClasses": [
                     "personal"
@@ -55519,6 +59123,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "emby",
                   "dataClasses": [
                     "personal"
@@ -55663,6 +59268,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "navidrome",
                   "dataClasses": [
                     "personal"
@@ -55792,6 +59398,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "audiobookshelf",
                   "dataClasses": [
                     "personal"
@@ -55799,6 +59406,7 @@
                   "volumeRef": "config"
                 },
                 {
+                  "backupDataClass": "config",
                   "componentRef": "audiobookshelf",
                   "dataClasses": [
                     "personal"
@@ -55940,6 +59548,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "esphome",
                   "dataClasses": [
                     "personal"
@@ -56058,6 +59667,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "documents",
                   "componentRef": "euro-office",
                   "dataClasses": [
                     "personal"
@@ -56180,6 +59790,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "mosquitto",
                   "dataClasses": [
                     "personal"
@@ -56304,6 +59915,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "zigbee2mqtt",
                   "dataClasses": [
                     "personal"
@@ -56502,6 +60114,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "immich-kiosk",
                   "dataClasses": [
                     "personal"
@@ -56626,6 +60239,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "immich-power-tools",
                   "dataClasses": [
                     "personal"
@@ -56752,6 +60366,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "home-assistant",
                   "dataClasses": [
                     "personal"
@@ -56801,7 +60416,9 @@
               "requiredRefs": []
             },
             "settings": {
-              "allowedRefs": [],
+              "allowedRefs": [
+                "kombify-notify"
+              ],
               "requiredRefs": []
             }
           },
@@ -57002,6 +60619,467 @@
         "cloud"
       ],
       "useCaseRef": "smart-home"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "coolify",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "backupDataClass": "database",
+                  "componentRef": "postgres",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "volumeRef": "postgres"
+                },
+                {
+                  "backupDataClass": "platform-state",
+                  "componentRef": "redis",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "volumeRef": "redis"
+                },
+                {
+                  "backupDataClass": "secret-material",
+                  "componentRef": "coolify",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "volumeRef": "ssh"
+                },
+                {
+                  "backupDataClass": "platform-state",
+                  "componentRef": "coolify",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "volumeRef": "applications"
+                },
+                {
+                  "backupDataClass": "platform-state",
+                  "componentRef": "coolify",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "volumeRef": "databases"
+                },
+                {
+                  "backupDataClass": "platform-state",
+                  "componentRef": "coolify",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "volumeRef": "services"
+                },
+                {
+                  "backupDataClass": "platform-state",
+                  "componentRef": "coolify",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "volumeRef": "backups"
+                },
+                {
+                  "backupDataClass": "platform-state",
+                  "componentRef": "coolify",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "volumeRef": "images"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "marketplace",
+              "classes": [
+                "personal",
+                "secret"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "postgres",
+                  "dataBindingRef": "marketplace",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "target": "/var/lib/postgresql/data",
+                  "volumeRef": "postgres"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "redis",
+                  "dataBindingRef": "marketplace",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "target": "/data",
+                  "volumeRef": "redis"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "coolify",
+                  "dataBindingRef": "marketplace",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "target": "/var/www/html/storage/app/ssh",
+                  "volumeRef": "ssh"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "coolify",
+                  "dataBindingRef": "marketplace",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "target": "/var/www/html/storage/app/applications",
+                  "volumeRef": "applications"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "coolify",
+                  "dataBindingRef": "marketplace",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "target": "/var/www/html/storage/app/databases",
+                  "volumeRef": "databases"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "coolify",
+                  "dataBindingRef": "marketplace",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "target": "/var/www/html/storage/app/services",
+                  "volumeRef": "services"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "coolify",
+                  "dataBindingRef": "marketplace",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "target": "/var/www/html/storage/app/backups",
+                  "volumeRef": "backups"
+                },
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "coolify",
+                  "dataBindingRef": "marketplace",
+                  "dataClasses": [
+                    "personal",
+                    "secret"
+                  ],
+                  "target": "/var/www/html/storage/app/images",
+                  "volumeRef": "images"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-marketplace-coolify-runtime",
+          "providerRef": "stackkits-marketplace",
+          "route": {
+            "healthRef": "marketplace-bootstrap-ready",
+            "serviceRef": "marketplace"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [],
+            "allowedDeliveries": [
+              "stackkit"
+            ],
+            "allowedKinds": [
+              "host"
+            ],
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "marketplace-owner-bootstrap"
+            ],
+            "mode": "automatic",
+            "owner": "module"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "coolify",
+          "included": true
+        },
+        "low": {
+          "included": false,
+          "reason": "The initial Marketplace installation requires the standard node envelope."
+        },
+        "standard": {
+          "alternativeID": "coolify",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal",
+        "secret"
+      ],
+      "defaultAlternative": "coolify",
+      "functionalCapabilities": [
+        "self-hosted-app-store"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Optional Coolify app store operated on the owner's node with the existing Kit router and PocketID. Full data, lifecycle and Cloud admission remain separate evidence.",
+        "id": "marketplace",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "marketplace"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "guacamole",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "owner-password"
+              ],
+              "requiredRefs": [
+                "owner-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [
+                "remote-connection"
+              ],
+              "requiredRefs": [
+                "remote-connection"
+              ]
+            }
+          },
+          "moduleRef": "stackkits-guacamole-runtime",
+          "providerRef": "stackkits-guacamole",
+          "route": {
+            "healthRef": "guacamole-http",
+            "serviceRef": "remote"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "guacamole-owner-login"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "guacamole",
+          "included": true
+        },
+        "low": {
+          "included": false,
+          "reason": "The first Guacamole module requires the standard host floor; small-device and measured tier acceptance remain pending."
+        },
+        "standard": {
+          "alternativeID": "guacamole",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "guacamole",
+      "functionalCapabilities": [
+        "browser-remote-access",
+        "remote-session"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Browser access to one explicitly selected SSH, RDP or VNC destination through Apache Guacamole. Static XML authentication is the declared initial profile; SSO and household clients require separate admitted configuration.",
+        "id": "remote",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "remote"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "adguard-home",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "owner-password"
+              ],
+              "requiredRefs": [
+                "owner-password"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [
+                "dns-policy",
+                "lan-listener"
+              ],
+              "requiredRefs": [
+                "dns-policy"
+              ]
+            }
+          },
+          "moduleRef": "stackkits-adguard-home-runtime",
+          "providerRef": "stackkits-adguard-home",
+          "route": {
+            "healthRef": "adguard-home-http",
+            "serviceRef": "network"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "alternativeID": "adguard-home",
+          "included": true
+        },
+        "low": {
+          "included": false,
+          "reason": "The first AdguardHome module requires the standard host floor; small-device and measured tier acceptance remain pending."
+        },
+        "standard": {
+          "alternativeID": "adguard-home",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "adguard-home",
+      "functionalCapabilities": [
+        "dns-filtering",
+        "selected-client-dns"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+        "id": "network",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "useCaseRef": "network"
     }
   ]
 }

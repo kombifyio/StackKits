@@ -58,6 +58,18 @@ var filePublicTestBoundaries = map[string]struct {
 	Package string
 	Tests   []string
 }{
+	// Documentation adapters execute their CUE-derived flow through the catalog
+	// owner and deterministic CLI parity below; unrelated CLI journeys stay outside it.
+	"cmd/stackkit/commands/docs_catalog.go": {
+		Package: "internal/usecasecatalog",
+		Tests:   []string{"TestTruthTableRuntimeSourceInvalidatesProducerEvidence", "TestRuntimeEvidenceIsSourceBound", "TestGeneratedCatalogConformsToPublishedSchema"},
+	},
+	"internal/resolvedplan/capacity_assessment.go": {
+		Package: "cmd/stackkit/commands", Tests: []string{"TestCapacityRejectsUnderprovisionedSelection"},
+	},
+	"internal/architecturev2/capacity.go": {
+		Package: "cmd/stackkit/commands", Tests: []string{"TestCapacityRejectsUnderprovisionedSelection"},
+	},
 	"internal/architecturev2/authoring_add.go": {
 		Package: "cmd/stackkit/commands", Tests: []string{"TestUseCasesAddPreservesInstalledIntentAndCustody"},
 	},
@@ -113,6 +125,46 @@ var nativeSetupConsumerTests = []string{
 // gate. Adding or renaming a test in one of these slices must update this
 // reviewable binding.
 var fileFocusedTests = map[string][]string{
+	"internal/usecasecatalog/truth_table.go": {
+		"TestTruthTableRuntimeSourceInvalidatesProducerEvidence",
+	},
+	// Capacity extraction changes only profile demand and numeric admission.
+	// The unrelated historical full compiler suite exceeds the bounded gate
+	// while repeatedly evaluating Modern topology policies under CUE.
+	"internal/resolvedplan/module_profiles.go": {
+		"TestNativeModuleProfileRejectsUnsupportedNodeArchitecture",
+		"TestNativeComputeProfileRejectsUnmaterializedComponentGraph",
+		"TestCatalogRejectsProfileResourceWithoutProvenance",
+		"TestNativeUnrealizedProfilesCannotInheritModuleExecution",
+		"TestNativeModuleReservationsBlockOvercommittedNode",
+		"TestNativePartialAxisProfileKeepsModuleUnverified",
+		"TestCatalogRejectsAxisProfilesWithoutComputeRealization",
+		"TestModuleProfileDemandBindingRejectsRehashedTampering",
+	},
+	"internal/resolvedplan/modules.go": {
+		"TestMissingInventoryFactsBlockApplyNotGeneration",
+		"TestUndersizedInventoryFactsBlockApply",
+		"TestAttestedInventoryFactsKeepApplyReady",
+		"TestModuleRequiredInventoryFactsBlockUntilObserved",
+		"TestCanonicalPlanRejectsForgedRuntimeAdmission",
+	},
+	"cmd/stackkit/commands/capacity.go": {"TestCapacityRejectsUnderprovisionedSelection"},
+	"cmd/stackkit/commands/machine_output.go": {
+		"TestCapacityRejectsUnderprovisionedSelection",
+		"TestMachineCommandDenialIsParseableAndRetainsNonzeroError",
+		"TestMachineCommandFailureEmitsManagedEntitlementEnvelope",
+		"TestMachineFailureCarriesRecognizedRuntimeConditionContract",
+		"TestRemoveTerminalEvidenceIsExclusiveMachineOutput",
+	},
+	"cmd/stackkit/commands/apply_progress.go": {
+		"TestApplyOwnerFailureEventNamesTheOwnerAndNeverCarriesErrorText",
+		"TestApplyProgressHeartbeatRepeatsWhileWorkContinues",
+	},
+	"cmd/stackkit/commands/application_lifecycle_execution.go": {
+		"TestExclusiveApplyProofHoldsOnlyUnderTheOutputRootLock",
+		"TestRetriedApplyAfterAKilledApplyRunsEveryOwner",
+		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
+	},
 	// Source preparation owns public cache admission and historical Owner
 	// inspection; recovery consumes that same verified cache and executable.
 	"cmd/stackkit/commands/source_generation.go": {
@@ -457,6 +509,12 @@ func buildPlan(input plannerInput) testPlan {
 	}
 	focusedTests := focusedGoTests(files, input.ChangedTests)
 	applyPublicTestBoundaries(files, input.InertGoFiles, &goSelection, focusedTests)
+	// This executable is js/wasm-only. The WebMCP build compiles and executes
+	// its real target; a native go test has no buildable source files.
+	const capacityWasmPattern = "./cmd/stackkit-capacity-wasm"
+	goSelection.Changed = withoutString(goSelection.Changed, capacityWasmPattern)
+	goSelection.CompileOnly = withoutString(goSelection.CompileOnly, capacityWasmPattern)
+	goSelection.Reverse = withoutString(goSelection.Reverse, capacityWasmPattern)
 	testTags := make(map[string][]string, len(input.ChangedTestTags))
 	for dir, tags := range input.ChangedTestTags {
 		testTags[dir] = tags
@@ -660,8 +718,10 @@ func buildPlan(input plannerInput) testPlan {
 		commands = append(commands, testCommand{
 			Kind:  "contract",
 			Scope: "advanced-operations-contract",
-			Argv: []string{"go", "test", "./internal/advancedcatalog", "./cmd/stackkit/commands",
-				"-run", "^(TestAdvancedOperationsCatalog|TestAdvancedCommandResultPayloads)"},
+			// Flags precede the packages: module routing reads every argument
+			// after the leading flags as a package pattern.
+			Argv: []string{"go", "test", "-run", "^(TestAdvancedOperationsCatalog|TestAdvancedCommandResultPayloads)",
+				"./internal/advancedcatalog", "./cmd/stackkit/commands"},
 			Reason: "validate the Advanced operations catalog and the command-result payload bindings against the changed contract schemas",
 		})
 	}
@@ -749,6 +809,21 @@ func buildPlan(input plannerInput) testPlan {
 	if len(classes.Unknown) > 0 {
 		warnings = append(warnings, "unknown paths receive hygiene checks only; the planner never falls back to go test ./...")
 	}
+	if input.StatusSurfaceGate && useCaseTruthTableAffected(files) {
+		commands = append(commands, testCommand{
+			Kind: "node", Scope: "use-case-table-parity",
+			Argv:   []string{"node", "scripts/docs/use-case-overview.mjs", "--check", "--tables-only"},
+			Reason: "execute the documentation CLI and check shared CUE-derived tables without runtime or test claims",
+		})
+	}
+	if input.StatusSurfaceGate && anyPathUnder(files, "scripts/docs/product-facts.mjs", "scripts/docs/product-facts-projection.mjs", "scripts/docs/product-facts-projection.test.mjs", "docs/data/product-facts/", ".kombify/VERSION") {
+		commands = append(commands, testCommand{
+			Kind: "node", Scope: "prepared-product-facts",
+			Argv:   []string{"node", "--test", "scripts/docs/product-facts-projection.test.mjs"},
+			Reason: "prove prepared version and digest refresh without rebinding historical publication or runtime observations",
+		})
+	}
+
 	for _, command := range commands {
 		if command.Scope == budgetedPackageScope {
 			warnings = append(warnings, command.Argv[len(command.Argv)-1]+" is over the affected slice budget: this slice skips its unselected registered slow tests, which run in mise run test:full")
@@ -804,6 +879,21 @@ func withoutString(values []string, unwanted string) []string {
 		}
 	}
 	return result
+}
+
+// Match the whole executable-product provenance scope; private facts and receipt
+// changes also need projection. Public repositories have no private table contract.
+func useCaseTruthTableAffected(files []string) bool {
+	for _, file := range files {
+		if file == "AGENTS.md" || file == "README.md" || file == "CHANGELOG.md" || strings.HasPrefix(file, ".beads/") {
+			continue
+		}
+		if strings.HasPrefix(file, "docs/") && !anyPathUnder([]string{file}, "docs/USE_CASE_PACKAGES.md", "docs/use-case-expansion/portfolio.md", "docs/data/use-case-truth-table/", "docs/data/use-case-runtime-evidence/") {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func focusedGoTests(files []string, changedTests map[string][]string) map[string][]string {
@@ -942,6 +1032,10 @@ func classifyFiles(files []string) classification {
 		known := false
 
 		if strings.HasSuffix(file, ".go") {
+			known = true
+		}
+		if strings.HasPrefix(file, "cmd/stackkit-capacity-wasm/") || strings.HasPrefix(file, "internal/capacityfit/") {
+			result.WebMCP = true
 			known = true
 		}
 		if file == "go.mod" || file == "go.sum" {

@@ -1047,7 +1047,7 @@ func (r *nativeDockerRender) secretUploads(servicePath, name string, block *hclw
 		if !declared || !nativeIdentifierPattern.MatchString(placement.Source) || !nativeSecretVariablePattern.MatchString(secret.Environment) {
 			return nil, fail(ErrRendererFailure, servicePath+".secrets", "secret %q is not a declared environment-sourced secret", placement.Source)
 		}
-		if !strings.HasPrefix(placement.Target, "/") || filepath.Clean(placement.Target) != placement.Target || targets[placement.Target] ||
+		if !path.IsAbs(placement.Target) || path.Clean(placement.Target) != placement.Target || targets[placement.Target] ||
 			!nativeNumericIDPattern.MatchString(placement.UID) || !nativeNumericIDPattern.MatchString(placement.GID) ||
 			placement.Mode < 0 || placement.Mode > 0o777 {
 			return nil, fail(ErrRendererFailure, servicePath+".secrets."+placement.Source, "secret file placement is not an exact path, owner and mode")

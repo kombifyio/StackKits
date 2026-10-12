@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-10-09T08:11:23Z",
+  "generated_at": "2026-10-12T06:56:37Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -453,6 +453,18 @@
       "order": 60,
       "enable_var": "enable_files",
       "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/files",
+      "vendor": {
+        "name": "Cloudreve",
+        "website": "https://cloudreve.org",
+        "docs": "https://docs.cloudreve.org",
+        "license": "GPL-3.0",
+        "support": [
+          {
+            "kind": "purchase",
+            "url": "https://cloudreve.org/pricing"
+          }
+        ]
+      },
       "setup_policy": "on_demand",
       "setup_action_label": "Automatisierter Bootstrap",
       "delivery": {},
@@ -551,6 +563,21 @@
       "order": 10,
       "enable_var": "enable_uptime_kuma",
       "guide_url": "https://docs.kombify.io/stackkits/apps/uptime-kuma",
+      "vendor": {
+        "name": "Uptime Kuma",
+        "website": "https://uptime.kuma.pet",
+        "license": "MIT",
+        "support": [
+          {
+            "kind": "donate",
+            "url": "https://opencollective.com/uptime-kuma"
+          },
+          {
+            "kind": "sponsor",
+            "url": "https://github.com/sponsors/louislam"
+          }
+        ]
+      },
       "setup_policy": "automatic",
       "delivery": {},
       "default": true
@@ -590,6 +617,35 @@
       "order": 40,
       "enable_var": "enable_jellyfin",
       "guide_url": "https://docs.kombify.io/stackkits/apps/jellyfin",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=org.jellyfin.mobile"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/us/app/jellyfin-mobile/id1480192618"
+        },
+        {
+          "platform": "windows",
+          "kind": "download",
+          "url": "https://github.com/jellyfin/jellyfin-media-player/releases"
+        }
+      ],
+      "vendor": {
+        "name": "Jellyfin",
+        "website": "https://jellyfin.org",
+        "docs": "https://jellyfin.org/docs/",
+        "license": "GPL-2.0",
+        "support": [
+          {
+            "kind": "donate",
+            "url": "https://opencollective.com/jellyfin"
+          }
+        ]
+      },
       "setup_policy": "manual",
       "delivery": {},
       "default": false
@@ -615,6 +671,35 @@
       "order": 50,
       "enable_var": "enable_immich",
       "guide_url": "https://docs.kombify.io/stackkits/apps/immich",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=app.alextran.immich"
+        },
+        {
+          "platform": "android",
+          "kind": "download",
+          "url": "https://github.com/immich-app/immich/releases/latest/download/app-release.apk"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/us/app/immich/id1613945652"
+        }
+      ],
+      "vendor": {
+        "name": "Immich",
+        "website": "https://immich.app",
+        "docs": "https://docs.immich.app/",
+        "license": "AGPL-3.0",
+        "support": [
+          {
+            "kind": "purchase",
+            "url": "https://buy.immich.app/"
+          }
+        ]
+      },
       "setup_policy": "on_demand",
       "setup_action_label": "Automatisierter Bootstrap",
       "delivery": {},
@@ -658,6 +743,25 @@
       "section": "Applications",
       "order": 55,
       "enable_var": "enable_home_assistant",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/smart-home",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=io.homeassistant.companion.android"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/app/id1099568401"
+        }
+      ],
+      "vendor": {
+        "name": "Home Assistant",
+        "website": "https://www.home-assistant.io",
+        "docs": "https://www.home-assistant.io/docs/",
+        "license": "Apache-2.0"
+      },
       "setup_policy": "manual",
       "delivery": {},
       "default": false
@@ -705,6 +809,35 @@
       "order": 30,
       "enable_var": "enable_vaultwarden",
       "guide_url": "https://docs.kombify.io/stackkits/apps/vaultwarden",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=com.x8bit.bitwarden"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/app/bitwarden-free-password-manager/id1137397744"
+        },
+        {
+          "platform": "windows",
+          "kind": "download",
+          "url": "https://bitwarden.com/download/?app=desktop\u0026platform=windows\u0026variant=exe"
+        }
+      ],
+      "vendor": {
+        "name": "Vaultwarden",
+        "website": "https://github.com/dani-garcia/vaultwarden",
+        "docs": "https://github.com/dani-garcia/vaultwarden/wiki",
+        "license": "AGPL-3.0",
+        "support": [
+          {
+            "kind": "sponsor",
+            "url": "https://github.com/sponsors/dani-garcia"
+          }
+        ]
+      },
       "setup_policy": "on_demand",
       "setup_action_label": "Automatisierter Bootstrap",
       "delivery": {},
@@ -737,16 +870,15 @@
     {
       "slug": "adguard-home",
       "display_name": "AdGuard Home",
-      "version": "1.0.1",
-      "layer": "L2-platform-dns",
-      "description": "DNS filter, ad/malware blocking, and local DNS rewrites",
-      "contract_hash": "775a30abc24220ab439e9f228e25e26d5479dcbcdeefa8dbbae768b753add64a",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Canonical native-v2 Network filter. The generated legacy catalog scaffold is not an unattended DNS installer.",
+      "contract_hash": "f23a57a80c711444cb517062902eca9c8048e4e4d182dfb0b0371d1cb2371179",
       "supported_contexts": [
         "local",
         "cloud",
         "pi"
-      ],
-      "core": true
+      ]
     },
     {
       "slug": "admin-bootstrap",
@@ -982,6 +1114,19 @@
       "layer": "L3-application",
       "description": "Gitea image and storage catalog. Executable owner bootstrap is the native-v2 dev workload; this legacy scaffold is not an unattended installer.",
       "contract_hash": "0738ee4ec3d3d240ee9e9ee893402eb8fc88f8de77a6536888c7e9387e266a16",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "guacamole",
+      "display_name": "Apache Guacamole",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Immutable Guacamole and guacd image catalog. The executable native-v2 Remote workload owns explicit connection and node-custodied owner authentication; this legacy scaffold is not an unattended installer.",
+      "contract_hash": "5512c33babae749fade767398b0cc308d479729ebca1fd87867061b23da52ca6",
       "supported_contexts": [
         "local",
         "cloud",
@@ -1245,6 +1390,20 @@
       ]
     },
     {
+      "slug": "opencloud",
+      "display_name": "OpenCloud",
+      "version": "8.1.0",
+      "layer": "L3-application",
+      "description": "Native file management and sharing with OpenCloud",
+      "contract_hash": "c16f8735c67c832efe93176dba2dbacaa5f7b5f0a0e28d61a6779841a8764993",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ],
+      "core": true
+    },
+    {
       "slug": "openhands",
       "display_name": "OpenHands",
       "version": "0.1.0",
@@ -1446,10 +1605,10 @@
     {
       "slug": "tinyauth",
       "display_name": "TinyAuth",
-      "version": "4.1.0",
+      "version": "5.0.7",
       "layer": "L2-platform-identity",
       "description": "Lightweight authentication proxy with ForwardAuth, passkeys, and OAuth support",
-      "contract_hash": "2e7ae09bea17a51bad29a16800856ef8187150991b6323796b895a498cb60950",
+      "contract_hash": "1c53c590e9d66f658a2010d7a501adf6d8875cbdd19452cee9c11137da3785c2",
       "supported_contexts": [
         "local",
         "cloud",
@@ -1703,7 +1862,7 @@
           "kind": "default",
           "is_default": true,
           "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
-          "kit_definition_hash": "545dadb675cd205b485b2ecd0ea35755e73b37fe1b5f89d597df79813fa83a64",
+          "kit_definition_hash": "87c11ccd185f363ad02ab0bb9857e4e9faf324d2638cf86df571c9975119fc85",
           "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       ]
@@ -1720,7 +1879,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "2884c00e827e08eaf001d90ab490d4277c04e27921fb2aa476bf02b7ad379542"
+          "kit_definition_hash": "3d74443cac69ac4e675ead464c658690f6ebacbe1dd1fa04ae1a4dd63030fa8e"
         }
       ]
     },

@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:d7f9d03a7bf0813ac42a6e85b7fd8a651a858e0cbb6878d5e3c480f2bd2551f9",
+  "contentDigest": "sha256:419841ff5e46b310049ff90c7742e3131095e92554e034e80999bcde5dbd8553",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -1207,7 +1207,59 @@
               "note": "16 GB of memory or more"
             }
           ],
+          "realization": "install"
+        },
+        {
+          "default": "local",
+          "depth": "summary",
+          "group": "profile",
+          "help": "Run models on your own hardware, or use only your own interface with a provider you already pay for.",
+          "id": "inference-location",
+          "kind": "choice",
+          "name": "Where the models run",
+          "options": [
+            {
+              "id": "local",
+              "name": "On my own hardware",
+              "note": "Models run on this Node; private, no per-message cost"
+            },
+            {
+              "id": "external",
+              "name": "Only my own interface",
+              "note": "Your own chat on top of OpenAI, Anthropic or another provider; no models on your hardware"
+            }
+          ],
           "realization": "recorded"
+        },
+        {
+          "default": true,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Download an everyday chat model during setup so the first chat works offline.",
+          "id": "model-pack-general",
+          "kind": "toggle",
+          "name": "General chat model",
+          "realization": "install"
+        },
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Download a code model for the agent harness and your editor.",
+          "id": "model-pack-coding",
+          "kind": "toggle",
+          "name": "Coding model",
+          "realization": "install"
+        },
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Download a model that understands images you drop into the chat.",
+          "id": "model-pack-vision",
+          "kind": "toggle",
+          "name": "Vision model",
+          "realization": "install"
         }
       ],
       "title": "Private AI"
@@ -1781,6 +1833,67 @@
             }
           ],
           "name": "nextcloud"
+        },
+        {
+          "id": "opencloud",
+          "modules": [
+            {
+              "computeProfileFacts": {
+                "high": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 1
+                  }
+                },
+                "standard": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 1
+                  }
+                }
+              },
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-opencloud-runtime"
+            }
+          ],
+          "name": "opencloud"
         }
       ],
       "components": [
@@ -1800,6 +1913,13 @@
           "id": "nextcloud",
           "kind": "application",
           "name": "Nextcloud",
+          "realization": "install",
+          "role": "alternative"
+        },
+        {
+          "id": "opencloud",
+          "kind": "application",
+          "name": "OpenCloud",
           "realization": "install",
           "role": "alternative"
         },
@@ -1849,7 +1969,7 @@
           },
           "moduleSlug": "cloudreve",
           "notes": [
-            "Lightweight sharing. Nextcloud is a recorded alternative until its native workload lands."
+            "Lightweight sharing. Nextcloud and OpenCloud have separate native alternatives; selecting a larger profile never changes the application."
           ]
         },
         "standard": {
@@ -2582,6 +2702,120 @@
       "title": "Own Mail Server"
     },
     {
+      "alternatives": [
+        {
+          "id": "coolify",
+          "modules": [
+            {
+              "computeProfileFacts": {
+                "high": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "beta",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "recommended": {
+                      "ref": "Kombify recommended sizing policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 2,
+                    "ramGB": 4
+                  },
+                  "reservation": {
+                    "cpuCores": 0.5,
+                    "ramGB": 2.25
+                  }
+                },
+                "standard": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "beta",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "recommended": {
+                      "ref": "Kombify recommended sizing policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 2,
+                    "ramGB": 4
+                  },
+                  "reservation": {
+                    "cpuCores": 0.5,
+                    "ramGB": 2.25
+                  }
+                }
+              },
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-marketplace-coolify-runtime"
+            }
+          ],
+          "name": "coolify"
+        }
+      ],
+      "components": [
+        {
+          "id": "coolify",
+          "kind": "application",
+          "name": "Coolify",
+          "role": "primary"
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "included": false,
+          "reason": "The pinned Marketplace application and lifecycle have no current-pin runtime receipt."
+        },
+        "low": {
+          "included": false,
+          "reason": "The pinned Marketplace application and lifecycle have no current-pin runtime receipt."
+        },
+        "standard": {
+          "included": false,
+          "reason": "The pinned Marketplace application and lifecycle have no current-pin runtime receipt."
+        }
+      },
+      "defaultAlternative": "coolify",
+      "description": "Your own app store for applications you run on your homelab, at home and in the cloud.",
+      "docs": "/guides/stackkits/application-delivery",
+      "id": "marketplace",
+      "mainUseCase": {
+        "id": "marketplace",
+        "title": "Marketplace"
+      },
+      "title": "Marketplace"
+    },
+    {
       "addOns": [
         {
           "alternatives": [
@@ -3007,6 +3241,126 @@
         }
       ],
       "title": "Media Library"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "adguard-home",
+          "modules": [
+            {
+              "computeProfileFacts": {
+                "high": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.125
+                  }
+                },
+                "standard": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.125
+                  }
+                }
+              },
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-adguard-home-runtime"
+            }
+          ],
+          "name": "adguard-home"
+        }
+      ],
+      "components": [
+        {
+          "id": "adguard-home",
+          "kind": "application",
+          "name": "AdGuard Home",
+          "role": "primary"
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "functions": [
+            "dns-filtering",
+            "selected-client-dns"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "adguard-home",
+          "notes": [
+            "Same graph until measured variants are admitted."
+          ]
+        },
+        "low": {
+          "included": false,
+          "reason": "Small-device admission and measurement remain pending."
+        },
+        "standard": {
+          "functions": [
+            "dns-filtering",
+            "selected-client-dns"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "adguard-home",
+          "notes": [
+            "128 MiB policy reservation; unmeasured."
+          ]
+        }
+      },
+      "defaultAlternative": "adguard-home",
+      "description": "Filter DNS for selected clients while preserving the existing local resolver and device DNS choices.",
+      "docs": "/guides/stackkits/use-cases/network",
+      "id": "network",
+      "mainUseCase": {
+        "id": "network",
+        "title": "Network"
+      },
+      "title": "Network"
     },
     {
       "addOns": [
@@ -3514,6 +3868,69 @@
       "title": "Photos and Memories"
     },
     {
+      "alternatives": [
+        {
+          "id": "guacamole",
+          "modules": [
+            {
+              "computeProfileFacts": {
+                "high": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.5
+                  }
+                },
+                "standard": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.5
+                  }
+                }
+              },
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-guacamole-runtime"
+            }
+          ],
+          "name": "guacamole"
+        }
+      ],
       "components": [
         {
           "id": "guacamole",
@@ -3524,18 +3941,43 @@
       ],
       "computeTiers": {
         "high": {
-          "included": false,
-          "reason": "Same as standard until SK-M5."
+          "functions": [
+            "browser-remote-access",
+            "remote-session"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "guacamole",
+          "notes": [
+            "Same graph as standard until measured variants are admitted."
+          ]
         },
         "low": {
           "included": false,
-          "reason": "Guacamole is SK-M5 and not on the low graph."
+          "reason": "The first Guacamole graph requires the standard host floor; smaller devices remain pending."
         },
         "standard": {
-          "included": false,
-          "reason": "SK-M5: no executable module. Intended load is always-on idle gateway with interactive session bursts."
+          "functions": [
+            "browser-remote-access",
+            "remote-session"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "guacamole",
+          "notes": [
+            "Policy reservation is unmeasured; destination resources belong to the destination."
+          ]
         }
       },
+      "defaultAlternative": "guacamole",
       "description": "Private remote desktop and browser-accessible workspace intent.",
       "docs": "/guides/stackkits/use-cases/development",
       "id": "remote",

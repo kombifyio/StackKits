@@ -127,7 +127,7 @@ func ParseAnythingLLMWorkloadBundle(data []byte) (AnythingLLMWorkloadBundleDescr
 		return AnythingLLMWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed AnythingLLM "+anythingLLMRelease+" contract")
 	}
 	companionSlots, err := companionSecretSlotsOf(anythingLLMWorkloadModuleID, bundle.Components)
-	if err != nil || !validPrivateAISecretRefs(bundle.SecretRefs, false, companionSlots) {
+	if err != nil || !validPrivateAISecretRefs(bundle.SecretRefs, false, false, companionSlots) {
 		return AnythingLLMWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references and a companion secret reference exactly while its add-on is wired")
 	}
 	if len(bundle.ConfigFiles) != 0 {
@@ -206,7 +206,7 @@ func validateAnythingLLMWorkloadUnit(unit RenderUnit, contract RendererContract)
 	}
 	secretRefs := map[string]string{}
 	if err := decodeStrict(unit.SecretRefsJSON(), &secretRefs); err != nil ||
-		!validPrivateAISecretRefs(secretRefs, false, nil) {
+		!validPrivateAISecretRefs(secretRefs, false, false, nil) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references and no secret material")
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||

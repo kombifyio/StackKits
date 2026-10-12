@@ -106,32 +106,57 @@ type Tool struct {
 // current StackKit binding. It intentionally separates user-facing service
 // identity from tool/module implementation names.
 type Service struct {
-	Key                     string   `json:"key"`
-	DisplayName             string   `json:"display_name"`
-	Description             string   `json:"description,omitempty"`
-	ToolName                string   `json:"tool_name"`
-	ModuleSlug              string   `json:"module_slug"`
-	Role                    string   `json:"role,omitempty"`
-	DefaultTool             string   `json:"default_tool,omitempty"`
-	Alternatives            []string `json:"alternatives,omitempty"`
-	LocalSlug               string   `json:"local_slug"`
-	PublicSlug              string   `json:"public_slug"`
-	LegacyAliases           []string `json:"legacy_aliases,omitempty"`
-	IdentityPolicy          string   `json:"identity_policy"`
-	OwnerProvisioningPolicy string   `json:"owner_provisioning_policy"`
-	Icon                    string   `json:"icon,omitempty"`
-	LogoURL                 string   `json:"logo_url,omitempty"`
-	Badge                   string   `json:"badge,omitempty"`
-	Layer                   string   `json:"layer,omitempty"`
-	Section                 string   `json:"section,omitempty"`
-	Order                   int      `json:"order,omitempty"`
-	EnableVar               string   `json:"enable_var,omitempty"`
-	GuideURL                string   `json:"guide_url,omitempty"`
-	SetupPolicy             string   `json:"setup_policy,omitempty"`
-	SetupActionLabel        string   `json:"setup_action_label,omitempty"`
-	Delivery                Delivery `json:"delivery,omitempty"`
-	BootstrapProvider       string   `json:"bootstrap_provider,omitempty"`
-	Default                 bool     `json:"default"`
+	Key                     string      `json:"key"`
+	DisplayName             string      `json:"display_name"`
+	Description             string      `json:"description,omitempty"`
+	ToolName                string      `json:"tool_name"`
+	ModuleSlug              string      `json:"module_slug"`
+	Role                    string      `json:"role,omitempty"`
+	DefaultTool             string      `json:"default_tool,omitempty"`
+	Alternatives            []string    `json:"alternatives,omitempty"`
+	LocalSlug               string      `json:"local_slug"`
+	PublicSlug              string      `json:"public_slug"`
+	LegacyAliases           []string    `json:"legacy_aliases,omitempty"`
+	IdentityPolicy          string      `json:"identity_policy"`
+	OwnerProvisioningPolicy string      `json:"owner_provisioning_policy"`
+	Icon                    string      `json:"icon,omitempty"`
+	LogoURL                 string      `json:"logo_url,omitempty"`
+	Badge                   string      `json:"badge,omitempty"`
+	Layer                   string      `json:"layer,omitempty"`
+	Section                 string      `json:"section,omitempty"`
+	Order                   int         `json:"order,omitempty"`
+	EnableVar               string      `json:"enable_var,omitempty"`
+	GuideURL                string      `json:"guide_url,omitempty"`
+	Clients                 []AppClient `json:"clients,omitempty"`
+	Vendor                  *AppVendor  `json:"vendor,omitempty"`
+	SetupPolicy             string      `json:"setup_policy,omitempty"`
+	SetupActionLabel        string      `json:"setup_action_label,omitempty"`
+	Delivery                Delivery    `json:"delivery,omitempty"`
+	BootstrapProvider       string      `json:"bootstrap_provider,omitempty"`
+	Default                 bool        `json:"default"`
+}
+
+// AppClient is one official end-user client of an application: a store entry or
+// an installer download for one platform (android, ios, windows, macos, linux).
+type AppClient struct {
+	Platform string `json:"platform"`
+	Kind     string `json:"kind"`
+	URL      string `json:"url"`
+}
+
+// AppVendor is the upstream project behind an application.
+type AppVendor struct {
+	Name    string           `json:"name"`
+	Website string           `json:"website,omitempty"`
+	Docs    string           `json:"docs,omitempty"`
+	License string           `json:"license,omitempty"`
+	Support []AppSupportLink `json:"support,omitempty"`
+}
+
+// AppSupportLink is one place to support the developers: donate, sponsor or purchase.
+type AppSupportLink struct {
+	Kind string `json:"kind"`
+	URL  string `json:"url"`
 }
 
 type Delivery struct {

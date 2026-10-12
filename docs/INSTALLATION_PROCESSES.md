@@ -1,13 +1,20 @@
 # StackKits Installation Processes
 
-> Last verified: 2026-08-13
 
 This specification defines the supported ways a user or agent can install and roll out a StackKit. It separates discovery, installation, execution authority, and post-install management so agents do not confuse a read-only website surface with a target-server control surface.
 
+The standalone CLI runs **Standard Mode**, with local Owner custody and no
+Kombify account requirement. Advanced Mode, provider execution and Modern
+multi-site apply belong to Techstack. Installing Modern definitions does not
+admit a standalone Advanced executor. Owner email initializes the node's own
+identity; it is not a Kombify signup.
+
 Standalone Compose is the complete primary experience, including applications.
 The CLI is an optional user-facing interface to the shared lifecycle, not a
-full edition. New native stacks use the CUE standalone defaults; Komodo and
-Coolify require explicit selection. See
+full edition. New native stacks use the CUE standalone defaults. Komodo is
+the explicit operations-platform path; Marketplace installs Coolify as an
+optional application, not a runtime target. Support requires a current-pin
+receipt; Dokploy is not pursued. See
 [ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md).
 
 ## Scope
@@ -56,16 +63,16 @@ Source-of-truth rules:
 - Generated `deploy/`, OpenTofu state, `.stackkit/state.yaml`, logs, run evidence, and snapshots are outputs.
 - Agents must not hand-edit generated rollout artifacts.
 - Basement Kit is the primary standalone path; full current-release target
-  lifecycle evidence remains pending as recorded in STATUS.md.
+  lifecycle evidence remains pending.
 - Unreleased kit definitions stay outside the public beta install surface until their rollout matrices graduate.
 
 Minimum user intent:
 
 | Input | Purpose | Default or current stance |
 | --- | --- | --- |
-| Owner/admin email | Bootstrap identity and technical admin material | Required for production-like or cloud/custom-domain paths; local-only can synthesize `admin@example.com` where supported |
+| Owner/admin email | Bootstrap identity and technical admin material | Guided installers require a real email for the local Owner; shared test identities are used for engineering receipts |
 | StackKit | Which kit to install | `basement-kit` for the primary standalone path |
-| Install mode | Product bootstrap depth | `bootstrapped`; valid values are `bare`, `bootstrapped`, `advanced` |
+| Product mode | Execution boundary | Standard Mode only in the standalone CLI; Advanced Mode is Techstack-only |
 | Context | Target environment | `local`, `cloud`, or `pi` |
 | Domain strategy | Routing and user links | device-enrolled `home`, `kombify.me`, or one custom domain |
 | Workspace/spec path | Where the deployment contract lives | `./stack-spec.yaml` in the selected workspace |
@@ -93,11 +100,11 @@ Every StackKits installation path should collect the same small set of decisions
 | Execution place | Defines who can mutate the target | Website-only planning, local CLI, on-server agent, external SSH agent, local MCP, protected target MCP |
 | Authority boundary | Defines the security model | No target authority, local shell, SSH user, local process, token-protected target MCP |
 | StackKit | Selects the CUE contract and rollout matrix | `basement-kit` beta |
-| Install mode | Controls bootstrap depth and default setup policy | `bare`, `bootstrapped`, `advanced` |
+| Installer interaction | Controls questions, not product mode | `STACKKIT_INSTALL_MODE=auto`, `guided`, or `expert`; all remain Standard Mode |
 | Target context | Selects environment defaults, not a private-network assumption | `local`, `cloud`, `pi` |
-| Domain strategy | Determines routing, access links, and DNS/TLS evidence | browser-native `.localhost`, `kombify.me`, custom domain, LAN DNS |
+| Domain strategy | Determines routing, access links, and DNS/TLS evidence | Owner-CA `*.lab.home` with enrolled clients, `kombify.me`, or a custom domain |
 | Owner/admin email | Seeds identity, platform setup, and technical bootstrap material | operator email, tenant-provided owner, synthetic local-only email for tests |
-| Workload execution | Determines the selected workload's execution owner | Standalone Compose by default; explicit Komodo/Coolify integrations; Dokploy draft |
+| Workload execution | Determines the selected workload's execution owner | Standalone Compose by default; explicit Komodo operations platform; Marketplace on Coolify is planned application work. Current-pin receipts admit support; Dokploy is not pursued |
 | Service profile | Controls how much of the default application surface is enabled | `default`, `admin-only` |
 | Apply approval | Separates preview from mutation | explicit shell approval or MCP write gate |
 
@@ -116,14 +123,14 @@ in [OPTIONS_AND_AUTHORING.md](OPTIONS_AND_AUTHORING.md).
 
 | Capability | Config surface | Notes |
 | --- | --- | --- |
-| Owner and admin intent | `adminEmail`, `owner.*`, CLI `--admin-email`, owner bootstrap flags | `adminEmail` is compatibility input; Owner fields are the stronger identity contract when present. |
+| Owner and admin intent | `--owner-source=local`, `--owner-email`, `--owner-username` | Account-free node custody; legacy `adminEmail` is migration input. |
 | Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `basement-kit` is the primary standalone path; current full runtime proof remains pending. |
-| Install mode | retired v0.6 knob (`STACKKIT_MODE` warn-and-ignore) | `bare` is minimal/manual, `bootstrapped` was the legacy default; this does not establish current native runtime evidence. `advanced` is **scaffolding** (mode matrix status in every kit): it renders a static Terramate template (traefik/dockge/monitoring) without composition rendering — the Terramate-Plus lifecycle (drift/rollback/restore-drill surfaces, Runtime/Frontend Intelligence, managed TechStack handoff) is the target contract, not current behavior (`kombify-StackKits-b0xy`). |
+| Product mode | Standard Mode; retired `STACKKIT_MODE` warns and is ignored | A legacy value cannot select Advanced execution in the standalone CLI. |
 | Target context | legacy v1 `context` field | Migration input only. Native v2 `init` and `generate` do not accept `--context`; `local`/`cloud`/`pi` map to site kind and hardware profile. |
-| Domain strategy | `domain`, `localDns`, `DOMAIN`, `STACKKIT_LOCAL_DOMAIN`, DNS provider env | Default local links use browser-native `.localhost`; public/custom domains require DNS/TLS proof. |
-| Service profile | retired v0.6 knob; select use cases instead (`--use-case`, `STACKKIT_USE_CASES`) | `admin-only` keeps platform/admin services while deferring L3 application setup. |
-| Compute and topology | `compute.tier`, `nodes[]`, `node.role` | Used by CUE to select resources and placement constraints. |
-| Native execution selection | Workload alternative plus module-local profile; `--catalog-defaults` during init | Standalone Compose is default. Komodo/Coolify are explicit integrations. Legacy `paas` and platform env knobs do not define native defaults. |
+| Domain strategy | `--domain`, `DOMAIN`, native network intent | Default local links use `*.lab.home`; public/custom domains and enrolled clients require their own DNS/TLS proof. |
+| Optional applications | `--use-case`, `STACKKIT_USE_CASES` | Explicit empty or `none` selects core only; an omitted installer selection offers the picker or catalog defaults. |
+| Compute and topology | Native module profiles, sites, nodes and execution channels | CUE admits the attested local target; standalone execution acts on the installed server. |
+| Native execution selection | Workload alternative plus module-local profile; `--catalog-defaults` during init | Standalone Compose is default. Komodo is the explicit operations-platform path; Marketplace installs Coolify as an application. Legacy `paas` and platform environment controls do not define native defaults or select Marketplace. |
 | Setup policy | `bootstrap.*`, `application.*.setup.policy`, `services.*.setup.policy` | Valid values are `manual`, `on_demand`, `automatic`. |
 | Demo data | `demoData.enabled` | Explicit opt-in only. |
 | MCP write mode | `STACKKIT_MCP_ALLOW_WRITE`, `--mcp-allow-write` | Read-only tools stay available; mutating tools require explicit write mode. |
@@ -155,12 +162,14 @@ Automation does not remove approval. Mutating operations still require either sh
 | Level | Name | User choices | Typical examples |
 | --- | --- | --- | --- |
 | `I0` | Default Basement Kit | No meaningful choices beyond accepting defaults | Device-enrolled local `home`, Basement Kit, default profile |
-| `I1` | Identity and workspace | Email, stack name, workspace/spec path | `--admin-email`, `HOMELAB_DIR`, `stack-spec.yaml` |
-| `I2` | Core rollout profile | Kit, install mode, context, compute tier, service profile | `basement-kit` (context `local`) or `cloud-kit` (context `cloud`), `bootstrapped`, `admin-only` |
+| `I1` | Identity and workspace | Owner email, stack name, workspace/spec path | `--owner-email`, `HOMELAB_DIR`, `stack-spec.yaml` |
+| `I2` | Core rollout profile | Kit, optional use cases and module profiles | Native catalog defaults or explicitly authored module profiles |
 | `I3` | Network/platform target | Domain strategy, SSH target, custom DNS/TLS, selected PaaS | `kombify.me`, custom domain, Cloudflare token, Coolify/Komodo |
-| `I4` | Advanced composition | Add-ons, advanced mode, explicit owner/recovery policy, stateful updates | monitoring add-on, `advanced`, custom owner bootstrap |
+| `I4` | Explicit composition | Optional capabilities, workload alternatives and custody policy | Native Standard Mode composition; Advanced topology requires Techstack |
 
-Higher individualization increases review and evidence needs. For example, `I3` custom domains require DNS/TLS proof, while `I4` advanced composition requires explicit validation that generated artifacts still come from StackSpec/CUE and not hand edits.
+Higher individualization increases review and evidence needs. Custom domains
+need DNS/TLS receipts, and explicit composition must still be generated from
+StackSpec/CUE. An automation level never enlarges the CLI's execution authority.
 
 ## Automation x Individualization Map
 
@@ -193,8 +202,8 @@ Use this table when choosing the user-facing installation path. The three pillar
 | --- | --- | --- | --- | --- |
 | `P0` Website and Web-MCP discovery | Very broad planning range (`I0-I4`), but no direct config write. Agent can collect email, kit, domain, mode, target, and approval intent. | Public website, browser, web-capable agent, read-only OpenMCP. No target credentials. | `A0` discovery only. | User asks an agent to inspect StackKits; agent reads public context and recommends an execution channel such as `P1`, `P2`, `P3`, or `P4`. |
 | `P1` Full Basement Kit one-line installer | Low to medium (`I0-I3`). Defaults work with minimal input; customization is mainly env vars such as email, mode, service profile, domain, context, PaaS. | Direct shell on target server with root/sudo. Can be run by user, on-server agent, or SSH agent. | High (`A3`). Installer executes install, prepare, init, generate, apply, verify-oriented output. | User provides minimal intent, runs one command, receives access summary and bootstrap material. |
-| `P2` Shared CLI installer plus direct CLI | Full range (`I0-I4`). Best for reviewing StackSpec, generated preview, plan, add-ons, advanced owner/recovery policy, custom network/platform choices. | Local shell on target or operator workstation, depending on workspace/target flags. Root/sudo only when preparing local host. | Low to guided (`A1-A2`). User or agent runs each command. | Install CLI, create/edit spec, run prepare/validate/generate/plan, then approve apply. |
-| `P3` Agent already on target server | Full range (`I0-I4`) if the agent has enough local context and approval. Good for default and advanced flows. | Agent has direct target-shell authority. Website/prompting is guidance only. | Guided to autonomous (`A2-A3`). | Agent reads prompts/docs, asks for missing intent, executes CLI locally, reports evidence. |
+| `P2` Shared CLI installer plus direct CLI | Standard Mode (`I0-I4`). Review native intent, generated preview, plan and local custody policy. | Shell on the installed server; root/sudo only when preparing its host. | Low to guided (`A1-A2`). User or agent runs each command. | Install CLI, create/edit spec, validate/generate/plan, then approve apply. |
+| `P3` Agent already on target server | Standard Mode (`I0-I4`) with local context and authority. | Agent has direct target-shell authority. Website prompting is guidance. | Guided to autonomous (`A2-A3`). | Read prompts/docs, collect intent, execute CLI locally, report evidence. |
 | `P4` External agent through SSH/remote shell | Medium to full (`I1-I4`). Strong for target host, SSH user/key, email, domain, custom install mode, and remote evidence. | Agent outside server with SSH or equivalent remote shell. Authority is SSH user privileges. | Guided to autonomous (`A2-A3`). | Agent confirms target safety, downloads installer or CLI on target, runs lifecycle remotely, returns logs/evidence. |
 | `P5` Protected durable StackKits MCP endpoint | Medium to full (`I1-I4`) through typed tools and the State Console. Best for future StackKit-owned config/update/verify/log day-2 operations after install. | Agent outside server connects to target `stackkit-server /mcp` over a protected endpoint, tunnel, VPN, or private network. Token, transport security, and write gate are required for mutation. | Durable connector target (`A4`), not a current primary first-install path. | Installed StackKit keeps `stackkit-server` running; external agent starts read-only, then uses write tools only after explicit write-mode approval. |
 | `P6` Local StackKits MCP adapter | Medium to full (`I1-I4`) on the local workspace. Good when the MCP client and StackKit workspace are colocated. | Same-machine MCP client using `stackkit-mcp` stdio or loopback HTTP. Local process authority. If launched through SSH, the authority boundary is still `P4`. | Guided (`A2`). | User configures one `stackkit` MCP connection; agent reads resources/tools and drives local CLI-equivalent operations where enabled. |
@@ -295,10 +304,10 @@ The target already has a native connector. An external agent can call read-only 
 Use when the operator wants the product default:
 
 - Basement Kit;
-- `bootstrapped`;
+- Standard Mode with the native catalog defaults;
 - device-enrolled local `home`;
 - default service profile;
-- default selected PaaS.
+- default workload execution and routing owner.
 
 Best paths: `P1`, `P2`, `P3`.
 
@@ -311,7 +320,9 @@ Best paths: `P2`, `P3`, `P6`; `P5` only after the target connector exists.
 
 ### `I2`: Core Rollout Profile
 
-Adds kit/profile decisions. Examples: `admin-only`, `bare`, `advanced`, `cloud`, `pi`, compute tier. Agents should render and validate the StackSpec before generate/apply.
+Adds kit, optional use-case and module-profile decisions. Agents validate the
+native StackSpec before generate/apply; retired bootstrap-depth and context
+flags are migration inputs, not new installation choices.
 
 Best paths: `P2`, `P3`, `P4`; `P5` only for post-install connector operation.
 
@@ -323,11 +334,11 @@ Best paths: `P2`, `P4`; `P5` only for post-install connector operation.
 
 ### `I4`: Advanced Composition
 
-Adds advanced owner/recovery policy, add-ons, non-default setup posture, Terramate Plus orchestration, update/rollback, restore drills, Runtime/Frontend Intelligence, or managed TechStack lifecycle work. Agents should start read-only, run validation/plan, and preserve evidence before any mutation.
-
-Reality check: install mode `advanced` is currently **scaffolding** — the rendered Terramate template is static and ignores the composed service selection; drift/change/rollback/restore-drill surfaces and Runtime/Frontend Intelligence are not delivered by `advanced` today (`kombify-StackKits-b0xy`, mode matrix per kit). Treat this section as the target contract for the v0.8 advanced-mode graduation.
-
-Best paths: `P2`, `P6`; `P4` only when SSH is the available execution channel; `P5` is the target path for installed StackKit day-2.
+Explicit local composition uses Standard Mode and the same validation, plan,
+custody and evidence boundaries as the default. Advanced Mode, Terramate/RIL,
+provider control and Modern multi-server/multi-site apply require Techstack.
+No installer interaction mode, SSH session or MCP write flag grants those
+capabilities to the standalone CLI.
 
 ## Decision Tree
 
@@ -409,7 +420,7 @@ hosts entries and alternate local names are not part of the flow.
 Beta validation should pin the tested release explicitly:
 
 ```bash
-env STACKKIT_RELEASE_VERSION=v0.8.0-beta.1 sh -c 'curl -sSL https://base.stackkit.cc | sh'
+env STACKKIT_RELEASE_VERSION='<exact-release-tag>' sh -c 'curl -fsSL https://base.stackkit.cc | sh'
 ```
 
 Current implementation (full guided installation; strict separation from the
@@ -422,28 +433,25 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
    the equivalent parameterized CLI chain.
 2. Collects decisions per mode and maps each onto a CLI parameter.
    Environment-provided values are never re-asked:
-   - guided: workspace (Enter keeps the default), own domain yes/no,
-     admin email, owner account yes/no, one apply confirmation;
-   - expert additionally: use cases (`photos,files,vault`), stack name,
-     platform adapter (`coolify|komodo`), and image prepull.
+   - guided: workspace, domain strategy, local Owner email and optional use cases;
+   - expert additionally: stack name and workload adapter. Adapter choices do
+     not change the product mode or select Marketplace.
 3. Re-running on a workspace that already carries deployment intent
    skips init, prepares the host, resolves the plan again for the host as
    it is now (`stackkit generate`), and resumes `stackkit apply`
-   (journal). The re-run works from any directory. Pick another
-   `HOMELAB_DIR` for a second deployment. Whole-install `stackkit remove`
-   deletes all StackKits Compose projects on the host, including other
-   deployments and their application volumes; it is not workspace-scoped.
+   (native Apply journal). The installer journal preserves pre-init selections
+   and interrupted phases; the re-run works from any directory when the same
+   workspace is supplied. Saved kit intent wins over new network detection.
+   A re-run never removes an existing stack or converts its kit.
 4. Downloads and runs the shared CLI installer from
    `https://install.stackkit.cc` (binaries, packaged OpenTofu, kit
    definitions — SUDO_USER-safe).
-5. `stackkit init basement-kit --api-version stackkit/v2alpha1 --compute-tier standard --non-interactive --owner-source=local`
+5. `stackkit init basement-kit --catalog-defaults --non-interactive --owner-source=local`
    with the collected `--domain`, `--name`, `--owner-email`,
    `--owner-username`, `--use-case`, `--platform` parameters, then
-   `stackkit validate`. Basement and Cloud guided installers explicitly retain
-   their CUE-declared standard graph through the v2alpha1 compatibility adapter.
-   They do not infer native module profiles or retry rejected v2alpha2 intent.
-   Direct native v2alpha2 authoring requires explicit alternatives and compute
-   profiles for every selected workload module; the Planner emits that handoff.
+   `stackkit validate`. Both wrappers materialize the catalog's native
+   alternatives and profiles as explicit intent. Empty use-case input is
+   passed explicitly, so it cannot silently become the default application set.
 6. Bootstraps the container runtime: installs Docker via get.docker.com
    when missing and activates the docker group for the current session on
    non-root runs. Native-v2 `stackkit prepare` checks these prerequisites
@@ -461,7 +469,8 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
    canonical ResolvedPlan owns execution order across core services and
    applications, so there is no separate platform-app stage to sequence
    from the installer.
-9. Prints the access summary: service URLs, initial admin credentials,
+9. Runs `stackkit verify` before marking the journal complete and printing
+   the access summary: service URLs, initial admin credentials,
    the machine-readable access summary path, the project directory, and
    shell-quoted whole-install removal commands with their deletion scope.
    A refused host exits 3 without mutating anything; a failed rollout
@@ -473,28 +482,24 @@ Important environment variables (each pre-seeds one decision):
 | --- | --- |
 | `STACKKIT_INSTALL_MODE` | `auto`, `guided`, or `expert`; non-TTY always `auto`. |
 | `HOMELAB_DIR` | Workspace; defaults to `$HOME/my-homelab`. |
-| `DOMAIN` | Canonical service domain. The standalone default is `home`; a custom value replaces it rather than adding an alias. Local devices consume the scoped resolver/Owner-CA enrollment profile. |
+| `DOMAIN` | Canonical service domain. Basement defaults to `lab.home`; Cloud defaults to `kombify.me`. Local clients enroll the scoped resolver/Owner-CA profile. |
 | `STACKKIT_NAME` | Deployment contract ID; default derives from the workspace name. |
 | `STACKKIT_ADMIN_EMAIL` | Admin/owner email (`KOMBIFY_USER_EMAIL` fallback). |
-| `STACKKIT_BOOTSTRAP_OWNER` | `true` preconfigures the PocketID owner account. |
-| `STACKKIT_USE_CASES` | Optional workloads, e.g. `photos,files,vault`. |
-| `STACKKIT_PLATFORM` / `STACKKIT_PAAS` | Workload runtime adapter (`coolify`/`komodo`) for the selected use cases. |
+| `STACKKIT_OWNER_USERNAME` | Node-local login username; default derives from the Owner email. |
+| `STACKKIT_USE_CASES` | Optional workloads; `''` or `none` is an explicit core-only selection, preserved on retry. Omit to use the picker or noninteractive defaults. |
+| `STACKKIT_PLATFORM` / `STACKKIT_PAAS` | Explicit compatibility workload-adapter selection (`coolify`/`komodo`); does not select Marketplace or define native defaults. |
 | `STACKKIT_SERVER_IMAGE` | stackkit-server image override (skips the local build). |
 | `STACKKIT_INSTALL_URL` | Alternate published release-installer endpoint for fixtures or mirrors. |
 | `STACKKIT_RELEASE_VERSION` | Exact release tag consumed by the shared installer when testing a candidate. |
 
-Fully automated installation via parameters (the owner-facing automation
-contract — the script asks nothing when every decision arrives via
-environment):
+Account-free Standard Mode, core only, with all decisions supplied:
 
 ```bash
 STACKKIT_INSTALL_MODE=auto \
-DOMAIN=example.test \
-STACKKIT_ADMIN_EMAIL=owner@example.test \
-STACKKIT_BOOTSTRAP_OWNER=true \
-STACKKIT_USE_CASES=photos,files,vault \
-STACKKIT_PLATFORM=coolify \
-sh -c 'curl -sSL https://base.stackkit.cc | sh'
+HOMELAB_DIR="$HOME/my-homelab" \
+STACKKIT_ADMIN_EMAIL='<your-email>' \
+STACKKIT_USE_CASES='' \
+sh -c 'curl -fsSL https://base.stackkit.cc | sh'
 ```
 
 Use when:
@@ -511,6 +516,11 @@ Do not use when:
 
 ### Standalone removal and data retention
 
+A repeated installer invocation is recovery, never removal. Review the
+separate removal command and its data policy before intentionally deleting a
+deployment. Upgrade and rollback use their native transactions; re-running
+an installer is not a supported migration between kits.
+
 The Basement and Cloud installer summaries print a copyable command using the
 actual `HOMELAB_DIR`, safely quoted for the shell, including spaces and shell
 metacharacters. Whole-install removal needs no workload or placement flags:
@@ -519,15 +529,28 @@ metacharacters. Whole-install removal needs no workload or placement flags:
 (cd -- "$HOMELAB_DIR" && stackkit remove)
 ```
 
-This removes **all `stackkit-*` Compose projects on the host**, their containers,
-networks and application volumes, including other StackKits deployments. Back
-up needed data first; the directory selects local file cleanup, not the runtime
-removal scope. The command asks for confirmation. Only after reviewing and
-explicitly consenting to that deletion, use this unattended equivalent:
+This stops and removes **all `stackkit-*` Compose projects on the local host**
+and other StackKits-labeled runtime containers and networks, including other
+StackKits deployments. Named application volumes and the original workspace
+are retained by default. The directory selects local file cleanup, not the
+runtime removal scope. After reviewing that scope, this unattended equivalent
+approves runtime removal with the same data-retention policy:
 
 ```bash
 (cd -- "$HOMELAB_DIR" && stackkit remove --auto-approve)
 ```
+
+Add `--delete-data` only to intentionally delete named volumes in that removal
+scope, including orphaned StackKits-labeled volumes. `--purge` also deletes the
+selected workspace's Owner/recovery state and deploy directory and removes
+cached StackKits images after runtime cleanup. Host bind-mount files and
+external backups are outside these deletion scopes. Keep the original workspace,
+specification and release when reinstalling to reuse retained volumes; removal
+and reinstallation are not a kit migration or upgrade.
+
+An incomplete removal returns `remove_incomplete` and retains the original
+workspace, even with `--purge --force`. Resolve the reported resource within
+its approved ownership scope, then rerun the same command and data policy.
 
 Whole-install removal does not support `--json` or `--terminal-evidence-json`.
 For a single applied Architecture v2 workload, use its exact workload, Site,
@@ -540,10 +563,53 @@ stackkit remove --workload "$WORKLOAD_REF" \
 ```
 
 Here `--auto-approve` explicitly consents to removing that workload. This
-targeted path retains application volumes by default; add `--delete-data` only
+targeted path also retains application volumes by default; add `--delete-data` only
 to explicitly delete data volumes owned by that exact applied workload. It
 requires the existing applied plan/generation/Apply authority and does not
 grant permission to remove unrelated workloads or provisioned servers.
+
+## Interrupted Installer Recovery
+
+The three shell entrypoints keep a private, atomically replaced TSV journal.
+It contains progress and non-secret authoring choices, never credentials, and
+is read as data. A phase is a retry hint: the CLI revalidates the workspace and
+observes the host again; it does not blindly skip an earlier command.
+
+| Entrypoint | Journal | Retry behavior |
+| --- | --- | --- |
+| `install.stackkit.cc` | Invoking user's `~/.stackkits/installer/core.tsv` | Reuse the selected version after interruption unless an explicit release override is supplied; verify the archive again and reinstall the selected binaries and definitions |
+| `base.stackkit.cc` | `$HOMELAB_DIR/.stackkit/installer/workspace.tsv` | Preserve the saved Basement or Cloud intent and explicit empty use cases, skip init for a valid existing Owner, regenerate and resume native Apply, then verify |
+| `cloud.stackkit.cc` | `$HOMELAB_DIR/.stackkit/installer/workspace.tsv` | Preserve Cloud intent even if network detection changes; a saved Basement workspace continues through its own entrypoint without removal |
+
+Pass the **same absolute `HOMELAB_DIR`** when retrying from another directory.
+An omitted Owner email, domain, name, platform or use-case selection is
+recovered from the pre-init journal. Supplied authoring values take precedence;
+the existing StackSpec remains authoritative once initialized. An explicit
+empty `STACKKIT_USE_CASES=''` remains empty. Secrets still come from node
+custody and its existing supported delivery path.
+
+```bash
+HOMELAB_DIR="$HOME/my-homelab" sh -c 'curl -fsSL https://base.stackkit.cc | sh'
+stackkit -C "$HOME/my-homelab" verify --json
+stackkit -C "$HOME/my-homelab" agent self-check --json
+```
+
+Interruptions and errors leave `state=interrupted` and name the last phase and
+journal. A user-declined Apply leaves prepared intent. `state=complete` is
+written only after the wrapper's native verification succeeds. A later rerun
+still re-observes the target. Unsupported journal schemas fail closed with
+an inspection action.
+
+Use the complete website entrypoint for `curl | sh`. Repository scripts are
+run by their explicit path with `install-host-bootstrap.sh` beside them;
+streaming a raw repository script fails closed. No streamed script loads a
+helper from the caller's directory. Nested installer downloads must succeed
+and be nonempty before any shell runs.
+
+The old `deploy-to-vm.sh` remote Docker-daemon path and retired persistent-VM
+runbook are removed. Run installers inside an owned guest or its authorized
+SSH session and preserve artifact, source, Apply and cleanup receipts. Broad
+provider/device/compatibility acceptance remains test-window work.
 
 ## P2: Shared CLI Installer Plus Direct CLI
 
@@ -554,8 +620,7 @@ curl -sSL https://install.stackkit.cc | sh
 mkdir my-homelab
 cd my-homelab
 stackkit init basement-kit --owner-source=local \
-  --use-case-alternative basement-core=standalone \
-  --module-compute-profile stackkits-basement-core-runtime=standard
+  --owner-email '<your-email>' --catalog-defaults --use-case ''
 stackkit validate
 stackkit generate
 stackkit plan
@@ -578,6 +643,10 @@ curl -sSL https://install.stackkit.cc | sh -s -- basement-kit
 curl -sSL https://install.stackkit.cc | sh -s -- all
 ```
 
+`all` installs definitions; it is not a kit slug for `stackkit init`. Modern
+definitions can be authored and inspected through the admitted standalone
+preview path. Modern multi-site apply remains Techstack-owned.
+
 Native v2 init accepts the full authoring parameter surface (unknown values
 fail closed with the kit's declared choices):
 
@@ -588,7 +657,7 @@ fail closed with the kit's declared choices):
 | `--domain <base>` | `network.domain.base` authoring override. |
 | `--name <id>` | Deployment contract ID (default: normalized workspace name). |
 | `--use-case photos,files,vault` | Optional kit workloads with the governed catalog default alternative and canonical `secret://workloads/<id>/<ref>` inputs. |
-| `--platform coolify\|komodo` | Workload runtime adapter for the selected use cases (validated against `runtime.allowedAdapterRefs`). |
+| `--platform coolify\|komodo` | Explicit compatibility workload-adapter selection, validated against `runtime.allowedAdapterRefs`; does not select Marketplace or define native defaults. |
 | `--enable <capability-ids>` | Optional kit capabilities (`capabilities.enable`). |
 
 User journey:

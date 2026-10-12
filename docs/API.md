@@ -46,6 +46,18 @@ StackAction, and Direct Connect registry routes.
 | Local development | `http://localhost:8082` | Local `stackkit-server` process. |
 | Compatibility edge | `https://api.kombify.io/stackkits` | Optional legacy/compatibility route; not a standalone lifecycle or Techstack orchestration dependency. |
 
+## Capacity assessment
+
+`POST /api/v2/assess-capacity` accepts the same `{stackSpec, inventory}` body as the
+canonical resolver and returns `{planHash, assessment}` from the shared capacity
+engine. It inherits the resolver's request/concurrency bounds and server API-key
+policy, and always sends `Cache-Control: no-store`. The result is advisory;
+missing facts remain unverified and no execution authorization is granted.
+The same behavior is available locally through `stackkit capacity` and its
+catalog-projected MCP tool without depending on this HTTP server. In server
+mode, `stackkit_assess_capacity` forwards the documents to this endpoint;
+in local actions mode, it invokes the bound CLI using workspace file paths.
+
 ## Authentication
 
 `stackkit-server` requires `X-API-Key` for all non-public endpoints when `STACKKITS_API_KEY` or `--api-key` is configured. Local development can opt out with `--allow-unauthenticated` or `STACKKITS_ALLOW_UNAUTHENTICATED=true`.

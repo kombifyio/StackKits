@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
@@ -160,7 +161,7 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("load StackKit identity before upgrade admission: %w", err)
 	}
 	if err := admitPublicUpgradeKit(kit); err != nil {
-		return err
+		return machineAwareCommandError(cmd, err)
 	}
 	source := newPublicReleaseSource()
 	resolution, err := (releaseindex.Resolver{
@@ -482,7 +483,8 @@ func admitPublicUpgradeKit(kit string) error {
 	case "preview":
 		return nil
 	case "unsupported":
-		return fmt.Errorf("StackKit %q does not support public upgrades (upgradePolicy.support=%q)", kit, support)
+		return actionableerror.WithDiagnostic("upgrade_kit_unsupported",
+			fmt.Errorf("StackKit %q does not support public upgrades (upgradePolicy.support=%q)", kit, support))
 	default:
 		return fmt.Errorf("CUE-owned upgrade policy for %q has unsupported support level %q", kit, support)
 	}

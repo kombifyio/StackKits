@@ -98,6 +98,7 @@ type architectureV2InitInput struct {
 	OwnerApproved         bool                                            `json:"owner_approved" jsonschema:"explicit local Owner approval"`
 	ModuleProfiles        map[string]architecturev2.ModuleProfileOverride `json:"module_profiles,omitempty" jsonschema:"explicit profiles keyed by selected module ID"`
 	UseCases              []string                                        `json:"use_cases,omitempty" jsonschema:"selected optional use-case IDs"`
+	DataCapacityDemands   map[string]architecturev2.DataCapacityIntent    `json:"data_capacity,omitempty" jsonschema:"explicit new-data budget inputs per selected data binding; CUE computes the requirement"`
 	UseCaseAlternatives   map[string]string                               `json:"use_case_alternatives,omitempty" jsonschema:"explicit alternative for every selected and required use case"`
 	Platform              string                                          `json:"platform,omitempty" jsonschema:"declared workload runtime adapter"`
 }
@@ -281,8 +282,12 @@ func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struc
 func (a *App) selfCheckPlan(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	serverURL := firstNonEmpty(a.opts.ServerURL, DefaultLocalServerURL)
 	out := map[string]any{
-		"server_url":     serverURL,
-		"status_purpose": "spec-only status; resolve-required must not be treated as operational readiness",
+		"server_url":               serverURL,
+		"status_purpose":           "spec-only status; resolve-required must not be treated as operational readiness",
+		"troubleshooting_document": "TROUBLESHOOTING.md",
+		"diagnostic_purpose":       "Shared recovery guidance, not an observed failure; preserve actual outcome status and external retryAfter.",
+		"diagnostics":              actionableerror.Diagnostics(),
+		"recorded_failures":        actionableerror.RecordedFailures(),
 		"probes": []map[string]string{
 			{"name": "cli", "command": "stackkit version"},
 			{"name": "server", "command": "stackkit-server --help"},
@@ -707,6 +712,14 @@ func (a *App) stackkitInitV2(ctx context.Context, req *mcp.CallToolRequest, in a
 	for _, id := range sortedProfileKeys(in.UseCaseAlternatives) {
 		args = append(args, "--use-case-alternative", id+"="+in.UseCaseAlternatives[id])
 	}
+	for _, id := range sortedProfileKeys(in.DataCapacityDemands) {
+		budget, err := json.Marshal(in.DataCapacityDemands[id])
+		if err != nil {
+			out := errorOutput("stackkit_init", err)
+			return errorJSONResult(out), out, nil
+		}
+		args = append(args, "--data-capacity", id+"="+string(budget))
+	}
 	for _, id := range sortedProfileKeys(in.ModuleProfiles) {
 		profile := in.ModuleProfiles[id]
 		args = appendOptionalFlag(args, "--module-compute-profile", profileFlagValue(id, profile.ComputeProfile))
@@ -1032,8 +1045,14 @@ func (a *App) runStackkitCommand(ctx context.Context, tool string, in stackkitCo
 		"stderr":      truncateOutput(stderr.String()),
 		"timed_out":   ctx.Err() == context.DeadlineExceeded,
 	}
-	if structured, ok := decodeStructuredCLIOutput(stdout.String()); ok {
+	structured, structuredOK := decodeStructuredCLIOutput(stdout.String())
+	if structuredOK {
 		out["structured_output"] = logging.RedactValue(structured)
+	}
+	observed, diagnosed := cliActionableError(structured)
+	if diagnosed {
+		out["success"] = false
+		out["error_details"] = actionableErrorMap(observed)
 	}
 	if err != nil {
 		out["error"] = logging.RedactText(err.Error())
@@ -1042,9 +1061,54 @@ func (a *App) runStackkitCommand(ctx context.Context, tool string, in stackkitCo
 			[]string{"Inspect structured_output and stderr for the stable reason code.", "Run `stackkit logs latest --json` for the newest local evidence."},
 			ctx.Err() == context.DeadlineExceeded,
 		)
+		if diagnosed {
+			detail = observed
+		}
 		out["error_details"] = actionableErrorMap(detail)
 	}
 	return out
+}
+
+// Consume only a complete CLI envelope and a validated recovery contract. A
+// failed Apply may have a successful command envelope; its inner outcome owns
+// runtime success. Degraded completion remains successful.
+func cliActionableError(structured any) (actionableerror.Contract, bool) {
+	envelope, ok := structured.(map[string]any)
+	if !ok || envelope["schemaVersion"] != "stackkit.command-result/v1" {
+		return actionableerror.Contract{}, false
+	}
+	data, ok := envelope["data"].(map[string]any)
+	if !ok {
+		return actionableerror.Contract{}, false
+	}
+	if envelope["status"] == "failed" || envelope["status"] == "denied" {
+		raw, err := json.Marshal(data)
+		var detail actionableerror.Contract
+		if err == nil && json.Unmarshal(raw, &detail) == nil && detail.Validate() == nil {
+			return detail, true
+		}
+	}
+	if data["schemaVersion"] != "stackkit.apply-result/v2" || data["status"] != "failed" {
+		return actionableerror.Contract{}, false
+	}
+	outcomes, _ := data["outcomes"].(map[string]any)
+	units, _ := outcomes["units"].([]any)
+	for _, rawUnit := range units {
+		unit, _ := rawUnit.(map[string]any)
+		failure, _ := unit["failure"].(map[string]any)
+		reason, _ := failure["class"].(string)
+		detail, known := actionableerror.Diagnostic(reason)
+		if !known {
+			continue
+		}
+		if retryAfter, ok := failure["retryAfter"].(string); ok {
+			detail.RetryAfter = retryAfter
+		}
+		if detail.Validate() == nil {
+			return detail, true
+		}
+	}
+	return actionableerror.Diagnostic("unknown_failure")
 }
 
 func (a *App) workspaceDir(raw string) (string, error) {
@@ -1189,7 +1253,7 @@ func decodeStructuredCLIOutput(value string) (any, bool) {
 }
 
 func actionableErrorMap(value actionableerror.Contract) map[string]any {
-	return map[string]any{
+	result := map[string]any{
 		"schemaVersion": value.SchemaVersion,
 		"code":          value.Code,
 		"reasonCode":    value.ReasonCode,
@@ -1197,6 +1261,10 @@ func actionableErrorMap(value actionableerror.Contract) map[string]any {
 		"userGuidance":  append([]string(nil), value.UserGuidance...),
 		"retryable":     value.Retryable,
 	}
+	if value.RetryAfter != "" {
+		result["retryAfter"] = value.RetryAfter
+	}
+	return result
 }
 
 func errorJSONResult(out map[string]any) *mcp.CallToolResult {

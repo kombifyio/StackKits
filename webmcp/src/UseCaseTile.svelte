@@ -1,9 +1,12 @@
 <script lang="ts">
-  import type { CatalogUseCase } from "./types.js";
+  import type { CatalogModule, CatalogUseCase, ModuleProfileSelection } from "./types.js";
+  import UseCaseCapacity from "./UseCaseCapacity.svelte";
 
   export let useCase: CatalogUseCase;
   export let selected = "";
   export let onSelect: (alternativeId: string) => void;
+  export let modules: CatalogModule[] = [];
+  export let profileSelections: ModuleProfileSelection[] = [];
   let choosing = false;
 
   $: available = useCase.availability === "available" && useCase.alternatives.length > 0;
@@ -57,6 +60,9 @@
         </button>
       {/each}
     </div>
+  {/if}
+  {#if available}
+    <UseCaseCapacity {useCase} {modules} selections={profileSelections} alternativeId={selected || defaultId} included={Boolean(selected)} />
   {/if}
 </section>
 

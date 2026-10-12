@@ -969,6 +969,14 @@ func bindStandaloneComposeCustody(
 ) (StandaloneComposeRuntimeCustody, error) {
 	relativePath := path.Join(".stackkit", "runtime", "applications", project, "compose.yaml")
 	environmentPath := path.Join(".stackkit", "runtime", "applications", project, ".env")
+	return bindComposeRuntimeCustody(workspaceRoot, project, relativePath, environmentPath, expectedLogicalVolumes, expectedRuntime)
+}
+
+func bindComposeRuntimeCustody(
+	workspaceRoot, project, relativePath, environmentPath string,
+	expectedLogicalVolumes []string,
+	expectedRuntime localbackuppolicy.ApplicationRuntime,
+) (StandaloneComposeRuntimeCustody, error) {
 	root, err := confinedfs.Open(workspaceRoot)
 	if err != nil {
 		return StandaloneComposeRuntimeCustody{}, err

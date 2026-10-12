@@ -25,8 +25,33 @@ type nativeOwnerSetupObservation struct {
 	HomeAssistantConnector *applicationlifecycle.HomeAssistantConnectorObservation
 }
 
+func custodiedOwnerPasswordRef(deployment nativehost.SelectedPaaSWorkloadDeployment, action string) (string, error) {
+	switch action {
+	case appsetup.GuacamoleOwnerLoginAction:
+		bundle, err := architecturev2renderer.ParseGuacamoleWorkloadBundle(deployment.Bundle)
+		return bundle.OwnerPasswordRef, err
+	case appsetup.PaperlessOwnerLoginAction:
+		bundle, err := architecturev2renderer.ParsePaperlessWorkloadBundle(deployment.Bundle)
+		return bundle.OwnerPasswordRef, err
+	case appsetup.GiteaOwnerLoginAction:
+		bundle, err := architecturev2renderer.ParseGiteaWorkloadBundle(deployment.Bundle)
+		return bundle.OwnerPasswordRef, err
+	case appsetup.ForgejoOwnerLoginAction:
+		bundle, err := architecturev2renderer.ParseForgejoWorkloadBundle(deployment.Bundle)
+		return bundle.OwnerPasswordRef, err
+	default:
+		return "", errors.New("the selected application has no custodied owner login action")
+	}
+}
+
 func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDeployment, action string, options nativeSetupOptions) error {
 	switch action {
+	case appsetup.PaperlessOwnerLoginAction, appsetup.GiteaOwnerLoginAction, appsetup.ForgejoOwnerLoginAction, appsetup.GuacamoleOwnerLoginAction:
+		if options.completeOnboarding || options.credentialsFile != "" {
+			return errors.New("this owner login uses the installed workload custody; omit --credentials-file and --complete-onboarding")
+		}
+		_, err := custodiedOwnerPasswordRef(deployment, action)
+		return err
 	case "jellyfin-owner-bootstrap":
 		_, err := architecturev2renderer.ParseJellyfinWorkloadBundle(deployment.Bundle)
 		return err
@@ -97,6 +122,27 @@ func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDe
 
 func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, release, action string, options nativeSetupOptions) (observation nativeOwnerSetupObservation, returnErr error) {
 	switch action {
+	case appsetup.PaperlessOwnerLoginAction, appsetup.GiteaOwnerLoginAction, appsetup.ForgejoOwnerLoginAction, appsetup.GuacamoleOwnerLoginAction:
+		ref, err := custodiedOwnerPasswordRef(deployment, action)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		password, err := localevidence.ResolveLocalSecretMaterial(workspace, ref)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, errors.New("the selected application's existing owner password custody is unavailable")
+		}
+		defer clear(password)
+		owner, err := localevidence.LoadOwnerCustody(workspace)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, errors.New("the existing local owner identity is unavailable")
+		}
+		verified, err := appsetup.VerifyCustodiedOwnerLogin(ctx, client, baseURL, appsetup.CustodiedOwnerLoginRequest{
+			Action: action, Email: owner.PocketID.Email, Password: password,
+		})
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		return nativeOwnerSetupObservation{AccountRef: verified.AccountRef, Initialized: true, AdminLoginVerified: true, OnboardingComplete: true}, nil
 	case "jellyfin-owner-bootstrap":
 		var credentials struct {
 			Username string `json:"username"`

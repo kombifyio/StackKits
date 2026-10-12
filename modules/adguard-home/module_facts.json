@@ -1,0 +1,46 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "adguard-home",
+  "displayName": "AdGuard Home",
+  "description": "Canonical native-v2 Network filter. The generated legacy catalog scaffold is not an unattended DNS installer.",
+  "layer": "L3-application",
+  "maturity": "experimental",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "minMemory": "128m"
+    }
+  },
+  "services": [
+    {
+      "name": "adguard-home",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-adguard-home-runtime",
+        "componentRef": "adguard-home"
+      },
+      "networks": [
+        "adguard-home-internal"
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/login.html",
+        "port": 8080
+      },
+      "upstream": {
+        "github": "AdguardTeam/AdGuardHome",
+        "registryImage": "adguard/adguardhome"
+      },
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`network.{{.domain}}`)",
+        "port": 8080
+      },
+      "accessPolicy": {
+        "outerAuth": "tinyauth-pocketid",
+        "appAuth": "self-auth"
+      }
+    }
+  ]
+}

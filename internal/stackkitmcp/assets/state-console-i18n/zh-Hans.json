@@ -118,5 +118,6 @@
   "output.needSpecRollout": "请先创建或加载规范的 StackSpec v2，再运行受管控的流程。",
   "output.reviewPlanFirst": "请求应用审批之前，请先审阅当前计划。",
   "output.applyNever": "State Console 不会直接执行应用。请让已连接的 agent 展示已注册的 StackKits 应用操作，以便进行针对该操作的确认和 Owner 审批。",
-  "output.setupNever": "State Console 不会直接执行设置。请先准备好私密的凭据文件，然后让已连接的 agent 展示这个已注册的设置操作以供确认。"
+  "output.setupNever": "State Console 不会直接执行设置。请先准备好私密的凭据文件，然后让已连接的 agent 展示这个已注册的设置操作以供确认。",
+  "review.capacity": "评估容量"
 }

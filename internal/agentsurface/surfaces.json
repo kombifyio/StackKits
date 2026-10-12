@@ -1,6 +1,92 @@
 {
   "schemaVersion": "stackkit.agent-surface/v1",
   "surfaces": {
+    "dev": {
+      "ref": "dev",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "git-hosting",
+          "protocol": "rest",
+          "purpose": "Observe the existing administrator through the selected upstream application's admitted API; application features remain upstream-owned.",
+          "auth": "custodied-owner-login"
+        }
+      ],
+      "skills": [
+        {
+          "id": "owner-setup",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/dev/agent/owner-setup/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit setup dev --owner-approve --json",
+          "purpose": "Verify the existing local administrator after apply using the plan-bound setup flow and existing secret custody."
+        },
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Connect to the existing StackKits lifecycle MCP."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "The selected upstream bundle owns its configuration; setup observes the custodied administrator and creates no separate initializer or credential store."
+      }
+    },
+    "documents": {
+      "ref": "documents",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "paperless",
+          "protocol": "rest",
+          "purpose": "Observe the existing administrator through the selected upstream application's admitted API; application features remain upstream-owned.",
+          "auth": "custodied-owner-login"
+        }
+      ],
+      "skills": [
+        {
+          "id": "owner-setup",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/documents/agent/owner-setup/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit setup documents --owner-approve --json",
+          "purpose": "Verify the existing local administrator after apply using the plan-bound setup flow and existing secret custody."
+        },
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Connect to the existing StackKits lifecycle MCP."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "The selected upstream bundle owns its configuration; setup observes the custodied administrator and creates no separate initializer or credential store."
+      }
+    },
     "files": {
       "ref": "files",
       "equipPolicy": "on-generate",
@@ -27,6 +113,12 @@
           "audience": "product-user",
           "source": "stackkits",
           "path": "use-cases/files/agent/owner-setup/SKILL.md"
+        },
+        {
+          "id": "opencloud",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/files/agent/opencloud/SKILL.md"
         }
       ],
       "cliHelpers": [
@@ -186,6 +278,65 @@
         "reason": "Stalwart keeps its settings in its own store; StackKits governs only the entrypoint and first-start seed, and the owner changes settings in Stalwart's administration."
       }
     },
+    "marketplace": {
+      "ref": "marketplace",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "coolify",
+          "protocol": "rest",
+          "purpose": "The native Marketplace executor uses the held own-host server binding for admitted app deployments. API and SSH credentials remain in node-private custody.",
+          "auth": "stackkit-marketplace-node-custody"
+        }
+      ],
+      "skills": [
+        {
+          "id": "marketplace-operations",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/marketplace/agent/operations/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Configure the existing StackKits lifecycle MCP endpoint. Write actions retain native Owner authorization and sealed execution admission."
+        },
+        {
+          "command": "stackkit status",
+          "purpose": "Read the applied Marketplace runtime and custody through the current resolved Plan."
+        },
+        {
+          "command": "stackkit verify",
+          "purpose": "Verify the admitted Marketplace runtime using the exact compiler and resolved Plan binding."
+        },
+        {
+          "command": "stackkit service",
+          "purpose": "Run native Marketplace start, stop, restart or bounded logs with the current Owner authorization."
+        },
+        {
+          "command": "stackkit backup",
+          "purpose": "Use the native Kopia snapshot, staged restore and activation contracts; keep crash-consistent volume evidence distinct from application-consistent backup."
+        },
+        {
+          "command": "stackkit remove",
+          "purpose": "Remove only the admitted own-host Marketplace resources. Data remains by default; explicit deletion requires the canonical signed removal contract."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "The native executor renders the digest-pinned Marketplace artifacts and private custody from the resolved Plan. This package declares no competing product configuration file."
+      }
+    },
     "media": {
       "ref": "media",
       "equipPolicy": "on-generate",
@@ -225,6 +376,40 @@
         "reason": "Jellyfin runtime is the digest-pinned selected-PaaS bundle. Library volume is owner-custodied. StackKits does not author a separate Jellyfin configuration file."
       }
     },
+    "network": {
+      "ref": "network",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "adguard-home",
+          "protocol": "rest",
+          "purpose": "Observe the upstream DNS filter using the existing custodied owner.",
+          "auth": "custodied-owner-login"
+        }
+      ],
+      "skills": [
+        {
+          "id": "dns-policy",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/network/agent/dns-policy/SKILL.md"
+        }
+      ],
+      "cliHelpers": [],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "The canonical module renders explicit client policy and the native owner supplies only the private bcrypt verifier."
+      }
+    },
     "photos": {
       "ref": "photos",
       "equipPolicy": "on-generate",
@@ -262,6 +447,45 @@
       "configBaseline": {
         "status": "omitted",
         "reason": "Immich runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Immich configuration file."
+      }
+    },
+    "remote": {
+      "ref": "remote",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "guacamole",
+          "protocol": "rest",
+          "purpose": "Observe the exact upstream XML owner and revoke the temporary authentication session.",
+          "auth": "custodied-owner-login"
+        }
+      ],
+      "skills": [
+        {
+          "id": "owner-setup",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/remote/agent/owner-setup/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit setup remote --owner-approve --json",
+          "purpose": "Run the admitted owner login observation on the exact applied Remote workload."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "The selected upstream bundle owns the explicit connection and transient authentication; setup observes the existing custodied owner and retains no target credentials."
       }
     },
     "smart-home": {
@@ -305,6 +529,12 @@
           "audience": "product-user",
           "source": "stackkits",
           "path": "use-cases/smart-home/agent/homelab-mcp/SKILL.md"
+        },
+        {
+          "id": "mqtt-discovery",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/smart-home/agent/mqtt-discovery/SKILL.md"
         }
       ],
       "cliHelpers": [

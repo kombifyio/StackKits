@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"reflect"
+	"slices"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 	privateAIWorkloadOutputRef   = "workloads/private-ai/bundle.json"
 )
 
-const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-control-plane,ai-speech|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file`
+const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-control-plane,ai-speech|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file|optional:ollama-model-packs:model-pack-settings:reviewed-tags:one-shot-pull|optional:external-provider:open-webui-openai-api:wallet-bound-key`
 
 // The optional kombify AI connector (decision record 2026-09-27 §4). Its
 // token is issued by the owner's kombify AI, never minted: `stackkit setup
@@ -101,7 +102,7 @@ func ParsePrivateAIWorkloadBundle(data []byte) (PrivateAIWorkloadBundleDescripto
 		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed PrivateAI image contract")
 	}
 	companionSlots, err := companionSecretSlotsOf(privateAIWorkloadModuleID, bundle.Components)
-	if err != nil || !validPrivateAISecretRefs(bundle.SecretRefs, privateAIConnectorEnabled(bundle.Components), companionSlots) {
+	if err != nil || !validPrivateAISecretRefs(bundle.SecretRefs, privateAIConnectorEnabled(bundle.Components), privateAIExternalProviderEnabled(bundle.Components), companionSlots) {
 		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references, plus the connector token reference exactly while the connector runs and a companion secret reference exactly while its add-on is wired")
 	}
 	if len(bundle.ConfigFiles) != 0 {
@@ -171,7 +172,7 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, companions, settings, err := validateApplicationDeliveryInputsWithCompanions(unit, privateAIWorkloadModuleID, "ai", 8080, []string{PrivateAIConnectorSetting}, path+".inputs")
+	deliveryRoute, companions, settings, err := validateApplicationDeliveryInputsWithCompanions(unit, privateAIWorkloadModuleID, "ai", 8080, []string{PrivateAIConnectorSetting, "model-pack-general", "model-pack-coding", "model-pack-vision", privateAIModelSizeSetting, PrivateAIExternalProviderSetting}, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -180,7 +181,7 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	}
 	secretRefs := map[string]string{}
 	if err := decodeStrict(unit.SecretRefsJSON(), &secretRefs); err != nil ||
-		!validPrivateAISecretRefs(secretRefs, false, nil) {
+		!validPrivateAISecretRefs(secretRefs, false, false, nil) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".secretRefs", "requires opaque owner-password and session-key references and no secret material")
 	}
 	if !emptyJSONArray(unit.ProvidedInterfacesJSON()) || !emptyJSONArray(unit.RequiredInterfacesJSON()) ||
@@ -208,6 +209,13 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	}
 	if connector {
 		secretRefs[PrivateAIConnectorTokenSlot] = PrivateAIConnectorTokenRef
+	}
+	external, err := materializePrivateAIExternalProvider(components, settings, path+".inputs."+PrivateAIExternalProviderSetting)
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	if external {
+		secretRefs[PrivateAIExternalProviderKeySlot] = PrivateAIExternalProviderKeyRef
 	}
 	// Open WebUI is wired to the selected add-ons only while they are selected
 	// on this node; a selected add-on's custody secret travels as an opaque
@@ -255,11 +263,15 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 }
 
 func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
-	if len(components) != 2 && (len(components) != 3 || !privateAIConnectorEnabled(components)) {
-		return nil, fail(ErrInvalidPlan, path, "requires Ollama and Open WebUI, and optionally the kombify AI connector")
-	}
 	seen := map[string]bool{}
 	for _, c := range components {
+		if privateAIModelPackComponent(c.ID) {
+			if seen[c.ID] || !validPrivateAIModelPull(c) {
+				return nil, fail(ErrInvalidPlan, path, "a model pack must stay the governed one-shot pull of one reviewed model tag")
+			}
+			seen[c.ID] = true
+			continue
+		}
 		if seen[c.ID] || c.Role != "application" || c.Lifecycle != "daemon" || len(c.Entrypoint) != 0 || c.EnabledBySetting != "" || !exactStringList(c.NetworkRefs, []string{"private-ai-internal"}) {
 			return nil, fail(ErrInvalidPlan, path, "AI runtime identity or network differs")
 		}
@@ -272,8 +284,8 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 			if c.Accelerator != nil {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI runs on the CPU")
 			}
-			if c.Egress || len(c.CompanionEnvironment) != 0 || len(c.CompanionSecretEnvironment) != 0 {
-				return nil, fail(ErrInvalidPlan, path, "only the model-serving component requests egress")
+			if len(c.CompanionEnvironment) != 0 || len(c.CompanionSecretEnvironment) != 0 {
+				return nil, fail(ErrInvalidPlan, path, "Open WebUI companion declarations differ")
 			}
 			environment, err := splitCompanionEnvironment(privateAIWorkloadModuleID, c.ID, c.Environment)
 			if err != nil {
@@ -282,6 +294,10 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 			secretEnvironment, _, err := splitCompanionSecretEnvironment(privateAIWorkloadModuleID, c.ID, c.SecretEnvironment)
 			if err != nil {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI companion secret wiring differs from the governed speech add-on")
+			}
+			environment, secretEnvironment, err = splitPrivateAIExternalProvider(c, environment, secretEnvironment)
+			if err != nil {
+				return nil, fail(ErrInvalidPlan, path, "%s", err.Error())
 			}
 			if !exactStringList(c.DependsOn, []string{"ollama"}) || len(secretEnvironment) != 2 || c.Health.Kind != "http" || c.Health.Path != "/health" || c.Health.Port != 8080 || environment["ENABLE_PERSISTENT_CONFIG"] != "false" || environment["ENABLE_OPENAI_API"] != "false" || environment["RAG_EMBEDDING_MODEL_AUTO_UPDATE"] != "false" || environment["WHISPER_MODEL_AUTO_UPDATE"] != "false" || environment["OFFLINE_MODE"] != "true" || environment["HF_HUB_OFFLINE"] != "1" || len(environment) != 8 {
 				return nil, fail(ErrInvalidPlan, path, "Open WebUI must retain its private configuration")
@@ -314,14 +330,15 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 		}
 	}
 	if !seen["open-webui"] || !seen["ollama"] {
-		return nil, fail(ErrInvalidPlan, path, "requires Ollama and Open WebUI")
+		return nil, fail(ErrInvalidPlan, path, "requires Ollama and Open WebUI, and optionally the kombify AI connector and model packs")
 	}
 	return components, nil
 }
 
 // materializePrivateAIConnector checks the catalog declaration of the optional
-// connector and keeps it only while the owner turned its boolean setting on.
-// Every other component is unconditional.
+// connector and the model packs and keeps each only while the owner turned its
+// boolean setting on; a kept model pack pulls the reviewed tag of the selected
+// model-size. Every other component is unconditional.
 func materializePrivateAIConnector(components []selectedPaaSRuntimeComponent, settings map[string]json.RawMessage, path string) ([]selectedPaaSRuntimeComponent, bool, error) {
 	enabled := false
 	if raw, set := settings[PrivateAIConnectorSetting]; set {
@@ -329,9 +346,29 @@ func materializePrivateAIConnector(components []selectedPaaSRuntimeComponent, se
 			return nil, false, fail(ErrInvalidPlan, path+"."+PrivateAIConnectorSetting, "must be a boolean")
 		}
 	}
+	models, err := privateAIModelSelection(settings, path)
+	if err != nil {
+		return nil, false, err
+	}
 	result := make([]selectedPaaSRuntimeComponent, 0, len(components))
 	declared := false
+	declaredPacks := map[string]bool{}
 	for _, component := range components {
+		if privateAIModelPackComponent(component.ID) {
+			governed, ok := privateAIModelPullCommand()
+			if declaredPacks[component.ID] || !ok || !exactStringList(component.Command, governed) || !slices.ContainsFunc(privateAIModelPacks, func(pack privateAIModelPack) bool {
+				return pack.Component == component.ID && pack.Setting == component.EnabledBySetting
+			}) {
+				return nil, false, fail(ErrInvalidPlan, path, "model pack %s must be declared once with the governed pull, gated by its setting", component.ID)
+			}
+			declaredPacks[component.ID] = true
+			if tag, selected := models[component.ID]; selected {
+				component.EnabledBySetting = ""
+				component.Command = append(slices.Clone(governed), tag)
+				result = append(result, component)
+			}
+			continue
+		}
 		if component.ID != PrivateAIConnectorComponent {
 			if component.EnabledBySetting != "" {
 				return nil, false, fail(ErrInvalidPlan, path, "only the kombify AI connector is optional")
@@ -350,6 +387,11 @@ func materializePrivateAIConnector(components []selectedPaaSRuntimeComponent, se
 	}
 	if enabled && !declared {
 		return nil, false, fail(ErrInvalidPlan, path, "the kombify AI connector setting is on but the catalog declares no connector")
+	}
+	for component := range models {
+		if !declaredPacks[component] {
+			return nil, false, fail(ErrInvalidPlan, path, "model pack %s is selected but the catalog declares no pull for it", component)
+		}
 	}
 	return result, enabled, nil
 }
@@ -379,7 +421,7 @@ func validatePrivateAIConnector(c selectedPaaSRuntimeComponent, path string) err
 	}
 	if len(c.PublishedPorts) != 0 || len(c.LANListeners) != 0 || c.DevicePassthrough != nil || len(c.Devices) != 0 ||
 		len(c.PeerNetworks) != 0 || c.RouteHostLoopback || c.DockerLifecycleOwner != nil || len(c.RouteHostEnvironment) != 0 || c.AcmeTLSALPNPort != 0 ||
-		c.HomeIdentityAccess != nil || c.PocketIDClient != nil || c.JellyfinSSOPlugin != nil || c.HomeAssistantOIDC != nil {
+		c.HomeIdentityAccess != nil || c.PocketIDClient != nil || c.JellyfinSSOPlugin != nil || c.HomeAssistantOIDC != nil || c.HomeAssistantNotify != nil {
 		return fail(ErrInvalidPlan, path, "the kombify AI connector receives no inbound, host or identity right")
 	}
 	return nil
@@ -424,10 +466,16 @@ func validatePrivateAIServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path
 
 // validPrivateAISecretRefs requires exactly the owner-password and
 // session-key references, the connector token reference while the connector
-// runs, and one opaque reference per companion secret slot the governed
+// runs, the provider key reference while an external provider is set, and one opaque reference per companion secret slot the governed
 // component uses; nothing else.
-func validPrivateAISecretRefs(refs map[string]string, connector bool, companionSlots []string) bool {
+func validPrivateAISecretRefs(refs map[string]string, connector, externalProvider bool, companionSlots []string) bool {
 	expected := 2 + len(companionSlots)
+	if externalProvider {
+		expected++
+		if refs[PrivateAIExternalProviderKeySlot] != PrivateAIExternalProviderKeyRef {
+			return false
+		}
+	}
 	if connector {
 		expected++
 		if refs[PrivateAIConnectorTokenSlot] != PrivateAIConnectorTokenRef {

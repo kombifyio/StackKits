@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/hostconformance"
@@ -91,7 +92,15 @@ func evaluateHostPreflightForRequest(ctx context.Context, workspace, kitSlug str
 	requirements.SandboxRuntimes = hostPreflightSandboxRuntimeRequirements(workspace)
 	request.ObserveAccelerators = len(requirements.Accelerators) > 0
 	facts := hostpreflight.Observe(ctx, request)
-	return hostpreflight.Evaluate(facts, requirements, kitSlug, policy)
+	report := hostpreflight.Evaluate(facts, requirements, kitSlug, policy)
+	for i := range report.Checks {
+		check := &report.Checks[i]
+		if check.ID == "kernel-namespaces" && check.Status == hostpreflight.StatusUnknown {
+			detail, _ := actionableerror.Diagnostic("namespace_probe_unverified")
+			check.FailureClass, check.Summary, check.Remediation = detail.ReasonCode, detail.Message, detail.UserGuidance
+		}
+	}
+	return report
 }
 
 // refuseUnqualifiedAcceleratorHost refuses a local Apply before the plan is
@@ -303,6 +312,11 @@ func hostPreflightComputeTier(workspace string) string {
 func hostPreflightRefusal(report hostpreflight.Report) error {
 	blocked := report.BlockedChecks()
 	if len(blocked) == 0 {
+		for _, check := range report.Checks {
+			if check.FailureClass == "namespace_probe_unverified" {
+				return &exitCodeError{code: ExitCodeHostBlocked, err: actionableerror.WithDiagnostic(check.FailureClass, errors.New(check.Summary))}
+			}
+		}
 		// Strict policy refused on warnings or unverified facts.
 		return &exitCodeError{code: ExitCodeHostBlocked, err: fmt.Errorf(
 			"host preflight refused this host under the strict policy: %s", report.Status,
@@ -328,6 +342,10 @@ func printHostPreflightReport(report hostpreflight.Report) {
 		case hostpreflight.StatusWarning:
 			printWarning("%s: %s", check.ID, check.Summary)
 		case hostpreflight.StatusUnknown:
+			if detail, known := actionableerror.Diagnostic(check.FailureClass); known {
+				printWarning("[%s] %s Next: %s", detail.ReasonCode, detail.Message, detail.UserGuidance[0])
+				continue
+			}
 			if check.ID == "module-capacity" {
 				printWarning("%s: %s", check.ID, check.Summary)
 			} else {

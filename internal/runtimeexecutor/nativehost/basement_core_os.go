@@ -165,13 +165,21 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 // basementApplyPreparation records the pre-Compose steps whose follow-up
 // runs after the project is up.
 type basementApplyPreparation struct {
-	originReload   bool
-	recreateServer bool
+	originReload    bool
+	browserCAReload bool
+	recreateServer  bool
 }
 
 // prepareApply runs the steps that must precede the Compose project: the
 // custody-owned origin provisioner upgrade check and stackkit-server staging.
 func (o *osBasementCoreOperations) prepareApply() (basementApplyPreparation, error) {
+	_, _, browserCAReload, err := localevidence.BasementBrowserCAMigrationChain(o.workspaceRoot)
+	if err != nil {
+		return basementApplyPreparation{}, fmt.Errorf("verify explicit browser CA transition: %w", err)
+	}
+	if err := prepareCoreControlTLS(o.workspaceRoot); err != nil {
+		return basementApplyPreparation{}, fmt.Errorf("prepare Core-owned control TLS policy: %w", err)
+	}
 	originReload, err := localevidence.UpgradeBasementOriginProvisioner(o.workspaceRoot)
 	if err != nil {
 		return basementApplyPreparation{}, fmt.Errorf("verify local Basement runtime custody before Apply: %w", err)
@@ -186,7 +194,7 @@ func (o *osBasementCoreOperations) prepareApply() (basementApplyPreparation, err
 	if err != nil {
 		return basementApplyPreparation{}, fmt.Errorf("prepare the Basement core stackkit-server: %w", err)
 	}
-	return basementApplyPreparation{originReload: originReload, recreateServer: recreateServer}, nil
+	return basementApplyPreparation{originReload: originReload, browserCAReload: browserCAReload, recreateServer: recreateServer}, nil
 }
 
 // completeApply runs the steps that follow the first `up`: stackkit-server
@@ -212,6 +220,23 @@ func (o *osBasementCoreOperations) completeApplyWithIdentity(
 	identityAction string,
 	completeIdentity func(context.Context) (localevidence.OwnerRuntimeBinding, error),
 ) (localevidence.OwnerRuntimeBinding, error) {
+	if preparation.browserCAReload {
+		if _, err := o.runner.Run(ctx, []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath, "stop", "--timeout", "60", "router"}, filepath.Dir(composePath), environment); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("quiesce native router for the explicit CA transition: %w", err)
+		}
+		if _, err := o.runner.Run(ctx, []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath, "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "step-ca"}, filepath.Dir(composePath), environment); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("activate the browser CA issuer before ingress renewal: %w", err)
+		}
+		if err := localevidence.VerifyBasementOriginProvisioner(ctx, o.workspaceRoot); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("observe the browser CA issuer before ingress renewal: %w", err)
+		}
+		if err := RebindBasementBrowserCAIngress(ctx, o.workspaceRoot); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, err
+		}
+		if _, err := o.runner.Run(ctx, []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath, "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "router", "tinyauth"}, filepath.Dir(composePath), environment); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("activate the explicit browser CA in its native consumers: %w", err)
+		}
+	}
 	if preparation.recreateServer {
 		if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "recreate-server"), filepath.Dir(composePath), environment); err != nil {
 			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("recreate the local stackkit-server with its new release or token: %w", err)
@@ -222,8 +247,10 @@ func (o *osBasementCoreOperations) completeApplyWithIdentity(
 	}
 	if preparation.originReload {
 		args := []string{"compose", "--project-name", "stackkit-basement-core", "-f", composePath, "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "step-ca"}
-		if _, err := o.runner.Run(ctx, args, filepath.Dir(composePath), environment); err != nil {
-			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("reload upgraded local step-ca: %w", err)
+		if !preparation.browserCAReload {
+			if _, err := o.runner.Run(ctx, args, filepath.Dir(composePath), environment); err != nil {
+				return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("reload upgraded local step-ca: %w", err)
+			}
 		}
 		if err := localevidence.VerifyBasementOriginProvisioner(ctx, o.workspaceRoot); err != nil {
 			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("observe reloaded local step-ca: %w", err)
@@ -480,7 +507,10 @@ func (osBasementCoreProcessRunner) Run(ctx context.Context, args []string, direc
 		filepath.Dir(args[4]) != directory ||
 		(!slices.Equal(args[5:], []string{"up", "-d", "--wait", "--wait-timeout", "600"}) &&
 			!slices.Equal(args[5:], []string{"ps", "--all", "--format", "json"}) &&
-			!slices.Equal(args[5:], basementCoreRecreateServerArgs)) {
+			!slices.Equal(args[5:], basementCoreRecreateServerArgs) &&
+			!slices.Equal(args[5:], []string{"up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "step-ca"}) &&
+			!slices.Equal(args[5:], []string{"stop", "--timeout", "60", "router"}) &&
+			!slices.Equal(args[5:], []string{"up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "router", "tinyauth"})) {
 		return nil, &basementCoreProcessError{output: "closed-contract-rejected", cause: errors.New("invalid process contract")}
 	}
 	executable, err := exec.LookPath("docker")

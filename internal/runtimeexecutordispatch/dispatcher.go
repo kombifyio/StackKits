@@ -110,7 +110,7 @@ func (d *Dispatcher) Execute(ctx context.Context, request runtimeexecutor.Execut
 			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("seal execution-channel child request for %q: %w", channelRef, err)
 		}
 		prepared = append(prepared, preparedExecution{
-			label: channelRef, executor: child.executor, request: childRequest, compensation: child.compensation,
+			label: channelRef, scope: ScopeChannel, executor: child.executor, request: childRequest, compensation: child.compensation,
 			critical: criticalRuntimeTargets(group.runtime),
 		})
 	}

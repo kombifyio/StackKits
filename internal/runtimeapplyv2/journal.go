@@ -211,12 +211,8 @@ func ValidateOperationForRequest(parent runtimeexecutor.ExecutionRequest, operat
 	if err := parent.Validate(); err != nil {
 		return err
 	}
-	if operation.APIVersion != APIVersion || operation.OperationID != parent.RequestDigest ||
-		operation.ParentRequestDigest != parent.RequestDigest || operation.PlanHash != parent.PlanHash ||
-		operation.ManifestHash != parent.ManifestHash || operation.GenerationReceiptHash != parent.GenerationReceiptHash ||
-		operation.RequirementsHash != parent.RequirementsHash || operation.EvidenceBundleHash != parent.EvidenceBundleHash ||
-		operation.Executor != parent.Executor {
-		return errors.New("runtime Apply operation does not bind the exact parent request")
+	if err := validateOperationBinding(parent, operation); err != nil {
+		return err
 	}
 	if len(operation.Steps) == 0 {
 		return errors.New("runtime Apply operation requires at least one child step")
@@ -226,71 +222,7 @@ func ValidateOperationForRequest(parent runtimeexecutor.ExecutionRequest, operat
 			return errors.New("runtime Apply operation steps must be sorted")
 		}
 	}
-	targets := make(map[string]runtimeexecutor.RuntimeTarget, len(parent.RuntimeTargets))
-	for _, target := range parent.RuntimeTargets {
-		targets[target.RequirementID] = target
-	}
-	seenStepIDs := map[string]struct{}{}
-	runtimeSeen := map[string]struct{}{}
-	seenDigests := map[string]struct{}{}
-	healthSeen := map[HealthExpectation]struct{}{}
-	for _, step := range operation.Steps {
-		if step.ID != step.RequestDigest || len(step.Runtime) == 0 {
-			return errors.New("runtime Apply step ID must equal its exact child request digest")
-		}
-		if _, duplicate := seenStepIDs[step.ID]; duplicate {
-			return errors.New("runtime Apply operation contains a duplicate step")
-		}
-		seenStepIDs[step.ID] = struct{}{}
-		if _, duplicate := seenDigests[step.RequestDigest]; duplicate {
-			return errors.New("runtime Apply operation contains a duplicate child request digest")
-		}
-		seenDigests[step.RequestDigest] = struct{}{}
-		if !digestPattern.MatchString(step.RequestDigest) || !digestPattern.MatchString(step.ArtifactSetHash) ||
-			step.PlanHash != parent.PlanHash || step.ManifestHash != parent.ManifestHash ||
-			step.GenerationReceiptHash != parent.GenerationReceiptHash || step.RequirementsHash != parent.RequirementsHash ||
-			step.EvidenceBundleHash != parent.EvidenceBundleHash ||
-			(step.Compensation != CompensationNone && step.Compensation != CompensationExplicit) {
-			return errors.New("runtime Apply step has invalid or foreign authority")
-		}
-		if step.Executor.ID == "" || step.Executor.Version == "" || !digestPattern.MatchString(step.Executor.Digest) {
-			return errors.New("runtime Apply step has invalid executor identity")
-		}
-		for runtimeIndex, runtime := range step.Runtime {
-			if runtimeIndex > 0 && step.Runtime[runtimeIndex-1].RequirementID >= runtime.RequirementID {
-				return errors.New("runtime Apply step runtime expectations must be sorted and unique")
-			}
-			target, exists := targets[runtime.RequirementID]
-			if !exists || runtime.InstanceRef != target.InstanceRef {
-				return errors.New("runtime Apply step does not bind an exact parent runtime target")
-			}
-			if _, duplicate := runtimeSeen[runtime.RequirementID]; duplicate {
-				return errors.New("runtime Apply operation contains duplicate runtime authority")
-			}
-			runtimeSeen[runtime.RequirementID] = struct{}{}
-		}
-		for _, item := range step.Health {
-			if item.RequirementID == "" || item.TargetRef == "" {
-				return errors.New("runtime Apply step has invalid health expectation")
-			}
-			if _, duplicate := healthSeen[item]; duplicate {
-				return errors.New("runtime Apply operation contains duplicate health authority")
-			}
-			healthSeen[item] = struct{}{}
-		}
-	}
-	if len(runtimeSeen) != len(parent.RuntimeTargets) {
-		return errors.New("runtime Apply operation does not cover the complete runtime target set")
-	}
-	if len(healthSeen) != len(parent.HealthTargets) {
-		return errors.New("runtime Apply operation does not cover the complete health target set")
-	}
-	for _, health := range parent.HealthTargets {
-		if _, exists := healthSeen[HealthExpectation{RequirementID: health.RequirementID, TargetRef: health.TargetRef}]; !exists {
-			return errors.New("runtime Apply operation contains foreign health authority")
-		}
-	}
-	return nil
+	return validateOperationSteps(parent, operation.Steps)
 }
 
 // VerifyStepResult rejects a journal replay unless it is the exact verified
@@ -299,31 +231,13 @@ func VerifyStepResult(step Step, result runtimeexecutor.ExecutionResult) error {
 	if err := result.Validate(); err != nil {
 		return fmt.Errorf("validate runtime Apply step result: %w", err)
 	}
-	if result.Executor != step.Executor || result.PlanHash != step.PlanHash || result.ManifestHash != step.ManifestHash ||
-		result.GenerationReceiptHash != step.GenerationReceiptHash || result.RequirementsHash != step.RequirementsHash ||
-		result.EvidenceBundleHash != step.EvidenceBundleHash || result.ArtifactSetHash != step.ArtifactSetHash ||
-		result.RequestDigest != step.RequestDigest {
-		return errors.New("runtime Apply step result has foreign authority")
+	if err := verifyStepResultAuthority(step, result); err != nil {
+		return err
 	}
-	if len(result.Runtime) != len(step.Runtime) {
-		return errors.New("runtime Apply step result does not prove the exact runtime target")
+	if err := verifyStepRuntime(step, result); err != nil {
+		return err
 	}
-	for index, expected := range step.Runtime {
-		actual := result.Runtime[index]
-		if actual.RequirementID != expected.RequirementID || actual.InstanceRef != expected.InstanceRef || actual.Status != runtimeexecutor.RuntimeStatusApplied {
-			return errors.New("runtime Apply step result contains foreign runtime evidence")
-		}
-	}
-	if len(result.Health) != len(step.Health) {
-		return errors.New("runtime Apply step result does not prove the exact health set")
-	}
-	for index, expected := range step.Health {
-		actual := result.Health[index]
-		if actual.RequirementID != expected.RequirementID || actual.TargetRef != expected.TargetRef || actual.Status != runtimeexecutor.HealthStatusHealthy {
-			return errors.New("runtime Apply step result contains foreign health evidence")
-		}
-	}
-	return nil
+	return verifyStepHealth(step, result)
 }
 
 func ValidateReservation(operation Operation, reservation Reservation) error {
@@ -333,25 +247,9 @@ func ValidateReservation(operation Operation, reservation Reservation) error {
 			return errors.New("acquired runtime Apply reservation requires only an opaque fence token")
 		}
 	case DispositionResume:
-		if !tokenPattern.MatchString(reservation.FenceToken) || reservation.Snapshot == nil {
-			return errors.New("resume runtime Apply reservation requires a fence token and snapshot")
-		}
-		if err := ValidateSnapshot(operation, *reservation.Snapshot); err != nil {
-			return err
-		}
-		if reservation.Snapshot.State != OperationRunning && reservation.Snapshot.State != OperationReconcileRequired {
-			return errors.New("resume runtime Apply reservation has no resumable state")
-		}
+		return validateResumableReservation(operation, reservation)
 	case DispositionReplay:
-		if reservation.FenceToken != "" || reservation.Snapshot == nil {
-			return errors.New("replay runtime Apply reservation requires only a final snapshot")
-		}
-		if err := ValidateSnapshot(operation, *reservation.Snapshot); err != nil {
-			return err
-		}
-		if reservation.Snapshot.State != OperationCompleted && reservation.Snapshot.State != OperationCompensated {
-			return errors.New("replay runtime Apply reservation is not final")
-		}
+		return validateReplayReservation(operation, reservation)
 	case DispositionInProgress, DispositionConflict:
 		if reservation.FenceToken != "" || reservation.Snapshot != nil {
 			return errors.New("non-owned runtime Apply reservation must not expose a token or snapshot")
@@ -366,63 +264,11 @@ func ValidateSnapshot(operation Operation, snapshot Snapshot) error {
 	if snapshot.OperationID != operation.OperationID || len(snapshot.Steps) != len(operation.Steps) {
 		return errors.New("runtime Apply snapshot does not bind the exact operation and step set")
 	}
-	failed, pending, running, succeeded, compensated := 0, 0, 0, 0, 0
-	for index, state := range snapshot.Steps {
-		step := operation.Steps[index]
-		if state.StepID != step.ID || state.RequestDigest != step.RequestDigest {
-			return errors.New("runtime Apply snapshot step is reordered or substituted")
-		}
-		if err := validateStepState(step, state.State, state.Result, state.FailureCode, state.CompensationReceiptDigest); err != nil {
-			return err
-		}
-		switch state.State {
-		case StepPending:
-			pending++
-		case StepRunning:
-			running++
-		case StepSucceeded:
-			succeeded++
-		case StepFailed:
-			failed++
-		case StepCompensated:
-			compensated++
-		}
+	counts, err := validateSnapshotSteps(operation, snapshot)
+	if err != nil {
+		return err
 	}
-	switch snapshot.State {
-	case OperationRunning:
-		// A running operation may already carry a failed step. Independent
-		// steps do not depend on each other, so one that failed must not
-		// prevent the rest from being attempted; forbidding it here forced a
-		// caller to abandon every remaining step at the first failure, which
-		// is the opposite of what an independent step set is for.
-		//
-		// A running operation still may not carry compensated work, and once
-		// every step has settled a failure is terminal: that snapshot must be
-		// reconcile-required, not running. An all-succeeded settled snapshot
-		// stays valid, because it is the normal state between the last step
-		// commit and finalization.
-		if compensated != 0 || pending+running+succeeded+failed != len(snapshot.Steps) {
-			return errors.New("running runtime Apply snapshot has impossible step states")
-		}
-		if failed != 0 && pending+running == 0 {
-			return errors.New("running runtime Apply snapshot has settled failed work and must be reconcile-required")
-		}
-	case OperationReconcileRequired:
-		if failed == 0 || running != 0 {
-			return errors.New("reconcile-required runtime Apply snapshot requires a failed step and no running step")
-		}
-	case OperationCompleted:
-		if succeeded != len(snapshot.Steps) {
-			return errors.New("completed runtime Apply snapshot requires every step to succeed")
-		}
-	case OperationCompensated:
-		if compensated == 0 || pending != 0 || running != 0 || succeeded != 0 || compensated+failed != len(snapshot.Steps) {
-			return errors.New("compensated runtime Apply snapshot has uncompensated successful work")
-		}
-	default:
-		return errors.New("runtime Apply snapshot has unsupported operation state")
-	}
-	return nil
+	return counts.validate(snapshot.State, len(snapshot.Steps))
 }
 
 func ValidateStepCommit(operation Operation, commit StepCommit) error {
@@ -455,20 +301,12 @@ func validateStepState(step Step, state StepState, result *runtimeexecutor.Execu
 		if result != nil || failure != "" || compensationDigest != "" {
 			return errors.New("pending/running runtime Apply step contains terminal evidence")
 		}
-	case StepSucceeded:
-		if result == nil || failure != "" || compensationDigest != "" {
-			return errors.New("succeeded runtime Apply step requires only an exact result")
-		}
-		return VerifyStepResult(step, *result)
+	case StepSucceeded, StepCompensated:
+		return validateStepResultState(step, state, result, failure, compensationDigest)
 	case StepFailed:
 		if result != nil || !validFailureCode(failure) || compensationDigest != "" {
 			return errors.New("failed runtime Apply step requires only a closed failure code")
 		}
-	case StepCompensated:
-		if step.Compensation != CompensationExplicit || result == nil || failure != "" || !digestPattern.MatchString(compensationDigest) {
-			return errors.New("compensated runtime Apply step requires explicit capability, original result, and receipt digest")
-		}
-		return VerifyStepResult(step, *result)
 	default:
 		return errors.New("runtime Apply step has unsupported state")
 	}

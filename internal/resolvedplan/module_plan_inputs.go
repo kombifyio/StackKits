@@ -3,6 +3,8 @@ package resolvedplan
 import (
 	"fmt"
 	"sort"
+
+	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 )
 
 var allowedModulePlanInputRefs = map[string]struct{}{
@@ -257,6 +259,28 @@ func safeModuleBackupPolicy(policy map[string]any) (map[string]any, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	if value, exists := policy["retentionByDataClass"]; exists {
+		classes, err := asObject(value, "backupPolicy.retentionByDataClass")
+		if err != nil {
+			return nil, err
+		}
+		retentions := make(map[string]any, len(classes))
+		for class, raw := range classes {
+			if !localbackuppolicy.ValidBackupDataClass(class) {
+				return nil, fmt.Errorf("backupPolicy retention class %q is not semantic", class)
+			}
+			retention, err := asObject(raw, "backupPolicy.retentionByDataClass."+class)
+			if err != nil {
+				return nil, err
+			}
+			selected, err := selectObjectFields(retention, "backupPolicy.retentionByDataClass."+class, []string{"keepDaily", "keepWeekly", "keepMonthly", "keepYearly"})
+			if err != nil {
+				return nil, err
+			}
+			retentions[class] = selected
+		}
+		projection["retentionByDataClass"] = retentions
 	}
 	projection["schedule"] = safeSchedule
 	projection["retention"] = safeRetention
@@ -1273,7 +1297,7 @@ func safeModuleInternalPKI(moduleID string, module map[string]any, source module
 			"id": "stackkits-home-root-ca", "role": "root-ca",
 			"siteRef": authoritySiteRef, "nodeRef": authorityNodeRef,
 			"trustDomainRef": source.stackID, "subjectRef": "stackkits-home-root-ca",
-			"keyAlgorithm":     "ed25519",
+			"keyAlgorithm":     "ecdsa-p256",
 			"basicConstraints": map[string]any{"ca": true, "pathLen": -1},
 			"keyUsage":         []any{"cert-sign", "crl-sign", "digital-signature"},
 		},

@@ -113,25 +113,30 @@ func (m *SystemAppManifest) UnmarshalJSON(data []byte) error {
 // AppManifest describes one generated compose bundle for PaaS delivery or
 // customer-app handoff.
 type AppManifest struct {
-	ServiceKey  string              `json:"serviceKey,omitempty"`
-	Name        string              `json:"name"`
-	Kind        string              `json:"kind,omitempty"`
-	Ownership   string              `json:"ownership,omitempty"`
-	Platform    string              `json:"platform"`
-	ManagedBy   string              `json:"managedBy"`
-	Image       string              `json:"image,omitempty"`
-	Port        int                 `json:"port,omitempty"`
-	Host        string              `json:"host,omitempty"`
-	URL         string              `json:"url,omitempty"`
-	RouteURL    string              `json:"routeUrl,omitempty"`
-	Auth        string              `json:"auth,omitempty"`
-	HealthPath  string              `json:"healthPath,omitempty"`
-	ComposePath string              `json:"composePath"`
-	ComposeYAML string              `json:"composeYAML,omitempty"`
-	Env         map[string]string   `json:"env,omitempty"`
-	Secrets     map[string]string   `json:"secrets,omitempty"`
-	SetupPolicy string              `json:"setupPolicy,omitempty"`
-	SetupDrops  []SetupDropManifest `json:"setupDrops,omitempty"`
+	ServiceKey  string `json:"serviceKey,omitempty"`
+	Name        string `json:"name"`
+	Kind        string `json:"kind,omitempty"`
+	Ownership   string `json:"ownership,omitempty"`
+	Platform    string `json:"platform"`
+	ManagedBy   string `json:"managedBy"`
+	Image       string `json:"image,omitempty"`
+	Port        int    `json:"port,omitempty"`
+	Host        string `json:"host,omitempty"`
+	URL         string `json:"url,omitempty"`
+	RouteURL    string `json:"routeUrl,omitempty"`
+	Auth        string `json:"auth,omitempty"`
+	HealthPath  string `json:"healthPath,omitempty"`
+	ComposePath string `json:"composePath"`
+	ComposeYAML string `json:"composeYAML,omitempty"`
+	// HostDirectory selects Komodo's files-on-host mode for an already
+	// prepared, owner-private project. ComposePath is relative to this directory;
+	// the API mutation contains no environment or secret-file contents.
+	HostDirectory   string              `json:"hostDirectory,omitempty"`
+	IgnoredServices []string            `json:"ignoredServices,omitempty"`
+	Env             map[string]string   `json:"env,omitempty"`
+	Secrets         map[string]string   `json:"secrets,omitempty"`
+	SetupPolicy     string              `json:"setupPolicy,omitempty"`
+	SetupDrops      []SetupDropManifest `json:"setupDrops,omitempty"`
 }
 
 // UnmarshalJSON accepts Terraform jsonencode output where object type coercion
@@ -291,6 +296,8 @@ type BootstrapCapabilityEvidence struct {
 	Capability BootstrapCapability `json:"capability"`
 	Status     string              `json:"status"`
 	Evidence   []string            `json:"evidence,omitempty"`
+	ReasonCode string              `json:"reasonCode,omitempty"`
+	Guidance   string              `json:"guidance,omitempty"`
 }
 
 func RequiresBootstrapEvidence(platform string) bool {
@@ -330,6 +337,14 @@ func ValidateBootstrapEvidence(platform string, evidence BootstrapEvidence) erro
 		capability, ok := byCapability[want]
 		if !ok {
 			return fmt.Errorf("%s platform bootstrap evidence missing capability %q", wantProvider, want)
+		}
+		// Komodo deployment is admitted with an explicit unsupported data
+		// operation. The workload lifecycle capability still refuses backup and
+		// restore before execution; a mounted volume is never backup evidence.
+		if wantProvider == "komodo" && want == BootstrapCapabilityBackups &&
+			capability.Status == "unavailable" && capability.ReasonCode == "komodo_backup_restore_unavailable" &&
+			strings.TrimSpace(capability.Guidance) != "" {
+			continue
 		}
 		if strings.ToLower(strings.TrimSpace(capability.Status)) != "configured" {
 			return fmt.Errorf("%s platform bootstrap evidence capability %q status = %q, want configured", wantProvider, want, capability.Status)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/tls"
@@ -15,6 +16,8 @@ import (
 	"net"
 	"slices"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -71,7 +74,20 @@ func (o *osInternalPKIOperations) root(ctx context.Context, policy InternalPKIPo
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := cert.PublicKey.(ed25519.PublicKey); !ok || cert.MaxPathLenZero || cert.MaxPathLen != -1 {
+	matchingKey := false
+	switch policy.Authority.KeyAlgorithm {
+	case "ecdsa-p256":
+		key, ok := cert.PublicKey.(*ecdsa.PublicKey)
+		matchingKey = ok && key.Curve == elliptic.P256()
+	case "ed25519":
+		// Authenticated legacy policy/custody remains readable without rotation.
+		key, ok := cert.PublicKey.(ed25519.PublicKey)
+		matchingKey = ok && len(key) == ed25519.PublicKeySize
+	}
+	if !matchingKey && cert.PublicKeyAlgorithm == x509.Ed25519 && policy.Authority.KeyAlgorithm == "ecdsa-p256" {
+		return nil, actionableerror.WithDiagnostic("client_trust_browser_ca_unsupported", errors.New("legacy CA needs an explicit governed migration"))
+	}
+	if !matchingKey || cert.MaxPathLenZero || cert.MaxPathLen != -1 {
 		return nil, errors.New("internal PKI root differs from existing owner CA constraints")
 	}
 	if !cert.IsCA || cert.CheckSignatureFrom(cert) != nil {
@@ -133,7 +149,7 @@ func (o *osInternalPKIOperations) observeLeaves(ctx context.Context, policy Inte
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, actionableerror.WithDiagnostic("pki_leaf_unavailable", err)
 		}
 		dns := append([]string(nil), cert.DNSNames...)
 		slices.Sort(dns)

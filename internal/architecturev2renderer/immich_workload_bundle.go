@@ -15,21 +15,21 @@ const (
 	immichWorkloadUnitID      = "immich-server"
 	immichWorkloadRendererRef = "stackkit"
 	immichWorkloadTemplateRef = "builtin://workloads/immich/bundle/v2.json"
-	immichWorkloadVersion     = "3.2.0"
+	immichWorkloadVersion     = "3.3.0"
 	immichWorkloadOutputRef   = "workloads/immich/bundle.json"
 )
 
 // This fixed schema identity binds the renderer semantics. The rendered
 // document itself also carries the exact plan-owned target and opaque secret
 // references, so its artifact hash remains instance-specific.
-const immichWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,ml,postgres,postgres-init,valkey|component-health-failure:blocking-or-degraded|native-oidc:pocketid-confidential-pkce|immich-config:runtime-owner-only|secret-material:not-included`
+const immichWorkloadRendererSchema = `stackkit.workload-bundle/v2|ImmichWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:server,ml,postgres,postgres-init,valkey|component-health-failure:blocking-or-degraded|native-oidc:pocketid-confidential-pkce|mobile-oauth:kombify-app-link-v1|immich-config:runtime-owner-only|secret-material:not-included`
 
 const (
 	immichOIDCConfigTarget = "/etc/stackkit/immich.json"
-	immichOIDCConfigBody   = `{"oauth":{"autoLaunch":true,"autoRegister":true,"buttonText":"Continue with Pocket ID","clientId":"{{clientId}}","clientSecret":"{{clientSecret}}","enabled":true,"issuerUrl":"{{issuer}}","mobileOverrideEnabled":false,"mobileRedirectUri":"","profileSigningAlgorithm":"none","roleClaim":"immich_role","scope":"openid email profile","signingAlgorithm":"RS256","tokenEndpointAuthMethod":"client_secret_post"}}`
+	immichOIDCConfigBody   = `{"oauth":{"autoLaunch":true,"autoRegister":true,"buttonText":"Continue with Pocket ID","clientId":"{{clientId}}","clientSecret":"{{clientSecret}}","enabled":true,"issuerUrl":"{{issuer}}","mobileOverrideEnabled":true,"mobileRedirectUri":"https://kombify.io/app/immich-oauth","profileSigningAlgorithm":"none","roleClaim":"immich_role","scope":"openid email profile","signingAlgorithm":"RS256","tokenEndpointAuthMethod":"client_secret_post"}}`
 )
 
-var immichOIDCCallbackURLs = []string{"{{origin}}/auth/login", "{{origin}}/user-settings", "app.immich:///oauth-callback"}
+var immichOIDCCallbackURLs = []string{"{{origin}}/auth/login", "{{origin}}/user-settings", "app.immich:///oauth-callback", "https://kombify.io/app/immich-oauth"}
 
 type selectedPaaSRuntimeImage struct {
 	Ref    string `json:"ref"`
@@ -123,6 +123,9 @@ type selectedPaaSRuntimeComponent struct {
 	PocketIDClient     *selectedPaaSPocketIDClient     `json:"pocketIDClient,omitempty"`
 	JellyfinSSOPlugin  *JellyfinSSOPluginDescriptor    `json:"jellyfinSSOPlugin,omitempty"`
 	HomeAssistantOIDC  *HomeAssistantOIDCDescriptor    `json:"homeAssistantOIDC,omitempty"`
+	// HomeAssistantNotify is the opt-in kombify notify right (Home Assistant
+	// only): declared by the catalog, carried by a bundle only while enabled.
+	HomeAssistantNotify *HomeAssistantNotifyDescriptor `json:"homeAssistantNotify,omitempty"`
 	// Custody-file rights: a credential delivered as a custody file and the
 	// variable that starts the application paused after a restore.
 	SecretFiles                  []selectedPaaSSecretFile `json:"secretFiles,omitempty"`

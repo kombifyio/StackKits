@@ -368,7 +368,7 @@
             <div class="section-label"><span>Your use cases</span><small>Required workloads stay included</small></div>
             <div class="use-case-grid">
               {#each kit.use_cases as useCase (useCase.use_case_id)}
-                <UseCaseTile {useCase} selected={selectedAlternativeByUseCase[useCase.use_case_id] ?? ""} onSelect={(id) => chooseUseCase(useCase.use_case_id, id)} />
+                <UseCaseTile {useCase} modules={kit.modules} profileSelections={moduleProfileSelections} selected={selectedAlternativeByUseCase[useCase.use_case_id] ?? ""} onSelect={(id) => chooseUseCase(useCase.use_case_id, id)} />
               {/each}
             </div>
           </div>

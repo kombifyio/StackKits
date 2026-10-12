@@ -20,6 +20,7 @@ type ownerKomodoConfig struct {
 	BaseURL           string            `json:"baseUrl,omitempty"`
 	APIKey            string            `json:"apiKey,omitempty"`
 	APISecret         string            `json:"apiSecret,omitempty"`
+	ServerID          string            `json:"serverId,omitempty"`
 	BootstrapEvidence BootstrapEvidence `json:"bootstrapEvidence,omitempty"`
 }
 
@@ -63,5 +64,5 @@ func LoadOwnerKomodoConfig(workspace string) (HTTPConfig, error) {
 	if err := ValidateBootstrapEvidence("komodo", cfg.BootstrapEvidence); err != nil {
 		return HTTPConfig{}, err
 	}
-	return HTTPConfig{BaseURL: firstNonEmpty(cfg.Endpoint, cfg.BaseURL), APIKey: cfg.APIKey, Secret: cfg.APISecret}, nil
+	return HTTPConfig{BaseURL: firstNonEmpty(cfg.Endpoint, cfg.BaseURL), APIKey: cfg.APIKey, Secret: cfg.APISecret, ServerID: cfg.ServerID}, nil
 }

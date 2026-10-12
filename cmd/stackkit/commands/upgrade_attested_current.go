@@ -382,7 +382,7 @@ func currentGenerationSourceHint(workspace, requestedSpec string) (string, error
 		return "", err
 	}
 	defer transaction.Close()
-	relative := filepath.Join(outputRoot, ".stackkit", "generation-receipt.json")
+	relative := filepath.ToSlash(filepath.Join(outputRoot, ".stackkit", "generation-receipt.json"))
 	raw, info, err := transaction.ReadStable(relative)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
@@ -460,7 +460,7 @@ func materializeHistoricalPlanInventory(
 		return "", nil, err
 	}
 	defer transaction.Close()
-	planPath := filepath.Join(outputRoot, ".stackkit", "resolved-plan.json")
+	planPath := filepath.ToSlash(filepath.Join(outputRoot, ".stackkit", "resolved-plan.json"))
 	raw, info, err := transaction.ReadStableBounded(planPath, 16<<20)
 	if err != nil {
 		return "", nil, fmt.Errorf("read historical resolved Plan Inventory: %w", err)

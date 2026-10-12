@@ -38,11 +38,21 @@ type ExecutionChannelFactory interface {
 // Validate rejects a channel whose Runtime or Health closure escapes its exact
 // Site, node, or opaque channel, or whose Health ownership is ambiguous.
 func (request ExecutionChannelRequest) Validate() error {
+	if err := request.validateChannelShape(); err != nil {
+		return err
+	}
+	if err := request.validateRuntimePlacement(); err != nil {
+		return err
+	}
+	return request.validateHealthOwnership()
+}
+
+func (request ExecutionChannelRequest) validateChannelShape() error {
 	if !referenceid.ValidExecutionChannel(request.ChannelRef) {
 		return invalidRequest("execution_channel.channel_ref", "must be a canonical non-secret execution-channel identity")
 	}
 	for _, field := range []struct{ name, value string }{
-		{"site_ref", request.SiteRef}, {"node_ref", request.NodeRef},
+		{fieldSiteRef, request.SiteRef}, {"node_ref", request.NodeRef},
 	} {
 		if err := validateToken("execution_channel."+field.name, field.value); err != nil {
 			return err
@@ -60,8 +70,11 @@ func (request ExecutionChannelRequest) Validate() error {
 	if err := validateHealthTargets(request.HealthTargets); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (request ExecutionChannelRequest) validateRuntimePlacement() error {
 	seenRequirements := make(map[string]struct{}, len(request.RuntimeTargets))
-	healthByRuntime := make(map[string]int, len(request.RuntimeTargets))
 	for index, target := range request.RuntimeTargets {
 		if len(target.SiteRefs) != 1 || target.SiteRefs[0] != request.SiteRef ||
 			len(target.NodeRefs) != 1 || target.NodeRefs[0] != request.NodeRef ||
@@ -73,6 +86,11 @@ func (request ExecutionChannelRequest) Validate() error {
 		}
 		seenRequirements[target.RequirementID] = struct{}{}
 	}
+	return nil
+}
+
+func (request ExecutionChannelRequest) validateHealthOwnership() error {
+	healthByRuntime := make(map[string]int, len(request.RuntimeTargets))
 	for index, health := range request.HealthTargets {
 		if len(health.SiteRefs) != 1 || health.SiteRefs[0] != request.SiteRef ||
 			len(health.NodeRefs) != 1 || health.NodeRefs[0] != request.NodeRef {

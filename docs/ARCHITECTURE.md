@@ -531,7 +531,9 @@ module plus both versions and canonical contract hashes. Adapter providers use
 the separate `runtimeAdapterRefs` namespace and may expose zero Kit
 capabilities. Under [ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md),
 `standalone-compose` is the governed default for new application selections;
-Coolify and Komodo require explicit selection. Existing persisted adapter
+Coolify and Komodo require explicit compatibility selection. Coolify belongs to
+the optional Marketplace application; Komodo is the planned operations platform,
+not a store. Neither is a default core service. Existing persisted adapter
 identities retain their authority. The umbrella delivery class is
 `application-adapter`, because the same workload contract may be executed by a
 PaaS or by the StackKits-owned no-PaaS Compose adapter. All three adapters are
@@ -1582,7 +1584,7 @@ the retained fallbacks read apart:
 | --- | --- |
 | `internal/runtimeexecutor/opentofu` | Standard executor (ADR-0045): the `opentofu` and `terramate` units, workload roots and contract roots. |
 | `internal/runtimeexecutor/nativehost` | Native host executors: the S-F Compose fallback behind `compose` (native `up` for the Core and standalone workloads), plus the shared halves the standard executor calls (Compose prepare and complete, native Verify, project naming, generation-target reading) and the native host owners that have no OpenTofu counterpart. |
-| `internal/runtimeexecutor/fallback/platformdeploy` | Fallback in-house Komodo, Coolify and Dokploy HTTP adapters, retained until each platform's OpenTofu provider target has real-host parity. |
+| `internal/runtimeexecutor/fallback/platformdeploy` | Historical in-house HTTP compatibility adapters. Komodo may be retained as an operations fallback until its exact replacement has current-pin parity receipts. Coolify is the optional Marketplace application, not an OpenTofu runtime-provider target; Dokploy is not pursued. Existing persisted compatibility behavior is not a promotion path. |
 
 `nativehost` is not under `fallback/` because the standard executor imports
 its shared halves. Its fallback-only `up` paths are methods on the same OS
@@ -2474,10 +2476,10 @@ their separately typed runtime owners and evidence paths exist:
 | `stackkits-access-policy-contract` | Shared declarative access-policy prerequisite; it does not enforce Home or Cloud access | Bind kit-specific enforcers to the exact resolved policy and their own Health/evidence |
 | `stackkits-storage-data-policy`, `stackkits-storage-allocation`, `stackkits-workload-data-binding` | Shared plan-only storage authority. Every Application Kit names its exact persistent/cache allocation and data binding in ResolvedPlan; the modules render no artifact and perform no mount, migration, backup, or provider operation. | Keep allocation and placement facts in CUE/ResolvedPlan; let bounded workload and lifecycle owners consume them without product-specific compiler or renderer branches. |
 | `stackkits-workload-runtime-contract` | Shared delivery interface required by workloads; it selects no engine and is not a Basement, Cloud, or Modern runtime | Let each concrete workload module bind its exact artifacts to an explicitly registered runtime adapter; do not recreate a kit-level runtime umbrella |
-| `stackkits-basement-core-runtime` | Required Basement-only generation and Apply owner. The CUE catalog fixes the complete single-node graph for Traefik, socket proxy, PocketID, TinyAuth, step-ca, Coolify/PostgreSQL/Redis/realtime, and Hub. Exact hash-bound Compose/OpenTofu artifacts carry pinned images, persistent backup-marked volumes, local-custody references, container Healthchecks, and module verification probes. The local Product Apply composition binds this graph to exact Site/node/channel custody, realizes PocketID/TinyAuth Owner binding, and records local signed evidence. An empty workload set or an unregistered/tampered renderer is rejected. | Keep the v0.8 graph single-node and local-authority bound; graduate HA and optional workloads independently in v0.9. |
+| `stackkits-basement-core-runtime` | Required Basement-only generation and Apply owner. The CUE catalog fixes the complete legacy Full single-node graph for Traefik, socket proxy, PocketID, TinyAuth, step-ca, Coolify/PostgreSQL/Redis/realtime, and Hub. The native default is standalone Compose; the retained legacy graph does not make Coolify default core or establish Marketplace runtime support. Exact hash-bound Compose/OpenTofu artifacts carry pinned images, persistent backup-marked volumes, local-custody references, container Healthchecks, and module verification probes. The local Product Apply composition binds this graph to exact Site/node/channel custody, realizes PocketID/TinyAuth Owner binding, and records local signed evidence. An empty workload set or an unregistered/tampered renderer is rejected. | Keep the v0.8 graph single-node and local-authority bound; graduate HA and optional workloads independently in v0.9. |
 | `stackkits-immich-runtime` | Concrete apply-ready workload owner pinned to the full Immich v2.7.0 server, machine-learning, PostgreSQL, database-init, and Valkey graph. Its provider-neutral, target-bound bundle carries immutable image digests, dependencies, internal network membership, opaque secret slots, persistent/cache volumes, backup intent, Health declarations, and the exact compiler-selected route/TLS descriptor. The shared runtime-executor SPI accepts only this closed bundle and requires apply receipt plus full component/route readback. Product Runtime factories bind the complete selector for Coolify, Komodo, or standalone Compose plus Site, node, channel, catalog hashes, agent authority, and Health contract. | Keep provider/PaaS lifecycle external for Coolify/Komodo; use only local Owner custody and the fixed Docker Compose capability for standalone delivery. |
 | `stackkits-cloudreve-runtime`, `stackkits-vaultwarden-runtime` | Concrete apply-ready Files and Vault workload owners use the exact image ref/digest pairs in the CUE catalog. Vault rendering, setup and execution consume its generated image authority. Each has a distinct closed application-adapter bundle, parser, executor, Product factory, and three adapter registrations, while both select the unchanged common Application Lifecycle and shared storage/data/backup/recovery modules. | Retain workload-specific validation at the artifact/adapter edge and reuse the common compiler, lifecycle, state and State Console. |
-| `stackkits-coolify-runtime` | Workload-scoped generation-ready adapter handoff distinct from the Basement core's locally installed Coolify service. Its node-bound handoff accepts workload-bundle v2 with `apply`/`observe`, external credential/provider-lifecycle custody, and mandatory digest, runtime, route, and Health readback. | Connect authenticated Coolify operations through the shared executor boundary; keep external provider/server lifecycle outside this artifact. |
+| `stackkits-coolify-runtime` | Workload-scoped generation-ready adapter handoff distinct from the retained legacy Full core's locally installed Coolify service. Native defaults install no Coolify; Marketplace is its optional application owner. Its node-bound handoff accepts workload-bundle v2 with `apply`/`observe`, external credential/provider-lifecycle custody, and mandatory digest, runtime, route, and Health readback. | Connect authenticated Coolify operations through the shared executor boundary; keep external provider/server lifecycle outside this artifact. |
 | `stackkits-standalone-compose-runtime` | StackKits-owned no-PaaS application adapter. It persists owner-only digest-pinned Compose and environment files, resolves only signed local secret custody, attaches the entry service to `stackkit-basement-core`, emits exact Traefik host/TLS labels, and proves service/image plus loopback HTTP readback. | Keep Docker/server lifecycle outside the adapter; do not promote its fixed Compose capability into generic command, path, socket, or host authority. |
 | `stackkits-komodo-core-runtime`, `stackkits-komodo-periphery-runtime` | Explicit Komodo alternative split into one workload adapter/API authority on Control Plane members and one typed Periphery node-agent on Control Authority Site workers. The generated node-bound contracts require external mutual-key custody, outbound TLS 1.3, executor-mediated host execution, and digest/Health/runtime/route/agent-registration readback without carrying endpoints, credentials, sockets, provider lifecycle, or general host/LAN authority. | Implement authenticated Core operations and Periphery onboarding in the external adapter owner, bind exact endpoint/key custody there, and prove every registered worker and workload artifact before product Apply registration. |
 | `stackkits-basement-compose-runtime` | Optional Basement-only generation contract selected only by explicit capability intent; it is not part of the Kit identity. Its sole Product factory is restricted to the pinned socket-proxy unit on one exact Home Site/node/channel and cannot discover Docker. | Supply an authenticated finite Compose Operations owner only for an exact observed Docker daemon; keep real projects/workloads under their concrete workload owners rather than promoting this helper into a generic Kit runtime. |
@@ -2547,8 +2549,14 @@ credentials. A product integration may fix the shared provider-neutral
 the operation identity; each re-sealed child digest is one fenced CAS step.
 Completed exact child results replay without repeating their executor, failed
 steps can resume, and an unresolved running step fails closed for the journal's
-abandoned-operation policy. Execution remains serial and no automatic rollback
-is inferred.
+abandoned-operation policy. A retried `stackkit apply` does not meet that
+refusal: it seals fresh evidence, so it opens a new operation and re-converges
+every owner. What a killed Apply strands is its application lifecycle
+operation, which a retry holding the exclusive lifecycle-mutation and
+output-root locks records as abandoned (`docs/CLI.md`). The dispatcher reports
+every child as `apply.channel` / `apply.owner` rollout events to an observer
+carried by the request context. Execution remains serial and no automatic
+rollback is inferred.
 
 Multiple executable owners on the same node are a separate routing dimension,
 not another execution channel. A channel child can therefore be a service-owned
@@ -2889,7 +2897,7 @@ by StackKits are projected from the exact pinned module during OSS export.
 | --- | --- | --- |
 | CLI | `cmd/stackkit`, `internal/*` | Standalone operator workflow: init, validate, generate, plan, apply, verify, upgrade, drift, registry inspection, logs, and recovery commands. |
 | API server | `cmd/stackkit-server`, `internal/api` | HTTP surface for catalog, canonical `stackfile.cue` schemas, versioned validation, logs, capabilities, and OpenAPI, plus the StackKits MCP at `POST /mcp`. Every v2 Core runs it as a component and routes only `/mcp` (see [StackKits MCP on every Core](#stackkits-mcp-on-every-core)). Legacy generation/setup/registry operations are exact-v0.6 compatibility surfaces and are absent from native-v0.7 capability discovery. |
-| Content Bridge | `cmd/stackkit-content-bridge`, `internal/contentbridge`, `modules/content-bridge` | Opt-in, read-only node component that answers consented `homelab-content/v1` counts (Photos from Immich first) to the Gateway. Separate from kombify Guard; no internet egress; answers only the granted consent tier (decision record: ADR-0047). |
+| Content Bridge | `cmd/stackkit-content-bridge`, `internal/contentbridge`, `modules/content-bridge` | Opt-in, read-only node component that answers consented `homelab-content/v1` counts (Photos from Immich first) to the Gateway. Separate from kombify Guard; no internet egress; answers only the granted consent tier (decision record: [ADR-0050](ADR/ADR-0050-content-bridge-node.md)). |
 | CUE contracts | `foundation/`, `basement-kit/`, `cloud-kit/`, `modern-homelab/`, `modules/`, `use-cases/` | Schemas, defaults, constraints, module and use-case contracts, and deployment shape. |
 | Composition/generation | `internal/cue`, `internal/composition`, `internal/iac`, `internal/tofu`, `internal/terramate` | Bind CUE/spec data into generated deployment artifacts and execution adapters. |
 | Public docs | `README.md`, `docs/` | Homelab/BaseKit OSS documentation and CLI install contract. |
@@ -2932,8 +2940,8 @@ platform does not transfer existing workloads or their routes implicitly.
 For a workload explicitly assigned to Coolify, generated routes must be served
 by the selected Coolify Traefik/proxy authority; a second StackKits router must
 not serve the same route. Any transition must reconcile listener and route
-ownership before activation. Dokploy has an integrated-router draft adapter,
-but remains unpromoted.
+ownership before activation. Dokploy is not pursued; its historical integrated-router draft is not a
+runtime target or future promotion path.
 
 Komodo is the first explicit exception: the initial `paas: komodo` contract uses exactly one StackKit-owned Traefik while Komodo owns Compose Stack deployment. The generated dashboard/status output and release evidence must label that routing ownership as StackKit-owned, not Komodo-owned.
 

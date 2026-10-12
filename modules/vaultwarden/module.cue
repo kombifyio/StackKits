@@ -149,7 +149,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "vault", nested: "vault", flat: "vault"}
-		dashboard: {icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden", guideUrl: "https://docs.kombify.io/stackkits/apps/vaultwarden"}
+		dashboard: {icon: "&#128272;", order: 30, section: "Applications", badge: "L3 \u00b7 Vault", enableVar: "enable_vaultwarden", guideUrl: "https://docs.kombify.io/stackkits/apps/vaultwarden", clients: [{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=com.x8bit.bitwarden"}, {platform: "ios", kind: "store", url: "https://apps.apple.com/app/bitwarden-free-password-manager/id1137397744"}, {platform: "windows", kind: "download", url: "https://bitwarden.com/download/?app=desktop&platform=windows&variant=exe"}], vendor: {name: "Vaultwarden", website: "https://github.com/dani-garcia/vaultwarden", docs: "https://github.com/dani-garcia/vaultwarden/wiki", license: "AGPL-3.0", support: [{kind: "sponsor", url: "https://github.com/sponsors/dani-garcia"}]}}
 
 		output: {
 			url:         "https://vault.{{.domain}}"

@@ -2,7 +2,10 @@ package localevidence
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -20,10 +23,11 @@ import (
 )
 
 const (
-	OwnerCustodyAPIVersion  = "stackkit.local-owner-custody/v1"
-	ownerCustodyRelPath     = ".stackkit/custody/owner.json"
-	stepCARootKeyRelPath    = ".stackkit/custody/step-ca/root-key.json"
-	stepCARootKeyAPIVersion = "stackkit.local-step-ca-root-key/v1"
+	OwnerCustodyAPIVersion        = "stackkit.local-owner-custody/v1"
+	ownerCustodyRelPath           = ".stackkit/custody/owner.json"
+	stepCARootKeyRelPath          = ".stackkit/custody/step-ca/root-key.json"
+	stepCARootKeyAPIVersion       = "stackkit.local-step-ca-root-key/v2"
+	legacyStepCARootKeyAPIVersion = "stackkit.local-step-ca-root-key/v1"
 )
 
 var ErrOwnerCustodyMissing = errors.New("localevidence: no local owner custody")
@@ -75,7 +79,8 @@ type OwnerCustody struct {
 
 type stepCARootKeyFile struct {
 	APIVersion string `json:"apiVersion"`
-	Seed       string `json:"seed"`
+	Seed       string `json:"seed,omitempty"`
+	PKCS8      string `json:"pkcs8,omitempty"`
 }
 
 func EstablishOwnerCustody(workspaceRoot string, request OwnerCustodyRequest) (OwnerCustody, error) {
@@ -285,8 +290,9 @@ func LoadOwnerCustody(workspaceRoot string) (OwnerCustody, error) {
 	if err := ownerCert.CheckSignatureFrom(rootCert); err != nil {
 		return OwnerCustody{}, fmt.Errorf("localevidence: verify owner certificate: %w", err)
 	}
-	rootPublic, ok := rootCert.PublicKey.(ed25519.PublicKey)
-	if !ok || !bytes.Equal(rootPublic, rootPrivate.Public().(ed25519.PublicKey)) {
+	rootPublic, err := x509.MarshalPKIXPublicKey(rootCert.PublicKey)
+	privatePublic, privateErr := x509.MarshalPKIXPublicKey(rootPrivate.Public())
+	if err != nil || privateErr != nil || !bytes.Equal(rootPublic, privatePublic) {
 		return OwnerCustody{}, errors.New("localevidence: step-ca root certificate does not match its custody key")
 	}
 	ownerPublic, ok := ownerCert.PublicKey.(ed25519.PublicKey)
@@ -326,7 +332,7 @@ func newOwnerRef() (string, error) {
 	return "owner/local/" + hex.EncodeToString(random), nil
 }
 
-func establishStepCARootKey(workspaceRoot string) (ed25519.PrivateKey, error) {
+func establishStepCARootKey(workspaceRoot string) (crypto.Signer, error) {
 	existing, err := loadStepCARootKey(workspaceRoot)
 	if err == nil {
 		return existing, nil
@@ -334,23 +340,29 @@ func establishStepCARootKey(workspaceRoot string) (ed25519.PrivateKey, error) {
 	if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
-	seed := make([]byte, ed25519.SeedSize)
-	if _, err := rand.Read(seed); err != nil {
+	// Browser-facing X.509 chains use P-256. The Owner evidence/authorization
+	// key remains Ed25519; an existing CA is read without implicit rotation.
+	private, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
 		return nil, fmt.Errorf("localevidence: generate step-ca root key: %w", err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(private)
+	if err != nil {
+		return nil, fmt.Errorf("localevidence: encode step-ca root key: %w", err)
 	}
 	path, err := confinedCustodyPath(workspaceRoot, stepCARootKeyRelPath)
 	if err != nil {
 		return nil, err
 	}
 	if err := writePrivateJSON(path, stepCARootKeyFile{
-		APIVersion: stepCARootKeyAPIVersion, Seed: base64.RawStdEncoding.EncodeToString(seed),
+		APIVersion: stepCARootKeyAPIVersion, PKCS8: base64.RawStdEncoding.EncodeToString(der),
 	}); err != nil {
 		return nil, fmt.Errorf("localevidence: persist step-ca root key: %w", err)
 	}
-	return ed25519.NewKeyFromSeed(seed), nil
+	return private, nil
 }
 
-func loadStepCARootKey(workspaceRoot string) (ed25519.PrivateKey, error) {
+func loadStepCARootKey(workspaceRoot string) (crypto.Signer, error) {
 	path, err := confinedCustodyPath(workspaceRoot, stepCARootKeyRelPath)
 	if err != nil {
 		return nil, err
@@ -363,14 +375,26 @@ func loadStepCARootKey(workspaceRoot string) (ed25519.PrivateKey, error) {
 	if err := json.Unmarshal(raw, &file); err != nil {
 		return nil, fmt.Errorf("localevidence: decode step-ca root key: %w", err)
 	}
-	seed, err := base64.RawStdEncoding.Strict().DecodeString(file.Seed)
-	if file.APIVersion != stepCARootKeyAPIVersion || err != nil || len(seed) != ed25519.SeedSize {
+	if file.APIVersion == legacyStepCARootKeyAPIVersion && file.PKCS8 == "" {
+		seed, err := base64.RawStdEncoding.Strict().DecodeString(file.Seed)
+		if err != nil || len(seed) != ed25519.SeedSize {
+			return nil, errors.New("localevidence: legacy step-ca root key is malformed")
+		}
+		return ed25519.NewKeyFromSeed(seed), nil
+	}
+	der, err := base64.RawStdEncoding.Strict().DecodeString(file.PKCS8)
+	if file.APIVersion != stepCARootKeyAPIVersion || file.Seed != "" || err != nil {
 		return nil, errors.New("localevidence: step-ca root key is malformed")
 	}
-	return ed25519.NewKeyFromSeed(seed), nil
+	parsed, err := x509.ParsePKCS8PrivateKey(der)
+	private, ok := parsed.(*ecdsa.PrivateKey)
+	if err != nil || !ok || private.Curve != elliptic.P256() {
+		return nil, errors.New("localevidence: step-ca root key must be P-256 PKCS8")
+	}
+	return private, nil
 }
 
-func issueOwnerCertificates(rootPrivate ed25519.PrivateKey, ownerKey OwnerKey, trust TrustProfile, now time.Time) ([]byte, []byte, error) {
+func issueOwnerCertificates(rootPrivate crypto.Signer, ownerKey OwnerKey, trust TrustProfile, now time.Time) ([]byte, []byte, error) {
 	rootSerial, err := certificateSerial()
 	if err != nil {
 		return nil, nil, err

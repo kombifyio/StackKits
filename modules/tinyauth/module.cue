@@ -1,10 +1,11 @@
-// Package tinyauth — TinyAuth v4 ForwardAuth module.
+// Package tinyauth — the legacy TinyAuth v5 service contract.
 //
 // Provides authentication via Traefik ForwardAuth middleware.
 // Supports passkeys, passwords, OAuth (GitHub, Google, OIDC).
 // Uses socket-proxy for Docker label-based access control (never mounts docker.sock directly).
 //
-// PROVEN CONFIG: Validated via reference-compose.yml (8/8 tests pass).
+// Variable names come from the central pinned v5 service definition.
+// Parser evidence does not substitute for native identity/lifecycle acceptance.
 package tinyauth
 
 import "github.com/kombifyio/stackkits/foundation"
@@ -14,7 +15,7 @@ Contract: foundation.#ModuleContract & {
 	metadata: {
 		name:        "tinyauth"
 		displayName: "TinyAuth"
-		version:     "4.1.0"
+		version:     "5.0.7"
 		layer:       "L2-platform-identity"
 		description: "Lightweight authentication proxy with ForwardAuth, passkeys, and OAuth support"
 		maturity:    "default"
@@ -89,13 +90,13 @@ Contract: foundation.#ModuleContract & {
 
 	contexts: {
 		local: {
-			_secureCookie: false
+			_secureCookie: true
 		}
 		cloud: {
 			_secureCookie: true
 		}
 		pi: {
-			_secureCookie: false
+			_secureCookie: true
 		}
 	}
 
@@ -103,8 +104,8 @@ Contract: foundation.#ModuleContract & {
 		name: "tinyauth"
 		type: "auth"
 		// Pin matches base/services.cue and the release pre-pull list.
-		image:    "ghcr.io/steveiliop56/tinyauth"
-		tag:      "v5.0.7"
+		image: "ghcr.io/steveiliop56/tinyauth"
+		tag:   "v5.0.7"
 		upstream: {
 			github: {repo: "steveiliop56/tinyauth"}
 		}
@@ -142,24 +143,20 @@ Contract: foundation.#ModuleContract & {
 			description: "TinyAuth SQLite database and session data"
 		}]
 
+		// Share the canonical v5 variable map rather than maintaining a v4 copy.
+		// The legacy module keeps its socket proxy and uses the selected trusted
+		// issuer for all OAuth legs; TLS verification remains enabled.
 		environment: {
-			TZ:                                      "{{.timezone}}"
-			APP_URL:                                 "https://auth.{{.domain}}"
-			USERS:                                   "{{.tinyauth_users}}"
-			SECURE_COOKIE:                           "{{.tinyauth_secure_cookie}}"
-			SESSION_EXPIRY:                          "{{.tinyauth_session_expiry}}"
-			DOCKER_HOST:                             "tcp://socket-proxy:2375"
-			OAUTH_AUTO_REDIRECT:                     "pocketid"
-			OAUTH_WHITELIST:                         "{{.tinyauth_oauth_whitelist}}"
-			PROVIDERS_POCKETID_CLIENT_ID:            "{{.tinyauth_oidc_client_id}}"
-			PROVIDERS_POCKETID_CLIENT_SECRET:        "{{.tinyauth_oidc_client_secret}}"
-			PROVIDERS_POCKETID_AUTH_URL:             "{{.tinyauth_oidc_issuer}}/authorize"
-			PROVIDERS_POCKETID_TOKEN_URL:            "http://pocketid:1411/api/oidc/token"
-			PROVIDERS_POCKETID_USER_INFO_URL:        "http://pocketid:1411/api/oidc/userinfo"
-			PROVIDERS_POCKETID_REDIRECT_URL:         "https://auth.{{.domain}}/api/oauth/callback/pocketid"
-			PROVIDERS_POCKETID_SCOPES:               "openid,email,profile,groups"
-			PROVIDERS_POCKETID_NAME:                 "Pocket ID"
-			PROVIDERS_POCKETID_INSECURE_SKIP_VERIFY: "false"
+			for name, value in foundation.#TinyAuthService.environment
+			if name != "TZ" && name != "TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL" && name != "TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL" {
+				(name): value
+			}
+			TZ:                                            "{{.timezone}}"
+			TINYAUTH_OIDC_PRIVATEKEYPATH:                  "/data/tinyauth-oidc.key"
+			TINYAUTH_OIDC_PUBLICKEYPATH:                   "/data/tinyauth-oidc.pub"
+			DOCKER_HOST:                                   "tcp://socket-proxy:2375"
+			TINYAUTH_OAUTH_PROVIDERS_POCKETID_TOKENURL:    "{{.tinyauth_oidc_issuer}}/api/oidc/token"
+			TINYAUTH_OAUTH_PROVIDERS_POCKETID_USERINFOURL: "{{.tinyauth_oidc_issuer}}/api/oidc/userinfo"
 		}
 
 		healthCheck: {

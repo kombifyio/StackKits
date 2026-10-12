@@ -583,15 +583,18 @@ func dockerStopSignal(signal string) (int, bool) {
 	if strings.HasPrefix(signal, "SIG") {
 		signal = strings.TrimPrefix(signal, "SIG")
 	}
+	// QUIT is nginx's graceful-stop, including the pinned Coolify image.
 	// WINCH is Apache httpd's graceful-stop, declared by every php:*-apache
 	// image (Nextcloud, Roundcube). Docker still escalates to SIGKILL after
 	// the grace period, so the container always reaches a stopped state.
 	if number, err := strconv.Atoi(signal); err == nil {
-		return number, number == 2 || number == 15 || number == 28
+		return number, number == 2 || number == 3 || number == 15 || number == 28
 	}
 	switch signal {
 	case "INT":
 		return 2, true
+	case "QUIT":
+		return 3, true
 	case "TERM":
 		return 15, true
 	case "WINCH":

@@ -24,9 +24,11 @@ kit definition binds the cloud-specific networking, ingress, DNS, and TLS deltas
 | Domain | optional (`.home.localhost`) | required (own/custom domain or `kombify.me`) |
 | Installer | `base.stackkit.cc` | `cloud.stackkit.cc` |
 
-The platform baseline (Coolify default, PocketID + TinyAuth identity, Uptime Kuma, default L3
-apps) and the Golden-Rules contract are identical — see [basement-kit/README.md](../basement-kit/README.md)
-for the shared platform, security, and PaaS details.
+The native platform baseline (standalone Compose, PocketID + TinyAuth identity,
+Uptime Kuma, explicitly selected applications) and the Golden-Rules contract are identical — see [basement-kit/README.md](../basement-kit/README.md)
+for the shared platform and security details. Coolify is the optional Marketplace
+application, outside the default core; Komodo is the planned operations platform.
+Dokploy is not pursued. Current-pin runtime receipts govern support claims.
 
 ## Requirements
 

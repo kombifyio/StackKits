@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
@@ -41,11 +42,32 @@ func beginArchitectureV2ApplicationLifecyclesWithID(
 	operationID string,
 	now time.Time,
 ) ([]architectureV2ApplicationLifecycleRun, error) {
-	return beginArchitectureV2ApplicationLifecyclesMatching(workspace, plan, stage, operationRef, workloadRef, operationID, nil, now)
+	return beginArchitectureV2ApplicationLifecyclesMatching(workspace, plan, stage, operationRef, workloadRef, operationID, nil, now, false)
+}
+
+// holdsExclusiveApplyLocks reports whether this process, right now, owns the
+// exact output-root advisory lock of the held workspace. An Apply reaches this
+// point only inside the exclusive lifecycle-mutation lock (a joined upgrade
+// child skips lifecycle Begin altogether) and the output-root lock. Both are
+// kernel advisory locks that a process death releases, so while they are held
+// no other Apply of this workspace is alive. No PID file, process-start or
+// host-name comparison is involved, so a reused PID cannot forge liveness.
+func holdsExclusiveApplyLocks(transaction *confinedfs.Transaction, lock *confinedfs.OutputLock, outputRoot string) bool {
+	if transaction == nil || lock == nil {
+		return false
+	}
+	lease, err := lock.Borrow(transaction, outputRoot)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = lease.Close() }()
+	return lease.Verify(transaction, outputRoot) == nil
 }
 
 // beginArchitectureV2HostApplicationLifecycles starts the lifecycles of only
 // the workloads a host-scoped Apply executes; another host records its own.
+// exclusiveApply is the proof from holdsExclusiveApplyLocks that lets a retried
+// Apply take over an Apply a killed process left running.
 func beginArchitectureV2HostApplicationLifecycles(
 	workspace string,
 	plan generationartifact.VerifiedPlan,
@@ -53,9 +75,10 @@ func beginArchitectureV2HostApplicationLifecycles(
 	stage string,
 	operationRef string,
 	now time.Time,
+	exclusiveApply bool,
 ) ([]architectureV2ApplicationLifecycleRun, error) {
 	if scoped.ExecutionScope() == nil {
-		return beginArchitectureV2ApplicationLifecycles(workspace, plan, stage, operationRef, "", now)
+		return beginArchitectureV2ApplicationLifecyclesMatching(workspace, plan, stage, operationRef, "", "", nil, now, exclusiveApply)
 	}
 	workloads := map[string]struct{}{}
 	for _, workload := range scoped.ApplyRequirements().Workloads {
@@ -65,7 +88,7 @@ func beginArchitectureV2HostApplicationLifecycles(
 		_, ok := workloads[workloadRef]
 		return ok
 	}
-	return beginArchitectureV2ApplicationLifecyclesMatching(workspace, plan, stage, operationRef, "", "", include, now)
+	return beginArchitectureV2ApplicationLifecyclesMatching(workspace, plan, stage, operationRef, "", "", include, now, exclusiveApply)
 }
 
 func beginArchitectureV2ApplicationLifecyclesMatching(
@@ -77,6 +100,7 @@ func beginArchitectureV2ApplicationLifecyclesMatching(
 	operationID string,
 	include func(string) bool,
 	now time.Time,
+	exclusiveApply bool,
 ) ([]architectureV2ApplicationLifecycleRun, error) {
 	resolved, err := resolvedplan.DecodeCanonicalPlan(plan.Canonical())
 	if err != nil {
@@ -114,6 +138,7 @@ func beginArchitectureV2ApplicationLifecyclesMatching(
 		}
 		if _, err := store.Begin(contract, applicationlifecycle.BeginRequest{
 			ID: runOperationID, Stage: stage, OperationRef: operationRef, Now: now,
+			ExclusiveApplyHeld: exclusiveApply,
 		}); err != nil {
 			return nil, failStartedApplicationLifecycles(
 				store, runs, "application lifecycle could not start before runtime mutation", now, err,

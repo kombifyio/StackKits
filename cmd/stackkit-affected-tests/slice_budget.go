@@ -33,20 +33,28 @@ const budgetedPackageScope = "changed-packages-budgeted"
 // The remaining suite passed in 247 s; the measured Fleet join (120 s),
 // coordinated rollback (47 s), generation-target checks (26 s), core target
 // verification (23 s), and smaller CUE-backed checks are registered below too.
+// Added 2026-10-10 from a local two-CPU measurement of the budgeted slice
+// (the Fast Gate run timed out at 300 s): the Cloud backup-custody baseline
+// change set (202 s; 191 s alone on main), recovered apply through fresh
+// evidence (35 s), use-case add (17 s), Modern apply readiness (11 s), OpenTofu
+// state roots (7 s) and four tests between one and three seconds.
 var sliceBudgetSlowTests = map[string][]string{
 	"cmd/stackkit/commands": {
 		"TestAdvancedChangeSetAdmissionIgnoresRemeasuredFreeDiskOnly",
+		"TestAdvancedChangeSetBackupCustodyFollowsTheAppliedBaseline",
 		"TestAdvancedChangeSetCreateAddsFilesWorkload",
 		"TestAdvancedGenerateChildrenUseApprovedStableInventory",
 		"TestAdvancedReconcileRestoresDriftedWorkloadFilesBeforeTheCheckpoint",
 		"TestAdvancedRestoreDrillStagesCloudKitRestoreWithoutActivation",
 		"TestAgentInstallPlanInitStepInitializesAWorkspace",
+		"TestApplyRecoveredThroughFreshEvidenceKeepsItsAppliedRuntimeRequest",
 		"TestArchitectureV2AccessManifestProjectsRuntimeServiceMeaning",
 		"TestArchitectureV2AccessSummaryPrintsSecureContextURLsForInternalTLS",
 		"TestArchitectureV2AddonListRejectsV1AsMigrationInput",
 		"TestArchitectureV2AddonListUsesEmbeddedCatalogWithoutSpec",
 		"TestArchitectureV2AddonListValidatesAndFiltersCurrentSpec",
 		"TestArchitectureV2HTTPProbeAccessIncludesPlatformCoreRoutes",
+		"TestArchitectureV2HTTPProbeAccessUsesRouteHealthGatePath",
 		"TestArchitectureV2OfflineVerifyBindsCloudPocketIDOwner",
 		"TestAttachAccessClientTrustExposesEnrollmentHandoff",
 		"TestBuildArchitectureV2RuntimeObservationsProjectsLiveCloudServices",
@@ -68,7 +76,9 @@ var sliceBudgetSlowTests = map[string][]string{
 		"TestManagedCloudKitDriftObservationCarriesTheVerifiedOwnerBinding",
 		"TestMigrateCompletionFailsClosedOnUnknownFieldsAndPlaintextSecretRefs",
 		"TestMigrateDoesNotPublishSpecWhenAuditPublicationFails",
+		"TestModernApplyReadinessBlocksANodeWithoutExecutionChannel",
 		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
+		"TestOpenTofuStateRootsFollowCanonicalCoreAndApplicationPlan",
 		"TestResolveCommandEmitsDeterministicCanonicalPlanToStdoutOrFile",
 		"TestResolveCommandRejectsUnknownV2Field",
 		"TestResolveCommandReturnsTypedV1MigrationBlockedError",
@@ -96,9 +106,15 @@ var sliceBudgetSlowTests = map[string][]string{
 		"TestRunArchitectureV2InitUsesExpectedHashCASAndRejectsForce",
 		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
 		"TestSecretsRevealRequiresDeclaredOwnerCustody",
+		// 2026-10-11: historical-source inspection was running when the
+		// five-minute guard expired in an unrelated Init capacity slice.
+		"TestSourceGenerationPlanCannotReinterpretUnattestedHistory",
+		"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
 		"TestSupportExportCommandRetainsDiagnosticsAndRedactsSecrets",
+		"TestUseCasesAddPreservesInstalledIntentAndCustody",
 		"TestValidateNativeFilesSpecWithoutTargetInventory",
 		"TestVerifyBasementCoreAcceptsEveryGenerationTarget",
+		"TestWalletItemDeliveryJourneyThroughTheCLI",
 	},
 	// internal/architecturev2, measured 2026-09-25 locally with two CPUs
 	// (GOMAXPROCS=2) in groups of six: the whole package exceeded the

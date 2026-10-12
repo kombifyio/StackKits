@@ -34,6 +34,38 @@ requires one provider row per entry in `internal/tofu/provider_manifest.json`.
 Source remains available at the pinned upstream tags above. Terramate's
 upstream third-party notice follows verbatim.
 
+## Optional upstream platform applications
+
+The application images below are fetched for explicitly selected integrations;
+they are not executables bundled with the CLI. Version pins remain in the
+owning contracts and do not establish runtime support. Existing legacy
+installations retain their selected pin until an admitted transition.
+
+| Application | Current declared pin | License | Source and upstream license |
+| --- | --- | --- | --- |
+| Komodo Core and Periphery | 2.3.0 together (legacy bootstrap templates and ADR-0003) | GPL-3.0 | [Source](https://github.com/moghtech/komodo/tree/v2.3.0), [LICENSE](https://github.com/moghtech/komodo/blob/v2.3.0/LICENSE) |
+| Komodo Core and Periphery | 2.3.3 together (native Basement bootstrap; exact container digests in the CUE catalog) | GPL-3.0 | [Source](https://github.com/moghtech/komodo/tree/v2.3.3), [LICENSE](https://github.com/moghtech/komodo/blob/v2.3.3/LICENSE) |
+| MongoDB Community Server | 7 (node-local Komodo control dependency; exact container digest in the CUE catalog) | SSPL-1.0 | [Source](https://github.com/mongodb/mongo/tree/r7.0.0), [LICENSE](https://github.com/mongodb/mongo/blob/r7.0.0/LICENSE-Community.txt); the upstream container retains its own notices |
+| Coolify in the legacy Full core | 4.1.2 (Architecture v2 core catalog) | Apache-2.0 | [Source](https://github.com/coollabsio/coolify/tree/v4.1.2), [LICENSE](https://github.com/coollabsio/coolify/blob/v4.1.2/LICENSE) |
+
+Marketplace targets digest-pinned Coolify 4.4.x with `AUTOUPDATE=false`
+(ADR-0049). That target is not the legacy 4.1.2 pin. Its implementation must
+record the exact release, digest and matching upstream notice before release;
+the 4.4.6 development probe is not a shipped Marketplace pin.
+
+## Go browser capacity runtime
+
+The WebMCP build includes Go's unmodified `lib/wasm/wasm_exec.js` and the
+compiled standard runtime with the shared StackKits capacity engine. The Go
+version follows `go.mod`; the build copies the JavaScript from that exact
+toolchain's `GOROOT` and includes its unmodified BSD-3-Clause `LICENSE` as
+`assets/GO-LICENSE`. `assets/manifest.json` records the Go version, engine source
+digest and hashes of the WASM module, JavaScript runtime and license. Published
+npm consumers receive these static artifacts and need no Go source checkout.
+
+Upstream: [Go source](https://github.com/golang/go),
+[license](https://github.com/golang/go/blob/master/LICENSE).
+
 ## Terramate v0.17.1 upstream ThirdPartyNotice.txt
 
 ```text
@@ -54,3 +86,30 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
+
+## Apache Guacamole Remote application
+
+Apache Guacamole client and guacd are selected upstream container images,
+version 1.6.0 under Apache-2.0. The immutable image refs and index digests are
+owned by `foundation/architecture_v2_guacamole.cue`; a pin is not runtime support.
+The initial profile uses upstream static XML authentication, without a database.
+
+Client: [source](https://github.com/apache/guacamole-client/tree/1.6.0),
+[license](https://github.com/apache/guacamole-client/blob/1.6.0/LICENSE),
+[notice](https://github.com/apache/guacamole-client/blob/1.6.0/NOTICE).
+Daemon: [source](https://github.com/apache/guacamole-server/tree/1.6.0),
+[license](https://github.com/apache/guacamole-server/blob/1.6.0/LICENSE),
+[notice](https://github.com/apache/guacamole-server/blob/1.6.0/NOTICE).
+
+## AdGuard Home Network application
+
+AdGuard Home v0.107.79 is an upstream GPL-3.0 application selected as the
+Network DNS filter, not vendored application code. The immutable multi-platform
+image is `docker.io/adguard/adguardhome:v0.107.79@sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0`.
+Source and license: https://github.com/AdguardTeam/AdGuardHome/tree/v0.107.79
+and https://github.com/AdguardTeam/AdGuardHome/blob/v0.107.79/LICENSE.txt.
+Upstream configuration reference: https://adguard-dns.io/kb/adguard-home/configuration/.
+
+## OpenCloud Files application
+
+The optional Files alternative uses OpenCloud server8.1.0, Apache-2.0, from https://github.com/opencloud-eu/opencloud/releases/tag/v8.1.0. The canonical image is docker.io/opencloudeu/opencloud-rolling:8.1.0 at sha256:8fc64ca861739cc62095cd558814f2eba6a90acf5998d884e439b33a47875da8. The renderer derives image and release values from the CUE catalog. Upstream retains its file, sharing, WebDAV and collaboration features and their licenses. This integration grants no provider lifecycle or SQL-server ownership.

@@ -126,6 +126,7 @@ func observeListenersWithPriorCompose(ctx context.Context, workspace string, lis
 		}
 		fact.Observed = err == nil || errors.Is(err, syscall.EADDRINUSE)
 		fact.InUse = errors.Is(err, syscall.EADDRINUSE)
+		socketInUse := fact.InUse
 		if err != nil {
 			fact.Detail = boundedDiagnostic(err.Error())
 		}
@@ -144,7 +145,10 @@ func observeListenersWithPriorCompose(ctx context.Context, workspace string, lis
 			fact.Detail = "Container binding inventory is unavailable or incomplete"
 		}
 		if fact.InUse && containersObserved && matching == 1 {
-			fact.OwnedByCurrentRuntime = currentWorkspaceOwnsListenerWithPriorCompose(ctx, workspace, listener, priorCompose)
+			// A stopped own container retains a publication intent, not a live
+			// socket. Admit that exact intent only when the bind probe is free;
+			// it cannot authorize replacing a process that now owns the port.
+			fact.OwnedByCurrentRuntime = currentWorkspaceOwnsListenerWithStoppedIntent(ctx, workspace, listener, priorCompose, !socketInUse)
 		}
 		for _, intent := range intents {
 			if socketIntentOverlaps(intent, listener) {

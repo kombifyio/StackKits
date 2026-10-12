@@ -3,6 +3,7 @@
 This documentation set is the public OSS surface for `stackkit`.
 
 - [CLI](CLI.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
 - [Architecture](ARCHITECTURE.md)
 - [Concepts](CONCEPTS.md)
 - [Configuration](CONFIGURATION.md)

@@ -8,14 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
-	"github.com/kombifyio/stackkits/internal/iac"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/workloadremoval"
-	"github.com/kombifyio/stackkits/pkg/models"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +26,7 @@ var (
 	removeDeleteData           bool
 	removeWorkloadRef          string
 	removeV2ExecutionOptions   architectureV2ExecutionCLIOptions
-	newRemoveDockerClient      = docker.NewClient
+	newRemoveDockerClient      = docker.NewLocalClient
 )
 
 const removeConfirmationValue = "yes"
@@ -40,7 +38,10 @@ var removeCmd = &cobra.Command{
 
 With no --workload, this is the product uninstall: it stops and deletes every
 Compose project named stackkit-* (Basement core, Cloud core, and selected use
-cases), including their networks and volumes. It looks in the current
+cases), including their networks, while retaining named data volumes. Add
+--delete-data to delete those volumes intentionally. --purge also deletes
+the selected workspace's state, deploy directory and cached images.
+It looks in the current
 directory, then ~/my-homelab or ~/my-cloud-homelab.
 
 --workload removes one exact Architecture v2 workload through its applied
@@ -50,6 +51,9 @@ runtime owner. That path keeps application volumes unless --delete-data is set.`
 
   # Uninstall without the confirmation prompt
   stackkit remove --auto-approve
+
+  # Uninstall the local deployment and intentionally delete its named volumes
+  stackkit remove --delete-data --auto-approve
 
   # Remove only the Files workload and keep its data volumes
   stackkit remove --workload files
@@ -61,11 +65,11 @@ runtime owner. That path keeps application volumes unless --delete-data is set.`
 
 func init() {
 	removeCmd.Flags().BoolVar(&removeAutoApprove, "auto-approve", false, "Skip interactive approval")
-	removeCmd.Flags().BoolVar(&removeForce, "force", false, "Force remove even with errors")
-	removeCmd.Flags().BoolVar(&removePurge, "purge", false, "Remove all StackKit data including images, state, and deploy directory")
+	removeCmd.Flags().BoolVar(&removeForce, "force", false, "Legacy compatibility flag; incomplete removal still fails and retains recovery state")
+	removeCmd.Flags().BoolVar(&removePurge, "purge", false, "Delete named runtime volumes, selected workspace state and deploy directory, and cached StackKit images")
 	removeCmd.Flags().BoolVar(&removeJSON, "json", false, "Emit the canonical Architecture v2 removal result as JSON")
 	removeCmd.Flags().BoolVar(&removeTerminalEvidenceJSON, "terminal-evidence-json", false, "Emit bounded canonical Architecture v2 terminal evidence as JSON")
-	removeCmd.Flags().BoolVar(&removeDeleteData, "delete-data", false, "Delete named volumes owned by this exact applied workload (default keeps application data)")
+	removeCmd.Flags().BoolVar(&removeDeleteData, "delete-data", false, "Delete named volumes in the selected removal scope (default keeps application data)")
 	removeCmd.Flags().StringVar(&removeWorkloadRef, "workload", "", "Exact Architecture v2 ResolvedPlan workload ref to remove")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.localSiteRef, "local-site", "", "Exact applied Site placement owned by this removal process")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.localNodeRef, "local-node", "", "Exact applied node placement owned by this removal process")
@@ -96,9 +100,11 @@ func runRemove(cmd *cobra.Command, args []string) error {
 				printError("WARNING: This will remove workload %q and keep its application data volumes.", strings.TrimSpace(removeWorkloadRef))
 			}
 		} else if removePurge {
-			printError("WARNING: This will permanently remove all resources AND all StackKit data!")
+			printError("WARNING: This will remove the local StackKits runtime, its named volumes, and the selected workspace state and deploy directory.")
+		} else if removeDeleteData {
+			printError("WARNING: This will remove the local StackKits runtime and delete its named data volumes.")
 		} else {
-			printError("WARNING: This will stop and delete the StackKits Docker stack, including volumes.")
+			printError("WARNING: This will stop and delete the local StackKits runtime and keep its named data volumes.")
 		}
 		fmt.Printf("Type %q to confirm: ", removeConfirmationValue)
 
@@ -126,7 +132,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		if removeJSON || removeTerminalEvidenceJSON {
 			return errors.New("--json and --terminal-evidence-json require --workload")
 		}
-		return removeWholeLocalDeployment(ctx, wd, true, removePurge)
+		return removeWholeLocalDeployment(ctx, wd, removeDeleteData || removePurge, removePurge)
 	}
 	if removeJSON {
 		removeV2ExecutionOptions.removalSink = func(result workloadremoval.Result) error {
@@ -167,162 +173,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	); handled {
 		return err
 	}
-	if strings.TrimSpace(removeWorkloadRef) != "" || removeJSON || removeTerminalEvidenceJSON {
-		return errors.New("--workload, --json, and --terminal-evidence-json require canonical Architecture v2 removal")
-	}
-
-	loader := config.NewLoader(wd)
-	spec, err := loadLegacyOperationalStackSpec(wd, specFile, architectureV2Remove)
-	if err != nil {
-		return fmt.Errorf("admit StackSpec before remove: %w", err)
-	}
-	printWarning("Removing deployment: %s", spec.StackKit)
-	if removePurge {
-		printWarning("Purge mode: will remove all StackKit data (images, state, deploy directory)")
-	}
-
-	startTime := time.Now()
-
-	deployLog.Event("remove.start",
-		slog.String("stackkit", spec.StackKit),
-		slog.Bool("purge", removePurge),
-		slog.Bool("force", removeForce),
-		slog.Bool("auto_approve", removeAutoApprove),
-	)
-
-	// Phase 1: Try OpenTofu destroy
-	tofuSucceeded := tryTofuDestroy(ctx, spec, wd)
-
-	deployLog.Event("remove.tofu_destroy",
-		slog.Bool("success", tofuSucceeded),
-	)
-
-	// Phase 2: Docker fallback (or purge image cleanup)
-	if !tofuSucceeded {
-		printInfo("Cleaning up Docker resources by label...")
-		if err := dockerFallbackCleanup(ctx, removePurge); err != nil {
-			printWarning("Docker cleanup encountered errors: %v", err)
-			if !removeForce {
-				return fmt.Errorf("cleanup failed: %w", err)
-			}
-		}
-	} else if removePurge {
-		// Tofu succeeded but purge requested — remove images
-		printInfo("Removing Docker images...")
-		removeStackKitImages(ctx)
-	}
-
-	// Phase 2b: Prune dangling images and build cache
-	dockerClient := docker.NewClient()
-	if dockerClient.IsInstalled() && dockerClient.IsRunning(ctx) {
-		if reclaimed, err := dockerClient.Prune(ctx); err == nil && reclaimed > 1024*1024 {
-			printSuccess("Reclaimed %d MB from dangling images/build cache", reclaimed/(1024*1024))
-		}
-	}
-
-	// Phase 3: File cleanup
-	cleanupFiles(wd, removePurge)
-	removeCoreMCPCredentials(wd)
-
-	deployLog.Event("remove.files_cleanup",
-		slog.Bool("purge", removePurge),
-	)
-
-	// Phase 4: Update state (skip if purging — state dir is removed)
-	if !removePurge {
-		state := &models.DeploymentState{
-			StackKit:    spec.StackKit,
-			Mode:        spec.Mode,
-			Status:      models.StatusRemoved,
-			LastApplied: time.Now(),
-		}
-
-		stateFile := filepath.Join(wd, ".stackkit", "state.yaml")
-		if mkErr := os.MkdirAll(filepath.Dir(stateFile), 0750); mkErr != nil {
-			printWarning("Failed to create state directory: %v", mkErr)
-		} else if saveErr := loader.SaveDeploymentState(state, stateFile); saveErr != nil {
-			printWarning("Failed to save deployment state: %v", saveErr)
-		}
-	}
-
-	duration := time.Since(startTime)
-
-	deployLog.Event("remove.complete",
-		slog.Duration("duration", duration),
-	)
-
-	fmt.Println()
-	printSuccess("Remove complete! (took %s)", duration.Round(time.Second))
-	if removePurge {
-		printInfo("Factory reset complete. Run 'stackkit prepare' to start fresh.")
-	}
-
-	return nil
-}
-
-// tryTofuDestroy attempts OpenTofu destroy. Returns true if successful.
-func tryTofuDestroy(ctx context.Context, spec *models.StackSpec, wd string) bool {
-	deployDir := filepath.Join(wd, config.GetDeployDir())
-
-	// Check deploy directory exists
-	if _, statErr := os.Stat(deployDir); os.IsNotExist(statErr) {
-		printWarning("Deploy directory not found — skipping OpenTofu destroy")
-		deployLog.Warn("remove.tofu_skipped", slog.String("reason", "no_deploy_dir"))
-		return false
-	}
-
-	// Check if .terraform state exists (tofu was initialized)
-	tfStatePath := filepath.Join(deployDir, ".terraform")
-	if _, statErr := os.Stat(tfStatePath); os.IsNotExist(statErr) {
-		printWarning("No OpenTofu state found — skipping OpenTofu destroy")
-		deployLog.Warn("remove.tofu_skipped", slog.String("reason", "no_state"))
-		return false
-	}
-
-	// Create executor
-	executor, err := iac.NewExecutorFromSpec(spec, deployDir)
-	if err != nil {
-		printWarning("Could not create executor: %v — falling back to Docker cleanup", err)
-		deployLog.Warn("remove.tofu_skipped", slog.String("reason", "no_executor"), slog.String("error", err.Error()))
-		return false
-	}
-
-	if !executor.IsInstalled() {
-		printWarning("StackKit-packaged OpenTofu is not available — falling back to Docker cleanup")
-		deployLog.Warn("remove.tofu_skipped", slog.String("reason", "not_installed"))
-		return false
-	}
-
-	// Run destroy
-	printInfo("Destroying infrastructure via OpenTofu...")
-	result, err := executor.Destroy(ctx, true)
-	if err != nil {
-		printWarning("OpenTofu destroy error: %v — falling back to Docker cleanup", err)
-		deployLog.Error("remove.tofu_result", slog.Bool("success", false), slog.String("error", err.Error()))
-		return false
-	}
-
-	if result.Stdout != "" {
-		fmt.Println()
-		fmt.Println(result.Stdout)
-	}
-
-	if !result.Success {
-		printWarning("OpenTofu destroy failed — falling back to Docker cleanup")
-		stderr := result.Stderr
-		if len(stderr) > 500 {
-			stderr = stderr[:500]
-		}
-		if result.Stderr != "" {
-			printVerbose("  %s", result.Stderr)
-		}
-		deployLog.Error("remove.tofu_result", slog.Bool("success", false), slog.String("stderr", stderr))
-		return false
-	}
-
-	deployLog.Event("remove.tofu_result", slog.Bool("success", true))
-	printSuccess("OpenTofu destroy completed")
-	return true
+	return errors.New("--workload, --json, and --terminal-evidence-json require canonical Architecture v2 removal")
 }
 
 func removeWholeLocalDeployment(ctx context.Context, wd string, deleteVolumes, purge bool) error {
@@ -330,6 +181,11 @@ func removeWholeLocalDeployment(ctx context.Context, wd string, deleteVolumes, p
 		ctx = context.Background()
 	}
 	printWarning("Removing the local StackKits Docker stack")
+	if deleteVolumes {
+		printWarning("Data policy: delete named volumes owned by the removed StackKits runtime")
+	} else {
+		printInfo("Data policy: retain named application volumes and the original workspace")
+	}
 	client := newRemoveDockerClient()
 	if !client.IsInstalled() {
 		return errors.New("docker is not installed; cannot uninstall the running stack")
@@ -339,7 +195,7 @@ func removeWholeLocalDeployment(ctx context.Context, wd string, deleteVolumes, p
 	}
 	discovered, err := client.ListComposeProjects(ctx)
 	if err != nil {
-		printWarning("Could not list Compose projects: %v", err)
+		return actionableerror.WithDiagnostic("remove_incomplete", fmt.Errorf("list local Compose projects: %w", err))
 	}
 	projects := docker.StackKitsComposeProjectsToRemove(discovered)
 	var failed []string
@@ -352,22 +208,27 @@ func removeWholeLocalDeployment(ctx context.Context, wd string, deleteVolumes, p
 		}
 		printSuccess("  Removed %s", project)
 	}
-	if err := dockerFallbackCleanup(ctx, purge); err != nil {
+	if err := dockerFallbackCleanup(ctx, deleteVolumes, purge); err != nil {
 		failed = append(failed, err.Error())
 	}
-	cleanupFiles(wd, purge)
-	if len(failed) > 0 && !removeForce {
-		return fmt.Errorf("remove incomplete: %s", strings.Join(failed, "; "))
+	if len(failed) > 0 {
+		return actionableerror.WithDiagnostic("remove_incomplete", fmt.Errorf("remove incomplete: %s", strings.Join(failed, "; ")))
 	}
+	cleanupFiles(wd, purge)
 	removeCoreMCPCredentials(wd)
 	printSuccess("Remove complete")
-	printInfo("Re-install with the installer, or stackkit init then apply")
+	if !deleteVolumes {
+		printInfo("Keep the original workspace and release when reinstalling to reuse retained data volumes")
+	} else {
+		printInfo("Named runtime volumes deleted; external backups and host bind mounts are outside this deletion scope")
+	}
 	return nil
 }
 
 // dockerFallbackCleanup removes StackKit resources directly via Docker CLI.
-// Used when OpenTofu destroy fails or is unavailable.
-func dockerFallbackCleanup(ctx context.Context, purge bool) error {
+// Completes local cleanup after Compose removal or unavailable Apply evidence;
+// named data volumes are touched only under the explicit deletion policy.
+func dockerFallbackCleanup(ctx context.Context, deleteVolumes, purge bool) error {
 	dockerClient := newRemoveDockerClient()
 	if !dockerClient.IsInstalled() {
 		printWarning("Docker is not installed — skipping container cleanup")
@@ -412,11 +273,15 @@ func dockerFallbackCleanup(ctx context.Context, purge bool) error {
 		}
 	}
 
-	// 3. Remove volumes
-	volumes, err := dockerClient.ListVolumesByLabel(ctx, "stackkit.layer")
-	if err != nil {
-		printWarning("Could not list volumes: %v", err)
-	} else if len(volumes) > 0 {
+	// 3. Data deletion is a separate explicit policy, including orphaned volumes.
+	var volumes []string
+	if deleteVolumes {
+		volumes, err = dockerClient.ListVolumesByLabel(ctx, "stackkit.layer")
+		if err != nil {
+			return fmt.Errorf("list owned data volumes before deletion: %w", err)
+		}
+	}
+	if len(volumes) > 0 {
 		printInfo("Removing %d volume(s)...", len(volumes))
 		for _, v := range volumes {
 			if rmErr := dockerClient.RemoveVolume(ctx, v); rmErr != nil {
@@ -428,8 +293,8 @@ func dockerFallbackCleanup(ctx context.Context, purge bool) error {
 		}
 	}
 
-	// 4. Remove images (only with purge)
-	if purge {
+	// 4. Purge images only after the owned runtime resources were removed.
+	if purge && len(errors) == 0 {
 		removeStackKitImages(ctx)
 	}
 
@@ -437,6 +302,8 @@ func dockerFallbackCleanup(ctx context.Context, purge bool) error {
 		slog.Int("containers", len(containers)),
 		slog.Int("networks", len(networks)),
 		slog.Int("volumes", len(volumes)),
+		slog.Bool("delete_data", deleteVolumes),
+		slog.Int("failed_resources", len(errors)),
 	)
 
 	if len(errors) > 0 {
@@ -448,7 +315,7 @@ func dockerFallbackCleanup(ctx context.Context, purge bool) error {
 // removeStackKitImages removes pre-pulled StackKit images.
 func removeStackKitImages(ctx context.Context) {
 	images := baseKitImages("")
-	dockerClient := docker.NewClient()
+	dockerClient := newRemoveDockerClient()
 	printInfo("Removing %d image(s)...", len(images))
 	for _, img := range images {
 		if rmErr := dockerClient.RemoveImage(ctx, img); rmErr != nil {

@@ -3,6 +3,7 @@ package resolvedplan
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/capacityfit"
 	"math"
 )
 
@@ -13,23 +14,29 @@ import (
 // The free-space fact must identify the exact resolved storage target; a
 // generic root-filesystem observation cannot authorize this admission.
 func applyDataCapacityAdmission(modules, workloads []any, data, storage, system map[string]any, nodes []nodeView) error {
+	_, err := dataCapacityAdmissionChecks(modules, workloads, data, storage, system, nodes)
+	return err
+}
+
+func dataCapacityAdmissionChecks(modules, workloads []any, data, storage, system map[string]any, nodes []nodeView) (map[string]capacityfit.Check, error) {
+	checks := make(map[string]capacityfit.Check)
 	demands, err := dataCapacityDemands(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(demands) == 0 {
-		return nil
+		return checks, nil
 	}
 
 	moduleIDs := make(map[string]struct{}, len(modules))
 	for index, raw := range modules {
 		module, err := asObject(raw, fmt.Sprintf("resolvedPlan.modules[%d]", index))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		id, err := stringField(module, fmt.Sprintf("resolvedPlan.modules[%d]", index), "id")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		moduleIDs[id] = struct{}{}
 	}
@@ -46,29 +53,29 @@ func applyDataCapacityAdmission(modules, workloads []any, data, storage, system 
 		path := fmt.Sprintf("resolvedPlan.workloads[%d]", index)
 		workload, err := asObject(raw, path)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		alternative, err := objectField(workload, path, "alternative")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		infrastructure, exists, err := optionalObjectField(alternative, path+".alternative", "infrastructure")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !exists {
 			continue
 		}
 		binding, exists, err := optionalObjectField(infrastructure, path+".alternative.infrastructure", "dataBinding")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !exists {
 			continue
 		}
 		bindingRef, err := stringField(binding, path+".alternative.infrastructure.dataBinding", "bindingRef")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		demand, demanded := demands[bindingRef]
 		if !demanded {
@@ -77,24 +84,24 @@ func applyDataCapacityAdmission(modules, workloads []any, data, storage, system 
 		used[bindingRef] = true
 		moduleRef, err := stringField(alternative, path+".alternative", "moduleRef")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if _, exists := moduleIDs[moduleRef]; !exists {
-			return fail(ErrContractConflict, path+".alternative.moduleRef", "capacity-demand binding %q is attached to unknown module %q", bindingRef, moduleRef)
+			return nil, fail(ErrContractConflict, path+".alternative.moduleRef", "capacity-demand binding %q is attached to unknown module %q", bindingRef, moduleRef)
 		}
 		nodeRefs, err := stringListField(workload, path, "nodeRefs", true)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(nodeRefs) == 0 {
-			return fail(ErrContractConflict, path+".nodeRefs", "capacity-demand workload requires at least one selected node placement")
+			return nil, fail(ErrContractConflict, path+".nodeRefs", "capacity-demand workload requires at least one selected node placement")
 		}
 		// Every module using the binding is affected, even when another module
 		// already registered the same physical (binding, node) reservation.
 		moduleStatus[moduleRef] = mergeRuntimeAdmissionStatus(moduleStatus[moduleRef], "ready")
 		for _, nodeRef := range nodeRefs {
 			if _, exists := nodeByID[nodeRef]; !exists {
-				return fail(ErrInvalidInput, path+".nodeRefs", "capacity-demand workload targets unknown node %q", nodeRef)
+				return nil, fail(ErrInvalidInput, path+".nodeRefs", "capacity-demand workload targets unknown node %q", nodeRef)
 			}
 			placement := dataCapacityPlacement{bindingRef: bindingRef, nodeRef: nodeRef}
 			if _, seen := placements[placement]; seen {
@@ -106,71 +113,80 @@ func applyDataCapacityAdmission(modules, workloads []any, data, storage, system 
 	}
 	for bindingRef := range demands {
 		if !used[bindingRef] {
-			return fail(ErrContractConflict, "resolvedPlan.data.bindings."+bindingRef+".capacityDemand", "capacity demand is not bound to a selected workload placement")
+			return nil, fail(ErrContractConflict, "resolvedPlan.data.bindings."+bindingRef+".capacityDemand", "capacity demand is not bound to a selected workload placement")
 		}
 	}
 
 	volumeDriver, err := stringField(storage, "resolvedPlan.storage", "volumeDriver")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if volumeDriver != "local" {
 		// Local free space cannot attest an NFS or otherwise remote storage
 		// authority. Keep generation inspectable, but block Apply explicitly.
+		for nodeRef, requiredGiB := range nodeDemand {
+			check, err := capacityfit.DataStorageCheck(requiredGiB, nil)
+			if err != nil {
+				return nil, err
+			}
+			checks[nodeRef] = check
+		}
 		for moduleRef := range moduleStatus {
 			moduleStatus[moduleRef] = mergeRuntimeAdmissionStatus(moduleStatus[moduleRef], "unverified")
 		}
 	} else {
 		sourceRef, storagePath, err := resolvedStorageTarget(storage, system)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		for nodeRef, requiredGiB := range nodeDemand {
-			status, err := storageCapacityAdmission(nodeByID[nodeRef], sourceRef, storagePath, requiredGiB)
+			check, err := storageCapacityCheck(nodeByID[nodeRef], sourceRef, storagePath, requiredGiB)
 			if err != nil {
-				return err
+				return nil, err
 			}
+			checks[nodeRef] = check
+			status := dataCapacityAdmissionStatus(check.Status)
 			for index, raw := range workloads {
 				path := fmt.Sprintf("resolvedPlan.workloads[%d]", index)
 				workload, err := asObject(raw, path)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				alternative, err := objectField(workload, path, "alternative")
 				if err != nil {
-					return err
+					return nil, err
 				}
 				infrastructure, exists, err := optionalObjectField(alternative, path+".alternative", "infrastructure")
 				if err != nil || !exists {
 					if err != nil {
-						return err
+						return nil, err
 					}
 					continue
 				}
 				binding, exists, err := optionalObjectField(infrastructure, path+".alternative.infrastructure", "dataBinding")
 				if err != nil || !exists {
 					if err != nil {
-						return err
+						return nil, err
 					}
 					continue
 				}
 				bindingRef, err := stringField(binding, path+".alternative.infrastructure.dataBinding", "bindingRef")
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if _, demanded := demands[bindingRef]; !demanded {
 					continue
 				}
 				nodeRefs, err := stringListField(workload, path, "nodeRefs", true)
 				if err != nil {
-					return err
+					return nil, err
 				}
 				if !contains(nodeRefs, nodeRef) {
 					continue
 				}
 				moduleRef, err := stringField(alternative, path+".alternative", "moduleRef")
 				if err != nil {
-					return err
+					return nil, err
 				}
 				moduleStatus[moduleRef] = mergeRuntimeAdmissionStatus(moduleStatus[moduleRef], status)
 			}
@@ -180,11 +196,11 @@ func applyDataCapacityAdmission(modules, workloads []any, data, storage, system 
 	for index, raw := range modules {
 		module, err := asObject(raw, fmt.Sprintf("resolvedPlan.modules[%d]", index))
 		if err != nil {
-			return err
+			return nil, err
 		}
 		moduleRef, err := stringField(module, fmt.Sprintf("resolvedPlan.modules[%d]", index), "id")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		status, selected := moduleStatus[moduleRef]
 		if !selected {
@@ -193,13 +209,13 @@ func applyDataCapacityAdmission(modules, workloads []any, data, storage, system 
 		if existing, ok := module["runtimeAdmission"].(map[string]any); ok {
 			existingStatus, err := stringField(existing, "resolvedPlan.modules."+moduleRef+".runtimeAdmission", "status")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			status = mergeRuntimeAdmissionStatus(status, existingStatus)
 		}
 		module["runtimeAdmission"] = map[string]any{"status": status}
 	}
-	return nil
+	return checks, nil
 }
 
 type dataCapacityDemand struct {
@@ -253,33 +269,49 @@ func resolvedStorageTarget(storage, system map[string]any) (sourceRef, storagePa
 	return "storage.dataRoot", storagePath, err
 }
 
-func storageCapacityAdmission(node nodeView, sourceRef, storagePath string, requiredGiB float64) (string, error) {
+func storageCapacityCheck(node nodeView, sourceRef, storagePath string, requiredGiB float64) (capacityfit.Check, error) {
+	free, err := observedStorageFreeGiB(node, sourceRef, storagePath)
+	if err != nil {
+		return capacityfit.Check{}, err
+	}
+	return capacityfit.DataStorageCheck(requiredGiB, free)
+}
+
+func observedStorageFreeGiB(node nodeView, sourceRef, storagePath string) (*float64, error) {
 	capacity, exists, err := optionalObjectField(node.inventoryFacts, "inventory.nodes."+node.id, "storageCapacity")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if !exists {
-		return "unverified", nil
+		return nil, nil
 	}
 	observedSource, err := stringField(capacity, "inventory.nodes."+node.id+".storageCapacity", "sourceRef")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	observedPath, err := stringField(capacity, "inventory.nodes."+node.id+".storageCapacity", "path")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	freeGiB, err := nonNegativeCapacityNumber(capacity, "inventory.nodes."+node.id+".storageCapacity", "freeGiB")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if observedSource != sourceRef || observedPath != storagePath {
-		return "unverified", nil
+		return nil, nil
 	}
-	if freeGiB < requiredGiB {
-		return "unsatisfied", nil
+	return &freeGiB, nil
+}
+
+func dataCapacityAdmissionStatus(verdict capacityfit.Verdict) string {
+	switch verdict {
+	case capacityfit.Pass:
+		return "ready"
+	case capacityfit.Fail:
+		return "unsatisfied"
+	default:
+		return "unverified"
 	}
-	return "ready", nil
 }
 
 func nonNegativeCapacityNumber(object map[string]any, path, name string) (float64, error) {

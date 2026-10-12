@@ -186,6 +186,21 @@ package foundation
 	order:              int
 	enableVar?:         string
 	guideUrl?:          string
+	clients?: [...{
+		platform: "android" | "ios" | "windows" | "macos" | "linux"
+		kind:     "store" | "download"
+		url:      string
+	}]
+	vendor?: {
+		name:     string
+		website?: string
+		docs?:    string
+		license?: string
+		support?: [...{
+			kind: "donate" | "sponsor" | "purchase"
+			url:  string
+		}]
+	}
 	setupPolicy?:       #SetupPolicy
 	setupActionLabel?:  string
 	delivery?: {
@@ -274,6 +289,28 @@ func renderCatalogServices(b *strings.Builder, services []registry.Service) {
 		fmt.Fprintf(b, "\t\torder:            %d\n", s.Order)
 		writeField(b, "\t\tenableVar:       ", s.EnableVar)
 		writeField(b, "\t\tguideUrl:        ", s.GuideURL)
+		if len(s.Clients) > 0 {
+			b.WriteString("\t\tclients: [\n")
+			for _, client := range s.Clients {
+				fmt.Fprintf(b, "\t\t\t{platform: %s, kind: %s, url: %s},\n", cueStr(client.Platform), cueStr(client.Kind), cueStr(client.URL))
+			}
+			b.WriteString("\t\t]\n")
+		}
+		if v := s.Vendor; v != nil {
+			b.WriteString("\t\tvendor: {\n")
+			fmt.Fprintf(b, "\t\t\tname:    %s\n", cueStr(v.Name))
+			writeField(b, "\t\t\twebsite:", v.Website)
+			writeField(b, "\t\t\tdocs:   ", v.Docs)
+			writeField(b, "\t\t\tlicense:", v.License)
+			if len(v.Support) > 0 {
+				b.WriteString("\t\t\tsupport: [\n")
+				for _, link := range v.Support {
+					fmt.Fprintf(b, "\t\t\t\t{kind: %s, url: %s},\n", cueStr(link.Kind), cueStr(link.URL))
+				}
+				b.WriteString("\t\t\t]\n")
+			}
+			b.WriteString("\t\t}\n")
+		}
 		writeField(b, "\t\tsetupPolicy:     ", s.SetupPolicy)
 		writeField(b, "\t\tsetupActionLabel:", s.SetupActionLabel)
 		if s.Delivery.ManagedBy != "" {

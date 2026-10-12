@@ -421,14 +421,14 @@ _architectureV2HomeAssistantComputeProfiles: {
 
 _architectureV2PrivateAIComputeProfiles: {
 	standard: #ModuleComputeProfileV2 & {
-		description: "CPU inference for an explicitly selected small model. No model is downloaded at install. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile."
+		description: "CPU inference for an explicitly selected small model. Only the model packs the owner selects are downloaded, during Apply. Model size/context determine additional RAM and disk; GPU acceleration is not enabled by this profile."
 		maturity:    "beta", executable: true, realization: "apply-ready"
 		hostFloor: {minCpuCores: 4, minRamGB: 12, minStorageGB: 40}
 		recommended: {cpuCores: 8, ramGB: 16, storageGB: 80}
-		// The optional kombify AI connector declares a memory limit only; it
-		// adds no reservation while it is off.
+		// The optional kombify AI connector and the one-shot model pack pulls
+		// declare a memory limit only; they add no reservation.
 		reservation: ramGB: 1.5
-		components: ["open-webui", "ollama", "kombify-ai-connector"]
+		components: ["open-webui", "ollama", "kombify-ai-connector", "ollama-model-general", "ollama-model-coding", "ollama-model-vision"]
 		provenance: {
 			hostFloor:   _architectureV2PolicyFloorProvenance
 			recommended: _architectureV2PolicyRecommendedProvenance
@@ -762,3 +762,13 @@ _architectureV2StalwartComputeProfiles: {
 	standard: _architectureV2StalwartComputeProfile & _architectureV2CoreHostFloor
 	high:     _architectureV2StalwartComputeProfile & _architectureV2CoreHostFloor
 }
+
+_architectureV2OpencloudComputeProfile: #ModuleComputeProfileV2 & {
+	description: "OpenCloud8.1 native file storage and sharing. Office is a separate explicit add-on; reservations are configured policy, not measured acceptance."
+	maturity:    "experimental", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 1
+	components: ["opencloud"]
+	provenance: {hostFloor: _architectureV2PolicyFloorProvenance, reservation: _architectureV2PolicyReservationProvenance}
+}
+_architectureV2OpencloudComputeProfiles: {standard: _architectureV2OpencloudComputeProfile, high: _architectureV2OpencloudComputeProfile}

@@ -55,6 +55,7 @@ var (
 	confirmationPattern = regexp.MustCompile(`^This operation .+\.$`)
 	argumentNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 	dimensionPattern    = regexp.MustCompile(`^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)+$`)
+	actionTypePattern   = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 	availabilities      = map[string]bool{"alpha": true, "beta": true, "preview": true, "ga": true}
 	// Flags the CLI runtime adds itself; a flag-bound argument must not use them.
 	reservedFlags = map[string]bool{
@@ -77,8 +78,10 @@ func validate(s *Surface, g *generator) {
 		validateSafety(op, g)
 		validateActionClass(op, g)
 		validateResourceBinding(op, g)
+		validateActionType(op, g)
 	}
 	validateToolNames(s, g)
+	validateActionTypesUnique(s, g)
 	validateCommands(s, g)
 	if s.MCP == nil {
 		for _, op := range s.Operations {
@@ -160,6 +163,46 @@ func validateActionClass(op *Operation, g *generator) {
 	}
 	if msg := actionClassProblem(op.MCP); msg != "" {
 		g.add(op.OperationID, "action-class", "%s", msg)
+	}
+}
+
+// maxActionTypeLength bounds an action type like the Gateway catalog loader.
+const maxActionTypeLength = 128
+
+// validateActionType checks a declared automation action type: the shape of
+// automation-spec.v1 action.type and workpath-graph.v1 actionType (lower-case
+// words joined by underscores), and only on a write tool. A dotted name, such
+// as a product-internal brokered "ext.<broker>.<toolkit>.<action>", is no
+// AutomationSpec v1 action type, so a Workpath could never lower to it. An
+// automation action changes state, so a read tool that claims one is a wiring
+// mistake the Gateway would refuse.
+func validateActionType(op *Operation, g *generator) {
+	if op.MCP == nil || op.MCP.ActionType == "" {
+		return
+	}
+	switch at := op.MCP.ActionType; {
+	case len(at) > maxActionTypeLength || !actionTypePattern.MatchString(at):
+		g.add(op.OperationID, "action-type", "x-kombify-mcp.actionType %q must match %s (at most %d characters)", at, actionTypePattern, maxActionTypeLength)
+	case op.MCP.Annotations.ReadOnlyHint:
+		g.add(op.OperationID, "action-type", "x-kombify-mcp.actionType %q is declared on a read-only tool; an automation action is a write", at)
+	}
+}
+
+// validateActionTypesUnique refuses two tools of one capability with the same
+// action type: the automation lowering resolves a capability to its action
+// type, and a duplicate would make that mapping ambiguous.
+func validateActionTypesUnique(s *Surface, g *generator) {
+	owner := map[string]string{}
+	for _, op := range s.Operations {
+		if op.MCP == nil || op.MCP.ActionType == "" {
+			continue
+		}
+		key := op.MCP.RequiredCapability + "\x00" + op.MCP.ActionType
+		if first, dup := owner[key]; dup {
+			g.add(op.OperationID, "action-type", "x-kombify-mcp.actionType %q is already declared by %s for capability %s", op.MCP.ActionType, first, op.MCP.RequiredCapability)
+			continue
+		}
+		owner[key] = op.OperationID
 	}
 }
 

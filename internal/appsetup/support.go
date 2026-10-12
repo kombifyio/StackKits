@@ -31,6 +31,12 @@ func DescribeNativeAction(action string, support NativeActionSupport) (NativeAct
 // executing it for a selected runtime target.
 func NativeActionMetadata(action string) (NativeActionDescription, bool) {
 	switch action {
+	case GuacamoleOwnerLoginAction:
+		return NativeActionDescription{Title: "Remote owner login", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/remote/agent/owner-setup/SKILL.md"}, true
+	case PaperlessOwnerLoginAction:
+		return NativeActionDescription{Title: "Documents owner login", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/documents/agent/owner-setup/SKILL.md"}, true
+	case GiteaOwnerLoginAction, ForgejoOwnerLoginAction:
+		return NativeActionDescription{Title: "Dev owner login", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/dev/agent/owner-setup/SKILL.md"}, true
 	case "jellyfin-owner-bootstrap":
 		return NativeActionDescription{
 			Title:                        "Media owner setup",

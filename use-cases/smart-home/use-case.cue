@@ -40,8 +40,8 @@ Package: foundation.#UseCasePackage & {
 			realization: "external"
 			placementModes: ["local-only", "standard"]
 			managedServerlessEligible: false
-			requiresControlPlane: false
-			requiresLocalBridge: false
+			requiresControlPlane:      false
+			requiresLocalBridge:       false
 			notes: ["Executable through an admitted external API owner. VM resources, images, endpoints and credentials remain in provider custody. Imported data uses home-assistant-imported instead and never receives the fresh baseline."]
 		}
 		"kombify-managed": {
@@ -62,7 +62,7 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       true
-			notes: ["Cloud-only Managed intent, outside Techstack Core/Standard. Reuse Home Assistant integrations, an existing MQTT broker and optional Zigbee2MQTT; no Kombify device bridge is implied. These optional services are not yet provisioned by native StackKits."]
+			notes: ["Cloud-only Managed intent, outside Techstack Core/Standard. Reuse Home Assistant integrations, an existing MQTT broker and optional Zigbee2MQTT; no Kombify device bridge is implied. Native Mosquitto and Zigbee2MQTT are individually selected optional workloads; they do not grant Managed provisioning or LAN/device access."]
 		}
 		"self-hosted-container": {
 			displayName: "Self-hosted Home Assistant Container"
@@ -98,20 +98,20 @@ Package: foundation.#UseCasePackage & {
 
 	computeTiers: {
 		low: {
-			included: true
+			included:   true
 			moduleSlug: "home-assistant"
 			functions: ["smart-home-hub", "automation"]
 			load: {residency: "always-on", baseline: "active-resident", burst: "interactive"}
 			notes: ["24/7 radio/state loop is the base load. Classic constrained-device resident. Native MCP and extra bridges stay optional."]
 		}
 		standard: {
-			included: true
+			included:   true
 			moduleSlug: "home-assistant"
 			functions: ["smart-home-hub", "native-product-mcp", "assist-api", "automation"]
 			load: {residency: "always-on", baseline: "active-resident", burst: "interactive"}
 		}
 		high: {
-			included: true
+			included:   true
 			moduleSlug: "home-assistant"
 			functions: ["smart-home-hub", "native-product-mcp", "assist-api", "automation"]
 			load: {residency: "always-on", baseline: "active-resident", burst: "interactive"}
@@ -131,14 +131,14 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "mosquitto"
 			role:       "supporting"
 			required:   false
-			rationale:  "Planned optional MQTT broker; not included in the native Home Assistant Container rollout."
+			rationale:  "Optional native smart-home-mqtt workload. Broker selection does not configure the Home Assistant integration or enable a LAN listener."
 			capabilities: ["mqtt"]
 		}
 		zigbee2mqtt: {
 			moduleSlug: "zigbee2mqtt"
 			role:       "supporting"
 			required:   false
-			rationale:  "Existing upstream Zigbee2MQTT connected to Home Assistant through MQTT. Its optional deployment integration is planned; declaration alone does not install it."
+			rationale:  "Optional native smart-home-zigbee workload with explicit MQTT server, credential custody and serial device intent. Home Assistant discovery is upstream-owned; device support needs its own receipt."
 			capabilities: ["zigbee", "mqtt-bridge"]
 		}
 	}
@@ -154,12 +154,12 @@ Package: foundation.#UseCasePackage & {
 			capabilities: ["lifecycle", "setup", "evidence", "handoff"]
 		}
 		"home-assistant": {
-			kind:      "home-assistant-native"
-			name:      "home-assistant"
-			owner:     "product"
-			endpoint:  "/api/mcp"
-			transport: "streamable-http"
-			auth:      "home-assistant-auth"
+			kind:          "home-assistant-native"
+			name:          "home-assistant"
+			owner:         "product"
+			endpoint:      "/api/mcp"
+			transport:     "streamable-http"
+			auth:          "home-assistant-auth"
 			nativeProduct: true
 			capabilities: ["assist", "exposed-entities", "tools", "resources"]
 		}
@@ -200,11 +200,11 @@ Package: foundation.#UseCasePackage & {
 			evidence:  "Draft automation or scene plan without applying changes."
 		}
 		"service-call": {
-			mode:      "write"
-			authority: "gated-write"
-			source:    "product-mcp"
+			mode:             "write"
+			authority:        "gated-write"
+			source:           "product-mcp"
 			requiresApproval: true
-			evidence: "Audited Home Assistant service call through exposed MCP tools."
+			evidence:         "Audited Home Assistant service call through exposed MCP tools."
 		}
 		"bridge-diagnostics": {
 			mode:      "ops"
@@ -231,7 +231,7 @@ Package: foundation.#UseCasePackage & {
 	}
 
 	agentSurface: {
-		equipPolicy:  "on-generate"
+		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: [{
 			id:                   "home-assistant"
@@ -257,7 +257,7 @@ Package: foundation.#UseCasePackage & {
 			audience: "product-user"
 			source:   "stackkits"
 			path:     "use-cases/smart-home/agent/homelab-mcp/SKILL.md"
-		}]
+		}, {id: "mqtt-discovery", audience: "stack-operator", source: "stackkits", path: "use-cases/smart-home/agent/mqtt-discovery/SKILL.md"}]
 		cliHelpers: [{
 			command: "stackkit agent mcp-config"
 			purpose: "Print the stackkit lifecycle MCP client connection. Product MCP remains Home Assistant /api/mcp."

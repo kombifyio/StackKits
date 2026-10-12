@@ -268,6 +268,12 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichPowerTools, deployment, observation)
 	case homeAssistantWorkloadModuleRef:
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHomeAssistant, deployment, observation)
+	case "stackkits-adguard-home-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationAdguardHome, deployment, observation)
+	case "stackkits-opencloud-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationOpencloud, deployment, observation)
+	case "stackkits-guacamole-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationGuacamole, deployment, observation)
 	default:
 		if application, internal := internalSelectedPaaSModules[deployment.ModuleRef]; internal {
 			return validateSelectedPaaSApplicationObservation(application, deployment, observation)

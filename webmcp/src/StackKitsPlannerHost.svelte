@@ -13,6 +13,7 @@
 
   export let sourceSha: string;
   export let preselectedStackkitId = "";
+  export let capacityAssetBaseURL: string | undefined = undefined;
 
   let session: PlannerSession | undefined;
   let webMcpAvailable = false;
@@ -49,7 +50,7 @@
           webMcpStatus = createWebMcpStatus("catalog_source_mismatch");
           return;
         }
-        const nextSession = setSharedPlannerSession(createPlannerSession(catalog, { sourceSha }));
+        const nextSession = setSharedPlannerSession(createPlannerSession(catalog, { sourceSha, capacityAssetBaseURL }));
         session = nextSession;
         webMcpStatus = createWebMcpStatus("checking");
         const candidate = await registerStackKitsWebMcp({

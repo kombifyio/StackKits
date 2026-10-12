@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -70,6 +71,12 @@ func (a *KomodoAdapter) ApplyCompose(ctx context.Context, manifest AppManifest) 
 func (a *KomodoAdapter) UpsertStack(ctx context.Context, manifest AppManifest) (DeploymentRef, error) {
 	if err := a.validateConfig(); err != nil {
 		return DeploymentRef{}, err
+	}
+	if manifest.HostDirectory != "" {
+		if !filepath.IsAbs(manifest.HostDirectory) || filepath.Clean(manifest.HostDirectory) != manifest.HostDirectory ||
+			manifest.ComposePath != "compose.yaml" || strings.TrimSpace(a.cfg.ServerID) == "" {
+			return DeploymentRef{}, fmt.Errorf("Komodo host project requires an exact absolute directory, compose.yaml and a server identity")
+		}
 	}
 	payload := map[string]any{
 		"name":   manifest.Name,
@@ -405,6 +412,19 @@ func komodoStackConfig(manifest AppManifest, cfg HTTPConfig) map[string]any {
 	if cfg.ServerID != "" {
 		config["server_id"] = cfg.ServerID
 	}
+	if manifest.HostDirectory != "" {
+		config["file_contents"] = ""
+		config["files_on_host"] = true
+		config["run_directory"] = manifest.HostDirectory
+		config["file_paths"] = []string{manifest.ComposePath}
+		// Empty environment prevents Komodo from overwriting the node's .env.
+		// The request carries no environment contents. Komodo's upstream
+		// runtime inspection remains restricted to this node's private Core.
+		config["environment"] = ""
+		config["env_file_path"] = ".env"
+		config["skip_secret_interp"] = true
+		config["ignore_services"] = append([]string(nil), manifest.IgnoredServices...)
+	}
 	if route := manifestRouteURL(manifest); route != "" {
 		config["links"] = []string{route}
 	}
@@ -495,7 +515,7 @@ func komodoStackObservedStatus(values map[string]any) string {
 	if values == nil {
 		return ""
 	}
-	if status := firstString(values, "status", "state", "deployment_status", "deploymentState"); status != "" {
+	if status := firstString(values, "state", "status", "deploymentState", "deployment_status"); status != "" {
 		return strings.TrimSpace(status)
 	}
 	for _, key := range []string{"info", "status_info", "deployment", "resource"} {
@@ -503,7 +523,9 @@ func komodoStackObservedStatus(values map[string]any) string {
 		if !ok {
 			continue
 		}
-		if status := firstString(nested, "status", "state", "deployment_status", "deploymentState"); status != "" {
+		// Komodo's state is the machine-readable StackState. The status text
+		// is a display summary such as "running(1)" and can include counts.
+		if status := firstString(nested, "state", "status", "deploymentState", "deployment_status"); status != "" {
 			return strings.TrimSpace(status)
 		}
 	}

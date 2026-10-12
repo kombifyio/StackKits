@@ -3,6 +3,8 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,6 +29,9 @@ func machineAwareNoArgs(cmd *cobra.Command, args []string) error {
 func commandRequestsMachineOutput(cmd *cobra.Command) bool {
 	if cmd == nil {
 		return false
+	}
+	if cmd.Name() == "capacity" {
+		return true
 	}
 	for current := cmd; current != nil; current = current.Parent() {
 		for _, name := range []string{"json", "jsonl", "terminal-evidence-json"} {
@@ -72,6 +77,13 @@ func machineCommandFailureReason(cmd *cobra.Command, status string) string {
 func typedProductFailureReason(err error) (reason string, typed bool) {
 	var artifact *generationartifact.Error
 	if errors.As(err, &artifact) && artifact != nil {
+		if artifact.Code == generationartifact.ErrReadinessBlocked {
+			for _, blocker := range artifact.Blockers {
+				if blocker.Code == "runtime-capacity-unsatisfied" {
+					return blocker.Code, true
+				}
+			}
+		}
 		switch artifact.Code {
 		case generationartifact.ErrInvalidPlan, generationartifact.ErrInvalidContract,
 			generationartifact.ErrNonCanonical, generationartifact.ErrHashMismatch,
@@ -108,16 +120,29 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 	if cmd == nil || err == nil {
 		return err
 	}
+	var entitlementDenial *managedentitlement.Denial
+	if errors.As(err, &entitlementDenial) {
+		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", entitlementDenial.Envelope()); writeErr != nil {
+			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
+		}
+		return err
+	}
+	status, detail := commandFailureDetail(cmd, err, guidance...)
+	if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), status, detail); writeErr != nil {
+		return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
+	}
+	return err
+}
+
+// One projection serves both JSON output and the human terminal diagnosis.
+func commandFailureDetail(cmd *cobra.Command, err error, guidance ...string) (string, actionableerror.Contract) {
 	var memberDenial *localevidence.MemberSigningDenial
 	if errors.As(err, &memberDenial) {
 		detail := actionableerror.New(
 			"stackkit_command_failed", localevidence.ReasonMemberCustodyVerifyOnly,
 			logging.RedactText(err.Error()), memberDenial.Guidance(), false,
 		)
-		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", detail); writeErr != nil {
-			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
-		}
-		return err
+		return "denied", detail
 	}
 	// A backup configuration or schedule approval made for an earlier Apply
 	// (every re-apply, a CLI upgrade included, re-signs Plan and Apply) is a
@@ -130,10 +155,7 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 			"stackkit_command_failed", "backup_configuration_stale",
 			logging.RedactText(err.Error()), staleConfiguration.Guidance(), false,
 		)
-		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "failed", detail); writeErr != nil {
-			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
-		}
-		return err
+		return "failed", detail
 	}
 	var staleSchedule *localbackupschedule.StaleAuthorizationError
 	if errors.As(err, &staleSchedule) {
@@ -141,17 +163,12 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 			"stackkit_command_failed", "backup_schedule_stale",
 			logging.RedactText(err.Error()), staleSchedule.Guidance(), false,
 		)
-		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "failed", detail); writeErr != nil {
-			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
-		}
-		return err
+		return "failed", detail
 	}
 	var entitlementDenial *managedentitlement.Denial
 	if errors.As(err, &entitlementDenial) {
-		if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", entitlementDenial.Envelope()); writeErr != nil {
-			return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
-		}
-		return err
+		return "denied", actionableerror.New(entitlementDenial.ErrorCode, entitlementDenial.ReasonCode,
+			logging.RedactText(err.Error()), entitlementDenial.UserGuidance.NextSteps, entitlementDenial.Retryable)
 	}
 	var actionableDenial interface {
 		ActionableError() actionableerror.Contract
@@ -159,10 +176,12 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 	if errors.As(err, &actionableDenial) {
 		detail := actionableDenial.ActionableError()
 		if detail.Validate() == nil {
-			if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", detail); writeErr != nil {
-				return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
+			status := "denied"
+			var condition interface{ ActionableStatus() string }
+			if errors.As(err, &condition) && condition.ActionableStatus() == "failed" {
+				status = "failed"
 			}
-			return err
+			return status, detail
 		}
 	}
 	status := machineCommandFailureStatus(err)
@@ -192,24 +211,34 @@ func writeMachineCommandFailure(cmd *cobra.Command, err error, guidance ...strin
 		}
 		message = "StackKits rejected the command at a typed product boundary."
 	}
+	var pathError *os.PathError
+	if errors.As(err, &pathError) && os.IsNotExist(pathError) {
+		switch filepath.Base(pathError.Path) {
+		case "stack-spec.yaml", "kombination.yaml":
+			reason = "workspace_missing"
+		}
+	}
+	if diagnostic := diagnoseExecutorFailure(err); diagnostic.Code == "authorization_time_mismatch" || diagnostic.Code == "origin_tls_rejected" {
+		reason = diagnostic.Code
+	}
 	retryAfter := ""
 	if runtime := applyoutcome.Classify(err.Error()); runtime.Class != applyoutcome.ClassUnknown {
 		status = "failed"
 		reason = string(runtime.Class)
 		retryable = runtime.Retryable
-		guidance = append(append([]string(nil), runtime.Remediation...), guidance...)
 		if retryable && !runtime.RetryAfter.IsZero() {
 			retryAfter = runtime.RetryAfter.UTC().Format(time.RFC3339)
 		}
+	}
+	if known, ok := actionableerror.Diagnostic(reason); ok {
+		status = "failed"
+		message, guidance, retryable = known.Message, known.UserGuidance, known.Retryable
 	}
 	detail := actionableerror.New(
 		"stackkit_command_failed", reason, message, guidance, retryable,
 	)
 	detail.RetryAfter = retryAfter
-	if writeErr := writeCommandResultStatus(cmd, cmd.CommandPath(), status, detail); writeErr != nil {
-		return errors.Join(err, fmt.Errorf("write machine-readable command failure: %w", writeErr))
-	}
-	return err
+	return status, detail
 }
 
 func machineAwareCommandError(cmd *cobra.Command, err error, guidance ...string) error {

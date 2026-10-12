@@ -294,10 +294,41 @@ package foundation
 		enableVar?: =~"^enable_[a-z_]+$"
 		// Public Mintlify guide for the service row in the generated Node Hub.
 		guideUrl?: =~"^https://docs[.]kombify[.]io/.+"
+		// Official end-user clients for this application (store entries and
+		// installer downloads), shown as "Apps & Downloads" next to the card.
+		// Only vendor-published URLs; never a mirror or a guessed link.
+		clients?: [...#ServiceClient]
+		// The upstream project behind the application: who makes it, where its
+		// own documentation and website live, its license, and where users can
+		// support its developers. Vendor-published URLs only.
+		vendor?: #ServiceVendor
 	}
 
 	// Allow additional custom fields for service-specific extensions
 	...
+}
+
+// #ServiceClient is one official client of an application: a store entry or
+// a direct installer download for one platform.
+#ServiceClient: {
+	platform: "android" | "ios" | "windows" | "macos" | "linux"
+	kind:     "store" | "download"
+	url:      =~"^https://.+"
+}
+
+// #ServiceVendor describes the upstream project of an application.
+#ServiceVendor: {
+	name:     string
+	website?: =~"^https://.+"
+	// The vendor's own product documentation (ours is guideUrl).
+	docs?: =~"^https://.+"
+	// SPDX license identifier, e.g. "AGPL-3.0".
+	license?: string
+	// Where users can support the developers: donate, sponsor or buy.
+	support?: [...{
+		kind: "donate" | "sponsor" | "purchase"
+		url:  =~"^https://.+"
+	}]
 }
 
 // #ServiceType categorizes services (comprehensive homelab taxonomy)

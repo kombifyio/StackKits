@@ -68,7 +68,8 @@ func (p servicePlanProjection) applicationServiceControls(declared []serviceDefi
 	}
 	result := make([]serviceDefinition, 0)
 	for _, workload := range p.Workloads {
-		if workload.Alternative.Runtime.Adapter.ID != standaloneComposeRuntimeAdapter || len(workload.NodeRefs) != 1 {
+		adapterID := workload.Alternative.Runtime.Adapter.ID
+		if (adapterID != standaloneComposeRuntimeAdapter && adapterID != "komodo") || len(workload.NodeRefs) != 1 {
 			continue
 		}
 		serviceRef := workload.Alternative.Route.ServiceRef
@@ -102,9 +103,13 @@ func (p servicePlanProjection) applicationServiceControls(declared []serviceDefi
 		}
 		taken["key\x00"+workload.ID] = struct{}{}
 		taken["ref\x00"+serviceRef] = struct{}{}
+		controlAdapter := applicationComposeAdapter
+		if adapterID == "komodo" {
+			controlAdapter = "komodo"
+		}
 		result = append(result, serviceDefinition{
 			ModuleID: workload.Alternative.ModuleRef,
-			Key:      workload.ID, ServiceRef: serviceRef, Adapter: applicationComposeAdapter,
+			Key:      workload.ID, ServiceRef: serviceRef, Adapter: controlAdapter,
 			RuntimeRef: workload.ID + "-" + workload.NodeRefs[0], ComponentRefs: components,
 			AllowedActions: []string{ActionLogs, ActionRestart, ActionStart, ActionStop},
 		})

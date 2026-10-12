@@ -26,6 +26,7 @@ var (
 	initModuleAcceleratorProfiles []string
 	initUseCaseAlternatives       []string
 	initUseCaseCapabilities       []string
+	initDataCapacity              []string
 	initHardwareProfile           string
 	initName                      string
 	initDomain                    string
@@ -126,6 +127,7 @@ func init() {
 	initCmd.Flags().StringArrayVar(&initModuleAcceleratorProfiles, "module-accelerator-profile", nil, "Native v2alpha2: module-id=accelerator-profile for a declared accelerator dimension")
 	initCmd.Flags().StringArrayVar(&initUseCaseAlternatives, "use-case-alternative", nil, "Native v2alpha2: use-case-id=alternative; include required core workloads")
 	initCmd.Flags().StringArrayVar(&initUseCaseCapabilities, "use-case-capability", nil, "Native v2alpha2: use-case.capability=option or off (e.g. ai.chat=open-webui); requires --use-case")
+	initCmd.Flags().StringArrayVar(&initDataCapacity, "data-capacity", nil, "Native v2alpha2: binding=JSON with explicit initialGiB, growthGiBPerMonth, horizonMonths and reservePercent; repeat per selected data binding")
 	initCmd.Flags().BoolVar(&initCatalogDefaults, "catalog-defaults", false, "Accept CUE catalog defaults for omitted native alternatives and compute profiles; persist explicit intent")
 	initCmd.Flags().StringVar(&initHardwareProfile, "hardware-profile", "", "Device class for nodes[0].hardware.profile (standard, pi, gpu, storage). pi is a constrained homelab device, not Raspberry-only. Not auto-detected from inventory")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")

@@ -7,6 +7,7 @@ import {
 } from "./catalog.js";
 import { abortedResult, authorityFailure, makeNotice, makeResult } from "./result.js";
 import { validateToolInput } from "./schema.js";
+import { assessWithCapacityEngine, capacityOverall, loadCapacityEngine, type CapacityVector } from "./capacity-engine.js";
 import type {
   AssessCapacityInput,
   CapacityAxis,
@@ -41,12 +42,12 @@ import type {
   WebMcpResult,
 } from "./types.js";
 
-const CAPACITY_AXES = ["cpu_cores", "ram_gb", "storage_gb"] as const;
 const AUTHORING_DOMAIN = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const AUTHORING_NAME = /^[a-z][a-z0-9-]{0,62}$/;
 
 export interface PlannerOptions {
   sourceSha?: string;
+  capacityAssetBaseURL?: string | URL;
 }
 
 export interface PlannerInvocationOptions {
@@ -72,11 +73,15 @@ export class PlannerService {
   readonly catalogValidation: CatalogValidation;
   readonly catalog?: WebMcpCatalog;
   readonly sourceSha?: string;
+  readonly capacityAssetBaseURL?: string | URL;
 
   constructor(catalog: unknown, options: PlannerOptions = {}) {
     let validation = validateCatalog(catalog);
     let validatedCatalog = validation.catalog;
     this.sourceSha = options.sourceSha;
+    this.capacityAssetBaseURL = options.capacityAssetBaseURL;
+    // Start static initialization with the page/session, before tool execution.
+    void loadCapacityEngine(this.capacityAssetBaseURL).catch(() => {});
     if (validatedCatalog && options.sourceSha && options.sourceSha !== validatedCatalog.source_sha) {
       validation = { valid: false, issues: ["configured build source SHA does not match the catalog"] };
       validatedCatalog = undefined;
@@ -202,7 +207,13 @@ export class PlannerService {
     if (resolved.notices.some((notice) => notice.severity === "error")) {
       return makeResult(tool, "invalid_input", {}, this.catalog, resolved.notices, selection) as PlannerResult<typeof tool>;
     }
-    const capacity = evaluateCapacity(resolved.modules, input.declared_capacity);
+    let capacity: CapacityData;
+    try {
+      capacity = await projectCapacityAssessment(resolved.modules, input.declared_capacity, this.capacityAssetBaseURL);
+    } catch {
+      return makeResult(tool, "blocked", {}, this.catalog, [makeNotice("CAPACITY_ENGINE_UNAVAILABLE", "error", "The shared Go capacity engine is unavailable; reload the host's static assets.")], selection) as PlannerResult<typeof tool>;
+    }
+    if (options.signal?.aborted) return abortedResult(tool, this.catalog);
     return makeResult(tool, "success", capacity, this.catalog, [
       ...resolved.notices,
       ...capacityNotices(capacity, false),
@@ -226,7 +237,13 @@ export class PlannerService {
       return makeResult(tool, "invalid_input", this.emptyHandoff("unverified", [resolved.notices[0]?.code ?? "INVALID_INPUT"]), this.catalog, resolved.notices, selection);
     }
 
-    const capacity = evaluateCapacity(resolved.modules, input.declared_capacity);
+    let capacity: CapacityData;
+    try {
+      capacity = await projectCapacityAssessment(resolved.modules, input.declared_capacity, this.capacityAssetBaseURL);
+    } catch {
+      return makeResult(tool, "blocked", this.emptyHandoff("unverified", ["CAPACITY_ENGINE_UNAVAILABLE"]), this.catalog, [makeNotice("CAPACITY_ENGINE_UNAVAILABLE", "error", "The shared Go capacity engine is unavailable; reload the host's static assets.")], selection) as PlannerResult<typeof tool>;
+    }
+    if (options.signal?.aborted) return abortedResult(tool, this.catalog);
     const notices = [...resolved.notices, ...capacityNotices(capacity, true)];
     const blockedReasons: string[] = [];
     if (capacity.overall === "fail") blockedReasons.push("DECLARED_CAPACITY_BELOW_MINIMUM");
@@ -461,103 +478,67 @@ export function createPlanner(catalog: unknown, options: PlannerOptions = {}): P
 }
 
 export function overallCapacityStatus(statuses: CapacityStatus[]): CapacityStatus {
-  if (statuses.includes("fail")) return "fail";
-  if (statuses.includes("unverified")) return "unverified";
-  if (statuses.includes("warning")) return "warning";
-  return "pass";
+  return capacityOverall(statuses);
 }
 
-function evaluateCapacity(
-  modules: ResolvedSelection["modules"],
-  declared: PartialDeclaredCapacity,
-): CapacityData {
-  const unverifiedModules = modules
-    .filter((entry) => CAPACITY_AXES.some((axis) => !moduleAxisComplete(entry, axis)))
-    .map((entry) => entry.module.module_id)
-    .sort();
-  const floor = maxVectors(modules.map((entry) => entry.compute.host_floor));
-  const reservation = sumVectors(modules.flatMap((entry) => [
-    entry.compute.reservation,
-    entry.storage?.reservation,
-    entry.accelerator?.reservation,
-  ]));
-  const recommendation = sumVectors(modules.flatMap((entry) => [
-    maxVectors([entry.compute.recommended, entry.compute.reservation]),
-    entry.compute.headroom,
-    entry.storage?.reservation,
-    entry.accelerator?.reservation,
-  ]));
-
-  const checks: CapacityCheck[] = CAPACITY_AXES.map((axis) => {
-    const observed = declared[axis];
-    const minimum = maxNumber(floor[axis], reservation[axis]);
-    const recommended = maxNumber(minimum, recommendation[axis]);
-    if (typeof observed !== "number") {
-      return compactCheck(axis, undefined, minimum, recommended, "unverified", "DECLARED_CAPACITY_INCOMPLETE");
-    }
-    if (typeof minimum === "number" && observed < minimum) {
-      return compactCheck(axis, observed, minimum, recommended, "fail", "DECLARED_CAPACITY_BELOW_MINIMUM");
-    }
-    if (!moduleAxisCompleteForAll(modules, axis) || typeof minimum !== "number") {
-      return compactCheck(axis, observed, minimum, recommended, "unverified", "MODULE_PROFILE_CAPACITY_UNDECLARED");
-    }
-    if (typeof recommended === "number" && observed < recommended) {
-      return compactCheck(axis, observed, minimum, recommended, "warning", "DECLARED_CAPACITY_BELOW_RECOMMENDATION");
-    }
-    return compactCheck(axis, observed, minimum, recommended, "pass", "DECLARED_CAPACITY_PASS");
-  });
+function capacityVector(vector?: ResourceVector): CapacityVector {
   return {
-    declared_capacity: clone(declared),
-    checks,
-    overall: overallCapacityStatus(checks.map((check) => check.status)),
-    origin: "user_declared",
-    unverified_modules: unverifiedModules,
+    ...(vector?.cpu_cores === undefined ? {} : { cpuCores: vector.cpu_cores }),
+    ...(vector?.ram_gb === undefined ? {} : { ramGB: vector.ram_gb }),
+    ...(vector?.storage_gb === undefined ? {} : { storageGB: vector.storage_gb }),
   };
 }
 
-function moduleAxisCompleteForAll(
+async function projectCapacityAssessment(
   modules: ResolvedSelection["modules"],
-  axis: CapacityAxis,
-): boolean {
-  return modules.every((entry) => moduleAxisComplete(entry, axis));
-}
-
-/**
- * Capacity authority is evaluated per axis. A partial workload reservation can
- * establish RAM while leaving CPU and storage unverified; an observed value
- * below a known floor still fails before that incompleteness is reported.
- */
-function moduleAxisComplete(
-  entry: ResolvedSelection["modules"][number],
-  axis: CapacityAxis,
-): boolean {
-  const computeComplete = entry.compute.capacity_declaration === "declared"
-    || (entry.compute.capacity_declaration === "partial"
-      && hasAxis(axis, entry.compute.host_floor, entry.compute.reservation));
-  const selectedAxes = [entry.storage, entry.accelerator].filter((profile): profile is ModuleAxisProfile => Boolean(profile));
-  const axesComplete = selectedAxes.every((profile) => hasAxis(axis, profile.reservation));
-  return computeComplete && axesComplete;
-}
-
-function hasAxis(axis: CapacityAxis, ...vectors: Array<ResourceVector | undefined>): boolean {
-  return vectors.some((vector) => typeof vector?.[axis] === "number");
-}
-
-function compactCheck(
-  axis: CapacityAxis,
-  observed: number | undefined,
-  minimum: number | undefined,
-  recommended: number | undefined,
-  status: CapacityStatus,
-  reason: CapacityCheck["reason_code"],
-): CapacityCheck {
+  declared: PartialDeclaredCapacity,
+  assetBaseURL?: string | URL,
+): Promise<CapacityData> {
+  const nodeRef = "declared-host";
+  const assessment = await assessWithCapacityEngine({
+    modules: modules.map((entry) => ({
+      id: entry.module.module_id,
+      nodeRefs: [nodeRef],
+      capacityDeclaration: entry.compute.capacity_declaration,
+      compute: {
+        hostFloor: capacityVector(entry.compute.host_floor),
+        reservation: capacityVector(entry.compute.reservation),
+        recommended: capacityVector(entry.compute.recommended),
+        headroom: capacityVector(entry.compute.headroom),
+      },
+      orthogonalReservations: [entry.storage, entry.accelerator]
+        .filter((profile): profile is ModuleAxisProfile => profile !== undefined)
+        .map((profile) => capacityVector(profile.reservation)),
+    })),
+    capacities: [{ nodeRef, origin: "declared", values: capacityVector(declared) }],
+  }, assetBaseURL);
+  const node = assessment.nodes.find((entry) => entry.nodeRef === nodeRef);
+  if (!node || node.origin !== "declared") throw new Error("capacity engine returned a different origin");
+  const axes: Record<string, CapacityAxis> = { cpuCores: "cpu_cores", ramGB: "ram_gb", storageGB: "storage_gb" };
+  const reasons: Record<string, CapacityCheck["reason_code"]> = {
+    CAPACITY_UNDECLARED: "DECLARED_CAPACITY_INCOMPLETE",
+    CAPACITY_BELOW_MINIMUM: "DECLARED_CAPACITY_BELOW_MINIMUM",
+    MODULE_CAPACITY_UNDECLARED: "MODULE_PROFILE_CAPACITY_UNDECLARED",
+    CAPACITY_BELOW_RECOMMENDATION: "DECLARED_CAPACITY_BELOW_RECOMMENDATION",
+    CAPACITY_PASS: "DECLARED_CAPACITY_PASS",
+  };
+  const checks: CapacityCheck[] = node.checks.map((check) => {
+    const axis = axes[check.axis];
+    const reason = reasons[check.reasonCode];
+    if (!axis || !reason) throw new Error("capacity engine returned an unknown public check");
+    return {
+      axis,
+      ...(check.observed === undefined ? {} : { observed: check.observed }),
+      ...(check.minimum === undefined ? {} : { minimum: check.minimum }),
+      ...(check.recommended === undefined ? {} : { recommended: check.recommended }),
+      status: check.status,
+      reason_code: reason,
+    };
+  });
   return {
-    axis,
-    ...(typeof observed === "number" ? { observed } : {}),
-    ...(typeof minimum === "number" ? { minimum } : {}),
-    ...(typeof recommended === "number" ? { recommended } : {}),
-    status,
-    reason_code: reason,
+    declared_capacity: clone(declared), checks,
+    overall: assessment.overall, origin: "user_declared",
+    unverified_modules: node.demand.unverifiedModuleRefs,
   };
 }
 
@@ -641,29 +622,6 @@ function compactAxisProfile(profile: ModuleAxisProfile): ModuleProfilesData["mod
 
 function capacityTuple(vector?: ResourceVector): [number | null, number | null, number | null] {
   return [vector?.cpu_cores ?? null, vector?.ram_gb ?? null, vector?.storage_gb ?? null];
-}
-
-function maxVectors(vectors: Array<ResourceVector | undefined>): ResourceVector {
-  const result: ResourceVector = {};
-  for (const axis of CAPACITY_AXES) {
-    const values = vectors.map((vector) => vector?.[axis]).filter((value): value is number => typeof value === "number");
-    if (values.length > 0) result[axis] = Math.max(...values);
-  }
-  return result;
-}
-
-function sumVectors(vectors: Array<ResourceVector | undefined>): ResourceVector {
-  const result: ResourceVector = {};
-  for (const axis of CAPACITY_AXES) {
-    const values = vectors.map((vector) => vector?.[axis]).filter((value): value is number => typeof value === "number");
-    if (values.length > 0) result[axis] = values.reduce((sum, value) => sum + value, 0);
-  }
-  return result;
-}
-
-function maxNumber(...values: Array<number | undefined>): number | undefined {
-  const declared = values.filter((value): value is number => typeof value === "number");
-  return declared.length > 0 ? Math.max(...declared) : undefined;
 }
 
 function operationStep(

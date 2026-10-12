@@ -123,27 +123,36 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 		if !exists {
 			continue
 		}
+		moduleRef, err := stringField(alternative, path+".alternative", "moduleRef")
+		if err != nil {
+			return nil, nil, err
+		}
+		nativeMarketplace := moduleRef == localbackuppolicy.MarketplaceModuleRef
 		adapter, exists, err := optionalObjectField(runtime, path+".alternative.runtime", "adapter")
 		if err != nil {
 			return nil, nil, err
 		}
-		if !exists {
+		if !exists && !nativeMarketplace {
 			continue
 		}
-		adapterID, err := stringField(adapter, path+".alternative.runtime.adapter", "id")
-		if err != nil {
-			return nil, nil, err
-		}
-		if adapterID != "standalone-compose" {
-			continue
+		if exists {
+			adapterID, err := stringField(adapter, path+".alternative.runtime.adapter", "id")
+			if err != nil {
+				return nil, nil, err
+			}
+			if nativeMarketplace {
+				return nil, nil, fmt.Errorf("native Marketplace backup cannot acquire a workload adapter")
+			}
+			if adapterID != "standalone-compose" {
+				continue
+			}
 		}
 		workloadRef, err := stringField(workload, path, "id")
 		if err != nil {
 			return nil, nil, err
 		}
-		moduleRef, err := stringField(alternative, path+".alternative", "moduleRef")
-		if err != nil {
-			return nil, nil, err
+		if nativeMarketplace && workloadRef != "marketplace" {
+			return nil, nil, fmt.Errorf("native Marketplace backup names another workload")
 		}
 		siteRefs, err := stringListField(workload, path, "siteRefs", true)
 		if err != nil {
@@ -185,19 +194,20 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 			}
 			runtimes = append(runtimes, localbackuppolicy.ApplicationRuntime{
 				WorkloadRef: workloadRef, SiteRef: siteRef, NodeRef: nodeRef,
-				ComposeProject: localbackuppolicy.StandaloneComposeProjectName(workloadRef, nodeRef),
+				ComposeProject: localbackuppolicy.ApplicationComposeProjectName(workloadRef, nodeRef),
 				Components:     append([]localbackuppolicy.ApplicationRuntimeComponent(nil), components...),
 			})
 			for _, allocation := range selected {
 				applications = append(applications, localbackuppolicy.ApplicationVolume{
 					WorkloadRef: workloadRef, SiteRef: siteRef, NodeRef: nodeRef,
-					ComposeProject: localbackuppolicy.StandaloneComposeProjectName(workloadRef, nodeRef),
+					ComposeProject: localbackuppolicy.ApplicationComposeProjectName(workloadRef, nodeRef),
 					ComponentRef:   allocation.componentRef, VolumeRef: allocation.volumeRef,
-					LogicalName: localbackuppolicy.StandaloneComposeLogicalVolumeName(allocation.componentRef, allocation.volumeRef),
-					VolumeName:  localbackuppolicy.StandaloneComposeVolumeName(workloadRef, nodeRef, allocation.componentRef, allocation.volumeRef),
+					LogicalName: localbackuppolicy.ApplicationLogicalVolumeName(workloadRef, allocation.componentRef, allocation.volumeRef),
+					VolumeName:  localbackuppolicy.ApplicationVolumeName(workloadRef, nodeRef, allocation.componentRef, allocation.volumeRef),
 					Target:      allocation.target, Class: allocation.class, Backup: true,
 					DataClasses: append([]string(nil), allocation.dataClasses...), DataBindingRef: allocation.dataBindingRef,
-					CacheSubpaths: append([]string(nil), allocation.cacheSubpaths...),
+					CacheSubpaths:   append([]string(nil), allocation.cacheSubpaths...),
+					BackupDataClass: allocation.backupDataClass,
 				})
 			}
 		}
@@ -310,6 +320,7 @@ func localKopiaModuleSettingOn(module map[string]any, setting string) bool {
 type localKopiaBackupAllocation struct {
 	componentRef, volumeRef, target, class, dataBindingRef string
 	dataClasses, cacheSubpaths                             []string
+	backupDataClass                                        string
 }
 
 func localKopiaWorkloadBackupAllocations(infrastructure map[string]any, path string) ([]localKopiaBackupAllocation, error) {
@@ -338,6 +349,7 @@ func localKopiaWorkloadBackupAllocations(infrastructure map[string]any, path str
 		return nil, err
 	}
 	sourceClasses := make(map[string][]string, len(sourceAllocations))
+	sourceBackupClasses := make(map[string]string, len(sourceAllocations))
 	for index, source := range sourceAllocations {
 		sourcePath := fmt.Sprintf("%s.backupSource.allocations[%d]", path, index)
 		componentRef, err := stringField(source, sourcePath, "componentRef")
@@ -357,6 +369,13 @@ func localKopiaWorkloadBackupAllocations(infrastructure map[string]any, path str
 			return nil, fmt.Errorf("%s repeats backup source %q", sourcePath, key)
 		}
 		sourceClasses[key] = classes
+		if value, exists := source["backupDataClass"]; exists {
+			semantic, ok := value.(string)
+			if !ok || !localbackuppolicy.ValidBackupDataClass(semantic) {
+				return nil, fmt.Errorf("%s.backupDataClass is not a semantic backup class", sourcePath)
+			}
+			sourceBackupClasses[key] = semantic
+		}
 	}
 	selected := make([]localKopiaBackupAllocation, 0, len(storageAllocations))
 	seenStorage := make(map[string]struct{}, len(storageAllocations))
@@ -416,6 +435,7 @@ func localKopiaWorkloadBackupAllocations(infrastructure map[string]any, path str
 		selected = append(selected, localKopiaBackupAllocation{
 			componentRef: componentRef, volumeRef: volumeRef, target: target, class: class,
 			dataBindingRef: allocationBindingRef, dataClasses: classes, cacheSubpaths: cacheSubpaths,
+			backupDataClass: sourceBackupClasses[key],
 		})
 	}
 	if len(sourceClasses) != 0 {

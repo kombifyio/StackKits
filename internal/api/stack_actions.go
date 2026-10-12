@@ -193,6 +193,11 @@ func (s *Server) handleStackAction(w http.ResponseWriter, r *http.Request, expec
 func (s *Server) executeStackAction(ctx context.Context, req stackActionRequest) (resp stackActionResponse, status int, stackErr *skerrors.StackKitError) {
 	mode := s.stackActionMode()
 	resp = newStackActionResponse(req, mode)
+	if stackaction.IsBackupAction(req.Action) && strings.TrimSpace(req.Mode) != "" && req.Mode != string(mode) {
+		resp.Status = stackaction.StatusFailed
+		return resp, http.StatusBadRequest, skerrors.NewValidationError(
+			"backup_execution_mode_mismatch", "backup request mode must match the node execution mode")
+	}
 	target, enrollment, requestErr := prepareStackActionRequest(&resp, &req)
 	if requestErr != nil {
 		return resp, http.StatusBadRequest, requestErr
@@ -206,6 +211,9 @@ func (s *Server) executeStackAction(ctx context.Context, req stackActionRequest)
 	includeStackKitOutputs := true
 	if mode == stackActionModeDryRun {
 		resp.Status = dryRunStatusStackAction(req.Action)
+		if stackaction.IsBackupAction(req.Action) {
+			resp.Checks = append(resp.Checks, stackActionCheck{Name: "backup_execution", Status: stackaction.CheckStatusSkipped, Detail: "dry-run: backup was not executed or verified"})
+		}
 		if includeStackKitOutputs {
 			resp.StackKitOutputs = stackKitOutputsFromOpenTofuStackAction(resp, nil)
 		}
@@ -1863,10 +1871,8 @@ func dryRunStatusStackAction(action stackaction.Action) stackaction.Status {
 		return stackaction.StatusReady
 	case stackActionVerify:
 		return stackaction.StatusVerified
-	case stackaction.ActionBackupRun:
-		return stackaction.StatusReady
-	case stackaction.ActionBackupStatus:
-		return stackaction.StatusVerified
+	case stackaction.ActionBackupRun, stackaction.ActionBackupStatus:
+		return stackaction.StatusSkipped
 	case stackActionRestore, stackaction.ActionBackupRestore, stackaction.ActionBackupWipe:
 		return stackaction.StatusSkipped
 	default:

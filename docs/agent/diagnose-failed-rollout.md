@@ -2,6 +2,15 @@
 
 Diagnose a failed StackKits rollout from read-only evidence first.
 
+Use [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) as the terminal diagnosis
+authority. Read the emitted `reasonCode`, one-line cause and `userGuidance`;
+`stackkit agent diagnose <error-id>` returns the same guidance locally. Retain
+an observed authority's `retryAfter`; never invent a shorter ACME wait.
+The MCP self-check plan indexes the same authority without claiming host health.
+For machine output inspect the inner Apply status: a successful command envelope
+does not turn a failed runtime outcome into success. A typed degraded completion
+remains distinct from failure.
+
 Run:
 
 ```bash

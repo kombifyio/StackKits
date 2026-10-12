@@ -171,7 +171,11 @@ func Execute() error {
 		rolloutPhaseSpans = nil
 		machineOutputCommandActive = false
 	}()
-	err := rootCmd.Execute()
+	cmd, err := rootCmd.ExecuteC()
+	if err != nil && !commandRequestsMachineOutput(cmd) {
+		_, detail := commandFailureDetail(cmd, err)
+		rootCmd.PrintErrf("[%s] %s Next: %s\n", detail.ReasonCode, detail.Message, detail.UserGuidance[0])
+	}
 	if diagnostic := localApplyDiagnostic(err); diagnostic != "" {
 		rootCmd.PrintErrln("Apply evidence diagnostic: " + diagnostic)
 	}
@@ -209,6 +213,7 @@ func init() {
 	rootCmd.AddCommand(prepareCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(planCmd)
+	rootCmd.AddCommand(newCapacityCommand())
 	rootCmd.AddCommand(applyCmd)
 	rootCmd.AddCommand(verifyCmd)
 	rootCmd.AddCommand(removeCmd)
@@ -225,6 +230,7 @@ func init() {
 	rootCmd.AddCommand(clusterCmd)
 	rootCmd.AddCommand(agentCmd)
 	rootCmd.AddCommand(hostCmd)
+	rootCmd.AddCommand(newWalletItemCommand())
 	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(newAddressCommand())
 	rootCmd.AddCommand(newNetworkCommand())
@@ -386,26 +392,46 @@ func initRolloutTelemetry(runID string) {
 	}
 }
 
+// rolloutEventMu serializes the rollout sinks. Apply reports owner liveness
+// from a second goroutine while an owner runs, and the sinks keep process-wide
+// state (the span table, the failure phase).
+var rolloutEventMu sync.Mutex
+
 func rolloutEvent(phase, status, message string, attrs map[string]string) {
-	event := rollout.Event{
+	rolloutRecordEvent(rollout.Event{
 		Phase:      phase,
 		Status:     status,
 		Message:    message,
 		Attributes: attrs,
-	}
+	})
+}
+
+// rolloutRecordEvent delivers one event to every rollout sink: the
+// --progress-jsonl spool, the deploy log, the OTel span and the run recorder.
+func rolloutRecordEvent(event rollout.Event) {
+	rolloutEventMu.Lock()
+	defer rolloutEventMu.Unlock()
 	emitRolloutProgress(event)
 	mirrorRolloutEventToDeployLog(event)
-	recordRolloutSpanEvent(phase, status, message, attrs, nil)
+	recordRolloutSpanEvent(event.Phase, event.Status, event.Message, event.Attributes, nil)
 	if rolloutRecorder == nil {
 		return
 	}
 	rolloutRecorder.Event(event)
 }
 
+// rolloutProgressSinkActive reports whether any rollout sink would record an
+// event, so liveness work is not started for a run nobody observes.
+func rolloutProgressSinkActive() bool {
+	return strings.TrimSpace(progressJSONL) != "" || rolloutRecorder != nil || deployLog != nil || rolloutOTelRuntime.Enabled
+}
+
 func rolloutFailure(phase string, err error) {
 	if err == nil {
 		return
 	}
+	rolloutEventMu.Lock()
+	defer rolloutEventMu.Unlock()
 	event := rollout.Event{
 		Phase:        phase,
 		Status:       "failed",

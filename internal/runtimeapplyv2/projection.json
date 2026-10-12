@@ -1,17 +1,21 @@
 {
   "schemaVersion": "stackkits.runtimeapply-projection/v1",
   "source": "kombify-go-common/runtimeapply",
-  "sourceVersion": "v0.7.8",
-  "sourceCommit": "c26a7b5a385f93aa69c6db76ad80e3002b22191a",
-  "sourceSum": "h1:jF5F/wgABTbNcr6ir8kkT6gZ/+ILRCTNfzyMxjLS1p4=",
+  "sourceVersion": "v0.7.13",
+  "sourceCommit": "dd8c3157c9009dc84883865ec37b360f587285ac",
+  "sourceSum": "h1:YiREBX9yohivni8Phn8Fh2mfFOmp/O1OaYw0JzjVpCM=",
   "sourceFiles": [
     "journal.go",
     "journal_test.go",
+    "operation_validation.go",
     "recovery.go",
-    "recovery_test.go"
+    "recovery_test.go",
+    "snapshot_validation.go"
   ],
   "projectedFiles": [
     "journal.go",
-    "recovery.go"
+    "operation_validation.go",
+    "recovery.go",
+    "snapshot_validation.go"
   ]
 }

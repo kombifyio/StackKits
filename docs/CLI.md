@@ -123,6 +123,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `logs` | List and read structured deploy logs. |
 | `registry` | Inspect or reproduce the embedded Git/CUE registry snapshot. |
 | `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
+| `wallet-item` | Import sealed Wallet item deliveries into encrypted local custody and list them by reference and version. |
 | `user` | Invite, list, and remove PocketID household users. Mutations require `--owner-approve`. |
 | `network` | Move this server to another network: status, signed LAN re-bind, WiFi pre-staging and the self-re-binding watcher. |
 | `completion` | Generate shell completions. |
@@ -282,6 +283,18 @@ manifest, and receipt before it reaches the still-explicit v2 verifier boundary.
 
 Generated files are disposable outputs and must not be hand-edited.
 
+### `stackkit capacity [spec-file]`
+
+`stackkit capacity --inventory inventory.yaml` resolves the selected modules
+through the current CUE authority and prints a plan-bound JSON assessment.
+It reports per-node minimum demand, recommendations, observed capacity and
+`pass`, `warning`, `unverified` or `fail`. Known deficits remain failures even
+when other facts are missing. Missing facts never become zero capacity or a
+successful fit. This read-only command does not persist a plan, provision a
+host or replace Apply admission. The local MCP tool is `stackkit_assess_capacity`.
+Browser planners execute the same numeric engine from bundled Go WebAssembly;
+the standalone CLI needs no server or account.
+
 ### `stackkit plan`
 
 Exact-v0.6 compatibility builds can still inspect historical generated
@@ -361,6 +374,70 @@ verified Apply-result boundary and binds workload, runtime owner, plural
 placement, execution channel, and referenced artifact digests. It can route a
 later Owner-approved request, but it is neither removal authorization nor
 terminal absence evidence.
+
+#### Apply progress events
+
+`--json` keeps stdout for the one result document, so the human heartbeat is
+silent there. The machine counterpart is the `--progress-jsonl <file>` spool
+(`stackkit.rollout-event/v1`, `schemas/stackkit-rollout-event.schema.json`):
+a controller that already passes it, as Techstack does for every command, now
+also receives one event stream per runtime owner. Nothing is written to stdout
+or stderr, so the result document and the stderr log stream are unchanged, and
+a consumer that does not know the new phases reads them as ordinary rollout
+events: both phases use only the statuses `started`, `running`, `succeeded`
+and `failed`.
+
+| Phase | Level |
+| --- | --- |
+| `apply.channel` | one execution channel of the plan; a local Standard Apply has exactly one |
+| `apply.owner` | one runtime owner in the serial execution order |
+
+Per child the stream is `started`, then one `running` liveness event every
+15 seconds while the owner executes, then exactly one `succeeded` or `failed`.
+An owner whose durable result a resumed Apply reuses reports `succeeded` with
+`replayed: "true"` and is not executed. Events carry identities and timing in
+`attributes` (all values are strings):
+
+| Attribute | Meaning |
+| --- | --- |
+| `scope` | `channel` or `owner` |
+| `owner` | requirement ID of the owner, or the channel reference |
+| `module`, `workload` | module and workload of the owner, when it has them |
+| `position`, `total` | 1-based place in the serial order, and the child count |
+| `targets` | runtime targets the child covers |
+| `elapsed_ms` | time since the child started; absent on `started` and on a replay |
+| `replayed` | `"true"` for a reused result |
+| `failure_code`, `degraded` | on `failed`: the journal failure code, and whether the child only reported degraded units |
+
+A `failed` event also sets `failureClass`. It never carries the error text,
+which can hold command lines, paths or secrets; that stays in the result
+document and `stackkit logs latest --json`. Example:
+
+```json
+{"time":"2026-10-09T07:32:13.098824Z","phase":"apply.owner","status":"running","message":"runtime owner 3/10 stackkits-basement-core-lite-runtime/opentofu/opentofu-node-main: still running (45s)","attributes":{"elapsed_ms":"45012","module":"stackkits-basement-core-lite-runtime","owner":"stackkits-basement-core-lite-runtime/opentofu/opentofu-node-main","position":"3","scope":"owner","targets":"1","total":"10","workload":"basement-core"}}
+```
+
+A running Apply that has stopped emitting `running` events for several
+intervals is stuck, not slow: a controller can use that idle time instead of a
+wall clock. The same events are recorded in the run evidence
+(`.stackkit/runs/<runId>/events.jsonl`) unless `--no-log` is set; with neither
+sink the Apply starts no liveness work.
+
+#### Retrying an Apply that was killed
+
+A killed Apply (a controller timeout, the OOM killer, power loss) records no
+outcome, so its application lifecycle operation stays `running`. A retried
+Apply takes it over only while it holds, at that moment, the workspace's
+exclusive lifecycle-mutation lock and the exact output-root lock. Both are
+kernel advisory locks that the operating system releases when their holder
+dies, so no other Apply can be alive while they are held; no PID, process-start
+time or host name is compared. The abandoned operation is recorded as `failed`
+with an `abandoned: ... superseded by <operation>` diagnostic in the
+digest-chained lifecycle history, and the retry re-converges the whole plan,
+as every Apply does. A running restore, backup, setup, upgrade or drift
+operation is never taken over; it keeps blocking until its own recovery path
+completes it. Each Apply seals a fresh request, so the runtime journal of the
+killed Apply is not resumed; its record stays as inert history.
 
 ### `stackkit verify`
 
@@ -551,6 +628,17 @@ The State Console displays this same view with direct application links and
 next steps. Changing the selected workspace clears its previous status view.
 
 ### `stackkit setup <workload>`
+
+For an applied Documents (Paperless-ngx) or Dev (Gitea/Forgejo) workload,
+`stackkit setup documents --owner-approve --json` and
+`stackkit setup dev --owner-approve --json` verify the existing custodied
+administrator through its admitted application API. These actions use the
+workload's sealed `owner-password`, with no new account, password, token or
+credential document. Omit `--credentials-file` and `--complete-onboarding`.
+The normal Plan/Apply-bound setup lifecycle records the verified account;
+MFA or identity/role mismatch stays a refusal. Paperless's local break-glass
+administrator is distinct from Pocket ID SSO, and neither action proves
+document/Git data operations or backup/restore.
 
 The native Photos setup action creates or verifies the Immich owner on the
 already applied local `standalone-compose` workload and records a secret-free,
@@ -1018,7 +1106,10 @@ baseline itself is described in [SECURITY.md](SECURITY.md#host-security-baseline
   undeclared one is `drifted` with `reason_code` `exposed_published_port`,
   because the input firewall does not filter Docker-published ports) and, where
   discoverable,
-  `tls.certificate_expiry` (step-ca custody, Traefik ACME). The envelope carries
+  `tls.certificate_expiry` (step-ca custody, Traefik ACME). Once SSH access was
+  delivered (`host ssh apply`), `ssh.user_ca_trust` and `ssh.host_certificate`
+  judge the installed CA trust and host certificate against the recorded
+  delivery (`--host-name` names what the host certificate must carry). The envelope carries
   `kit`, `mode`, `site_kind`, `baseline_version`, `observed_at`, `expires_at`
   (the `--freshness` budget) and `overall`. `unknown` never counts as compliant,
   and a control that cannot be observed (no root, a missing tool) is `unknown`
@@ -1059,6 +1150,76 @@ and an `expires_at`, and an expired one stops applying. `--json` returns
 `stackkit.host-security-evidence/v1` or `stackkit.host-security-repair/v1` inside
 `stackkit.command-result/v1` (`schemas/stackkit-host-security-evidence-v1.schema.json`,
 `schemas/stackkit-host-security-repair-v1.schema.json`).
+
+### `stackkit host migrate-browser-ca`
+
+An established Basement installation with a legacy Ed25519 root or issuer needs
+an explicit transition to the current browser-capable P256 policy. Run on
+that installed node under its retained Owner authority:
+
+```bash
+stackkit host migrate-browser-ca --owner-approve --spec stackkit.json
+stackkit gen --spec stackkit.json --output deploy
+stackkit apply --spec stackkit.json --resolved-plan deploy/.stackkit/resolved-plan.json
+stackkit host migrate-browser-ca --owner-approve --complete --spec stackkit.json
+stackkit verify client-trust --export --spec stackkit.json --json
+```
+
+The transition preserves the Owner signing key and identity, PocketID
+binding, runtime secrets, ingress leaf keys, addresses and volumes. An already
+current root and its existing client approvals are retained. A legacy issuer
+key changes to P256; its existing password remains in custody. Native Apply
+reloads step-ca, renews the existing single-DNS ingress certificates through
+the Owner-authorized provisioner with their retained keys, and reloads the
+router. A root-only change replaces the stored intermediate chain. The ACME
+account remains in custody. A private Owner-signed journal admits only
+the exact old and new generations and allows an interrupted staging command
+to resume. `--complete` requires the current signed native Apply and ordinary
+TLS readback from step-ca before retiring that journal.
+
+When the root changes, every client must approve it through the existing client-trust
+handoff. Exporting the profile does not install trust, grant a service session
+or verify browser SSO. New P256 installations need no migration. A successful
+command emits the public fingerprints and activation state as structured JSON.
+
+### `stackkit host delivery`, `stackkit host ssh` and `stackkit wallet-item`
+
+Sealed host delivery brings backup targets, Wallet items and SSH access to this
+node (`pkg/hostdelivery`; see [SECURITY.md](SECURITY.md#sealed-host-delivery)).
+Every envelope is read on stdin, opened and recorded as consumed under the
+lifecycle lock; results carry references, versions and paths, never a value.
+A delivery for another tenant, Site, node, generation or operation, an expired
+or oversized one, a replay, and a Wallet or SSH delivery not signed by the
+pinned authority are all refused.
+
+- `host delivery recipient --challenge <value> [--authority-key <base64> --authority-key-id <id>] [--rotate] --owner-approve`
+  prints the recipient statement (generation, fingerprint, pinned authority),
+  signed by the local Owner key. `--authority-key` pins the delivering
+  authority for the current generation and is refused when another key is
+  pinned. `--rotate` re-enrolls under the next generation; the previous key
+  opens only deliveries issued before the rotation, for at most 15 minutes,
+  and rotation ends a detach.
+- `host delivery status` lists the generation, retired generations still
+  openable, the pinned authority, the detach state and every delivered secret
+  by reference, version and rotation mark.
+- `host delivery detach --owner-approve` stops every delivery until the next
+  `--rotate`, destroys retired keys and returns the delivered references to
+  rotate upstream.
+- `wallet-item import --tenant-ref <tenant> --owner-approve < envelope.json`
+  stores a `wallet-item-import` or `wallet-item-rotate` delivery encrypted under
+  the local custody key. Versions are immutable; a rotation removes every older
+  version. `wallet-item status` lists tenant, item reference, versions and
+  rotation mark only.
+- `host ssh apply --tenant-ref <tenant> [--host-name <name>]... --owner-approve < envelope.json`
+  applies `ssh-ca-trust`, `ssh-ca-revoke` or `ssh-host-certificate` to sshd
+  (`TrustedUserCAKeys`, one `AuthorizedPrincipalsFile` per local user, or
+  `HostCertificate` beside the matching host key), reloads sshd only after
+  `sshd -t` and rolls a failed change back. Revocations take effect first and
+  are never undone; one sshd cannot reload for reports `cleanupPending`. Run as
+  root.
+
+`backup target recipient` and `backup target import --sealed` use the same
+recipient and ledger.
 
 ### `stackkit host updates` and `stackkit host reboot`
 

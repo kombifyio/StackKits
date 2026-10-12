@@ -1,5 +1,22 @@
 # Changelog
 
+- Add: Nextcloud, Home Assistant, Cloudreve and Uptime Kuma carry `dashboard.vendor` (name, website, docs, SPDX license, vendor-linked support), and Nextcloud and Home Assistant carry their vendor-published `dashboard.clients` (store entries and the Nextcloud desktop install page). Only vendor-verified URLs.
+
+- Add: Private AI can offer an external OpenAI-compatible provider (OpenAI, Mistral, Groq, OpenRouter, a self-hosted gateway) in Open WebUI next to the node's Ollama, with the API key from the owner's kombify Wallet. The Wallet seals the `ai_credential` item to the node (`stackkit wallet-item import`); `stackkit setup ai-provider --base-url <https URL> --tenant-ref <tenant> --wallet-item <item>` binds the key slot to that item and sets the `external-provider` setting. The local custody keeps only the owner-signed binding, never the key: every apply resolves the newest delivered version, so an imported rotation takes effect on the next apply, and Apply fails closed when the item is not on the node. The bundle carries the base URL and an opaque key reference; Open WebUI gets egress only while a provider is set. `--disable` removes the setting and the binding. AnythingLLM does not take an external provider yet.
+- Add: Private AI model packs install. The `ai` settings `model-pack-general`, `model-pack-coding`, `model-pack-vision` and `model-size` (small, medium, large) are now `install` for the Open WebUI chat module: Apply pulls each selected pack into Ollama with a one-shot client (`qwen3.5:4b|9b|27b`, `qwen2.5-coder:1.5b|7b`/`qwen3-coder:30b`, `qwen3-vl:4b|8b|32b`), skips a model Ollama already has and requires it in `/api/tags` afterwards; a failed pull fails the Apply. Without the settings nothing is pulled. With `ai.chat=anythingllm` the settings are refused. `inference-location` stays recorded.
+
+- Fix: the next release is cut as 0.53.0. Delivery accepts PATCH 0 through 9 only, so the prepared 0.52.10 could not publish; the 0.52 line ends at 0.52.9 and carries its changes into 0.53.0.
+
+- Fix: the public export no longer carries an internal product name. The shared contract library words the affected apisurface comment neutrally (go-common 0.7.11), and the allowlists project the new runtime executor and apply validation files, so the exact-source public release publishes again.
+
+- Add: a service's `dashboard.clients` lists its official end-user clients, each a platform (`android`, `ios`, `windows`, `macos`, `linux`), a kind (`store` or `download`) and an https URL. The field flows from the module contract through the registry snapshot and the generated tool catalog; Immich, Jellyfin and Vaultwarden carry their vendor-published store entries and installers. Only vendor URLs belong here, never mirrors.
+
+- Add: a service's `dashboard.vendor` describes the upstream project behind an application: name, website, the vendor's own documentation, an SPDX license and where users can support the developers (`donate`, `sponsor` or `purchase` links). It flows through the registry snapshot and the generated tool catalog like `clients`; Immich, Jellyfin and Vaultwarden carry vendor-verified values.
+
+- Add: sealed host delivery carries Wallet items and SSH access, not only backup targets. `pkg/hostdelivery` adds the operations `wallet-item-import`, `wallet-item-rotate` (64 KiB each), `ssh-ca-trust`, `ssh-ca-revoke` and `ssh-host-certificate` (16 KiB, as the backup operations keep); these need an Ed25519 envelope signature by the delivering authority key the node pins with `stackkit host delivery recipient --authority-key`, because HPKE alone does not authenticate the sender. `--rotate` re-enrolls the node under the next recipient generation: the previous key opens only deliveries issued before the rotation, for at most their 15-minute lifetime, and is then destroyed. `stackkit wallet-item import` stores an item encrypted in local custody by reference and version (a rotation removes older versions) and `wallet-item status` lists references and versions only. `stackkit host delivery detach` stops every delivery until re-enrollment and lists the delivered secrets to rotate, never a value. `stackkit host ssh apply` installs the owner's user CA as `TrustedUserCAKeys` with one `AuthorizedPrincipalsFile` per local user, revokes it at once (never rolled back; a failed sshd reload is recorded as cleanup pending), and installs a host certificate beside the host key it certifies, only when it names the host and is valid; sshd reloads only after `sshd -t`. `host security verify` reports `ssh.user_ca_trust` and `ssh.host_certificate` once SSH access was delivered, and `host security repair` reinstalls it from custody. Existing backup-target deliveries, recipient statements and node custody files keep working unchanged.
+
+- Add: opt-in kombify notify for Smart Home. With the `kombify-notify` workload setting on, Home Assistant gets a `notify.kombify` target that posts the automation author's text (at most 280 characters, audience me, household or one member) to the node's local Techstack agent for the Companion Feed. Apply creates the bearer token once in `.stackkit/kombify-notify/token` (owner-only, never rotated by a re-apply) and publishes the container-network address the agent must bind in `.stackkit/kombify-notify/listen`; Home Assistant receives the token only through an owner-only `secrets.yaml` beside the generated platform file. Off by default; with it off, nothing is rendered and the Home Assistant baseline is unchanged.
+
 - Add: exact public releases can be retained in an explicit persistent cache with archive, signed index and installed CLI verification. Original-release restore recovery can use this cache offline when the workspace cache is absent; missing or altered retained evidence is refused without online fallback.
 
 - Fix: an upgraded CLI can recover an interrupted restore through the exact original public release, verified against its admitted archive and signed release index. It preserves the original Owner journal and verifies the persisted recovery result before reporting success; a missing or mismatched artifact is refused.
@@ -91,6 +108,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## Unreleased
 
 ### Added
+
+* **Private AI catalog settings:** the `ai` use case declares `inference-location` (on my own hardware, or only my own interface on top of an external provider) and the model packs `model-pack-general`, `model-pack-coding` and `model-pack-vision`. All are `recorded`: consumers show and keep them, the pinned release does not apply them yet.
 
 * **Modern edge listener:** `stackkit-server --bridge-edge-listen` serves only the Owner-signed bridge publication route table on the Cloud node. It is default closed (an absent, unsigned or foreign-target table, an unlisted host, path or method, or a rule without a bound rate limit is refused), enforces each rule's TLS minimum, rate limit and authentication per request, and reaches Home only through the activated federation link. Without a human/device verifier every rule still refuses requests. Verify reports a route `servedReadback` only after a real request through the listener reached the pinned origin. The bridge publication and federation control agent modules declare an `experimental` `standard` profile with their resident components for resource sampling; it has no measured values yet.
 
@@ -214,6 +233,150 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.1](https://github.com/kombifyio/StackKits/compare/v0.53.0...v0.53.1) (2026-10-12)
+
+
+### Fixed
+
+* **public:** retain private backup classification and repair export publication
+
+## [0.53.0] (2026-10-12)
+
+### Highlights
+
+This release line improves standalone installation and data retention, adds a Files alternative and brings more application secrets into the node's own custody.
+
+- **Keep data when removing applications:** ordinary removal retains application volumes. Intentional deletion is explicit; a busy volume keeps the workspace recoverable and reports the next action. Interrupted projects also discover retained volumes after their containers are gone.
+- **Clearer installation and upgrade guidance:** interrupted installs resume, second-client trust and DNS guidance are clearer, and unsupported Cloud or Modern upgrades return a structured cause and supported route before changing the installation.
+- **Choose OpenCloud for Files and add MQTT:** OpenCloud brings guarded bootstrap and file operations to the Files package. The MQTT add-on supports authenticated messaging and retains messages across restarts.
+- **Node custody for application secrets and Marketplace data:** Wallet delivery and secret bindings keep values on the receiving node. Marketplace service controls and filesystem backup/restore retain the installation identity and custody.
+- **Honest kit maturity:** manifests and the website derive maturity from Standard-mode cells and their recorded evidence. A managed Advanced receipt cannot promote a standalone kit.
+
+App-specific identity and database integration, Office/WOPI, Home Assistant discovery, new-node recovery and broad lifecycle/compatibility acceptance remain pending. Filesystem restore does not establish application-consistent database recovery.
+
+
+
+### Added
+
+* **ai:** external OpenAI-compatible provider with a key from the kombify Wallet
+* **ai:** pull the selected model packs into Ollama during Apply
+* **beads:** cloud sessions get Beads access via OIDC workflow
+* **beta:** unify capacity assessment and verify custodied owner setup
+* **catalog:** official clients and vendor metadata for more applications
+* **catalog:** official clients and vendor metadata per application
+* **catalog:** Private AI inference location and model pack settings
+* **ci:** add complete StackKits source suite
+* **core:** no PaaS in the default core; Marketplace engine is Coolify (ADR-0049)
+* **files:** add pinned OpenCloud native workload and guarded bootstrap
+* generate Marketplace agent lifecycle surface
+* **host-delivery:** Wallet items and SSH CA access on the node
+* **network:** activate private-client DNS intent with AdGuard Home
+* **photos:** Immich mobile OAuth redirect for the kombify Companion
+* **remote:** add Guacamole runtime and owner setup surfaces
+* remove native Marketplace with scoped data custody
+* **smart-home:** kombify notify integration for Home Assistant
+
+
+### Fixed
+
+* **api:** align OpenAPI license with existing project terms
+* **apply:** report owner progress and let a retried apply supersede a killed one
+* **backup:** bind legacy snapshots to exact targets and operations
+* **backup:** expose authenticated historical recovery points
+* **bootstrap:** GitHub Actions is no longer a bootstrap gap
+* **ci:** adopt scoped updater and repair publisher CUE traversal
+* **ci:** align and execute the external Go consumer graph
+* **cli:** keep Windows host capacity stable across working drives
+* **cli:** preserve standalone diagnoses across CLI and MCP
+* **delivery:** admit checkpoints from two-digit patch baselines
+* **delivery:** adopt patch-19 release preparation authority
+* **delivery:** await the exact publisher child before success
+* **deps:** hold cuelang.org/go at v0.15.4 and follow the org Delivery ref
+* **deps:** update dependency express to ^4.22.3
+* **deps:** update module cuelang.org/go to v0.17.1
+* derive kit maturity from receipt-backed Standard mode cells
+* enroll standalone client DNS and browser CA trust
+* **install:** resume standalone installers without losing intent
+* **komodo:** observe canonical runtime state
+* **mcp:** terminate delegated CLI processes on Linux timeout
+* migrate legacy issuers and load Marketplace PHP trust
+* **public-tls:** complete degraded when the managed origin certificate is missing
+* **public:** project runtimeexecutor validation files from go-common v0.7.10
+* **public:** project the new runtimeapply validation files
+* **public:** release note for the neutral go-common contract and projected validation files
+* **public:** retain the referenced standalone decision in the export
+* recover interrupted restores through the verified original release
+* **release:** adopt canonical prepared-version reservation
+* **release:** adopt the paired prepared product facts producer
+* **release:** bundle the Open Spec with StackKits archives
+* **release:** export the archive markdown checker
+* **release:** pair prepared publisher with admitted Delivery standards
+* **release:** pair the preparation authority with the producer pin
+* **release:** project prepared product facts through the canonical renderer
+* **release:** publish consumer manifests before Techstack repin
+* **release:** roll the line over to 0.53.0 because Delivery rejects PATCH 10
+* **restore:** fence activation before application mutation
+* **restore:** preserve native container ownership during activation
+* retain data during standalone removal and diagnose unsupported upgrades
+* retain verified public artifacts for offline recovery
+* **runtime:** execute native Komodo workloads with node custody
+* **security:** pin StackAction SSH host keys and the Techstack issuer, add bundle-drift and Standard Mode ledger gates
+
+
+### Documentation
+
+* **release:** complete standalone lifecycle and node custody line
+
+## [0.52.11](https://github.com/kombifyio/StackKits/compare/v0.52.10...v0.52.11) (2026-10-11)
+
+
+### Fixed
+
+* **cli:** keep Windows host capacity stable across working drives
+* **komodo:** observe canonical runtime state
+* **release:** roll the line over to 0.53.0 because Delivery rejects PATCH 10
+
+## [0.52.10](https://github.com/kombifyio/StackKits/compare/v0.52.9...v0.52.10) (2026-10-11)
+
+
+### Fixed
+
+* **public:** release note for the neutral go-common contract and projected validation files
+
+## [0.52.9](https://github.com/kombifyio/StackKits/compare/v0.52.8...v0.52.9) (2026-10-11)
+
+
+### Fixed
+
+* **public:** project runtimeexecutor validation files from go-common v0.7.10
+
+## [0.52.8](https://github.com/kombifyio/StackKits/compare/v0.52.7...v0.52.8) (2026-10-11)
+
+
+### Fixed
+
+* **public:** project the new runtimeapply validation files
+
+## [0.52.7](https://github.com/kombifyio/StackKits/compare/v0.52.6...v0.52.7) (2026-10-11)
+
+
+### Added
+
+* **beta:** unify capacity assessment and verify custodied owner setup
+* **catalog:** official clients and vendor metadata per application
+* **catalog:** Private AI inference location and model pack settings
+* **core:** no PaaS in the default core; Marketplace engine is Coolify (ADR-0049)
+* **host-delivery:** Wallet items and SSH CA access on the node
+* **photos:** Immich mobile OAuth redirect for the kombify Companion
+* **smart-home:** kombify notify integration for Home Assistant
+
+
+### Fixed
+
+* **apply:** report owner progress and let a retried apply supersede a killed one
+* **backup:** bind legacy snapshots to exact targets and operations
+* **bootstrap:** GitHub Actions is no longer a bootstrap gap
 
 ## [0.52.6](https://github.com/kombifyio/StackKits/compare/v0.52.5...v0.52.6) (2026-10-09)
 

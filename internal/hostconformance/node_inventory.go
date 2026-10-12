@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/siteaddress"
 )
@@ -144,7 +145,7 @@ func ObserveNodeInventory(ctx context.Context, probe LocalProbe) (NodeInventoryF
 	}
 	virtualization := detectVirtualization(ctx, source).Class
 	if !allowedValue(virtualization, "bare-metal", "kvm", "openvz", "lxc", "vmware", "hyperv", "xen", "oracle", "microsoft", "none") {
-		return NodeInventoryFacts{}, fmt.Errorf("host virtualization class %q is invalid", virtualization)
+		return NodeInventoryFacts{}, actionableerror.WithDiagnostic("host_virtualization_unrecognized", fmt.Errorf("host virtualization class %q is invalid", virtualization))
 	}
 	address := ""
 	if _, local := source.(osLocalSource); local {
@@ -270,7 +271,7 @@ func validateNodeInventoryFacts(facts NodeInventoryFacts) error {
 		return errors.New("observed host capacity is below the 1 core / 1GiB floor")
 	}
 	if !allowedValue(facts.Virtualization, "bare-metal", "kvm", "openvz", "lxc", "vmware", "hyperv", "xen", "oracle", "microsoft", "none") {
-		return fmt.Errorf("host virtualization class %q is invalid", facts.Virtualization)
+		return actionableerror.WithDiagnostic("host_virtualization_unrecognized", fmt.Errorf("host virtualization class %q is invalid", facts.Virtualization))
 	}
 	if err := validateAcceleratorFacts(facts.Accelerators); err != nil {
 		return err

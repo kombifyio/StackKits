@@ -55,6 +55,14 @@ func deriveRuntimeRecoveryGraph(
 	if err != nil {
 		return runtimeRecoveryGraphDerivation{}, err
 	}
+	marketplace, err := deriveMarketplaceRuntimeCustody(workspaceRoot, planDocument, plan.OutputRoot(), manifest, operationID)
+	if err != nil {
+		return runtimeRecoveryGraphDerivation{}, err
+	}
+	if marketplace != nil {
+		applicationRuntimes = append(applicationRuntimes, marketplace.Runtime)
+		applicationVolumes = append(applicationVolumes, marketplace.Volumes...)
+	}
 	derived, err := derivePlanAuthority(plan.Canonical(), manifest, operationID, applicationVolumes)
 	if err != nil {
 		return runtimeRecoveryGraphDerivation{}, err

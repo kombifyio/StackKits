@@ -118,5 +118,6 @@
   "output.needSpecRollout": "Erstelle oder lade eine kanonische StackSpec v2, bevor du den gesteuerten Ablauf ausführst.",
   "output.reviewPlanFirst": "Prüfe den aktuellen Plan, bevor du die Apply-Freigabe anforderst.",
   "output.applyNever": "Die State Console ruft Apply nie direkt auf. Bitte den verbundenen Agenten, die registrierte StackKits-Apply-Operation zur operationsspezifischen Bestätigung und Owner-Genehmigung vorzulegen.",
-  "output.setupNever": "Die State Console ruft die Einrichtung nie direkt auf. Bereite die private Zugangsdatei vor und bitte dann den verbundenen Agenten, diese registrierte Einrichtungsoperation zur Bestätigung vorzulegen."
+  "output.setupNever": "Die State Console ruft die Einrichtung nie direkt auf. Bereite die private Zugangsdatei vor und bitte dann den verbundenen Agenten, diese registrierte Einrichtungsoperation zur Bestätigung vorzulegen.",
+  "review.capacity": "Kapazität prüfen"
 }

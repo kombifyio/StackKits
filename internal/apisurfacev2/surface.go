@@ -126,6 +126,11 @@ type MCP struct {
 	// ResourceBinding scopes authorization to the resource one argument
 	// names (explicit tools only).
 	ResourceBinding *ResourceBinding `json:"resourceBinding,omitempty"`
+	// ActionType is the owner's registered AutomationSpec v1 action type
+	// (kernel Action.Type) this tool performs when a Workpath action lowers to
+	// an automation. Empty means the tool is no automation action. Explicit
+	// write tools only; the Gateway catalog projects it per capability.
+	ActionType string `json:"actionType,omitempty"`
 	// Derived marks a tool built from x-kombify-surface.mcp.defaults rather
 	// than an explicit x-kombify-mcp object.
 	Derived bool `json:"derived,omitempty"`

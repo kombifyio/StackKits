@@ -26,6 +26,19 @@ the OpenTofu-tracked stack. This ADR's decision below on standalone Compose as
 the primary product experience, and on Komodo/Coolify as optional platform
 adapters, remains authoritative for product boundaries and is unchanged.
 
+## 2026-10-11 status amendment: Marketplace and runtime targets
+
+[ADR-0049](ADR-0049-marketplace-use-case-coolify.md) and the
+[workspace ownership decision](https://github.com/kombify/kombify-workspace/blob/main/internal/records/DECISION-RECORD-2026-10-11-marketplace-ownership-and-runtime-targets.md)
+take precedence over the historical platform passages below. Coolify is the
+optional Marketplace application, outside the default core and not a runtime
+target. Komodo is the operations platform without a store; Dokploy is not
+pursued. Runtime targets are Compose now, Komodo later and k3s later.
+Standalone operation stays Standard Mode; Techstack-managed operation stays
+Advanced Mode. Existing installations retain explicit intent until a governed
+transition preserves identity, data and addresses. No support promotion follows
+from this amendment: it requires a lifecycle receipt at the current pin.
+
 ## Decision
 
 Standard Mode is the complete, account-free, standalone product. Docker

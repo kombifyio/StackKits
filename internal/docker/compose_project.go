@@ -17,8 +17,8 @@ var CanonicalComposeProjects = []string{
 	"stackkit-cloud-core-standalone",
 }
 
-// ListComposeProjects returns unique Compose project names from containers
-// that carry com.docker.compose.project.
+// ListComposeProjects discovers project ownership from containers and orphaned
+// volumes/networks, so an interrupted uninstall does not lose its data scope.
 func (c *Client) ListComposeProjects(ctx context.Context) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -42,6 +42,25 @@ func (c *Client) ListComposeProjects(ctx context.Context) ([]string, error) {
 		}
 		seen[name] = true
 		names = append(names, name)
+	}
+	for _, resource := range []string{"volume", "network"} {
+		ids, err := c.listResourceIDs(ctx, []string{resource, "ls", "-q", "--filter", "label=" + composeProjectLabel})
+		if err != nil {
+			return nil, fmt.Errorf("list compose %ss: %w", resource, err)
+		}
+		for _, id := range ids {
+			label := c.command(ctx, resource, "inspect", "--format", `{{index .Labels "`+composeProjectLabel+`"}}`, id)
+			body, err := label.Output()
+			if err != nil {
+				return nil, fmt.Errorf("inspect compose %s %s: %w", resource, id, err)
+			}
+			name := strings.TrimSpace(string(body))
+			if name == "" || seen[name] || validateName(name) != nil {
+				continue
+			}
+			seen[name] = true
+			names = append(names, name)
+		}
 	}
 	return names, nil
 }

@@ -42,13 +42,17 @@
 # =============================================================================
 set -eu
 
-_INSTALL_SCRIPT_DIR=$(
-  cd "$(dirname "$0")" 2>/dev/null && pwd
-) || _INSTALL_SCRIPT_DIR=""
-if [ -n "$_INSTALL_SCRIPT_DIR" ] && [ -f "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh" ]; then
-  # shellcheck source=install-host-bootstrap.sh
-  . "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh"
-fi
+# BEGIN STACKKIT_BOOTSTRAP_SOURCE
+# stdin has no script directory; never load a helper from the caller's cwd.
+case "$0" in
+  */cloud-install.sh|cloud-install.sh)
+    _INSTALL_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd -P)
+    # shellcheck source=install-host-bootstrap.sh
+    . "$_INSTALL_SCRIPT_DIR/install-host-bootstrap.sh"
+    ;;
+  *) printf 'Use the complete entrypoint: curl -fsSL https://cloud.stackkit.cc | sh\n' >&2; exit 2 ;;
+esac
+# END STACKKIT_BOOTSTRAP_SOURCE
 
 printf '\033[38;5;208m'
 cat <<'BANNER'
@@ -77,7 +81,7 @@ can_prompt() { [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; }
 workspace_spec_kit() {
   _spec="${1:-}"
   [ -f "$_spec" ] || return 0
-  for _kit in cloud-kit basement-kit; do
+  for _kit in cloud-kit basement-kit modern-homelab; do
     if grep -Eq "(^|[[:space:]])(stackkit|slug):[[:space:]]*$_kit([[:space:]]|\$)|\"(stackkit|slug)\"[[:space:]]*:[[:space:]]*\"$_kit\"" "$_spec"; then
       printf '%s' "$_kit"
       return 0
@@ -86,8 +90,8 @@ workspace_spec_kit() {
 }
 
 # `stackkit init` replaces an existing StackSpec only under compare-and-swap
-# (--expected-spec-hash). The installer re-initializes on purpose (kit switch or
-# first real owner), so it keeps the previous intent next to the new one.
+# (--expected-spec-hash). Replacing a placeholder with the first real Owner
+# keeps the previous intent; a rerun never changes the kit.
 set_aside_previous_spec() {
   _spec="$HOMELAB_DIR/stack-spec.yaml"
   [ -f "$_spec" ] || return 0
@@ -113,25 +117,17 @@ read_host_environment() {
   refine_home_network_detection
 }
 
-remove_local_stack_if_present() {
-  command -v stackkit >/dev/null 2>&1 || return 0
-  info "Clearing any existing local StackKits stack so the matching kit can install"
-  if [ -n "${1:-}" ] && [ -d "$1" ]; then
-    (cd "$1" && stackkit remove --auto-approve) || warn "Could not fully remove the previous stack; continuing with the matching kit."
-  else
-    stackkit remove --auto-approve || warn "Could not fully remove the previous stack; continuing with the matching kit."
-  fi
-}
-
 continue_with_basement_installer() {
   info "This host is a home network. Continuing with Basement Kit."
   export STACKKIT_PLACEMENT=home
   export STACKKIT_NO_BANNER=1
   export STACKKIT_KIT_HANDOFF=basement
-  if [ "${HOMELAB_DIR:-}" = "$HOME/my-cloud-homelab" ]; then
+  if [ "$RESUME_EXISTING" != 1 ] && [ -z "$HOMELAB_DIR_SET" ] && [ "${HOMELAB_DIR:-}" = "$HOME/my-cloud-homelab" ]; then
     unset HOMELAB_DIR
   fi
-  exec sh -c 'curl -sSL "$1" | sh' _ "${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
+  installer_phase handoff-basement
+  installer_run_entry "${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
+  exit $?
 }
 
 prompt_default() {
@@ -270,6 +266,7 @@ HOMELAB_DIR="${HOMELAB_DIR:-$HOME/my-cloud-homelab}"
 if [ "$INSTALL_MODE" != "auto" ] && [ -z "$HOMELAB_DIR_SET" ]; then
   HOMELAB_DIR=$(prompt_default "Workspace directory" "$HOMELAB_DIR")
 fi
+installer_workspace_begin
 
 RESUME_EXISTING=0
 RESUME_INCOMPLETE=0
@@ -348,7 +345,6 @@ configure_stackkit_server_image() {
 
   STACKKIT_SERVER_LOCAL_IMAGE="${STACKKIT_SERVER_LOCAL_IMAGE:-stackkit-server:local}"
   STACKKIT_SERVER_IMAGE_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t stackkit-server-image)
-  trap 'rm -rf "$STACKKIT_SERVER_IMAGE_DIR"' EXIT HUP INT TERM
 
   cp "$(command -v stackkit-server)" "$STACKKIT_SERVER_IMAGE_DIR/stackkit-server"
   chmod +x "$STACKKIT_SERVER_IMAGE_DIR/stackkit-server" 2>/dev/null || true
@@ -390,18 +386,21 @@ EOF
     die "Local stackkit-server image build failed. Set STACKKIT_SERVER_IMAGE to a reachable image and retry."
   fi
   rm -rf "$STACKKIT_SERVER_IMAGE_DIR"
+  STACKKIT_SERVER_IMAGE_DIR=""
   STACKKIT_SERVER_IMAGE="$STACKKIT_SERVER_LOCAL_IMAGE"
   export STACKKIT_SERVER_IMAGE
   ok "  StackKit API image: $STACKKIT_SERVER_IMAGE"
 }
 
 stop_on_hypervisor_host
+installer_save_inputs
 
 # --- Step 1: Install CLI + cloud-kit definitions -------------------------------
 
 info "Step 1/5 -- Installing stackkit CLI + cloud-kit"
+installer_phase install-cli
 STACKKIT_INSTALL_URL="${STACKKIT_INSTALL_URL:-https://install.stackkit.cc}"
-curl -sSL "$STACKKIT_INSTALL_URL" | STACKKIT_NO_BANNER=1 sh -s -- cloud-kit
+STACKKIT_NO_BANNER=1 installer_run_entry "$STACKKIT_INSTALL_URL" cloud-kit
 ok "  stackkit $(stackkit version 2>/dev/null | head -1) installed"
 
 if workspace_has_deployment_intent && [ "$(workspace_spec_kit "$HOMELAB_DIR/stack-spec.yaml")" = "cloud-kit" ]; then
@@ -414,22 +413,14 @@ read_host_environment
 info "Detected network: $DETECTED_ENV"
 
 _existing_kit=$(workspace_spec_kit "$HOMELAB_DIR/stack-spec.yaml")
-if [ "$DETECTED_ENV" = "home" ] && [ "${STACKKIT_KIT_HANDOFF:-}" != "basement" ] && [ "${STACKKIT_PLACEMENT:-}" != "cloud" ]; then
-  if [ "$RESUME_EXISTING" = "1" ] && [ "$_existing_kit" = "cloud-kit" ]; then
-    warn "This workspace is Cloud Kit. This host is a home network; continuing with Basement Kit."
-  fi
-  remove_local_stack_if_present "$HOMELAB_DIR"
-  continue_with_basement_installer
-fi
-
-if [ "$RESUME_EXISTING" = "1" ] && [ "$_existing_kit" != "cloud-kit" ]; then
-  case "$DETECTED_ENV" in
-    vps|cloud)
-      warn "This workspace is not Cloud Kit. This host is a public server; continuing with Cloud Kit."
-      remove_local_stack_if_present "$HOMELAB_DIR"
-      RESUME_EXISTING=0
-      ;;
+if [ "$RESUME_EXISTING" = "1" ]; then
+  case "$_existing_kit" in
+    cloud-kit) info "Keeping the saved Cloud Kit intent on this host." ;;
+    basement-kit) continue_with_basement_installer ;;
+    *) die "Cannot resume this workspace through the Cloud installer. Inspect stackkit validate; use the entrypoint for its saved kit." ;;
   esac
+elif [ "$DETECTED_ENV" = "home" ] && [ "${STACKKIT_KIT_HANDOFF:-}" != "basement" ] && [ "${STACKKIT_PLACEMENT:-}" != "cloud" ]; then
+  continue_with_basement_installer
 fi
 
 if [ "$RESUME_EXISTING" != "1" ] || workspace_needs_owner_identity; then
@@ -475,6 +466,7 @@ if [ "$INSTALL_MODE" = "expert" ] && [ -n "$USE_CASES" ] && [ -z "$PLATFORM_SELE
   PLATFORM_SELECTION=$(prompt_default "Platform adapter for the use cases (standalone-compose|komodo|coolify)" "standalone-compose")
 fi
 info "Step 2/5 -- Initializing cloud-kit"
+installer_phase init
 mkdir -p "$HOMELAB_DIR"
 cd "$HOMELAB_DIR"
 
@@ -492,6 +484,8 @@ else
     DOMAIN=$(grep -o '"domain":{"base":"[^"]*"' "$HOMELAB_DIR/stack-spec.yaml" 2>/dev/null | head -1 | sed -E 's/.*"base":"([^"]+)".*/\1/' || true)
     DOMAIN="${DOMAIN:-kombify.me}"
   fi
+  SELECTED_KIT="cloud-kit"
+  installer_save_intent
   set_aside_previous_spec
   # Materialize the release catalog defaults as explicit native intent.
   # Existing workspaces above keep their persisted alternatives and adapters.
@@ -500,8 +494,8 @@ else
     set -- "$@" --name "$STACK_NAME"
   fi
   set -- "$@" --owner-email "$ADMIN_EMAIL" --owner-username "$OWNER_USERNAME"
+  set -- "$@" --use-case "$USE_CASES"
   if [ -n "$USE_CASES" ]; then
-    set -- "$@" --use-case "$USE_CASES"
     if [ -n "$PLATFORM_SELECTION" ]; then
       set -- "$@" --platform "$PLATFORM_SELECTION"
     fi
@@ -597,6 +591,7 @@ provision_storage_roots() {
 }
 
 info "Step 3/5 -- Preparing container runtime (Docker)"
+installer_phase prepare-runtime
 ensure_docker
 provision_storage_roots
 ok "  System ready"
@@ -604,6 +599,7 @@ ok "  System ready"
 # --- Step 4: Local stackkit-server image ---------------------------------------
 
 info "Step 4/5 -- Configuring stackkit-server image"
+installer_phase prepare-image
 configure_stackkit_server_image
 
 if [ -z "${STACKKIT_DNS_TOKEN:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
@@ -616,6 +612,7 @@ fi
 # --- Step 5: Generate + Deploy ------------------------------------------------
 
 info "Step 5/5 -- Deploying Cloud Kit"
+installer_phase host-preflight
 # Read-only host admission first: naming an unusable host here costs seconds,
 # while discovering it during Apply costs a half-mutated machine.
 #
@@ -672,6 +669,7 @@ fi
 # resolution is deterministic, so an unchanged host yields the same plan and
 # the apply journal still resumes what already succeeded.
 info "Preparing deployment artifacts (stackkit generate)"
+installer_phase generate
 info "This can take a minute with little extra CLI output"
 run_stackkit_step generate
 ok "Deployment artifacts are ready"
@@ -681,6 +679,7 @@ if [ "$INSTALL_MODE" != "auto" ]; then
   if ! prompt_yn "Deploy the Cloud Kit now (stackkit apply)?" "y"; then
     echo ""
     ok "Deployment intent is ready; apply skipped on request."
+    installer_journal_write state prepared
     echo "  Continue manually:"
     echo "    cd $HOMELAB_DIR"
     echo "    stackkit plan"
@@ -701,6 +700,7 @@ fi
 # without a summary or a next step. Capture the status and end with something
 # actionable instead.
 info "Installing services (stackkit apply)"
+installer_phase apply
 info "Image download and health waits can take several minutes with little extra output"
 prepare_cloud_install_host || die "Could not prepare this host for Cloud Kit apply. Run the installer again as root on this VPS."
 set +e
@@ -776,6 +776,10 @@ esac
 
 ACCESS_JSON="$HOMELAB_DIR/.stackkit/access.json"
 HUB_URL=""
+installer_phase verify
+run_stackkit_step verify
+installer_complete
+
 DOMAIN_EFFECTIVE=""
 if [ -f "$ACCESS_JSON" ]; then
   HUB_URL=$(grep -o '"hubUrl"[[:space:]]*:[[:space:]]*"[^"]*"' "$ACCESS_JSON" | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)"/\1/' || true)

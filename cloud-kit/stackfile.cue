@@ -115,7 +115,7 @@ Definition: foundation.#ProductKitDefinition & {
 		optional: ["private-admin-mesh", "offsite-object-backup", "failure-domain-placement", "telemetry-collection", "availability-ha"]
 		forbidden: ["site-local", "lan-discovery", "local-ingress", "lan-access-policy", "device-enrollment-home"]
 	}
-	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "game", "mail", "mail-server", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video", "ai-assistant", "ai-speech", "ai-harness", "ai-control-plane"], forbidden: []}
+	workloads: {required: ["cloud-core"], defaults: [], optional: ["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "remote", "game", "mail", "marketplace", "mail-server", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video", "ai-assistant", "ai-speech", "ai-harness", "ai-control-plane"], forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
@@ -252,11 +252,11 @@ Definition: foundation.#ProductKitDefinition & {
 			route: {exposure: "public", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {
 				user: {
-					exposure: "public", authentication: "human+device", privilege: "user"
+					exposure:               "public", authentication: "human+device", privilege: "user"
 					enrolledDeviceRequired: true
 				}
 				vault: {
-					exposure: "public", authentication: "human+device", privilege: "vault"
+					exposure:               "public", authentication:  "human+device", privilege: "vault"
 					enrolledDeviceRequired: true, ownerStepUpRequired: true
 				}
 			}
