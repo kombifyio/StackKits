@@ -264,8 +264,17 @@ func validateProductAppliedRuntimeCustodyBinding(
 	applied VerifiedApplyResult,
 	capsule productApplyRecoveryCapsule,
 ) error {
-	envelope := applied.envelope
-	planBinding := plan.Binding()
+	if err := validateHistoricalAppliedRuntimeCustodyBinding(plan.Binding(), plan.OutputRoot(), applied.envelope, capsule); err != nil {
+		return err
+	}
+	requirementsEqual, err := canonicalProductApplyRecoveryEqual(capsule.Request.Requirements, plan.ApplyRequirements())
+	if err != nil || !requirementsEqual {
+		return errors.New("Product Apply recovery capsule requirements do not match the verified plan")
+	}
+	return nil
+}
+
+func validateHistoricalAppliedRuntimeCustodyBinding(planBinding generationartifact.PlanBinding, outputRoot string, envelope verifiedApplyResultEnvelope, capsule productApplyRecoveryCapsule) error {
 	if capsule.Request.Binding != planBinding || envelope.Binding != planBinding {
 		return errors.New("Product Apply recovery capsule is bound to a foreign plan")
 	}
@@ -291,13 +300,9 @@ func validateProductAppliedRuntimeCustodyBinding(
 		capsule.Shared.Executor.Digest != envelope.Executor.Digest {
 		return errors.New("Product Apply recovery capsule executor does not match the verified Apply envelope")
 	}
-	rootEqual, err := confinedfs.OutputLockRootsEqual(capsule.OutputRoot, plan.OutputRoot())
-	if err != nil || !rootEqual || capsule.OutputRoot != plan.OutputRoot() {
+	rootEqual, err := confinedfs.OutputLockRootsEqual(capsule.OutputRoot, outputRoot)
+	if err != nil || !rootEqual || capsule.OutputRoot != outputRoot {
 		return errors.New("Product Apply recovery capsule output root does not match the verified plan")
-	}
-	requirementsEqual, err := canonicalProductApplyRecoveryEqual(capsule.Request.Requirements, plan.ApplyRequirements())
-	if err != nil || !requirementsEqual {
-		return errors.New("Product Apply recovery capsule requirements do not match the verified plan")
 	}
 	appliedAt, err := time.Parse(time.RFC3339Nano, envelope.AppliedAt)
 	if err != nil || appliedAt.Location() != time.UTC || appliedAt.Format(time.RFC3339Nano) != envelope.AppliedAt ||

@@ -49,16 +49,21 @@ func (o *osKomodoWorkloadOperations) ApplyWorkload(ctx context.Context, deployme
 		return SelectedPaaSApplyReceipt{}, errors.New("local Komodo requires its registered node server identity")
 	}
 	project := "stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef
+	var prior platformdeploy.HostDeployment
 	present, err := platformdeploy.HasOwnerHostDeployment(o.workspace, project)
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	if present {
 		state, err := platformdeploy.LoadOwnerHostDeployment(o.workspace, project)
+		if err == nil {
+			err = platformdeploy.RequireHostDeploymentManager(state, "komodo")
+		}
 		if err != nil || state.WorkloadRef != deployment.WorkloadRef || state.NodeRef != deployment.NodeRef ||
 			state.SiteRef != deployment.SiteRef || state.ServerID != cfg.ServerID {
 			return SelectedPaaSApplyReceipt{}, errors.New("existing Komodo project belongs to another node binding")
 		}
+		prior = state
 	} else {
 		args := []string{"ps", "--all", "--filter", "label=com.docker.compose.project=" + project, "--format", "{{.ID}}"}
 		raw, err := o.prepared.runner.Run(ctx, args, o.workspace)
@@ -92,6 +97,7 @@ func (o *osKomodoWorkloadOperations) ApplyWorkload(ctx context.Context, deployme
 		WorkloadRef: deployment.WorkloadRef, InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest,
 		SiteRef: deployment.SiteRef, NodeRef: deployment.NodeRef, ServerID: cfg.ServerID, Deployment: ref,
 	}
+	state.Manager, state.Handover = prior.Manager, prior.Handover
 	if err := platformdeploy.SaveOwnerHostDeployment(o.workspace, prepared.ProjectName, state); err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
@@ -128,6 +134,9 @@ func (o *osKomodoWorkloadOperations) ObserveWorkload(ctx context.Context, deploy
 		state.ArtifactDigest != deployment.ArtifactDigest || state.SiteRef != deployment.SiteRef ||
 		state.NodeRef != deployment.NodeRef || state.ServerID != cfg.ServerID {
 		return SelectedPaaSWorkloadObservation{}, errors.New("Komodo deployment custody differs from the exact workload target")
+	}
+	if err := platformdeploy.RequireHostDeploymentManager(state, "komodo"); err != nil {
+		return SelectedPaaSWorkloadObservation{}, err
 	}
 	if _, err := platformdeploy.NewKomodoAdapter(cfg).ObserveDeployment(ctx, state.Deployment); err != nil {
 		return SelectedPaaSWorkloadObservation{}, fmt.Errorf("observe selected Komodo deployment: %w", err)

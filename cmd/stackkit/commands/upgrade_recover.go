@@ -116,7 +116,9 @@ func explicitRollbackStartPhase(phase string) bool {
 		lifecyclemutation.PhaseTargetVerifyStarted,
 		lifecyclemutation.PhaseTargetVerifySucceeded,
 		lifecyclemutation.PhaseCommitStarted,
-		lifecyclemutation.PhaseRollbackStarted:
+		lifecyclemutation.PhaseRollbackStarted,
+		lifecyclemutation.PhaseRollbackGenerateStarted,
+		lifecyclemutation.PhaseRollbackGenerateDone:
 		return true
 	default:
 		return false

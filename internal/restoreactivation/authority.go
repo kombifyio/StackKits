@@ -736,7 +736,7 @@ func deriveStandaloneComposeApplicationBindings(
 
 func deriveStandaloneComposeRuntimeCustody(
 	workspaceRoot string,
-	plan generationartifact.VerifiedPlan,
+	plan recoveryPlanData,
 	manifest generationartifact.ArtifactManifest,
 	operationID string,
 ) ([]StandaloneComposeRuntimeCustody, error) {

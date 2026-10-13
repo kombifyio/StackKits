@@ -652,7 +652,7 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		}
 		registrations = append(registrations, komodo...)
 	}
-	marketplaceOperations, err := nativehost.NewOSMarketplaceOperations(workspaceRoot)
+	marketplaceOperations, err := nativehost.NewOSMarketplaceOperations(workspaceRoot, publicMarketplaceUpgradeAuthority(workspaceRoot))
 	if err != nil {
 		return nil, err
 	}

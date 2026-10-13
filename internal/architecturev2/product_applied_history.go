@@ -1,9 +1,14 @@
 package architecturev2
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -13,6 +18,41 @@ import (
 type HistoricalAppliedRuntimeCustody struct {
 	canonical []byte
 	capsule   productApplyRecoveryCapsule
+	path      string
+	workloads []AppliedWorkloadIdentity
+}
+
+// LoadHistoricalAppliedRuntimeCustody binds retained data to an independently
+// owner-signed Apply result verified by the attested source release. This API
+// never creates VerifiedPlan, VerifiedApplyResult or execution authorization.
+func (j *ProductApplyFileJournal) LoadHistoricalAppliedRuntimeCustody(ctx context.Context, binding generationartifact.PlanBinding, outputRoot string, signedResult []byte) (HistoricalAppliedRuntimeCustody, error) {
+	var envelope verifiedApplyResultEnvelope
+	if err := json.Unmarshal(signedResult, &envelope); err != nil {
+		return HistoricalAppliedRuntimeCustody{}, err
+	}
+	canonical, err := resolvedplan.CanonicalJSON(envelope)
+	if err != nil || !bytes.Equal(canonical, signedResult) || !validApplySHA256(envelope.SharedRequestDigest) {
+		return HistoricalAppliedRuntimeCustody{}, errors.New("historical Apply result has no canonical shared custody binding")
+	}
+	filePath, data, capsule, err := j.loadProductApplyRecovery(ctx, envelope.SharedRequestDigest)
+	if err != nil {
+		return HistoricalAppliedRuntimeCustody{}, err
+	}
+	if err := validateHistoricalAppliedRuntimeCustodyBinding(binding, outputRoot, envelope, capsule); err != nil {
+		return HistoricalAppliedRuntimeCustody{}, err
+	}
+	custody, err := ParseHistoricalAppliedRuntimeCustody(data)
+	if err != nil {
+		return HistoricalAppliedRuntimeCustody{}, err
+	}
+	custody.path = filePath
+	custody.workloads = envelope.AppliedWorkloads
+	return custody, nil
+}
+
+func (custody HistoricalAppliedRuntimeCustody) Path() string { return custody.path }
+func (custody HistoricalAppliedRuntimeCustody) AppliedWorkloads() []AppliedWorkloadIdentity {
+	return cloneAppliedWorkloadIdentities(custody.workloads)
 }
 
 // ParseHistoricalAppliedRuntimeCustody uses the same bounded canonical capsule

@@ -578,7 +578,7 @@ func inspectJoin(workspace string, request JoinRequest, claim bool) error {
 		return err
 	}
 	defer transaction.Close()
-	record, _, exists, err := loadRecord(workspace, transaction)
+	record, recordDigest, exists, err := loadRecord(workspace, transaction)
 	if err != nil {
 		return err
 	}
@@ -600,7 +600,7 @@ func inspectJoin(workspace string, request JoinRequest, claim bool) error {
 	if !claim {
 		return nil
 	}
-	return claimJoin(workspace, root, transaction, record)
+	return claimJoin(workspace, root, transaction, record, recordDigest)
 }
 
 func joinAuthority(record Record) (string, string) {
@@ -638,6 +638,7 @@ func claimJoin(
 	root *confinedfs.Root,
 	transaction *confinedfs.Transaction,
 	record Record,
+	validatedDigest string,
 ) (returnErr error) {
 	if root == nil || transaction == nil || record.Join == nil {
 		return errors.New("lifecycle mutation join claim authority is incomplete")
@@ -661,6 +662,16 @@ func claimJoin(
 		return fmt.Errorf("acquire lifecycle join claim lock: %w", err)
 	}
 	defer func() { returnErr = errors.Join(returnErr, lock.Release()) }()
+	// Recovery owns this same lock until its replacement phase is signed.
+	// Rebind the pre-lock validation before consuming any child authority.
+	current, currentDigest, exists, err := loadRecord(workspace, transaction)
+	if err != nil {
+		return err
+	}
+	if !exists || current.Status != StatusActive || current.OperationID != record.OperationID ||
+		currentDigest != validatedDigest {
+		return errors.New("lifecycle mutation join changed before its claim lock was acquired")
+	}
 	view, err := root.View(".")
 	if err != nil {
 		return err
@@ -878,6 +889,14 @@ func (session *Session) BeginJoin(
 	if err := session.transition(expected, next, join, nil); err != nil {
 		return "", err
 	}
+	// The new signed phase invalidates the abandoned child's nonce. Only then
+	// hand off the recovery claim lock so this authorized child can claim it.
+	if session.claimLock != nil {
+		if err := session.claimLock.Release(); err != nil {
+			return "", err
+		}
+		session.claimLock = nil
+	}
 	return nonce, nil
 }
 
@@ -897,6 +916,14 @@ func (session *Session) transitionWithUpgradeData(
 	restoreActivation *RestoreActivationState,
 	upgradeDataActivation *UpgradeDataActivationState,
 ) error {
+	if (expected == PhaseRollbackGenerateStarted || expected == PhaseRollbackGenerateDone) && next == PhaseRollbackStarted {
+		if err := session.RequirePreApplyUpgradeRollback(); err != nil {
+			return err
+		}
+		if session.claimLock == nil {
+			return errors.New("rollback Generate restart requires exclusive unclaimed recovery custody")
+		}
+	}
 	if session == nil || session.transaction == nil ||
 		session.record.Status != StatusActive ||
 		session.record.Phase != expected ||
@@ -1712,8 +1739,8 @@ func allowedTransition(kind, current, next string) bool {
 		PhaseTargetVerifySucceeded:   {PhaseCommitStarted, PhaseRollbackStarted},
 		PhaseCommitStarted:           {PhaseCommitSucceeded, PhaseRollbackStarted},
 		PhaseRollbackStarted:         {PhaseRollbackGenerateStarted},
-		PhaseRollbackGenerateStarted: {PhaseRollbackGenerateDone},
-		PhaseRollbackGenerateDone:    {PhaseRollbackApplyStarted},
+		PhaseRollbackGenerateStarted: {PhaseRollbackGenerateDone, PhaseRollbackStarted},
+		PhaseRollbackGenerateDone:    {PhaseRollbackApplyStarted, PhaseRollbackStarted},
 		PhaseRollbackApplyStarted:    {PhaseRollbackApplyDone},
 		PhaseRollbackApplyDone:       {PhaseRollbackVerifyStarted},
 		PhaseRollbackVerifyStarted:   {PhaseRollbackVerifyDone},

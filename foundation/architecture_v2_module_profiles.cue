@@ -311,18 +311,38 @@ _architectureV2Zigbee2mqttComputeProfile: #ModuleComputeProfileV2 & {
 }
 _architectureV2Zigbee2mqttComputeProfiles: {standard: _architectureV2Zigbee2mqttComputeProfile, high: _architectureV2Zigbee2mqttComputeProfile}
 
-_architectureV2MosquittoComputeProfile: #ModuleComputeProfileV2 & {
-	description: "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login."
-	maturity:    "beta", executable: true, realization: "apply-ready"
-	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
-	reservation: ramGB: 0.03125
+_architectureV2MosquittoComputeProfile: {
+	maturity:  "beta", executable: true, realization: "apply-ready"
+	hostFloor: _architectureV2CoreComputeProfile.hostFloor
 	components: ["mosquitto"]
 	provenance: {
-		hostFloor:   _architectureV2PolicyFloorProvenance
-		reservation: _architectureV2ComponentReservationProvenance
+		hostFloor: _architectureV2PolicyFloorProvenance
+		reservation: {source: "policy", ref: "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles"}
+		headroom: {source: "policy", ref: "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles"}
 	}
 }
-_architectureV2MosquittoComputeProfiles: {standard: _architectureV2MosquittoComputeProfile, high: _architectureV2MosquittoComputeProfile}
+// The renderer derives container limits from reservation + headroom and keeps
+// the same pinned MQTT application configuration across all allocations.
+// CPU/RAM values are policy, not measured capacity or quality guarantees.
+// The2093 runtime observation retains its original source/artifact binding;
+// named high benefit and full Smart Home compute acceptance remain unverified.
+_architectureV2MosquittoComputeProfiles: {
+	low: #ModuleComputeProfileV2 & _architectureV2MosquittoComputeProfile & {
+		description: "MQTT allocation: 16 MiB RAM reservation, 64 MiB container limit and 0.1 CPU limit. Same application configuration across all profiles. Client count, offline retention and throughput are unverified."
+		reservation: {ramGB: 0.015625, cpuCores: 0.05}
+		headroom: {ramGB: 0.046875, cpuCores: 0.05}
+	}
+	standard: #ModuleComputeProfileV2 & _architectureV2MosquittoComputeProfile & {
+		description: "MQTT allocation: 32 MiB RAM reservation, 128 MiB container limit and 0.25 CPU limit. Same application configuration across all profiles. Client count, offline retention and throughput are unverified."
+		reservation: {ramGB: 0.03125, cpuCores: 0.125}
+		headroom: {ramGB: 0.09375, cpuCores: 0.125}
+	}
+	high: #ModuleComputeProfileV2 & _architectureV2MosquittoComputeProfile & {
+		description: "MQTT allocation: 128 MiB RAM reservation, 512 MiB container limit and 1 CPU limit. Same application configuration across all profiles. A measured benefit over standard has not been established."
+		reservation: {ramGB: 0.125, cpuCores: 0.5}
+		headroom: {ramGB: 0.375, cpuCores: 0.5}
+	}
+}
 
 _architectureV2EuroofficeComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Browser office editing through Euro-Office Document Server (ONLYOFFICE fork). Every request carries a JWT signed with the custodied secret that the Nextcloud connector app also uses; the server has no user login of its own."

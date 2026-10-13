@@ -4041,8 +4041,8 @@ _servicePublicationShape: {
 // architecture authority into public renderer inputs. Sources are finite and
 // typed; arbitrary paths, raw StackSpec access, module outputs, and secrets are
 // intentionally unrepresentable.
-#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.moduleRoute" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot" | "backup.localKopiaSource" | "workloads.companions"
-#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "authority-bound-module-route-v1" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1" | "local-kopia-backup-source-v1" | "workload-companion-list-v1"
+#ModuleRenderInputSourceRefV2:   "identity.deviceEnrollment" | "identityTrust.homeDeviceAuthority" | "identityTrust.basementVerification" | "identityTrust.cloudAuthority" | "identityTrust.modernHomeAuthority" | "identityTrust.modernCloudVerification" | "access.homeEnforcement" | "localAutonomy.policy" | "network.routes" | "network.moduleRoute" | "network.cloudHostSecurity" | "host.bootstrapRuntime" | "storage.hostRoots" | "storage.backupRoot" | "backup.localKopiaSource" | "workloads.companions" | "modules.computeProfileBinding"
+#ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "authority-bound-module-route-v1" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1" | "local-kopia-backup-source-v1" | "workload-companion-list-v1" | "module-compute-profile-v1"
 #ModuleRenderInputCardinalityV2: "single" | "list"
 
 // This projection renames credentialTTLSeconds to lifetimeSeconds so the
@@ -4645,6 +4645,11 @@ _servicePublicationShape: {
 	valueType:   #ModuleRenderInputValueTypeV2
 	cardinality: #ModuleRenderInputCardinalityV2
 	required:    bool
+	if sourceRef == "modules.computeProfileBinding" {
+		valueType:   "module-compute-profile-v1"
+		cardinality: "single"
+		required:    true
+	}
 
 	if sourceRef == "identity.deviceEnrollment" {
 		valueType:   "device-enrollment-public-v1"

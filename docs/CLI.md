@@ -1411,6 +1411,27 @@ host/runtime conditions keep their existing reason and retryability. Unknown
 typed codes use the generic command reason. Typed error messages are fixed
 public text; paths, diagnostic fields and underlying causes are not serialized.
 
+### `stackkit service manager <workload-ref>`
+
+Transfers an existing node-owned, Komodo-registered application between
+`standalone-compose` and `komodo`. It retains the API deployment identity,
+running containers, private recipe, data mounts and addresses. It does not
+adopt an unknown Compose project or change the active plan's selection.
+
+```bash
+stackkit service manager media --status --json
+stackkit service manager media --to standalone-compose --owner-approve --json
+stackkit service manager media --to komodo --owner-approve --json
+```
+
+The shared mutation lock excludes concurrent Apply and upgrade. A pending,
+owner-signed handover denies both managers. After an uncertain response, read
+`--status`, then resume only its exact operation with `--resume <operation-id>`
+and the same target. Changed recipes or runtime bindings fail closed.
+Explicit manager custody uses v2 and requires a matching CLI; previous custody
+readers reject the new version. Normal Apply and service control must select
+the claimed manager, so a retained plan cannot regain competing control.
+
 ### `stackkit completion [bash|zsh|fish|powershell]`
 
 Generates shell completion scripts from Cobra.

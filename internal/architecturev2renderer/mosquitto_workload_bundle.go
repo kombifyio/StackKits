@@ -12,13 +12,14 @@ import (
 const (
 	mosquittoWorkloadModuleID    = "stackkits-mosquitto-runtime"
 	mosquittoWorkloadUnitID      = "mosquitto"
-	mosquittoWorkloadTemplateRef = "builtin://workloads/mosquitto/bundle/v2.json"
-	mosquittoWorkloadVersion     = "2.0.0"
+	mosquittoWorkloadTemplateRef = "builtin://workloads/mosquitto/bundle/v3.json"
+	mosquittoWorkloadVersion     = "3.0.0"
 	mosquittoWorkloadOutputRef   = "workloads/mosquitto/bundle.json"
+	mosquittoWorkloadAPIVersion  = "stackkit.workload-bundle/v3"
 )
 
-const mosquittoWorkloadRendererSchema = `stackkit.workload-bundle/v2|MosquittoWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:mosquitto|release:` +
-	mosquittoRelease + `|secret-material:mqtt-password-reference|lan-listener:1883-owner-setting`
+const mosquittoWorkloadRendererSchema = `stackkit.workload-bundle/v3|MosquittoWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:mosquitto|release:` +
+	mosquittoRelease + `|secret-material:mqtt-password-reference|lan-listener:1883-owner-setting|compute:module-compute-profile-v1|limits:reservation-plus-headroom|mqtt-flow-control:upstream-count-bounds`
 
 type MosquittoWorkloadBundleDescriptor struct {
 	WorkloadRef string
@@ -67,9 +68,14 @@ func ParseMosquittoWorkloadBundle(data []byte) (MosquittoWorkloadBundleDescripto
 	if err := decodeStrict(data, &bundle); err != nil {
 		return MosquittoWorkloadBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed Mosquitto workload bundle", err)
 	}
-	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "MosquittoWorkloadBundle" ||
+	legacy := bundle.APIVersion == mosquittoV2APIVersion
+	release := mosquittoRelease
+	if legacy {
+		release = mosquittoV2Release
+	}
+	if (!legacy && bundle.APIVersion != mosquittoWorkloadAPIVersion) || bundle.Kind != "MosquittoWorkloadBundle" ||
 		bundle.Workload.Ref != "smart-home-mqtt" || bundle.Workload.AlternativeRef != "mosquitto" ||
-		bundle.Workload.ModuleRef != mosquittoWorkloadModuleID || bundle.Workload.Release != mosquittoRelease ||
+		bundle.Workload.ModuleRef != mosquittoWorkloadModuleID || bundle.Workload.Release != release ||
 		bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != mosquittoWorkloadUnitID ||
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
@@ -83,7 +89,16 @@ func ParseMosquittoWorkloadBundle(data []byte) (MosquittoWorkloadBundleDescripto
 			return MosquittoWorkloadBundleDescriptor{}, err
 		}
 	}
-	components, err := validateMosquittoRuntimeComponents(bundle.Components, path+".components")
+	var components []selectedPaaSRuntimeComponent
+	var err error
+	if legacy {
+		if len(bundle.ComputeProfile) != 0 {
+			return MosquittoWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".computeProfile", "legacy v2 bundles cannot carry a v3 profile")
+		}
+		components, err = validateMosquittoV2RuntimeComponents(bundle.Components, path+".components")
+	} else {
+		components, err = validateMosquittoRuntimeComponents(bundle.Components, bundle.ComputeProfile, path+".components")
+	}
 	if err != nil {
 		return MosquittoWorkloadBundleDescriptor{}, err
 	}
@@ -96,7 +111,7 @@ func ParseMosquittoWorkloadBundle(data []byte) (MosquittoWorkloadBundleDescripto
 		}
 	}
 	descriptor := MosquittoWorkloadBundleDescriptor{
-		WorkloadRef: "smart-home-mqtt", ModuleRef: mosquittoWorkloadModuleID, Release: mosquittoRelease,
+		WorkloadRef: "smart-home-mqtt", ModuleRef: mosquittoWorkloadModuleID, Release: release,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		Components: make([]SelectedPaaSWorkloadComponentDescriptor, len(components)),
 	}
@@ -145,7 +160,11 @@ func validateMosquittoWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, settings, err := validateApplicationDeliveryInputsWithSettings(unit, mosquittoWorkloadModuleID, "smart-home-mqtt", 8080, []string{"lan-listener"}, path+".inputs")
+	routeUnit, computeProfile, err := consumeModuleComputeProfile(unit, path+".inputs.compute-profile")
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	deliveryRoute, settings, err := validateApplicationDeliveryInputsWithSettings(routeUnit, mosquittoWorkloadModuleID, "smart-home-mqtt", 8080, []string{"lan-listener"}, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -174,6 +193,18 @@ func validateMosquittoWorkloadUnit(unit RenderUnit, contract RendererContract) (
 		return selectedPaaSWorkloadBundle{}, wrap(ErrInvalidPlan, path+".runtime.components", "decode closed component graph", err)
 	}
 	for index := range components {
+		if !mosquittoCommandMatches(components[index].Command) {
+			return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components.command", "catalog command differs from the pinned broker command")
+		}
+		limits, _, err := computeProfileLimits(computeProfile, mosquittoWorkloadModuleID)
+		if err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
+		command, err := mosquittoProfileCommand(computeProfile)
+		if err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
+		components[index].Resources, components[index].Command = limits, command
 		if err := validateDeclaredLANRights(mosquittoWorkloadModuleID, components[index], path+".runtime.components"); err != nil {
 			return selectedPaaSWorkloadBundle{}, err
 		}
@@ -181,7 +212,7 @@ func validateMosquittoWorkloadUnit(unit RenderUnit, contract RendererContract) (
 			return selectedPaaSWorkloadBundle{}, err
 		}
 	}
-	components, err = validateMosquittoRuntimeComponents(components, path+".runtime.components")
+	components, err = validateMosquittoRuntimeComponents(components, computeProfile, path+".runtime.components")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -193,8 +224,8 @@ func validateMosquittoWorkloadUnit(unit RenderUnit, contract RendererContract) (
 		return selectedPaaSWorkloadBundle{}, err
 	}
 	bundle := selectedPaaSWorkloadBundle{
-		APIVersion: "stackkit.workload-bundle/v2", Kind: "MosquittoWorkloadBundle",
-		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
+		APIVersion: mosquittoWorkloadAPIVersion, Kind: "MosquittoWorkloadBundle",
+		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute, ComputeProfile: computeProfile,
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "smart-home-mqtt", "mosquitto"
 	bundle.Workload.ModuleRef, bundle.Workload.Release = mosquittoWorkloadModuleID, mosquittoRelease
@@ -206,11 +237,36 @@ func validateMosquittoWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	return bundle, nil
 }
 
-func validateMosquittoRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
+func validateMosquittoRuntimeComponents(components []selectedPaaSRuntimeComponent, profile json.RawMessage, path string) ([]selectedPaaSRuntimeComponent, error) {
+	limits, _, err := computeProfileLimits(profile, mosquittoWorkloadModuleID)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, path, "validate selected broker resources", err)
+	}
+	command, err := mosquittoProfileCommand(profile)
+	if err != nil {
+		return nil, err
+	}
+	validated, err := validateMosquittoRuntimeComponentsAgainst(components, command, limits, mosquittoImageRef, mosquittoImageDigest, path)
+	if err == nil {
+		return validated, nil
+	}
+	// Read retained v3 custody from the diagnosed pre-correction recipe only.
+	// Generation never uses these historical byte limits.
+	legacyCommand, legacyErr := mosquittoRetainedV3Command(profile)
+	if legacyErr == nil {
+		if retained, legacyErr := validateMosquittoRuntimeComponentsAgainst(components, legacyCommand, limits, mosquittoImageRef, mosquittoImageDigest, path); legacyErr == nil {
+			return retained, nil
+		}
+	}
+	return nil, err
+}
+
+func validateMosquittoRuntimeComponentsAgainst(components []selectedPaaSRuntimeComponent, command []string, limits *selectedPaaSRuntimeLimits, imageRef, imageDigest, path string) ([]selectedPaaSRuntimeComponent, error) {
 	if len(components) != 1 || components[0].ID != "mosquitto" || components[0].Lifecycle != "daemon" ||
-		components[0].Image.Ref != mosquittoImageRef || components[0].Image.Digest != mosquittoImageDigest ||
+		components[0].Image.Ref != imageRef || components[0].Image.Digest != imageDigest ||
 		components[0].Health.Kind != "http" || components[0].Health.Path != "/api/v1/systree" || components[0].Health.Port != 8080 || !sameEnvironment(components[0].Environment, mosquittoEnvironment()) ||
-		len(components[0].SecretEnvironment) != 0 || !slices.Equal(components[0].SecretFiles, []selectedPaaSSecretFile{mosquittoPasswordFile}) || !mosquittoCommandMatches(components[0].Command) {
+		len(components[0].SecretEnvironment) != 0 || !slices.Equal(components[0].SecretFiles, []selectedPaaSSecretFile{mosquittoPasswordFile}) ||
+		!exactStringList(components[0].Command, command) || components[0].Resources == nil || *components[0].Resources != *limits {
 		return nil, fail(ErrInvalidPlan, path, "Mosquitto runtime graph differs from the closed "+mosquittoRelease+" contract")
 	}
 	want := map[string]selectedPaaSRuntimeVolume{
@@ -253,4 +309,19 @@ func mosquittoEnvironment() map[string]string {
 func mosquittoCommandMatches(command []string) bool {
 	var want []string
 	return json.Unmarshal([]byte(mosquittoCommandJSON), &want) == nil && exactStringList(command, want)
+}
+
+func mosquittoProfileCommand(profile json.RawMessage) ([]string, error) {
+	_, _, err := computeProfileLimits(profile, mosquittoWorkloadModuleID)
+	if err != nil {
+		return nil, err
+	}
+	var command []string
+	if err := json.Unmarshal([]byte(mosquittoCommandJSON), &command); err != nil || len(command) != 3 {
+		return nil, fmt.Errorf("decode pinned Mosquitto command")
+	}
+	// Compute profiles allocate resources; they do not change MQTT delivery semantics.
+	// Keep the pinned recipe and upstream queue/inflight count bounds for every
+	// allocation instead of inventing per-client byte budgets from host RAM.
+	return command, nil
 }

@@ -15,6 +15,7 @@ import (
 	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/parser"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	skcue "github.com/kombifyio/stackkits/internal/cue"
 	"github.com/spf13/cobra"
 )
@@ -138,7 +139,7 @@ func bumpFoundationImage(cmd *cobra.Command, moduleDirectory string, before skcu
 		}
 		root = parent
 	}
-	path, err := resolveModuleArtifactPath(filepath.Join(root, "foundation"), "architecture_v2_catalog.cue")
+	path, err := confinedfs.ResolveModuleArtifactPath(filepath.Join(root, "foundation"), "architecture_v2_catalog.cue")
 	if err != nil {
 		return err
 	}

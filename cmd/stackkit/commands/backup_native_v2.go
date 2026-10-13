@@ -38,18 +38,21 @@ const (
 )
 
 type nativeV2BackupAuthority struct {
-	OwnerRef         string
-	AuthorityRef     string
-	WorkspaceRoot    string
-	OutputRoot       string
-	Plan             generationartifact.VerifiedPlan
-	Lineage          backuplifecycle.AuthorityLineage
-	PolicyDigest     string
-	PolicyArtifact   []byte
-	Policy           localbackuppolicy.Policy
-	AppliedAuthority *nativeV2AppliedAuthority
-	LegacyBeta4      *publicUpgradeBridge
-	HistoricalStable *publicUpgradeBridge
+	OwnerRef           string
+	AuthorityRef       string
+	WorkspaceRoot      string
+	OutputRoot         string
+	Plan               generationartifact.VerifiedPlan
+	Lineage            backuplifecycle.AuthorityLineage
+	PolicyDigest       string
+	PolicyArtifact     []byte
+	Policy             localbackuppolicy.Policy
+	AppliedAuthority   *nativeV2AppliedAuthority
+	HistoricalCustody  *architecturev2.HistoricalAppliedRuntimeCustody
+	HistoricalPlan     generationartifact.HistoricalPlan
+	HistoricalManifest generationartifact.ArtifactManifest
+	LegacyBeta4        *publicUpgradeBridge
+	HistoricalStable   *publicUpgradeBridge
 }
 
 type nativeV2BackupContinuation func(

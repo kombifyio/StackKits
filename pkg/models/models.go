@@ -1131,19 +1131,20 @@ func (s *StackSpec) ResolvePAAS() string {
 }
 
 // ResolvePAASForContext is the canonical auto-selection policy for normal
-// StackKit platform adapters. Explicit user config wins; otherwise fresh
-// StackKit rollouts default to Coolify. Komodo is the production alternative;
+// StackKit platform adapters. Explicit user config wins; otherwise no PaaS is
+// selected (ADR-0049: Coolify is not part of the default core and returns
+// through the Marketplace use case). Komodo and Coolify stay explicit choices;
 // Dokploy remains draft adapter work outside canonical E2E dispatch.
 func (s *StackSpec) ResolvePAASForContext(ctx NodeContext) string {
 	if s.PAAS != "" {
 		return s.PAAS
 	}
 
-	return PAASCoolify
+	return PAASNone
 }
 
 func (s *StackSpec) resolvePAASByTier() string {
-	return PAASCoolify
+	return PAASNone
 }
 
 // IsStandardPAAS reports whether the platform is part of the production

@@ -123,6 +123,7 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	ctx context.Context,
 	deployment SelectedPaaSWorkloadDeployment,
 ) (SelectedPaaSApplyReceipt, error) {
+	var managerState *platformdeploy.HostDeployment
 	if o != nil && o.adapterRef != "" && o.adapterRef != standaloneComposeAdapterRef {
 		return SelectedPaaSApplyReceipt{}, errors.New("selected platform owns workload mutation")
 	}
@@ -133,7 +134,17 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 			return SelectedPaaSApplyReceipt{}, fmt.Errorf("read workload manager custody: %w", err)
 		}
 		if present {
-			return SelectedPaaSApplyReceipt{}, &WorkloadManagerConflictError{Project: project, CurrentManager: "komodo", RequestedManager: standaloneComposeAdapterRef}
+			state, err := platformdeploy.LoadOwnerHostDeployment(o.workspaceRoot, project)
+			if err != nil {
+				return SelectedPaaSApplyReceipt{}, err
+			}
+			if err := platformdeploy.RequireHostDeploymentManager(state, standaloneComposeAdapterRef); err != nil {
+				return SelectedPaaSApplyReceipt{}, &WorkloadManagerConflictError{Project: project, CurrentManager: platformdeploy.HostDeploymentManager(state), RequestedManager: standaloneComposeAdapterRef}
+			}
+			if state.WorkloadRef != deployment.WorkloadRef || state.InstanceRef != deployment.InstanceRef || state.SiteRef != deployment.SiteRef || state.NodeRef != deployment.NodeRef {
+				return SelectedPaaSApplyReceipt{}, errors.New("Compose manager custody differs from the exact workload node")
+			}
+			managerState = &state
 		}
 	}
 	prepared, err := o.PrepareWorkloadCompose(ctx, deployment)
@@ -150,6 +161,13 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	}
 	if err := o.completeWorkloadCompose(ctx, project); err != nil {
 		return SelectedPaaSApplyReceipt{}, err
+	}
+	if managerState != nil {
+		managerState.ArtifactDigest = deployment.ArtifactDigest
+		managerState.PlanBinding = nil
+		if err := platformdeploy.SaveOwnerHostDeployment(o.workspaceRoot, project.name, *managerState); err != nil {
+			return SelectedPaaSApplyReceipt{}, err
+		}
 	}
 	return SelectedPaaSApplyReceipt{
 		InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest, Status: "applied",

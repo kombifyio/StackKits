@@ -28,6 +28,7 @@ const (
 	moduleInputSourceStorageBackup      = "storage.backupRoot"
 	moduleInputSourceLocalKopiaBackup   = "backup.localKopiaSource"
 	moduleInputSourceWorkloadCompanions = "workloads.companions"
+	moduleInputSourceComputeProfile     = "modules.computeProfileBinding"
 	moduleInputTypeDeviceEnrollment     = "device-enrollment-public-v1"
 	moduleInputTypeHomeAuthority        = "home-device-authority-v1"
 	moduleInputTypeBasementVerify       = "basement-identity-verification-v1"
@@ -44,6 +45,7 @@ const (
 	moduleInputTypeStorageBackup        = "local-backup-root-v1"
 	moduleInputTypeLocalKopiaBackup     = "local-kopia-backup-source-v1"
 	moduleInputTypeWorkloadCompanions   = "workload-companion-list-v1"
+	moduleInputTypeComputeProfile       = "module-compute-profile-v1"
 	moduleInputTypeNetworkRoutes        = moduleInputTypeNetworkRoutesV4
 )
 
@@ -335,6 +337,10 @@ func validateModuleInputBindingShape(sourceRef, valueType, cardinality string, d
 		if hasDefault {
 			return fail(ErrContractConflict, path+".defaultValue", "local Kopia backup source is compiler-owned and cannot declare a default")
 		}
+	case moduleInputSourceComputeProfile:
+		if valueType != moduleInputTypeComputeProfile || cardinality != "single" || hasDefault {
+			return fail(ErrContractConflict, path, "selected compute profile requires a compiler-owned required single binding without a default")
+		}
 	case moduleInputSourceWorkloadCompanions:
 		if valueType != moduleInputTypeWorkloadCompanions || cardinality != "list" {
 			return fail(ErrContractConflict, path, "workloads.companions requires type %q and list cardinality", moduleInputTypeWorkloadCompanions)
@@ -610,6 +616,8 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, 
 		}
 		companions, err := workloadCompanionsForModule(source.workloads, source.modules, moduleID)
 		return companions, err == nil, err
+	case moduleInputSourceComputeProfile:
+		return selectedModuleComputeProfileInput(source.modules, moduleID)
 	default:
 		return nil, false, fmt.Errorf("unsupported resolved-plan input source %q", binding.sourceRef)
 	}

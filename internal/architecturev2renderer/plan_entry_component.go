@@ -9,6 +9,17 @@ import "github.com/kombifyio/stackkits/internal/generationartifact"
 // false when the unit declares no entry component.
 func PlanRuntimeEntryComponentRef(plan generationartifact.VerifiedPlan, moduleRef, unitRef string) (string, bool, error) {
 	projection, err := parseVerifiedPlan(plan)
+	return runtimeEntryComponentRef(projection, err, moduleRef, unitRef)
+}
+
+// HistoricalRuntimeEntryComponentRef reads retained source plan data only.
+// It grants no generation, rendering or Apply authority.
+func HistoricalRuntimeEntryComponentRef(plan generationartifact.HistoricalPlan, moduleRef, unitRef string) (string, bool, error) {
+	projection, err := parsePlanCanonical(plan.Canonical())
+	return runtimeEntryComponentRef(projection, err, moduleRef, unitRef)
+}
+
+func runtimeEntryComponentRef(projection renderPlan, err error, moduleRef, unitRef string) (string, bool, error) {
 	if err != nil {
 		return "", false, err
 	}

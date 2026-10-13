@@ -6606,6 +6606,7 @@
       "flags": [],
       "subcommands": [
         "stackkit service logs",
+        "stackkit service manager",
         "stackkit service restart",
         "stackkit service start",
         "stackkit service stop"
@@ -6653,6 +6654,55 @@
           "type": "int",
           "default": "100",
           "description": "Number of redacted log entries to return (1..200)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit service manager",
+      "name": "manager",
+      "parent": "stackkit service",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit service manager <workload-ref> [flags]",
+      "short": "Transfer an existing node-owned workload between Compose and Komodo",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit service manager media --to standalone-compose --owner-approve\nstackkit service manager media --to komodo --owner-approve\nstackkit service manager media --to komodo --resume handover-<operation-id> --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Write the versioned manager result as JSON",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve the owner-bound manager transition",
+          "required": false
+        },
+        {
+          "name": "resume",
+          "type": "string",
+          "description": "Resume the exact pending handover operation",
+          "required": false
+        },
+        {
+          "name": "status",
+          "type": "bool",
+          "description": "Read the durable manager and handover outcome without mutation",
+          "required": false
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "description": "Target manager: standalone-compose or komodo",
           "required": false
         }
       ],

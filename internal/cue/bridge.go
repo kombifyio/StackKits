@@ -409,9 +409,15 @@ func applyPAASPlatformFlags(tfvars *TFVars, paas string) {
 		tfvars.EnableDockge = false
 		tfvars.EnableCoolify = false
 		tfvars.EnableKomodo = true
-	default:
+	case models.PAASDokploy:
 		tfvars.EnableDokploy = true
 		tfvars.EnableDokployApps = true
+		tfvars.EnableDockge = false
+		tfvars.EnableCoolify = false
+		tfvars.EnableKomodo = false
+	default:
+		tfvars.EnableDokploy = false
+		tfvars.EnableDokployApps = false
 		tfvars.EnableDockge = false
 		tfvars.EnableCoolify = false
 		tfvars.EnableKomodo = false
@@ -712,11 +718,11 @@ func newDefaultTFVars() *TFVars {
 		EnableTinyauth:                true,
 		EnablePocketID:                true,
 		ComputeTier:                   models.ComputeTierStandard,
-		Paas:                          models.PAASCoolify,
-		ReverseProxyBackend:           models.ReverseProxyCoolify,
+		Paas:                          models.PAASNone,
+		ReverseProxyBackend:           models.ReverseProxyStandalone,
 		EnablePlatformFallback:        false,
 		PlatformFallbackMode:          models.PlatformFallbackDisabled,
-		EnableCoolify:                 true,
+		EnableCoolify:                 false,
 		EnableDashboard:               true,
 		EnableHomepage:                true,
 		EnableWhoami:                  true,

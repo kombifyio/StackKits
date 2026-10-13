@@ -65,8 +65,21 @@ func runPlan(cmd *cobra.Command, args []string) error {
 	options := planV2ExecutionOptions
 	options.planOut = planOut
 	options.planDestroy = planDestroy
+	var verifiedPlan generationartifact.VerifiedPlan
+	if !planJSON {
+		options.verifiedPlanSink = func(plan generationartifact.VerifiedPlan) error {
+			verifiedPlan = plan
+			return nil
+		}
+	}
 	options.inspectionSink = func(inspection generationartifact.PlanInspection) error {
-		return writeArchitectureV2PlanInspection(cmd.OutOrStdout(), inspection, planJSON)
+		if err := writeArchitectureV2PlanInspection(cmd.OutOrStdout(), inspection, planJSON); err != nil {
+			return err
+		}
+		if planJSON {
+			return nil
+		}
+		return writeArchitectureV2PlanCapacity(cmd.OutOrStdout(), verifiedPlan)
 	}
 	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Plan, options); handled {
 		return err

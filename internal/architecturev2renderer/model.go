@@ -1795,6 +1795,13 @@ func validateRenderUnitInputBindings(unit rawRenderUnit, unitPath string) ([]byt
 			if _, exists := unit.Values[binding.TargetRef]; !exists {
 				return nil, fail(ErrInvalidPlan, unitPath+".values."+binding.TargetRef, "bound backup.localKopiaSource value is missing")
 			}
+		case "modules.computeProfileBinding":
+			if binding.ValueType != "module-compute-profile-v1" || binding.Cardinality != "single" || !binding.Required || len(binding.DefaultValue) != 0 {
+				return nil, fail(ErrInvalidPlan, path, "compute profile requires the exact required compiler binding")
+			}
+			if err := validateModuleComputeProfileInput(unit.Values[binding.TargetRef]); err != nil {
+				return nil, wrap(ErrInvalidPlan, path, "validate compiler-bound compute profile", err)
+			}
 		case workloadCompanionsSourceRef:
 			if binding.ValueType != workloadCompanionsValueType || binding.Cardinality != "list" {
 				return nil, fail(ErrInvalidPlan, path, "workloads.companions has an invalid type or cardinality")

@@ -991,6 +991,9 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if err != nil {
 		return err
 	}
+	if err := requireAppliedWorkloadManagers(wd, scopedPersisted, local.binding); err != nil {
+		return err
+	}
 	options.executionScope = local.scope
 	applyInput := architecturev2.ProductApplyInput{
 		Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions,

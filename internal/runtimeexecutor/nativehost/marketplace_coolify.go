@@ -23,13 +23,14 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"gopkg.in/yaml.v3"
 )
 
-const marketplaceDirectory = ".stackkit/runtime/marketplace"
-const marketplaceProject = "stackkit-marketplace"
+const marketplaceDirectory = localbackuppolicy.MarketplaceRuntimeDirectory
+const marketplaceProject = localbackuppolicy.MarketplaceComposeProject
 
 type MarketplaceObservation struct {
 	Status             string                     `json:"status"`
@@ -50,7 +51,14 @@ type MarketplaceOperations interface {
 	ApplyMarketplace(context.Context, architecturev2renderer.MarketplaceCoolifyDocument) (MarketplaceObservation, error)
 }
 
-type osMarketplaceOperations struct{ workspace string }
+// MarketplaceUpgradeAuthority is supplied by the installed lifecycle owner.
+// It must verify the signed target-Apply join and prior executor checkpoint.
+type MarketplaceUpgradeAuthority func(context.Context, architecturev2renderer.MarketplaceCoolifyDocument) error
+
+type osMarketplaceOperations struct {
+	workspace string
+	upgrade   MarketplaceUpgradeAuthority
+}
 type marketplaceCustody struct {
 	Version          string `json:"version"`
 	OwnerRef         string `json:"ownerRef"`
@@ -68,7 +76,10 @@ type marketplaceCustody struct {
 	ServerID         string `json:"serverId,omitempty"`
 }
 
-func NewOSMarketplaceOperations(workspace string) (MarketplaceOperations, error) {
+func NewOSMarketplaceOperations(workspace string, upgrade ...MarketplaceUpgradeAuthority) (MarketplaceOperations, error) {
+	if len(upgrade) > 1 {
+		return nil, errors.New("Marketplace requires one installed upgrade authority")
+	}
 	absolute, err := filepath.Abs(workspace)
 	if err != nil || strings.TrimSpace(workspace) == "" {
 		return nil, errors.New("Marketplace requires its owner workspace")
@@ -78,7 +89,11 @@ func NewOSMarketplaceOperations(workspace string) (MarketplaceOperations, error)
 		return nil, err
 	}
 	root.Close()
-	return &osMarketplaceOperations{absolute}, nil
+	operations := &osMarketplaceOperations{workspace: absolute}
+	if len(upgrade) == 1 {
+		operations.upgrade = upgrade[0]
+	}
+	return operations, nil
 }
 
 func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d architecturev2renderer.MarketplaceCoolifyDocument) (MarketplaceObservation, error) {
@@ -279,7 +294,13 @@ func (o *osMarketplaceOperations) loadMarketplaceCustody(ctx context.Context, vi
 		}
 		for _, c := range d.Components {
 			if recipe.Services[c.ID].Image != c.ImageRef+"@"+c.ImageDigest {
-				return state, errors.New("Marketplace image changes require its explicit checkpointed upgrade")
+				if o.upgrade == nil {
+					return state, errors.New("Marketplace image changes require its explicit checkpointed upgrade")
+				}
+				if err := o.upgrade(ctx, d); err != nil {
+					return state, fmt.Errorf("Marketplace checkpointed upgrade: %w", err)
+				}
+				break
 			}
 		}
 		return state, nil

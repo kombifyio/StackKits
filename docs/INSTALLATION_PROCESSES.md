@@ -514,6 +514,24 @@ Do not use when:
   CLI (`https://install.stackkit.cc`) and run the P2 chain instead;
 - the desired intent is outside the published Basement Kit scope.
 
+### Core installer custody under sudo
+
+The Core installer keeps its private recovery journal in the invoking OS
+user's `~/.stackkits/installer/core.tsv`, including when it runs through
+`sudo`. Every atomic phase update retains that user's ownership and mode
+`0600`. The invoking user can therefore resume from another directory without
+losing the saved release, kit or explicit CLI-only intent. Writing binaries
+to a protected system directory still needs the normal installation privilege.
+
+An older installer may have left a root-owned private journal in that user's
+home. Keep the original journal and re-run the same Core entrypoint with
+`sudo` from the original invoking account; the installer repairs its own
+journal ownership. Do not delete the journal, make it world-readable or copy
+another user's recovery state. An unreadable journal fails closed with this
+recovery guidance rather than claiming that its schema is unsupported.
+Privileged ownership recovery rejects a redirected journal directory before
+changing its ownership; keep the original recovery directory in place.
+
 ### Standalone removal and data retention
 
 A repeated installer invocation is recovery, never removal. Review the

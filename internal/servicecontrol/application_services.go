@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/kombifyio/stackkits/internal/logging"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 )
 
 // applicationComposeAdapter controls one selected application workload that
@@ -144,6 +145,10 @@ func runApplicationCompose(ctx context.Context, request runtimeCommandRequest) (
 	if filepath.Base(request.ComposePath) != "compose.yaml" || filepath.Base(directory) != "stackkit-"+request.RuntimeRef ||
 		filepath.Base(filepath.Dir(directory)) != "applications" {
 		return runtimeCommandOutput{}, errors.New("service control rejected an unbounded application runtime")
+	}
+	workspace := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(directory))))
+	if err := platformdeploy.RequireComposeWorkloadOwner(workspace, filepath.Base(directory)); err != nil {
+		return runtimeCommandOutput{}, &Error{ReasonCode: "workload_manager_conflict", Message: err.Error()}
 	}
 	prefix := []string{"compose", "--project-name", "stackkit-" + request.RuntimeRef, "--env-file", filepath.Join(directory, ".env"), "-f", request.ComposePath}
 	command := exec.CommandContext(ctx, "docker", append(prefix, request.Args...)...) //nolint:gosec // finite arguments validated by the caller

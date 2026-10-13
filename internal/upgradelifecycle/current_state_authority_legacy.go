@@ -231,6 +231,9 @@ func NewVerifiedLegacyExecutorStateCapture(
 	); err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
+	if err := appendHistoricalAppliedRuntimeClosure(&input); err != nil {
+		return VerifiedExecutorStateCapture{}, err
+	}
 	input.Capture.Release = releaseindex.VerifiedInstallation{}
 	return VerifiedExecutorStateCapture{
 		token:   &verifiedExecutorStateCaptureToken{},

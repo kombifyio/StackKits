@@ -238,6 +238,9 @@ type selectedPaaSWorkloadBundle struct {
 	Route         selectedPaaSServiceEndpoint    `json:"route"`
 	DeliveryRoute *applicationDeliveryRoute      `json:"deliveryRoute,omitempty"`
 	ConfigFiles   []selectedPaaSConfigFile       `json:"configFiles,omitempty"`
+	// ComputeProfile is an optional compiler-owned resource body. Only a
+	// workload whose renderer explicitly admits it may carry this projection.
+	ComputeProfile json.RawMessage `json:"computeProfile,omitempty"`
 	// DaemonSocketPath is the approved Docker socket of an ADR-0043 lifecycle
 	// owner; absent for every other workload.
 	DaemonSocketPath string `json:"daemonSocketPath,omitempty"`

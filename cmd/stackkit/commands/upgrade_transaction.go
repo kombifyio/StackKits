@@ -544,7 +544,11 @@ func rollbackPublicUpgrade(
 			"remove stale upgrade success authority before rollback: %w", err,
 		)
 	}
-	if err := record.RequirePreApplyUpgradeRollback(); err != nil {
+	rollbackAdmission := record.RequirePreApplyUpgradeRollback()
+	if recovery, ok := mutation.(interface{ RequirePreApplyUpgradeRollback() error }); ok {
+		rollbackAdmission = recovery.RequirePreApplyUpgradeRollback()
+	}
+	if err := rollbackAdmission; err != nil {
 		transaction.Rollback.Status = publicUpgradeRollbackDataRequired
 		return fmt.Errorf("operation %s retains its recovery checkpoint; prior-runtime restart is blocked: %w", checkpoint.OperationID, err)
 	}
@@ -575,6 +579,17 @@ func rollbackPublicUpgrade(
 				return fmt.Errorf("hash recovered prior executable: %w", runErr)
 			}
 			priorVersion := architectureV2ComponentVersion(snapshot.Release.Version)
+			frozenInventory, cleanupInventory, runErr := materializeRecoveredUpgradeInventory(workspace, snapshot)
+			if runErr != nil {
+				return runErr
+			}
+			defer cleanupInventory()
+			withInventory := func(args []string) []string {
+				if frozenInventory != "" {
+					return append(args, "--inventory", frozenInventory)
+				}
+				return args
+			}
 			generateNonce, runErr := mutation.BeginJoin(
 				lifecyclemutation.PhaseRollbackStarted,
 				lifecyclemutation.PhaseRollbackGenerateStarted,
@@ -595,7 +610,9 @@ func rollbackPublicUpgrade(
 			// Inventory, which the checkpoint verified resolves to the
 			// captured plan. A plain generate would re-measure free disk
 			// (staged restore data changes it) and never match.
-			if recoveredInventory, inventoryErr := upgradelifecycle.SnapshotInventoryBlobPath(snapshot); inventoryErr != nil {
+			if frozenInventory != "" {
+				generateArgs = withInventory(generateArgs)
+			} else if recoveredInventory, inventoryErr := upgradelifecycle.SnapshotInventoryBlobPath(snapshot); inventoryErr != nil {
 				return inventoryErr
 			} else if recoveredInventory != "" {
 				generateArgs = append(generateArgs, "--inventory",
@@ -613,7 +630,7 @@ func rollbackPublicUpgrade(
 				return fmt.Errorf("commit prior release generate phase: %w", runErr)
 			}
 			rawPlan, runErr := runner.Run(
-				recoveryContext, priorBinary, append(common, "plan", "--json"), workspace,
+				recoveryContext, priorBinary, withInventory(append(common, "plan", "--json")), workspace,
 			)
 			if runErr != nil {
 				return fmt.Errorf("prior release plan: %w", runErr)
@@ -642,7 +659,7 @@ func rollbackPublicUpgrade(
 				"apply", "--auto-approve",
 			)
 			if _, runErr := runner.Run(
-				recoveryContext, priorBinary, applyArgs, workspace,
+				recoveryContext, priorBinary, withInventory(applyArgs), workspace,
 			); runErr != nil {
 				return fmt.Errorf("prior release apply: %w", runErr)
 			}
@@ -669,7 +686,7 @@ func rollbackPublicUpgrade(
 				"verify", "--json",
 			)
 			rawVerify, runErr := runner.Run(
-				recoveryContext, priorBinary, verifyArgs, workspace,
+				recoveryContext, priorBinary, withInventory(verifyArgs), workspace,
 			)
 			if runErr != nil {
 				return fmt.Errorf("prior release verify: %w", runErr)

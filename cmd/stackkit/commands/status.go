@@ -22,7 +22,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/pkg/models"
-	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
 
@@ -194,24 +193,15 @@ func runStatus(cmd *cobra.Command, args []string) (retErr error) {
 	}
 
 	// Display table
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Service", "Status", "Health", "Container", "URL"})
-	table.SetBorder(false)
-	table.SetHeaderColor(
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-		tablewriter.Colors{tablewriter.Bold},
-	)
-
+	rows := make([][]string, 0, len(services))
 	for _, s := range services {
 		statusStr := formatStatus(s.Status)
 		healthStr := formatHealth(s.Health)
-		table.Append([]string{s.Name, statusStr, healthStr, s.Container, s.URL})
+		rows = append(rows, []string{s.Name, statusStr, healthStr, s.Container, s.URL})
 	}
-
-	table.Render()
+	if err := writeServiceStatusTable(cmd.OutOrStdout(), rows); err != nil {
+		return fmt.Errorf("display service status: %w", err)
+	}
 
 	// Overall status
 	fmt.Println()

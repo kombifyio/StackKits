@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:419841ff5e46b310049ff90c7742e3131095e92554e034e80999bcde5dbd8553",
+  "contentDigest": "sha256:8e6d5adf5053bb011b2eb5af2054a2cc4281687b51b0a6bd0ec0613c08bbbda2",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -3887,14 +3887,23 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.5,
+                    "ramGB": 0.375
+                  },
                   "reservation": {
-                    "ramGB": 0.5
+                    "cpuCores": 0.05,
+                    "ramGB": 0.3125
                   }
                 },
                 "standard": {
@@ -3910,14 +3919,23 @@
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+                      "source": "measured"
+                    },
                     "reservation": {
-                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.5,
+                    "ramGB": 0.375
+                  },
                   "reservation": {
-                    "ramGB": 0.5
+                    "cpuCores": 0.05,
+                    "ramGB": 0.3125
                   }
                 }
               },
@@ -4065,6 +4083,10 @@
                   "computeProfileFacts": {
                     "high": {
                       "executable": true,
+                      "headroom": {
+                        "cpuCores": 0.5,
+                        "ramGB": 0.375
+                      },
                       "hostFloor": {
                         "minCpuCores": 2,
                         "minRamGB": 4,
@@ -4072,22 +4094,63 @@
                       },
                       "maturity": "beta",
                       "provenance": {
+                        "headroom": {
+                          "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
+                          "source": "policy"
+                        },
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
                           "source": "policy"
                         },
                         "reservation": {
-                          "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+                          "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
                           "source": "policy"
                         }
                       },
                       "realization": "apply-ready",
                       "reservation": {
-                        "ramGB": 0.03125
+                        "cpuCores": 0.5,
+                        "ramGB": 0.125
+                      }
+                    },
+                    "low": {
+                      "executable": true,
+                      "headroom": {
+                        "cpuCores": 0.05,
+                        "ramGB": 0.046875
+                      },
+                      "hostFloor": {
+                        "minCpuCores": 2,
+                        "minRamGB": 4,
+                        "minStorageGB": 20
+                      },
+                      "maturity": "beta",
+                      "provenance": {
+                        "headroom": {
+                          "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
+                          "source": "policy"
+                        },
+                        "hostFloor": {
+                          "ref": "Kombify host floor support policy",
+                          "source": "policy"
+                        },
+                        "reservation": {
+                          "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
+                          "source": "policy"
+                        }
+                      },
+                      "realization": "apply-ready",
+                      "reservation": {
+                        "cpuCores": 0.05,
+                        "ramGB": 0.015625
                       }
                     },
                     "standard": {
                       "executable": true,
+                      "headroom": {
+                        "cpuCores": 0.125,
+                        "ramGB": 0.09375
+                      },
                       "hostFloor": {
                         "minCpuCores": 2,
                         "minRamGB": 4,
@@ -4095,23 +4158,29 @@
                       },
                       "maturity": "beta",
                       "provenance": {
+                        "headroom": {
+                          "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
+                          "source": "policy"
+                        },
                         "hostFloor": {
                           "ref": "Kombify host floor support policy",
                           "source": "policy"
                         },
                         "reservation": {
-                          "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+                          "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
                           "source": "policy"
                         }
                       },
                       "realization": "apply-ready",
                       "reservation": {
+                        "cpuCores": 0.125,
                         "ramGB": 0.03125
                       }
                     }
                   },
                   "computeProfiles": [
                     "high",
+                    "low",
                     "standard"
                   ],
                   "id": "stackkits-mosquitto-runtime"

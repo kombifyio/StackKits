@@ -9,6 +9,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
@@ -26,16 +27,26 @@ func nativeBackupMarketplaceDocument(ctx context.Context, authority nativeV2Back
 			graph = &copy
 		}
 	}
-	if graph == nil || authority.AppliedAuthority == nil || authority.AppliedAuthority.Lineage != authority.Lineage || authority.AppliedAuthority.WorkspaceRoot != authority.WorkspaceRoot {
+	if graph == nil {
 		return architecturev2renderer.MarketplaceCoolifyDocument{}, errors.New("Marketplace backup requires its current signed node Apply authority")
 	}
-	a := authority.AppliedAuthority
-	request, err := loadArchitectureV2AppliedRuntimeRequest(ctx, a.WorkspaceRoot, a.Plan, a.Manifest)
+	owner, err := localevidence.LoadOwnerCustody(authority.WorkspaceRoot)
+	if err != nil {
+		return architecturev2renderer.MarketplaceCoolifyDocument{}, err
+	}
+	var request runtimeexecutor.ExecutionRequest
+	if a := authority.AppliedAuthority; a != nil && a.Lineage == authority.Lineage && a.WorkspaceRoot == authority.WorkspaceRoot {
+		request, err = loadArchitectureV2AppliedRuntimeRequest(ctx, a.WorkspaceRoot, a.Plan, a.Manifest)
+	} else if h := authority.HistoricalCustody; h != nil && h.Binding() == authority.Lineage.Binding && h.ManifestHash() == authority.Lineage.ManifestHash && h.OutputRoot() == authority.OutputRoot {
+		request = h.Request()
+	} else {
+		return architecturev2renderer.MarketplaceCoolifyDocument{}, errors.New("Marketplace backup requires signed node Apply custody")
+	}
 	if err != nil {
 		return architecturev2renderer.MarketplaceCoolifyDocument{}, err
 	}
 	d, err := nativeBackupMarketplaceInstallationDocument(request, nativehost.LocalTargetBinding{
-		SiteRef: a.Owner.Binding.SiteRef, NodeRef: a.Owner.Binding.NodeRef, ExecutionChannelRef: a.Owner.Binding.ChannelRef,
+		SiteRef: owner.Binding.SiteRef, NodeRef: owner.Binding.NodeRef, ExecutionChannelRef: owner.Binding.ChannelRef,
 	})
 	if err != nil {
 		return d, err

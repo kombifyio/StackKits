@@ -5381,7 +5381,7 @@ _architectureV2MosquittoSupport: #ModuleRealizationSupportV2 & {
 	scope:           "concrete"
 	level:           "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: ["mqtt-password"]}
+	inputs: {contractComplete: true, requiredRefs: ["mqtt-password", "compute-profile"]}
 	artifacts: {
 		requiredRefs: ["mosquitto-workload-bundle", _architectureV2MosquittoTerramateStack.contract.id]
 		outputBindings: [{
@@ -11836,13 +11836,16 @@ _architectureV2Modules: list.Concat([[
 			kind:        "native-config"
 			rendererRef: "stackkit"
 			compatibleTargets: ["compose", "opentofu"]
-			templateRef:  "builtin://workloads/mosquitto/bundle/v2.json"
-			version:      "2.0.0"
-			contractHash: "sha256:969f57e8e598319da7072af0ef3d21b13d5ccf8e0246075e47d797764156031e"
-			publicInputRefs: ["delivery-route", "lan-listener"]
+			templateRef:  "builtin://workloads/mosquitto/bundle/v3.json"
+			version:      "3.0.0"
+			contractHash: "sha256:5ba320ad266b73705bb6f67f97ae8fe948e61f44b16edaf15078bc827ee3613b"
+			publicInputRefs: ["delivery-route", "lan-listener", "compute-profile"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
 				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}, {
+				targetRef: "compute-profile", sourceRef:             "modules.computeProfileBinding"
+				valueType: "module-compute-profile-v1", cardinality: "single", required: true
 			}]
 			secretInputRefs: ["mqtt-password"]
 			outputs: ["workloads/mosquitto/bundle.json"]
@@ -11871,19 +11874,19 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
 				unitRefs: ["mosquitto"], artifactRefs: ["mosquitto-workload-bundle"]
-				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "lan-listener", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["mosquitto"], artifactRefs: ["mosquitto-workload-bundle"]
-				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "lan-listener", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: _architectureV2TerramateStackHashes.workload
 				unitRefs: ["mosquitto", "terramate-stack"], artifactRefs: ["mosquitto-workload-bundle", _architectureV2MosquittoTerramateStack.contract.id]
-				publicInputRefs: ["delivery-route", "lan-listener"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "lan-listener", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2MosquittoSupport

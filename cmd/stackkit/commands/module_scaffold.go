@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/scaffold"
 	"github.com/spf13/cobra"
 )
@@ -90,7 +91,7 @@ func runModuleScaffold(cmd *cobra.Command, args []string) error {
 	// pre-flight: refuse to clobber unless --force
 	if !moduleScaffoldForce {
 		for _, n := range names {
-			p, err := resolveModuleArtifactPath(outDir, n)
+			p, err := confinedfs.ResolveModuleArtifactPath(outDir, n)
 			if err != nil {
 				return err
 			}
@@ -101,7 +102,7 @@ func runModuleScaffold(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, n := range names {
-		p, err := resolveModuleArtifactPath(outDir, n)
+		p, err := confinedfs.ResolveModuleArtifactPath(outDir, n)
 		if err != nil {
 			return err
 		}

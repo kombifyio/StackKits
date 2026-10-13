@@ -75,6 +75,7 @@ func newServiceCommand() *cobra.Command {
 	logs.Flags().StringVar(&cursor, "cursor", "", "Opaque cursor from a previous result")
 	logs.Flags().BoolVar(&outputJSON, "json", false, "Write the versioned service log page as JSON")
 	command.AddCommand(logs)
+	command.AddCommand(newServiceManagerCommand())
 	return command
 }
 

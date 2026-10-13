@@ -23,9 +23,14 @@ type MarketplaceRuntimeCustody struct {
 	Document architecturev2renderer.MarketplaceCoolifyDocument
 	Runtime  ComposeRuntime
 	Volumes  []Volume
+	Files    []StandaloneComposeRuntimeFile
 }
 
 func DeriveMarketplaceRuntimeCustody(workspace string, plan generationartifact.VerifiedPlan, manifest generationartifact.ArtifactManifest, operationID string) (*MarketplaceRuntimeCustody, error) {
+	return deriveMarketplacePlanRuntimeCustody(workspace, plan, manifest, operationID)
+}
+
+func deriveMarketplacePlanRuntimeCustody(workspace string, plan recoveryPlanData, manifest generationartifact.ArtifactManifest, operationID string) (*MarketplaceRuntimeCustody, error) {
 	if !activationOperationPattern.MatchString(operationID) || manifest.Binding != plan.Binding() {
 		return nil, errors.New("restoreactivation: Marketplace requires the verified plan, manifest and activation identity")
 	}
@@ -120,8 +125,8 @@ func deriveMarketplaceRuntimeCustody(workspace string, plan map[string]any, outp
 	if err != nil {
 		return nil, err
 	}
-	composePath := ".stackkit/runtime/marketplace/compose.yaml"
-	environmentPath := ".stackkit/runtime/marketplace/coolify.env"
+	composePath := path.Join(localbackuppolicy.MarketplaceRuntimeDirectory, "compose.yaml")
+	environmentPath := path.Join(localbackuppolicy.MarketplaceRuntimeDirectory, "coolify.env")
 	custody, err := bindComposeRuntimeCustody(workspace, graph.ComposeProject, composePath, environmentPath, logical, graph)
 	if err != nil {
 		return nil, fmt.Errorf("restoreactivation: bind native Marketplace runtime: %w", err)
@@ -149,7 +154,20 @@ func deriveMarketplaceRuntimeCustody(workspace string, plan map[string]any, outp
 			}
 		}
 	}
-	return &MarketplaceRuntimeCustody{Document: d, Runtime: custody.Runtime, Volumes: volumes}, nil
+	files := make([]StandaloneComposeRuntimeFile, 0)
+	for _, name := range localbackuppolicy.MarketplaceRuntimeFiles() {
+		filePath := path.Join(localbackuppolicy.MarketplaceRuntimeDirectory, name)
+		data, info, readErr := transaction.ReadStableBounded(filePath, 1<<20)
+		if readErr != nil || info == nil || len(data) == 0 || info.Mode().Perm()&0077 != 0 {
+			return nil, fmt.Errorf("restoreactivation: Marketplace private runtime file %s is unavailable or not private", name)
+		}
+		if name == "compose.yaml" && runtimeFileDigest(data) != custody.Runtime.Digest ||
+			name == "coolify.env" && runtimeFileDigest(data) != custody.Runtime.EnvironmentDigest {
+			return nil, errors.New("restoreactivation: Marketplace private runtime changed during admission")
+		}
+		files = append(files, StandaloneComposeRuntimeFile{Path: filePath, Mode: "0600", Data: append([]byte(nil), data...)})
+	}
+	return &MarketplaceRuntimeCustody{Document: d, Runtime: custody.Runtime, Volumes: volumes, Files: files}, nil
 }
 
 func marketplaceRecoveryVolumes(allocations []any, node, operationID string) ([]Volume, []string, map[string]string, error) {

@@ -41819,8 +41819,12 @@
           "components": [
             "mosquitto"
           ],
-          "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+          "description": "MQTT allocation: 128 MiB RAM reservation, 512 MiB container limit and 1 CPU limit. Same application configuration across all profiles. A measured benefit over standard has not been established.",
           "executable": true,
+          "headroom": {
+            "cpuCores": 0.5,
+            "ramGB": 0.375
+          },
           "hostFloor": {
             "minCpuCores": 2,
             "minRamGB": 4,
@@ -41828,26 +41832,71 @@
           },
           "maturity": "beta",
           "provenance": {
+            "headroom": {
+              "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
+              "source": "policy"
+            },
             "hostFloor": {
               "ref": "Kombify host floor support policy",
               "source": "policy"
             },
             "reservation": {
-              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
               "source": "policy"
             }
           },
           "realization": "apply-ready",
           "reservation": {
-            "ramGB": 0.03125
+            "cpuCores": 0.5,
+            "ramGB": 0.125
+          }
+        },
+        "low": {
+          "components": [
+            "mosquitto"
+          ],
+          "description": "MQTT allocation: 16 MiB RAM reservation, 64 MiB container limit and 0.1 CPU limit. Same application configuration across all profiles. Client count, offline retention and throughput are unverified.",
+          "executable": true,
+          "headroom": {
+            "cpuCores": 0.05,
+            "ramGB": 0.046875
+          },
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "provenance": {
+            "headroom": {
+              "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
+              "source": "policy"
+            },
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "cpuCores": 0.05,
+            "ramGB": 0.015625
           }
         },
         "standard": {
           "components": [
             "mosquitto"
           ],
-          "description": "MQTT broker through Eclipse Mosquitto with password authentication. The MQTT listener on port 1883 is published on the LAN only when the owner enables it; the broker statistics API stays behind the gateway login.",
+          "description": "MQTT allocation: 32 MiB RAM reservation, 128 MiB container limit and 0.25 CPU limit. Same application configuration across all profiles. Client count, offline retention and throughput are unverified.",
           "executable": true,
+          "headroom": {
+            "cpuCores": 0.125,
+            "ramGB": 0.09375
+          },
           "hostFloor": {
             "minCpuCores": 2,
             "minRamGB": 4,
@@ -41855,17 +41904,22 @@
           },
           "maturity": "beta",
           "provenance": {
+            "headroom": {
+              "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
+              "source": "policy"
+            },
             "hostFloor": {
               "ref": "Kombify host floor support policy",
               "source": "policy"
             },
             "reservation": {
-              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "ref": "foundation/architecture_v2_module_profiles.cue#_architectureV2MosquittoComputeProfiles",
               "source": "policy"
             }
           },
           "realization": "apply-ready",
           "reservation": {
+            "cpuCores": 0.125,
             "ramGB": 0.03125
           }
         }
@@ -41959,7 +42013,8 @@
         "inputs": {
           "contractComplete": true,
           "requiredRefs": [
-            "mqtt-password"
+            "mqtt-password",
+            "compute-profile"
           ]
         },
         "level": "apply-ready",
@@ -41976,7 +42031,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:969f57e8e598319da7072af0ef3d21b13d5ccf8e0246075e47d797764156031e",
+          "contractHash": "sha256:5ba320ad266b73705bb6f67f97ae8fe948e61f44b16edaf15078bc827ee3613b",
           "id": "mosquitto",
           "inputBindings": [
             {
@@ -41986,6 +42041,13 @@
               "sourceRef": "network.moduleRoute",
               "targetRef": "delivery-route",
               "valueType": "authority-bound-module-route-v1"
+            },
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "modules.computeProfileBinding",
+              "targetRef": "compute-profile",
+              "valueType": "module-compute-profile-v1"
             }
           ],
           "kind": "native-config",
@@ -42000,7 +42062,8 @@
           "providesInterfaces": [],
           "publicInputRefs": [
             "delivery-route",
-            "lan-listener"
+            "lan-listener",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -42035,8 +42098,8 @@
               "upstreamProtocol": "http"
             }
           ],
-          "templateRef": "builtin://workloads/mosquitto/bundle/v2.json",
-          "version": "2.0.0"
+          "templateRef": "builtin://workloads/mosquitto/bundle/v3.json",
+          "version": "3.0.0"
         },
         {
           "applyMode": "artifact-only",
@@ -42077,7 +42140,8 @@
           "planInputRefs": [],
           "publicInputRefs": [
             "delivery-route",
-            "lan-listener"
+            "lan-listener",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -42097,7 +42161,8 @@
           "planInputRefs": [],
           "publicInputRefs": [
             "delivery-route",
-            "lan-listener"
+            "lan-listener",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -42118,7 +42183,8 @@
           "planInputRefs": [],
           "publicInputRefs": [
             "delivery-route",
-            "lan-listener"
+            "lan-listener",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -48668,7 +48734,7 @@
             "guacd",
             "guacamole"
           ],
-          "description": "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage.",
+          "description": "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -48681,14 +48747,23 @@
               "ref": "Kombify host floor support policy",
               "source": "policy"
             },
+            "recommended": {
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+              "source": "measured"
+            },
             "reservation": {
-              "ref": "Kombify reservation policy; declared, not a sum of component limits",
-              "source": "policy"
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+              "source": "measured"
             }
           },
           "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 0.5,
+            "ramGB": 0.375
+          },
           "reservation": {
-            "ramGB": 0.5
+            "cpuCores": 0.05,
+            "ramGB": 0.3125
           }
         },
         "standard": {
@@ -48696,7 +48771,7 @@
             "guacd",
             "guacamole"
           ],
-          "description": "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage.",
+          "description": "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -48709,14 +48784,23 @@
               "ref": "Kombify host floor support policy",
               "source": "policy"
             },
+            "recommended": {
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+              "source": "measured"
+            },
             "reservation": {
-              "ref": "Kombify reservation policy; declared, not a sum of component limits",
-              "source": "policy"
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+              "source": "measured"
             }
           },
           "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 0.5,
+            "ramGB": 0.375
+          },
           "reservation": {
-            "ramGB": 0.5
+            "cpuCores": 0.05,
+            "ramGB": 0.3125
           }
         }
       },

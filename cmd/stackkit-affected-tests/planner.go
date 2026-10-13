@@ -57,7 +57,16 @@ func activeKitPaths(prefix, suffix string) []string {
 var filePublicTestBoundaries = map[string]struct {
 	Package string
 	Tests   []string
+	Tags    []string
 }{
+	"cmd/stackkit/commands/module_bump.go": {
+		Package: "cmd/stackkit/commands", Tags: []string{"publisher"},
+		Tests: []string{"TestRewriteServiceTag_OnlyTargetChanges", "TestRewriteServiceTag_RoutedServiceByName", "TestRewriteServiceTag_UnknownService", "TestRewriteServiceTag_InvalidCUE"},
+	},
+	"cmd/stackkit/commands/module_bump_foundation.go": {
+		Package: "cmd/stackkit/commands", Tags: []string{"publisher"},
+		Tests: []string{"TestModuleBumpPropagatesFoundationImageToNativeConsumer"},
+	},
 	// Documentation adapters execute their CUE-derived flow through the catalog
 	// owner and deterministic CLI parity below; unrelated CLI journeys stay outside it.
 	"cmd/stackkit/commands/docs_catalog.go": {
@@ -125,6 +134,7 @@ var nativeSetupConsumerTests = []string{
 // gate. Adding or renaming a test in one of these slices must update this
 // reviewable binding.
 var fileFocusedTests = map[string][]string{
+	"cmd/stackkit/commands/module_scaffold.go": {"TestModuleAuthoringFromFacts"},
 	"internal/usecasecatalog/truth_table.go": {
 		"TestTruthTableRuntimeSourceInvalidatesProducerEvidence",
 	},
@@ -508,7 +518,7 @@ func buildPlan(input plannerInput) testPlan {
 		goSelection.Reverse = sortedUnique(goSelection.Reverse)
 	}
 	focusedTests := focusedGoTests(files, input.ChangedTests)
-	applyPublicTestBoundaries(files, input.InertGoFiles, &goSelection, focusedTests)
+	publicBoundaryCommands := applyPublicTestBoundaries(files, input.InertGoFiles, &goSelection, focusedTests, input.PublisherOnly)
 	// This executable is js/wasm-only. The WebMCP build compiles and executes
 	// its real target; a native go test has no buildable source files.
 	const capacityWasmPattern = "./cmd/stackkit-capacity-wasm"
@@ -584,6 +594,7 @@ func buildPlan(input plannerInput) testPlan {
 	goPatterns := sortedUnique(append(append(append([]string(nil), goSelection.Changed...), goSelection.CompileOnly...), goSelection.Reverse...))
 	classes.GoPackages = append([]string(nil), goPatterns...)
 	commands = append(commands, affectedGoCommands(goSelection, focusedTests, testTags)...)
+	commands = append(commands, publicBoundaryCommands...)
 	if input.PublisherPresent && publisherBuildAffected(files, classes.GoShared, input.PublisherClosure) {
 		commands = append(commands, testCommand{
 			Kind:  "go",
@@ -915,11 +926,12 @@ func focusedGoTests(files []string, changedTests map[string][]string) map[string
 	return result
 }
 
-func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGoSelection, focused map[string][]string) {
+func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGoSelection, focused map[string][]string, publisherOnly map[string][]string) []testCommand {
 	// A registered boundary covers only its mapped production file. Unmapped
 	// production must keep its independent package coverage, even when the same
 	// diff also edits a test and has no registered public boundary.
 	unmappedProduction := map[string]bool{}
+	taggedTests := map[string][]string{}
 	inertFiles = sortedUnique(inertFiles)
 	for _, file := range files {
 		if !strings.HasSuffix(file, ".go") || strings.HasSuffix(file, "_test.go") || isGeneratedGoProjection(file) || slicesContain(inertFiles, file) {
@@ -955,6 +967,15 @@ func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGo
 			// executed below through its public owner boundary.
 			focused[source] = nil
 		}
+		if len(boundary.Tags) > 0 {
+			// Mixed ordinary/publisher edits need separate real Go builds. The
+			// metadata path already executes all tests for publisher-only edits.
+			if _, covered := publisherOnly[boundary.Package]; !covered {
+				key := boundary.Package + ":" + strings.Join(sortedUnique(boundary.Tags), ",")
+				taggedTests[key] = append(taggedTests[key], boundary.Tests...)
+			}
+			continue
+		}
 		if unmappedProduction[boundary.Package] {
 			fallBackToPackageSlice(boundary.Package, boundary.Tests)
 		} else {
@@ -969,6 +990,21 @@ func applyPublicTestBoundaries(files, inertFiles []string, selection *affectedGo
 	for dir := range unmappedProduction {
 		fallBackToPackageSlice(dir, nil)
 	}
+	commands := []testCommand{}
+	keys := make([]string, 0, len(taggedTests))
+	for key := range taggedTests {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		parts := strings.SplitN(key, ":", 2)
+		commands = append(commands, testCommand{
+			Kind: "go", Scope: "tagged-public-owner-boundary",
+			Argv:   []string{"go", "test", "-count=1", goTestTimeoutArg, "-tags", parts[1], "-run", exactTestRegex(sortedUnique(taggedTests[key])), packagePattern(parts[0])},
+			Reason: "execute the mapped owner behavior in its actual tagged build without substituting the ordinary build",
+		})
+	}
+	return commands
 }
 
 // publisherBuildAffected selects the publisher compile for module metadata

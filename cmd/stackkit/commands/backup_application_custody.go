@@ -10,6 +10,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
@@ -51,7 +52,7 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 	if len(runtimes) == 0 {
 		return nil, nil
 	}
-	if authority.AppliedAuthority == nil || authority.AppliedAuthority.Lineage != authority.Lineage || authority.AppliedAuthority.WorkspaceRoot != authority.WorkspaceRoot {
+	if (authority.AppliedAuthority == nil || authority.AppliedAuthority.Lineage != authority.Lineage || authority.AppliedAuthority.WorkspaceRoot != authority.WorkspaceRoot) && authority.HistoricalCustody == nil {
 		return nil, errors.New("application backup requires the current signed application Apply authority")
 	}
 	deployments := make(map[string]nativehost.SelectedPaaSWorkloadDeployment, len(runtimes))
@@ -59,7 +60,24 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 		if graph.WorkloadRef == "marketplace" {
 			continue
 		}
-		deployment, err := nativeAppliedWorkloadDeployment(*authority.AppliedAuthority, graph.WorkloadRef)
+		var deployment nativehost.SelectedPaaSWorkloadDeployment
+		var err error
+		if authority.AppliedAuthority != nil {
+			deployment, err = nativeAppliedWorkloadDeployment(*authority.AppliedAuthority, graph.WorkloadRef)
+		} else {
+			h := authority.HistoricalCustody
+			if h.Binding() != authority.Lineage.Binding || h.ManifestHash() != authority.Lineage.ManifestHash || h.OutputRoot() != authority.OutputRoot {
+				return nil, errors.New("historical application custody differs from the held source lineage")
+			}
+			owner, loadErr := localevidence.LoadOwnerCustody(authority.WorkspaceRoot)
+			if loadErr != nil {
+				return nil, loadErr
+			}
+			data := nativeAppliedWorkloadData{WorkspaceRoot: authority.WorkspaceRoot, Owner: owner, Manifest: authority.HistoricalManifest, AppliedWorkloads: h.AppliedWorkloads()}
+			deployment, err = nativeAppliedWorkloadDeploymentData(data, h.Requirements(), func(module, unit string) (string, bool, error) {
+				return architecturev2renderer.HistoricalRuntimeEntryComponentRef(authority.HistoricalPlan, module, unit)
+			}, graph.WorkloadRef)
+		}
 		if err != nil {
 			return nil, err
 		}

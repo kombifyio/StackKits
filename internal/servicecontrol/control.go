@@ -25,6 +25,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
@@ -227,6 +228,17 @@ func (c *Controller) Mutate(ctx context.Context, action, serviceKey string, owne
 	if result.Action != ActionStart && result.Action != ActionStop && result.Action != ActionRestart {
 		return result, &Error{ReasonCode: "unknown_action", Message: "unsupported service action " + result.Action}
 	}
+	err := lifecyclemutation.WithIdleMutation(c.workspace, lifecyclemutation.JoinRequest{}, func() error {
+		var err error
+		result, err = c.mutateLocked(ctx, result)
+		return err
+	})
+	return result, err
+}
+
+// mutateLocked keeps admission and actual runtime completion in the same
+// lifecycle critical section as a manager handover, for both CLI and API.
+func (c *Controller) mutateLocked(ctx context.Context, result Result) (Result, error) {
 	authority, err := c.authority()
 	if err != nil {
 		return result, err
@@ -241,7 +253,7 @@ func (c *Controller) Mutate(ctx context.Context, action, serviceKey string, owne
 		}
 		return result, &Error{ReasonCode: "unknown_action", Message: "service action is not declared by the ResolvedPlan"}
 	}
-	target, err := c.runtimeTarget(definition)
+	target, err := c.runtimeTarget(definition, authority)
 	if err != nil {
 		return result, err
 	}
@@ -345,7 +357,7 @@ func (c *Controller) Logs(ctx context.Context, serviceKey string, tail int, curs
 	if !slices.Contains(definition.AllowedActions, ActionLogs) {
 		return result, &Error{ReasonCode: "unknown_action", Message: "service logs are not declared by the ResolvedPlan"}
 	}
-	target, err := c.runtimeTarget(definition)
+	target, err := c.runtimeTarget(definition, authority)
 	if err != nil {
 		return result, err
 	}
@@ -367,6 +379,8 @@ func (c *Controller) Logs(ctx context.Context, serviceKey string, tail int, curs
 // ReconcileAfterApply reapplies durable stopped intent through the declared adapter.
 // Changes to selected services invalidate their stopped intent fail-closed.
 // A narrower Apply leaves signed intent for unselected services untouched.
+// Apply already holds the lifecycle mutation lock; reconciliation must not
+// call public Mutate or recursively acquire that same cross-process lock.
 func (c *Controller) ReconcileAfterApply(ctx context.Context) error {
 	if _, err := os.Lstat(filepath.Join(c.workspace, filepath.FromSlash(stateRelativePath))); errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -395,7 +409,7 @@ func (c *Controller) ReconcileAfterApply(ctx context.Context) error {
 		if definition.Critical || !slices.Contains(definition.AllowedActions, ActionStop) {
 			return &Error{ReasonCode: ReasonContractChanged, Message: "persisted desired state references a service that is no longer stoppable"}
 		}
-		target, err := c.runtimeTarget(definition)
+		target, err := c.runtimeTarget(definition, authority)
 		if err != nil {
 			return err
 		}
@@ -596,7 +610,38 @@ func serviceContractHash(definitions []serviceDefinition) (string, error) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func (c *Controller) runtimeTarget(definition serviceDefinition) (runtimeTarget, error) {
+func (c *Controller) runtimeTarget(definition serviceDefinition, authority runtimeAuthority) (runtimeTarget, error) {
+	if definition.Adapter == applicationComposeAdapter || definition.Adapter == "komodo" {
+		project := "stackkit-" + definition.RuntimeRef
+		present, err := platformdeploy.HasOwnerHostDeployment(c.workspace, project)
+		if err != nil {
+			return runtimeTarget{}, err
+		}
+		if present {
+			state, err := platformdeploy.LoadOwnerHostDeployment(c.workspace, project)
+			if err != nil {
+				return runtimeTarget{}, err
+			}
+			wanted := definition.Adapter
+			if b := state.PlanBinding; b != nil {
+				if b.PlanHash != authority.PlanHash || b.ServiceContractHash != authority.ServiceContractHash ||
+					b.ServiceKey != definition.Key || b.RuntimeRef != definition.RuntimeRef || b.SourceAdapter != definition.Adapter || b.ArtifactDigest != state.ArtifactDigest {
+					return runtimeTarget{}, &Error{ReasonCode: ReasonPlanChanged, Message: "service control differs from the signed manager/applied-plan binding"}
+				}
+				wanted = platformdeploy.HostDeploymentManager(state)
+				definition.Adapter = wanted
+				if wanted == standaloneComposeRuntimeAdapter {
+					definition.Adapter = applicationComposeAdapter
+				}
+			}
+			if wanted == applicationComposeAdapter {
+				wanted = standaloneComposeRuntimeAdapter
+			}
+			if err := platformdeploy.RequireHostDeploymentManager(state, wanted); err != nil {
+				return runtimeTarget{}, &Error{ReasonCode: "workload_manager_conflict", Message: err.Error()}
+			}
+		}
+	}
 	if definition.Adapter == "compose" || definition.Adapter == applicationComposeAdapter {
 		path := filepath.Join(c.workspace, ".stackkit", "runtime", definition.RuntimeRef, "compose.yaml")
 		if definition.Adapter == applicationComposeAdapter {
@@ -617,6 +662,23 @@ func (c *Controller) runtimeTarget(definition serviceDefinition) (runtimeTarget,
 		return runtimeTarget{}, err
 	}
 	return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: ref.ExternalID, HTTPConfig: cfg}, nil
+}
+
+// ManagerPlanBinding narrows an independently verified current Apply to the
+// controller's exact canonical service contract. It does not admit Apply.
+func (c *Controller) ManagerPlanBinding(state platformdeploy.HostDeployment, applyResultHash string) (platformdeploy.HostManagerPlanBinding, error) {
+	authority, err := c.authority()
+	if err != nil {
+		return platformdeploy.HostManagerPlanBinding{}, err
+	}
+	definition, ok := authority.Services[state.WorkloadRef]
+	if !ok || definition.RuntimeRef != state.WorkloadRef+"-"+state.NodeRef ||
+		(definition.Adapter != applicationComposeAdapter && definition.Adapter != "komodo") || !cursorPattern.MatchString(applyResultHash) {
+		return platformdeploy.HostManagerPlanBinding{}, errors.New("current applied plan has no exact node workload service control")
+	}
+	return platformdeploy.HostManagerPlanBinding{PlanHash: authority.PlanHash, ApplyResultHash: applyResultHash,
+		ServiceContractHash: authority.ServiceContractHash, ServiceKey: definition.Key, RuntimeRef: definition.RuntimeRef,
+		SourceAdapter: definition.Adapter, ArtifactDigest: state.ArtifactDigest}, nil
 }
 
 func loadKomodoDeploymentRef(workspace, runtimeRef string) (platformdeploy.DeploymentRef, error) {

@@ -87,5 +87,9 @@ check. Without PocketID login it cannot meet the identity promise.
 - A kombify-curated catalog inside the Coolify UI needs an upstream change or
   a patch and is not part of this decision; curated apps deploy through the
   API.
-- The legacy v1 bridge (`internal/cue`, tfvars) still resolves an omitted
-  `paas` to Coolify; it is not the native default and is retired separately.
+- The legacy v1 bridge (`internal/cue`, tfvars) resolves an omitted `paas`
+  to none since the retirement package of 2026-10-12; Coolify stays an explicit
+  choice there. The `standalone` (Full) core alternatives with Coolify 4.1.2
+  remain until existing installations can be migrated to the Marketplace use
+  case, because the beta4 upgrade checkpoint and the core runtime profiles
+  still serve those installations.

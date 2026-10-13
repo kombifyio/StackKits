@@ -3,6 +3,7 @@ package architecturev2
 import (
 	"fmt"
 	"maps"
+	"reflect"
 	"strings"
 )
 
@@ -74,10 +75,19 @@ func projectInitialWorkloadAccess(spec, authoring map[string]any, selections map
 		}
 		policyRef := service + "-initial-access"
 		access := initialAuthoringObject(spec, "access")
-		if _, exists := access[policyRef]; exists {
-			return fmt.Errorf("workload %q initial access policy conflicts with existing intent", id)
+		if existing, exists := access[policyRef]; exists {
+			retained, ok := existing.(map[string]any)
+			if !ok {
+				return fmt.Errorf("workload %q initial access policy conflicts with existing intent", id)
+			}
+			for key, required := range policy {
+				if !reflect.DeepEqual(retained[key], required) {
+					return fmt.Errorf("workload %q initial access policy conflicts with existing intent", id)
+				}
+			}
+		} else {
+			access[policyRef] = maps.Clone(policy)
 		}
-		access[policyRef] = maps.Clone(policy)
 		route := maps.Clone(template)
 		route["serviceRef"], route["moduleRef"] = service, selection.ModuleRef
 		route["host"], route["accessPolicyRef"] = service+"."+domain, policyRef

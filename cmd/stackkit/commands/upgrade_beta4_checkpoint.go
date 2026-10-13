@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,10 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
@@ -383,6 +386,41 @@ func readHistoricalCheckpointStateWithPolicy(
 		return exactBeta4CheckpointState{}, err
 	}
 	applyReceiptHash := exactBeta4CheckpointDigest(applyReceipt)
+	var historicalCustody *architecturev2.HistoricalAppliedRuntimeCustody
+	var historicalPlan generationartifact.HistoricalPlan
+	var sharedResult struct {
+		SharedRequestDigest string `json:"sharedRequestDigest"`
+	}
+	if err := json.Unmarshal(applyResult, &sharedResult); err != nil {
+		return exactBeta4CheckpointState{}, err
+	}
+	if sharedResult.SharedRequestDigest != "" {
+		journal, err := architecturev2.NewProductApplyFileJournal(workspace)
+		if err != nil {
+			return exactBeta4CheckpointState{}, err
+		}
+		defer journal.Close()
+		custody, err := journal.LoadHistoricalAppliedRuntimeCustody(context.Background(), bridge.Current.Binding, bridge.Current.OutputRoot, applyResult)
+		if err != nil {
+			return exactBeta4CheckpointState{}, err
+		}
+		request := custody.Request()
+		if request.ManifestHash != manifestHash || request.GenerationReceiptHash != generationReceiptHash {
+			return exactBeta4CheckpointState{}, errors.New("historical Apply custody differs from the attested generation")
+		}
+		planBytes, _, err := transaction.ReadStableBounded(filepath.ToSlash(filepath.Join(bridge.Current.OutputRoot, ".stackkit", "resolved-plan.json")), 16<<20)
+		if err != nil {
+			return exactBeta4CheckpointState{}, err
+		}
+		historicalPlan, err = generationartifact.ParseHistoricalPlan(planBytes, bridge.Current)
+		if err != nil {
+			return exactBeta4CheckpointState{}, err
+		}
+		if err := historicalPlan.MatchApplyRequirements(custody.Requirements(), request.RequirementsHash); err != nil {
+			return exactBeta4CheckpointState{}, err
+		}
+		historicalCustody = &custody
+	}
 	bridgeCopy := bridge
 	authority := nativeV2BackupAuthority{
 		OwnerRef:      owner.OwnerRef,
@@ -398,10 +436,13 @@ func readHistoricalCheckpointStateWithPolicy(
 			OwnerBindingDigest:    ownerBindingDigest,
 			PocketIDSubject:       runtimeBinding.PocketIDSubject,
 		},
-		PolicyDigest:   policyDigest,
-		PolicyArtifact: policyArtifact,
-		Policy:         policy,
-		LegacyBeta4:    &bridgeCopy,
+		PolicyDigest:       policyDigest,
+		PolicyArtifact:     policyArtifact,
+		Policy:             policy,
+		LegacyBeta4:        &bridgeCopy,
+		HistoricalCustody:  historicalCustody,
+		HistoricalPlan:     historicalPlan,
+		HistoricalManifest: manifest,
 	}
 	return exactBeta4CheckpointState{
 		authority: authority, manifest: manifest,
@@ -500,6 +541,23 @@ func withPreparedHistoricalUpgradeCapture(
 		inventoryRelative, err = filepath.Rel(workspace, inventoryPath)
 		if err != nil {
 			return err
+		}
+	}
+	if canonical := state.authority.HistoricalPlan.Canonical(); len(canonical) > 0 {
+		frozenPath, cleanup, err := materializePlanInventory(canonical)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		if frozenPath == "" {
+			return errors.New("attested source plan has no sealed Inventory for recovery")
+		}
+		inventoryBytes, err = os.ReadFile(frozenPath)
+		if err != nil {
+			return err
+		}
+		if inventoryRelative == "" {
+			inventoryRelative = ".stackkit/inventory.yaml"
 		}
 	}
 
@@ -709,6 +767,20 @@ func inspectPublicUpgradeSnapshotAuthority(
 	snapshot upgradelifecycle.ExecutorStateSnapshot,
 ) (nativeV2BackupAuthority, error) {
 	targetTag, tagErr := releaseindex.ExactTagForBuildVersion(version)
+	if tagErr != nil {
+		// A development orchestrator has no public tag. The held journal can
+		// identify the actual attested target without relabeling that binary.
+		record, active, err := lifecyclemutation.ActiveRecord(workspace)
+		if err != nil {
+			return nativeV2BackupAuthority{}, err
+		}
+		if active && record.Kind == lifecyclemutation.KindUpgrade && record.Status == lifecyclemutation.StatusActive &&
+			record.OwnerRef == snapshot.OwnerRef && record.OperationID == snapshot.OperationID &&
+			record.Checkpoint.ExecutorStateSnapshotID == snapshot.ID && record.Checkpoint.KopiaAnchorID == snapshot.KopiaSnapshotAnchor.ID &&
+			priorReleaseAuthority(snapshot) == record.Prior {
+			targetTag, tagErr = releaseindex.ExactTagForBuildVersion(strings.TrimPrefix(record.Target.Version, "v"))
+		}
+	}
 	var currentErr error
 	if tagErr != nil || snapshot.Release.Version == targetTag {
 		current, err := inspectNativeV2BackupAuthority(ctx, workspace, requestedSpec)

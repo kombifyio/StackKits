@@ -3,6 +3,7 @@ package platformdeploy
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,42 +12,130 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
 // HostDeployment is the node's custody of the platform identity for the same
 // generated Compose project. It contains no credential or application data.
 type HostDeployment struct {
-	APIVersion     string        `json:"apiVersion"`
-	WorkloadRef    string        `json:"workloadRef"`
-	InstanceRef    string        `json:"instanceRef"`
-	ArtifactDigest string        `json:"artifactDigest"`
-	SiteRef        string        `json:"siteRef"`
-	NodeRef        string        `json:"nodeRef"`
-	ServerID       string        `json:"serverId"`
-	Deployment     DeploymentRef `json:"deployment"`
+	APIVersion     string                                   `json:"apiVersion"`
+	WorkloadRef    string                                   `json:"workloadRef"`
+	InstanceRef    string                                   `json:"instanceRef"`
+	ArtifactDigest string                                   `json:"artifactDigest"`
+	SiteRef        string                                   `json:"siteRef"`
+	NodeRef        string                                   `json:"nodeRef"`
+	ServerID       string                                   `json:"serverId"`
+	Deployment     DeploymentRef                            `json:"deployment"`
+	Manager        string                                   `json:"manager,omitempty"`
+	Handover       *HostManagerHandover                     `json:"handover,omitempty"`
+	PlanBinding    *HostManagerPlanBinding                  `json:"planBinding,omitempty"`
+	Signature      *localevidence.OwnerPolicyStateSignature `json:"signature,omitempty"`
+}
+
+// HostManagerPlanBinding authorizes control of the same applied workload after
+// a manager transfer. It is signed as part of the existing node custody.
+type HostManagerPlanBinding struct {
+	PlanHash            string `json:"planHash"`
+	ApplyResultHash     string `json:"applyResultHash"`
+	ServiceContractHash string `json:"serviceContractHash"`
+	ServiceKey          string `json:"serviceKey"`
+	RuntimeRef          string `json:"runtimeRef"`
+	SourceAdapter       string `json:"sourceAdapter"`
+	ArtifactDigest      string `json:"artifactDigest"`
+}
+
+// HostManagerHandover retains an interrupted transfer in the existing node
+// custody. Neither manager may act until the exact transfer is completed.
+type HostManagerHandover struct {
+	ID            string `json:"id"`
+	From          string `json:"from"`
+	To            string `json:"to"`
+	Status        string `json:"status"`
+	RecipeDigest  string `json:"recipeDigest"`
+	RuntimeDigest string `json:"runtimeDigest"`
+}
+
+func HostDeploymentManager(state HostDeployment) string {
+	if state.Manager != "" {
+		return state.Manager
+	}
+	return state.Deployment.Platform
+}
+
+func RequireHostDeploymentManager(state HostDeployment, manager string) error {
+	if state.Handover != nil && state.Handover.Status != "succeeded" {
+		return errors.New("workload manager handover is incomplete; resume its exact transition before control")
+	}
+	if HostDeploymentManager(state) != manager {
+		return fmt.Errorf("workload manager is %q; explicit transition to %q is required", HostDeploymentManager(state), manager)
+	}
+	return nil
 }
 
 const hostDeploymentAPIVersion = "stackkit.platform-host-deployment/v1"
+const hostManagerAPIVersion = "stackkit.platform-host-deployment/v2"
 const hostDeploymentFile = "platform-deployment.json"
 
 var hostProjectPattern = regexp.MustCompile(`^stackkit-[a-z0-9][a-z0-9-]{0,125}$`)
 var hostArtifactDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 func validateHostDeployment(project string, state HostDeployment) error {
-	if !hostProjectPattern.MatchString(project) || state.APIVersion != hostDeploymentAPIVersion ||
+	if !hostProjectPattern.MatchString(project) || (state.APIVersion != hostDeploymentAPIVersion && state.APIVersion != hostManagerAPIVersion) ||
 		state.WorkloadRef == "" || state.InstanceRef == "" || state.SiteRef == "" || state.NodeRef == "" ||
-		!hostArtifactDigestPattern.MatchString(state.ArtifactDigest) || state.ServerID == "" ||
-		state.Deployment.Platform != "komodo" || state.Deployment.AppName != project ||
+		project != "stackkit-"+state.WorkloadRef+"-"+state.NodeRef ||
+		!hostArtifactDigestPattern.MatchString(state.ArtifactDigest) ||
+		(state.Deployment.Platform != "komodo" && state.Deployment.Platform != "standalone-compose") ||
+		(state.Deployment.Platform == "komodo" && state.ServerID == "") || state.Deployment.AppName != project ||
 		state.Deployment.ExternalID == "" || strings.TrimSpace(state.Deployment.ExternalID) != state.Deployment.ExternalID {
 		return errors.New("platform deployment custody does not bind the exact node project")
+	}
+	if state.APIVersion == hostManagerAPIVersion && state.Manager == "" {
+		return errors.New("v2 workload manager custody requires its explicit manager")
+	}
+	if state.Manager != "" && state.Manager != "komodo" && state.Manager != "standalone-compose" {
+		return errors.New("workload manager custody names an unsupported manager")
+	}
+	if b := state.PlanBinding; b != nil {
+		if state.Manager == "" || !hostArtifactDigestPattern.MatchString(b.PlanHash) ||
+			!hostArtifactDigestPattern.MatchString(b.ApplyResultHash) || !hostArtifactDigestPattern.MatchString(b.ServiceContractHash) ||
+			b.ArtifactDigest != state.ArtifactDigest || b.ServiceKey != state.WorkloadRef || b.RuntimeRef != state.WorkloadRef+"-"+state.NodeRef ||
+			(b.SourceAdapter != "application-compose" && b.SourceAdapter != "komodo") {
+			return errors.New("manager plan binding differs from the exact applied node workload")
+		}
+	}
+	if state.Deployment.Platform == "standalone-compose" && (state.Manager != "standalone-compose" || state.Deployment.ExternalID != project) {
+		return errors.New("Compose custody does not bind its native project identity")
+	}
+	if h := state.Handover; h != nil {
+		if state.Manager == "" || !regexp.MustCompile(`^handover-[0-9a-f]{32}$`).MatchString(h.ID) ||
+			(h.From != "komodo" && h.From != "standalone-compose") || (h.To != "komodo" && h.To != "standalone-compose") || h.From == h.To ||
+			(h.Status != "pending" && h.Status != "succeeded") || !hostArtifactDigestPattern.MatchString(h.RecipeDigest) || !hostArtifactDigestPattern.MatchString(h.RuntimeDigest) ||
+			(h.Status == "pending" && state.Manager != h.From) || (h.Status == "succeeded" && state.Manager != h.To) {
+			return errors.New("workload manager handover custody is invalid")
+		}
 	}
 	return nil
 }
 
 func SaveOwnerHostDeployment(workspace, project string, state HostDeployment) error {
 	state.APIVersion = hostDeploymentAPIVersion
+	if state.Manager != "" {
+		state.APIVersion = hostManagerAPIVersion
+	}
 	if err := validateHostDeployment(project, state); err != nil {
 		return err
+	}
+	if state.Manager != "" {
+		state.Signature = nil
+		canonical, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		signature, err := localevidence.SignOwnerPolicyState(workspace, canonical)
+		if err != nil {
+			return err
+		}
+		state.Signature = &signature
 	}
 	directory := filepath.Join(workspace, ".stackkit", "runtime", "applications", project)
 	root, err := confinedfs.Open(directory)
@@ -99,7 +188,25 @@ func LoadOwnerHostDeployment(workspace, project string) (HostDeployment, error) 
 	if err := json.Unmarshal(data, &state); err != nil {
 		return state, errors.New("platform deployment custody is invalid")
 	}
-	return state, validateHostDeployment(project, state)
+	if err := validateHostDeployment(project, state); err != nil {
+		return state, err
+	}
+	if state.Manager != "" {
+		if state.Signature == nil {
+			return state, errors.New("explicit workload manager custody is unsigned")
+		}
+		signature := *state.Signature
+		unsigned := state
+		unsigned.Signature = nil
+		canonical, err := json.Marshal(unsigned)
+		if err != nil {
+			return state, err
+		}
+		if err := localevidence.VerifyOwnerPolicyState(workspace, canonical, signature); err != nil {
+			return state, err
+		}
+	}
+	return state, nil
 }
 
 // HasOwnerHostDeployment distinguishes absent native custody from invalid
@@ -110,4 +217,18 @@ func HasOwnerHostDeployment(workspace, project string) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// RequireComposeWorkloadOwner guards every direct Compose mutation, including
+// service control under a retained plan. A platform claim is authoritative even
+// when that older plan still selects Compose; malformed custody never falls back.
+func RequireComposeWorkloadOwner(workspace, project string) error {
+	state, err := LoadOwnerHostDeployment(workspace, project)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("workload manager custody cannot be verified: %w", err)
+	}
+	return RequireHostDeploymentManager(state, "standalone-compose")
 }

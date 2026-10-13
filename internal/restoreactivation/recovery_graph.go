@@ -31,7 +31,7 @@ const nativeDockerExecution = "native-docker"
 
 func deriveRuntimeRecoveryGraph(
 	workspaceRoot string,
-	plan generationartifact.VerifiedPlan,
+	plan recoveryPlanData,
 	manifest generationartifact.ArtifactManifest,
 	operationID string,
 ) (runtimeRecoveryGraphDerivation, error) {

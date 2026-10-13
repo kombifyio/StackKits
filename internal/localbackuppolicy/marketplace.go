@@ -5,6 +5,13 @@ package localbackuppolicy
 // uses the fixed project; adapter workloads retain their node-qualified names.
 const MarketplaceModuleRef = "stackkits-marketplace-coolify-runtime"
 const MarketplaceComposeProject = "stackkit-marketplace"
+const MarketplaceRuntimeDirectory = ".stackkit/runtime/marketplace"
+
+// MarketplaceRuntimeFiles is the private native installation closure. The
+// database and managed volumes travel through the existing Kopia graph.
+func MarketplaceRuntimeFiles() []string {
+	return []string{"compose.yaml", "coolify.env", "custody.json", "ca-bundle.crt", "php-trust.ini", "ssh-private-key"}
+}
 
 func ApplicationComposeProjectName(workloadRef, nodeRef string) string {
 	if workloadRef == "marketplace" {

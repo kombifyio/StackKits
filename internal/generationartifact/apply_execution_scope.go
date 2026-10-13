@@ -111,22 +111,33 @@ func (p VerifiedPlan) ExecutionScope() *ApplyExecutionScope {
 // they own are narrowed to the targets this host executes. Evidence, execution,
 // recovery, and result verification all derive from the projection, so a
 // member signs host evidence only for itself.
+func (p VerifiedPlan) WithExecutionScope(scope ApplyExecutionScope) (VerifiedPlan, error) {
+	scoped, err := scopeApplyRequirements(p.canonical, p.applyRequirements, scope)
+	if err != nil {
+		return VerifiedPlan{}, err
+	}
+	result := p
+	result.applyRequirements = scoped
+	return result, nil
+}
+
+// scopeApplyRequirements is the single projection rule for execution and
+// historical read-only custody; it cannot create plan authority.
 //
 //nolint:gocyclo // One closed projection rule set is easier to audit in one place.
-func (p VerifiedPlan) WithExecutionScope(scope ApplyExecutionScope) (VerifiedPlan, error) {
-	if p.applyRequirements.ExecutionScope != nil {
-		return VerifiedPlan{}, fail(ErrInvalidContract, "applyExecutionScope", "the plan is already host-scoped")
+func scopeApplyRequirements(canonical []byte, source ApplyRequirements, scope ApplyExecutionScope) (ApplyRequirements, error) {
+	if source.ExecutionScope != nil {
+		return ApplyRequirements{}, fail(ErrInvalidContract, "applyExecutionScope", "the plan is already host-scoped")
 	}
 	if err := scope.Validate(); err != nil {
-		return VerifiedPlan{}, err
+		return ApplyRequirements{}, err
 	}
 	var identity struct {
 		StackID string `json:"stackId"`
 	}
-	if err := json.Unmarshal(p.canonical, &identity); err != nil || identity.StackID != scope.StackID {
-		return VerifiedPlan{}, fail(ErrBindingMismatch, "applyExecutionScope.stackId", "does not name this StackInstance")
+	if err := json.Unmarshal(canonical, &identity); err != nil || identity.StackID != scope.StackID {
+		return ApplyRequirements{}, fail(ErrBindingMismatch, "applyExecutionScope.stackId", "does not name this StackInstance")
 	}
-	source := p.applyRequirements
 	localHost := false
 	for _, host := range source.Hosts {
 		if host.NodeRef == scope.Local.NodeRef && host.SiteRef == scope.Local.SiteRef {
@@ -134,7 +145,7 @@ func (p VerifiedPlan) WithExecutionScope(scope ApplyExecutionScope) (VerifiedPla
 		}
 	}
 	if !localHost {
-		return VerifiedPlan{}, fail(ErrBindingMismatch, "applyExecutionScope.local", "%s/%s is not a host of this plan", scope.Local.SiteRef, scope.Local.NodeRef)
+		return ApplyRequirements{}, fail(ErrBindingMismatch, "applyExecutionScope.local", "%s/%s is not a host of this plan", scope.Local.SiteRef, scope.Local.NodeRef)
 	}
 	members := make(map[[2]string]struct{}, len(scope.Members))
 	for _, member := range scope.Members {
@@ -148,12 +159,12 @@ func (p VerifiedPlan) WithExecutionScope(scope ApplyExecutionScope) (VerifiedPla
 	providerNodes := map[string][][2]string{}
 	for _, requirement := range cloneApplyRequirements(source).RuntimeInstances {
 		if len(requirement.SiteRefs) != 1 || len(requirement.NodeRefs) != 1 {
-			return VerifiedPlan{}, fail(ErrInvalidContract, "applyExecutionScope.runtimeInstances", "runtime target %q does not name exactly one Site/node", requirement.ID)
+			return ApplyRequirements{}, fail(ErrInvalidContract, "applyExecutionScope.runtimeInstances", "runtime target %q does not name exactly one Site/node", requirement.ID)
 		}
 		if !scope.Includes(requirement) {
 			if scope.Role == ApplyExecutionRoleAuthority {
 				if _, member := members[[2]string{requirement.SiteRefs[0], requirement.NodeRefs[0]}]; !member {
-					return VerifiedPlan{}, fail(ErrBindingMismatch, "applyExecutionScope.members",
+					return ApplyRequirements{}, fail(ErrBindingMismatch, "applyExecutionScope.members",
 						"runtime target %q on %s/%s belongs to no certified member", requirement.ID, requirement.SiteRefs[0], requirement.NodeRefs[0])
 				}
 			}
@@ -169,7 +180,7 @@ func (p VerifiedPlan) WithExecutionScope(scope ApplyExecutionScope) (VerifiedPla
 		}
 	}
 	if len(kept) == 0 {
-		return VerifiedPlan{}, fail(ErrExecutorMissing, "applyExecutionScope", "no runtime target of this plan runs on %s/%s", scope.Local.SiteRef, scope.Local.NodeRef)
+		return ApplyRequirements{}, fail(ErrExecutorMissing, "applyExecutionScope", "no runtime target of this plan runs on %s/%s", scope.Local.SiteRef, scope.Local.NodeRef)
 	}
 
 	scoped.HealthRequirements = scoped.HealthRequirements[:0]
@@ -259,11 +270,9 @@ func (p VerifiedPlan) WithExecutionScope(scope ApplyExecutionScope) (VerifiedPla
 	}
 	scoped.ExecutionScope = scope.clone()
 	if err := validateApplyRequirementIDs(scoped); err != nil {
-		return VerifiedPlan{}, err
+		return ApplyRequirements{}, err
 	}
-	result := p
-	result.applyRequirements = scoped
-	return result, nil
+	return scoped, nil
 }
 
 // scopedHealthTargetsRuntime is the same exact owner rule the product runtime

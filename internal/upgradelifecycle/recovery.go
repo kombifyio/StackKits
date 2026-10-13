@@ -263,6 +263,11 @@ func (store ExecutorStateStore) prepareExecutorStateRecovery(
 		}
 		restoredPaths = append(restoredPaths, roots...)
 	}
+	marketplacePaths, err := restoreExecutorStateMarketplaceRuntime(transaction, view, snapshot)
+	if err != nil {
+		return "", nil, err
+	}
+	restoredPaths = append(restoredPaths, marketplacePaths...)
 	if _, err := view.WriteAtomic0600(snapshot.StackSpec.Path, stackSpec); err != nil {
 		return "", nil, fmt.Errorf(
 			"executor state: atomically restore StackSpec: %w", err,

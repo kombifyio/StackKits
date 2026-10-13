@@ -12,12 +12,17 @@ _architectureV2GuacamoleStartup: "set +x; set -eu; umask 077; [ \"$GUACAMOLE_HOM
 _architectureV2GuacamoleTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "guacamole", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 
 _architectureV2GuacamoleComputeProfile: #ModuleComputeProfileV2 & {
-	description: "Guacamole and guacd on one node with transient private XML authentication. The 512 MiB policy reservation is unmeasured; standard and high share the graph until measured variants are admitted. No recordings or target credential storage."
+	description: "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance."
 	maturity:    "experimental", executable: true, realization: "apply-ready"
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
-	reservation: ramGB: 0.5
+	reservation: {ramGB: 0.3125, cpuCores: 0.05}
+	recommended: {ramGB: 0.375, cpuCores: 0.5}
 	components: ["guacd", "guacamole"]
-	provenance: {hostFloor: _architectureV2PolicyFloorProvenance, reservation: _architectureV2PolicyReservationProvenance}
+	provenance: {
+		hostFloor: _architectureV2PolicyFloorProvenance
+		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}
+		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}
+	}
 }
 _architectureV2GuacamoleComputeProfiles: {standard: _architectureV2GuacamoleComputeProfile, high: _architectureV2GuacamoleComputeProfile}
 

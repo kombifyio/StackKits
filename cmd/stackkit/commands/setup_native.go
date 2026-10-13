@@ -22,6 +22,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
@@ -300,6 +301,22 @@ func readNativeSetupCredentialJSON(workspace, path string, value any) error {
 // nativeAppliedWorkloadDeployment narrows the shared signed-Apply authority to
 // one owner-local application bundle. Setup and backup use the same selector.
 func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workload string) (nativehost.SelectedPaaSWorkloadDeployment, error) {
+	data := nativeAppliedWorkloadData{WorkspaceRoot: authority.WorkspaceRoot, Owner: authority.Owner, Manifest: authority.Manifest, AppliedWorkloads: authority.AppliedWorkloads}
+	return nativeAppliedWorkloadDeploymentData(data, authority.Plan.ApplyRequirements(), func(module, unit string) (string, bool, error) {
+		return architecturev2renderer.PlanRuntimeEntryComponentRef(authority.Plan, module, unit)
+	}, workload)
+}
+
+type nativeAppliedWorkloadData struct {
+	WorkspaceRoot    string
+	Owner            localevidence.OwnerCustody
+	Manifest         generationartifact.ArtifactManifest
+	AppliedWorkloads []architecturev2.AppliedWorkloadIdentity
+}
+
+// This selector consumes already authenticated immutable placement data. Its
+// result is observation input, never fresh setup or execution authorization.
+func nativeAppliedWorkloadDeploymentData(authority nativeAppliedWorkloadData, requirements generationartifact.ApplyRequirements, entry func(string, string) (string, bool, error), workload string) (nativehost.SelectedPaaSWorkloadDeployment, error) {
 	root, err := confinedfs.Open(authority.WorkspaceRoot)
 	if err != nil {
 		return nativehost.SelectedPaaSWorkloadDeployment{}, err
@@ -311,7 +328,7 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 	}
 	defer transaction.Close()
 	var selected *nativehost.SelectedPaaSWorkloadDeployment
-	for _, target := range authority.Plan.ApplyRequirements().RuntimeInstances {
+	for _, target := range requirements.RuntimeInstances {
 		if target.WorkloadRef != workload {
 			continue
 		}
@@ -340,7 +357,7 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 			// A native local host carries its channel in verified Owner custody;
 			// external hosts must retain their explicit signed channel instead.
 			localHost := false
-			for _, host := range authority.Plan.ApplyRequirements().Hosts {
+			for _, host := range requirements.Hosts {
 				if host.SiteRef == authority.Owner.Binding.SiteRef && host.NodeRef == authority.Owner.Binding.NodeRef && !host.External {
 					localHost = true
 				}
@@ -377,7 +394,7 @@ func nativeAppliedWorkloadDeployment(authority nativeV2AppliedAuthority, workloa
 			// The verified Plan's CUE runtime names the entry component (the
 			// Pterodactyl Panel, Open WebUI for Private AI); a unit without one
 			// is entered through the component named after the unit.
-			expectedEntry, declared, err := architecturev2renderer.PlanRuntimeEntryComponentRef(authority.Plan, target.ModuleRef, target.UnitRef)
+			expectedEntry, declared, err := entry(target.ModuleRef, target.UnitRef)
 			if err != nil {
 				return nativehost.SelectedPaaSWorkloadDeployment{}, err
 			}

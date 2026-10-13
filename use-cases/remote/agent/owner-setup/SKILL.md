@@ -42,8 +42,14 @@ not prove remote transport, reconnect, target permissions, backup or restore.
 
 The owned SSH fixture must provide observed session and reconnect evidence
 before SSH is reported as verified. No current receipt or support claim is
-established by this skill. RDP/VNC and physical-device behavior remain
-unverified until their own authorized probes provide evidence. Correct the
+established by this skill. The current public0.53.2 VNC module probe observed the upstream password
+challenge, a rendered frame and actual target input after connect and reconnect.
+Its temporary application token was revoked and independently rejected. This
+nil-route development boundary does not establish Core/private HTTPS, PocketID,
+household or physical-device acceptance. RDP was additionally observed against an owned xrdp target after its public
+fixture certificate was explicitly trusted in that owned guacd container. The
+untrusted certificate was rejected first. This added fixture trust is not
+native CA delivery, Windows/device support or full Core acceptance. Correct the
 reported cause without replacing custody, then resume a pending setup with
 `--operation-id ID`.
 
@@ -53,3 +59,43 @@ Pinned upstream contracts:
 and the official [configuration and connection guide](https://guacamole.apache.org/doc/gug/configuring-guacamole.html).
 The static mapping is an explicit runtime selection, not a fallback from
 another authentication mode.
+
+## VNC destination feedback
+
+Keep destination credentials outside the public Plan and XML connection. The
+upstream client requests the VNC password through its required-argument stream;
+provide it only from the authorized destination custody and keep it in memory.
+Do not replace this challenge with credentials in generated parameters, tool
+arguments or logs. Verify a frame and an actual input effect on the destination,
+then disconnect and repeat an input effect after reconnect. Mere client state
+or browser transport does not prove desktop control. Revoke the application
+session afterward and observe rejection before returning.
+
+The receipt at docs/plans/2026-10-11-stream-a/a2-vnc-0532-observation.json binds
+this observation to the checksum-verified published archive and its public
+source3d71bfe9dc6e499e86ef0a3726bb9fffc0fe883e. It used an isolated Ubuntu26.04
+TigerVNC/Xterm target with no exposed host port or database. This is the VNC
+module boundary only; it neither replaces the owning released-lifecycle
+producer nor marks Remote supported. Preserve actual target identity and
+credential choices. RDP trust/identity is a separate boundary; this skill does
+not authorize ignoring its certificate validation.
+
+## RDP destination feedback
+
+Keep the target identity and certificate verification explicit. Never infer a
+trusted RDP peer from a browser connected/sync state; observe the actual desktop
+and its input effects. The untrusted RDP fixture returned a temporary client
+state before guacd reported certificate validation failure and refused TLS.
+Do not enable ignore-cert or implicit trust-on-first-use to make a probe pass.
+
+For an admitted target, use the upstream authentication prompt or actual RDP
+login UI. Target passwords remain outside public Plan/XML and logs. Observe an
+actual destination effect, disconnect/reconnect and verify a second effect,
+then revoke and verify rejection of the temporary Guacamole token.
+
+The a2-rdp-0532-observation.json receipt records actual public0.53.2 behavior
+with fixture-only public certificate trust, preserved private key, non-owner
+Unix desktop and no database. Only that public certificate entered the owned
+guacd system trust store. It did not change host/company/C CA authority or
+prove automated production trust delivery. Fixture graphics and IPC repairs
+are recorded separately from product behavior; no product code was changed.

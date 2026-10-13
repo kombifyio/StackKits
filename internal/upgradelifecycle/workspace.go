@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 func copyWorkspace(source, target string, maxFiles int, maxBytes int64) error {
@@ -30,6 +33,16 @@ func copyWorkspace(source, target string, maxFiles int, maxBytes int64) error {
 			return nil
 		}
 		portable := filepath.ToSlash(relative)
+		// Native OpenTofu downloads providers beneath this cache. Target
+		// generation initializes its own cache; retain configuration, state and
+		// dependency locks outside it, without following provider symlinks.
+		if strings.HasPrefix(portable, ".stackkit/runtime/") && path.Base(portable) == ".terraform" &&
+			path.Base(path.Dir(portable)) == opentofu.RootDirName {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		// Target generation needs the same verified Owner custody to sign its
 		// shadow artifacts. Prior mutation and upgrade journals are bound to the
 		// source workspace and must not be replayed in this disposable root.

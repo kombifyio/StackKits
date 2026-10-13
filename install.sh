@@ -71,7 +71,7 @@ if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]
   fi
 fi
 
-installer_journal_begin core "$TARGET_HOME/.stackkits/installer"
+installer_journal_begin core "$(cd "$TARGET_HOME" && pwd -P)/.stackkits/installer" "$TARGET_USER"
 TMP=""
 trap '_installer_exit_code=$?; installer_interrupted "$_installer_exit_code"; [ -z "$TMP" ] || rm -rf "$TMP"' EXIT
 trap 'exit 129' HUP

@@ -1,4 +1,4 @@
-package commands
+package confinedfs
 
 import (
 	"fmt"
@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-func resolveModuleArtifactPath(baseDir, artifactName string) (string, error) {
+// ResolveModuleArtifactPath resolves an artifact beneath its module directory.
+// This preserves the authoring contract's lexical path check; filesystem custody
+// operations use Root when they also require symlink and identity confinement.
+func ResolveModuleArtifactPath(baseDir, artifactName string) (string, error) {
 	if strings.Contains(baseDir, "\x00") || strings.Contains(artifactName, "\x00") {
 		return "", fmt.Errorf("path contains invalid null byte")
 	}

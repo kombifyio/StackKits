@@ -21,6 +21,10 @@ func currentStateRuntimeRecoveryGraph(input CurrentStateAuthorityInput) (Executo
 	if err != nil {
 		return ExecutorStateBlobInput{}, fmt.Errorf("current state authority: derive runtime recovery graph: %w", err)
 	}
+	return runtimeRecoveryGraphBlob(input, graph)
+}
+
+func runtimeRecoveryGraphBlob(input CurrentStateAuthorityInput, graph restoreactivation.RuntimeRecoveryGraph) (ExecutorStateBlobInput, error) {
 	paths := make(map[string]string, len(input.Capture.Artifacts))
 	manifestPaths := make(map[string]string, len(input.Manifest.Artifacts))
 	for _, artifact := range input.Manifest.Artifacts {

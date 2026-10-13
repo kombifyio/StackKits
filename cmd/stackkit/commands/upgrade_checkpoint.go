@@ -633,15 +633,17 @@ func appliedPublicUpgradeReleasePath(
 }
 
 // publicUpgradeApplicationComposeReader returns the governed Compose file of
-// one selected Standalone-Compose workload project as Apply materialized it
-// under .stackkit/runtime/applications/<project>/compose.yaml. Its volume
-// names are literal; the private .env beside it supplies secrets only.
+// one selected application project as its native owner materialized it.
+// Marketplace retains its own directory; adapter workloads use applications.
 func publicUpgradeApplicationComposeReader(workspace string) func(string) ([]byte, error) {
 	return func(project string) ([]byte, error) {
 		if !localbackuppolicy.ValidComposeVolumeName(project) || strings.Contains(project, "..") {
 			return nil, fmt.Errorf("workload Compose project %q is not a portable project name", project)
 		}
 		path := filepath.Join(workspace, ".stackkit", "runtime", "applications", project, "compose.yaml")
+		if project == localbackuppolicy.MarketplaceComposeProject {
+			path = filepath.Join(workspace, filepath.FromSlash(localbackuppolicy.MarketplaceRuntimeDirectory), "compose.yaml")
+		}
 		info, err := os.Lstat(path)
 		if err != nil {
 			return nil, fmt.Errorf("read applied workload Compose %s: %w", project, err)

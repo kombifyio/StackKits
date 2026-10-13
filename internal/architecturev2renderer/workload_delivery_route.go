@@ -268,7 +268,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 	if err := decodeStrict(data, &bundle); err != nil {
 		return ApplicationDeliveryBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed workload bundle", err)
 	}
-	if bundle.APIVersion != "stackkit.workload-bundle/v2" ||
+	allowedVersion := bundle.APIVersion == "stackkit.workload-bundle/v2" ||
+		(bundle.APIVersion == mosquittoWorkloadAPIVersion && bundle.Workload.ModuleRef == mosquittoWorkloadModuleID)
+	if !allowedVersion ||
 		bundle.Workload.Delivery != "application-adapter" ||
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
 		bundle.Ownership.ProviderLifecycle != "not-owned" ||
@@ -282,6 +284,13 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		); err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
+	}
+	if bundle.Workload.ModuleRef == mosquittoWorkloadModuleID {
+		if _, err := ParseMosquittoWorkloadBundle(data); err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
+	} else if len(bundle.ComputeProfile) != 0 {
+		return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path+".computeProfile", "workload does not admit a compute profile projection")
 	}
 	secretRefs := make(map[string]string, len(bundle.SecretRefs))
 	for slot, ref := range bundle.SecretRefs {

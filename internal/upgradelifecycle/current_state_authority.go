@@ -590,6 +590,14 @@ func appendStandaloneComposeRuntimeCustody(input *CurrentStateAuthorityInput) er
 	if err != nil {
 		return fmt.Errorf("current state authority: derive standalone Application runtime custody: %w", err)
 	}
+	marketplace, err := restoreactivation.DeriveMarketplaceRuntimeCustody(input.WorkspaceRoot, input.Plan, input.Manifest, input.Capture.OperationID)
+	if err != nil {
+		return err
+	}
+	return appendRuntimeCustodyFiles(input, custody, marketplace)
+}
+
+func appendRuntimeCustodyFiles(input *CurrentStateAuthorityInput, custody []restoreactivation.StandaloneComposeRuntimeCustody, marketplace *restoreactivation.MarketplaceRuntimeCustody) error {
 	seenIDs := make(map[string]struct{}, len(input.Capture.Artifacts))
 	seenPaths := make(map[string]struct{}, len(input.Capture.Artifacts))
 	for _, artifact := range input.Capture.Artifacts {
@@ -648,6 +656,13 @@ func appendStandaloneComposeRuntimeCustody(input *CurrentStateAuthorityInput) er
 		}
 		for _, config := range runtime.ConfigFiles {
 			if err := appendFile(executorStateStandaloneConfigID(runtime.Project, config.Path), config); err != nil {
+				return err
+			}
+		}
+	}
+	if marketplace != nil {
+		for _, file := range marketplace.Files {
+			if err := appendFile("marketplace-runtime-"+path.Base(file.Path), file); err != nil {
 				return err
 			}
 		}

@@ -1,5 +1,13 @@
 # Changelog
 
+- **Native plan capacity guidance**: show per-node demand, observed capacity, fit verdicts and advice from the existing engine after generation verification; unknowns stay unknown and JSON/admission stay unchanged.
+
+- Add: Remote module resource demand now uses an observed Guacamole and guacd footprint during a real RDP input/reconnect flow. The same existing capacity calculation consumes the measured facts; experimental maturity and the unverified high-profile benefit remain unchanged.
+
+- Fix: the legacy v1 spec path no longer assumes Coolify. An omitted `paas` now selects no platform (ADR-0049), the reverse proxy stays the StackKits router, and apps that need a platform adapter are refused until `paas` is named explicitly; no platform flag is enabled by default.
+
+- Fix: MQTT compute-profile descriptions now match the shared broker configuration. Distinct CPU/RAM allocations preserve the same messaging behavior; a measured benefit of the high profile remains unverified.
+
 - Add: Nextcloud, Home Assistant, Cloudreve and Uptime Kuma carry `dashboard.vendor` (name, website, docs, SPDX license, vendor-linked support), and Nextcloud and Home Assistant carry their vendor-published `dashboard.clients` (store entries and the Nextcloud desktop install page). Only vendor-verified URLs.
 
 - Add: Private AI can offer an external OpenAI-compatible provider (OpenAI, Mistral, Groq, OpenRouter, a self-hosted gateway) in Open WebUI next to the node's Ollama, with the API key from the owner's kombify Wallet. The Wallet seals the `ai_credential` item to the node (`stackkit wallet-item import`); `stackkit setup ai-provider --base-url <https URL> --tenant-ref <tenant> --wallet-item <item>` binds the key slot to that item and sets the `external-provider` setting. The local custody keeps only the owner-signed binding, never the key: every apply resolves the newest delivered version, so an imported rotation takes effect on the next apply, and Apply fails closed when the item is not on the node. The bundle carries the base URL and an opaque key reference; Open WebUI gets egress only while a provider is set. `--disable` removes the setting and the binding. AnythingLLM does not take an external provider yet.
@@ -233,6 +241,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.4](https://github.com/kombifyio/StackKits/compare/v0.53.3...v0.53.4) (2026-10-13)
+
+
+### Fixed
+
+* **public:** project runtime contracts module into the OSS export
+
+## [0.53.3](https://github.com/kombifyio/StackKits/compare/v0.53.2...v0.53.3) (2026-10-13)
+
+
+### Added
+
+* bind Mosquitto resource variants to native compute profiles
+* bind observed complete Guacamole module demand
+* **service:** transfer registered workload managers under shared custody
+* show bound capacity guidance in native plan inspection
+
+
+### Fixed
+
+* align canonical MQTT profile facts with shared delivery
+* **deps:** update internal products
+* **installers:** preserve invoking owner journal custody across sudo
+* keep normal workload controls after signed manager transfer
+* preserve MQTT offline delivery across compute allocations
+* **service:** deny Compose control of platform-owned workloads
+* stop the legacy v1 bridge from defaulting to Coolify (ADR-0049)
+* withhold sizing from incomplete workload samples
 
 ## [0.53.2](https://github.com/kombifyio/StackKits/compare/v0.53.1...v0.53.2) (2026-10-12)
 
