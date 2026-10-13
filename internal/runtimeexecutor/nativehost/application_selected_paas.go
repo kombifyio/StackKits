@@ -19,6 +19,7 @@ type SelectedPaaSApplication string
 
 const (
 	SelectedPaaSApplicationAdguardHome       SelectedPaaSApplication = "adguard-home"
+	SelectedPaaSApplicationNtfyLive          SelectedPaaSApplication = "ntfy-live"
 	SelectedPaaSApplicationOpencloud         SelectedPaaSApplication = "opencloud"
 	SelectedPaaSApplicationGuacamole         SelectedPaaSApplication = "guacamole"
 	SelectedPaaSApplicationGitea             SelectedPaaSApplication = "gitea"
@@ -372,6 +373,11 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
+	case SelectedPaaSApplicationNtfyLive:
+		return selectedPaaSApplicationSpec{name: "ntfy live notifications", providerRef: "stackkits-ntfy-live", moduleRef: "stackkits-ntfy-live-runtime", unitRef: "ntfy-live", workloadRef: "automation-notifications", artifactRef: "ntfy-live-workload-bundle", outputRef: "workloads/ntfy-live/bundle.json", healthRef: "ntfy-live-http", expectedStatuses: []int{200}, rendererContract: architecturev2renderer.NtfyLiveWorkloadBundleRendererContract, parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+			d, err := architecturev2renderer.ParseNtfyLiveWorkloadBundle(content)
+			return selectedPaaSApplicationIdentity{workloadRef: d.WorkloadRef, moduleRef: d.ModuleRef, siteRef: d.SiteRef, nodeRef: d.NodeRef, instanceRef: d.InstanceRef}, err
+		}}, true
 	case SelectedPaaSApplicationOpencloud:
 		return selectedPaaSApplicationSpec{name: "Opencloud", providerRef: "stackkits-opencloud", moduleRef: "stackkits-opencloud-runtime", unitRef: "opencloud", workloadRef: "files", artifactRef: "opencloud-workload-bundle", outputRef: "workloads/opencloud/bundle.json", healthRef: "opencloud-http", expectedStatuses: []int{200}, rendererContract: architecturev2renderer.OpencloudWorkloadBundleRendererContract, parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 			descriptor, err := architecturev2renderer.ParseOpencloudWorkloadBundle(content)

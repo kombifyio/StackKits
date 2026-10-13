@@ -28,6 +28,10 @@ const (
 	// Immich administrator; its result records the issued key, not an account.
 	ImmichAddOnAPIKeyActionRef   = "immich-add-on-api-key"
 	ImmichAddOnAPIKeyPreparation = "immich-api-key-issued"
+	NtfyLiveDeliveryActionRef    = "ntfy-live-delivery-check"
+	NtfyLiveDeliveryPreparation  = "ntfy-live-delivery-verified"
+	AdguardHomePolicyActionRef   = "adguard-home-policy-check"
+	AdguardHomePolicyPreparation = "adguard-home-policy-verified"
 	// ComfyUIModelDownloadActionRef installs a reviewed model preset. ComfyUI
 	// has no accounts, so no administrator login is verified; the result
 	// records the preset (Preparation "model-preset-<id>").
@@ -330,10 +334,20 @@ func validateSetupResult(contract Contract, result SetupResult) error {
 	if result.APIVersion != SetupResultAPIVersion || result.Authority != authorityFromContract(contract) || result.WorkloadRef != contract.WorkloadRef ||
 		!operationIDPattern.MatchString(result.OperationID) || !contractIDPattern.MatchString(result.ActionRef) || !digestPattern.MatchString(result.ApplyResultHash) || !digestPattern.MatchString(result.ArtifactDigest) ||
 		result.InstanceRef == "" || result.ApplicationVersion == "" || result.AccountRef == "" || result.VerifiedAt.IsZero() ||
-		(!result.AdminLoginVerified && result.ActionRef != ComfyUIModelDownloadActionRef) {
+		(!result.AdminLoginVerified && result.ActionRef != ComfyUIModelDownloadActionRef && result.ActionRef != NtfyLiveDeliveryActionRef) {
 		return errors.New("application setup result is incomplete or differs from the admitted authority")
 	}
 	switch result.ActionRef {
+	case AdguardHomePolicyActionRef:
+		if result.WorkloadRef != "network" || result.AccountRef != "owner" || result.Preparation != AdguardHomePolicyPreparation || !result.Initialized || !result.AdminLoginVerified || result.OnboardingComplete || result.EmailVerification != "" {
+			return errors.New("Network setup result does not prove its installed selected-client policy")
+		}
+		return nil
+	case NtfyLiveDeliveryActionRef:
+		if result.WorkloadRef != "automation-notifications" || result.AccountRef != "delivery:live-only" || result.Preparation != NtfyLiveDeliveryPreparation || !result.Initialized || result.AdminLoginVerified || result.OnboardingComplete || result.EmailVerification != "" {
+			return errors.New("ntfy live setup result does not prove its explicit non-account delivery effect")
+		}
+		return nil
 	case ImmichAddOnAPIKeyActionRef:
 		if result.Preparation != ImmichAddOnAPIKeyPreparation || result.EmailVerification != "" || !result.Initialized {
 			return errors.New("Immich add-on setup result has an invalid preparation state")

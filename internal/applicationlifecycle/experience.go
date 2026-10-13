@@ -134,6 +134,9 @@ type RestoreActivationInput struct {
 	Status      string
 	Evidence    Evidence
 	VerifiedAt  time.Time
+	// DataReadbackVolumes counts volumes whose live content was read back and
+	// matched the restored snapshot before services started.
+	DataReadbackVolumes int
 }
 
 // ExperienceInput contains only current-plan bindings and read-only evidence
@@ -272,6 +275,9 @@ func recoveryAxis(contract Contract, state State, activation *RestoreActivationI
 						axis.Freshness = FreshnessHistorical
 						axis.ObservedAt = activation.VerifiedAt
 						axis.Reason = "restore data was activated and runtime verification completed; application-data readback remains unverified"
+						if activation.Status == "activated" && activation.DataReadbackVolumes > 0 {
+							axis.Reason = "restore data was activated, the restored volume content was read back and matches the snapshot, and runtime verification completed; application behaviour after restore remains unverified"
+						}
 						if activation.Status == "recovered" {
 							axis.Reason = "restore activation failed and the prior runtime state was restored; the requested restore was not applied"
 						}

@@ -5940,6 +5940,219 @@
         }
       },
       "metadata": {
+        "description": "Node-bound live relay lifecycle and non-account delivery check; no durable message or identity acceptance.",
+        "id": "automation-notifications",
+        "version": "1.0.0"
+      },
+      "packageRef": "automation",
+      "useCaseRef": "automation",
+      "workloadRef": "automation-notifications"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
         "id": "network",
         "version": "1.0.0"
@@ -9144,6 +9357,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-ntfy-live-runtime"
+        ],
+        "matches": [
+          "stackkits-ntfy-live"
+        ],
+        "module": "stackkits-ntfy-live-runtime",
+        "provider": "stackkits-ntfy-live"
+      },
+      {
+        "governanceMatches": [
           "stackkits-adguard-home-runtime"
         ],
         "matches": [
@@ -10093,6 +10316,12 @@
             "remote"
           ],
           "providerID": "stackkits-guacamole"
+        },
+        {
+          "contracts": [
+            "automation-notifications"
+          ],
+          "providerID": "stackkits-ntfy-live"
         },
         {
           "contracts": [
@@ -11231,6 +11460,13 @@
         ],
         "module": "stackkits-guacamole-runtime",
         "provider": "stackkits-guacamole"
+      },
+      {
+        "matches": [
+          "stackkits-ntfy-live-runtime"
+        ],
+        "module": "stackkits-ntfy-live-runtime",
+        "provider": "stackkits-ntfy-live"
       },
       {
         "matches": [
@@ -13052,6 +13288,20 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-ntfy-live"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-ntfy-live"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-adguard-home"
       },
       {
@@ -13771,6 +14021,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-guacamole"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-ntfy-live"
         },
         {
           "capabilityBindings": [],
@@ -18036,6 +18292,70 @@
             }
           ],
           "workloadID": "remote"
+        },
+        {
+          "alternativeID": "ntfy-live",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-ntfy-live-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "unitID": "ntfy-live"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-ntfy-live",
+              "workloadOwnership": [
+                "automation-notifications"
+              ]
+            }
+          ],
+          "workloadID": "automation-notifications"
         },
         {
           "alternativeID": "adguard-home",
@@ -49152,6 +49472,336 @@
     },
     {
       "computeProfiles": {
+        "standard": {
+          "components": [
+            "ntfy-live"
+          ],
+          "description": "Connected-client live relay only. No backlog or mobile/offline guarantee. Resource reservations are configured policy; no measured low/high benefit is declared.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.0625
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "ntfy-live-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "ntfy-live-http",
+          "kind": "http",
+          "path": "/v1/health",
+          "phase": "continuous",
+          "port": 80,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Digest-pinned ntfy2.30.0 explicit live-only relay. No persistence, accounts, Web Push, attachment custody or provider execution. Optional administrator-only private route.",
+        "id": "stackkits-ntfy-live-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-ntfy-live",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "ntfy-live-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/ntfy-live/bundle.json",
+              "required": true,
+              "unitRef": "ntfy-live"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "ntfy-live-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/ntfy-live/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "ntfy-live-workload-bundle",
+              "outputRef": "workloads/ntfy-live/bundle.json",
+              "unitRef": "ntfy-live"
+            },
+            {
+              "artifactRef": "ntfy-live-terramate-stack",
+              "outputRef": "platform/applications/ntfy-live/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "ntfy-live-workload-bundle",
+            "ntfy-live-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "ntfy-live-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:6fc300a89932443df39baf7a1c8a39e7120013516aec75aede10430475211fbc",
+          "id": "ntfy-live",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/ntfy-live/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "healthRef": "ntfy-live-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "admin",
+              "serviceRef": "automation-notifications",
+              "targetPort": 80,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/ntfy-live/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/ntfy-live/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "ntfy-live-workload-bundle"
+          ],
+          "contractHash": "sha256:66aa1152e7d87b3292a2eefbcca398746546e6499c60b70000a0a7cb34704f02",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "ntfy-live"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "ntfy-live-workload-bundle"
+          ],
+          "contractHash": "sha256:52e50871398d3f1fc5bca11be237abce135bdb39157fa33bc23b6b3d18bd0e41",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "ntfy-live"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "ntfy-live-workload-bundle",
+            "ntfy-live-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "terramate",
+          "unitRefs": [
+            "ntfy-live",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "serve",
+              "--cache-duration",
+              "0",
+              "--enable-login=false",
+              "--enable-signup=false",
+              "--enable-reservations=false"
+            ],
+            "dependsOn": [],
+            "environment": {
+              "NTFY_ATTACHMENT_CACHE_DIR": "",
+              "NTFY_AUTH_FILE": "",
+              "NTFY_DATABASE_URL": "",
+              "NTFY_LOG_LEVEL": "WARN",
+              "NTFY_UPSTREAM_BASE_URL": "",
+              "NTFY_WEB_PUSH_FILE": "",
+              "NTFY_WEB_PUSH_PRIVATE_KEY": "",
+              "NTFY_WEB_PUSH_PUBLIC_KEY": ""
+            },
+            "health": {
+              "kind": "http",
+              "path": "/v1/health",
+              "port": 80
+            },
+            "id": "ntfy-live",
+            "image": {
+              "digest": "sha256:8563a39da2f5a47360618b2ab9200239c76b37f4145f6d627d9ab4368abd23f0",
+              "ref": "docker.io/binwiederhier/ntfy:v2.30.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "ntfy-live-internal"
+            ],
+            "resources": {
+              "memoryLimit": "256m",
+              "memoryReservation": "64m"
+            },
+            "role": "application"
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "ntfy-live",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:8563a39da2f5a47360618b2ab9200239c76b37f4145f6d627d9ab4368abd23f0",
+          "ref": "docker.io/binwiederhier/ntfy:v2.30.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
         "high": {
           "components": [
             "adguard-home"
@@ -54445,6 +55095,46 @@
       ],
       "workloadRefs": [
         "remote"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "ntfy-live-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-ntfy-live",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-ntfy-live-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "automation-notifications"
       ]
     },
     {
@@ -61074,6 +61764,91 @@
     {
       "alternatives": [
         {
+          "id": "ntfy-live",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-ntfy-live-runtime",
+          "providerRef": "stackkits-ntfy-live",
+          "route": {
+            "healthRef": "ntfy-live-http",
+            "serviceRef": "automation-notifications"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": false,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "ntfy-live-delivery-check"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "included": false,
+          "reason": "No named measured high capability; standard is not copied as high."
+        },
+        "low": {
+          "included": false,
+          "reason": "No independently measured low variant."
+        },
+        "standard": {
+          "alternativeID": "ntfy-live",
+          "included": true
+        }
+      },
+      "dataClasses": [],
+      "defaultAlternative": "ntfy-live",
+      "functionalCapabilities": [
+        "live-notifications"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Explicit ntfy live-only notification add-on: forward to connected subscribers; no queued replay, native accounts, Web Push or attachments. Durable push and backup digest delivery remain separate prerequisites.",
+        "id": "automation-notifications",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "automation"
+    },
+    {
+      "alternatives": [
+        {
           "id": "adguard-home",
           "inputs": {
             "secretInputs": {
@@ -61126,9 +61901,11 @@
             "defaultFallbackAdapterRefs": []
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "adguard-home-policy-check"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],

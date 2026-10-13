@@ -100,9 +100,14 @@ private keys, CA material, and recovery secrets never cross this boundary.
 
 ## Architecture v2 Keystone
 
-The active architecture program is Beads `kombify-StackKits-dqcp` / Linear
-`KOM-774`; its normative decision is
-the private ADR-0029 decision record. The current runtime still
+The architecture-v2 Keystone decision is
+the private ADR-0029 decision record. Beads
+`kombify-StackKits-dqcp` is a closed implementation epic, independently read
+back on 2026-10-13; it is historical provenance rather than the active program.
+GitHub Projects owns cross-repository priorities, the owning
+[ROADMAP](../ROADMAP.md) owns milestones, and repository-bound Cloudflare Beads
+owns executable work under the workspace
+[planning standard](https://github.com/kombify/kombify-workspace/blob/main/GITHUB-PROJECTS-PLANNING-STANDARD.md). The current runtime still
 contains transitional global-`context`, independent Go validation, and legacy
 Modern/HA surfaces. New work MUST target the v2 spine instead of adding consumers
 to those compatibility paths.
@@ -3031,8 +3036,9 @@ The implemented top-level command groups are documented in [CLI.md](CLI.md):
 | API wire shape | `api/openapi/stackkits-v1.yaml` plus server tests |
 | CLI behavior | Cobra command definitions and tests |
 | Architecture overview | `docs/ARCHITECTURE.md` |
-| Active work | published roadmap and release notes |
-| Roadmap read-view | `ROADMAP.md` |
+| Cross-repository priorities | GitHub Projects |
+| Milestones | Owning `ROADMAP.md`; current projections follow its registered generator |
+| Executable work | Repository-bound Cloudflare Beads |
 
 Historical V5/V6 and CUE-audit planning content has been folded into ADRs, Beads, the architecture manifest, and this overview. Do not reintroduce standalone architecture-version or task-tracker Markdown files.
 

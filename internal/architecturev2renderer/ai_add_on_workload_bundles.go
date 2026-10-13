@@ -33,6 +33,10 @@ type aiAddOnWorkload struct {
 	port           int
 	secretRefs     []string
 	component      selectedPaaSRuntimeComponent
+	// Optional recipe-owned boundaries retain existing AI defaults.
+	schemaBoundary    string
+	requiredPrivilege string
+	ingressAuth       string
 }
 
 func (w aiAddOnWorkload) templateRef() string {
@@ -46,8 +50,12 @@ func (w aiAddOnWorkload) contract() RendererContract {
 	if len(w.secretRefs) > 0 {
 		secretMaterial = "references-only"
 	}
+	boundary := w.schemaBoundary
+	if boundary == "" {
+		boundary = "|peer:ai/private-ai-internal"
+	}
 	schema := "stackkit.workload-bundle/v2|" + w.kind + "|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:" +
-		w.unitID + "|release:" + w.release + "|secret-material:" + secretMaterial + "|peer:ai/private-ai-internal"
+		w.unitID + "|release:" + w.release + "|secret-material:" + secretMaterial + boundary
 	sum := sha256.Sum256([]byte(schema))
 	return RendererContract{
 		Kind: "native-config", RendererRef: "stackkit",
@@ -331,8 +339,15 @@ func (w aiAddOnWorkload) validateComponents(components []selectedPaaSRuntimeComp
 }
 
 func (w aiAddOnWorkload) validateServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
+	privilege := w.requiredPrivilege
+	if privilege == "" {
+		privilege = "user"
+	}
+	if w.ingressAuth != "" && endpoint.IngressAuth != w.ingressAuth {
+		return fail(ErrInvalidPlan, path, "private service ingress authentication differs from its recipe")
+	}
 	if endpoint.ServiceRef != w.workloadRef || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != w.port ||
-		endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
+		endpoint.RequiredPrivilege != privilege || endpoint.OriginSelector != "control-authority-site" ||
 		endpoint.HealthRef != w.unitID+"-http" || !validBundleApplicationIngressAuth(endpoint.IngressAuth) ||
 		endpoint.Data.BindingRef != "" || len(endpoint.Data.RequiredClasses) != 0 ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"https"}) ||
@@ -343,6 +358,9 @@ func (w aiAddOnWorkload) validateServiceEndpoint(endpoint selectedPaaSServiceEnd
 }
 
 func (w aiAddOnWorkload) validateRoute(route applicationDeliveryRoute, path string) error {
+	if w.ingressAuth != "" && (route.IngressAuth != w.ingressAuth || route.Protocol != "https" || route.UpstreamProtocol != "http" || !route.TLS.Required) {
+		return fail(ErrInvalidPlan, path, "private service route differs from its authenticated HTTPS recipe")
+	}
 	if err := validateParsedApplicationDeliveryRoute(route, w.moduleID, w.workloadRef, w.port, path); err != nil {
 		return err
 	}

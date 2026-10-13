@@ -279,6 +279,7 @@
         "files-office",
         "smart-home-mqtt",
         "smart-home-zigbee",
+        "automation-notifications",
         "photos-share",
         "photos-kiosk",
         "photos-tools"
@@ -898,6 +899,7 @@
       "files-office",
       "smart-home-mqtt",
       "smart-home-zigbee",
+      "automation-notifications",
       "photos-share",
       "photos-kiosk",
       "photos-tools",

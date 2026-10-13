@@ -2,7 +2,9 @@ package generationartifact
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"math"
 	"path"
 	"path/filepath"
 	"sort"
@@ -224,13 +226,51 @@ func (p VerifiedPlan) RequireReady(phase ExecutionPhase) error {
 		}
 		parts = append(parts, part)
 	}
+	message := "blocked by " + strings.Join(parts, "; ")
+	for _, blocker := range decision.blockers {
+		if blocker.Code == "runtime-capacity-unsatisfied" {
+			if detail := p.capacityDetail(); detail != "" {
+				message += ". " + detail
+			}
+			break
+		}
+	}
 	return &Error{
 		Code:     ErrReadinessBlocked,
 		Path:     "resolvedPlan.executionReadiness." + string(phase),
-		Message:  "blocked by " + strings.Join(parts, "; "),
+		Message:  message,
 		Phase:    phase,
 		Blockers: cloneReadinessBlockers(decision.blockers),
 	}
+}
+
+// capacityDetail names the memory the selected services reserve per node, so a
+// capacity refusal says how large the host must be and how to reduce the demand
+// instead of only repeating the blocker code.
+func (p VerifiedPlan) capacityDetail() string {
+	var plan struct {
+		ResourceDemand []struct {
+			NodeRef     string             `json:"nodeRef"`
+			ModuleRefs  []string           `json:"moduleRefs"`
+			HostFloor   map[string]float64 `json:"hostFloor"`
+			Reservation map[string]float64 `json:"reservation"`
+		} `json:"resourceDemand"`
+	}
+	if err := json.Unmarshal(p.canonical, &plan); err != nil {
+		return ""
+	}
+	var lines []string
+	for _, demand := range plan.ResourceDemand {
+		ram := math.Max(demand.HostFloor["ramGB"], demand.Reservation["ramGB"])
+		if ram <= 0 {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("node %s: the %d selected services reserve %.1f GB RAM", demand.NodeRef, len(demand.ModuleRefs), ram))
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "; ") + ". Use a host with at least that much memory, or select fewer services in stack-spec.yaml and run `stackkit generate` again"
 }
 
 func cloneReadinessBlockers(blockers []ReadinessBlocker) []ReadinessBlocker {

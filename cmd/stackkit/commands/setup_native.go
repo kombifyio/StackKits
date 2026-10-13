@@ -87,6 +87,14 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 	if options.outputJSON {
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(result)
 	}
+	if result.Preparation == applicationlifecycle.AdguardHomePolicyPreparation {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: installed selected-client DNS policy and owner API access verified. Client DNS reachability still needs a query from the intended client.\nPlan: %s\n", workload, result.Authority.PlanHash)
+		return err
+	}
+	if result.Preparation == applicationlifecycle.NtfyLiveDeliveryPreparation {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: ntfy delivered the live check and retained no replay. Durable delivery and application accounts are not configured.\nPlan: %s\n", workload, result.Authority.PlanHash)
+		return err
+	}
 	if result.Preparation == "immich-api-key-issued" {
 		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: Immich issued the add-on API key into local custody; the next apply starts the add-on with it.\nPlan: %s\n", workload, result.Authority.PlanHash)
 		return err

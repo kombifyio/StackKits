@@ -31,6 +31,10 @@ func DescribeNativeAction(action string, support NativeActionSupport) (NativeAct
 // executing it for a selected runtime target.
 func NativeActionMetadata(action string) (NativeActionDescription, bool) {
 	switch action {
+	case AdguardHomePolicyAction:
+		return NativeActionDescription{Title: "Selected-client DNS policy check", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/network/agent/dns-policy/SKILL.md"}, true
+	case NtfyLiveDeliveryAction:
+		return NativeActionDescription{Title: "Live notification delivery check", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/automation/agent/ntfy-live/SKILL.md"}, true
 	case GuacamoleOwnerLoginAction:
 		return NativeActionDescription{Title: "Remote owner login", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/remote/agent/owner-setup/SKILL.md"}, true
 	case PaperlessOwnerLoginAction:

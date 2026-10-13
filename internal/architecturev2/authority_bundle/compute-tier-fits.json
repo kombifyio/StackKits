@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:8e6d5adf5053bb011b2eb5af2054a2cc4281687b51b0a6bd0ec0613c08bbbda2",
+  "contentDigest": "sha256:efa11a209e0685f6ce4c69c9ea4b510fe7d652281863446f5144277c1258037c",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -1263,6 +1263,94 @@
         }
       ],
       "title": "Private AI"
+    },
+    {
+      "addOns": [
+        {
+          "alternatives": [
+            {
+              "id": "ntfy-live",
+              "modules": [
+                {
+                  "computeProfileFacts": {
+                    "standard": {
+                      "executable": true,
+                      "hostFloor": {
+                        "minCpuCores": 2,
+                        "minRamGB": 4,
+                        "minStorageGB": 20
+                      },
+                      "maturity": "experimental",
+                      "provenance": {
+                        "hostFloor": {
+                          "ref": "Kombify host floor support policy",
+                          "source": "policy"
+                        },
+                        "reservation": {
+                          "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                          "source": "policy"
+                        }
+                      },
+                      "realization": "apply-ready",
+                      "reservation": {
+                        "ramGB": 0.0625
+                      }
+                    }
+                  },
+                  "computeProfiles": [
+                    "standard"
+                  ],
+                  "id": "stackkits-ntfy-live-runtime"
+                }
+              ],
+              "name": "ntfy-live"
+            }
+          ],
+          "defaultAlternative": "ntfy-live",
+          "id": "automation-notifications"
+        }
+      ],
+      "components": [
+        {
+          "id": "ntfy-live",
+          "kind": "application",
+          "name": "ntfy live relay",
+          "role": "primary"
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "included": false,
+          "reason": "No named measured high capability; standard is not copied as high."
+        },
+        "low": {
+          "included": false,
+          "reason": "No independently measured low variant."
+        },
+        "standard": {
+          "functions": [
+            "live-notifications"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "ntfy-live",
+          "notes": [
+            "Connected-client live relay only; resource reservations are configured policy."
+          ]
+        }
+      },
+      "description": "Explicit live notifications for connected clients on your own node through a private ntfy relay. Runs without a kombify plan.",
+      "docs": "/guides/stackkits/use-cases/automation",
+      "id": "automation",
+      "mainUseCase": {
+        "id": "automation",
+        "title": "Automation"
+      },
+      "title": "Automation"
     },
     {
       "alternatives": [

@@ -13043,11 +13043,11 @@ ArchitectureV2InternalHomeWorkloadRefs: _architectureV2InternalHomeWorkloadRefs
 
 ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
-	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2MarketplaceProviders, _architectureV2HomeAssistantInstanceProviders, _architectureV2GuacamoleProviders, _architectureV2AdguardHomeProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
+	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2MarketplaceProviders, _architectureV2HomeAssistantInstanceProviders, _architectureV2GuacamoleProviders, _architectureV2NtfyLiveProviders, _architectureV2AdguardHomeProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
-	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2MarketplaceModules, _architectureV2KomodoBootstrapModules, _architectureV2HomeAssistantInstanceModules, _architectureV2GuacamoleModules, _architectureV2AdguardHomeModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
-	workloads: list.Concat([_architectureV2WorkloadContracts, _architectureV2MarketplaceWorkloads, _architectureV2GuacamoleWorkloads, _architectureV2AdguardHomeWorkloads, _architectureV2InternalWorkloadContracts])
-	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2GuacamoleLifecycles, _architectureV2AdguardHomeLifecycles, _architectureV2MarketplaceLifecycles, _architectureV2InternalApplicationLifecycleContracts])
+	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2MarketplaceModules, _architectureV2KomodoBootstrapModules, _architectureV2HomeAssistantInstanceModules, _architectureV2GuacamoleModules, _architectureV2NtfyLiveModules, _architectureV2AdguardHomeModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
+	workloads: list.Concat([_architectureV2WorkloadContracts, _architectureV2MarketplaceWorkloads, _architectureV2GuacamoleWorkloads, _architectureV2NtfyLiveWorkloads, _architectureV2AdguardHomeWorkloads, _architectureV2InternalWorkloadContracts])
+	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2GuacamoleLifecycles, _architectureV2NtfyLiveLifecycles, _architectureV2AdguardHomeLifecycles, _architectureV2MarketplaceLifecycles, _architectureV2InternalApplicationLifecycleContracts])
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
 	rilActionExecutors: [for contract in _architectureV2RILActionExecutors {#RILActionExecutorContractV1 & contract}]
 	rilActionPrimitives: list.Concat([

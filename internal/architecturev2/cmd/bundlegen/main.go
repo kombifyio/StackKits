@@ -221,6 +221,7 @@ var rendererWorkloadImages = []rendererWorkloadImage{
 	{moduleID: "stackkits-immich-power-tools-runtime", goPrefix: "immichPowerTools"},
 	{moduleID: "stackkits-searxng-runtime", goPrefix: "searxng"},
 	{moduleID: "stackkits-tika-runtime", goPrefix: "tika"},
+	{moduleID: "stackkits-ntfy-live-runtime", goPrefix: "ntfyLive"},
 	{moduleID: "stackkits-docling-runtime", goPrefix: "docling"},
 	{moduleID: "stackkits-gitea-runtime", goPrefix: "gitea"},
 	{moduleID: "stackkits-guacamole-runtime", goPrefix: "guacamole", componentRef: "guacamole"},

@@ -222,6 +222,13 @@ func (o *osStandaloneComposeWorkloadOperations) CompleteWorkloadCompose(ctx cont
 }
 
 func (o *osStandaloneComposeWorkloadOperations) completeWorkloadCompose(ctx context.Context, project standaloneComposeProject) error {
+	if project.bundle.ModuleRef == "stackkits-adguard-home-runtime" {
+		// AdGuard persists UI edits in its own configuration volume. Its
+		// governed startup restores the plan-owned policy only when it runs.
+		if _, err := o.runner.Run(ctx, standaloneComposeRecreateArgs(project, "adguard-home"), project.directory); err != nil {
+			return fmt.Errorf("activate the plan-owned Network policy: %w", err)
+		}
+	}
 	if gameNode, ok := architecturev2renderer.GameNodeModuleFor(project.bundle.ModuleRef); ok {
 		// Wings reads the configuration its bootstrap just converged only at
 		// start. Recreating Wings leaves running game servers attached.

@@ -269,6 +269,10 @@ var fileFocusedTests = map[string][]string{
 		"TestNativeV2BackupRequestForwardsNormalizedRunAndRestoreAuthority",
 		"TestNativeV2BackupRequestRejectsAuthorityMutationBetweenInspections",
 	},
+	"cmd/stackkit/commands/backup_selected_runtime.go": {
+		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
+		"TestNativeBackupDeniesTransferredManagerBeforeDataEffects",
+	},
 	"cmd/stackkit/commands/backup_native_v2_runtime.go": {
 		"TestContinueNativeV2BackupProductionMapsEveryOperationToLifecycleInput",
 		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",

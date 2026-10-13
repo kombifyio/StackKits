@@ -966,8 +966,27 @@ if [ "${SELECTED_KIT:-}" = "cloud-kit" ]; then
   fi
   echo ""
 fi
-run_stackkit apply --auto-approve
-APPLY_STATUS=$?
+# Apply configures the host firewall, sshd and fail2ban, which only root can
+# read and change. A non-root run fails there after the port preflight, so hand
+# the one Apply to root when passwordless sudo exists, and give the files back.
+if [ "$(id -u)" -ne 0 ] && [ "${SELECTED_KIT:-}" != "cloud-kit" ]; then
+  _sk_bin="$(command -v stackkit 2>/dev/null)"
+  if [ -n "$_sk_bin" ] && command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    info "Applying as root through sudo (host firewall, sshd and fail2ban need it)"
+    sudo -n -E env "HOME=$HOME" "PATH=$PATH" "$_sk_bin" apply --auto-approve
+    APPLY_STATUS=$?
+    sudo -n chown -R "$(id -un):$(id -gn)" "$PWD" >/dev/null 2>&1 || true
+  else
+    warn "Apply changes host firewall, sshd and fail2ban and needs root."
+    echo "  No passwordless sudo found. Re-run the installer as root, or run:"
+    echo "    cd $HOMELAB_DIR && sudo -E env HOME=\$HOME stackkit apply --auto-approve"
+    run_stackkit apply --auto-approve
+    APPLY_STATUS=$?
+  fi
+else
+  run_stackkit apply --auto-approve
+  APPLY_STATUS=$?
+fi
 set -e
 
 if [ "$APPLY_STATUS" -eq 3 ]; then

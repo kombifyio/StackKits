@@ -605,10 +605,25 @@ func emitRestoreActivationResult(
 	if backupOutputJSON {
 		return writeCommandResult(cmd, cmd.CommandPath(), result)
 	}
-	_, err := fmt.Fprintf(
+	if _, err := fmt.Fprintf(
 		cmd.OutOrStdout(),
 		"Native v2 restore activation %s: %s\n",
 		result.OperationID, result.Status,
-	)
-	return err
+	); err != nil {
+		return err
+	}
+	if readback := result.Verification.DataReadback; readback != nil && result.Status == "activated" {
+		var files, size int64
+		for _, volume := range readback.Volumes {
+			files += volume.Files
+			size += volume.Bytes
+		}
+		_, err := fmt.Fprintf(
+			cmd.OutOrStdout(),
+			"Data read-back: %d volumes, %d files, %d bytes match the restored snapshot content\n",
+			len(readback.Volumes), files, size,
+		)
+		return err
+	}
+	return nil
 }

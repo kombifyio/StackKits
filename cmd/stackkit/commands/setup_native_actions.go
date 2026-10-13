@@ -27,6 +27,9 @@ type nativeOwnerSetupObservation struct {
 
 func custodiedOwnerPasswordRef(deployment nativehost.SelectedPaaSWorkloadDeployment, action string) (string, error) {
 	switch action {
+	case appsetup.AdguardHomePolicyAction:
+		bundle, err := architecturev2renderer.ParseAdguardHomeWorkloadBundle(deployment.Bundle)
+		return bundle.OwnerPasswordRef, err
 	case appsetup.GuacamoleOwnerLoginAction:
 		bundle, err := architecturev2renderer.ParseGuacamoleWorkloadBundle(deployment.Bundle)
 		return bundle.OwnerPasswordRef, err
@@ -46,6 +49,18 @@ func custodiedOwnerPasswordRef(deployment nativehost.SelectedPaaSWorkloadDeploym
 
 func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDeployment, action string, options nativeSetupOptions) error {
 	switch action {
+	case appsetup.AdguardHomePolicyAction:
+		if options.completeOnboarding || options.credentialsFile != "" {
+			return errors.New("Network policy check uses installed owner custody; omit credentials and onboarding flags")
+		}
+		_, err := architecturev2renderer.ParseAdguardHomeWorkloadBundle(deployment.Bundle)
+		return err
+	case appsetup.NtfyLiveDeliveryAction:
+		if options.completeOnboarding || options.credentialsFile != "" {
+			return errors.New("ntfy-live uses its admitted node transport; omit credentials and onboarding flags")
+		}
+		_, err := architecturev2renderer.ParseNtfyLiveWorkloadBundle(deployment.Bundle)
+		return err
 	case appsetup.PaperlessOwnerLoginAction, appsetup.GiteaOwnerLoginAction, appsetup.ForgejoOwnerLoginAction, appsetup.GuacamoleOwnerLoginAction:
 		if options.completeOnboarding || options.credentialsFile != "" {
 			return errors.New("this owner login uses the installed workload custody; omit --credentials-file and --complete-onboarding")
@@ -122,6 +137,32 @@ func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDe
 
 func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, release, action string, options nativeSetupOptions) (observation nativeOwnerSetupObservation, returnErr error) {
 	switch action {
+	case appsetup.AdguardHomePolicyAction:
+		installed, err := architecturev2renderer.ParseAdguardHomeWorkloadBundle(deployment.Bundle)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		password, err := localevidence.ResolveLocalSecretMaterial(workspace, installed.OwnerPasswordRef)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, errors.New("Network owner password custody is unavailable")
+		}
+		defer clear(password)
+		if err := appsetup.VerifyAdguardHomePolicy(ctx, client, baseURL, installed, password); err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		return nativeOwnerSetupObservation{AccountRef: "owner", Initialized: true, AdminLoginVerified: true, Preparation: applicationlifecycle.AdguardHomePolicyPreparation}, nil
+	case appsetup.NtfyLiveDeliveryAction:
+		if _, err := architecturev2renderer.ParseNtfyLiveWorkloadBundle(deployment.Bundle); err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		proof, err := appsetup.VerifyNtfyLiveDelivery(ctx, client, baseURL)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		if !proof.Delivered || !proof.ReplayAbsent {
+			return nativeOwnerSetupObservation{}, errors.New("ntfy live-delivery effect is incomplete")
+		}
+		return nativeOwnerSetupObservation{AccountRef: "delivery:live-only", Initialized: true, Preparation: applicationlifecycle.NtfyLiveDeliveryPreparation}, nil
 	case appsetup.PaperlessOwnerLoginAction, appsetup.GiteaOwnerLoginAction, appsetup.ForgejoOwnerLoginAction, appsetup.GuacamoleOwnerLoginAction:
 		ref, err := custodiedOwnerPasswordRef(deployment, action)
 		if err != nil {

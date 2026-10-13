@@ -45,7 +45,7 @@ _architectureV2AdguardHomeWorkloads: [#WorkloadContractV2 & {
 			allowedAdapterRefs: ["standalone-compose"], defaultAdapterRef: "standalone-compose", defaultFallbackAdapterRefs: []
 			compatibility: [{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}}]
 		}
-		setup: {mode: "manual", owner: "operator", actionRefs: []}
+		setup: {mode: "on-demand", owner: "module", actionRefs: ["adguard-home-policy-check"]}
 		inputs: {
 			settings: {allowedRefs: ["dns-policy", "lan-listener"], requiredRefs: ["dns-policy"]}
 			secretInputs: {allowedRefs: ["owner-password"], requiredRefs: ["owner-password"]}

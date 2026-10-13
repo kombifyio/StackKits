@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "b4aa22297ec458d7828524be1793dc7a3ca13bc3",
-  "authority_bundle_sha256": "209ade1b743a544550b1d6b8ba9f53ff87be35bbbaa9ee6ce1458adc74796b7d",
+  "source_sha": "83de297b12007e54af4428ec5dab3f5eb958af58",
+  "authority_bundle_sha256": "f014d04021f2f7a97bb7c272cde5ce24401f9a6ab975d39601a17d253d61a592",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -2879,6 +2879,54 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-ntfy-live-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "automation-notifications"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Connected-client live relay only. No backlog or mobile/offline guarantee. Resource reservations are configured policy; no measured low/high benefit is declared.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ntfy-live"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "1e3bbb3ede25289ab9926bf52f45858feb0ef041fa88b7b9a48ca81f1d27c2e3"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-opencloud-runtime",
           "role": "workload",
           "required": false,
@@ -4478,6 +4526,29 @@
               "functions": [
                 "speech-to-text",
                 "text-to-speech"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "automation-notifications",
+          "title": "automation-notifications",
+          "description": "Explicit ntfy live-only notification add-on: forward to connected subscribers; no queued replay, native accounts, Web Push or attachments. Durable push and backup digest delivery remain separate prerequisites.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "ntfy-live",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "ntfy-live",
+              "module_id": "stackkits-ntfy-live-runtime",
+              "functions": [
+                "live-notifications"
               ],
               "load": {
                 "residency": "always-on",
@@ -7966,6 +8037,54 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-ntfy-live-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "automation-notifications"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Connected-client live relay only. No backlog or mobile/offline guarantee. Resource reservations are configured policy; no measured low/high benefit is declared.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.0625
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ntfy-live"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "1e3bbb3ede25289ab9926bf52f45858feb0ef041fa88b7b9a48ca81f1d27c2e3"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-opencloud-runtime",
           "role": "workload",
           "required": false,
@@ -9693,6 +9812,29 @@
               "functions": [
                 "speech-to-text",
                 "text-to-speech"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "automation-notifications",
+          "title": "automation-notifications",
+          "description": "Explicit ntfy live-only notification add-on: forward to connected subscribers; no queued replay, native accounts, Web Push or attachments. Durable push and backup digest delivery remain separate prerequisites.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "ntfy-live",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "ntfy-live",
+              "module_id": "stackkits-ntfy-live-runtime",
+              "functions": [
+                "live-notifications"
               ],
               "load": {
                 "residency": "always-on",
@@ -16823,5 +16965,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "74d1a3ae6e696e596a3d8dc1e1e24b19fd22586259a6636229f8569866fb5930"
+  "catalog_sha256": "9222008512aad799d1e723d41c0afd3622e853baa9eb12fa8d950f7cc9af7f8d"
 }

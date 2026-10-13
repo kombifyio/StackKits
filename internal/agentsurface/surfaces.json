@@ -1,6 +1,45 @@
 {
   "schemaVersion": "stackkit.agent-surface/v1",
   "surfaces": {
+    "automation": {
+      "ref": "automation",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [],
+      "apis": [
+        {
+          "id": "ntfy-live-api",
+          "protocol": "rest",
+          "purpose": "POST /topic and GET /topic/json for connected live delivery through the owner-only private route; no queued replay.",
+          "auth": "owner-private-route"
+        }
+      ],
+      "skills": [
+        {
+          "id": "ntfy-live",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/automation-live/agent/ntfy-live/SKILL.md"
+        }
+      ],
+      "cliHelpers": [
+        {
+          "command": "stackkit agent mcp-config",
+          "purpose": "Print the stackkit lifecycle MCP client connection."
+        }
+      ],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "The relay keeps no message data; StackKits governs only the server configuration."
+      }
+    },
     "dev": {
       "ref": "dev",
       "equipPolicy": "on-generate",

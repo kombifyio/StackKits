@@ -288,7 +288,7 @@ func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpe
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
-	if err := requireNativeBackupDelivery(generated.Plan); err != nil {
+	if err := requireNativeBackupDelivery(workspace, generated.Plan, generated.Owner.Binding); err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
 	applied, err := inspectNativeV2AppliedAuthority(ctx, workspace, requestedSpec)

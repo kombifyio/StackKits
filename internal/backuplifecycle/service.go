@@ -256,6 +256,26 @@ type RestoreVerification struct {
 	PlanHash           string    `json:"planHash"`
 	ServicesVerified   bool      `json:"servicesVerified"`
 	VerifiedAt         time.Time `json:"verifiedAt"`
+	// DataReadback is set by live restore activation only: it proves the bytes
+	// now in each live volume equal the bytes restored from the snapshot.
+	DataReadback *DataReadback `json:"dataReadback,omitempty"`
+}
+
+// DataReadbackMethod names the volume digest every DataReadback uses.
+const DataReadbackMethod = "volume-file-tree-sha256/v1"
+
+// DataReadback compares restored application data with its staged snapshot
+// content before services start. It does not prove application behaviour.
+type DataReadback struct {
+	Method  string           `json:"method"`
+	Volumes []VolumeReadback `json:"volumes"`
+}
+
+type VolumeReadback struct {
+	LiveName string `json:"liveName"`
+	Files    int64  `json:"files"`
+	Bytes    int64  `json:"bytes"`
+	Digest   string `json:"digest"`
 }
 
 type RestorePostVerifier func(context.Context, RestoreVerificationRequest) (RestoreVerification, error)

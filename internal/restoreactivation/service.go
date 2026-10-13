@@ -108,6 +108,9 @@ type Runtime interface {
 	RestoreVolume(context.Context, Authority, Volume) error
 	Start(context.Context, Authority) error
 	CleanupRollback(context.Context, Authority, Volume) error
+	// DigestVolume reads one volume back, read-only, as a deterministic file
+	// tree digest: the staged restore content or the live volume.
+	DigestVolume(context.Context, Authority, Volume, bool) (backuplifecycle.VolumeReadback, error)
 }
 
 type RecoveryAuthorityResolver func(
@@ -439,6 +442,7 @@ func (service *Service) activateLocked(
 	if err := transition(lifecyclemutation.PhaseRollbackReady); err != nil {
 		return LiveVerification{}, err
 	}
+	readback := &backuplifecycle.DataReadback{Method: backuplifecycle.DataReadbackMethod}
 	for _, volume := range authority.VolumeDetails {
 		progress.InFlight = &lifecyclemutation.RestoreActivationStep{Volume: volume.LiveName}
 		if err := transition(lifecyclemutation.PhaseActivationCopyStarted); err != nil {
@@ -447,6 +451,11 @@ func (service *Service) activateLocked(
 		if err := service.runtime.ActivateVolume(ctx, authority, volume); err != nil {
 			return LiveVerification{}, err
 		}
+		volumeReadback, err := service.readBackVolume(ctx, authority, volume)
+		if err != nil {
+			return LiveVerification{}, err
+		}
+		readback.Volumes = append(readback.Volumes, volumeReadback)
 		progress.Activated = append(progress.Activated, volume.LiveName)
 		progress.InFlight = nil
 		if err := transition(lifecyclemutation.PhaseActivationCopySucceeded); err != nil {
@@ -475,10 +484,38 @@ func (service *Service) activateLocked(
 	if err := validateLiveVerification(authority, verification); err != nil {
 		return LiveVerification{}, err
 	}
+	verification.DataReadback = readback
 	if err := transition(lifecyclemutation.PhaseVerifySucceeded); err != nil {
 		return LiveVerification{}, err
 	}
 	return verification, nil
+}
+
+// readBackVolume proves the activated live volume holds exactly the staged
+// snapshot content. It runs while services are still stopped, so any
+// difference is a copy fault, not application writes; a mismatch fails the
+// activation and the existing rollback restores the previous live state.
+func (service *Service) readBackVolume(
+	ctx context.Context,
+	authority Authority,
+	volume Volume,
+) (backuplifecycle.VolumeReadback, error) {
+	staged, err := service.runtime.DigestVolume(ctx, authority, volume, true)
+	if err != nil {
+		return backuplifecycle.VolumeReadback{}, err
+	}
+	live, err := service.runtime.DigestVolume(ctx, authority, volume, false)
+	if err != nil {
+		return backuplifecycle.VolumeReadback{}, err
+	}
+	if staged.Digest == "" || staged != live {
+		return backuplifecycle.VolumeReadback{}, fmt.Errorf(
+			"restoreactivation: live volume %s differs from the restored snapshot content (staged %d files %s, live %d files %s)",
+			volume.LiveName, staged.Files, staged.Digest, live.Files, live.Digest,
+		)
+	}
+	live.LiveName = volume.LiveName
+	return live, nil
 }
 
 func (service *Service) rollbackLocked(

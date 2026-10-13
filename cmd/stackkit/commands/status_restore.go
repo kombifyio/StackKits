@@ -2,6 +2,7 @@ package commands
 
 import (
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
 )
 
@@ -27,10 +28,17 @@ func readApplicationRestoreActivation(workspace string, contract applicationlife
 		}
 		for _, evidence := range operation.Evidence {
 			if evidence.Kind == "restore-result" && evidence.Ref == ref && evidence.Digest == digest {
-				return &applicationlifecycle.RestoreActivationInput{OperationID: result.OperationID, PlanHash: result.PlanHash, Status: result.Status, Evidence: evidence, VerifiedAt: result.Verification.VerifiedAt}
+				return &applicationlifecycle.RestoreActivationInput{OperationID: result.OperationID, PlanHash: result.PlanHash, Status: result.Status, Evidence: evidence, VerifiedAt: result.Verification.VerifiedAt, DataReadbackVolumes: dataReadbackVolumes(result.Verification)}
 			}
 		}
 		return nil
 	}
 	return nil
+}
+
+func dataReadbackVolumes(verification backuplifecycle.RestoreVerification) int {
+	if verification.DataReadback == nil {
+		return 0
+	}
+	return len(verification.DataReadback.Volumes)
 }

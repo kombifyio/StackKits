@@ -29,6 +29,8 @@ const adguardHomeWorkloadRendererSchema = "stackkit.workload-bundle/v2|AdguardHo
 
 type AdguardHomeWorkloadBundleDescriptor struct {
 	OwnerPasswordRef string
+	DNSPolicy        AdguardHomeDNSPolicy
+	LocalDomain      string
 	WorkloadRef      string
 	ModuleRef        string
 	Release          string
@@ -111,6 +113,12 @@ func ParseAdguardHomeWorkloadBundle(data []byte) (AdguardHomeWorkloadBundleDescr
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		Components: make([]SelectedPaaSWorkloadComponentDescriptor, len(components)),
 	}
+	// The closed reader has already validated and canonicalized this policy.
+	// Setup observes this same intent rather than accepting another policy file.
+	if err := json.Unmarshal([]byte(components[0].Environment["STACKKITS_DNS_POLICY"]), &descriptor.DNSPolicy); err != nil {
+		return AdguardHomeWorkloadBundleDescriptor{}, err
+	}
+	descriptor.LocalDomain = components[0].Environment["STACKKITS_DOMAIN"]
 	if bundle.DeliveryRoute != nil {
 		descriptor.Route = bundle.DeliveryRoute.descriptor()
 	}
@@ -285,7 +293,7 @@ func adguardHomeCommandMatches(command []string) bool {
 // The upstream configuration remains application-owned behavior. StackKits
 // supplies the exact explicit baseline at each activation; DHCP and log custody
 // are never inferred from the home network or an observed client.
-type adguardHomeDNSPolicy struct {
+type AdguardHomeDNSPolicy struct {
 	SelectedClients []string `json:"selectedClients"`
 	LocalResolver   string   `json:"localResolver"`
 	BlockedDomains  []string `json:"blockedDomains"`
@@ -294,7 +302,7 @@ type adguardHomeDNSPolicy struct {
 var adguardHomeDomainPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$`)
 
 func adguardHomePolicyConfiguration(raw []byte, domain, path string) (string, string, error) {
-	var p adguardHomeDNSPolicy
+	var p AdguardHomeDNSPolicy
 	if err := decodeStrict(raw, &p); err != nil {
 		return "", "", wrap(ErrInvalidPlan, path, "decode explicit DNS policy", err)
 	}

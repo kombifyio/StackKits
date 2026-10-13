@@ -156,6 +156,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(passboltWorkload.contract, passboltWorkload); err != nil {
 		return nil, err
 	}
+	ntfyLive := newAIAddOnWorkloadBundleRenderer(ntfyLiveWorkload())
+	if err := registry.Register(ntfyLive.contract, ntfyLive); err != nil {
+		return nil, err
+	}
 	opencloudWorkload := newOpencloudWorkloadBundleRenderer()
 	if err := registry.Register(opencloudWorkload.contract, opencloudWorkload); err != nil {
 		return nil, err

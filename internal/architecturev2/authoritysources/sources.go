@@ -15,6 +15,7 @@ var contractFixture = []string{
 	"foundation/architecture_v2_komodo_bootstrap.cue",
 	"foundation/architecture_v2_marketplace.cue",
 	"foundation/architecture_v2_guacamole.cue",
+	"foundation/architecture_v2_ntfy.cue",
 	"foundation/architecture_v2_adguard_home.cue",
 	"foundation/architecture_v2_cloud_core.cue",
 	"architecture/v2/contractfixture/catalog.cue",

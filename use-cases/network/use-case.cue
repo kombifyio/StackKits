@@ -11,6 +11,6 @@ Package: foundation.#UseCasePackage & {
 	tools: "adguard-home": {moduleSlug: "adguard-home", role: "primary", required: true, rationale: "Digest-pinned upstream application with explicit private clients, node-custodied owner and no query retention.", capabilities: ["dns-filtering", "selected-client-dns"]}
 	lifecycle: foundation.#StandardUseCaseLifecycle & {stages: setup: {}}
 	evidence: {healthChecks: ["adguard-home-http"], required: ["route", "runtime-owner", "removal"]}
-	setup: {defaultPolicy: "on_demand", drops: []}
+	setup: {defaultPolicy: "on_demand", drops: [{name: "adguard-home-policy-check", policy: "on_demand", description: "Verify installed selected-client filtering and local resolver through the existing custodied owner API. No policy change or client DNS reachability claim."}]}
 	agentSurface: {equipPolicy: "on-generate", lifecycleMcp: {}, productMcps: [], apis: [{id: "adguard-home", protocol: "rest", purpose: "Observe the upstream DNS filter using the existing custodied owner.", auth: "custodied-owner-login"}], skills: [{id: "dns-policy", audience: "stack-operator", source: "stackkits", path: "use-cases/network/agent/dns-policy/SKILL.md"}], cliHelpers: [], configBaseline: {status: "omitted", reason: "The canonical module renders explicit client policy and the native owner supplies only the private bcrypt verifier."}}
 }

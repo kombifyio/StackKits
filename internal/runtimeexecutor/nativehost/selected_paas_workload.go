@@ -270,6 +270,8 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationHomeAssistant, deployment, observation)
 	case "stackkits-adguard-home-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationAdguardHome, deployment, observation)
+	case "stackkits-ntfy-live-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationNtfyLive, deployment, observation)
 	case "stackkits-opencloud-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationOpencloud, deployment, observation)
 	case "stackkits-guacamole-runtime":

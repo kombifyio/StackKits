@@ -465,7 +465,14 @@ verbs, whoever runs this entrypoint is carried to a running homelab):
    fixes — bounded container logs, swap on a host with none — and
    re-measures; `STACKKIT_REMEDIATE=0` opts out, and a fix that fails
    never stops the install. Then `stackkit generate`, then one
-   `stackkit apply --auto-approve`. The
+   `stackkit apply --auto-approve`. Apply configures the host firewall, sshd
+   and fail2ban, which only root can change: on a non-root run the installer
+   hands that one Apply to root through passwordless `sudo` (and restores
+   workspace ownership); without `sudo` it says so and prints the exact
+   command. Port availability below 1024 is read from the kernel socket
+   table when a non-root bind probe is refused. If the host has less RAM
+   than the selected services reserve, `generate` names the reserved amount
+   and the remedy (larger host or fewer services). The
    canonical ResolvedPlan owns execution order across core services and
    applications, so there is no separate platform-app stage to sequence
    from the installer.

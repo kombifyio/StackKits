@@ -13,10 +13,12 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
@@ -33,6 +35,16 @@ done
 # Copy the directory itself so its ownership and permissions survive too.
 # PostgreSQL data roots in particular must retain their restrictive mode.
 cp -a -- "$src"/. "$dst"/ || exit $?`
+	// digestScript prints files, bytes and a digest of the sorted per-file
+	// SHA-256 list, so equal trees give equal output wherever they are mounted.
+	digestScript = `root=$1
+test -d "$root"
+cd "$root"
+list=$(find . -type f -exec sha256sum {} + | LC_ALL=C sort -k 2)
+files=$(printf '%s\n' "$list" | grep -c . || true)
+bytes=$(find . -type f -exec stat -c %s {} + | awk '{s+=$1} END {print s+0}')
+digest=$(printf '%s\n' "$list" | sha256sum | cut -d' ' -f1)
+echo "$files $bytes $digest"`
 	stagingValidationScript = `root=$1
 shift
 for path do
@@ -449,6 +461,55 @@ func (runtime *dockerRuntime) volumeGone(ctx context.Context, name string) bool 
 		}
 	}
 	return true
+}
+
+func (runtime *dockerRuntime) DigestVolume(
+	ctx context.Context,
+	authority Authority,
+	volume Volume,
+	staged bool,
+) (backuplifecycle.VolumeReadback, error) {
+	if err := requireAuthorityVolume(authority, volume); err != nil {
+		return backuplifecycle.VolumeReadback{}, err
+	}
+	source, root := volume.LiveName, "/source"
+	if staged {
+		relative, err := stagingVolumeRelativePath(authority, volume)
+		if err != nil {
+			return backuplifecycle.VolumeReadback{}, err
+		}
+		source, root = authority.StagingVolume, "/source/"+relative
+	}
+	output, err := runtime.docker(ctx,
+		"run", "--name", helperName(authority, "digest-"+volume.LiveName),
+		"--label", "io.stackkit.restore.operation="+authority.OperationID,
+		"--label", "io.stackkit.restore.plan="+authority.PlanHash,
+		"--rm", "--network", "none", "--read-only",
+		"--user", "0:0",
+		"--cap-drop", "ALL", "--cap-add", "DAC_OVERRIDE",
+		"--security-opt", "no-new-privileges",
+		"--mount", "type=volume,src="+source+",dst=/source,readonly",
+		"--entrypoint", "/bin/sh",
+		authority.KopiaHelperImage,
+		"-ceu", digestScript, "--", root,
+	)
+	if err != nil {
+		return backuplifecycle.VolumeReadback{}, wrapDocker("read back governed volume", err)
+	}
+	return parseVolumeDigest(output)
+}
+
+func parseVolumeDigest(output []byte) (backuplifecycle.VolumeReadback, error) {
+	fields := strings.Fields(string(output))
+	if len(fields) != 3 || len(fields[2]) != 64 {
+		return backuplifecycle.VolumeReadback{}, errors.New("restoreactivation: volume digest output is malformed")
+	}
+	files, filesErr := strconv.ParseInt(fields[0], 10, 64)
+	size, sizeErr := strconv.ParseInt(fields[1], 10, 64)
+	if filesErr != nil || sizeErr != nil || files < 0 || size < 0 {
+		return backuplifecycle.VolumeReadback{}, errors.New("restoreactivation: volume digest counts are malformed")
+	}
+	return backuplifecycle.VolumeReadback{Files: files, Bytes: size, Digest: fields[2]}, nil
 }
 
 func (runtime *dockerRuntime) copyVolume(

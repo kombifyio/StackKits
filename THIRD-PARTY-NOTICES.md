@@ -113,3 +113,13 @@ Upstream configuration reference: https://adguard-dns.io/kb/adguard-home/configu
 ## OpenCloud Files application
 
 The optional Files alternative uses OpenCloud server8.1.0, Apache-2.0, from https://github.com/opencloud-eu/opencloud/releases/tag/v8.1.0. The canonical image is docker.io/opencloudeu/opencloud-rolling:8.1.0 at sha256:8fc64ca861739cc62095cd558814f2eba6a90acf5998d884e439b33a47875da8. The renderer derives image and release values from the CUE catalog. Upstream retains its file, sharing, WebDAV and collaboration features and their licenses. This integration grants no provider lifecycle or SQL-server ownership.
+
+## ntfy live notification relay
+
+The optional explicitly selected ntfy-live workload uses the unmodified upstream
+ntfy v2.30.0 container image, pinned to multi-platform digest
+`sha256:8563a39da2f5a47360618b2ab9200239c76b37f4145f6d627d9ab4368abd23f0`.
+Source: [ntfy v2.30.0](https://github.com/binwiederhier/ntfy/tree/v2.30.0).
+The upstream [LICENSE](https://github.com/binwiederhier/ntfy/blob/v2.30.0/LICENSE)
+is Apache-2.0, copyright2021 Philipp C. Heckel. No ntfy feature is reimplemented
+by StackKits; the upstream image retains its bundled dependency notices.

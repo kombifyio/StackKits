@@ -87,6 +87,21 @@ or historical authority reports `unverified`. The historical receipt remains
 visible in every case. A present manifest does not prove that every content
 blob can be restored or that the application is usable after recovery.
 
+## Live restore data read-back
+
+`stackkit backup restore activate` copies the staged snapshot content into the
+live volumes while the services are stopped. Before they start again, it reads
+every activated volume back, read-only and without network, as a digest of its
+sorted per-file SHA-256 list (`volume-file-tree-sha256/v1`) and compares it
+with the same digest of the staged snapshot content. A difference fails the
+activation, so the existing rollback restores the previous live state. The
+count of files, bytes and the digest per volume are part of the Owner-signed
+activation result (`verification.dataReadback`) and the command prints a
+`Data read-back` line. This proves the restored bytes are in place; whether
+the application behaves correctly on them is still checked separately by the
+service and Owner verification, and a functional application drill remains
+`unverified` until its own evidence exists.
+
 ## Native recovery baseline
 
 The native standard is `physical-whole-set`: stop the governed application and
