@@ -396,7 +396,7 @@ func architectureV2AccessServiceControls(modules []architectureV2AccessModule) (
 		for _, control := range module.ServiceControls {
 			key := architectureV2AccessServiceKey(control.Key)
 			if key == "" || architectureV2AccessServiceKey(control.ServiceRef) != key ||
-				(control.Adapter != "compose" && control.Adapter != "application-compose" && control.Adapter != "komodo") ||
+				(control.Adapter != "compose" && control.Adapter != "application-compose" && control.Adapter != "komodo" && control.Adapter != "coolify") ||
 				strings.TrimSpace(control.RuntimeRef) == "" || len(control.ComponentRefs) == 0 || len(control.AllowedActions) == 0 {
 				return nil, fmt.Errorf("verified Architecture v2 plan has an invalid service-control projection")
 			}

@@ -223,6 +223,7 @@ var rendererWorkloadImages = []rendererWorkloadImage{
 	{moduleID: "stackkits-tika-runtime", goPrefix: "tika"},
 	{moduleID: "stackkits-ntfy-live-runtime", goPrefix: "ntfyLive"},
 	{moduleID: "stackkits-docling-runtime", goPrefix: "docling"},
+	{moduleID: "stackkits-litellm-runtime", goPrefix: "litellm"},
 	{moduleID: "stackkits-gitea-runtime", goPrefix: "gitea"},
 	{moduleID: "stackkits-guacamole-runtime", goPrefix: "guacamole", componentRef: "guacamole"},
 	{moduleID: "stackkits-adguard-home-runtime", goPrefix: "adguardHome"},

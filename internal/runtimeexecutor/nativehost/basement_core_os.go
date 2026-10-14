@@ -130,6 +130,11 @@ func NewOSBasementCoreOperations(workspaceRoot string) (BasementCoreOperations, 
 }
 
 func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project BasementCoreProject) (BasementCoreApplyObservation, error) {
+	var bindingErr error
+	project.Definition, bindingErr = bindKopiaApplicationHostPaths(ctx, o.workspaceRoot, project.SiteRef, project.NodeRef, project.Definition)
+	if bindingErr != nil {
+		return BasementCoreApplyObservation{}, bindingErr
+	}
 	if err := o.ready(ctx); err != nil {
 		return BasementCoreApplyObservation{}, err
 	}
@@ -273,6 +278,11 @@ func (o *osBasementCoreOperations) completeApplyWithIdentity(
 }
 
 func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project BasementCoreProject) (BasementCoreVerifyObservation, error) {
+	var bindingErr error
+	project.Definition, bindingErr = bindKopiaApplicationHostPaths(ctx, o.workspaceRoot, project.SiteRef, project.NodeRef, project.Definition)
+	if bindingErr != nil {
+		return BasementCoreVerifyObservation{}, bindingErr
+	}
 	if err := o.ready(ctx); err != nil {
 		return BasementCoreVerifyObservation{}, err
 	}

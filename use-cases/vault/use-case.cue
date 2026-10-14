@@ -44,22 +44,32 @@ Package: foundation.#UseCasePackage & {
 		}
 	}
 
+	committed: [
+		{kit: "basement-kit", alternative: "vaultwarden", adapter: "standalone-compose", tier: "standard"},
+		{kit: "cloud-kit", alternative: "vaultwarden", adapter: "standalone-compose", tier: "standard"},
+	]
+	journey: {
+		outcome: "Enroll an official Bitwarden client, sync an item with an attachment and recover it with the user's own master password."
+		invariantData: ["vault items and attachments", "user-held encryption keys"]
+	}
+	recovery: sequence: ["vaultwarden/data"]
+	scenarios: [{id: "SK-S1", role: "optional"}]
 	computeTiers: {
 		low: {
-			included: true
+			included:   true
 			moduleSlug: "vaultwarden"
 			functions: ["password-manager", "secure-notes", "totp"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
 			notes: ["Always resident for unlock/sync; almost no idle CPU. Fits the low graph."]
 		}
 		standard: {
-			included: true
+			included:   true
 			moduleSlug: "vaultwarden"
 			functions: ["password-manager", "secure-notes", "totp"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
 		}
 		high: {
-			included: true
+			included:   true
 			moduleSlug: "vaultwarden"
 			functions: ["password-manager", "secure-notes", "totp"]
 			load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}
@@ -111,7 +121,7 @@ Package: foundation.#UseCasePackage & {
 	}
 
 	agentSurface: {
-		equipPolicy:  "on-generate"
+		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: []
 		apis: [{

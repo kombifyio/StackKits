@@ -64,6 +64,16 @@ Package: foundation.#UseCasePackage & {
 		}
 	}
 
+	committed: [
+		{kit: "basement-kit", alternative: "immich", adapter: "standalone-compose", tier: "standard"},
+		{kit: "cloud-kit", alternative: "immich", adapter: "standalone-compose", tier: "standard"},
+	]
+	journey: {
+		outcome: "Upload a photo from the Immich mobile app and find it with its metadata in the web library."
+		invariantData: ["original media files", "Immich database with albums, metadata and users"]
+	}
+	recovery: sequence: ["immich-postgres/database", "immich-server/library"]
+	scenarios: [{id: "SK-S1", role: "optional"}]
 	computeTiers: {
 		low: {
 			included:   true

@@ -793,6 +793,14 @@ mandatory Kopia safety snapshot before stopping services or copying data. It
 keeps per-volume rollback copies, starts the Basement runtime, and commits only
 after the local Owner binding and all selected services and probes verify.
 
+For a selected Coolify application with backup/restore capability, add
+`--workload <workload-ref>` to activate only that application's backed-up
+volumes. For example, `--workload smart-home-esphome` restores its config data
+while Coolify stops and restarts its existing components. The signed current
+Apply binds the physical volume identities; Core and Marketplace data stay
+outside this activation's copy scope. The mandatory node safety snapshot still
+runs. Recovery derives this scope from the original journal's exact volume set.
+
 An interrupted activation blocks ordinary lifecycle mutations. Recovery is
 explicit and fail-closed:
 
@@ -853,7 +861,7 @@ Common commands:
 - `stackkit backup target import --sealed --tenant-ref <tenant> --owner-approve --candidate-digest sha256:<digest>` reads that sealed envelope on stdin instead. The node opens it, records the delivery as consumed before using it, and imports it exactly like plain JSON. With `--rebind` it renews an expired node-issued binding over identical custody from a delivery sealed for the `backup-target-rebind` operation. A delivery for another node, tenant, generation or operation, an expired one, and a replay are all denied.
 - `stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve [--operation-id ID] [--json]` verifies and extracts one signed snapshot into isolated CUE-owned staging. Reusing the operation ID returns the existing exact result.
 - `stackkit backup restore abandon <restore-operation-id> --owner-approve --json` signs terminal abandonment of an exact pending or staged restore journal without invoking Docker/Kopia or changing repository data or live volumes. It is idempotent and requires a new operation ID for any later restore.
-- `stackkit backup restore activate sha256:<restore-result-id> --owner-approve [--operation-id ID] [--json]` creates the mandatory safety snapshot, activates the exact Plan-owned volume set, restarts the runtime, and verifies Owner binding and services.
+- `stackkit backup restore activate sha256:<restore-result-id> --owner-approve [--workload REF] [--operation-id ID] [--json]` creates the mandatory safety snapshot, activates the exact Plan-owned volume set, restarts the runtime, and verifies Owner binding and services.
 - `stackkit backup restore recover <activation-operation-id> --owner-approve --rollback [--json]` resumes the signed activation journal. Before commit it rolls back and verifies the prior runtime; after commit it preserves activated data and finishes cleanup and application evidence. A completed retry returns the original signed result.
 - `stackkit backup verify` is a legacy-v0.6 command for `kopia repository validate-provider`; it is not the native restore-verification path.
 - `stackkit backup emergency-export --recipient age1PUBLIC_RECIPIENT --source config=/opt/stacks --source documents=/srv/documents --target /backup/emergency-export --json` writes an encrypted portable archive, checksummed manifest, and restore runbook. The target must not exist. Use `--large-media-mode manifest-only|include|exclude` for explicitly selected `large-media` sources.
@@ -1189,8 +1197,9 @@ node (`pkg/hostdelivery`; see [SECURITY.md](SECURITY.md#sealed-host-delivery)).
 Every envelope is read on stdin, opened and recorded as consumed under the
 lifecycle lock; results carry references, versions and paths, never a value.
 A delivery for another tenant, Site, node, generation or operation, an expired
-or oversized one, a replay, and a Wallet or SSH delivery not signed by the
-pinned authority are all refused.
+or oversized one, a replay, a Wallet or SSH delivery not signed by the
+pinned authority, and, once an authority is pinned, any unsigned delivery
+(backup targets included) are all refused.
 
 - `host delivery recipient --challenge <value> [--authority-key <base64> --authority-key-id <id>] [--rotate] --owner-approve`
   prints the recipient statement (generation, fingerprint, pinned authority),

@@ -35,13 +35,15 @@ type HostDeployment struct {
 // HostManagerPlanBinding authorizes control of the same applied workload after
 // a manager transfer. It is signed as part of the existing node custody.
 type HostManagerPlanBinding struct {
-	PlanHash            string `json:"planHash"`
-	ApplyResultHash     string `json:"applyResultHash"`
-	ServiceContractHash string `json:"serviceContractHash"`
-	ServiceKey          string `json:"serviceKey"`
-	RuntimeRef          string `json:"runtimeRef"`
-	SourceAdapter       string `json:"sourceAdapter"`
-	ArtifactDigest      string `json:"artifactDigest"`
+	SourceDigest        string            `json:"sourceDigest,omitempty"`
+	VolumeNames         map[string]string `json:"volumeNames,omitempty"`
+	PlanHash            string            `json:"planHash"`
+	ApplyResultHash     string            `json:"applyResultHash"`
+	ServiceContractHash string            `json:"serviceContractHash"`
+	ServiceKey          string            `json:"serviceKey"`
+	RuntimeRef          string            `json:"runtimeRef"`
+	SourceAdapter       string            `json:"sourceAdapter"`
+	ArtifactDigest      string            `json:"artifactDigest"`
 }
 
 // HostManagerHandover retains an interrupted transfer in the existing node
@@ -84,22 +86,39 @@ func validateHostDeployment(project string, state HostDeployment) error {
 		state.WorkloadRef == "" || state.InstanceRef == "" || state.SiteRef == "" || state.NodeRef == "" ||
 		project != "stackkit-"+state.WorkloadRef+"-"+state.NodeRef ||
 		!hostArtifactDigestPattern.MatchString(state.ArtifactDigest) ||
-		(state.Deployment.Platform != "komodo" && state.Deployment.Platform != "standalone-compose") ||
-		(state.Deployment.Platform == "komodo" && state.ServerID == "") || state.Deployment.AppName != project ||
+		(state.Deployment.Platform != "komodo" && state.Deployment.Platform != "coolify" && state.Deployment.Platform != "standalone-compose") ||
+		(state.Deployment.Platform != "standalone-compose" && state.ServerID == "") || state.Deployment.AppName != project ||
 		state.Deployment.ExternalID == "" || strings.TrimSpace(state.Deployment.ExternalID) != state.Deployment.ExternalID {
 		return errors.New("platform deployment custody does not bind the exact node project")
 	}
 	if state.APIVersion == hostManagerAPIVersion && state.Manager == "" {
 		return errors.New("v2 workload manager custody requires its explicit manager")
 	}
-	if state.Manager != "" && state.Manager != "komodo" && state.Manager != "standalone-compose" {
+	if state.Manager != "" && state.Manager != "komodo" && state.Manager != "coolify" && state.Manager != "standalone-compose" {
 		return errors.New("workload manager custody names an unsupported manager")
 	}
+	if state.Deployment.Platform == "coolify" && state.Manager != "coolify" {
+		return errors.New("Coolify requires explicit signed workload manager custody")
+	}
+	if state.Deployment.Platform == "coolify" && !regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,125}$`).MatchString(state.Deployment.ExternalID) {
+		return errors.New("Coolify custody has an invalid physical Compose project")
+	}
 	if b := state.PlanBinding; b != nil {
+		if b.SourceAdapter == "coolify" {
+			if state.Manager != "coolify" || !hostArtifactDigestPattern.MatchString(b.SourceDigest) || len(b.VolumeNames) == 0 {
+				return errors.New("Coolify source binding requires its signed data selection")
+			}
+			for logical, physical := range b.VolumeNames {
+				prefix := project + "_"
+				if !strings.HasPrefix(logical, prefix) || !regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`).MatchString(logical) || (physical != logical && physical != state.Deployment.ExternalID+"_"+strings.TrimPrefix(logical, prefix)) {
+					return errors.New("Coolify physical source is outside its exact node project")
+				}
+			}
+		}
 		if state.Manager == "" || !hostArtifactDigestPattern.MatchString(b.PlanHash) ||
 			!hostArtifactDigestPattern.MatchString(b.ApplyResultHash) || !hostArtifactDigestPattern.MatchString(b.ServiceContractHash) ||
 			b.ArtifactDigest != state.ArtifactDigest || b.ServiceKey != state.WorkloadRef || b.RuntimeRef != state.WorkloadRef+"-"+state.NodeRef ||
-			(b.SourceAdapter != "application-compose" && b.SourceAdapter != "komodo") {
+			(b.SourceAdapter != "application-compose" && b.SourceAdapter != "komodo" && b.SourceAdapter != "coolify") {
 			return errors.New("manager plan binding differs from the exact applied node workload")
 		}
 	}

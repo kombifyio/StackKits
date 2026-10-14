@@ -909,7 +909,8 @@
       "ai-assistant",
       "ai-speech",
       "ai-harness",
-      "ai-control-plane"
+      "ai-control-plane",
+      "ai-gateway"
     ],
     "required": [
       "cloud-core"

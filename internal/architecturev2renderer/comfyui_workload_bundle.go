@@ -16,7 +16,8 @@ import (
 // Private AI image and video (docs/use-case-expansion/ai-agents.md): ComfyUI
 // on the node's GPU, or on the CPU when no accelerator profile is selected. ComfyUI has no sign-in of its own and custom nodes run
 // arbitrary Python, so the governed runtime never loads ComfyUI-Manager or
-// any custom node, has no paid API nodes and is reached only
+// any custom node, has no paid API nodes unless the owner turns the
+// comfyui-api-nodes setting on, and is reached only
 // behind the kit's login on a private route. Model weights are never part of
 // the bundle: the owner downloads a preset with `stackkit setup`.
 const (
@@ -28,6 +29,12 @@ const (
 	comfyUIWorkloadOutputRef   = "workloads/comfyui/bundle.json"
 	comfyUIPort                = 8188
 	comfyUICPUFlag             = "--cpu"
+	// ComfyUIAPINodesSetting is the owner opt-in for ComfyUI's built-in API
+	// nodes (external paid providers through the owner's own Comfy.org
+	// account, signed in inside ComfyUI). Off by default; StackKits stores no
+	// credential. On removes only comfyUIDisableAPINodesFlag.
+	ComfyUIAPINodesSetting     = "comfyui-api-nodes"
+	comfyUIDisableAPINodesFlag = "--disable-api-nodes"
 
 	// ComfyUIModelFetchScriptPath is the governed script `stackkit setup
 	// ai-image-video` runs through the fixed Compose exec contract to
@@ -75,7 +82,7 @@ func comfyUIAssetsDigest() string {
 }
 
 func comfyUIWorkloadRendererSchema() string {
-	return `stackkit.workload-bundle/v2|ComfyUIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:comfyui|accelerator:required|egress:owner-model-download|volumes:user,input,output,models|custom-nodes:disabled|governed-files:sha256:` +
+	return `stackkit.workload-bundle/v2|ComfyUIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:comfyui|accelerator:optional-cpu|egress:owner-model-download,optional-api-nodes|optional:api-nodes:comfyui-api-nodes-setting:owner-signed-in-external-providers|volumes:user,input,output,models|custom-nodes:disabled|governed-files:sha256:` +
 		comfyUIAssetsDigest() + `|release:` + comfyuiRelease + `|secret-material:not-included|peer:ai/private-ai-internal|stop-signal:SIGINT`
 }
 
@@ -203,9 +210,15 @@ func validateComfyUIWorkloadUnit(unit RenderUnit, contract RendererContract) (se
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, comfyUIWorkloadModuleID, comfyUIWorkloadRef, comfyUIPort, path+".inputs")
+	deliveryRoute, settings, err := validateApplicationDeliveryInputsWithSettings(unit, comfyUIWorkloadModuleID, comfyUIWorkloadRef, comfyUIPort, []string{ComfyUIAPINodesSetting}, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
+	}
+	apiNodes := false
+	if raw, set := settings[ComfyUIAPINodesSetting]; set {
+		if err := json.Unmarshal(raw, &apiNodes); err != nil {
+			return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs."+ComfyUIAPINodesSetting, "must be a boolean")
+		}
 	}
 	if deliveryRoute != nil && deliveryRoute.Exposure == "public" {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs", "ComfyUI has no sign-in of its own and is never published")
@@ -239,6 +252,9 @@ func validateComfyUIWorkloadUnit(unit RenderUnit, contract RendererContract) (se
 		if err != nil {
 			return selectedPaaSWorkloadBundle{}, err
 		}
+	}
+	if apiNodes && len(components) == 1 {
+		components[0].Command = slices.DeleteFunc(slices.Clone(components[0].Command), func(arg string) bool { return arg == comfyUIDisableAPINodesFlag })
 	}
 	if !selected && len(components) == 1 {
 		components[0].Command = append(slices.Clone(components[0].Command), comfyUICPUFlag)
@@ -316,9 +332,14 @@ func validateComfyUIRuntimeComponents(components []selectedPaaSRuntimeComponent,
 	if err := validatePeerNetworks(comfyUIWorkloadModuleID, actual, path); err != nil {
 		return err
 	}
+	// The governed commands: the base command, optionally without
+	// --disable-api-nodes (owner opt-in), plus exactly --cpu on the CPU.
+	apiNodes := !slices.Contains(actual.Command, comfyUIDisableAPINodesFlag)
+	if apiNodes {
+		expected.Command = slices.DeleteFunc(slices.Clone(expected.Command), func(arg string) bool { return arg == comfyUIDisableAPINodesFlag })
+	}
 	if grant == nil {
-		// The CPU runtime is the governed command plus exactly --cpu.
-		expected.Command = append(expected.Command, comfyUICPUFlag)
+		expected.Command = append(slices.Clone(expected.Command), comfyUICPUFlag)
 	}
 	actual.Accelerator = nil
 	// The plan orders volumes by its own rule; the set is what is governed.

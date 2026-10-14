@@ -71,7 +71,7 @@ func (o *osBasementPolicyOperations) enforce(ctx context.Context, policyKind, po
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if err := o.verifyRuntimeAuthority(); err != nil {
+	if err := o.verifyRuntimeAuthority(ctx); err != nil {
 		return err
 	}
 	state, exists, err := o.loadState(policyKind)
@@ -114,7 +114,7 @@ func (o *osBasementPolicyOperations) verify(ctx context.Context, policyKind, pol
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if err := o.verifyRuntimeAuthority(); err != nil {
+	if err := o.verifyRuntimeAuthority(ctx); err != nil {
 		return time.Time{}, err
 	}
 	state, exists, err := o.loadState(policyKind)
@@ -127,12 +127,19 @@ func (o *osBasementPolicyOperations) verify(ctx context.Context, policyKind, pol
 	return o.now().UTC(), nil
 }
 
-func (o *osBasementPolicyOperations) verifyRuntimeAuthority() error {
+func (o *osBasementPolicyOperations) verifyRuntimeAuthority(ctx context.Context) error {
 	if _, err := localevidence.LoadBasementRuntimeCustody(o.workspaceRoot); err != nil {
 		return fmt.Errorf("verify local Basement runtime custody for policy enforcement: %w", err)
 	}
 	composePath := filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "basement-core", "compose.yaml")
 	content, err := os.ReadFile(composePath) //nolint:gosec // fixed construction-owned path
+	if err == nil {
+		owner, ownerErr := localevidence.LoadOwnerCustody(o.workspaceRoot)
+		if ownerErr != nil {
+			return ownerErr
+		}
+		content, err = normalizeKopiaApplicationHostPaths(ctx, o.workspaceRoot, owner.Binding.SiteRef, owner.Binding.NodeRef, content)
+	}
 	if err != nil || (!architecturev2renderer.ValidateBasementCoreComposeArtifact(content) &&
 		!architecturev2renderer.ValidateBasementCoreLiteComposeArtifact(content)) {
 		return errors.New("local Basement core runtime is not the exact owner-bound platform")

@@ -1064,6 +1064,9 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 			persistedResult.ResultPath, now().UTC(), err,
 		)
 	}
+	if err := bindAppliedCoolifySources(executionContext, wd, transaction, persisted, manifest, result, serviceController); err != nil {
+		return requireArchitectureV2ApplicationLifecycleRecovery(wd, lifecycleRuns, "Product Apply completed but its Coolify source binding was unavailable", persistedResult.ResultPath, now().UTC(), err)
+	}
 	if err := serviceController.ReconcileAfterApply(executionContext); err != nil {
 		return requireArchitectureV2ApplicationLifecycleRecovery(
 			wd, lifecycleRuns, "Product Apply completed but durable service desired state could not be reconciled",

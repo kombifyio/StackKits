@@ -60,20 +60,21 @@ type osMarketplaceOperations struct {
 	upgrade   MarketplaceUpgradeAuthority
 }
 type marketplaceCustody struct {
-	Version          string `json:"version"`
-	OwnerRef         string `json:"ownerRef"`
-	SiteRef          string `json:"siteRef"`
-	NodeRef          string `json:"nodeRef"`
-	Domain           string `json:"domain"`
-	AppID            string `json:"appId"`
-	AppKey           string `json:"appKey"`
-	AdminPassword    string `json:"adminPassword"`
-	DatabasePassword string `json:"databasePassword"`
-	RedisPassword    string `json:"redisPassword"`
-	PusherKey        string `json:"pusherKey"`
-	PusherSecret     string `json:"pusherSecret"`
-	APIToken         string `json:"apiToken,omitempty"`
-	ServerID         string `json:"serverId,omitempty"`
+	Version          string            `json:"version"`
+	OwnerRef         string            `json:"ownerRef"`
+	SiteRef          string            `json:"siteRef"`
+	NodeRef          string            `json:"nodeRef"`
+	Domain           string            `json:"domain"`
+	AppID            string            `json:"appId"`
+	AppKey           string            `json:"appKey"`
+	AdminPassword    string            `json:"adminPassword"`
+	DatabasePassword string            `json:"databasePassword"`
+	RedisPassword    string            `json:"redisPassword"`
+	PusherKey        string            `json:"pusherKey"`
+	PusherSecret     string            `json:"pusherSecret"`
+	APIToken         string            `json:"apiToken,omitempty"`
+	ServerID         string            `json:"serverId,omitempty"`
+	CuratedProjects  map[string]string `json:"curatedProjects,omitempty"`
 }
 
 func NewOSMarketplaceOperations(workspace string, upgrade ...MarketplaceUpgradeAuthority) (MarketplaceOperations, error) {

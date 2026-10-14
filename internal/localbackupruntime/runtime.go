@@ -54,7 +54,7 @@ type Runtime struct {
 // already verified through the Plan, artifact and Apply authority chain.
 // Copy through the canonical codec so caller-owned slices cannot change the
 // source selection after the runtime is created.
-func New(workspaceRoot string, policy localbackuppolicy.Policy, custody backupexec.ApplicationContainerCustodyVerifier) (*Runtime, error) {
+func New(workspaceRoot string, policy localbackuppolicy.Policy, custody backupexec.ApplicationContainerCustodyVerifier, bindings ...backupexec.ApplicationRuntimeBinding) (*Runtime, error) {
 	raw, err := localbackuppolicy.ArtifactBytes(policy)
 	if err != nil {
 		return nil, fmt.Errorf("localbackupruntime: validate held policy: %w", err)
@@ -63,7 +63,7 @@ func New(workspaceRoot string, policy localbackuppolicy.Policy, custody backupex
 	if err != nil {
 		return nil, err
 	}
-	engine, err := backupexec.NewDockerV2EngineForPolicy(held)
+	engine, err := backupexec.NewDockerV2EngineForPolicyWithApplicationBindings(held, bindings)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,14 @@ func New(workspaceRoot string, policy localbackuppolicy.Policy, custody backupex
 		return nil, err
 	}
 	runtime.policy = &held
-	runtime.quiescer = backupexec.NewDockerV2QuiescerWithApplicationCustody(held.SourceProjection(), custody)
-	runtime.snapshotSettler = backupexec.NewDockerV2SnapshotSettler(held.SourceProjection())
+	runtime.quiescer, err = backupexec.NewDockerV2QuiescerWithApplicationBindings(held.SourceProjection(), custody, bindings)
+	if err != nil {
+		return nil, err
+	}
+	runtime.snapshotSettler, err = backupexec.NewDockerV2SnapshotSettlerWithApplicationBindings(held.SourceProjection(), bindings)
+	if err != nil {
+		return nil, err
+	}
 	return runtime, nil
 }
 
@@ -782,6 +788,9 @@ func quiescenceStopOrder(journal backuplifecycle.SnapshotQuiescence) []backuplif
 		}
 		if !leftGraph {
 			return false
+		}
+		if ordered[left].StopOrder/1024 != ordered[right].StopOrder/1024 {
+			return ordered[left].StopOrder/1024 < ordered[right].StopOrder/1024
 		}
 		if ordered[left].ComposeProject != ordered[right].ComposeProject {
 			return ordered[left].ComposeProject < ordered[right].ComposeProject

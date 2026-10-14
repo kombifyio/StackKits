@@ -37,6 +37,11 @@ const (
 	// records the preset (Preparation "model-preset-<id>").
 	ComfyUIModelDownloadActionRef = "comfyui-model-download"
 	ComfyUIModelPresetPreparation = "model-preset-"
+	// OllamaModelsActionRef is the Private AI model manager. It has no
+	// account; the result records the operation (Preparation
+	// "ollama-models-<list|pull|remove>").
+	OllamaModelsActionRef   = "ollama-models"
+	OllamaModelsPreparation = "ollama-models-"
 	// KombifyAIConnectorEnabledPreparation and KombifyAIConnectorDisabled-
 	// Preparation report `stackkit setup ai-connect`. It changes the owner's
 	// intent (connector token custody and the kombify-connector setting) ahead
@@ -334,7 +339,7 @@ func validateSetupResult(contract Contract, result SetupResult) error {
 	if result.APIVersion != SetupResultAPIVersion || result.Authority != authorityFromContract(contract) || result.WorkloadRef != contract.WorkloadRef ||
 		!operationIDPattern.MatchString(result.OperationID) || !contractIDPattern.MatchString(result.ActionRef) || !digestPattern.MatchString(result.ApplyResultHash) || !digestPattern.MatchString(result.ArtifactDigest) ||
 		result.InstanceRef == "" || result.ApplicationVersion == "" || result.AccountRef == "" || result.VerifiedAt.IsZero() ||
-		(!result.AdminLoginVerified && result.ActionRef != ComfyUIModelDownloadActionRef && result.ActionRef != NtfyLiveDeliveryActionRef) {
+		(!result.AdminLoginVerified && result.ActionRef != ComfyUIModelDownloadActionRef && result.ActionRef != OllamaModelsActionRef && result.ActionRef != NtfyLiveDeliveryActionRef) {
 		return errors.New("application setup result is incomplete or differs from the admitted authority")
 	}
 	switch result.ActionRef {
@@ -351,6 +356,13 @@ func validateSetupResult(contract Contract, result SetupResult) error {
 	case ImmichAddOnAPIKeyActionRef:
 		if result.Preparation != ImmichAddOnAPIKeyPreparation || result.EmailVerification != "" || !result.Initialized {
 			return errors.New("Immich add-on setup result has an invalid preparation state")
+		}
+		return nil
+	case OllamaModelsActionRef:
+		operation, ok := strings.CutPrefix(result.Preparation, OllamaModelsPreparation)
+		if !ok || (operation != "list" && operation != "pull" && operation != "remove") || result.AccountRef != "ollama:"+operation ||
+			result.EmailVerification != "" || !result.Initialized || result.AdminLoginVerified {
+			return errors.New("Ollama model manager result has an invalid preparation state")
 		}
 		return nil
 	case ComfyUIModelDownloadActionRef:

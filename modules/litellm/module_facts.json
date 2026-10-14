@@ -1,0 +1,52 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "litellm",
+  "displayName": "LiteLLM",
+  "description": "LiteLLM model router without a database: one OpenAI-compatible endpoint for the node's Ollama models, guarded by the master key from owner custody; admin UI off, no egress, local or remote-private route only.",
+  "rationale": "Private AI model-router capability module (default).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": false,
+      "minMemory": "512m"
+    }
+  },
+  "services": [
+    {
+      "name": "litellm",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "routed": true,
+      "traefik": {
+        "rule": "Host(`ai-gateway.{{.domain}}`)",
+        "port": 4000
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "self-auth",
+        "reason": "Apps and devices cannot complete the kit's browser login, so LiteLLM's master key guards every model route; the route is never public."
+      },
+      "healthCheck": {
+        "type": "http",
+        "path": "/health/liveliness",
+        "port": 4000
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "2g"
+      },
+      "upstream": {
+        "github": "BerriAI/litellm",
+        "registryImage": "ghcr.io/berriai/litellm"
+      },
+      "imageSource": {
+        "moduleRef": "stackkits-litellm-runtime",
+        "componentRef": "litellm"
+      }
+    }
+  ]
+}

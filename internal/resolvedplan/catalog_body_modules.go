@@ -1041,6 +1041,10 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 		if err != nil {
 			return err
 		}
+		lifecycles, err := objectListField(map[string]any(plan), "resolvedPlan", "applicationLifecycles")
+		if err != nil {
+			return err
+		}
 		modules, err := objectListField(map[string]any(plan), "resolvedPlan", "modules")
 		if err != nil {
 			return err
@@ -1049,7 +1053,7 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 			stackID: stackID, kit: kit, sites: objectMapsAsAny(sites),
 			identity: identity, identityTrust: identityTrust, controlPlane: controlPlane, data: data,
 			failurePolicy: failurePolicy, network: network, gates: gates,
-			install: install, system: system, storage: storage, nodes: objectMapsAsAny(nodes), workloads: objectMapsAsAny(workloads), modules: objectMapsAsAny(modules),
+			install: install, system: system, storage: storage, nodes: objectMapsAsAny(nodes), workloads: objectMapsAsAny(workloads), lifecycles: objectMapsAsAny(lifecycles), modules: objectMapsAsAny(modules),
 		}
 		target := moduleRenderInputTarget{}
 		for _, binding := range bindings {

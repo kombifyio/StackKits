@@ -269,7 +269,7 @@ func validateDockerV2RuntimeState(container *docker.ContainerInfo, network *dock
 		},
 	}
 	for _, volumeName := range source.ManagedVolumeNames {
-		hostPath := source.HostPath + "/" + volumeName + "/_data"
+		hostPath := source.HostPath + "/" + source.PhysicalVolumeName(volumeName) + "/_data"
 		containerPath := source.ContainerPath + "/" + volumeName + "/_data"
 		wantMounts[containerPath] = docker.ContainerMount{
 			Type: "bind", Source: hostPath, Destination: containerPath, RW: false,
@@ -357,7 +357,7 @@ func validateDockerV2HostConfig(config docker.ContainerHostConfig, source localb
 	for _, volumeName := range source.ManagedVolumeNames {
 		wantBinds = append(
 			wantBinds,
-			source.HostPath+"/"+volumeName+"/_data:"+
+			source.HostPath+"/"+source.PhysicalVolumeName(volumeName)+"/_data:"+
 				source.ContainerPath+"/"+volumeName+"/_data:ro",
 		)
 	}

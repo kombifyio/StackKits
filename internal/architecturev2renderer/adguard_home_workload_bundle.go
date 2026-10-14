@@ -16,8 +16,9 @@ import (
 const (
 	adguardHomeWorkloadModuleID    = "stackkits-adguard-home-runtime"
 	adguardHomeWorkloadUnitID      = "adguard-home"
-	adguardHomeWorkloadTemplateRef = "builtin://workloads/adguard-home/bundle/v1.json"
-	adguardHomeWorkloadVersion     = "1.0.0"
+	adguardHomeWorkloadTemplateRef = "builtin://workloads/adguard-home/bundle/v2.json"
+	adguardHomeWorkloadVersion     = "2.0.0"
+	adguardHomeWorkloadAPIVersion  = "stackkit.workload-bundle/v3"
 	adguardHomeWorkloadOutputRef   = "workloads/adguard-home/bundle.json"
 )
 
@@ -25,7 +26,7 @@ func init() {
 	governedCustodyNodeRights[adguardHomeWorkloadModuleID] = governedEntrypointSecretFiles(map[string][]selectedPaaSSecretFile{"adguard-home": nil})
 }
 
-const adguardHomeWorkloadRendererSchema = "stackkit.workload-bundle/v2|AdguardHomeWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|dns-policy:private-selected-clients-v1|dns-port:53535-opt-in|dhcp:off|querylog:off|owner:bcrypt-file|startup:sha256:b4994455865c0ccd2e9a7ecdf720713c4e2ba61132e156dc72e7c61003899427"
+const adguardHomeWorkloadRendererSchema = "stackkit.workload-bundle/v3|AdguardHomeWorkloadBundle|application-adapter|compute-profile:module-compute-profile-v1|allocation:cpu-ram-only|dns-policy:private-selected-clients-v1|dns-rate:20-unchanged|dns-port:53535-opt-in|dhcp:off|querylog:off|owner:bcrypt-file|startup:sha256:b4994455865c0ccd2e9a7ecdf720713c4e2ba61132e156dc72e7c61003899427"
 
 type AdguardHomeWorkloadBundleDescriptor struct {
 	OwnerPasswordRef string
@@ -77,7 +78,8 @@ func ParseAdguardHomeWorkloadBundle(data []byte) (AdguardHomeWorkloadBundleDescr
 	if err := decodeStrict(data, &bundle); err != nil {
 		return AdguardHomeWorkloadBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed AdguardHome workload bundle", err)
 	}
-	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "AdguardHomeWorkloadBundle" ||
+	legacy := bundle.APIVersion == "stackkit.workload-bundle/v2"
+	if (!legacy && bundle.APIVersion != adguardHomeWorkloadAPIVersion) || bundle.Kind != "AdguardHomeWorkloadBundle" ||
 		bundle.Workload.Ref != "network" || bundle.Workload.AlternativeRef != "adguard-home" ||
 		bundle.Workload.ModuleRef != adguardHomeWorkloadModuleID || bundle.Workload.Release != adguardHomeRelease ||
 		bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != adguardHomeWorkloadUnitID ||
@@ -96,7 +98,13 @@ func ParseAdguardHomeWorkloadBundle(data []byte) (AdguardHomeWorkloadBundleDescr
 			return AdguardHomeWorkloadBundleDescriptor{}, err
 		}
 	}
-	components, err := validateAdguardHomeRuntimeComponents(bundle.Components, path+".components")
+	if legacy && len(bundle.ComputeProfile) != 0 {
+		return AdguardHomeWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".computeProfile", "retained v2 Network bundles cannot carry a v3 profile")
+	}
+	if !legacy && len(bundle.ComputeProfile) == 0 {
+		return AdguardHomeWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".computeProfile", "Network allocation requires its selected compiler-bound profile")
+	}
+	components, err := validateAdguardHomeRuntimeComponents(bundle.Components, bundle.ComputeProfile, path+".components")
 	if err != nil {
 		return AdguardHomeWorkloadBundleDescriptor{}, err
 	}
@@ -164,7 +172,11 @@ func validateAdguardHomeWorkloadUnit(unit RenderUnit, contract RendererContract)
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, settings, err := validateApplicationDeliveryInputsWithSettings(unit, adguardHomeWorkloadModuleID, "network", 8080, []string{"lan-listener", "dns-policy"}, path+".inputs")
+	routeUnit, computeProfile, err := consumeModuleComputeProfile(unit, path+".inputs.compute-profile")
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	deliveryRoute, settings, err := validateApplicationDeliveryInputsWithSettings(routeUnit, adguardHomeWorkloadModuleID, "network", 8080, []string{"lan-listener", "dns-policy"}, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -210,8 +222,13 @@ func validateAdguardHomeWorkloadUnit(unit RenderUnit, contract RendererContract)
 	}
 	for index := range components {
 		components[index].Environment = map[string]string{"STACKKITS_DNS_POLICY": policy, "STACKKITS_DOMAIN": domain, "STACKKITS_DNS_CONFIG_JSON": config}
+		limits, _, err := computeProfileLimits(computeProfile, adguardHomeWorkloadModuleID)
+		if err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
+		components[index].Resources = limits
 	}
-	components, err = validateAdguardHomeRuntimeComponents(components, path+".runtime.components")
+	components, err = validateAdguardHomeRuntimeComponents(components, computeProfile, path+".runtime.components")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -223,8 +240,8 @@ func validateAdguardHomeWorkloadUnit(unit RenderUnit, contract RendererContract)
 		return selectedPaaSWorkloadBundle{}, err
 	}
 	bundle := selectedPaaSWorkloadBundle{
-		APIVersion: "stackkit.workload-bundle/v2", Kind: "AdguardHomeWorkloadBundle",
-		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
+		APIVersion: adguardHomeWorkloadAPIVersion, Kind: "AdguardHomeWorkloadBundle",
+		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute, ComputeProfile: computeProfile,
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "network", "adguard-home"
 	bundle.Workload.ModuleRef, bundle.Workload.Release = adguardHomeWorkloadModuleID, adguardHomeRelease
@@ -236,12 +253,19 @@ func validateAdguardHomeWorkloadUnit(unit RenderUnit, contract RendererContract)
 	return bundle, nil
 }
 
-func validateAdguardHomeRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
+func validateAdguardHomeRuntimeComponents(components []selectedPaaSRuntimeComponent, profile json.RawMessage, path string) ([]selectedPaaSRuntimeComponent, error) {
+	limits, err := adguardHomeSelectedLimits(profile)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, path, "validate the selected Network allocation", err)
+	}
 	if len(components) != 1 || components[0].ID != "adguard-home" || components[0].Lifecycle != "daemon" ||
 		components[0].Image.Ref != adguardHomeImageRef || components[0].Image.Digest != adguardHomeImageDigest ||
 		components[0].Health.Kind != "http" || components[0].Health.Path != "/login.html" || components[0].Health.Port != 8080 || !validAdguardHomeEnvironment(components[0].Environment) ||
 		!sameEnvironment(components[0].SecretEnvironment, map[string]string{"STACKKITS_OWNER_HASH_FILE": "owner-password"}) || len(components[0].SecretFiles) != 0 || !exactStringList(components[0].Entrypoint, []string{"/bin/sh"}) || !adguardHomeCommandMatches(components[0].Command) {
 		return nil, fail(ErrInvalidPlan, path, "AdguardHome runtime graph differs from the closed "+adguardHomeRelease+" contract")
+	}
+	if components[0].Resources == nil || *components[0].Resources != *limits {
+		return nil, fail(ErrInvalidPlan, path+".resources", "Network resource allocation differs from its bound profile or retained v2 contract")
 	}
 	want := map[string]selectedPaaSRuntimeVolume{
 		"config": {ID: "config", Target: "/opt/adguardhome/conf", Class: "persistent", Backup: true},

@@ -19,3 +19,9 @@ func NewProductTikaSelectedPaaSRegistration(runtimeVersion, runtimeAdapterRef, r
 func NewProductDoclingSelectedPaaSRegistration(runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string, operations nativehost.SelectedPaaSWorkloadOperations) (ProductRuntimeOwnerRegistration, error) {
 	return newProductApplicationSelectedPaaSRegistration(nativehost.SelectedPaaSApplicationDocling, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations)
 }
+
+// NewProductLitellmSelectedPaaSRegistration binds the LiteLLM alternative of
+// the ai-gateway workload to the shared selected application executor.
+func NewProductLitellmSelectedPaaSRegistration(runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string, operations nativehost.SelectedPaaSWorkloadOperations) (ProductRuntimeOwnerRegistration, error) {
+	return newProductApplicationSelectedPaaSRegistration(nativehost.SelectedPaaSApplicationLitellm, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations)
+}

@@ -1345,11 +1345,14 @@ func affectedGoCommands(selection affectedGoSelection, changedTests, changedTest
 			})
 		}
 	}
-	if len(fullPatterns) > 0 {
+	for _, pattern := range fullPatterns {
+		// The executor's hang guard is per subprocess, while go test's timeout
+		// is per package. Combining independently bounded packages incorrectly
+		// charges all of them against one package's five-minute allowance.
 		args := []string{"go", "test", "-count=1", goTestTimeoutArg}
 		commands = append(commands, testCommand{
-			Kind: "go", Scope: "changed-packages", Argv: append(args, fullPatterns...),
-			Reason: "run changed packages whose production changes have no complete explicit test boundary",
+			Kind: "go", Scope: "changed-packages", Argv: append(args, pattern),
+			Reason: "run one changed package under its own unchanged timeout; production changes have no complete explicit test boundary",
 		})
 	}
 	for _, pattern := range budgetedPatterns {

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/appsetup"
@@ -111,6 +113,15 @@ func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDe
 			return errors.New("the model download has no separate onboarding; omit --complete-onboarding")
 		}
 		_, err := architecturev2renderer.ParseComfyUIWorkloadBundle(deployment.Bundle)
+		return err
+	case appsetup.OllamaModelsAction:
+		if options.completeOnboarding {
+			return errors.New("the model manager has no separate onboarding; omit --complete-onboarding")
+		}
+		if deployment.ModuleRef != "stackkits-private-ai-runtime" {
+			return errors.New("the model manager needs the Open WebUI chat module; other Private AI chat modules do not declare it")
+		}
+		_, err := architecturev2renderer.ParsePrivateAIWorkloadBundle(deployment.Bundle)
 		return err
 	case "roundcube-mailbox-login":
 		if options.completeOnboarding {
@@ -317,6 +328,8 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		return executeGameServerSetup(ctx, client, baseURL, workspace, deployment, release, options)
 	case appsetup.ComfyUIModelDownloadAction:
 		return executeComfyUIModelDownload(ctx, client, baseURL, workspace, deployment, options)
+	case appsetup.OllamaModelsAction:
+		return executeOllamaModels(ctx, workspace, deployment, options)
 	case "roundcube-mailbox-login":
 		return executeRoundcubeMailboxSetup(ctx, client, baseURL, workspace, deployment, release, options)
 	case "stalwart-mail-domain-setup":
@@ -565,4 +578,47 @@ func executeComfyUIModelDownload(ctx context.Context, client *http.Client, baseU
 	}
 	printInfo("Model preset %s is installed; open the %s workflow in ComfyUI.", preset.ID, preset.Template)
 	return nativeOwnerSetupObservation{AccountRef: "preset:" + preset.ID, Initialized: true, Preparation: "model-preset-" + preset.ID}, nil
+}
+
+// executeOllamaModels lists, pulls or removes models in the node's Ollama
+// through the fixed Compose exec contract. A pull is closed to the reviewed
+// model table, needs the model's license accepted, fits the disk budget of the
+// models volume and streams Ollama's progress; the model must be listed
+// afterwards. The result is recorded as the operation (list, pull or remove).
+func executeOllamaModels(ctx context.Context, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, options nativeSetupOptions) (nativeOwnerSetupObservation, error) {
+	var request appsetup.OllamaModelsRequest
+	if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &request); err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	request, err := appsetup.ValidateOllamaModelsRequest(request)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	host, err := nativehost.NewStandaloneComposeOllama(ctx, workspace, deployment)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	var progress io.Writer = os.Stderr
+	if quiet || humanOutputSuppressed() {
+		progress = io.Discard
+	}
+	result, err := appsetup.RunOllamaModels(ctx, host, request, progress)
+	if err != nil {
+		return nativeOwnerSetupObservation{}, err
+	}
+	switch {
+	case result.Skipped:
+		printInfo("%s is already installed.", result.Model)
+	case result.Operation == appsetup.OllamaOperationPull:
+		printInfo("%s is installed.", result.Model)
+	case result.Operation == appsetup.OllamaOperationRemove:
+		printInfo("%s is removed.", result.Model)
+	}
+	for _, model := range result.Installed {
+		printInfo("installed: %s (%.1f GB)", model.Name, float64(model.SizeBytes)/1e9)
+	}
+	return nativeOwnerSetupObservation{
+		AccountRef: "ollama:" + result.Operation, Initialized: true,
+		Preparation: applicationlifecycle.OllamaModelsPreparation + result.Operation,
+	}, nil
 }

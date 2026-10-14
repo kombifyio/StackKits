@@ -1,5 +1,27 @@
 # Changelog
 
+- Change: The Private AI bundle "My private ChatGPT" is now "My private Chat", so the setup no longer carries another company's brand.
+
+- Add: a choice option can say how much server memory it needs (`minMemoryGb`) and whether it needs a GPU (`needsAccelerator`). Private AI `model-size` carries 8, 16 and 32 GB (large also a GPU) and names its model in the note, so a consumer that knows the server recommends the size that fits.
+
+- Fix: a choice option can carry its own `realization`. Private AI's `inference-location` stays recorded, but its default `local` is marked `install`, so consumers no longer show the installed default as "saved for later".
+
+- Change: Private AI bundles follow what people want to do with AI: My local AI, My private ChatGPT, Creative studio (no GPU condition) and My personal assistant, each with a goal sentence and `examples`. A module may sit in several bundles (web search); speech, agent harness and agent control plane sit in none and setup no longer offers them.
+
+- Add: ComfyUI without a GPU. The `ai` setting `comfyui-api-nodes` (`ai-image-video` workload setting, off by default) removes only `--disable-api-nodes` so ComfyUI can generate through external providers with the owner's own Comfy.org account; custom nodes stay off, StackKits stores no credential, and use may cost money on the provider account. The `image-video` option note now says it works on CPU, GPU or external providers; the renderer admits exactly the governed command with or without that flag (plus `--cpu` without a GPU).
+
+- Show current-selection resource fit in the State Console from the central native assessment: observed capacity, minimum, reservation, recommendation and advice per node; discard stale replies and localize six catalogs.
+
+- Add: Private AI model manager. The `ai` workload declares the setup action `ollama-models`: `stackkit setup ai --owner-approve` lists, pulls and removes models in the node's Ollama through the fixed Compose exec contract. A pull is closed to the reviewed model-pack tags, needs the model's license typed (`Apache-2.0`), is refused when the models volume lacks the declared size plus a margin (or its size or free space is unknown), streams Ollama's progress, honours cancellation and must show in `ollama list` afterwards; remove only removes an installed model. The run is recorded in the setup lifecycle.
+
+- Bind Remote low/standard/high compute envelopes to Guacamole and guacd without multiplying module allocation; preserve retained v2 limits and reuse measured demand in common CLI/Console fit.
+
+- Add: Private AI model router. The `observability` module is now "Model router and API access" and installs LiteLLM (`ghcr.io/berriai/litellm:v1.105.0`, digest-pinned, no database) as the optional add-on workload `ai-gateway=litellm` (`--use-case-capability ai.observability=litellm`): one OpenAI-compatible endpoint for the node's Ollama models, guarded by the master key from owner custody (`stackkit secrets reveal --workload ai-gateway --slot master-key`). The route is https, local or remote-private only, uses LiteLLM's own key check instead of the kit login, and Cloud Kit gives it no route; the admin UI is off and there is no egress. It is not on by default. Initial authoring now gives a workload that holds no data its private route without a data binding; a data-holding workload still needs one. Langfuse stays recorded.
+
+- Add: use-case bundles. A catalog entry can group its capability modules into `bundles` (`#UseCaseBundle`) for consumer surfaces; turning a bundle on selects its `defaults` through the existing `--use-case-capability` authoring, so StackSpec, resolver and workloads are unchanged. Private AI declares five bundles: Models and access (required), Chat and knowledge (default), Creative studio (recommended with a GPU), Voice, and Assistant and agents (advanced, needs `runsc`). The default composition stays Ollama plus Open WebUI.
+
+- Bind Network low/standard/high native allocations to the selected compute profile; reuse measured demand in common CLI/Console capacity guidance and preserve retained v2 limits.
+
 - Verify installed Network selected-client DNS policy through native setup; reactivate only AdGuard to restore declarative protection after UI edits.
 
 - **Explicit live-only ntfy notifications**: add an optional pinned relay and native live-delivery/no-replay setup check through the existing local lifecycle; private admin access, no SQL or invented application login, and durable push prerequisites remain explicit.
@@ -245,6 +267,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.8](https://github.com/kombifyio/StackKits/compare/v0.53.7...v0.53.8) (2026-10-14)
+
+
+### Added
+
+* **catalog:** enforce use-case prohibitions, safe defaults and allocated backup volumes
+
+
+### Fixed
+
+* **network:** back up the AdGuard Home configuration
+* **public:** rewrite the private scenario catalog reference in use_case.cue on export
+
+## [0.53.7](https://github.com/kombifyio/StackKits/compare/v0.53.6...v0.53.7) (2026-10-14)
+
+
+### Added
+
+* **ai:** add the LiteLLM model router as the AI API access module
+* **ai:** add the Private AI model manager setup action
+* **ai:** name the private chat bundle My private Chat
+* **ai:** Private AI bundles by user goal; ComfyUI without a GPU condition
+* **ai:** rename the own-AI bundle to My local AI
+* **catalog:** group use-case capability modules into bundles
+* **catalog:** memory and GPU fit per choice option; Private AI model size
+* **network:** bind measured native compute envelopes
+* **remote:** bind measured Guacamole compute envelopes
+* restore signed Coolify application data
+
+
+### Fixed
+
+* **catalog:** apply the use-case standard to maturity, kit roles, data contracts and restore
+* **catalog:** option-level realization; Private AI local inference installs
+* diagnose PocketID TinyAuth policy mismatches precisely
+* **hostcustody:** require the pinned authority signature on every delivery
+* **marketplace:** repair retained Coolify service configuration
 
 ## [0.53.6](https://github.com/kombifyio/StackKits/compare/v0.53.5...v0.53.6) (2026-10-13)
 

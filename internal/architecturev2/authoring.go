@@ -266,6 +266,9 @@ type useCaseWorkloadSelection struct {
 	RuntimeAdapterRef  string
 	RequiredSecretRefs []string
 	PlatformManagement string
+	// HoldsNoData marks a workload contract that declares no data classes;
+	// its private route needs no data binding.
+	HoldsNoData bool
 }
 
 func containsStringValue(values []string, want string) bool {

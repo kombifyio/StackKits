@@ -29,7 +29,11 @@ var newNativeV2BackupService = func(authority nativeV2BackupAuthority) (nativeV2
 	if err != nil {
 		return nil, err
 	}
-	runtime, err := localbackupruntime.New(authority.WorkspaceRoot, authority.Policy, custody)
+	bindings, err := nativeBackupCoolifyBindings(context.Background(), authority)
+	if err != nil {
+		return nil, err
+	}
+	runtime, err := localbackupruntime.New(authority.WorkspaceRoot, authority.Policy, custody, bindings...)
 	if err != nil {
 		return nil, fmt.Errorf("initialize native v2 backup runtime: %w", err)
 	}

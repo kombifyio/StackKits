@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:efa11a209e0685f6ce4c69c9ea4b510fe7d652281863446f5144277c1258037c",
+  "contentDigest": "sha256:e2908df4517ee56e179668d61fbac59710c313c6a80b790c23ff757196f5a97e",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -284,6 +284,73 @@
           ],
           "defaultAlternative": "tika",
           "id": "ai-documents"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "litellm",
+              "modules": [
+                {
+                  "computeProfileFacts": {
+                    "high": {
+                      "executable": true,
+                      "hostFloor": {
+                        "minCpuCores": 2,
+                        "minRamGB": 4,
+                        "minStorageGB": 20
+                      },
+                      "maturity": "beta",
+                      "provenance": {
+                        "hostFloor": {
+                          "ref": "Kombify host floor support policy",
+                          "source": "policy"
+                        },
+                        "reservation": {
+                          "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+                          "source": "policy"
+                        }
+                      },
+                      "realization": "apply-ready",
+                      "reservation": {
+                        "ramGB": 0.5
+                      }
+                    },
+                    "standard": {
+                      "executable": true,
+                      "hostFloor": {
+                        "minCpuCores": 2,
+                        "minRamGB": 4,
+                        "minStorageGB": 20
+                      },
+                      "maturity": "beta",
+                      "provenance": {
+                        "hostFloor": {
+                          "ref": "Kombify host floor support policy",
+                          "source": "policy"
+                        },
+                        "reservation": {
+                          "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+                          "source": "policy"
+                        }
+                      },
+                      "realization": "apply-ready",
+                      "reservation": {
+                        "ramGB": 0.5
+                      }
+                    }
+                  },
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-litellm-runtime"
+                }
+              ],
+              "name": "litellm"
+            }
+          ],
+          "defaultAlternative": "litellm",
+          "id": "ai-gateway"
         },
         {
           "alternatives": [
@@ -810,6 +877,96 @@
           "name": "private-ai"
         }
       ],
+      "bundles": [
+        {
+          "advanced": false,
+          "capabilities": [
+            "inference",
+            "observability"
+          ],
+          "defaults": [
+            "inference"
+          ],
+          "enabledByDefault": true,
+          "examples": [
+            "Load models from a reviewed list and compare them",
+            "Keep one model for coding and one that understands images",
+            "Use your own AI from your phone, editor or Home Assistant with a token"
+          ],
+          "help": "Own and run your AI models on your hardware, offline, with no subscription and no outside provider.",
+          "id": "local-ai",
+          "name": "My local AI",
+          "recommendsAccelerator": false,
+          "required": true,
+          "requiresSandbox": false
+        },
+        {
+          "advanced": false,
+          "capabilities": [
+            "chat",
+            "web-search",
+            "document-parsing"
+          ],
+          "defaults": [
+            "chat"
+          ],
+          "enabledByDefault": true,
+          "examples": [
+            "Draft an email, translate or summarise",
+            "Ask questions with web search",
+            "Ask questions about your own PDFs, with one account per family member"
+          ],
+          "help": "Write, ask and think with an AI without your data leaving the house.",
+          "id": "private-chat",
+          "name": "My private Chat",
+          "recommendsAccelerator": false,
+          "required": false,
+          "requiresSandbox": false
+        },
+        {
+          "advanced": false,
+          "capabilities": [
+            "image-video"
+          ],
+          "defaults": [
+            "image-video"
+          ],
+          "enabledByDefault": false,
+          "examples": [
+            "Design an invitation card or an avatar",
+            "Upscale an old photo",
+            "Create an image from the chat or a short clip from an image"
+          ],
+          "help": "Create images and improve old photos, on the CPU, a GPU or an optional external provider.",
+          "id": "creative-studio",
+          "name": "Creative studio",
+          "recommendsAccelerator": false,
+          "required": false,
+          "requiresSandbox": false
+        },
+        {
+          "advanced": true,
+          "capabilities": [
+            "assistant",
+            "web-search"
+          ],
+          "defaults": [
+            "assistant"
+          ],
+          "enabledByDefault": false,
+          "examples": [
+            "Summarise appointments and weather each morning",
+            "Remind you and prepare research",
+            "Draft replies and reach you through a messenger"
+          ],
+          "help": "Takes small tasks off your hands and remembers things; it drafts first and every further permission is yours to grant.",
+          "id": "personal-assistant",
+          "name": "My personal assistant",
+          "recommendsAccelerator": false,
+          "required": false,
+          "requiresSandbox": false
+        }
+      ],
       "capabilities": [
         {
           "alternative": {
@@ -937,7 +1094,7 @@
             "alternativeRef": "comfyui",
             "id": "comfyui",
             "name": "ComfyUI",
-            "note": "Runs on the CPU (slow; upscaling, and text-to-image with 32 GB RAM); an NVIDIA GPU with 8 GB makes images fast, video needs 16 GB of VRAM",
+            "note": "No GPU needed: runs on the CPU (slow; upscaling, and text-to-image with 32 GB RAM), on an NVIDIA GPU with 8 GB for fast images (video needs 16 GB of VRAM), or through optional external providers with the comfyui-api-nodes setting",
             "realization": "install",
             "workloadRef": "ai-image-video"
           },
@@ -1028,19 +1185,24 @@
         },
         {
           "alternative": {
-            "id": "litellm",
-            "name": "LiteLLM",
+            "id": "langfuse",
+            "name": "Langfuse",
+            "note": "Traces and budgets",
+            "pending": "needs its own PostgreSQL and ClickHouse stack",
             "realization": "recorded"
           },
           "default": {
-            "id": "langfuse",
-            "name": "Langfuse",
-            "realization": "recorded"
+            "alternativeRef": "litellm",
+            "id": "litellm",
+            "name": "LiteLLM",
+            "note": "Apps and devices use the master key from owner custody",
+            "realization": "install",
+            "workloadRef": "ai-gateway"
           },
           "enabledByDefault": false,
-          "help": "Traces and budgets when you mix local and external models.",
+          "help": "One OpenAI-compatible endpoint with a token for your apps and devices.",
           "id": "observability",
-          "name": "Observability and gateway",
+          "name": "Model router and API access",
           "required": false,
           "requires": [
             "inference"
@@ -1193,18 +1355,22 @@
           "options": [
             {
               "id": "small",
+              "minMemoryGb": 8,
               "name": "Small",
-              "note": "Around 4 GB of memory"
+              "note": "Around 4 GB of memory, e.g. Qwen 3.5 4B"
             },
             {
               "id": "medium",
+              "minMemoryGb": 16,
               "name": "Medium",
-              "note": "Around 8 GB of memory"
+              "note": "Around 8 GB of memory, e.g. Qwen 3.5 9B"
             },
             {
               "id": "large",
+              "minMemoryGb": 32,
               "name": "Large",
-              "note": "16 GB of memory or more"
+              "needsAccelerator": true,
+              "note": "16 GB of memory or more, e.g. Qwen 3.5 27B"
             }
           ],
           "realization": "install"
@@ -1221,7 +1387,8 @@
             {
               "id": "local",
               "name": "On my own hardware",
-              "note": "Models run on this Node; private, no per-message cost"
+              "note": "Models run on this Node; private, no per-message cost",
+              "realization": "install"
             },
             {
               "id": "external",
@@ -1249,6 +1416,16 @@
           "id": "model-pack-coding",
           "kind": "toggle",
           "name": "Coding model",
+          "realization": "install"
+        },
+        {
+          "default": false,
+          "depth": "advanced",
+          "group": "features",
+          "help": "Let ComfyUI generate through external providers, so it works without a GPU. Off by default: nothing leaves the Node. When on, you sign in to your own Comfy.org account inside ComfyUI, prompts and images are sent to those providers, and their use may cost money on your provider account.",
+          "id": "comfyui-api-nodes",
+          "kind": "toggle",
+          "name": "External image and video providers",
           "realization": "install"
         },
         {
@@ -3339,6 +3516,10 @@
               "computeProfileFacts": {
                 "high": {
                   "executable": true,
+                  "headroom": {
+                    "cpuCores": 1.95,
+                    "ramGB": 0.375
+                  },
                   "hostFloor": {
                     "minCpuCores": 2,
                     "minRamGB": 4,
@@ -3346,9 +3527,17 @@
                   },
                   "maturity": "experimental",
                   "provenance": {
+                    "headroom": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    },
                     "hostFloor": {
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
+                    },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json",
+                      "source": "measured"
                     },
                     "reservation": {
                       "ref": "Kombify reservation policy; declared, not a sum of component limits",
@@ -3356,12 +3545,61 @@
                     }
                   },
                   "realization": "apply-ready",
-                  "reservation": {
+                  "recommended": {
+                    "cpuCores": 0.25,
                     "ramGB": 0.125
+                  },
+                  "reservation": {
+                    "cpuCores": 0.05,
+                    "ramGB": 0.125
+                  }
+                },
+                "low": {
+                  "executable": true,
+                  "headroom": {
+                    "cpuCores": 0.45,
+                    "ramGB": 0.0625
+                  },
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "headroom": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    },
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json",
+                      "source": "measured"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.125
+                  },
+                  "reservation": {
+                    "cpuCores": 0.05,
+                    "ramGB": 0.0625
                   }
                 },
                 "standard": {
                   "executable": true,
+                  "headroom": {
+                    "cpuCores": 0.95,
+                    "ramGB": 0.125
+                  },
                   "hostFloor": {
                     "minCpuCores": 2,
                     "minRamGB": 4,
@@ -3369,9 +3607,17 @@
                   },
                   "maturity": "experimental",
                   "provenance": {
+                    "headroom": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    },
                     "hostFloor": {
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
+                    },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json",
+                      "source": "measured"
                     },
                     "reservation": {
                       "ref": "Kombify reservation policy; declared, not a sum of component limits",
@@ -3379,13 +3625,19 @@
                     }
                   },
                   "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.125
+                  },
                   "reservation": {
+                    "cpuCores": 0.05,
                     "ramGB": 0.125
                   }
                 }
               },
               "computeProfiles": [
                 "high",
+                "low",
                 "standard"
               ],
               "id": "stackkits-adguard-home-runtime"
@@ -3416,12 +3668,24 @@
           },
           "moduleSlug": "adguard-home",
           "notes": [
-            "Same graph until measured variants are admitted."
+            "Same DNS/setup recipe; larger policy allocation. No measured high benefit or full V1 support is inferred."
           ]
         },
         "low": {
-          "included": false,
-          "reason": "Small-device admission and measurement remain pending."
+          "functions": [
+            "dns-filtering",
+            "selected-client-dns"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "adguard-home",
+          "notes": [
+            "Same DNS/setup recipe; smaller policy allocation. Physical small-device acceptance remains pending."
+          ]
         },
         "standard": {
           "functions": [
@@ -3436,7 +3700,7 @@
           },
           "moduleSlug": "adguard-home",
           "notes": [
-            "128 MiB policy reservation; unmeasured."
+            "Existing standard RAM allocation; CPU envelope is explicit. Measurements and policy are distinct."
           ]
         }
       },
@@ -3964,6 +4228,10 @@
               "computeProfileFacts": {
                 "high": {
                   "executable": true,
+                  "headroom": {
+                    "cpuCores": 1.95,
+                    "ramGB": 1.1875
+                  },
                   "hostFloor": {
                     "minCpuCores": 2,
                     "minRamGB": 4,
@@ -3971,12 +4239,16 @@
                   },
                   "maturity": "experimental",
                   "provenance": {
+                    "headroom": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    },
                     "hostFloor": {
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
                     },
                     "recommended": {
-                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json",
                       "source": "measured"
                     },
                     "reservation": {
@@ -3986,8 +4258,48 @@
                   },
                   "realization": "apply-ready",
                   "recommended": {
-                    "cpuCores": 0.5,
-                    "ramGB": 0.375
+                    "cpuCores": 0.25,
+                    "ramGB": 0.25
+                  },
+                  "reservation": {
+                    "cpuCores": 0.05,
+                    "ramGB": 0.3125
+                  }
+                },
+                "low": {
+                  "executable": true,
+                  "headroom": {
+                    "cpuCores": 0.45,
+                    "ramGB": 0.1875
+                  },
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "headroom": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    },
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "recommended": {
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json",
+                      "source": "measured"
+                    },
+                    "reservation": {
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+                      "source": "measured"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 0.25,
+                    "ramGB": 0.25
                   },
                   "reservation": {
                     "cpuCores": 0.05,
@@ -3996,6 +4308,10 @@
                 },
                 "standard": {
                   "executable": true,
+                  "headroom": {
+                    "cpuCores": 0.95,
+                    "ramGB": 0.4375
+                  },
                   "hostFloor": {
                     "minCpuCores": 2,
                     "minRamGB": 4,
@@ -4003,6 +4319,10 @@
                   },
                   "maturity": "experimental",
                   "provenance": {
+                    "headroom": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    },
                     "hostFloor": {
                       "ref": "Kombify host floor support policy",
                       "source": "policy"
@@ -4029,6 +4349,7 @@
               },
               "computeProfiles": [
                 "high",
+                "low",
                 "standard"
               ],
               "id": "stackkits-guacamole-runtime"
@@ -4059,12 +4380,24 @@
           },
           "moduleSlug": "guacamole",
           "notes": [
-            "Same graph as standard until measured variants are admitted."
+            "Same normal remote-session recipe with a larger aggregate policy envelope. No named measured high benefit or physical/V1 support is inferred."
           ]
         },
         "low": {
-          "included": false,
-          "reason": "The first Guacamole graph requires the standard host floor; smaller devices remain pending."
+          "functions": [
+            "browser-remote-access",
+            "remote-session"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "guacamole",
+          "notes": [
+            "Same normal remote-session recipe with a smaller aggregate policy envelope. Physical small-device and whole-case acceptance remain pending."
+          ]
         },
         "standard": {
           "functions": [
@@ -4079,7 +4412,7 @@
           },
           "moduleSlug": "guacamole",
           "notes": [
-            "Policy reservation is unmeasured; destination resources belong to the destination."
+            "Aggregate Guacamole/guacd demand is measured; declared allocation remains separate. Destination/browser resources belong to the destination/client."
           ]
         }
       },

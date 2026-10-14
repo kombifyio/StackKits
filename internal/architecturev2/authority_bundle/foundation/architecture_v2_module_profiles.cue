@@ -572,6 +572,20 @@ _architectureV2DoclingComputeProfile: #ModuleComputeProfileV2 & {
 }
 _architectureV2DoclingComputeProfiles: {standard: _architectureV2DoclingComputeProfile, high: _architectureV2DoclingComputeProfile}
 
+// The model router holds no owner data either; the models run in Ollama.
+_architectureV2LitellmComputeProfile: #ModuleComputeProfileV2 & {
+	description: "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.5
+	components: ["litellm"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
+}
+_architectureV2LitellmComputeProfiles: {standard: _architectureV2LitellmComputeProfile, high: _architectureV2LitellmComputeProfile}
+
 // Private AI image and video (ComfyUI), a core AI component (owner decision
 // 2026-09-27). Without an accelerator profile it runs on the CPU: upscaling
 // works on the floor below, text-to-image needs about 32 GB of RAM because

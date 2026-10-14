@@ -242,6 +242,8 @@ func ValidateSourceProjection(source Source) error {
 }
 
 func validateSourceProjection(source Source) error {
+	// Node-observed mount translation does not change the held policy artifact.
+	source.physicalVolumes = nil
 	applications, err := canonicalApplicationVolumes(source.ApplicationVolumes)
 	if err != nil {
 		return err

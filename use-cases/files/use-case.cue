@@ -83,6 +83,16 @@ Package: foundation.#UseCasePackage & {
 		}
 	}
 
+	committed: [
+		{kit: "basement-kit", alternative: "cloudreve", adapter: "standalone-compose", tier: "standard"},
+		{kit: "cloud-kit", alternative: "cloudreve", adapter: "standalone-compose", tier: "standard"},
+	]
+	journey: {
+		outcome: "Upload, download and share a file through Cloudreve."
+		invariantData: ["file bytes", "Cloudreve database with users and share links"]
+	}
+	recovery: sequence: ["cloudreve/data"]
+	scenarios: [{id: "SK-S1", role: "optional"}]
 	computeTiers: {
 		low: {
 			included:   true

@@ -269,7 +269,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		return ApplicationDeliveryBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed workload bundle", err)
 	}
 	allowedVersion := bundle.APIVersion == "stackkit.workload-bundle/v2" ||
-		(bundle.APIVersion == mosquittoWorkloadAPIVersion && bundle.Workload.ModuleRef == mosquittoWorkloadModuleID)
+		(bundle.APIVersion == mosquittoWorkloadAPIVersion && bundle.Workload.ModuleRef == mosquittoWorkloadModuleID) ||
+		(bundle.APIVersion == adguardHomeWorkloadAPIVersion && bundle.Workload.ModuleRef == adguardHomeWorkloadModuleID) ||
+		(bundle.APIVersion == guacamoleWorkloadAPIVersion && bundle.Workload.ModuleRef == guacamoleWorkloadModuleID)
 	if !allowedVersion ||
 		bundle.Workload.Delivery != "application-adapter" ||
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
@@ -289,7 +291,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if _, err := ParseMosquittoWorkloadBundle(data); err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
-	} else if len(bundle.ComputeProfile) != 0 {
+	} else if bundle.Workload.ModuleRef != adguardHomeWorkloadModuleID && bundle.Workload.ModuleRef != guacamoleWorkloadModuleID && len(bundle.ComputeProfile) != 0 {
 		return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path+".computeProfile", "workload does not admit a compute profile projection")
 	}
 	secretRefs := make(map[string]string, len(bundle.SecretRefs))
@@ -417,6 +419,16 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			JellyfinSSOPlugin:            component.JellyfinSSOPlugin,
 			HomeAssistantOIDC:            component.HomeAssistantOIDC,
 			HomeAssistantNotify:          component.HomeAssistantNotify,
+		}
+	}
+	if bundle.Workload.ModuleRef == adguardHomeWorkloadModuleID {
+		if _, err := ParseAdguardHomeWorkloadBundle(data); err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
+	}
+	if bundle.Workload.ModuleRef == guacamoleWorkloadModuleID {
+		if _, err := ParseGuacamoleWorkloadBundle(data); err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
 		}
 	}
 	if !entryFound || len(components) == 0 {

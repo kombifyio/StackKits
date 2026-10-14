@@ -11,20 +11,21 @@ _architectureV2GuacdImage: {ref: "docker.io/guacamole/guacd:1.6.0", digest: "sha
 _architectureV2GuacamoleStartup: "set +x; set -eu; umask 077; [ \"$GUACAMOLE_HOME\" = /dev/shm/stackkits-guacamole ]; [ \"$(stat -f -c %T /dev/shm)\" = tmpfs ]; [ \"$STACKKITS_OWNER_PASSWORD_FILE\" = /run/secrets/owner-password ]; [ -s \"$STACKKITS_OWNER_PASSWORD_FILE\" ]; [ -n \"$STACKKITS_REMOTE_CONNECTION_XML\" ]; [ ! -L \"$GUACAMOLE_HOME\" ]; mkdir -p \"$GUACAMOLE_HOME\"; chmod 700 \"$GUACAMOLE_HOME\"; sum=$(sha256sum < \"$STACKKITS_OWNER_PASSWORD_FILE\"); hash=${sum%% *}; [ \"${#hash}\" = 64 ]; case \"$hash\" in *[!0-9a-f]*) exit 1 ;; esac; mapping=$(mktemp \"$GUACAMOLE_HOME/.user-mapping.XXXXXX\"); trap 'rm -f \"$mapping\"' EXIT HUP INT TERM; printf '<?xml version=\"1.0\" encoding=\"UTF-8\"?><user-mapping><authorize username=\"owner\" password=\"%s\" encoding=\"sha256\">%s</authorize></user-mapping>\\n' \"$hash\" \"$STACKKITS_REMOTE_CONNECTION_XML\" > \"$mapping\"; chmod 600 \"$mapping\"; mv -f \"$mapping\" \"$GUACAMOLE_HOME/user-mapping.xml\"; trap - EXIT HUP INT TERM; unset hash sum mapping STACKKITS_REMOTE_CONNECTION_XML STACKKITS_OWNER_PASSWORD_FILE; exec /opt/guacamole/bin/entrypoint.sh"
 _architectureV2GuacamoleTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "guacamole", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 
-_architectureV2GuacamoleComputeProfile: #ModuleComputeProfileV2 & {
-	description: "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance."
+_architectureV2GuacamoleComputeProfile: {
+	description: "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate."
 	maturity:    "experimental", executable: true, realization: "apply-ready"
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: {ramGB: 0.3125, cpuCores: 0.05}
-	recommended: {ramGB: 0.375, cpuCores: 0.5}
 	components: ["guacd", "guacamole"]
-	provenance: {
-		hostFloor: _architectureV2PolicyFloorProvenance
-		reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}
-		recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}
-	}
+	provenance: {hostFloor: _architectureV2PolicyFloorProvenance, reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}}
 }
-_architectureV2GuacamoleComputeProfiles: {standard: _architectureV2GuacamoleComputeProfile, high: _architectureV2GuacamoleComputeProfile}
+// One module envelope is shared equally by both resident components.
+// The profile label never changes authentication, desktop protocols or user features.
+_architectureV2GuacamoleComputeProfiles: {
+	low: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {headroom: {ramGB: 0.1875, cpuCores: 0.45}, recommended: {ramGB: 0.25, cpuCores: 0.25}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json"}}}
+	standard: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {headroom: {ramGB: 0.4375, cpuCores: 0.95}, recommended: {ramGB: 0.375, cpuCores: 0.5}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}}}
+	high: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {headroom: {ramGB: 1.1875, cpuCores: 1.95}, recommended: {ramGB: 0.25, cpuCores: 0.25}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json"}}}
+}
 
 _architectureV2GuacamoleProviders: [{
 	metadata: {id: "stackkits-guacamole", version: "1.0.0"}
@@ -44,7 +45,7 @@ _architectureV2GuacamoleWorkloads: [#WorkloadContractV2 & {
 	dataClasses: ["personal"]
 	defaultAlternative: "guacamole"
 	computeTiers: {
-		low: {included: false, reason: "The first Guacamole module requires the standard host floor; small-device and measured tier acceptance remain pending."}
+		low: {included: true, alternativeID: "guacamole"}
 		standard: {included: true, alternativeID: "guacamole"}
 		high: {included: true, alternativeID: "guacamole"}
 	}
@@ -73,7 +74,7 @@ _architectureV2GuacamoleLifecycles: [#ApplicationLifecycleContractV1 & {
 _architectureV2GuacamoleSupport: #ModuleRealizationSupportV2 & {
 	contractVersion: "1.0.0", scope: "concrete", level: "apply-ready"
 	compatibleRendererRefs: ["stackkit"]
-	inputs: {contractComplete: true, requiredRefs: ["remote-connection", "owner-password"]}
+	inputs: {contractComplete: true, requiredRefs: ["remote-connection", "owner-password", "compute-profile"]}
 	artifacts: {
 		requiredRefs: ["guacamole-workload-bundle", _architectureV2GuacamoleTerramateStack.contract.id]
 		outputBindings: [{artifactRef: "guacamole-workload-bundle", unitRef: "guacamole", outputRef: "workloads/guacamole/bundle.json"}, _architectureV2GuacamoleTerramateStack.binding]
@@ -106,22 +107,22 @@ _architectureV2GuacamoleModules: [{
 	}
 	renderUnits: [{
 		id: "guacamole", kind: "native-config", rendererRef: "stackkit", compatibleTargets: ["compose", "opentofu"]
-		templateRef: "builtin://workloads/guacamole/bundle/v1.json", version: "1.0.0", contractHash: "sha256:4a168f443d13cb8596ac00fd4777cb4689b8a627224bcfcbf8add58175fdcdbc"
-		publicInputRefs: ["delivery-route", "remote-connection"]
-		inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
+		templateRef: "builtin://workloads/guacamole/bundle/v2.json", version: "2.0.0", contractHash: "sha256:9acbeb92d5afecfc7532c9c0bceb92c035214c85d1f85e0bdc9f20999415e586"
+		publicInputRefs: ["delivery-route", "remote-connection", "compute-profile"]
+		inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}, {targetRef: "compute-profile", sourceRef: "modules.computeProfileBinding", valueType: "module-compute-profile-v1", cardinality: "single", required: true}]
 		secretInputRefs: ["owner-password"], outputs: ["workloads/guacamole/bundle.json"]
 		placement: {scope: "node-local", cardinality: "one-per-node"}
 		serviceEndpoints: [{serviceRef: "remote", upstreamProtocol: "http", targetPort: 8080, requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"], allowedExposures: ["local", "remote-private", "public"], originSelector: "control-authority-site", healthRef: "guacamole-http", data: {bindingRef: "remote", requiredClasses: ["personal"], locality: "primary-site"}}]
 	}, _architectureV2GuacamoleTerramateStack.unit]
 	renderVariants: [{
 		id: "compose", target: "compose", rendererRef: "stackkit", contractHash: "sha256:c29cb073dde154d4aa38789b506874de7f2d2364fe8deb2dbb181a507fcc346a"
-		unitRefs: ["guacamole"], artifactRefs: ["guacamole-workload-bundle"], publicInputRefs: ["delivery-route", "remote-connection"], secretInputRefs: ["owner-password"], planInputRefs: []
+		unitRefs: ["guacamole"], artifactRefs: ["guacamole-workload-bundle"], publicInputRefs: ["delivery-route", "remote-connection", "compute-profile"], secretInputRefs: ["owner-password"], planInputRefs: []
 	}, {
 		id: "opentofu", target: "opentofu", rendererRef: "stackkit", contractHash: "sha256:c13901023f2cb0271580070c4e115940afa77510e42b9aad549bfd8981ed5690"
-		unitRefs: ["guacamole"], artifactRefs: ["guacamole-workload-bundle"], publicInputRefs: ["delivery-route", "remote-connection"], secretInputRefs: ["owner-password"], planInputRefs: []
+		unitRefs: ["guacamole"], artifactRefs: ["guacamole-workload-bundle"], publicInputRefs: ["delivery-route", "remote-connection", "compute-profile"], secretInputRefs: ["owner-password"], planInputRefs: []
 	}, {
 		id: "terramate", target: "terramate", rendererRef: "stackkit", contractHash: _architectureV2TerramateStackHashes.workload
-		unitRefs: ["guacamole", "terramate-stack"], artifactRefs: ["guacamole-workload-bundle", _architectureV2GuacamoleTerramateStack.contract.id], publicInputRefs: ["delivery-route", "remote-connection"], secretInputRefs: ["owner-password"], planInputRefs: []
+		unitRefs: ["guacamole", "terramate-stack"], artifactRefs: ["guacamole-workload-bundle", _architectureV2GuacamoleTerramateStack.contract.id], publicInputRefs: ["delivery-route", "remote-connection", "compute-profile"], secretInputRefs: ["owner-password"], planInputRefs: []
 	}]
 	realizationSupport: _architectureV2GuacamoleSupport
 	health: [{id: "guacamole-http", phase: "continuous", kind: "http", path: "/", port: 8080, timeoutSeconds: 10, expectedStatuses: [200]}]

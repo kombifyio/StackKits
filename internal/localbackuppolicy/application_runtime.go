@@ -14,11 +14,12 @@ import (
 // policy so lifecycle consumers cannot infer stop order from Docker names or
 // mutable container labels.
 type ApplicationRuntime struct {
-	WorkloadRef    string                        `json:"workloadRef"`
-	SiteRef        string                        `json:"siteRef"`
-	NodeRef        string                        `json:"nodeRef"`
-	ComposeProject string                        `json:"composeProject"`
-	Components     []ApplicationRuntimeComponent `json:"components"`
+	RuntimeAdapterRef string                        `json:"runtimeAdapterRef,omitempty"`
+	WorkloadRef       string                        `json:"workloadRef"`
+	SiteRef           string                        `json:"siteRef"`
+	NodeRef           string                        `json:"nodeRef"`
+	ComposeProject    string                        `json:"composeProject"`
+	Components        []ApplicationRuntimeComponent `json:"components"`
 }
 
 // ApplicationRuntimeComponent is one closed runtime graph node. ImageRef and
@@ -95,6 +96,9 @@ func canonicalApplicationRuntimes(runtimes []ApplicationRuntime) ([]ApplicationR
 }
 
 func validateApplicationRuntime(runtime ApplicationRuntime) error {
+	if runtime.RuntimeAdapterRef != "" && runtime.RuntimeAdapterRef != "standalone-compose" && runtime.RuntimeAdapterRef != "coolify" {
+		return fmt.Errorf("unsupported application runtime adapter")
+	}
 	for _, field := range []struct {
 		name  string
 		value string

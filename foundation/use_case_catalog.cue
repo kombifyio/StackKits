@@ -46,7 +46,22 @@ import "list"
 	name: string & =~"^.+$"
 	// One-line consequence of choosing it, customer-facing.
 	note?: string & =~"^.+$"
+	// Overrides the setting's realization for this option, so a recorded
+	// setting can still say that its default choice is what installs.
+	realization?: "install" | "recorded"
+	// The server memory in GB this option needs to run well. A consumer that
+	// knows the target server recommends the largest option that fits.
+	minMemoryGb?: int & >0
+	// The option needs a GPU or other accelerator to be usable in practice.
+	needsAccelerator?: bool
+	// The option widens exposure; it can never be the setting's default.
+	widens?: #UseCaseWidening
 }
+
+// How a setting or option widens a use case beyond the safe default
+// (docs/USE_CASE_STANDARD.md D4): reachable without an account, open account
+// creation, or user data sent to an outside provider.
+#UseCaseWidening: "public-access" | "self-signup" | "external-data"
 
 #UseCaseSetting: {
 	id:   =~"^[a-z][a-z0-9-]+$"
@@ -63,9 +78,18 @@ import "list"
 	if kind == "choice" {
 		options: [...#UseCaseSettingOption] & [_, _, ...]
 		default: string
+		// D4: the default option never widens exposure.
+		_safeDefault: [for option in options if option.id == default && option.widens != _|_ {option.id}] & []
 	}
 	if kind == "toggle" {
 		default: bool
+	}
+
+	// D4: a toggle that widens exposure is off by default.
+	widens?: #UseCaseWidening
+	if widens != _|_ {
+		kind:    "toggle"
+		default: false
 	}
 	if kind == "text" {
 		default:      string
@@ -168,6 +192,51 @@ import "list"
 	_notSelfRequired: [for ref in requires if ref == id {ref}] & []
 }
 
+// A bundle groups capability modules of one use case under one customer-facing
+// choice (owner request 2026-10-13: Private AI offers five bundles instead of
+// ten modules). It is catalog grouping only: turning a bundle on selects its
+// defaults through the same `--use-case-capability` authoring, so StackSpec,
+// resolver and workloads never see a bundle. A use case that declares bundles
+// places every capability module in exactly one of them.
+#UseCaseBundle: {
+	id:    =~"^[a-z][a-z0-9-]+$"
+	name:  string & =~"^.+$"
+	help?: string & =~"^.+$"
+	// Concrete things a person does with the bundle, in customer language.
+	examples?: [...string & =~"^.+$"] & list.MinItems(1)
+	// The capability modules this bundle groups, in display order. A module
+	// several bundles need may appear in each of them; it installs once.
+	capabilities: [...=~"^[a-z][a-z0-9-]+$"] & list.MinItems(1)
+	// The modules turning the bundle on selects; the others stay individual
+	// choices inside it. A bundle that is on by default selects exactly its
+	// enabledByDefault modules, so the default composition never changes.
+	defaults: [...=~"^[a-z][a-z0-9-]+$"] & list.MinItems(1)
+	// Derived facts, checked by the catalog generator: a bundle is required
+	// when it holds a required module and on by default when it holds a module
+	// that is on by default.
+	required:         bool | *false
+	enabledByDefault: bool | *false
+	if required {
+		enabledByDefault: true
+	}
+
+	// For experienced owners only; consumers never preselect it.
+	advanced: bool | *false
+	if advanced {
+		enabledByDefault: false
+	}
+
+	// Consumers recommend the bundle when the Node has a GPU; it still runs
+	// without one.
+	recommendsAccelerator: bool | *false
+	// Its installing modules run in a gVisor sandbox; the host needs the runsc
+	// runtime (`stackkit host remediate --apply gvisor-runsc`).
+	requiresSandbox:     bool | *false
+	_capabilitiesUnique: list.UniqueItems(capabilities) & true
+	_defaultsUnique:     list.UniqueItems(defaults) & true
+	_defaultsInBundle: [for ref in defaults {list.Contains(capabilities, ref) & true}]
+}
+
 // The owner-accepted main use cases, including Marketplace (2026-10-10),
 // keyed by id. Several catalog slugs share one main use case
 // until their compatibility migrations merge them (files + documents, dev +
@@ -222,6 +291,17 @@ import "list"
 		_capabilityRequiresKnown: [for capability in capabilities for ref in capability.requires {
 			matches: [for candidate in capabilities if candidate.id == ref {ref}] & list.MinItems(1)
 		}]
+	}
+
+	// Customer-facing groups of the capability modules; see #UseCaseBundle.
+	bundles?: [...#UseCaseBundle] & list.MinItems(2)
+	if bundles != _|_ {
+		_bundleIDsUnique: list.UniqueItems([for bundle in bundles {bundle.id}]) & true
+		_bundledCapabilities: [for bundle in bundles for ref in bundle.capabilities {ref}]
+		// A module in no bundle stays in the catalog but setup does not offer
+		// it; the generator checks that every required or default module is
+		// in a bundle.
+		_bundledCapabilitiesKnown: [for ref in _bundledCapabilities {list.Contains([for capability in capabilities {capability.id}], ref) & true}]
 	}
 
 	// Path of this use case's guide on docs.kombify.io. Entries sharing a main
@@ -383,6 +463,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 					group:       "access"
 					depth:       "summary"
 					help:        "Add Immich Public Proxy so people without an account can open the albums you share, while Immich itself stays private."
+					widens:      "public-access"
 					default:     false
 					realization: "install"
 					workloadRef: "photos-share"
@@ -497,6 +578,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 					group:       "access"
 					depth:       "advanced"
 					help:        "Let people create their own vault account. Off means the owner invites them."
+					widens:      "self-signup"
 					default:     false
 					realization: "recorded"
 				},
@@ -604,9 +686,11 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth: "advanced"
 					help:  "Larger models answer better and need more memory."
 					options: [
-						{id: "small", name: "Small", note: "Around 4 GB of memory"},
-						{id: "medium", name: "Medium", note: "Around 8 GB of memory"},
-						{id: "large", name: "Large", note: "16 GB of memory or more"},
+						// minMemoryGb is the whole server, not the model alone:
+						// the model plus the system and the other modules.
+						{id: "small", name: "Small", note: "Around 4 GB of memory, e.g. Qwen 3.5 4B", minMemoryGb: 8},
+						{id: "medium", name: "Medium", note: "Around 8 GB of memory, e.g. Qwen 3.5 9B", minMemoryGb: 16},
+						{id: "large", name: "Large", note: "16 GB of memory or more, e.g. Qwen 3.5 27B", minMemoryGb: 32, needsAccelerator: true},
 					]
 					default: "small"
 					// The ai workload setting of the same id: the size of every
@@ -624,8 +708,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 					depth: "summary"
 					help:  "Run models on your own hardware, or use only your own interface with a provider you already pay for."
 					options: [
-						{id: "local", name: "On my own hardware", note: "Models run on this Node; private, no per-message cost"},
-						{id: "external", name: "Only my own interface", note: "Your own chat on top of OpenAI, Anthropic or another provider; no models on your hardware"},
+						{id: "local", name: "On my own hardware", note: "Models run on this Node; private, no per-message cost", realization: "install"},
+						{id: "external", name: "Only my own interface", widens: "external-data", note: "Your own chat on top of OpenAI, Anthropic or another provider; no models on your hardware"},
 					]
 					default:     "local"
 					realization: "recorded"
@@ -655,6 +739,22 @@ UseCaseCatalog: #UseCaseCatalog & {
 					realization: "install"
 				},
 				{
+					// Owner decision 2026-10-14: ComfyUI must not depend on a GPU.
+					// Without one it can generate through external providers (the
+					// ComfyUI API nodes, signed in inside ComfyUI with the owner's own
+					// Comfy.org account). The ai-image-video workload setting of the
+					// same id; StackKits stores no credential.
+					id:          "comfyui-api-nodes"
+					name:        "External image and video providers"
+					kind:        "toggle"
+					group:       "features"
+					depth:       "advanced"
+					help:        "Let ComfyUI generate through external providers, so it works without a GPU. Off by default: nothing leaves the Node. When on, you sign in to your own Comfy.org account inside ComfyUI, prompts and images are sent to those providers, and their use may cost money on your provider account."
+					widens:      "external-data"
+					default:     false
+					realization: "install"
+				},
+				{
 					id:          "model-pack-vision"
 					name:        "Vision model"
 					kind:        "toggle"
@@ -679,6 +779,50 @@ UseCaseCatalog: #UseCaseCatalog & {
 			// of SpeechKit #638 yet and ghcr.io/kombifyio/speechkit-server is
 			// not publicly pullable. The flip is documented in
 			// docs/use-case-expansion/ai-agents.md.
+			// Owner decision 2026-10-14 (AI use-case review section 4): four
+			// bundles, each a goal a person has for AI at home. A module two
+			// bundles need (web search) is installed once. Speech, agent
+			// harness and agent control plane sit in no bundle: they stay in
+			// the catalog but setup no longer offers them. Creative studio has
+			// no GPU condition: ComfyUI runs on the CPU, on an NVIDIA GPU or,
+			// opted in, through external providers.
+			bundles: [
+				{
+					id:   "local-ai"
+					name: "My local AI"
+					help: "Own and run your AI models on your hardware, offline, with no subscription and no outside provider."
+					examples: ["Load models from a reviewed list and compare them", "Keep one model for coding and one that understands images", "Use your own AI from your phone, editor or Home Assistant with a token"]
+					capabilities: ["inference", "observability"]
+					defaults: ["inference"]
+					required: true
+				},
+				{
+					id:   "private-chat"
+					name: "My private Chat"
+					help: "Write, ask and think with an AI without your data leaving the house."
+					examples: ["Draft an email, translate or summarise", "Ask questions with web search", "Ask questions about your own PDFs, with one account per family member"]
+					capabilities: ["chat", "web-search", "document-parsing"]
+					defaults: ["chat"]
+					enabledByDefault: true
+				},
+				{
+					id:   "creative-studio"
+					name: "Creative studio"
+					help: "Create images and improve old photos, on the CPU, a GPU or an optional external provider."
+					examples: ["Design an invitation card or an avatar", "Upscale an old photo", "Create an image from the chat or a short clip from an image"]
+					capabilities: ["image-video"]
+					defaults: ["image-video"]
+				},
+				{
+					id:   "personal-assistant"
+					name: "My personal assistant"
+					help: "Takes small tasks off your hands and remembers things; it drafts first and every further permission is yours to grant."
+					examples: ["Summarise appointments and weather each morning", "Remind you and prepare research", "Draft replies and reach you through a messenger"]
+					capabilities: ["assistant", "web-search"]
+					defaults: ["assistant"]
+					advanced: true
+				},
+			]
 			capabilities: [
 				{
 					id:       "inference"
@@ -724,7 +868,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 					name: "Image and video"
 					help: "Create and edit images and short videos from reviewed workflow templates."
 					requires: ["inference"]
-					default: {id: "comfyui", name: "ComfyUI", note: "Runs on the CPU (slow; upscaling, and text-to-image with 32 GB RAM); an NVIDIA GPU with 8 GB makes images fast, video needs 16 GB of VRAM", realization: "install", workloadRef: "ai-image-video", alternativeRef: "comfyui"}
+					default: {id: "comfyui", name: "ComfyUI", note: "No GPU needed: runs on the CPU (slow; upscaling, and text-to-image with 32 GB RAM), on an NVIDIA GPU with 8 GB for fast images (video needs 16 GB of VRAM), or through optional external providers with the comfyui-api-nodes setting", realization: "install", workloadRef: "ai-image-video", alternativeRef: "comfyui"}
 					alternative: {id: "invokeai", name: "InvokeAI", realization: "recorded"}
 				},
 				{
@@ -769,11 +913,15 @@ UseCaseCatalog: #UseCaseCatalog & {
 				},
 				{
 					id:   "observability"
-					name: "Observability and gateway"
-					help: "Traces and budgets when you mix local and external models."
+					name: "Model router and API access"
+					help: "One OpenAI-compatible endpoint with a token for your apps and devices."
 					requires: ["inference"]
-					default: {id: "langfuse", name: "Langfuse", realization: "recorded"}
-					alternative: {id: "litellm", name: "LiteLLM", realization: "recorded"}
+					// LiteLLM installs as the add-on workload ai-gateway in front
+					// of the node's Ollama; apps and devices authenticate with
+					// its master key. Langfuse stays recorded: tracing needs its
+					// own PostgreSQL and ClickHouse stack.
+					default: {id: "litellm", name: "LiteLLM", note: "Apps and devices use the master key from owner custody", realization: "install", workloadRef: "ai-gateway", alternativeRef: "litellm"}
+					alternative: {id: "langfuse", name: "Langfuse", note: "Traces and budgets", realization: "recorded", pending: "needs its own PostgreSQL and ClickHouse stack"}
 				},
 			]
 		}
@@ -907,6 +1055,9 @@ UseCaseCatalog: #UseCaseCatalog & {
 			mainUseCase: id: "dev"
 			docs: "/guides/stackkits/use-cases/development"
 			components: guacamole: {id: "guacamole", name: "Apache Guacamole", role: "primary", kind: "application"}
+			// Stateless by design: GUACAMOLE_HOME is tmpfs, connections come from the
+			// StackSpec and destination credentials are prompted, never stored.
+			notApplicable: "setup-network-auth-data-backup": reason: "No persistent user data: Guacamole runs from tmpfs with connections rendered from the StackSpec and prompted destination credentials; the owner password is node custody; setup is the declared owner-login check."
 		}
 	}
 }

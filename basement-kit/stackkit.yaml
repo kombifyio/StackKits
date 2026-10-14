@@ -366,6 +366,24 @@ application:
     defaultTool: guacamole
     alternatives: []
     description: "Remote desktop access"
+  documents:
+    role: optional            # Native kit selection lists it optional with empty defaults.
+    package: documents
+    defaultTool: paperless-ngx
+    alternatives: []
+    description: "Document archive with OCR and search"
+  network:
+    role: optional            # Native kit selection lists it optional with empty defaults.
+    package: network
+    defaultTool: adguard-home
+    alternatives: []
+    description: "DNS filtering for selected clients"
+  marketplace:
+    role: optional            # Native kit selection lists it optional with empty defaults.
+    package: marketplace
+    defaultTool: null
+    alternatives: []
+    description: "Optional application store"
 
 # Foundation services (L1, always present for the BaseKit public beta).
 foundation:

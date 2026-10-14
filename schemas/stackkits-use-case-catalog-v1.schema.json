@@ -82,7 +82,10 @@
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "name": { "type": "string", "minLength": 1 },
-        "note": { "type": "string", "minLength": 1 }
+        "note": { "type": "string", "minLength": 1 },
+        "realization": { "type": "string", "enum": ["install", "recorded"] },
+        "minMemoryGb": { "type": "integer", "minimum": 1 },
+        "needsAccelerator": { "type": "boolean" }
       }
     },
     "useCaseSetting": {
@@ -143,6 +146,24 @@
         "alternative": { "$ref": "#/$defs/useCaseCapabilityOption" }
       }
     },
+    "useCaseBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "capabilities", "defaults", "required", "enabledByDefault", "advanced", "recommendsAccelerator", "requiresSandbox"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "name": { "type": "string", "minLength": 1 },
+        "help": { "type": "string", "minLength": 1 },
+        "examples": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "capabilities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" } },
+        "defaults": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" } },
+        "required": { "type": "boolean" },
+        "enabledByDefault": { "type": "boolean" },
+        "advanced": { "type": "boolean" },
+        "recommendsAccelerator": { "type": "boolean" },
+        "requiresSandbox": { "type": "boolean" }
+      }
+    },
     "mainUseCase": {
       "type": "object",
       "additionalProperties": false,
@@ -174,6 +195,7 @@
         },
         "settings": { "type": "array", "items": { "$ref": "#/$defs/useCaseSetting" } },
         "capabilities": { "type": "array", "items": { "$ref": "#/$defs/useCaseCapability" } },
+        "bundles": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/useCaseBundle" } },
         "docs": { "type": "string", "pattern": "^/[a-z0-9/-]+$" },
         "defaultAlternative": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "alternatives": { "type": "array", "items": { "$ref": "#/$defs/authoringAlternative" } },

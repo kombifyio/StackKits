@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -262,6 +263,9 @@ func (o *osStandaloneComposeWorkloadOperations) waitForComponentReadiness(
 			return fmt.Errorf("standalone Docker Compose readiness observation failed: %w", err)
 		}
 		statuses, err := parseStandaloneComposeStatuses(raw)
+		if project.runtimeProject != "" && len(bytes.TrimSpace(raw)) == 0 {
+			statuses, err = map[string]standaloneComposePS{}, nil
+		}
 		if err != nil {
 			return err
 		}
@@ -415,6 +419,10 @@ func (o *osStandaloneComposeWorkloadOperations) ObserveWorkload(
 	if err := o.verifyPersisted(project); err != nil {
 		return SelectedPaaSWorkloadObservation{}, err
 	}
+	return o.observePreparedWorkload(ctx, deployment, project)
+}
+
+func (o *osStandaloneComposeWorkloadOperations) observePreparedWorkload(ctx context.Context, deployment SelectedPaaSWorkloadDeployment, project standaloneComposeProject) (SelectedPaaSWorkloadObservation, error) {
 	raw, err := o.runner.Run(ctx, standaloneComposeArgs(project, "ps"), project.directory)
 	if err != nil {
 		return SelectedPaaSWorkloadObservation{}, fmt.Errorf("standalone Docker Compose status observation failed: %w", err)
@@ -482,14 +490,17 @@ func (o *osStandaloneComposeWorkloadOperations) ValidateWorkloadObservation(
 }
 
 type standaloneComposeProject struct {
-	unitRef     string
-	name        string
-	directory   string
-	compose     []byte
-	environment []byte
-	configFiles map[string][]byte
-	bundle      architecturev2renderer.ApplicationDeliveryBundleDescriptor
-	entry       architecturev2renderer.ApplicationDeliveryComponentDescriptor
+	unitRef string
+	name    string
+	// The selected manager's physical Compose identity; the canonical node
+	// project and persisted recipe remain StackKits-owned.
+	runtimeProject string
+	directory      string
+	compose        []byte
+	environment    []byte
+	configFiles    map[string][]byte
+	bundle         architecturev2renderer.ApplicationDeliveryBundleDescriptor
+	entry          architecturev2renderer.ApplicationDeliveryComponentDescriptor
 }
 
 func (o *osStandaloneComposeWorkloadOperations) prepare(
@@ -1350,8 +1361,12 @@ func standaloneComposeRecreateArgs(project standaloneComposeProject, service str
 }
 
 func standaloneComposeArgs(project standaloneComposeProject, operation string) []string {
+	physicalProject := project.name
+	if project.runtimeProject != "" {
+		physicalProject = project.runtimeProject
+	}
 	prefix := []string{
-		"compose", "--project-name", project.name, "--env-file", filepath.Join(project.directory, ".env"),
+		"compose", "--project-name", physicalProject, "--env-file", filepath.Join(project.directory, ".env"),
 		"-f", filepath.Join(project.directory, "compose.yaml"),
 	}
 	switch operation {
@@ -1381,14 +1396,27 @@ var standaloneComposeDockerRootArgs = []string{"info", "--format", "{{.DockerRoo
 
 type osStandaloneComposeProcessRunner struct{}
 
-func (osStandaloneComposeProcessRunner) Run(
+func (r osStandaloneComposeProcessRunner) Run(
 	ctx context.Context,
 	args []string,
 	directory string,
 ) ([]byte, error) {
+	return r.RunStreaming(ctx, args, directory, nil)
+}
+
+// RunStreaming is Run under the same closed process contract that also
+// forwards the live output to live. A streamed process (a model pull prints
+// thousands of progress updates) is not bounded by the 256 KiB buffer: the
+// writer keeps only the last bytes for diagnostics and the call returns them.
+func (osStandaloneComposeProcessRunner) RunStreaming(
+	ctx context.Context,
+	args []string,
+	directory string,
+	live io.Writer,
+) ([]byte, error) {
 	dockerRootQuery := slices.Equal(args, standaloneComposeDockerRootArgs)
 	jellyfinDiscoveryQuery := validJellyfinDiscoveryQuery(args)
-	if !dockerRootQuery && !jellyfinDiscoveryQuery && !validNetworkGatewayQuery(args) && !validWorkloadManagerQuery(args) && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
+	if !dockerRootQuery && !jellyfinDiscoveryQuery && !validNetworkGatewayQuery(args) && !validWorkloadManagerQuery(args) && !validWorkloadVolumeCreateQuery(args, directory) && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
 		args[3] != "--env-file" || filepath.Dir(args[4]) != directory ||
 		filepath.Base(args[4]) != ".env" || args[5] != "-f" ||
 		filepath.Dir(args[6]) != directory || filepath.Base(args[6]) != "compose.yaml") {
@@ -1411,6 +1439,15 @@ func (osStandaloneComposeProcessRunner) Run(
 		}
 	}
 	output := &standaloneComposeBoundedBuffer{remaining: standaloneComposeOutputMax}
+	if live != nil {
+		tail := &standaloneComposeTailBuffer{limit: 16 << 10}
+		command.Stdout = io.MultiWriter(tail, live)
+		command.Stderr = command.Stdout
+		if err := command.Run(); err != nil {
+			return nil, &standaloneComposeProcessError{output: boundedBasementCoreProcessDiagnostic(tail.Bytes()), cause: err}
+		}
+		return append([]byte(nil), tail.Bytes()...), nil
+	}
 	command.Stdout, command.Stderr = output, output
 	if err := command.Run(); err != nil {
 		return nil, &standaloneComposeProcessError{
@@ -1423,6 +1460,20 @@ func (osStandaloneComposeProcessRunner) Run(
 		}
 	}
 	return append([]byte(nil), output.Bytes()...), nil
+}
+
+// standaloneComposeTailBuffer keeps the last limit bytes written to it.
+type standaloneComposeTailBuffer struct {
+	bytes.Buffer
+	limit int
+}
+
+func (b *standaloneComposeTailBuffer) Write(value []byte) (int, error) {
+	_, _ = b.Buffer.Write(value)
+	if extra := b.Len() - b.limit; extra > 0 {
+		b.Next(extra)
+	}
+	return len(value), nil
 }
 
 type standaloneComposeBoundedBuffer struct {

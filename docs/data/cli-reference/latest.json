@@ -1613,6 +1613,12 @@
           "type": "bool",
           "description": "Authorize live activation with the established local Owner custody",
           "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Activate only this selected Coolify application's backed-up volumes",
+          "required": false
         }
       ],
       "subcommands": []

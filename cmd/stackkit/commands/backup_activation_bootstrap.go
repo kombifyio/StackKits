@@ -20,11 +20,12 @@ import (
 // data, so both outcomes leave Core identity and workload routing configured.
 type restoreActivationBootstrapRuntime struct {
 	restoreactivation.Runtime
-	workspace   string
-	executable  string
-	coreModule  string
-	workloads   map[string][]byte
-	marketplace *architecturev2renderer.MarketplaceCoolifyDocument
+	workspace       string
+	executable      string
+	coreModule      string
+	workloads       map[string][]byte
+	marketplace     *architecturev2renderer.MarketplaceCoolifyDocument
+	applicationOnly bool
 
 	prepareCore      func(context.Context, string, string, string) (func(context.Context) error, error)
 	completeWorkload func(context.Context, string, []byte) error
@@ -107,6 +108,9 @@ func (runtime *restoreActivationBootstrapRuntime) Start(
 	ctx context.Context,
 	authority restoreactivation.Authority,
 ) error {
+	if runtime != nil && runtime.applicationOnly {
+		return runtime.Runtime.Start(ctx, authority)
+	}
 	if runtime == nil || runtime.Runtime == nil || runtime.coreModule == "" || runtime.workloads == nil {
 		return errors.New("restore activation bootstrap is not bound to verified runtime authority")
 	}

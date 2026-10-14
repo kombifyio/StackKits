@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "83de297b12007e54af4428ec5dab3f5eb958af58",
-  "authority_bundle_sha256": "f014d04021f2f7a97bb7c272cde5ce24401f9a6ab975d39601a17d253d61a592",
+  "source_sha": "bcfa561ea9becb844036d4e1e6264fe77d5d25f9",
+  "authority_bundle_sha256": "26fa38c728a0781562dc8c8407290d2950b01923e33b68a74d76271ba0b38e50",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -22,18 +22,27 @@
           "default_compute_profile": "standard",
           "compute_profiles": [
             {
-              "id": "standard",
+              "id": "low",
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+              "description": "Same private selected-client DNS/setup functions with a smaller declared allocation. Physical small-device and whole-case qualification remain pending.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
                 "storage_gb": 20
               },
               "reservation": {
+                "cpu_cores": 0.05,
+                "ram_gb": 0.0625
+              },
+              "headroom": {
+                "cpu_cores": 0.45,
+                "ram_gb": 0.0625
+              },
+              "recommended": {
+                "cpu_cores": 0.25,
                 "ram_gb": 0.125
               },
               "architectures": [],
@@ -51,9 +60,68 @@
                 "reservation": {
                   "source": "policy",
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "d0579217763de7b121d823f893aaaaa9760ab53e4d67930894aa1d042f7483ec"
+              "profile_sha256": "fba9976049895fa8fd136fc314d620b0db2e74ad76d76133629bcfd90941a3b0"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Same private selected-client DNS/setup functions with the existing standard RAM envelope; CPU allocation is explicit. Physical/current-public qualification remains pending.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.05,
+                "ram_gb": 0.125
+              },
+              "headroom": {
+                "cpu_cores": 0.95,
+                "ram_gb": 0.125
+              },
+              "recommended": {
+                "cpu_cores": 0.25,
+                "ram_gb": 0.125
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "adguard-home"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "53a7d84bf29ca7199a5d061bd15c68b61c7a0122590b9ba0f035a23dbbcbc886"
             },
             {
               "id": "high",
@@ -61,13 +129,22 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+              "description": "Same private selected-client DNS/setup functions with a larger declared allocation. No new product function, QPS setting or measured high benefit is inferred.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
                 "storage_gb": 20
               },
               "reservation": {
+                "cpu_cores": 0.05,
+                "ram_gb": 0.125
+              },
+              "headroom": {
+                "cpu_cores": 1.95,
+                "ram_gb": 0.375
+              },
+              "recommended": {
+                "cpu_cores": 0.25,
                 "ram_gb": 0.125
               },
               "architectures": [],
@@ -85,9 +162,17 @@
                 "reservation": {
                   "source": "policy",
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "149f0055e1dd823b12a1f85af6fe2ef5be71f5acd61d76a51c4088987b306a54"
+              "profile_sha256": "1db6074adcbbfb701e0c2d6b2441d0280fdca53d23ac31a32fade8d33fe0d005"
             }
           ],
           "storage_profiles": [],
@@ -1488,12 +1573,12 @@
           "default_compute_profile": "standard",
           "compute_profiles": [
             {
-              "id": "standard",
+              "id": "low",
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance.",
+              "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1502,6 +1587,62 @@
               "reservation": {
                 "cpu_cores": 0.05,
                 "ram_gb": 0.3125
+              },
+              "headroom": {
+                "cpu_cores": 0.45,
+                "ram_gb": 0.1875
+              },
+              "recommended": {
+                "cpu_cores": 0.25,
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "guacamole",
+                "guacd"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                },
+                "recommended": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "6c60b91e497c0d245b725a83ad0766f6eabd73e2c2dd85b33b5f6ed4abb59829"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.05,
+                "ram_gb": 0.3125
+              },
+              "headroom": {
+                "cpu_cores": 0.95,
+                "ram_gb": 0.4375
               },
               "recommended": {
                 "cpu_cores": 0.5,
@@ -1527,9 +1668,13 @@
                 "recommended": {
                   "source": "measured",
                   "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "d79de0622998573e4a5b1834cfc48cae2c6400c8164b3a8200dcec5612287c6d"
+              "profile_sha256": "88e05fef05828931204aafd7ca2a2d0f6d1418fb507ba6300e15c011464aa771"
             },
             {
               "id": "high",
@@ -1537,7 +1682,7 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance.",
+              "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -1547,9 +1692,13 @@
                 "cpu_cores": 0.05,
                 "ram_gb": 0.3125
               },
+              "headroom": {
+                "cpu_cores": 1.95,
+                "ram_gb": 1.1875
+              },
               "recommended": {
-                "cpu_cores": 0.5,
-                "ram_gb": 0.375
+                "cpu_cores": 0.25,
+                "ram_gb": 0.25
               },
               "architectures": [],
               "virtualization": [],
@@ -1570,10 +1719,14 @@
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "19d0d2670713db285efca9b918284f7c8fe7ff959c7a60f97b2fdd99015cabf1"
+              "profile_sha256": "9b0f7e9bcbe5541f7468779925879a0be187dd755198b5bd9572bc8d7c1271d7"
             }
           ],
           "storage_profiles": [],
@@ -2458,6 +2611,88 @@
                 }
               },
               "profile_sha256": "18dce902e64f66ec2fd3b90c234c033d93f73590a3e9b6e98f39693b9704dbb0"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-litellm-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-gateway"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "litellm"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "fc90b6ae0817f007bd26a6621dd1056280e5a353dd8ff7827ef9654f5880a01a"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "litellm"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "7ac04629eaccac3363e822dd84254551b8b5165daa7a7836d18f040ce8d30ae2"
             }
           ],
           "storage_profiles": [],
@@ -4432,6 +4667,29 @@
               "module_id": "stackkits-tika-runtime",
               "functions": [
                 "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-gateway",
+          "title": "ai-gateway",
+          "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models, selected with the Private AI model-router module. Every request needs the master key from owner custody; the route is local or remote-private, never public.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "litellm",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "litellm",
+              "module_id": "stackkits-litellm-runtime",
+              "functions": [
+                "model-routing"
               ],
               "load": {
                 "residency": "always-on",
@@ -6658,12 +6916,12 @@
           "default_compute_profile": "standard",
           "compute_profiles": [
             {
-              "id": "standard",
+              "id": "low",
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance.",
+              "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -6672,6 +6930,62 @@
               "reservation": {
                 "cpu_cores": 0.05,
                 "ram_gb": 0.3125
+              },
+              "headroom": {
+                "cpu_cores": 0.45,
+                "ram_gb": 0.1875
+              },
+              "recommended": {
+                "cpu_cores": 0.25,
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "guacamole",
+                "guacd"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                },
+                "recommended": {
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "6c60b91e497c0d245b725a83ad0766f6eabd73e2c2dd85b33b5f6ed4abb59829"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.05,
+                "ram_gb": 0.3125
+              },
+              "headroom": {
+                "cpu_cores": 0.95,
+                "ram_gb": 0.4375
               },
               "recommended": {
                 "cpu_cores": 0.5,
@@ -6697,9 +7011,13 @@
                 "recommended": {
                   "source": "measured",
                   "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "d79de0622998573e4a5b1834cfc48cae2c6400c8164b3a8200dcec5612287c6d"
+              "profile_sha256": "88e05fef05828931204aafd7ca2a2d0f6d1418fb507ba6300e15c011464aa771"
             },
             {
               "id": "high",
@@ -6707,7 +7025,7 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance.",
+              "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -6717,9 +7035,13 @@
                 "cpu_cores": 0.05,
                 "ram_gb": 0.3125
               },
+              "headroom": {
+                "cpu_cores": 1.95,
+                "ram_gb": 1.1875
+              },
               "recommended": {
-                "cpu_cores": 0.5,
-                "ram_gb": 0.375
+                "cpu_cores": 0.25,
+                "ram_gb": 0.25
               },
               "architectures": [],
               "virtualization": [],
@@ -6740,10 +7062,14 @@
                 },
                 "recommended": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json"
+                },
+                "headroom": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "19d0d2670713db285efca9b918284f7c8fe7ff959c7a60f97b2fdd99015cabf1"
+              "profile_sha256": "9b0f7e9bcbe5541f7468779925879a0be187dd755198b5bd9572bc8d7c1271d7"
             }
           ],
           "storage_profiles": [],
@@ -7616,6 +7942,88 @@
                 }
               },
               "profile_sha256": "18dce902e64f66ec2fd3b90c234c033d93f73590a3e9b6e98f39693b9704dbb0"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-litellm-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-gateway"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "litellm"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "fc90b6ae0817f007bd26a6621dd1056280e5a353dd8ff7827ef9654f5880a01a"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "litellm"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "7ac04629eaccac3363e822dd84254551b8b5165daa7a7836d18f040ce8d30ae2"
             }
           ],
           "storage_profiles": [],
@@ -9718,6 +10126,29 @@
               "module_id": "stackkits-tika-runtime",
               "functions": [
                 "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-gateway",
+          "title": "ai-gateway",
+          "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models, selected with the Private AI model-router module. Every request needs the master key from owner custody; the route is local or remote-private, never public.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "litellm",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "litellm",
+              "module_id": "stackkits-litellm-runtime",
+              "functions": [
+                "model-routing"
               ],
               "load": {
                 "residency": "always-on",
@@ -12954,6 +13385,88 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-litellm-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-gateway"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "litellm"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "fc90b6ae0817f007bd26a6621dd1056280e5a353dd8ff7827ef9654f5880a01a"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "litellm"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "7ac04629eaccac3363e822dd84254551b8b5165daa7a7836d18f040ce8d30ae2"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-modern-cloud-identity-verifier-policy-manifest",
           "role": "platform",
           "required": false,
@@ -14808,6 +15321,29 @@
               "module_id": "stackkits-tika-runtime",
               "functions": [
                 "document-parsing"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-gateway",
+          "title": "ai-gateway",
+          "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models, selected with the Private AI model-router module. Every request needs the master key from owner custody; the route is local or remote-private, never public.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "litellm",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "litellm",
+              "module_id": "stackkits-litellm-runtime",
+              "functions": [
+                "model-routing"
               ],
               "load": {
                 "residency": "always-on",
@@ -16965,5 +17501,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "9222008512aad799d1e723d41c0afd3622e853baa9eb12fa8d950f7cc9af7f8d"
+  "catalog_sha256": "6ea109da4819ba52d101afcd03d7074535df126a754376f69a40762ea81ced9d"
 }

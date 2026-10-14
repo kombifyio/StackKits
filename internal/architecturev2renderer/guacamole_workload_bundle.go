@@ -20,8 +20,9 @@ import (
 const (
 	guacamoleWorkloadModuleID    = "stackkits-guacamole-runtime"
 	guacamoleWorkloadUnitID      = "guacamole"
-	guacamoleWorkloadTemplateRef = "builtin://workloads/guacamole/bundle/v1.json"
-	guacamoleWorkloadVersion     = "1.0.0"
+	guacamoleWorkloadTemplateRef = "builtin://workloads/guacamole/bundle/v2.json"
+	guacamoleWorkloadVersion     = "2.0.0"
+	guacamoleWorkloadAPIVersion  = "stackkit.workload-bundle/v3"
 	guacamoleWorkloadOutputRef   = "workloads/guacamole/bundle.json"
 )
 
@@ -40,7 +41,7 @@ func init() {
 
 func guacamoleWorkloadRendererSchema() string {
 	asset := sha256.Sum256([]byte(guacamoleStartupScript))
-	return `stackkit.workload-bundle/v2|GuacamoleWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:guacd,guacamole|connection:remote-connection-v1|xml:tmpfs-private-sha256|governed-startup:sha256:` + hex.EncodeToString(asset[:]) + `|secret-material:not-included`
+	return `stackkit.workload-bundle/v3|GuacamoleWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:guacd,guacamole|compute-profile:module-compute-profile-v1|allocation:equal-resident-share-v1|connection:remote-connection-v1|xml:tmpfs-private-sha256|governed-startup:sha256:` + hex.EncodeToString(asset[:]) + `|secret-material:not-included`
 }
 
 // GuacamoleWorkloadBundleDescriptor is the closed, credential-free runtime
@@ -95,7 +96,8 @@ func ParseGuacamoleWorkloadBundle(data []byte) (GuacamoleWorkloadBundleDescripto
 	if err := decodeStrict(data, &bundle); err != nil {
 		return GuacamoleWorkloadBundleDescriptor{}, wrap(ErrInvalidPlan, path, "decode closed Guacamole workload bundle", err)
 	}
-	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "GuacamoleWorkloadBundle" ||
+	legacy := bundle.APIVersion == "stackkit.workload-bundle/v2"
+	if (!legacy && bundle.APIVersion != guacamoleWorkloadAPIVersion) || bundle.Kind != "GuacamoleWorkloadBundle" ||
 		bundle.Workload.Ref != "remote" || bundle.Workload.AlternativeRef != "guacamole" ||
 		bundle.Workload.ModuleRef != guacamoleWorkloadModuleID || bundle.Workload.Release != guacamoleRelease ||
 		bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != "guacamole" ||
@@ -109,7 +111,13 @@ func ParseGuacamoleWorkloadBundle(data []byte) (GuacamoleWorkloadBundleDescripto
 	if len(bundle.ConfigFiles) != 0 {
 		return GuacamoleWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".configFiles", "Guacamole runtime accepts no startup configuration overrides")
 	}
-	components, err := validateGuacamoleRuntimeComponents(bundle.Components, path+".components")
+	if legacy && len(bundle.ComputeProfile) != 0 {
+		return GuacamoleWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".computeProfile", "retained v2 Remote artifacts cannot carry a selected v3 profile")
+	}
+	if !legacy && len(bundle.ComputeProfile) == 0 {
+		return GuacamoleWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".computeProfile", "Remote allocation requires its selected compiler-bound profile")
+	}
+	components, err := validateGuacamoleRuntimeComponents(bundle.Components, bundle.ComputeProfile, path+".components")
 	if err != nil {
 		return GuacamoleWorkloadBundleDescriptor{}, err
 	}
@@ -177,7 +185,11 @@ func validateGuacamoleWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, connectionXML, err := validateGuacamoleDeliveryInputs(unit, path+".inputs")
+	routeUnit, computeProfile, err := consumeModuleComputeProfile(unit, path+".inputs.compute-profile")
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	deliveryRoute, connectionXML, err := validateGuacamoleDeliveryInputs(routeUnit, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -208,7 +220,14 @@ func validateGuacamoleWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if err := decodeStrict(unit.RuntimeComponentsJSON(), &components); err != nil {
 		return selectedPaaSWorkloadBundle{}, wrap(ErrInvalidPlan, path+".runtime.components", "decode closed component graph", err)
 	}
-	components, err = validateGuacamoleRuntimeComponents(components, path+".runtime.components")
+	limits, err := guacamoleSelectedComponentLimits(computeProfile)
+	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	for i := range components {
+		components[i].Resources = limits
+	}
+	components, err = validateGuacamoleRuntimeComponents(components, computeProfile, path+".runtime.components")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -225,8 +244,8 @@ func validateGuacamoleWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	components[1].Environment["STACKKITS_REMOTE_CONNECTION_XML"] = connectionXML
 
 	bundle := selectedPaaSWorkloadBundle{
-		APIVersion: "stackkit.workload-bundle/v2", Kind: "GuacamoleWorkloadBundle",
-		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
+		APIVersion: guacamoleWorkloadAPIVersion, Kind: "GuacamoleWorkloadBundle",
+		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute, ComputeProfile: computeProfile,
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "remote", "guacamole"
 	bundle.Workload.ModuleRef, bundle.Workload.Release = guacamoleWorkloadModuleID, guacamoleRelease
@@ -238,7 +257,7 @@ func validateGuacamoleWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	return bundle, nil
 }
 
-func validateGuacamoleRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
+func validateGuacamoleRuntimeComponents(components []selectedPaaSRuntimeComponent, profile json.RawMessage, path string) ([]selectedPaaSRuntimeComponent, error) {
 	if len(components) != 2 {
 		return nil, fail(ErrInvalidPlan, path, "requires the exact Guacamole and internal guacd pair")
 	}
@@ -267,6 +286,13 @@ func validateGuacamoleRuntimeComponents(components []selectedPaaSRuntimeComponen
 	expected := []selectedPaaSRuntimeComponent{
 		{ID: "guacd", Role: "application", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: guacdImageRef, Digest: guacdImageDigest}, DependsOn: []string{}, NetworkRefs: []string{"guacamole-internal"}, Egress: true, Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"nc", "-z", "127.0.0.1", "4822"}}},
 		{ID: "guacamole", Role: "application", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: guacamoleImageRef, Digest: guacamoleImageDigest}, DependsOn: []string{"guacd"}, NetworkRefs: []string{"guacamole-internal"}, Environment: environment, Command: []string{"/bin/sh", "-ec", guacamoleStartupScript}, SecretFiles: []selectedPaaSSecretFile{guacamoleOwnerPasswordFile}, Health: selectedPaaSRuntimeHealth{Kind: "http", Port: 8080, Path: "/"}},
+	}
+	limits, err := guacamoleSelectedComponentLimits(profile)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, path+".resources", "validate the selected Remote allocation", err)
+	}
+	for i := range expected {
+		expected[i].Resources = limits
 	}
 	actualJSON, _ := json.Marshal(components)
 	expectedJSON, _ := json.Marshal(expected)

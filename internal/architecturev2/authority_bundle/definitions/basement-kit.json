@@ -258,7 +258,8 @@
         "ai-image-video",
         "ai-assistant",
         "ai-harness",
-        "ai-control-plane"
+        "ai-control-plane",
+        "ai-gateway"
       ]
     },
     "standaloneOwner": {
@@ -907,7 +908,8 @@
       "ai-assistant",
       "ai-speech",
       "ai-harness",
-      "ai-control-plane"
+      "ai-control-plane",
+      "ai-gateway"
     ],
     "required": [
       "basement-core"

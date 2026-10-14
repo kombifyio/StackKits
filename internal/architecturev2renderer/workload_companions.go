@@ -92,6 +92,8 @@ var governedCompanionEnvironments = map[string]struct {
 		{WorkloadRef: "ai-harness", AlternativeRef: "openhands", Environment: map[string]string{}},
 		// The control plane reaches Hermes and Ollama on this network itself and needs no variable.
 		{WorkloadRef: "ai-control-plane", AlternativeRef: "paperclip", Environment: map[string]string{}},
+		// The model router reaches Ollama on this network for apps and devices and needs no variable.
+		{WorkloadRef: "ai-gateway", AlternativeRef: "litellm", Environment: map[string]string{}},
 		// Open WebUI v0.11.3 speech through SpeechKit's OpenAI-compatible audio
 		// routes (backend/open_webui/config.py AUDIO_*). The bearer token is a
 		// custody secret of the ai-speech workload; companion wiring carries
@@ -125,6 +127,8 @@ var governedCompanionEnvironments = map[string]struct {
 		{WorkloadRef: "ai-harness", AlternativeRef: "openhands", Environment: map[string]string{}},
 		// The control plane reaches Hermes and Ollama on this network itself and needs no variable.
 		{WorkloadRef: "ai-control-plane", AlternativeRef: "paperclip", Environment: map[string]string{}},
+		// The model router reaches Ollama on this network for apps and devices and needs no variable.
+		{WorkloadRef: "ai-gateway", AlternativeRef: "litellm", Environment: map[string]string{}},
 		// AnythingLLM 1.16.2 speech through SpeechKit's OpenAI-compatible audio
 		// routes: server/utils/SpeechToText/openAiGeneric (STT_*),
 		// TextToSpeech/openAiGeneric (TTS_*) and the collector's

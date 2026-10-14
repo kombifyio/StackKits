@@ -573,17 +573,8 @@ func (s *Service) verifyTinyAuthPocketIDBindingPolicy(
 	if errors.Is(err, pocketid.ErrNotFound) {
 		return errPocketIDRuntimeLost
 	}
-	if err != nil || oidcClient == nil ||
-		oidcClient.ID != localevidence.TinyAuthPocketIDClientID ||
-		oidcClient.Name != tinyAuthClientName ||
-		!slices.Equal(oidcClient.CallbackURLs, []string{localevidence.TinyAuthPocketIDCallbackURL(address)}) ||
-		oidcClient.IsPublic || (requirePKCE && !oidcClient.PkceEnabled) || !oidcClient.IsGroupRestricted ||
-		!samePocketIDGroupIDs(oidcClient.AllowedUserGroups, groupIDs) ||
-		binding.OwnerRef != owner.OwnerRef ||
-		!slices.Equal(binding.GroupIDs, sortedCopy(groupIDs)) {
-		return errors.New("localowner: PocketID TinyAuth binding differs from local owner custody")
-	}
-	return nil
+	return tinyAuthBindingDiagnostic(oidcClient, err, binding, owner,
+		localevidence.TinyAuthPocketIDCallbackURL(address), groupIDs, requirePKCE)
 }
 
 func ownerMembershipGroupIDs(ctx context.Context, client pocketIDOwnerClient) ([]string, error) {

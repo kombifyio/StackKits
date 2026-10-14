@@ -147,6 +147,7 @@ func resolveNativeSelectedWorkloads(profile stackspecmigration.KitProfile, defin
 			Alternative:     alternativeID, RuntimeAdapterRef: adapter,
 			RequiredSecretRefs: workloadAlternativeRequiredSecretRefs(contract, alternativeID),
 			PlatformManagement: platformManagement,
+			HoldsNoData:        workloadContractHoldsNoData(contract),
 		}
 		if id == "cloud-core" {
 			selection := result[id]

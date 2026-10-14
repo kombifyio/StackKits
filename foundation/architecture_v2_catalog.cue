@@ -1016,9 +1016,9 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {
@@ -1046,7 +1046,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {
@@ -1093,9 +1093,9 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["cloudreve-owner-bootstrap"]}
@@ -1170,9 +1170,9 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["vault-owner-invite"]}
@@ -1241,10 +1241,12 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
-			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			// The owner manages Ollama models (list, pull a reviewed model,
+			// remove) with `stackkit setup ai`; nothing is pulled unasked.
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["ollama-models"]}
 			inputs: {
 				// kombify-connector turns on the optional outbound connector to the
 				// owner's kombify AI; `stackkit setup ai-connect` sets it only after
@@ -1324,7 +1326,7 @@ _architectureV2WorkloadContracts: [
 			// after accepting its license.
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["comfyui-model-download"]}
 			inputs: {
-				settings: {allowedRefs: [], requiredRefs: []}
+				settings: {allowedRefs: ["comfyui-api-nodes"], requiredRefs: []}
 				secretInputs: {allowedRefs: [], requiredRefs: []}
 			}
 			infrastructure: _architectureV2ComfyUIInfrastructure
@@ -1590,6 +1592,44 @@ _architectureV2WorkloadContracts: [
 			}
 		}]
 	},
+	// The model router: one OpenAI-compatible endpoint for the owner's apps
+	// and devices in front of the node's Ollama. Devices cannot sign in to the
+	// kit's login, so the route carries no forward auth; LiteLLM itself
+	// requires the master key on every model route.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-gateway"
+			version:     "1.0.0"
+			description: "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models, selected with the Private AI model-router module. Every request needs the master key from owner custody; the route is local or remote-private, never public."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["model-routing"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: []
+		defaultAlternative: "litellm"
+		alternatives: [{
+			id:          "litellm"
+			providerRef: "stackkits-litellm"
+			moduleRef:   "stackkits-litellm-runtime"
+			route: {serviceRef: "ai-gateway", healthRef: "litellm-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["master-key"], requiredRefs: ["master-key"]}
+			}
+		}]
+	},
 	#WorkloadContractV2 & {
 		metadata: {
 			id:          "dev"
@@ -1619,7 +1659,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["gitea-owner-login"]}
@@ -1927,9 +1967,9 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["jellyfin-owner-bootstrap"]}
@@ -2053,10 +2093,11 @@ _architectureV2WorkloadContracts: [
 			runtime: {
 				allowedKinds: ["container"]
 				allowedDeliveries: ["application-adapter"]
-				allowedAdapterRefs: ["standalone-compose"]
+				allowedAdapterRefs: ["standalone-compose", "coolify"]
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
+                    {adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
@@ -2308,9 +2349,9 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "coolify", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "standalone-compose", maturity: "supported", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["home-assistant-owner-bootstrap"]}
@@ -2337,6 +2378,7 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-zigbee", version: "1.0.0", description: "Zigbee bridge add-on of the smart-home use case."}, workloadRef: "smart-home-zigbee", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-search", version: "1.0.0", description: "Web search add-on of the Private AI use case."}, workloadRef: "ai-search", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-documents", version: "1.0.0", description: "Document parsing add-on of the Private AI use case."}, workloadRef: "ai-documents", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-gateway", version: "1.0.0", description: "Model router add-on of the Private AI use case."}, workloadRef: "ai-gateway", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-share", version: "1.0.0", description: "Public share-link add-on of the photos use case."}, workloadRef: "photos-share", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-kiosk", version: "1.0.0", description: "Slideshow add-on of the photos use case."}, workloadRef: "photos-kiosk", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-tools", version: "1.0.0", description: "Library maintenance add-on of the photos use case."}, workloadRef: "photos-tools", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
@@ -2360,7 +2402,7 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {
 		metadata: {id: "ai", version: "1.0.0", description: "Owner-controlled Private AI lifecycle; model download is an explicit owner operation."}
 		workloadRef: "ai", useCaseRef: "ai", packageRef: "ai"
-		lifecycle:   #StandardUseCaseLifecycle
+		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
@@ -3386,6 +3428,24 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["docling-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-litellm", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-gateway"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-litellm-runtime"]
+			}
+		}
+		evidence: ["litellm-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-gitea", version: "1.0.0"}
@@ -4576,6 +4636,7 @@ _architectureV2SpeechKitTerramateStack: _architectureV2WorkloadTerramateStack & 
 _architectureV2SearxngTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "searxng", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2TikaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "tika", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2DoclingTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "docling", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2LitellmTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "litellm", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2GiteaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "gitea", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2ForgejoTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "forgejo", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PaperlessTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperless-ngx", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -4935,6 +4996,33 @@ _architectureV2DoclingSupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2DoclingTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["docling-selected-paas-runtime-contract"]
+}
+
+_architectureV2LitellmSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["master-key"]}
+	artifacts: {
+		requiredRefs: ["litellm-workload-bundle", _architectureV2LitellmTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "litellm-workload-bundle"
+			unitRef:     "litellm"
+			outputRef:   "workloads/litellm/bundle.json"
+		}, _architectureV2LitellmTerramateStack.binding]
+		contracts: [{
+			id:       "litellm-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "litellm"
+			outputRef: "workloads/litellm/bundle.json"
+		}, _architectureV2LitellmTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["litellm-selected-paas-runtime-contract"]
 }
 
 // Jellyfin is the Media Library vertical. Config is a StackKits backup source;
@@ -8863,6 +8951,9 @@ _architectureV2Modules: list.Concat([[
 					// The control plane reaches Hermes and Ollama on this network
 					// itself; the chat module needs nothing from it.
 					{workloadRef: "ai-control-plane", alternativeRef: "paperclip", environment: {}},
+					// The model router reaches Ollama on this network for the
+					// owner's apps and devices; the chat module needs nothing from it.
+					{workloadRef: "ai-gateway", alternativeRef: "litellm", environment: {}},
 					// Speech through SpeechKit's OpenAI-compatible audio routes (Open
 					// WebUI v0.11.3 sends model and language for STT; model, input and
 					// voice for TTS). The bearer token (AUDIO_*_OPENAI_API_KEY) is the
@@ -8942,7 +9033,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/private-ai/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:511dab2fbf4b1cdec9663d0233719b3412ec915ef483457eaf515962fc2a9330"
+			contractHash: "sha256:45638079b68210738ef3a82711d7183ab23dd9041857594d9c23096e692976f3"
 			publicInputRefs: ["delivery-route", "companions", "kombify-connector", "model-pack-general", "model-pack-coding", "model-pack-vision", "model-size", "external-provider"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -9065,6 +9156,9 @@ _architectureV2Modules: list.Concat([[
 					// The control plane reaches Hermes and Ollama on this network
 					// itself; the chat module needs nothing from it.
 					{workloadRef: "ai-control-plane", alternativeRef: "paperclip", environment: {}},
+					// The model router reaches Ollama on this network for the
+					// owner's apps and devices; the chat module needs nothing from it.
+					{workloadRef: "ai-gateway", alternativeRef: "litellm", environment: {}},
 					// Speech through SpeechKit's OpenAI-compatible audio routes
 					// (AnythingLLM 1.16.2 server/utils/SpeechToText/openAiGeneric,
 					// TextToSpeech/openAiGeneric and the collector's
@@ -9117,7 +9211,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/anythingllm/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:93b50dfcd05f0dbec0031f9cad4d5375218afc8fb67d93a029aea132fe678f02"
+			contractHash: "sha256:c9ff70fb7d958bd0a3f7db9b62d2a9d621fbd785def372e549ba39aa84bd2526"
 			publicInputRefs: ["delivery-route", "companions"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -9185,7 +9279,7 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-comfyui-runtime"
 			version:     "1.0.0"
-			description: "ComfyUI image and video generation on the node's CPU or on a selected NVIDIA GPU with reviewed workflow templates. It never loads ComfyUI-Manager, custom nodes or paid API nodes, holds no model until the owner downloads a preset, and is reached only on a private route behind the kit's login and by Open WebUI."
+			description: "ComfyUI image and video generation on the node's CPU or on a selected NVIDIA GPU with reviewed workflow templates. It never loads ComfyUI-Manager or custom nodes, and loads the paid API nodes (external providers through the owner's own Comfy.org account) only when the owner turns the comfyui-api-nodes setting on, holds no model until the owner downloads a preset, and is reached only on a private route behind the kit's login and by Open WebUI."
 		}
 		role:        "workload"
 		providerRef: "stackkits-comfyui"
@@ -9218,7 +9312,8 @@ _architectureV2Modules: list.Concat([[
 				stopSignal: "SIGINT"
 				// Custom nodes run arbitrary Python and ComfyUI-Manager can install
 				// them remotely: neither is ever loaded. API nodes (paid external
-				// services) are off, which also keeps the frontend offline.
+				// services) are off unless the owner sets comfyui-api-nodes: the
+				// renderer then drops only --disable-api-nodes.
 				command: ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188", "--disable-all-custom-nodes", "--disable-api-nodes"]
 				volumes: [for allocation in _architectureV2ComfyUIInfrastructure.storageAllocation.allocations {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
@@ -9234,8 +9329,8 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/comfyui/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:ecbb3806a921159493d8d7d5386cfce4b9abd69bd266b3fd8b0d0ec9436b63af"
-			publicInputRefs: ["delivery-route"]
+			contractHash: "sha256:45f4eee684db86149cb064a3ec0cb6f1f6a159ac0d40ffecff0006602c3b64ec"
+			publicInputRefs: ["delivery-route", "comfyui-api-nodes"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
 				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
@@ -9270,19 +9365,19 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
 				unitRefs: ["comfyui"], artifactRefs: ["comfyui-workload-bundle"]
-				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: ["delivery-route", "comfyui-api-nodes"], secretInputRefs: [], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["comfyui"], artifactRefs: ["comfyui-workload-bundle"]
-				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: ["delivery-route", "comfyui-api-nodes"], secretInputRefs: [], planInputRefs: []
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: _architectureV2TerramateStackHashes.workload
 				unitRefs: ["comfyui", "terramate-stack"], artifactRefs: ["comfyui-workload-bundle", _architectureV2ComfyUITerramateStack.contract.id]
-				publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: []
+				publicInputRefs: ["delivery-route", "comfyui-api-nodes"], secretInputRefs: [], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2ComfyUISupport
@@ -10140,6 +10235,118 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["docling-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-litellm-runtime"
+			version:     "1.0.0"
+			description: "LiteLLM proxy (no database) that serves the node's Ollama models through one OpenAI-compatible endpoint for the owner's apps and devices. Every model route needs the master key from owner custody; the admin UI is off."
+		}
+		role:        "workload"
+		providerRef: "stackkits-litellm"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2LitellmComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "litellm"
+			components: [{
+				id: "litellm", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "ghcr.io/berriai/litellm:v1.105.0"
+					digest: "sha256:60947db020b57e204823d3fbc8bb295c85be890d7c9adcc77fb4f5fc2fe410b2"
+				}
+				dependsOn: []
+				networkRefs: ["litellm-internal"]
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				// StackKits writes the closed proxy configuration at every
+				// start: one wildcard route ollama/<model> to the node's
+				// Ollama chat API, model listing from Ollama, and the master
+				// key read from the environment (never written to the file).
+				// No database: per-device virtual keys need LiteLLM's
+				// PostgreSQL mode and are not offered.
+				entrypoint: ["/bin/sh", "-ec", "mkdir -p /etc/litellm && printf 'model_list:\\n  - model_name: \"ollama/*\"\\n    litellm_params:\\n      model: \"ollama_chat/*\"\\n      api_base: \"http://ollama:11434\"\\nlitellm_settings:\\n  drop_params: true\\n  check_provider_endpoint: true\\ngeneral_settings:\\n  master_key: os.environ/LITELLM_MASTER_KEY\\n' > /etc/litellm/config.yaml && exec /app/docker/prod_entrypoint.sh --config /etc/litellm/config.yaml --port 4000"]
+				// The admin UI is off, the model cost map is the bundled one
+				// (no fetch from GitHub) and logging stays at INFO, which omits prompts.
+				environment: {DISABLE_ADMIN_UI: "True", LITELLM_LOCAL_MODEL_COST_MAP: "True", LITELLM_LOG: "INFO"}
+				secretEnvironment: {LITELLM_MASTER_KEY: "master-key"}
+				health: {kind: "http", path: "/health/liveliness", port: 4000}
+				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "litellm"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/litellm/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:52affac6da7461ff9f872ca9451b5d737d1259585208afe892a6eae7819527b9"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["master-key"]
+			outputs: ["workloads/litellm/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// Apps and devices authenticate with the master key, which a
+			// browser forward-auth login cannot carry, so the route uses the
+			// application's own authentication. It may be local or
+			// remote-private, never public.
+			serviceEndpoints: [{
+				serviceRef:       "ai-gateway"
+				upstreamProtocol: "http"
+				targetPort:       4000
+				ingressAuth:      "native"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "litellm-http"
+			}]
+		}, _architectureV2LitellmTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["litellm"], artifactRefs: ["litellm-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["master-key"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["litellm"], artifactRefs: ["litellm-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["master-key"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["litellm", "terramate-stack"], artifactRefs: ["litellm-workload-bundle", _architectureV2LitellmTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["master-key"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2LitellmSupport
+		health: [{
+			id:             "litellm-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/health/liveliness"
+			port:           4000
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["litellm-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {

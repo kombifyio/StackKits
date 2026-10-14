@@ -45,8 +45,9 @@ type consumedDelivery struct {
 
 // OpenDelivery opens one sealed delivery for this node and consumes it. It
 // refuses a delivery for another tenant, Site, node or operation, a detached
-// node, a retired or unknown recipient generation, an operation whose
-// authority signature is missing or not by the pinned key, an expired or
+// node, a retired or unknown recipient generation, an operation that needs an
+// authority signature before one is pinned, any delivery whose signature is
+// missing or not by the pinned key once one is pinned, an expired or
 // oversized one, and a replay. The delivery is recorded as consumed (and a
 // secret one in the delivered registry) before the plaintext is returned, so
 // a replay, including one after a crash, is denied and the delivering
@@ -90,7 +91,10 @@ func OpenDelivery(store Store, raw []byte, expect Expectation, now time.Time) (D
 	switch {
 	case spec.AuthoritySigned && authority == nil:
 		return Delivery{}, errors.New("hostcustody: this operation needs a pinned delivering authority key; pin it with the recipient statement first")
-	case spec.AuthoritySigned || (authority != nil && envelope.Authority != nil):
+	case authority != nil:
+		// Once a delivering authority is pinned, every operation carries its
+		// signature: an unsigned delivery would let anyone who knows the public
+		// recipient key redirect what the node trusts, backup targets included.
 		public, keyErr := authority.public()
 		if keyErr != nil {
 			return Delivery{}, keyErr

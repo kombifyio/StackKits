@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-10-13T12:44:03Z",
+  "generated_at": "2026-10-14T19:43:51Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1255,6 +1255,19 @@
       "core": true
     },
     {
+      "slug": "litellm",
+      "display_name": "LiteLLM",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "LiteLLM model router without a database: one OpenAI-compatible endpoint for the node's Ollama models, guarded by the master key from owner custody; admin UI off, no egress, local or remote-private route only.",
+      "contract_hash": "9ea2fd1d381e8d1ce839e5ea7e31f6175767f5861bf663222af3534f32f314a9",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "lldap",
       "display_name": "LLDAP",
       "version": "1.0.0",
@@ -1862,7 +1875,7 @@
           "kind": "default",
           "is_default": true,
           "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
-          "kit_definition_hash": "87c11ccd185f363ad02ab0bb9857e4e9faf324d2638cf86df571c9975119fc85",
+          "kit_definition_hash": "b1f9d420dd34701a3d7ea4c49074de302f19b386490e38dc8004788b4dd4f9a5",
           "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       ]
@@ -1879,7 +1892,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "3d74443cac69ac4e675ead464c658690f6ebacbe1dd1fa04ae1a4dd63030fa8e"
+          "kit_definition_hash": "a0c86b034c9120863b7537b9bd09931f2741e75848e7b12a8e44b24223a949d5"
         }
       ]
     },

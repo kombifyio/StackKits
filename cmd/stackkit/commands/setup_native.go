@@ -74,8 +74,9 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 	case "game":
 		// Installing and first-starting a game server downloads its release.
 		timeout = 20 * time.Minute
-	case "ai-image-video":
-		// A model preset is 10 to 25 GB; an interrupted download resumes.
+	case "ai-image-video", "ai":
+		// A model preset or an Ollama model is up to 25 GB; an interrupted
+		// download resumes.
 		timeout = 3 * time.Hour
 	}
 	ctx, cancel := context.WithTimeout(commandContext(cmd), timeout)
@@ -101,6 +102,10 @@ func runNativeSetup(cmd *cobra.Command, workload string, options nativeSetupOpti
 	}
 	if preset, ok := strings.CutPrefix(result.Preparation, "model-preset-"); ok {
 		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: model preset %s is downloaded, verified and listed by ComfyUI.\nPlan: %s\n", workload, preset, result.Authority.PlanHash)
+		return err
+	}
+	if operation, ok := strings.CutPrefix(result.Preparation, applicationlifecycle.OllamaModelsPreparation); ok {
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: model manager %s completed and verified against Ollama's model list.\nPlan: %s\n", workload, operation, result.Authority.PlanHash)
 		return err
 	}
 	if result.Preparation != "" {
@@ -325,6 +330,10 @@ type nativeAppliedWorkloadData struct {
 // This selector consumes already authenticated immutable placement data. Its
 // result is observation input, never fresh setup or execution authorization.
 func nativeAppliedWorkloadDeploymentData(authority nativeAppliedWorkloadData, requirements generationartifact.ApplyRequirements, entry func(string, string) (string, bool, error), workload string) (nativehost.SelectedPaaSWorkloadDeployment, error) {
+	return nativeAppliedWorkloadDeploymentDataForLifecycle(authority, requirements, entry, workload, true)
+}
+
+func nativeAppliedWorkloadDeploymentDataForLifecycle(authority nativeAppliedWorkloadData, requirements generationartifact.ApplyRequirements, entry func(string, string) (string, bool, error), workload string, requireLocalAPI bool) (nativehost.SelectedPaaSWorkloadDeployment, error) {
 	root, err := confinedfs.Open(authority.WorkspaceRoot)
 	if err != nil {
 		return nativehost.SelectedPaaSWorkloadDeployment{}, err
@@ -340,7 +349,7 @@ func nativeAppliedWorkloadDeploymentData(authority nativeAppliedWorkloadData, re
 		if target.WorkloadRef != workload {
 			continue
 		}
-		if !target.RuntimeAdapter.HasCapability(generationartifact.ApplicationSetupLocalAPICapability) {
+		if requireLocalAPI && !target.RuntimeAdapter.HasCapability(generationartifact.ApplicationSetupLocalAPICapability) {
 			return nativehost.SelectedPaaSWorkloadDeployment{}, fmt.Errorf("local application operation requires a runtime adapter with the %q capability, which the selected adapter does not declare", generationartifact.ApplicationSetupLocalAPICapability)
 		}
 		if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || target.SiteRefs[0] != authority.Owner.Binding.SiteRef || target.NodeRefs[0] != authority.Owner.Binding.NodeRef {

@@ -81,6 +81,7 @@ type dockerV2Quiescer struct {
 	applicationVolumes map[string]struct{}
 	applicationGraphs  map[string]dockerApplicationGraph
 	applicationCustody ApplicationContainerCustodyVerifier
+	applicationControl func(context.Context, localbackuppolicy.ApplicationRuntime, string, string) (bool, error)
 	initErr            error
 }
 
@@ -358,8 +359,17 @@ func (q *dockerV2Quiescer) StopContainer(ctx context.Context, id string) error {
 	if _, ok := dockerStopSignal(container.StopSignal); !ok {
 		return fmt.Errorf("Docker container %q has an unsupported stop signal", container.ID)
 	}
-	if err := client.StopContainerWithTimeout(ctx, container.ID, quiesceStopGrace); err != nil {
-		return fmt.Errorf("stop Docker container %q: %w", container.ID, err)
+	controlled := false
+	if q.applicationControl != nil && container.ComponentRef != "" {
+		controlled, err = q.applicationControl(ctx, q.applicationGraphs[container.ComposeProject].runtime, container.ComponentRef, "stop")
+		if err != nil {
+			return err
+		}
+	}
+	if !controlled {
+		if err := client.StopContainerWithTimeout(ctx, container.ID, quiesceStopGrace); err != nil {
+			return fmt.Errorf("stop Docker container %q: %w", container.ID, err)
+		}
 	}
 	stopped, err := q.inspectWithClient(ctx, client, container.ID)
 	if err != nil {
@@ -403,8 +413,17 @@ func (q *dockerV2Quiescer) StartContainer(ctx context.Context, id string) error 
 	if container.Running {
 		return nil
 	}
-	if err := client.StartContainer(ctx, container.ID); err != nil {
-		return fmt.Errorf("start Docker container %q: %w", container.ID, err)
+	controlled := false
+	if q.applicationControl != nil && container.ComponentRef != "" {
+		controlled, err = q.applicationControl(ctx, q.applicationGraphs[container.ComposeProject].runtime, container.ComponentRef, "start")
+		if err != nil {
+			return err
+		}
+	}
+	if !controlled {
+		if err := client.StartContainer(ctx, container.ID); err != nil {
+			return fmt.Errorf("start Docker container %q: %w", container.ID, err)
+		}
 	}
 	started, err := q.inspectWithClient(ctx, client, container.ID)
 	if err != nil {

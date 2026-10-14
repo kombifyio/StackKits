@@ -31,6 +31,7 @@ var errResultNotFound = errors.New("restoreactivation: persisted result is unava
 type LiveVerification = backuplifecycle.RestoreVerification
 
 type ActivateInput struct {
+	WorkloadRef      string
 	WorkspaceRoot    string
 	OperationID      string
 	ExpectedPlanHash string
@@ -149,6 +150,9 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 	authority, err := DeriveAuthority(
 		input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID,
 	)
+	if input.WorkloadRef != "" {
+		authority, err = DeriveApplicationAuthority(input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID, input.WorkloadRef)
+	}
 	if err != nil {
 		return Result{}, &ActivationNotStartedError{Cause: err}
 	}

@@ -76,6 +76,7 @@ type moduleRenderInputSource struct {
 	storage       map[string]any
 	nodes         []any
 	workloads     []any
+	lifecycles    []any
 	modules       []any
 }
 
@@ -609,7 +610,7 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, 
 		if _, err := localbackuppolicy.GovernedSourceForCoreModule(moduleID); err != nil {
 			return nil, false, fmt.Errorf("local Kopia backup source is not owned by a supported Basement core profile: %w", err)
 		}
-		return localKopiaBackupSourceProjection(source.nodes, source.workloads, source.modules, target.siteRefs, target.nodeRefs, moduleID, source.data)
+		return localKopiaBackupSourceProjection(source.nodes, source.workloads, source.modules, target.siteRefs, target.nodeRefs, moduleID, source.data, source.lifecycles)
 	case moduleInputSourceWorkloadCompanions:
 		if source.workloads == nil || source.modules == nil {
 			return nil, false, nil

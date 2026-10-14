@@ -99,3 +99,18 @@ Unix desktop and no database. Only that public certificate entered the owned
 guacd system trust store. It did not change host/company/C CA authority or
 prove automated production trust delivery. Fixture graphics and IPC repairs
 are recorded separately from product behavior; no product code was changed.
+
+## Resource profiles
+
+The selected module compute profile governs a single aggregate CPU/RAM envelope
+shared equally across the two resident daemons. Both remain present and use the
+same upstream authentication, SSH/RDP/VNC protocols, destination prompts and
+normal input/reconnect behavior. Profile choice never changes application
+features, trust policy or credential custody. Existing v2 artifacts retain
+unbounded allocations; a new v3 artifact needs its exact selected profile.
+
+Allocation is policy, measured combined demand is observation, and physical
+small-device/high-profile/client-capacity acceptance is separate. A higher cap
+alone does not demonstrate a performance benefit or a simultaneous-client SLA.
+The same existing CLI/State Console fit engine includes the whole host floor;
+a per-container cap is not a small-host support claim.

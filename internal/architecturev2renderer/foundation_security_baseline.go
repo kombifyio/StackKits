@@ -230,7 +230,7 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(immichPowerToolsWorkload.contract, immichPowerToolsWorkload); err != nil {
 		return nil, err
 	}
-	for _, workload := range []aiAddOnWorkload{searxngWorkload(), tikaWorkload(), doclingWorkload()} {
+	for _, workload := range []aiAddOnWorkload{searxngWorkload(), tikaWorkload(), doclingWorkload(), litellmWorkload()} {
 		renderer := newAIAddOnWorkloadBundleRenderer(workload)
 		if err := registry.Register(renderer.contract, renderer); err != nil {
 			return nil, err

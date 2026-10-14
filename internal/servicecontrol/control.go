@@ -30,6 +30,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )
@@ -531,7 +532,7 @@ func normalizeServiceDefinition(candidate serviceDefinition) (serviceDefinition,
 	if !contractIDPattern.MatchString(candidate.Key) || !contractIDPattern.MatchString(candidate.ServiceRef) || !contractIDPattern.MatchString(candidate.RuntimeRef) {
 		return serviceDefinition{}, errors.New("canonical ResolvedPlan has an invalid service-control identity")
 	}
-	if candidate.Adapter != "compose" && candidate.Adapter != "komodo" && candidate.Adapter != applicationComposeAdapter {
+	if candidate.Adapter != "compose" && candidate.Adapter != "komodo" && candidate.Adapter != "coolify" && candidate.Adapter != applicationComposeAdapter {
 		return serviceDefinition{}, errors.New("canonical ResolvedPlan has an unsupported service-control adapter")
 	}
 	componentRefs, err := normalizedContractIDs(candidate.ComponentRefs)
@@ -611,7 +612,7 @@ func serviceContractHash(definitions []serviceDefinition) (string, error) {
 }
 
 func (c *Controller) runtimeTarget(definition serviceDefinition, authority runtimeAuthority) (runtimeTarget, error) {
-	if definition.Adapter == applicationComposeAdapter || definition.Adapter == "komodo" {
+	if definition.Adapter == applicationComposeAdapter || definition.Adapter == "komodo" || definition.Adapter == "coolify" {
 		project := "stackkit-" + definition.RuntimeRef
 		present, err := platformdeploy.HasOwnerHostDeployment(c.workspace, project)
 		if err != nil {
@@ -653,6 +654,13 @@ func (c *Controller) runtimeTarget(definition serviceDefinition, authority runti
 		}
 		return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ComposePath: filepath.Clean(path)}, nil
 	}
+	if definition.Adapter == "coolify" {
+		cfg, ref, err := nativehost.LoadOwnedCoolifyServiceConfig(context.Background(), c.workspace, "stackkit-"+definition.RuntimeRef)
+		if err != nil {
+			return runtimeTarget{}, err
+		}
+		return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: ref.ExternalID, HTTPConfig: cfg}, nil
+	}
 	cfg, err := platformdeploy.LoadOwnerKomodoConfig(c.workspace)
 	if err != nil {
 		return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied Komodo configuration is unavailable: " + err.Error()}
@@ -673,7 +681,7 @@ func (c *Controller) ManagerPlanBinding(state platformdeploy.HostDeployment, app
 	}
 	definition, ok := authority.Services[state.WorkloadRef]
 	if !ok || definition.RuntimeRef != state.WorkloadRef+"-"+state.NodeRef ||
-		(definition.Adapter != applicationComposeAdapter && definition.Adapter != "komodo") || !cursorPattern.MatchString(applyResultHash) {
+		(definition.Adapter != applicationComposeAdapter && definition.Adapter != "komodo" && definition.Adapter != "coolify") || !cursorPattern.MatchString(applyResultHash) {
 		return platformdeploy.HostManagerPlanBinding{}, errors.New("current applied plan has no exact node workload service control")
 	}
 	return platformdeploy.HostManagerPlanBinding{PlanHash: authority.PlanHash, ApplyResultHash: applyResultHash,
@@ -1013,6 +1021,9 @@ func (osRunner) Run(ctx context.Context, request runtimeCommandRequest) (runtime
 	}
 	if request.Adapter == applicationComposeAdapter {
 		return runApplicationCompose(ctx, request)
+	}
+	if request.Adapter == "coolify" {
+		return runCoolifyService(ctx, request)
 	}
 	if request.Adapter != "compose" || filepath.Base(request.ComposePath) != "compose.yaml" || filepath.Base(filepath.Dir(request.ComposePath)) != request.RuntimeRef {
 		return runtimeCommandOutput{}, errors.New("service control rejected an unbounded runtime adapter")

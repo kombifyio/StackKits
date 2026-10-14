@@ -659,6 +659,11 @@ func deriveStandaloneComposeApplicationBindings(
 			continue
 		}
 		if _, admitted := supported[workloadRef]; !admitted {
+			// A workload without backup-enabled storage holds nothing to
+			// restore; any backup-enabled volume still fails closed.
+			if !holdsBackupEnabledStorage(plan, alternative) {
+				continue
+			}
 			return nil, fmt.Errorf("restoreactivation: standalone Application %q lacks explicit backup/restore capability", workloadRef)
 		}
 		seenSupported[workloadRef] = struct{}{}
@@ -732,6 +737,71 @@ func deriveStandaloneComposeApplicationBindings(
 	}
 	sort.Slice(bindings, func(i, j int) bool { return bindings[i].Runtime.Project < bindings[j].Runtime.Project })
 	return bindings, nil
+}
+
+// holdsBackupEnabledStorage reports whether a selected alternative declares
+// any backup-enabled storage, either as a storage allocation or as a
+// component volume of its module. Malformed or unresolvable authority counts
+// as holding data so the caller fails closed.
+func holdsBackupEnabledStorage(plan, alternative map[string]any) bool {
+	if rawInfrastructure, exists := alternative["infrastructure"]; exists {
+		infrastructure, ok := rawInfrastructure.(map[string]any)
+		if !ok {
+			return true
+		}
+		storage, err := object(infrastructure, "storageAllocation")
+		if err != nil {
+			return true
+		}
+		allocations, err := array(storage, "allocations")
+		if err != nil {
+			return true
+		}
+		for _, raw := range allocations {
+			allocation, ok := raw.(map[string]any)
+			if !ok {
+				return true
+			}
+			if backup, _ := allocation["backup"].(bool); backup {
+				return true
+			}
+		}
+	}
+	moduleRef := text(alternative, "moduleRef")
+	modules, err := array(plan, "modules")
+	if moduleRef == "" || err != nil {
+		return true
+	}
+	matched := 0
+	for _, raw := range modules {
+		module, ok := raw.(map[string]any)
+		if !ok || text(module, "id") != moduleRef {
+			continue
+		}
+		matched++
+		runtime, err := object(module, "runtime")
+		if err != nil {
+			return true
+		}
+		components, _ := array(runtime, "components")
+		for _, rawComponent := range components {
+			component, ok := rawComponent.(map[string]any)
+			if !ok {
+				return true
+			}
+			volumes, _ := array(component, "volumes")
+			for _, rawVolume := range volumes {
+				volume, ok := rawVolume.(map[string]any)
+				if !ok {
+					return true
+				}
+				if backup, _ := volume["backup"].(bool); backup {
+					return true
+				}
+			}
+		}
+	}
+	return matched != 1
 }
 
 func deriveStandaloneComposeRuntimeCustody(

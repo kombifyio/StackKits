@@ -457,6 +457,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		storage:       deployment.storage,
 		nodes:         topology.nodes,
 		workloads:     contracts.workloads,
+		lifecycles:    contracts.applicationLifecycles,
 		modules:       contracts.modules,
 	}); err != nil {
 		return nil, err

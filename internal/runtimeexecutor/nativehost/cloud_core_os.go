@@ -60,6 +60,11 @@ func newOSCloudCoreOperations(workspaceRoot, runtimeName string) (CloudCoreOpera
 }
 
 func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudCoreProject) (CloudCoreApplyObservation, error) {
+	var bindingErr error
+	project.Definition, bindingErr = bindKopiaApplicationHostPaths(ctx, o.workspaceRoot, project.SiteRef, project.NodeRef, project.Definition)
+	if bindingErr != nil {
+		return CloudCoreApplyObservation{}, bindingErr
+	}
 	if err := o.ready(ctx); err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
@@ -241,6 +246,11 @@ func (o *osCloudCoreOperations) pendingReadiness(ctx context.Context, composePat
 }
 
 func (o *osCloudCoreOperations) VerifyProject(ctx context.Context, project CloudCoreProject) (CloudCoreVerifyObservation, error) {
+	var bindingErr error
+	project.Definition, bindingErr = bindKopiaApplicationHostPaths(ctx, o.workspaceRoot, project.SiteRef, project.NodeRef, project.Definition)
+	if bindingErr != nil {
+		return CloudCoreVerifyObservation{}, bindingErr
+	}
 	if err := o.ready(ctx); err != nil {
 		return CloudCoreVerifyObservation{}, err
 	}

@@ -212,6 +212,7 @@ type Runtime struct {
 }
 
 type Source struct {
+	physicalVolumes     map[string]string
 	Kind                string               `json:"kind"`
 	HostPath            string               `json:"hostPath"`
 	ContainerPath       string               `json:"containerPath"`

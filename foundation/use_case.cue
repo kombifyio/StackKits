@@ -114,6 +114,36 @@ import "list"
 		required?: [...string] | *[]
 	}
 
+	// committed names the kit × alternative × adapter × tier cells this use
+	// case promises at its lifecycle (docs/USE_CASE_STANDARD.md D5). Only a
+	// committed cell may ever be shown as supported; every other declared
+	// combination stays unverified.
+	committed?: [...#UseCaseCommittedCell]
+	_committedTools: [for cell in committed {
+		matches: [for slug, _ in tools if slug == cell.alternative {slug}] & list.MinItems(1) & list.MaxItems(1)
+	}]
+
+	// journey is the user outcome the acceptance run proves, and the data
+	// that must be byte-identical after an isolated restore.
+	journey?: #UseCaseJourney
+
+	// recovery.sequence orders the "component/volume" restore steps so a
+	// restore ends at a usable application, not at restored files.
+	recovery?: sequence: [string & =~"^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$", ...string & =~"^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*$"]
+
+	// scenarios maps the use case onto canonical scenarios
+	// (the private StackKit scenario catalog) with the role it plays there.
+	scenarios?: [...#UseCaseScenarioRef]
+
+	if metadata.lifecycle == "pilot" || metadata.lifecycle == "beta" || metadata.lifecycle == "stable" {
+		committed: [#UseCaseCommittedCell, ...#UseCaseCommittedCell]
+		journey: #UseCaseJourney
+	}
+	if metadata.lifecycle == "beta" || metadata.lifecycle == "stable" {
+		recovery: sequence: [_, ...]
+		scenarios: [#UseCaseScenarioRef, ...#UseCaseScenarioRef]
+	}
+
 	// computeTiers declares what this use case is on each kit graph.
 	// It does not select the stack graph: install.computeTier does.
 	// Kit computeTierGraphs remain the execution substitutions.
@@ -263,7 +293,7 @@ import "list"
 // skills, client fragments, CLI helpers, and whether a config baseline exists.
 // Secrets never appear here. Techstack Unifier reads it; Apply does not.
 #UseCaseAgentSurfaceV1: {
-	equipPolicy: "on-generate" | "on-apply" | "manual"
+	equipPolicy:  "on-generate" | "on-apply" | "manual"
 	lifecycleMcp: #UseCaseLifecycleMCP
 	productMcps: [...#UseCaseProductMCP] | *[]
 	apis: [...#UseCaseAgentAPI] | *[]
@@ -283,12 +313,12 @@ import "list"
 }
 
 #UseCaseProductMCP: {
-	id:                    =~"^[a-z][a-z0-9-]+$"
-	owner:                 "product"
-	endpoint:              string
-	transport:             "streamable-http" | "stdio"
-	auth:                  string
-	generateClientConfig:  bool
+	id:                   =~"^[a-z][a-z0-9-]+$"
+	owner:                "product"
+	endpoint:             string
+	transport:            "streamable-http" | "stdio"
+	auth:                 string
+	generateClientConfig: bool
 	if generateClientConfig {
 		reason?: string
 	}
@@ -329,4 +359,21 @@ import "list"
 	if status == "omitted" {
 		reason: string
 	}
+}
+
+#UseCaseCommittedCell: {
+	kit:         "basement-kit" | "cloud-kit" | "modern-homelab"
+	alternative: #UseCaseModuleSlug
+	adapter:     "standalone-compose" | "komodo" | "coolify"
+	tier:        "low" | "standard" | "high"
+}
+
+#UseCaseJourney: {
+	outcome: string & =~"^.+$"
+	invariantData: [string & =~"^.+$", ...string & =~"^.+$"]
+}
+
+#UseCaseScenarioRef: {
+	id:   =~"^SK-S[0-9]+A?$"
+	role: "default" | "optional"
 }

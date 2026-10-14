@@ -4407,6 +4407,7 @@ _servicePublicationShape: {
 	// copied from the selected module runtime; dependency order must never be
 	// inferred from Docker names or mutable labels.
 	applicationRuntimes?: [...close({
+		runtimeAdapterRef?: "standalone-compose" | "coolify"
 		workloadRef:    #ContractID
 		siteRef:        #SiteID
 		nodeRef:        #NodeID

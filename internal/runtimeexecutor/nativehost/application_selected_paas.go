@@ -44,6 +44,7 @@ const (
 	SelectedPaaSApplicationSearxng           SelectedPaaSApplication = "searxng"
 	SelectedPaaSApplicationTika              SelectedPaaSApplication = "tika"
 	SelectedPaaSApplicationDocling           SelectedPaaSApplication = "docling"
+	SelectedPaaSApplicationLitellm           SelectedPaaSApplication = "litellm"
 	SelectedPaaSApplicationPaperless         SelectedPaaSApplication = "paperless-ngx"
 	SelectedPaaSApplicationPterodactyl       SelectedPaaSApplication = "pterodactyl"
 	SelectedPaaSApplicationCalagopus         SelectedPaaSApplication = "calagopus"
@@ -329,6 +330,17 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.DoclingWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseDoclingWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationLitellm:
+		return selectedPaaSApplicationSpec{
+			name: "Litellm", providerRef: "stackkits-litellm", moduleRef: "stackkits-litellm-runtime",
+			unitRef: "litellm", workloadRef: "ai-gateway", artifactRef: "litellm-workload-bundle",
+			outputRef: "workloads/litellm/bundle.json", healthRef: "litellm-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.LitellmWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseLitellmWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true

@@ -56,6 +56,68 @@ func NewCoolifyAdapter(cfg HTTPConfig) *CoolifyAdapter {
 	}
 }
 
+type CoolifyProject struct {
+	UUID string `json:"uuid"`
+	Name string `json:"name"`
+}
+
+func (a *CoolifyAdapter) Projects(ctx context.Context) ([]CoolifyProject, error) {
+	var projects []CoolifyProject
+	_, _, err := a.client.getJSON(ctx, "/api/v1/projects", &projects)
+	return projects, err
+}
+
+func (a *CoolifyAdapter) CreateProject(ctx context.Context, name string) (string, error) {
+	var created map[string]any
+	if _, _, err := a.client.postJSON(ctx, "/api/v1/projects", map[string]string{"name": name}, &created); err != nil {
+		return "", err
+	}
+	id := firstString(created, "uuid")
+	if id == "" {
+		return "", errors.New("Coolify project creation returned no identity; inspect before retrying")
+	}
+	return id, nil
+}
+
+// ProjectHasServices resolves only a retained project identity. It detects
+// uncertain service creation before another mutation can duplicate a workload.
+func (a *CoolifyAdapter) ProjectHasServices(ctx context.Context, id string) (bool, error) {
+	var project struct {
+		UUID         string `json:"uuid"`
+		Environments []struct {
+			UUID string `json:"uuid"`
+		} `json:"environments"`
+	}
+	if _, _, err := a.client.getJSON(ctx, "/api/v1/projects/"+url.PathEscape(id), &project); err != nil {
+		return false, err
+	}
+	if project.UUID != id {
+		return false, errors.New("Coolify project readback differs from node custody")
+	}
+	if project.Environments == nil {
+		return false, errors.New("Coolify project readback has no environment graph")
+	}
+	for _, environment := range project.Environments {
+		if environment.UUID == "" {
+			return false, errors.New("Coolify environment readback has no identity")
+		}
+		var resources struct {
+			UUID     string            `json:"uuid"`
+			Services []json.RawMessage `json:"services"`
+		}
+		if _, _, err := a.client.getJSON(ctx, "/api/v1/projects/"+url.PathEscape(id)+"/"+url.PathEscape(environment.UUID), &resources); err != nil {
+			return false, err
+		}
+		if resources.UUID != environment.UUID || resources.Services == nil {
+			return false, errors.New("Coolify project readback has no service graph")
+		}
+		if len(resources.Services) != 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (a *CoolifyAdapter) BootstrapProviderName() string {
 	return "coolify"
 }
@@ -389,6 +451,9 @@ func (a *CoolifyAdapter) updateConflictingService(ctx context.Context, manifest 
 	if uuid == "" {
 		return DeploymentRef{}, fmt.Errorf("coolify %s create conflict %q did not include uuid", label, manifest.Name)
 	}
+	if !a.cfg.LegacyDockerComposeAPI {
+		return a.UpdateCompose(ctx, DeploymentRef{Platform: manifest.ManagedBy, AppName: manifest.Name, ExternalID: uuid}, manifest)
+	}
 	var updated map[string]any
 	if _, _, updateErr := a.client.doJSON(ctx, http.MethodPatch, "/api/v1/services/"+url.PathEscape(uuid), payload, &updated); updateErr != nil {
 		return DeploymentRef{}, fmt.Errorf("coolify %s update %q: %w", label, manifest.Name, updateErr)
@@ -397,6 +462,49 @@ func (a *CoolifyAdapter) updateConflictingService(ctx context.Context, manifest 
 		uuid = id
 	}
 	return DeploymentRef{Platform: manifest.ManagedBy, AppName: manifest.Name, ExternalID: uuid}, nil
+}
+
+// UpdateCompose repairs an existing service through its retained deployment
+// reference. Placement belongs to creation; the service PATCH contract rejects
+// project, environment and server fields and must not create another identity.
+func (a *CoolifyAdapter) UpdateCompose(ctx context.Context, ref DeploymentRef, manifest AppManifest) (DeploymentRef, error) {
+	if a.cfg.LegacyDockerComposeAPI {
+		return ref, errors.New("Coolify service updates require the service API, not the legacy application API")
+	}
+	if strings.TrimSpace(ref.ExternalID) == "" || ref.Platform != "coolify" ||
+		manifest.ManagedBy != "coolify" || ref.AppName != manifest.Name || strings.TrimSpace(manifest.ComposeYAML) == "" {
+		return ref, errors.New("Coolify service update requires its exact deployment reference and application bundle")
+	}
+	var updated map[string]any
+	payload := coolifyServicePayload(manifest, HTTPConfig{})
+	if _, _, err := a.client.doJSON(ctx, http.MethodPatch, "/api/v1/services/"+url.PathEscape(ref.ExternalID), payload, &updated); err != nil {
+		return ref, fmt.Errorf("coolify service update %q: %w", ref.AppName, err)
+	}
+	if id := firstString(updated, "uuid", "id"); id != "" && id != ref.ExternalID {
+		return ref, errors.New("Coolify service update returned a different deployment identity; inspect before retrying")
+	}
+	ref.ServiceNames = composeLongRunningServiceNames(manifest.ComposeYAML)
+	ref.ComposeYAML = normalizeComposeYAML(manifest.ComposeYAML)
+	return ref, nil
+}
+
+// Redeploy updates an established service without issuing Start to a running service.
+func (a *CoolifyAdapter) Redeploy(ctx context.Context, ref DeploymentRef) (string, error) {
+	if a.cfg.LegacyDockerComposeAPI {
+		return a.Deploy(ctx, ref)
+	}
+	status, err := a.serviceStatus(ctx, ref)
+	if err != nil {
+		return "", err
+	}
+	if !status.running() {
+		return a.Deploy(ctx, ref)
+	}
+	var deployed map[string]any
+	if _, _, err := a.client.doJSON(ctx, http.MethodPost, "/api/v1/services/"+url.PathEscape(ref.ExternalID)+"/restart", nil, &deployed); err != nil {
+		return "", err
+	}
+	return firstDeploymentID(deployed), nil
 }
 
 func (a *CoolifyAdapter) Deploy(ctx context.Context, ref DeploymentRef) (string, error) {

@@ -60,6 +60,12 @@ type SettingOption struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Note string `json:"note,omitempty"`
+	// Realization overrides the setting's realization for this option.
+	Realization string `json:"realization,omitempty"`
+	// MinMemoryGB is the server memory this option needs to run well.
+	MinMemoryGB int `json:"minMemoryGb,omitempty"`
+	// NeedsAccelerator marks an option that needs a GPU in practice.
+	NeedsAccelerator bool `json:"needsAccelerator,omitempty"`
 }
 
 // Setting is a decision an operator makes about a use case before install;
@@ -130,6 +136,23 @@ func (c Capability) Options() []CapabilityOption {
 		return []CapabilityOption{c.Default}
 	}
 	return []CapabilityOption{c.Default, *c.Alternative}
+}
+
+// Bundle groups capability modules of a use case under one customer-facing
+// choice; the projection of foundation.#UseCaseBundle. Turning a bundle on
+// selects Defaults through the ordinary capability authoring.
+type Bundle struct {
+	ID                    string   `json:"id"`
+	Name                  string   `json:"name"`
+	Help                  string   `json:"help,omitempty"`
+	Examples              []string `json:"examples,omitempty"`
+	Capabilities          []string `json:"capabilities"`
+	Defaults              []string `json:"defaults"`
+	Required              bool     `json:"required"`
+	EnabledByDefault      bool     `json:"enabledByDefault"`
+	Advanced              bool     `json:"advanced"`
+	RecommendsAccelerator bool     `json:"recommendsAccelerator"`
+	RequiresSandbox       bool     `json:"requiresSandbox"`
 }
 
 // MainUseCase is the owner-accepted main use case a catalog entry is grouped
@@ -215,7 +238,9 @@ type UseCase struct {
 	Settings     []Setting                        `json:"settings,omitempty"`
 	// Capabilities are the independently selectable capability modules of
 	// this use case (`stackkit init --use-case-capability`).
-	Capabilities       []Capability           `json:"capabilities,omitempty"`
+	Capabilities []Capability `json:"capabilities,omitempty"`
+	// Bundles group the capability modules for consumer surfaces.
+	Bundles            []Bundle               `json:"bundles,omitempty"`
 	Docs               string                 `json:"docs,omitempty"`
 	DefaultAlternative string                 `json:"defaultAlternative,omitempty"`
 	Alternatives       []AuthoringAlternative `json:"alternatives,omitempty"`
@@ -410,6 +435,15 @@ func generate(repoRoot string, release ReleaseIdentity, generatorVersion string,
 	if err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
 	}
+	if err := validateRecoverySequences(source); err != nil {
+		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
+	}
+	if err := validatePlatformOwnership(source); err != nil {
+		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
+	}
+	if err := validateBackupVolumesAllocated(source); err != nil {
+		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
+	}
 	compat.ContentDigest, err = contentDigest(compat)
 	if err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
@@ -542,6 +576,7 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			} `json:"notApplicable"`
 			Settings     []Setting    `json:"settings"`
 			Capabilities []Capability `json:"capabilities"`
+			Bundles      []Bundle     `json:"bundles"`
 			Docs         string       `json:"docs"`
 			MainUseCase  MainUseCase  `json:"mainUseCase"`
 		} `json:"entries"`
@@ -578,7 +613,10 @@ func loadSource(root string, release ReleaseIdentity) (sourceCatalog, error) {
 			}
 			seenSettings[setting.ID] = true
 		}
-		result.UseCases = append(result.UseCases, UseCase{ID: key, Title: entry.DisplayName, Description: entry.Description, Components: components, MainUseCase: entry.MainUseCase, Settings: settings, Capabilities: entry.Capabilities, Docs: entry.Docs})
+		if err := validateBundles(key, entry.Capabilities, entry.Bundles); err != nil {
+			return sourceCatalog{}, err
+		}
+		result.UseCases = append(result.UseCases, UseCase{ID: key, Title: entry.DisplayName, Description: entry.Description, Components: components, MainUseCase: entry.MainUseCase, Settings: settings, Capabilities: entry.Capabilities, Bundles: entry.Bundles, Docs: entry.Docs})
 		if len(entry.NotApplicable) > 0 {
 			result.NotApplicable[key] = map[string]string{}
 			for gateID, exception := range entry.NotApplicable {
@@ -804,6 +842,207 @@ type deliveryRowClaim struct {
 	backupRestore  bool
 }
 
+// committedCell reports whether a package commits any kit/tier cell for the
+// alternative and adapter (docs/USE_CASE_STANDARD.md D5). Only committed
+// cells may be published as supported.
+func committedCell(pkg map[string]any, alternativeRef, adapterRef string) bool {
+	cells, _ := pkg["committed"].([]any)
+	for _, raw := range cells {
+		cell, _ := raw.(map[string]any)
+		if stringField(cell, "alternative") == alternativeRef && stringField(cell, "adapter") == adapterRef {
+			return true
+		}
+	}
+	return false
+}
+
+// platformServiceImages names the image repositories of services the kit
+// platform owns (docs/USE_CASE_STANDARD.md C8): reverse proxy, identity
+// provider, certificate authority, backup engine and secret store. A use case
+// consumes them and never ships its own.
+var platformServiceImages = map[string]string{
+	"library/traefik":          "reverse proxy",
+	"jc21/nginx-proxy-manager": "reverse proxy",
+	"keycloak/keycloak":        "identity provider",
+	"bitnami/keycloak":         "identity provider",
+	"goauthentik/server":       "identity provider",
+	"authelia/authelia":        "identity provider",
+	"pocket-id/pocket-id":      "identity provider",
+	"tinyauthapp/tinyauth":     "identity provider",
+	"steveiliop56/tinyauth":    "identity provider",
+	"smallstep/step-ca":        "certificate authority",
+	"kopia/kopia":              "backup engine",
+	"restic/restic":            "backup engine",
+	"library/vault":            "secret store",
+	"hashicorp/vault":          "secret store",
+	"infisical/infisical":      "secret store",
+}
+
+// platformServiceKind reports which platform service an image ref provides,
+// matching its normalised repository (registry, tag and digest removed; an
+// official image gains the library/ namespace).
+func platformServiceKind(ref string) string {
+	repository := strings.SplitN(ref, "@", 2)[0]
+	if slash, colon := strings.LastIndex(repository, "/"), strings.LastIndex(repository, ":"); colon > slash {
+		repository = repository[:colon]
+	}
+	parts := strings.Split(repository, "/")
+	if len(parts) > 1 && (strings.ContainsAny(parts[0], ".:") || parts[0] == "localhost") {
+		parts = parts[1:]
+	}
+	if len(parts) == 1 {
+		parts = append([]string{"library"}, parts...)
+	}
+	return platformServiceImages[strings.Join(parts, "/")]
+}
+
+// validatePlatformOwnership refuses a use-case alternative whose module runs
+// a platform-owned service (C8).
+func validatePlatformOwnership(source sourceCatalog) error {
+	modules := map[string]map[string]any{}
+	for _, module := range source.catalogModules {
+		modules[metadataID(module)] = module
+	}
+	for useCaseRef, workload := range source.Workloads {
+		alternatives, _ := workload["alternatives"].([]any)
+		for _, rawAlternative := range alternatives {
+			alternative, _ := rawAlternative.(map[string]any)
+			runtime, _ := modules[stringField(alternative, "moduleRef")]["runtime"].(map[string]any)
+			components, _ := runtime["components"].([]any)
+			for _, rawComponent := range components {
+				component, _ := rawComponent.(map[string]any)
+				image, _ := component["image"].(map[string]any)
+				if kind := platformServiceKind(stringField(image, "ref")); kind != "" {
+					return fmt.Errorf("use case %s alternative %s ships its own %s (%s); use cases consume the kit platform", useCaseRef, stringField(alternative, "id"), kind, stringField(image, "ref"))
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// validateBackupVolumesAllocated requires every backup-enabled component
+// volume of an alternative that claims backup/restore to be a backed-up
+// storage allocation of that alternative (docs/USE_CASE_STANDARD.md F2),
+// because the local backup and restore read only allocations: a volume
+// missing there would be skipped without notice. An alternative without the
+// capability is refused by restore and excluded from backup by its declared
+// capability.
+func validateBackupVolumesAllocated(source sourceCatalog) error {
+	modules := map[string]map[string]any{}
+	for _, module := range source.catalogModules {
+		modules[metadataID(module)] = module
+	}
+	for useCaseRef, workload := range source.Workloads {
+		alternatives, _ := workload["alternatives"].([]any)
+		for _, rawAlternative := range alternatives {
+			alternative, _ := rawAlternative.(map[string]any)
+			if !claimsBackupRestore(alternative) {
+				continue
+			}
+			allocated := map[string]bool{}
+			infrastructure, _ := alternative["infrastructure"].(map[string]any)
+			storage, _ := infrastructure["storageAllocation"].(map[string]any)
+			allocations, _ := storage["allocations"].([]any)
+			for _, rawAllocation := range allocations {
+				allocation, _ := rawAllocation.(map[string]any)
+				allocated[stringField(allocation, "componentRef")+"/"+stringField(allocation, "volumeRef")] = boolField(allocation, "backup")
+			}
+			runtime, _ := modules[stringField(alternative, "moduleRef")]["runtime"].(map[string]any)
+			components, _ := runtime["components"].([]any)
+			for _, rawComponent := range components {
+				component, _ := rawComponent.(map[string]any)
+				volumes, _ := component["volumes"].([]any)
+				for _, rawVolume := range volumes {
+					volume, _ := rawVolume.(map[string]any)
+					if !boolField(volume, "backup") {
+						continue
+					}
+					ref := stringField(component, "id") + "/" + stringField(volume, "id")
+					// A volume shared from another component is allocated
+					// under its owner.
+					if owner, shared := volume["sharedFrom"].(map[string]any); shared {
+						ref = stringField(owner, "componentRef") + "/" + stringField(owner, "volumeRef")
+					}
+					if !allocated[ref] {
+						return fmt.Errorf("use case %s alternative %s backs up volume %s without a backed-up storage allocation", useCaseRef, stringField(alternative, "id"), ref)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// claimsBackupRestore reports whether any delivery row of an alternative
+// claims the backup/restore capability.
+func claimsBackupRestore(alternative map[string]any) bool {
+	runtime, _ := alternative["runtime"].(map[string]any)
+	compatibility, _ := runtime["compatibility"].([]any)
+	for _, raw := range compatibility {
+		row, _ := raw.(map[string]any)
+		capabilities, _ := row["capabilities"].(map[string]any)
+		if boolField(capabilities, "backupRestore") {
+			return true
+		}
+	}
+	return false
+}
+
+// validateRecoverySequences requires every recovery step of a package to name
+// a backed-up storage allocation (component/volume) of each committed
+// alternative (docs/USE_CASE_STANDARD.md E4), so a restore sequence never
+// refers to data that no backup holds.
+func validateRecoverySequences(source sourceCatalog) error {
+	for useCaseRef, pkg := range source.Packages {
+		recovery, _ := pkg["recovery"].(map[string]any)
+		sequence, _ := recovery["sequence"].([]any)
+		if len(sequence) == 0 {
+			continue
+		}
+		committed := map[string]struct{}{}
+		cells, _ := pkg["committed"].([]any)
+		for _, raw := range cells {
+			cell, _ := raw.(map[string]any)
+			committed[stringField(cell, "alternative")] = struct{}{}
+		}
+		if len(committed) == 0 {
+			return fmt.Errorf("use case %s declares a recovery sequence without a committed alternative", useCaseRef)
+		}
+		alternatives, _ := source.Workloads[useCaseRef]["alternatives"].([]any)
+		for alternativeRef := range committed {
+			backedUp := map[string]struct{}{}
+			found := false
+			for _, raw := range alternatives {
+				alternative, _ := raw.(map[string]any)
+				if stringField(alternative, "id") != alternativeRef {
+					continue
+				}
+				found = true
+				infrastructure, _ := alternative["infrastructure"].(map[string]any)
+				storage, _ := infrastructure["storageAllocation"].(map[string]any)
+				allocations, _ := storage["allocations"].([]any)
+				for _, rawAllocation := range allocations {
+					allocation, _ := rawAllocation.(map[string]any)
+					if boolField(allocation, "backup") {
+						backedUp[stringField(allocation, "componentRef")+"/"+stringField(allocation, "volumeRef")] = struct{}{}
+					}
+				}
+			}
+			if !found {
+				return fmt.Errorf("use case %s commits unknown alternative %s", useCaseRef, alternativeRef)
+			}
+			for _, rawStep := range sequence {
+				step, _ := rawStep.(string)
+				if _, ok := backedUp[step]; !ok {
+					return fmt.Errorf("use case %s recovery step %q is not a backed-up volume of %s", useCaseRef, step, alternativeRef)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func deliveryRows(source sourceCatalog) ([]ApplicationDelivery, error) {
 	var rows []ApplicationDelivery
 	seen := map[string]deliveryRowClaim{}
@@ -840,6 +1079,9 @@ func deliveryRows(source sourceCatalog) ([]ApplicationDelivery, error) {
 				}
 				if status != "supported" && status != "beta" && status != "preview" && status != "unsupported" {
 					return nil, fmt.Errorf("invalid delivery status %q", status)
+				}
+				if status == "supported" && !committedCell(source.Packages[useCaseRef], stringField(alternative, "id"), adapter) {
+					return nil, fmt.Errorf("use case %s claims supported delivery for %s through %s without a committed cell", useCaseRef, stringField(alternative, "id"), adapter)
 				}
 				capMap, _ := row["capabilities"].(map[string]any)
 				claim := deliveryRowClaim{
@@ -1412,6 +1654,63 @@ func validateCapabilityWorkloads(useCase UseCase, workloads []map[string]any) er
 		primary := byID[useCase.ID]
 		if capability.Default.Realization != "install" || primary == nil || capability.Default.WorkloadRef != useCase.ID || capability.Default.AlternativeRef != stringField(primary, "defaultAlternative") {
 			return fmt.Errorf("use case %s capability %s is enabled by default but its default does not install the use case's default workload alternative", useCase.ID, capability.ID)
+		}
+	}
+	return nil
+}
+
+// validateBundles checks the derived bundle facts CUE cannot express without
+// cross-list joins: a bundle is required exactly when it holds a required
+// module and on by default exactly when it holds a module that is on by
+// default, and a default bundle selects exactly those modules, so turning the
+// default bundles on reproduces the previous default composition.
+func validateBundles(useCase string, capabilities []Capability, bundles []Bundle) error {
+	byID := make(map[string]Capability, len(capabilities))
+	for _, capability := range capabilities {
+		byID[capability.ID] = capability
+	}
+	placed := map[string]string{}
+	for _, bundle := range bundles {
+		var required, enabled bool
+		var enabledMembers []string
+		for _, ref := range bundle.Capabilities {
+			capability, ok := byID[ref]
+			if !ok {
+				return fmt.Errorf("use case %s bundle %s names unknown capability %s", useCase, bundle.ID, ref)
+			}
+			placed[ref] = bundle.ID
+			required = required || capability.Required
+			if capability.EnabledByDefault {
+				enabled = true
+				enabledMembers = append(enabledMembers, ref)
+			}
+		}
+		for _, ref := range bundle.Defaults {
+			if !slices.Contains(bundle.Capabilities, ref) {
+				return fmt.Errorf("use case %s bundle %s default %s is not one of its capabilities", useCase, bundle.ID, ref)
+			}
+		}
+		if bundle.Required != required {
+			return fmt.Errorf("use case %s bundle %s required=%t, but its modules make it required=%t", useCase, bundle.ID, bundle.Required, required)
+		}
+		if bundle.EnabledByDefault != enabled {
+			return fmt.Errorf("use case %s bundle %s enabledByDefault=%t, but its modules make it %t", useCase, bundle.ID, bundle.EnabledByDefault, enabled)
+		}
+		if enabled {
+			defaults := slices.Sorted(slices.Values(bundle.Defaults))
+			slices.Sort(enabledMembers)
+			if !slices.Equal(defaults, enabledMembers) {
+				return fmt.Errorf("use case %s default bundle %s selects %v, but its modules on by default are %v", useCase, bundle.ID, defaults, enabledMembers)
+			}
+		}
+	}
+	// A module in no bundle is not offered by setup, so the required and
+	// default modules must each sit in a bundle.
+	if len(bundles) > 0 {
+		for _, capability := range capabilities {
+			if _, ok := placed[capability.ID]; !ok && (capability.Required || capability.EnabledByDefault) {
+				return fmt.Errorf("use case %s capability %s is required or on by default but in no bundle", useCase, capability.ID)
+			}
 		}
 	}
 	return nil

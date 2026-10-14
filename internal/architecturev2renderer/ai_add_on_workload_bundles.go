@@ -17,6 +17,7 @@ const (
 	searxngWorkloadModuleID = "stackkits-searxng-runtime"
 	tikaWorkloadModuleID    = "stackkits-tika-runtime"
 	doclingWorkloadModuleID = "stackkits-docling-runtime"
+	litellmWorkloadModuleID = "stackkits-litellm-runtime"
 )
 
 // aiAddOnWorkload is the closed contract of one Private AI add-on bundle.
@@ -118,7 +119,37 @@ func doclingWorkload() aiAddOnWorkload {
 	}
 }
 
+// litellmWorkload is the model router: one OpenAI-compatible endpoint in
+// front of the node's Ollama for the owner's apps and devices. Unlike the
+// other add-ons it is meant to be routed, but devices cannot complete the
+// kit's browser login, so its route uses LiteLLM's own authentication: the
+// master key from custody guards every model route. It stays private (local
+// or remote-private, never public), has no egress and holds no data.
+func litellmWorkload() aiAddOnWorkload {
+	return aiAddOnWorkload{
+		kind: "LitellmWorkloadBundle", name: "LiteLLM", moduleID: litellmWorkloadModuleID, unitID: "litellm",
+		workloadRef: "ai-gateway", alternativeRef: "litellm", release: litellmRelease,
+		imageRef: litellmImageRef, imageDigest: litellmImageDigest, port: 4000, secretRefs: []string{"master-key"},
+		component: selectedPaaSRuntimeComponent{
+			ID: "litellm", Role: "application", Lifecycle: "daemon",
+			Image:     selectedPaaSRuntimeImage{Ref: litellmImageRef, Digest: litellmImageDigest},
+			DependsOn: []string{}, NetworkRefs: []string{"litellm-internal"},
+			Entrypoint: []string{"/bin/sh", "-ec", `mkdir -p /etc/litellm && printf 'model_list:\n  - model_name: "ollama/*"\n    litellm_params:\n      model: "ollama_chat/*"\n      api_base: "http://ollama:11434"\n` +
+				`litellm_settings:\n  drop_params: true\n  check_provider_endpoint: true\ngeneral_settings:\n  master_key: os.environ/LITELLM_MASTER_KEY\n' > /etc/litellm/config.yaml && ` +
+				`exec /app/docker/prod_entrypoint.sh --config /etc/litellm/config.yaml --port 4000`},
+			Environment:       map[string]string{"DISABLE_ADMIN_UI": "True", "LITELLM_LOCAL_MODEL_COST_MAP": "True", "LITELLM_LOG": "INFO"},
+			SecretEnvironment: map[string]string{"LITELLM_MASTER_KEY": "master-key"},
+			Health:            selectedPaaSRuntimeHealth{Kind: "http", Path: "/health/liveliness", Port: 4000},
+			Resources:         &selectedPaaSRuntimeLimits{MemoryLimit: "2g", MemoryReservation: "512m"},
+			PeerNetworks:      []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}},
+		},
+		schemaBoundary: "|peer:ai/private-ai-internal|ingress:native",
+		ingressAuth:    "native",
+	}
+}
+
 func SearxngWorkloadBundleRendererContract() RendererContract { return searxngWorkload().contract() }
+func LitellmWorkloadBundleRendererContract() RendererContract { return litellmWorkload().contract() }
 func TikaWorkloadBundleRendererContract() RendererContract    { return tikaWorkload().contract() }
 func DoclingWorkloadBundleRendererContract() RendererContract { return doclingWorkload().contract() }
 
@@ -145,6 +176,10 @@ func ParseTikaWorkloadBundle(data []byte) (AIAddOnWorkloadBundleDescriptor, erro
 
 func ParseDoclingWorkloadBundle(data []byte) (AIAddOnWorkloadBundleDescriptor, error) {
 	return doclingWorkload().parse(data)
+}
+
+func ParseLitellmWorkloadBundle(data []byte) (AIAddOnWorkloadBundleDescriptor, error) {
+	return litellmWorkload().parse(data)
 }
 
 type aiAddOnWorkloadBundleRenderer struct {

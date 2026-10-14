@@ -98,6 +98,16 @@ func NativeActionMetadata(action string) (NativeActionDescription, bool) {
 			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/use-cases/ai/agent/image-video/SKILL.md#download-a-model",
 			SupportsOnboardingCompletion: false,
 		}, true
+	case OllamaModelsAction:
+		// The owner lists, pulls (reviewed models only, after accepting the
+		// license) or removes models in the node's Ollama.
+		return NativeActionDescription{
+			Title:                        "Model manager",
+			CredentialFields:             []string{"operation", "model", "acceptLicense"},
+			CredentialsFile:              ".stackkit/setup/ai-models.json",
+			GuideURL:                     "https://github.com/kombifyio/stackKits/blob/main/docs/USE_CASE_PACKAGES.md#private-ai-model-manager",
+			SupportsOnboardingCompletion: false,
+		}, true
 	case "roundcube-mailbox-login":
 		return NativeActionDescription{
 			Title:                        "Mailbox login check",

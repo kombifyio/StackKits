@@ -10,6 +10,12 @@ import (
 // construction-owned lifecycle conditions; CLI, MCP and generated docs consume
 // the same contracts rather than keeping their own recovery text.
 var lifecycleDiagnostics = []Contract{
+	New("stackkit_command_failed", "pocketid_tinyauth_binding_mismatch",
+		"The PocketID TinyAuth client policy differs from verified local Owner custody.",
+		[]string{"Retain the original workspace and custody. Inspect the named fields through the owning identity lifecycle: PKCE-only drift can converge through its existing reapply; callback, client or group drift requires that lifecycle's binding reconciliation. Managed installations reapply through Techstack; standalone installations use their supported Apply path. Do not reset the owner, issue activation links or overwrite grants to bypass verification."}, false),
+	New("stackkit_command_failed", "pocketid_tinyauth_client_unreadable",
+		"The authenticated PocketID TinyAuth client readback failed; policy drift is not established.",
+		[]string{"Inspect local PocketID health and authenticated API availability, then retry owner status with the original workspace and custody. Do not recreate the client, rotate credentials or infer missing passkeys from a failed read."}, true),
 	New("stackkit_command_failed", "client_trust_approval_required",
 		"Installing or removing this client trust profile requires explicit local OS approval.",
 		[]string{"Review the Owner-CA fingerprint, then run `sudo sh enroll-linux.sh --approve` from the client's user session; use `--remove` to undo only this profile."}, false),

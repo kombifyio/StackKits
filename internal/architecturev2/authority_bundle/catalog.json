@@ -2719,6 +2719,197 @@
         }
       },
       "metadata": {
+        "description": "Model router add-on of the Private AI use case.",
+        "id": "ai-gateway",
+        "version": "1.0.0"
+      },
+      "packageRef": "ai",
+      "useCaseRef": "ai",
+      "workloadRef": "ai-gateway"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "Public share-link add-on of the photos use case.",
         "id": "photos-share",
         "version": "1.0.0"
@@ -4364,6 +4555,28 @@
               "activate",
               "verify",
               "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
             ],
             "surfaces": [
               "cli",
@@ -8907,6 +9120,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-litellm-runtime"
+        ],
+        "matches": [
+          "stackkits-litellm"
+        ],
+        "module": "stackkits-litellm-runtime",
+        "provider": "stackkits-litellm"
+      },
+      {
+        "governanceMatches": [
           "stackkits-gitea-runtime"
         ],
         "matches": [
@@ -10058,6 +10281,12 @@
         },
         {
           "contracts": [
+            "ai-gateway"
+          ],
+          "providerID": "stackkits-litellm"
+        },
+        {
+          "contracts": [
             "dev"
           ],
           "providerID": "stackkits-gitea"
@@ -11145,6 +11374,13 @@
         ],
         "module": "stackkits-docling-runtime",
         "provider": "stackkits-docling"
+      },
+      {
+        "matches": [
+          "stackkits-litellm-runtime"
+        ],
+        "module": "stackkits-litellm-runtime",
+        "provider": "stackkits-litellm"
       },
       {
         "matches": [
@@ -12413,6 +12649,20 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-litellm"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-litellm"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-gitea"
       },
       {
@@ -13310,6 +13560,20 @@
           "service-catalog"
         ],
         "provider": "stackkits-adguard-home"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-adguard-home"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-adguard-home"
       }
     ],
     "tls": {
@@ -13763,6 +14027,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-docling"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-litellm"
         },
         {
           "capabilityBindings": [],
@@ -15356,7 +15626,14 @@
                   ]
                 }
               ],
-              "settingsRefs": []
+              "settingsRefs": [
+                {
+                  "matches": [
+                    "comfyui"
+                  ],
+                  "ref": "comfyui-api-nodes"
+                }
+              ]
             }
           ],
           "providerMatches": [
@@ -15949,6 +16226,77 @@
             }
           ],
           "workloadID": "ai-documents"
+        },
+        {
+          "alternativeID": "litellm",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-litellm-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "litellm"
+                  ],
+                  "ref": "master-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "unitID": "litellm"
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-litellm",
+              "workloadOwnership": [
+                "ai-gateway"
+              ]
+            }
+          ],
+          "workloadID": "ai-gateway"
         },
         {
           "alternativeID": "gitea",
@@ -31786,7 +32134,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:511dab2fbf4b1cdec9663d0233719b3412ec915ef483457eaf515962fc2a9330",
+          "contractHash": "sha256:45638079b68210738ef3a82711d7183ab23dd9041857594d9c23096e692976f3",
           "id": "private-ai",
           "inputBindings": [
             {
@@ -32038,6 +32386,11 @@
                 "alternativeRef": "paperclip",
                 "environment": {},
                 "workloadRef": "ai-control-plane"
+              },
+              {
+                "alternativeRef": "litellm",
+                "environment": {},
+                "workloadRef": "ai-gateway"
               },
               {
                 "alternativeRef": "speechkit",
@@ -32552,7 +32905,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:93b50dfcd05f0dbec0031f9cad4d5375218afc8fb67d93a029aea132fe678f02",
+          "contractHash": "sha256:c9ff70fb7d958bd0a3f7db9b62d2a9d621fbd785def372e549ba39aa84bd2526",
           "id": "anythingllm",
           "inputBindings": [
             {
@@ -32752,6 +33105,11 @@
                 "alternativeRef": "paperclip",
                 "environment": {},
                 "workloadRef": "ai-control-plane"
+              },
+              {
+                "alternativeRef": "litellm",
+                "environment": {},
+                "workloadRef": "ai-gateway"
               },
               {
                 "alternativeRef": "speechkit",
@@ -33005,7 +33363,7 @@
         }
       ],
       "metadata": {
-        "description": "ComfyUI image and video generation on the node's CPU or on a selected NVIDIA GPU with reviewed workflow templates. It never loads ComfyUI-Manager, custom nodes or paid API nodes, holds no model until the owner downloads a preset, and is reached only on a private route behind the kit's login and by Open WebUI.",
+        "description": "ComfyUI image and video generation on the node's CPU or on a selected NVIDIA GPU with reviewed workflow templates. It never loads ComfyUI-Manager or custom nodes, and loads the paid API nodes (external providers through the owner's own Comfy.org account) only when the owner turns the comfyui-api-nodes setting on, holds no model until the owner downloads a preset, and is reached only on a private route behind the kit's login and by Open WebUI.",
         "id": "stackkits-comfyui-runtime",
         "version": "1.0.0"
       },
@@ -33091,7 +33449,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:ecbb3806a921159493d8d7d5386cfce4b9abd69bd266b3fd8b0d0ec9436b63af",
+          "contractHash": "sha256:45f4eee684db86149cb064a3ec0cb6f1f6a159ac0d40ffecff0006602c3b64ec",
           "id": "comfyui",
           "inputBindings": [
             {
@@ -33114,7 +33472,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "comfyui-api-nodes"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -33187,7 +33546,8 @@
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "comfyui-api-nodes"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -33204,7 +33564,8 @@
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "comfyui-api-nodes"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -33222,7 +33583,8 @@
           "id": "terramate",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "comfyui-api-nodes"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [],
@@ -36108,6 +36470,374 @@
         "image": {
           "digest": "sha256:79e5fcd19ab227ed36323fa5fa31820d14d53efc4f073417ba37be7931c7af0a",
           "ref": "quay.io/docling-project/docling-serve-cpu:v1.35.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "litellm"
+          ],
+          "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        },
+        "standard": {
+          "components": [
+            "litellm"
+          ],
+          "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models. It keeps no request history; the models themselves run in Ollama.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "litellm-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "litellm-http",
+          "kind": "http",
+          "path": "/health/liveliness",
+          "phase": "continuous",
+          "port": 4000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "LiteLLM proxy (no database) that serves the node's Ollama models through one OpenAI-compatible endpoint for the owner's apps and devices. Every model route needs the master key from owner custody; the admin UI is off.",
+        "id": "stackkits-litellm-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-litellm",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "litellm-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/litellm/bundle.json",
+              "required": true,
+              "unitRef": "litellm"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "litellm-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/litellm/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "litellm-workload-bundle",
+              "outputRef": "workloads/litellm/bundle.json",
+              "unitRef": "litellm"
+            },
+            {
+              "artifactRef": "litellm-terramate-stack",
+              "outputRef": "platform/applications/litellm/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "litellm-workload-bundle",
+            "litellm-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "litellm-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "master-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:52affac6da7461ff9f872ca9451b5d737d1259585208afe892a6eae7819527b9",
+          "id": "litellm",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/litellm/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "master-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "healthRef": "litellm-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "ai-gateway",
+              "targetPort": 4000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/litellm/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/litellm/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "litellm-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "master-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "litellm"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "litellm-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "master-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "litellm"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "litellm-workload-bundle",
+            "litellm-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "master-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "litellm",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "entrypoint": [
+              "/bin/sh",
+              "-ec",
+              "mkdir -p /etc/litellm \u0026\u0026 printf 'model_list:\\n  - model_name: \"ollama/*\"\\n    litellm_params:\\n      model: \"ollama_chat/*\"\\n      api_base: \"http://ollama:11434\"\\nlitellm_settings:\\n  drop_params: true\\n  check_provider_endpoint: true\\ngeneral_settings:\\n  master_key: os.environ/LITELLM_MASTER_KEY\\n' \u003e /etc/litellm/config.yaml \u0026\u0026 exec /app/docker/prod_entrypoint.sh --config /etc/litellm/config.yaml --port 4000"
+            ],
+            "environment": {
+              "DISABLE_ADMIN_UI": "True",
+              "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+              "LITELLM_LOG": "INFO"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/health/liveliness",
+              "port": 4000
+            },
+            "id": "litellm",
+            "image": {
+              "digest": "sha256:60947db020b57e204823d3fbc8bb295c85be890d7c9adcc77fb4f5fc2fe410b2",
+              "ref": "ghcr.io/berriai/litellm:v1.105.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "litellm-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "private-ai-internal",
+                "workloadRef": "ai"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "LITELLM_MASTER_KEY": "master-key"
+            }
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "litellm",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:60947db020b57e204823d3fbc8bb295c85be890d7c9adcc77fb4f5fc2fe410b2",
+          "ref": "ghcr.io/berriai/litellm:v1.105.0"
         },
         "kind": "container"
       },
@@ -49054,8 +49784,12 @@
             "guacd",
             "guacamole"
           ],
-          "description": "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance.",
+          "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
           "executable": true,
+          "headroom": {
+            "cpuCores": 1.95,
+            "ramGB": 1.1875
+          },
           "hostFloor": {
             "minCpuCores": 2,
             "minRamGB": 4,
@@ -49063,12 +49797,16 @@
           },
           "maturity": "experimental",
           "provenance": {
+            "headroom": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            },
             "hostFloor": {
               "ref": "Kombify host floor support policy",
               "source": "policy"
             },
             "recommended": {
-              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json",
               "source": "measured"
             },
             "reservation": {
@@ -49078,8 +49816,53 @@
           },
           "realization": "apply-ready",
           "recommended": {
-            "cpuCores": 0.5,
-            "ramGB": 0.375
+            "cpuCores": 0.25,
+            "ramGB": 0.25
+          },
+          "reservation": {
+            "cpuCores": 0.05,
+            "ramGB": 0.3125
+          }
+        },
+        "low": {
+          "components": [
+            "guacd",
+            "guacamole"
+          ],
+          "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
+          "executable": true,
+          "headroom": {
+            "cpuCores": 0.45,
+            "ramGB": 0.1875
+          },
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "headroom": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            },
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json",
+              "source": "measured"
+            },
+            "reservation": {
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+              "source": "measured"
+            }
+          },
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 0.25,
+            "ramGB": 0.25
           },
           "reservation": {
             "cpuCores": 0.05,
@@ -49091,8 +49874,12 @@
             "guacd",
             "guacamole"
           ],
-          "description": "Guacamole and guacd with transient private XML authentication. Module demand is observed from both resident daemons during one RDP input/reconnect flow. Standard and high share the same graph and standard evidence; a named measured high benefit remains unverified. No recordings or target credential storage; not whole-kit or client-capacity acceptance.",
+          "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
           "executable": true,
+          "headroom": {
+            "cpuCores": 0.95,
+            "ramGB": 0.4375
+          },
           "hostFloor": {
             "minCpuCores": 2,
             "minRamGB": 4,
@@ -49100,6 +49887,10 @@
           },
           "maturity": "experimental",
           "provenance": {
+            "headroom": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            },
             "hostFloor": {
               "ref": "Kombify host floor support policy",
               "source": "policy"
@@ -49214,7 +50005,8 @@
           "contractComplete": true,
           "requiredRefs": [
             "remote-connection",
-            "owner-password"
+            "owner-password",
+            "compute-profile"
           ]
         },
         "level": "apply-ready",
@@ -49231,7 +50023,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:4a168f443d13cb8596ac00fd4777cb4689b8a627224bcfcbf8add58175fdcdbc",
+          "contractHash": "sha256:9acbeb92d5afecfc7532c9c0bceb92c035214c85d1f85e0bdc9f20999415e586",
           "id": "guacamole",
           "inputBindings": [
             {
@@ -49241,6 +50033,13 @@
               "sourceRef": "network.moduleRoute",
               "targetRef": "delivery-route",
               "valueType": "authority-bound-module-route-v1"
+            },
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "modules.computeProfileBinding",
+              "targetRef": "compute-profile",
+              "valueType": "module-compute-profile-v1"
             }
           ],
           "kind": "native-config",
@@ -49255,7 +50054,8 @@
           "providesInterfaces": [],
           "publicInputRefs": [
             "delivery-route",
-            "remote-connection"
+            "remote-connection",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -49290,8 +50090,8 @@
               "upstreamProtocol": "http"
             }
           ],
-          "templateRef": "builtin://workloads/guacamole/bundle/v1.json",
-          "version": "1.0.0"
+          "templateRef": "builtin://workloads/guacamole/bundle/v2.json",
+          "version": "2.0.0"
         },
         {
           "applyMode": "artifact-only",
@@ -49332,7 +50132,8 @@
           "planInputRefs": [],
           "publicInputRefs": [
             "delivery-route",
-            "remote-connection"
+            "remote-connection",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -49352,7 +50153,8 @@
           "planInputRefs": [],
           "publicInputRefs": [
             "delivery-route",
-            "remote-connection"
+            "remote-connection",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -49373,7 +50175,8 @@
           "planInputRefs": [],
           "publicInputRefs": [
             "delivery-route",
-            "remote-connection"
+            "remote-connection",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -49806,8 +50609,12 @@
           "components": [
             "adguard-home"
           ],
-          "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+          "description": "Same private selected-client DNS/setup functions with a larger declared allocation. No new product function, QPS setting or measured high benefit is inferred.",
           "executable": true,
+          "headroom": {
+            "cpuCores": 1.95,
+            "ramGB": 0.375
+          },
           "hostFloor": {
             "minCpuCores": 2,
             "minRamGB": 4,
@@ -49815,9 +50622,17 @@
           },
           "maturity": "experimental",
           "provenance": {
+            "headroom": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            },
             "hostFloor": {
               "ref": "Kombify host floor support policy",
               "source": "policy"
+            },
+            "recommended": {
+              "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json",
+              "source": "measured"
             },
             "reservation": {
               "ref": "Kombify reservation policy; declared, not a sum of component limits",
@@ -49825,16 +50640,69 @@
             }
           },
           "realization": "apply-ready",
-          "reservation": {
+          "recommended": {
+            "cpuCores": 0.25,
             "ramGB": 0.125
+          },
+          "reservation": {
+            "cpuCores": 0.05,
+            "ramGB": 0.125
+          }
+        },
+        "low": {
+          "components": [
+            "adguard-home"
+          ],
+          "description": "Same private selected-client DNS/setup functions with a smaller declared allocation. Physical small-device and whole-case qualification remain pending.",
+          "executable": true,
+          "headroom": {
+            "cpuCores": 0.45,
+            "ramGB": 0.0625
+          },
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "headroom": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            },
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json",
+              "source": "measured"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 0.25,
+            "ramGB": 0.125
+          },
+          "reservation": {
+            "cpuCores": 0.05,
+            "ramGB": 0.0625
           }
         },
         "standard": {
           "components": [
             "adguard-home"
           ],
-          "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
+          "description": "Same private selected-client DNS/setup functions with the existing standard RAM envelope; CPU allocation is explicit. Physical/current-public qualification remains pending.",
           "executable": true,
+          "headroom": {
+            "cpuCores": 0.95,
+            "ramGB": 0.125
+          },
           "hostFloor": {
             "minCpuCores": 2,
             "minRamGB": 4,
@@ -49842,9 +50710,17 @@
           },
           "maturity": "experimental",
           "provenance": {
+            "headroom": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            },
             "hostFloor": {
               "ref": "Kombify host floor support policy",
               "source": "policy"
+            },
+            "recommended": {
+              "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json",
+              "source": "measured"
             },
             "reservation": {
               "ref": "Kombify reservation policy; declared, not a sum of component limits",
@@ -49852,7 +50728,12 @@
             }
           },
           "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 0.25,
+            "ramGB": 0.125
+          },
           "reservation": {
+            "cpuCores": 0.05,
             "ramGB": 0.125
           }
         }
@@ -49947,7 +50828,8 @@
           "contractComplete": true,
           "requiredRefs": [
             "dns-policy",
-            "owner-password"
+            "owner-password",
+            "compute-profile"
           ]
         },
         "level": "apply-ready",
@@ -49964,7 +50846,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:854bda8cab993e8165bc47d4382db4823e23a9c65d8f051f8d6361bb739d6e9f",
+          "contractHash": "sha256:90f259424b178586a6ee96663d2305f15370a5db8be0ee8ce0abcbf62d6cdd24",
           "id": "adguard-home",
           "inputBindings": [
             {
@@ -49974,6 +50856,13 @@
               "sourceRef": "network.moduleRoute",
               "targetRef": "delivery-route",
               "valueType": "authority-bound-module-route-v1"
+            },
+            {
+              "cardinality": "single",
+              "required": true,
+              "sourceRef": "modules.computeProfileBinding",
+              "targetRef": "compute-profile",
+              "valueType": "module-compute-profile-v1"
             }
           ],
           "kind": "native-config",
@@ -49989,7 +50878,8 @@
           "publicInputRefs": [
             "delivery-route",
             "dns-policy",
-            "lan-listener"
+            "lan-listener",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -50024,8 +50914,8 @@
               "upstreamProtocol": "http"
             }
           ],
-          "templateRef": "builtin://workloads/adguard-home/bundle/v1.json",
-          "version": "1.0.0"
+          "templateRef": "builtin://workloads/adguard-home/bundle/v2.json",
+          "version": "2.0.0"
         },
         {
           "applyMode": "artifact-only",
@@ -50067,7 +50957,8 @@
           "publicInputRefs": [
             "delivery-route",
             "dns-policy",
-            "lan-listener"
+            "lan-listener",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -50088,7 +50979,8 @@
           "publicInputRefs": [
             "delivery-route",
             "dns-policy",
-            "lan-listener"
+            "lan-listener",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -50110,7 +51002,8 @@
           "publicInputRefs": [
             "delivery-route",
             "dns-policy",
-            "lan-listener"
+            "lan-listener",
+            "compute-profile"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -53026,6 +53919,46 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "litellm-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-litellm",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-litellm-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "ai-gateway"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "gitea-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -55166,6 +56099,14 @@
         {
           "id": "service-catalog",
           "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
         }
       ],
       "runtimeAdapterRefs": [],
@@ -56245,7 +57186,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               },
               {
                 "adapterRef": "komodo",
@@ -56265,7 +57206,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
@@ -56387,7 +57328,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
@@ -56525,7 +57466,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               },
               {
                 "adapterRef": "komodo",
@@ -56545,7 +57486,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
@@ -56937,7 +57878,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               },
               {
                 "adapterRef": "komodo",
@@ -56957,7 +57898,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
@@ -57261,16 +58202,18 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
             "defaultFallbackAdapterRefs": []
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "ollama-models"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         },
         {
@@ -57533,7 +58476,9 @@
               "requiredRefs": []
             },
             "settings": {
-              "allowedRefs": [],
+              "allowedRefs": [
+                "comfyui-api-nodes"
+              ],
               "requiredRefs": []
             }
           },
@@ -58346,6 +59291,79 @@
     {
       "alternatives": [
         {
+          "id": "litellm",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "master-key"
+              ],
+              "requiredRefs": [
+                "master-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-litellm-runtime",
+          "providerRef": "stackkits-litellm",
+          "route": {
+            "healthRef": "litellm-http",
+            "serviceRef": "ai-gateway"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [],
+      "defaultAlternative": "litellm",
+      "functionalCapabilities": [
+        "model-routing"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models, selected with the Private AI model-router module. Every request needs the master key from owner custody; the route is local or remote-private, never public.",
+        "id": "ai-gateway",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "ai"
+    },
+    {
+      "alternatives": [
+        {
           "id": "gitea",
           "infrastructure": {
             "backupSource": {
@@ -58453,7 +59471,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
@@ -59857,7 +60875,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               },
               {
                 "adapterRef": "komodo",
@@ -59877,7 +60895,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
@@ -60384,7 +61402,8 @@
           },
           "runtime": {
             "allowedAdapterRefs": [
-              "standalone-compose"
+              "standalone-compose",
+              "coolify"
             ],
             "allowedDeliveries": [
               "application-adapter"
@@ -60393,6 +61412,16 @@
               "container"
             ],
             "compatibility": [
+              {
+                "adapterRef": "coolify",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
@@ -61223,7 +62252,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               },
               {
                 "adapterRef": "komodo",
@@ -61243,7 +62272,7 @@
                   "routeTLS": true,
                   "statusEvidence": true
                 },
-                "maturity": "supported"
+                "maturity": "beta"
               }
             ],
             "defaultAdapterRef": "standalone-compose",
@@ -61733,8 +62762,8 @@
           "included": true
         },
         "low": {
-          "included": false,
-          "reason": "The first Guacamole module requires the standard host floor; small-device and measured tier acceptance remain pending."
+          "alternativeID": "guacamole",
+          "included": true
         },
         "standard": {
           "alternativeID": "guacamole",
@@ -61850,6 +62879,64 @@
       "alternatives": [
         {
           "id": "adguard-home",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "componentRef": "adguard-home",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "config"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "network",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "adguard-home",
+                  "dataBindingRef": "network",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/opt/adguardhome/conf",
+                  "volumeRef": "config"
+                },
+                {
+                  "backup": false,
+                  "class": "persistent",
+                  "componentRef": "adguard-home",
+                  "dataBindingRef": "network",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/opt/adguardhome/work",
+                  "volumeRef": "work"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
           "inputs": {
             "secretInputs": {
               "allowedRefs": [
@@ -61915,8 +63002,8 @@
           "included": true
         },
         "low": {
-          "included": false,
-          "reason": "The first AdguardHome module requires the standard host floor; small-device and measured tier acceptance remain pending."
+          "alternativeID": "adguard-home",
+          "included": true
         },
         "standard": {
           "alternativeID": "adguard-home",

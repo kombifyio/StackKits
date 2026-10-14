@@ -124,10 +124,20 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Agent-control-plane capability module (experimental): Paperclip organizes agents, budgets, approvals and tasks with its own PostgreSQL in one gVisor-isolated bundle, no host Docker socket, no egress and no provider key; budgets default to zero. The installed Hermes is reachable on the private AI network. A private route behind the kit's login and Paperclip's own login. The host needs the runsc runtime."
 			capabilities: ["agent-control-plane"]
 		}
+		litellm: {
+			moduleSlug: "litellm"
+			role:       "supporting"
+			rationale:  "Model-router capability module: LiteLLM without a database gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models; every model route needs the master key from owner custody, the admin UI is off, and the route is local or remote-private, never public."
+			capabilities: ["model-routing"]
+		}
 	}
 	setup: {
 		defaultPolicy: "on_demand"
 		drops: [{
+			name:        "ollama-models"
+			policy:      "on_demand"
+			description: "Manage the node's Ollama models with `stackkit setup ai`: list the installed models, pull one reviewed model after the owner accepts its license (refused when the models volume lacks the declared size plus a margin) or remove an installed one."
+		}, {
 			name:        "comfyui-model-download"
 			policy:      "on_demand"
 			description: "Download one reviewed ComfyUI model preset after the owner accepts its license; weights are verified by size and SHA-256, never bundled and excluded from backup."

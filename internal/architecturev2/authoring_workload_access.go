@@ -23,6 +23,13 @@ func selectedWorkloadServiceEndpoint(module, alternative map[string]any) map[str
 	return nil
 }
 
+// workloadContractHoldsNoData reports whether a workload contract declares an
+// explicit, empty dataClasses list.
+func workloadContractHoldsNoData(contract map[string]any) bool {
+	classes, declared := contract["dataClasses"].([]any)
+	return declared && len(classes) == 0
+}
+
 // projectInitialWorkloadAccess runs only while materializing new native intent.
 // The kit owns selection/access defaults, the selected module owns its endpoint
 // and data classes, and the domain is read from the already overridden intent.
@@ -55,16 +62,21 @@ func projectInitialWorkloadAccess(spec, authoring map[string]any, selections map
 		if err != nil {
 			return err
 		}
-		dataContract, _ := endpoint["data"].(map[string]any)
-		bindingRef, _ := dataContract["bindingRef"].(string)
-		classes, _ := dataContract["requiredClasses"].([]any)
-		if bindingRef == "" || len(classes) == 0 {
-			return fmt.Errorf("workload %q has no declared endpoint data binding", id)
-		}
-		data := initialAuthoringObject(spec, "data")
-		bindings := initialAuthoringObject(data, "bindings")
-		if _, exists := bindings[bindingRef]; !exists {
-			bindings[bindingRef] = map[string]any{"classes": classes, "primarySiteRef": site}
+		dataContract, declaresData := endpoint["data"].(map[string]any)
+		// A workload that holds no data (its contract declares no data
+		// classes) and whose endpoint declares no data contract gets its
+		// route without a data binding; every other workload must declare one.
+		if declaresData || !selection.HoldsNoData {
+			bindingRef, _ := dataContract["bindingRef"].(string)
+			classes, _ := dataContract["requiredClasses"].([]any)
+			if bindingRef == "" || len(classes) == 0 {
+				return fmt.Errorf("workload %q has no declared endpoint data binding", id)
+			}
+			data := initialAuthoringObject(spec, "data")
+			bindings := initialAuthoringObject(data, "bindings")
+			if _, exists := bindings[bindingRef]; !exists {
+				bindings[bindingRef] = map[string]any{"classes": classes, "primarySiteRef": site}
+			}
 		}
 		routes := initialAuthoringObject(spec, "routes")
 		for _, rawRoute := range routes {

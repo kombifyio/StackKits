@@ -17,7 +17,7 @@ const (
 	privateAIWorkloadOutputRef   = "workloads/private-ai/bundle.json"
 )
 
-const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-control-plane,ai-speech|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file|optional:ollama-model-packs:model-pack-settings:reviewed-tags:one-shot-pull|optional:external-provider:open-webui-openai-api:wallet-bound-key`
+const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-control-plane,ai-speech,ai-gateway|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file|optional:ollama-model-packs:model-pack-settings:reviewed-tags:one-shot-pull|optional:external-provider:open-webui-openai-api:wallet-bound-key`
 
 // The optional kombify AI connector (decision record 2026-09-27 §4). Its
 // token is issued by the owner's kombify AI, never minted: `stackkit setup

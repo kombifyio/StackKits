@@ -40,7 +40,11 @@ func nativeBackupApplicationCustody(authority nativeV2BackupAuthority) (backupex
 			}
 			return nativehost.ObserveMarketplaceContainerCustody(ctx, authority.WorkspaceRoot, d)
 		}
-		return nativehost.ObserveStandaloneComposeContainerCustody(ctx, authority.WorkspaceRoot, deployments[requested.ComposeProject])
+		deployment := deployments[requested.ComposeProject]
+		if deployment.RuntimeAdapter.ID == "coolify" {
+			return nativehost.ObserveCoolifyContainerCustody(ctx, authority.WorkspaceRoot, deployment)
+		}
+		return nativehost.ObserveStandaloneComposeContainerCustody(ctx, authority.WorkspaceRoot, deployment)
 	}, nil
 }
 
@@ -63,7 +67,7 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 		var deployment nativehost.SelectedPaaSWorkloadDeployment
 		var err error
 		if authority.AppliedAuthority != nil {
-			deployment, err = nativeAppliedWorkloadDeployment(*authority.AppliedAuthority, graph.WorkloadRef)
+			deployment, err = nativeAppliedWorkloadDeploymentForBackup(*authority.AppliedAuthority, graph.WorkloadRef)
 		} else {
 			h := authority.HistoricalCustody
 			if h.Binding() != authority.Lineage.Binding || h.ManifestHash() != authority.Lineage.ManifestHash || h.OutputRoot() != authority.OutputRoot {
@@ -74,9 +78,9 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 				return nil, loadErr
 			}
 			data := nativeAppliedWorkloadData{WorkspaceRoot: authority.WorkspaceRoot, Owner: owner, Manifest: authority.HistoricalManifest, AppliedWorkloads: h.AppliedWorkloads()}
-			deployment, err = nativeAppliedWorkloadDeploymentData(data, h.Requirements(), func(module, unit string) (string, bool, error) {
+			deployment, err = nativeAppliedWorkloadDeploymentDataForLifecycle(data, h.Requirements(), func(module, unit string) (string, bool, error) {
 				return architecturev2renderer.HistoricalRuntimeEntryComponentRef(authority.HistoricalPlan, module, unit)
-			}, graph.WorkloadRef)
+			}, graph.WorkloadRef, false)
 		}
 		if err != nil {
 			return nil, err
@@ -153,11 +157,22 @@ func verifyNativeV2BackupApplications(ctx context.Context, authority nativeV2Bac
 		if !exists {
 			return errors.New("selected application restore verifier has no exact signed deployment")
 		}
-		observation, err := operations.ObserveWorkload(ctx, deployment)
+		var selectedOperations interface {
+			ObserveWorkload(context.Context, nativehost.SelectedPaaSWorkloadDeployment) (nativehost.SelectedPaaSWorkloadObservation, error)
+		} = operations
+		selectedValidator := validator
+		if deployment.RuntimeAdapter.ID == "coolify" {
+			selectedOperations, err = nativehost.NewOSCoolifyWorkloadOperations(authority.WorkspaceRoot)
+			if err != nil {
+				return err
+			}
+			selectedValidator = selectedOperations.(nativehost.SelectedPaaSWorkloadObservationValidator)
+		}
+		observation, err := selectedOperations.ObserveWorkload(ctx, deployment)
 		if err != nil {
 			return fmt.Errorf("observe restored selected application %q: %w", graph.WorkloadRef, err)
 		}
-		if err := validator.ValidateWorkloadObservation(deployment, observation); err != nil {
+		if err := selectedValidator.ValidateWorkloadObservation(deployment, observation); err != nil {
 			return fmt.Errorf("validate restored selected application %q: %w", graph.WorkloadRef, err)
 		}
 	}

@@ -511,6 +511,14 @@
       color: var(--muted);
     }
 
+    .capacity-node { margin-top: 12px; }
+    .capacity-node h4 { margin: 0 0 8px; }
+    .capacity-table-scroll { overflow-x: auto; }
+    .capacity-table { width: 100%; border-collapse: collapse; }
+    .capacity-table th, .capacity-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: start; }
+    .capacity-table td { font-variant-numeric: tabular-nums; }
+    .capacity-binding { overflow-wrap: anywhere; font-size: 12px; color: var(--muted); }
+
     pre {
       min-height: 190px;
       max-height: 340px;
@@ -653,6 +661,9 @@
           <button type="button" id="generatePreview" data-i18n="review.preview">Preview</button>
           <button type="button" id="planFlow" data-i18n="review.resolveAndPlan">Resolve and Plan</button>
         </div>
+        <h3 data-i18n="capacity.heading">Resource fit</h3>
+        <p data-i18n="capacity.advisory">This assessment belongs to the selected configuration and Inventory. Apply checks its current requirements separately.</p>
+        <div id="capacityReport" aria-live="polite" aria-busy="false"></div>
       </section>
 
       <section class="panel hidden" id="panel-rollout">
@@ -786,6 +797,10 @@
     let applicationSnapshot = null;
     let applicationStatusFailure = null;
     let applicationScopeVersion = 0;
+    // Capacity is current-selection evidence, never persisted widget readiness.
+    let capacitySnapshot = null;
+    let capacityScopeVersion = 0;
+    let capacityStatusKey = "capacity.empty";
 
     const output = document.getElementById("output");
     const writeDot = document.getElementById("writeDot");
@@ -867,6 +882,100 @@
       applicationSnapshot = null;
       applicationStatusFailure = null;
       applicationScopeVersion++;
+      invalidateCapacity();
+    }
+
+    function capacityArgs() {
+      return prune({ ...baseArgs(), inventory_file: clean(state.form.inventory_path) });
+    }
+
+    function capacityScope() {
+      return JSON.stringify({ ...capacityArgs(), name: state.form.name, stackkit: state.form.stackkit, domain: state.form.domain_base });
+    }
+
+    function invalidateCapacity() {
+      capacitySnapshot = null;
+      capacityScopeVersion++;
+      capacityStatusKey = "capacity.empty";
+      renderCapacity();
+    }
+
+    function renderCapacity() {
+      const container = document.getElementById("capacityReport");
+      container.replaceChildren();
+      const current = capacitySnapshot?.scope === capacityScope() ? capacitySnapshot.data : null;
+      container.setAttribute("aria-busy", String(capacityStatusKey === "capacity.checking"));
+      if (!current) {
+        const prompt = document.createElement("p");
+        prompt.textContent = t(capacityStatusKey);
+        container.append(prompt);
+        return;
+      }
+      const badge = (status) => {
+        const element = document.createElement("strong");
+        element.className = "tag " + ({ pass: "ok", warning: "running", fail: "error", unverified: "skipped" }[status] || "skipped");
+        element.dataset.state = status;
+        element.textContent = t("capacity.status." + status);
+        return element;
+      };
+      const number = (value) => typeof value === "number" && Number.isFinite(value)
+        ? new Intl.NumberFormat(locale, { maximumFractionDigits: 4 }).format(value)
+        : t("capacity.unknown");
+      container.append(badge(current.assessment.overall));
+      const binding = document.createElement("p");
+      binding.className = "capacity-binding";
+      binding.textContent = t("capacity.binding", { plan: current.planHash });
+      container.append(binding);
+      for (const node of current.assessment.nodes) {
+        const card = document.createElement("article");
+        card.className = "capacity-node";
+        const title = document.createElement("h4");
+        title.textContent = t("capacity.node", { node: node.nodeRef });
+        card.append(title, badge(node.overall));
+        const scroll = document.createElement("div");
+        scroll.className = "capacity-table-scroll";
+        const table = document.createElement("table");
+        table.className = "capacity-table";
+        const head = document.createElement("thead");
+        const headers = document.createElement("tr");
+        for (const key of ["resource", "observed", "minimum", "reservation", "recommended", "result"]) {
+          const cell = document.createElement("th");
+          cell.scope = "col";
+          cell.textContent = t("capacity.column." + key);
+          headers.append(cell);
+        }
+        head.append(headers);
+        const body = document.createElement("tbody");
+        for (const check of node.checks) {
+          const row = document.createElement("tr");
+          const axis = document.createElement("th");
+          axis.scope = "row";
+          const axisKey = "capacity.axis." + check.axis;
+          axis.textContent = catalogs.en[axisKey] ? t(axisKey) : clean(check.axis);
+          row.append(axis);
+          for (const value of [check.observed, check.minimum, node.demand?.reservation?.[check.axis], check.recommended]) {
+            const cell = document.createElement("td");
+            cell.textContent = number(value);
+            row.append(cell);
+          }
+          const verdict = document.createElement("td");
+          verdict.append(badge(check.status));
+          row.append(verdict);
+          body.append(row);
+        }
+        table.append(head, body);
+        scroll.append(table);
+        card.append(scroll);
+        const advice = document.createElement("ul");
+        for (const code of [...new Set([...(node.reasonCodes || []), ...(node.advice || [])])]) {
+          const message = document.createElement("li");
+          const key = "capacity.guidance." + code;
+          message.textContent = catalogs.en[key] ? t(key) : clean(code);
+          advice.append(message);
+        }
+        if (advice.children.length) card.append(advice);
+        container.append(card);
+      }
     }
 
     function selectedDomain() {
@@ -959,12 +1068,20 @@
       }
       setBusy(true);
       markRun(name, "running");
+      if (name === "stackkit_config_get" || name === "stackkit_init") invalidateCapacity();
       if (name === "stackkit_status") {
         applicationSnapshot = null;
         applicationStatusFailure = null;
         renderApplicationStatus("apps.checking");
       }
       const requestScopeVersion = applicationScopeVersion;
+      const requestCapacityVersion = capacityScopeVersion;
+      const requestCapacityScope = capacityScope();
+      if (name === "stackkit_assess_capacity") {
+        capacitySnapshot = null;
+        capacityStatusKey = "capacity.checking";
+        renderCapacity();
+      }
       try {
         const result = await window.openai.callTool(name, args);
         const success = toolSucceeded(result);
@@ -973,6 +1090,20 @@
         const failure = name === "stackkit_status" ? statusFailure(data, status) : null;
         markRun(name, success && !failure ? "ok" : "error");
         setOutput(result ?? { tool: name, error: t("output.noResult") });
+        if (name === "stackkit_assess_capacity" && requestCapacityVersion === capacityScopeVersion) {
+          const envelope = structured(result);
+          const capacity = envelope?.structured_output || envelope;
+          const statuses = ["pass", "warning", "fail", "unverified"];
+          if (success && capacity?.assessment?.schemaVersion === "stackkit.capacity-assessment/v1" &&
+              typeof capacity.planHash === "string" && statuses.includes(capacity.assessment.overall) &&
+              Array.isArray(capacity.assessment.nodes) && capacity.assessment.nodes.every((node) =>
+                typeof node?.nodeRef === "string" && statuses.includes(node.overall) && Array.isArray(node.checks) &&
+                node.checks.every((check) => typeof check?.axis === "string" && statuses.includes(check.status)))) {
+            capacitySnapshot = { scope: requestCapacityScope, data: capacity };
+          }
+          capacityStatusKey = "capacity.unavailable";
+          renderCapacity();
+        }
         if (name === "stackkit_status") {
           if (requestScopeVersion === applicationScopeVersion) {
             applicationStatusFailure = failure;
@@ -989,6 +1120,11 @@
       } catch (error) {
         markRun(name, "error");
         setOutput({ tool: name, error: error?.message || String(error) });
+        if (name === "stackkit_assess_capacity" && requestCapacityVersion === capacityScopeVersion) {
+          capacitySnapshot = null;
+          capacityStatusKey = "capacity.unavailable";
+          renderCapacity();
+        }
         if (name === "stackkit_status" && requestScopeVersion === applicationScopeVersion) {
           applicationStatusFailure = { message: clean(error?.message || String(error)), guidance: [] };
           renderApplicationStatus("apps.requestFailed");
@@ -1382,6 +1518,7 @@
 
       output.textContent = state.lastOutputKey ? t(state.lastOutputKey) : (state.lastOutput && state.lastOutput !== "Ready." ? state.lastOutput : t("output.ready"));
       renderRunList();
+      renderCapacity();
       setBusy(busy);
     }
 
@@ -1393,6 +1530,8 @@
         state.form[el.name || el.id] = el.type === "checkbox" ? el.checked : el.value;
         if (invalidatesPersistedSpec(el)) {
           invalidatePersistedSpec();
+        } else if ((el.id || el.name) === "inventory_path") {
+          invalidateCapacity();
         }
         persist();
         render();
@@ -1401,6 +1540,8 @@
         state.form[el.name || el.id] = el.type === "checkbox" ? el.checked : el.value;
         if (invalidatesPersistedSpec(el)) {
           invalidatePersistedSpec();
+        } else if ((el.id || el.name) === "inventory_path") {
+          invalidateCapacity();
         }
         persist();
         render();
@@ -1427,7 +1568,7 @@
     document.getElementById("createSpec").dataset.write = "true";
     document.getElementById("createSpec").addEventListener("click", createSpec);
     document.getElementById("validateSpec").addEventListener("click", () => callTool("stackkit_validate", baseArgs()));
-    document.getElementById("assessCapacity").addEventListener("click", () => callTool("stackkit_assess_capacity", { ...baseArgs(), inventory_file: clean(state.form.inventory_path) }));
+    document.getElementById("assessCapacity").addEventListener("click", () => callTool("stackkit_assess_capacity", capacityArgs()));
     document.getElementById("generatePreview").addEventListener("click", () => callTool("stackkit_generate_preview", baseArgs()));
     document.getElementById("planFlow").dataset.write = "true";
     document.getElementById("planFlow").addEventListener("click", runPlanFlow);
@@ -1453,9 +1594,11 @@
     window.addEventListener("openai:set_globals", (event) => {
       const next = event.detail?.globals?.widgetState;
       if (next) {
+        const previousCapacityScope = capacityScope();
         applicationSnapshot = null;
         applicationScopeVersion++;
         state = mergeState(state, next);
+        if (previousCapacityScope !== capacityScope()) invalidateCapacity();
         render();
       }
     }, { passive: true });

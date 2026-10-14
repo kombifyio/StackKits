@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/spf13/cobra"
 )
@@ -142,6 +143,11 @@ Owner and admin identities cannot be created or removed here.`,
 			}
 			activation, err := service.OwnerActivationStatus(cmd.Context())
 			if err != nil {
+				if detail, known := actionableerror.FromError(err); known && jsonOutput(cmd) {
+					if writeErr := writeJSONStatus(cmd, detail, "failed"); writeErr != nil {
+						return errors.Join(err, writeErr)
+					}
+				}
 				return err
 			}
 			return writeOwnerActivation(cmd, activation, false)

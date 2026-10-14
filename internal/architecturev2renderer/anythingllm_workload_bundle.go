@@ -26,7 +26,7 @@ const (
 	anythingLLMPort                = 3001
 )
 
-const anythingLLMWorkloadRendererSchema = `stackkit.workload-bundle/v2|AnythingLLMWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:anythingllm,ollama|entrypoint:governed-env-link-v1|release:` + anythingLLMRelease + `|secret-material:not-included|companions:ai-search,ai-image-video,ai-harness,ai-control-plane,ai-speech|init:true`
+const anythingLLMWorkloadRendererSchema = `stackkit.workload-bundle/v2|AnythingLLMWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:anythingllm,ollama|entrypoint:governed-env-link-v1|release:` + anythingLLMRelease + `|secret-material:not-included|companions:ai-search,ai-image-video,ai-harness,ai-control-plane,ai-speech,ai-gateway|init:true`
 
 // AnythingLLMWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor.

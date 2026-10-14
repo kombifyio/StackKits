@@ -33,12 +33,12 @@ func localKopiaRenderInputTarget(unit map[string]any, path string) (moduleRender
 // aggregate logical value to its exact node-local instance. Runtime graphs are
 // copied from the already-resolved module contracts; they are never inferred
 // from generated Compose output.
-func localKopiaBackupSourceProjection(nodes, workloads, modules []any, _ []string, _ []string, coreModuleRef string, data map[string]any) (map[string]any, bool, error) {
+func localKopiaBackupSourceProjection(nodes, workloads, modules []any, _ []string, _ []string, coreModuleRef string, data map[string]any, lifecycles []any) (map[string]any, bool, error) {
 	nodeSites, err := localKopiaNodeSites(nodes)
 	if err != nil {
 		return nil, false, err
 	}
-	applications, runtimes, err := localKopiaApplicationProjection(nodeSites, workloads, modules)
+	applications, runtimes, err := localKopiaApplicationProjection(nodeSites, workloads, modules, lifecycles)
 	if err != nil {
 		return nil, false, err
 	}
@@ -92,7 +92,7 @@ func localKopiaNodeSites(nodes []any) (map[string]string, error) {
 	return result, nil
 }
 
-func localKopiaApplicationProjection(nodeSites map[string]string, workloads, modules []any) ([]localbackuppolicy.ApplicationVolume, []localbackuppolicy.ApplicationRuntime, error) {
+func localKopiaApplicationProjection(nodeSites map[string]string, workloads, modules, lifecycles []any) ([]localbackuppolicy.ApplicationVolume, []localbackuppolicy.ApplicationRuntime, error) {
 	applications := make([]localbackuppolicy.ApplicationVolume, 0)
 	runtimes := make([]localbackuppolicy.ApplicationRuntime, 0)
 	moduleByID, err := localKopiaRuntimeModules(modules)
@@ -135,6 +135,7 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 		if !exists && !nativeMarketplace {
 			continue
 		}
+		adapterRef := ""
 		if exists {
 			adapterID, err := stringField(adapter, path+".alternative.runtime.adapter", "id")
 			if err != nil {
@@ -143,7 +144,8 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 			if nativeMarketplace {
 				return nil, nil, fmt.Errorf("native Marketplace backup cannot acquire a workload adapter")
 			}
-			if adapterID != "standalone-compose" {
+			adapterRef = adapterID
+			if adapterID != "standalone-compose" && adapterID != "coolify" {
 				continue
 			}
 		}
@@ -153,6 +155,15 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 		}
 		if nativeMarketplace && workloadRef != "marketplace" {
 			return nil, nil, fmt.Errorf("native Marketplace backup names another workload")
+		}
+		if adapterRef == "coolify" {
+			supported, err := localKopiaApplicationBackupSupported(lifecycles, workloadRef, adapterRef)
+			if err != nil {
+				return nil, nil, err
+			}
+			if !supported {
+				continue
+			}
 		}
 		siteRefs, err := stringListField(workload, path, "siteRefs", true)
 		if err != nil {
@@ -193,6 +204,12 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 				return nil, nil, fmt.Errorf("Standalone-Compose workload %q node %q is outside its declared Site placement", workloadRef, nodeRef)
 			}
 			runtimes = append(runtimes, localbackuppolicy.ApplicationRuntime{
+				RuntimeAdapterRef: func() string {
+					if adapterRef == "coolify" {
+						return adapterRef
+					}
+					return ""
+				}(),
 				WorkloadRef: workloadRef, SiteRef: siteRef, NodeRef: nodeRef,
 				ComposeProject: localbackuppolicy.ApplicationComposeProjectName(workloadRef, nodeRef),
 				Components:     append([]localbackuppolicy.ApplicationRuntimeComponent(nil), components...),
@@ -213,6 +230,44 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 		}
 	}
 	return applications, runtimes, nil
+}
+
+// The lifecycle delivery is the compiler's canonical projection of the exact
+// selected alternative/adapter compatibility row, rebound to catalog authority.
+func localKopiaApplicationBackupSupported(lifecycles []any, workloadRef, adapterRef string) (bool, error) {
+	matches := 0
+	supported := false
+	for index, raw := range lifecycles {
+		path := fmt.Sprintf("resolvedPlan.applicationLifecycles[%d]", index)
+		lifecycle, err := asObject(raw, path)
+		if err != nil {
+			return false, err
+		}
+		if lifecycle["workloadRef"] != workloadRef {
+			continue
+		}
+		matches++
+		delivery, err := objectField(lifecycle, path, "delivery")
+		if err != nil {
+			return false, err
+		}
+		if delivery["adapterRef"] != adapterRef {
+			return false, fmt.Errorf("%s.delivery differs from the selected backup adapter", path)
+		}
+		capabilities, err := objectField(delivery, path+".delivery", "capabilities")
+		if err != nil {
+			return false, err
+		}
+		var valid bool
+		supported, valid = capabilities["backupRestore"].(bool)
+		if !valid {
+			return false, fmt.Errorf("%s.delivery.capabilities.backupRestore must be an explicit boolean", path)
+		}
+	}
+	if matches != 1 {
+		return false, fmt.Errorf("Coolify backup requires exactly one selected lifecycle delivery for workload %q", workloadRef)
+	}
+	return supported, nil
 }
 
 func localKopiaRuntimeModules(modules []any) (map[string]map[string]any, error) {

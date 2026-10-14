@@ -96,6 +96,13 @@ Package: foundation.#UseCasePackage & {
 		}
 	}
 
+	committed: [
+		{kit: "basement-kit", alternative: "home-assistant", adapter: "standalone-compose", tier: "standard"},
+	]
+	journey: {
+		outcome: "Change an entity's state from the Home Assistant UI and see it persist across a restart."
+		invariantData: ["Home Assistant configuration and entity registry"]
+	}
 	computeTiers: {
 		low: {
 			included:   true

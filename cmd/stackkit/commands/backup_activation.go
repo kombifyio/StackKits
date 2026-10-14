@@ -52,6 +52,14 @@ func runNativeV2RestoreActivationCommand(
 		ctx = context.Background()
 	}
 	workspace := getWorkDir()
+	workload := ""
+	if cmd.Flags().Lookup("workload") != nil {
+		var flagErr error
+		workload, flagErr = cmd.Flags().GetString("workload")
+		if flagErr != nil {
+			return flagErr
+		}
+	}
 	authority, err := inspectNativeV2BackupAuthorityForRequest(
 		ctx, workspace, specFile,
 	)
@@ -86,15 +94,28 @@ func runNativeV2RestoreActivationCommand(
 	if err != nil {
 		return err
 	}
-	bootstrapRuntime, err := newRestoreActivationBootstrapRuntime(runtime, workspace)
-	if err != nil {
-		return err
-	}
-	if err := bootstrapRuntime.bind(ctx, plan, manifest, operationID); err != nil {
-		return err
+	activationRuntime := runtime
+	if workload != "" {
+		selected, deriveErr := restoreactivation.DeriveApplicationAuthority(workspace, plan, manifest, restoreResult, operationID, workload)
+		if deriveErr != nil {
+			return deriveErr
+		}
+		activationRuntime, err = nativeCoolifyRestoreActivationRuntime(ctx, workspace, runtime, selected, workload, authority)
+		if err != nil {
+			return err
+		}
+	} else {
+		bootstrapRuntime, bindErr := newRestoreActivationBootstrapRuntime(runtime, workspace)
+		if bindErr != nil {
+			return bindErr
+		}
+		if bindErr = bootstrapRuntime.bind(ctx, plan, manifest, operationID); bindErr != nil {
+			return bindErr
+		}
+		activationRuntime = bootstrapRuntime
 	}
 	service, err := restoreactivation.NewService(
-		bootstrapRuntime,
+		activationRuntime,
 		nativeV2RestoreRecoveryResolver(ctx, workspace),
 	)
 	if err != nil {
@@ -109,6 +130,7 @@ func runNativeV2RestoreActivationCommand(
 	err = func() error {
 		var activateErr error
 		result, activateErr = service.Activate(ctx, restoreactivation.ActivateInput{
+			WorkloadRef:      workload,
 			WorkspaceRoot:    workspace,
 			OperationID:      operationID,
 			ExpectedPlanHash: expectedPlanHash,
@@ -129,9 +151,12 @@ func runNativeV2RestoreActivationCommand(
 			},
 			PrepareMutation: func(prepareContext context.Context) (func() error, error) {
 				var err error
-				lifecycleRuns, err = beginArchitectureV2ApplicationLifecyclesWithID(workspace, plan, "restore", "stackkit.restore", "", operationID, time.Now().UTC())
+				lifecycleRuns, err = beginArchitectureV2ApplicationLifecyclesWithID(workspace, plan, "restore", "stackkit.restore", workload, operationID, time.Now().UTC())
 				if err != nil {
 					return nil, err
+				}
+				if workload != "" {
+					return nil, nil
 				}
 				return prepareGameServersHeld(prepareContext, workspace, true)
 			},
@@ -250,6 +275,26 @@ func runNativeV2RestoreRecoveryCommand(
 			return restoreactivation.Authority{}, resolveErr
 		}
 		recoveryPlan = plan
+		selected, workload, narrowed, selectionErr := restoreactivation.ApplicationAuthorityForVolumes(workspace, plan, manifest, recoveryRestoreResult, journal.OperationID, journal.Volumes)
+		if selectionErr != nil {
+			return restoreactivation.Authority{}, selectionErr
+		}
+		if narrowed {
+			current, currentErr := inspectNativeV2BackupAuthorityForRequest(resolveContext, workspace, specFile)
+			if currentErr != nil {
+				return restoreactivation.Authority{}, currentErr
+			}
+			if current.Lineage != recoveryRestoreResult.AuthorizationLineage {
+				return restoreactivation.Authority{}, errors.New("application restore recovery differs from the current signed Apply")
+			}
+			bound, bindErr := nativeCoolifyRestoreActivationRuntime(resolveContext, workspace, runtime, selected, workload, current)
+			if bindErr != nil {
+				return restoreactivation.Authority{}, bindErr
+			}
+			bootstrapRuntime.Runtime = bound
+			bootstrapRuntime.applicationOnly = true
+			return selected, nil
+		}
 		authority, deriveErr := restoreactivation.DeriveAuthority(
 			workspace, plan, manifest, recoveryRestoreResult, journal.OperationID,
 		)

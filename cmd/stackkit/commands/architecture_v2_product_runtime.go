@@ -532,6 +532,9 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductDoclingSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductLitellmSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductGiteaSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
@@ -654,6 +657,11 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return nil, fmt.Errorf("register local Komodo application owners: %w", err)
 		}
 		registrations = append(registrations, komodo...)
+		coolify, err := architectureV2LocalCoolifyRegistrations(workspaceRoot, runtimeVersion)
+		if err != nil {
+			return nil, fmt.Errorf("register local Coolify application owners: %w", err)
+		}
+		registrations = append(registrations, coolify...)
 	}
 	marketplaceOperations, err := nativehost.NewOSMarketplaceOperations(workspaceRoot, publicMarketplaceUpgradeAuthority(workspaceRoot))
 	if err != nil {

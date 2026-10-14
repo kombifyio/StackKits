@@ -123,7 +123,7 @@ autoSelect:
 # CUE/StackKit contracts are the rollout source of truth; the Admin registry mirrors release lineage and operations state.
 application:
   photos:
-    role: default
+    role: optional            # Native kit selection lists it optional with empty defaults.
     package: photos
     defaultTool: immich
     alternatives: []
@@ -147,7 +147,7 @@ application:
     alternatives: []
     description: "Media streaming with automated library management"
   vault:
-    role: default
+    role: optional            # Native kit selection lists it optional with empty defaults.
     package: vault
     defaultTool: vaultwarden
     alternatives: []
@@ -244,7 +244,7 @@ application:
           requiresApproval: true
           evidence: "Audited Home Assistant service call through exposed MCP tools."
   files:
-    role: default
+    role: optional            # Native kit selection lists it optional with empty defaults.
     package: files
     defaultTool: cloudreve
     alternatives: []
@@ -366,6 +366,24 @@ application:
     defaultTool: guacamole
     alternatives: []
     description: "Remote desktop access"
+  documents:
+    role: optional            # Native kit selection lists it optional with empty defaults.
+    package: documents
+    defaultTool: paperless-ngx
+    alternatives: []
+    description: "Document archive with OCR and search"
+  mail-server:
+    role: optional            # Native kit selection lists it optional with empty defaults.
+    package: mail-server
+    defaultTool: stalwart
+    alternatives: []
+    description: "Own mail server"
+  marketplace:
+    role: optional            # Native kit selection lists it optional with empty defaults.
+    package: marketplace
+    defaultTool: null
+    alternatives: []
+    description: "Optional application store"
 
 # Foundation services (L1, always present for the BaseKit public beta).
 foundation:

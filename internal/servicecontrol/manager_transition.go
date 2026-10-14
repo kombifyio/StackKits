@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -109,7 +110,7 @@ func transitionOwnedWorkloadManagerBound(ctx context.Context, workspace, workloa
 			if err != nil {
 				return err
 			}
-			if state.Handover != nil && state.Handover.Status == "pending" && (state.PlanBinding == nil || *state.PlanBinding != binding) {
+			if state.Handover != nil && state.Handover.Status == "pending" && (state.PlanBinding == nil || !reflect.DeepEqual(*state.PlanBinding, binding)) {
 				return errors.New("pending manager transition requires its original applied-plan binding")
 			}
 			state.PlanBinding = &binding
