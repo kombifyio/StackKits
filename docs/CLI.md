@@ -33,6 +33,13 @@ export STACKKIT_RELEASE_VERSION=v0.17.0-beta.1
 curl -sSL https://base.stackkit.cc | sh
 ```
 
+To follow the unsigned daily "Nightly" prereleases instead, choose the preview
+channel (`stable` is the default); `stackkit channel set stable` returns later:
+
+```bash
+curl -sSL https://install.stackkit.cc | sh -s -- --channel preview
+```
+
 For a single copy/paste command, pass the pin to the shell that executes the
 installer:
 
@@ -123,11 +130,13 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `logs` | List and read structured deploy logs. |
 | `registry` | Inspect or reproduce the embedded Git/CUE registry snapshot. |
 | `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
-| `wallet-item` | Import sealed Wallet item deliveries into encrypted local custody and list them by reference and version. |
+| `wallet-item` | Import sealed Wallet item deliveries into encrypted local custody, remove them on a signed removal, and list them by reference and version. |
 | `user` | Invite, list, and remove PocketID household users. Mutations require `--owner-approve`. |
 | `network` | Move this server to another network: status, signed LAN re-bind, WiFi pre-staging and the self-re-binding watcher. |
+| `relocate` | Plan, check, drain, send and receive Coolify workloads moving to another server, with the pinned coolify-mirror engine and a Wallet-delivered transfer secret. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
+| `channel` | Show or set the release channel, `stable` (default) or `preview` ("Nightly"). |
 
 Publisher-only Git/CUE `module`, Kit artifact, and strict parity operations are
 not part of this public command tree. They compile only into the private
@@ -919,6 +928,83 @@ destination WiFi beforehand. See [network-move.md](network-move.md).
   `kombify-stackkit-network-watch.timer`. `stackkit apply` enables it on
   systemd hosts when run as root; opt out with `STACKKIT_NETWORK_WATCH=off`.
 
+### `stackkit relocate plan` and `stackkit relocate check`
+
+Prepare moving Coolify projects, applications and databases with their data to
+another server's Coolify. Each command acts only on the server it runs on and
+changes nothing: no file is written there, no container is paused, no port is
+opened. Techstack carries the plan between the servers.
+
+- `relocate plan --project shop [-o plan.json]` runs on the source and writes
+  the relocation plan: resources, volumes, host paths, images, database dumps
+  and sizes. Select with `--project`, `--domain`, `--uuid`, `--all` or
+  `--full`; databases the selection depends on are added unless `--no-deps`.
+  The plan carries no credentials (database container environments and
+  builder definitions are dropped).
+- `relocate check --plan plan.json` runs on the destination and lists
+  blockers (different Coolify version, missing disk space, host dependencies, a
+  non-empty Coolify for `--full`) and warnings (existing resources, domains
+  already served, a different CPU architecture). It exits non-zero while any
+  blocker remains; `--plan -` reads stdin.
+
+Both run the pinned kombify fork of coolify-mirror (`third_party/coolify-mirror`,
+see its `KOMBIFY-FORK.md`), which every Linux release archive ships and
+`install.sh` places in `../lib/stackkit/` beside `stackkit`. They also find it
+at `/usr/local/lib/stackkit/coolify-mirror`, `$STACKKIT_COOLIFY_MIRROR`,
+`--engine` or `PATH`, and refuse any other build.
+`--platform` accepts `coolify` only.
+
+### `stackkit relocate send` and `stackkit relocate receive`
+
+Move the planned workloads with their data. Both servers must hold the same
+Wallet item for this move (at least 16 bytes, named by `--tenant-ref` and
+`--secret-ref`),
+delivered by Techstack through Wallet host delivery (`stackkit host delivery
+recipient`, then `stackkit wallet-item import`). StackKits derives the archive
+key and the share secret from it; neither appears in a command line, log,
+plan or file. Both commands change the server and need `--owner-approve`.
+
+- `relocate send --project shop --owner-approve` runs on the source: it backs
+  up the selection into `/data/coolify-mirror/backups/kombify-relocate`
+  (`-o`), encrypted with the derived key, and shares that archive once on
+  port 8123 (`--port`, `--host`, `--open-firewall`, `--ttl 2h`). It returns
+  after the destination downloaded it completely. `--file` shares an existing
+  archive made the same way. While a drain is active, the backup restores
+  the drained resources as running on the destination.
+- `relocate receive --from SOURCE[:PORT] --owner-approve` runs on the
+  destination while the source shares: it downloads, verifies and restores.
+  `--on-conflict copy|skip` (default `copy`), `--no-start` and
+  `--set-domain OLD=NEW` (repeatable) pass through to the restore.
+  `--wait 10m` waits for the source's share to come up first, so Techstack
+  can start send and receive together. A restore needs the share to be up: it
+  downloads the archive the source shares now, never an earlier move's.
+
+A missing item, a missing `--owner-approve` or a source that is not sharing fails closed.
+
+### `stackkit relocate drain`
+
+Stop the writers on the source before the final send, so no write is lost.
+`relocate drain --plan plan.json --owner-approve` runs on the source with the
+plan made there: it stops the plan's applications and services through Coolify
+(containers and images stay, nothing is deleted) and keeps the databases
+running, so `relocate send` dumps them consistently. The drain record (resources
+and the services that ran) stays in `.stackkit/relocation/coolify-drain.json`
+until the move ends; a second drain is refused while it exists.
+`relocate drain --undo --owner-approve` starts exactly the drained resources
+again, waits until they run and their domains answer, and removes the record:
+the rollback when the destination does not take over.
+
+Every relocate command takes `--json`: stdout then carries one
+`stackkit.command-result/v1` document (the plan, the check with
+`status: failed` while blocked, the drain or undrain record, or the send and
+receive outcome) and engine progress goes to stderr. Techstack dispatches the
+commands this way.
+
+A move with cutover: `plan` (source), `check` (destination), `drain`
+(source), `send` (source) with `receive` (destination), then Techstack points
+the domains at the destination. The source stays drained; `drain --undo`
+rolls back.
+
 ### `stackkit migrate [v1-spec-file]`
 
 Reads v1 only through the one-minor migration adapter. A projection-only run is
@@ -1219,6 +1305,12 @@ pinned authority, and, once an authority is pinned, any unsigned delivery
   the local custody key. Versions are immutable; a rotation removes every older
   version. `wallet-item status` lists tenant, item reference, versions and
   rotation mark only.
+- `wallet-item remove --tenant-ref <tenant> --owner-approve < envelope.json`
+  opens a signed `wallet-item-remove` delivery (plaintext `{}`) and deletes
+  every version of the item it names from local custody; an item not held is
+  removed as nothing. The delivered registry keeps the reference, so a later
+  detach still names it for rotation. Remove before `host delivery detach`: a
+  detached node opens no delivery.
 - `host ssh apply --tenant-ref <tenant> [--host-name <name>]... --owner-approve < envelope.json`
   applies `ssh-ca-trust`, `ssh-ca-revoke` or `ssh-host-certificate` to sshd
   (`TrustedUserCAKeys`, one `AuthorizedPrincipalsFile` per local user, or
@@ -1448,6 +1540,17 @@ Generates shell completion scripts from Cobra.
 ### `stackkit version`
 
 Prints version, commit, build date, Go version, and target OS/arch.
+
+### `stackkit channel [set stable|preview]`
+
+Without arguments shows the release channel (default `stable`); `stackkit
+channel set <stable|preview>` stores the choice in `~/.stackkits/channel`. The
+installer reads that file (or `install.sh --channel`, or `STACKKIT_CHANNEL`) and
+fetches the newest release of the channel. `preview` is the unsigned "Nightly"
+prerelease (`docs/RELEASE.md`, "Preview channel"); returning to `stable` never
+downgrades a running Nightly, it waits for a stable release at least as new.
+An unknown value fails closed. `stackkit upgrade` stays on the signed
+stable/beta/edge releases and does not follow `preview`.
 
 ## Files Created by the CLI
 

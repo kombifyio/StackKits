@@ -10,9 +10,15 @@ import (
 // construction-owned lifecycle conditions; CLI, MCP and generated docs consume
 // the same contracts rather than keeping their own recovery text.
 var lifecycleDiagnostics = []Contract{
+	New("stackkit_command_failed", "identity_cookie_scope_requires_install_zone",
+		"The shared kombify.me parent cannot carry a tenant-isolated login cookie across this installation's service hosts.",
+		[]string{"Initialize with your own domain or an allocated install zone, for example `--domain <zone>.kombify.me`. Keep existing Cloud custody and RP-bound passkeys: its origin is immutable, so use a clean owned installation for the chosen domain instead of editing or resealing it. Never broaden cookie scope to `.kombify.me`."}, false),
+	New("stackkit_command_failed", "pocketid_tinyauth_reconcile_owner_approval_required",
+		"PKCE-only identity convergence requires explicit Owner approval.",
+		[]string{"Keep the existing workspace and custody. Use `stackkit user owner reconcile --owner-approve --json` only in the authorized Owner context; managed servers use authenticated Techstack server access. This action cannot replace identities, credentials, grants or enrollment links."}, false),
 	New("stackkit_command_failed", "pocketid_tinyauth_binding_mismatch",
 		"The PocketID TinyAuth client policy differs from verified local Owner custody.",
-		[]string{"Retain the original workspace and custody. Inspect the named fields through the owning identity lifecycle: PKCE-only drift can converge through its existing reapply; callback, client or group drift requires that lifecycle's binding reconciliation. Managed installations reapply through Techstack; standalone installations use their supported Apply path. Do not reset the owner, issue activation links or overwrite grants to bypass verification."}, false),
+		[]string{"Retain the original workspace and custody. For PKCE-only drift use `stackkit user owner reconcile --owner-approve --json` through authorized Techstack server access on a managed server, or the local Owner context on a standalone server. It preserves credentials, enrollment and grants and refuses other drift. Callback, client or group drift requires the owning lifecycle's binding reconciliation; do not reset the owner, issue activation links or overwrite grants to bypass verification."}, false),
 	New("stackkit_command_failed", "pocketid_tinyauth_client_unreadable",
 		"The authenticated PocketID TinyAuth client readback failed; policy drift is not established.",
 		[]string{"Inspect local PocketID health and authenticated API availability, then retry owner status with the original workspace and custody. Do not recreate the client, rotate credentials or infer missing passkeys from a failed read."}, true),
@@ -70,6 +76,9 @@ var lifecycleDiagnostics = []Contract{
 	New("stackkit_command_failed", "restore_original_release_required",
 		"Interrupted restore recovery requires the original admitted release and Owner journal.",
 		[]string{"Use `stackkit backup restore recover --help` for original-release recovery with the exact release, archive/index digests and original Plan hash; retain the signed journal and never force activation with substituted evidence."}, false),
+	New("stackkit_command_failed", "stored_plan_invalid",
+		"The stored ResolvedPlan is not accepted by this CLI's canonical Plan contract.",
+		[]string{"Keep the original Plan, manifest, release and Owner custody unchanged. Inspect the retained generation with `stackkit plan --source-generation --json` through its already installed attested source release; if unavailable, use `stackkit kit prepare-source-generation --help`. Follow the kit's supported upgrade policy; do not edit the Plan, replay the installer or use a newly resolved candidate as execution authority."}, false),
 	New("stackkit_command_failed", "upgrade_kit_unsupported",
 		"The selected StackKit's CUE policy does not support a fresh standalone upgrade.",
 		[]string{"Keep the installed release and its original workspace; export redacted evidence with `stackkit support export --output support-evidence.json`. Fresh upgrade is available only through the Basement preview transaction described in docs/runbooks/kit-upgrade.md. An existing interrupted transaction uses `stackkit upgrade --recover <operation-id>` with its original admitted release and journal; reinstall or remove is not an upgrade route."}, false),
@@ -100,6 +109,7 @@ func RecordedFailures() []RecordedFailure {
 		{"Offsite backup child/router authorization", []string{"authorization_time_mismatch"}},
 		{"Interrupted Cloud workspace rerun", []string{"workspace_missing", "binding_mismatch"}},
 		{"Interrupted restore after CLI upgrade", []string{"restore_original_release_required"}},
+		{"Stored generation rejected by a newer CLI", []string{"stored_plan_invalid"}},
 		{"Fresh Cloud/Modern standalone upgrade", []string{"upgrade_kit_unsupported"}},
 		{"Interrupted whole-deployment removal", []string{"remove_incomplete"}},
 	}
@@ -108,7 +118,7 @@ func RecordedFailures() []RecordedFailure {
 // Diagnostic is a closed lookup, never a classification of arbitrary reason
 // text. RetryAfter remains supplied by the observed external authority.
 func Diagnostic(reason string) (Contract, bool) {
-	for _, entry := range lifecycleDiagnostics {
+	for _, entry := range allLifecycleDiagnostics() {
 		if entry.ReasonCode == reason {
 			entry.UserGuidance = append([]string(nil), entry.UserGuidance...)
 			return entry, true
@@ -126,7 +136,7 @@ func Diagnostic(reason string) (Contract, bool) {
 // troubleshooting generator. A catalog entry is guidance, not measured health.
 func Diagnostics() []Contract {
 	result := make([]Contract, 0, len(lifecycleDiagnostics)+len(applyoutcome.Classes()))
-	for _, entry := range lifecycleDiagnostics {
+	for _, entry := range allLifecycleDiagnostics() {
 		entry.UserGuidance = append([]string(nil), entry.UserGuidance...)
 		result = append(result, entry)
 	}

@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "bcfa561ea9becb844036d4e1e6264fe77d5d25f9",
-  "authority_bundle_sha256": "26fa38c728a0781562dc8c8407290d2950b01923e33b68a74d76271ba0b38e50",
+  "source_sha": "9269667320ff3eb66be23837d427f697efc9b9f8",
+  "authority_bundle_sha256": "d184e3dc3a8589ff461b97c2aa4a47a0783171768356cd1069d306a92b0241fd",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -1585,15 +1585,15 @@
                 "storage_gb": 20
               },
               "reservation": {
-                "cpu_cores": 0.05,
+                "cpu_cores": 0.1,
                 "ram_gb": 0.3125
               },
               "headroom": {
-                "cpu_cores": 0.45,
+                "cpu_cores": 0.4,
                 "ram_gb": 0.1875
               },
               "recommended": {
-                "cpu_cores": 0.25,
+                "cpu_cores": 0.5,
                 "ram_gb": 0.25
               },
               "architectures": [],
@@ -1611,7 +1611,7 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                  "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -1622,7 +1622,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "6c60b91e497c0d245b725a83ad0766f6eabd73e2c2dd85b33b5f6ed4abb59829"
+              "profile_sha256": "48bb02d7df3133a50c2ddddf4c56bd2f72bdfb308d4607adbeb29dc8adbbcc86"
             },
             {
               "id": "standard",
@@ -1689,15 +1689,15 @@
                 "storage_gb": 20
               },
               "reservation": {
-                "cpu_cores": 0.05,
+                "cpu_cores": 0.2,
                 "ram_gb": 0.3125
               },
               "headroom": {
-                "cpu_cores": 1.95,
+                "cpu_cores": 1.8,
                 "ram_gb": 1.1875
               },
               "recommended": {
-                "cpu_cores": 0.25,
+                "cpu_cores": 1.25,
                 "ram_gb": 0.25
               },
               "architectures": [],
@@ -1715,7 +1715,7 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                  "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -1726,7 +1726,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "9b0f7e9bcbe5541f7468779925879a0be187dd755198b5bd9572bc8d7c1271d7"
+              "profile_sha256": "660d006aa108c289eb5a8b766429c6558e23e528f0c7fff0fab14411617cbd7c"
             }
           ],
           "storage_profiles": [],
@@ -5530,7 +5530,10 @@
           ]
         }
       ],
-      "required_authoring_inputs": []
+      "required_authoring_inputs": [
+        "inventory.path",
+        "owner.email"
+      ]
     },
     {
       "stackkit_id": "cloud-kit",
@@ -6928,15 +6931,15 @@
                 "storage_gb": 20
               },
               "reservation": {
-                "cpu_cores": 0.05,
+                "cpu_cores": 0.1,
                 "ram_gb": 0.3125
               },
               "headroom": {
-                "cpu_cores": 0.45,
+                "cpu_cores": 0.4,
                 "ram_gb": 0.1875
               },
               "recommended": {
-                "cpu_cores": 0.25,
+                "cpu_cores": 0.5,
                 "ram_gb": 0.25
               },
               "architectures": [],
@@ -6954,7 +6957,7 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                  "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -6965,7 +6968,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "6c60b91e497c0d245b725a83ad0766f6eabd73e2c2dd85b33b5f6ed4abb59829"
+              "profile_sha256": "48bb02d7df3133a50c2ddddf4c56bd2f72bdfb308d4607adbeb29dc8adbbcc86"
             },
             {
               "id": "standard",
@@ -7032,15 +7035,15 @@
                 "storage_gb": 20
               },
               "reservation": {
-                "cpu_cores": 0.05,
+                "cpu_cores": 0.2,
                 "ram_gb": 0.3125
               },
               "headroom": {
-                "cpu_cores": 1.95,
+                "cpu_cores": 1.8,
                 "ram_gb": 1.1875
               },
               "recommended": {
-                "cpu_cores": 0.25,
+                "cpu_cores": 1.25,
                 "ram_gb": 0.25
               },
               "architectures": [],
@@ -7058,7 +7061,7 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"
+                  "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -7069,7 +7072,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "9b0f7e9bcbe5541f7468779925879a0be187dd755198b5bd9572bc8d7c1271d7"
+              "profile_sha256": "660d006aa108c289eb5a8b766429c6558e23e528f0c7fff0fab14411617cbd7c"
             }
           ],
           "storage_profiles": [],
@@ -10973,7 +10976,9 @@
         }
       ],
       "required_authoring_inputs": [
-        "network.domain.base"
+        "inventory.path",
+        "network.domain.base",
+        "owner.email"
       ]
     },
     {
@@ -16091,7 +16096,9 @@
         }
       ],
       "required_authoring_inputs": [
-        "network.domain.base"
+        "inventory.path",
+        "network.domain.base",
+        "owner.email"
       ]
     }
   ],
@@ -17501,5 +17508,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "6ea109da4819ba52d101afcd03d7074535df126a754376f69a40762ea81ced9d"
+  "catalog_sha256": "59cc06df1e256c20cb256220778b4b23f90110be19bb6ca7d88909ac0080e61e"
 }

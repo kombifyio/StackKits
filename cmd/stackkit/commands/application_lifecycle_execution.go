@@ -331,6 +331,7 @@ func completeExistingApplicationLifecycles(
 	terminalStatus string,
 	evidence []applicationlifecycle.Evidence,
 	now time.Time,
+	workloadRef string,
 ) error {
 	if terminalStatus != applicationlifecycle.StatusSucceeded && terminalStatus != applicationlifecycle.StatusRecovered {
 		return errors.New("application lifecycle terminal status is invalid")
@@ -346,6 +347,9 @@ func completeExistingApplicationLifecycles(
 	store := applicationlifecycle.Store{Workspace: workspace}
 	var result error
 	for _, contract := range contracts {
+		if workloadRef != "" && contract.WorkloadRef != workloadRef {
+			continue
+		}
 		if !applicationLifecycleStageSupportedByDelivery(contract, "restore") {
 			continue
 		}

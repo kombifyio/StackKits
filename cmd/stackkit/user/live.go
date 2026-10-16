@@ -24,6 +24,19 @@ func (h liveHousehold) AddHouseholdUser(ctx context.Context, spec localowner.Hou
 	return invited, err
 }
 
+func (h liveHousehold) SetHouseholdUserApps(ctx context.Context, username string, access localowner.HouseholdAppAccess) (localowner.HouseholdUser, error) {
+	var member localowner.HouseholdUser
+	err := lifecyclemutation.WithIdleMutation(h.workspace, lifecyclemutation.JoinRequest{Command: "user apps"}, func() error {
+		service, err := localowner.NewService(h.workspace)
+		if err != nil {
+			return err
+		}
+		member, err = service.SetHouseholdUserApps(ctx, username, access)
+		return err
+	})
+	return member, err
+}
+
 func (h liveHousehold) ListHouseholdUsers(ctx context.Context) ([]localowner.HouseholdUser, error) {
 	service, err := localowner.NewService(h.workspace)
 	if err != nil {

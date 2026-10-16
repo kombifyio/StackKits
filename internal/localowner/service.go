@@ -252,8 +252,18 @@ var errPocketIDRuntimeLost = errors.New("localowner: PocketID no longer holds th
 // that as work to redo rather than as a reason to refuse, so re-running an
 // install rebuilds the owner from the custody that survived on disk.
 func (s *Service) Realize(ctx context.Context) (Result, error) {
+	// A resumed route transition must never reach owner/client recreation.
 	owner, client, err := s.ready(ctx)
 	if err != nil {
+		return Result{}, err
+	}
+	if state, err := localevidence.LoadCloudSessionRouting(s.workspaceRoot); err == nil && state.Phase != "aborted" {
+		if state.Phase != "active" {
+			return Result{}, localevidence.CloudSessionRoutingDiagnostic(errors.New("cloud_session_transition_pending: resume stackkit address session-zone with the original zone"))
+		}
+		binding, err := s.Verify(ctx)
+		return Result{Binding: binding}, err
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return Result{}, err
 	}
 	// Admission runs before any recorded state is read: a rebuilt PocketID needs
@@ -388,6 +398,12 @@ func (s *Service) realizeBoundOwner(
 	if err := s.ensureTinyAuthPocketIDBinding(ctx, client, owner, groupIDs); err != nil {
 		return Result{}, err
 	}
+	// Households that predate per-app grants keep their access: the open group
+	// is created and seeded with the existing members before any app client or
+	// route ACL admits by it.
+	if err := seedHouseholdOpenGroupForExistingMembers(ctx, client); err != nil {
+		return Result{}, err
+	}
 	if err := s.ensureConfiguredImmichUserClaims(ctx, client); err != nil {
 		return Result{}, err
 	}
@@ -519,7 +535,7 @@ func (s *Service) convergeTinyAuthPKCE(ctx context.Context, client pocketIDOwner
 	if err != nil {
 		return err
 	}
-	address, err := localevidence.LocalIdentityRuntimeAddress(s.workspaceRoot)
+	callback, err := localevidence.EffectiveTinyAuthCallbackURL(s.workspaceRoot)
 	if err != nil {
 		return err
 	}
@@ -528,7 +544,7 @@ func (s *Service) convergeTinyAuthPKCE(ctx context.Context, client pocketIDOwner
 		return nil
 	}
 	if current.ID != localevidence.TinyAuthPocketIDClientID || current.Name != tinyAuthClientName ||
-		!slices.Equal(current.CallbackURLs, []string{localevidence.TinyAuthPocketIDCallbackURL(address)}) ||
+		!slices.Equal(current.CallbackURLs, []string{callback}) ||
 		current.IsPublic || !current.IsGroupRestricted ||
 		!samePocketIDGroupIDs(current.AllowedUserGroups, groupIDs) {
 		return nil
@@ -537,11 +553,9 @@ func (s *Service) convergeTinyAuthPKCE(ctx context.Context, client pocketIDOwner
 	if !ok {
 		return errors.New("localowner: PocketID TinyAuth client cannot enable PKCE")
 	}
-	_, err = updater.UpdateOIDCClient(ctx, current.ID, pocketid.RegisterClientRequest{
-		ID: current.ID, Name: current.Name, CallbackURLs: append([]string(nil), current.CallbackURLs...),
-		IsPublic: false, PkceEnabled: true, IsGroupRestricted: true,
-		RequiresReauthentication: current.RequiresReauthentication,
-	})
+	settings := current.Settings()
+	settings.PkceEnabled = true
+	_, err = updater.UpdateOIDCClient(ctx, current.ID, settings)
 	if err != nil {
 		return errors.New("localowner: PocketID TinyAuth PKCE update failed")
 	}
@@ -565,7 +579,7 @@ func (s *Service) verifyTinyAuthPocketIDBindingPolicy(
 	if err != nil {
 		return err
 	}
-	address, err := localevidence.LocalIdentityRuntimeAddress(s.workspaceRoot)
+	callback, err := localevidence.EffectiveTinyAuthCallbackURL(s.workspaceRoot)
 	if err != nil {
 		return err
 	}
@@ -574,7 +588,7 @@ func (s *Service) verifyTinyAuthPocketIDBindingPolicy(
 		return errPocketIDRuntimeLost
 	}
 	return tinyAuthBindingDiagnostic(oidcClient, err, binding, owner,
-		localevidence.TinyAuthPocketIDCallbackURL(address), groupIDs, requirePKCE)
+		callback, groupIDs, requirePKCE)
 }
 
 func ownerMembershipGroupIDs(ctx context.Context, client pocketIDOwnerClient) ([]string, error) {

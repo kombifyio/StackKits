@@ -20,9 +20,10 @@ is whatever `releases/latest` resolves to in `kombifyio/stackKits`; documentatio
 does not restate that number. Modern Homelab is alpha scaffolding and graduates
 only the Runtime owners whose exact boundaries are bound; remaining publication,
 Cloud-verifier, backend-Health, and live-evidence surfaces stay fail-closed.
-Product-bundled applications use standalone Compose by default. Optional
-Marketplace owns Coolify outside default core; Komodo is the planned operations
-platform without a store and Dokploy is not pursued. Current-pin release evidence
+Product-bundled applications use standalone Compose by default until further
+PaaS platforms are available; 1.0 requires both paths.
+Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and later runtime
+targets; Marketplace additionally uses Coolify. Current-pin release evidence
 focuses on owner/passkey activation, exact application setup, protected app health,
 retryable L3 setup actions, and seeded content only when demo data is
 explicitly enabled. User-installed apps outside that path are state-unmanaged.

@@ -297,7 +297,7 @@ func automaticOwnerCredentials(action string, owner localevidence.OwnerProjectio
 		return withPassword(map[string]any{"email": email, "language": "en-US", "allowFirstOwnerRegistration": true}), email != ""
 	case "immich-owner-bootstrap":
 		return withPassword(map[string]any{"email": email, "displayName": displayName}), email != "" && displayName != ""
-	case "jellyfin-owner-bootstrap":
+	case "jellyfin-owner-bootstrap", appsetup.NavidromeOwnerBootstrapAction, appsetup.AudiobookshelfOwnerBootstrapAction:
 		return withPassword(map[string]any{"username": username}), username != ""
 	case "home-assistant-owner-bootstrap":
 		return withPassword(map[string]any{"username": username, "displayName": displayName, "language": "en"}), username != "" && displayName != ""

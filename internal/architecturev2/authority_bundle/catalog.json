@@ -184,6 +184,28 @@
               "state-console"
             ]
           },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
           "upgrade": {
             "destructive": true,
             "evidence": [
@@ -368,6 +390,28 @@
               "activate",
               "verify",
               "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
             ],
             "surfaces": [
               "cli",
@@ -17743,6 +17787,12 @@
                     "mosquitto"
                   ],
                   "ref": "lan-listener"
+                },
+                {
+                  "matches": [
+                    "mosquitto"
+                  ],
+                  "ref": "home-assistant-link"
                 }
               ]
             }
@@ -24493,7 +24543,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:c4525c75cb5b99ea7b42fed15321ba910a32b13a9f6944e454d5a48c675aa1f5",
+          "contractHash": "sha256:cd226436f4b09d3eaa1cfcd44a10a23ed3200959ec960131e37eee210b839b03",
           "id": "compose",
           "inputBindings": [
             {
@@ -43081,7 +43131,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:5ba320ad266b73705bb6f67f97ae8fe948e61f44b16edaf15078bc827ee3613b",
+          "contractHash": "sha256:45feb541abaa53eedaaa0be86359fe99dfc138f2734cb933f5aace6b61832189",
           "id": "mosquitto",
           "inputBindings": [
             {
@@ -43113,6 +43163,7 @@
           "publicInputRefs": [
             "delivery-route",
             "lan-listener",
+            "home-assistant-link",
             "compute-profile"
           ],
           "rendererRef": "stackkit",
@@ -43191,6 +43242,7 @@
           "publicInputRefs": [
             "delivery-route",
             "lan-listener",
+            "home-assistant-link",
             "compute-profile"
           ],
           "rendererRef": "stackkit",
@@ -43212,6 +43264,7 @@
           "publicInputRefs": [
             "delivery-route",
             "lan-listener",
+            "home-assistant-link",
             "compute-profile"
           ],
           "rendererRef": "stackkit",
@@ -43234,6 +43287,7 @@
           "publicInputRefs": [
             "delivery-route",
             "lan-listener",
+            "home-assistant-link",
             "compute-profile"
           ],
           "rendererRef": "stackkit",
@@ -43278,6 +43332,12 @@
             "lifecycle": "daemon",
             "networkRefs": [
               "mosquitto-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "home-assistant-internal",
+                "workloadRef": "smart-home"
+              }
             ],
             "resources": {
               "memoryLimit": "128m",
@@ -49787,7 +49847,7 @@
           "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
           "executable": true,
           "headroom": {
-            "cpuCores": 1.95,
+            "cpuCores": 1.8,
             "ramGB": 1.1875
           },
           "hostFloor": {
@@ -49810,17 +49870,17 @@
               "source": "measured"
             },
             "reservation": {
-              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+              "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json",
               "source": "measured"
             }
           },
           "realization": "apply-ready",
           "recommended": {
-            "cpuCores": 0.25,
+            "cpuCores": 1.25,
             "ramGB": 0.25
           },
           "reservation": {
-            "cpuCores": 0.05,
+            "cpuCores": 0.2,
             "ramGB": 0.3125
           }
         },
@@ -49832,7 +49892,7 @@
           "description": "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate.",
           "executable": true,
           "headroom": {
-            "cpuCores": 0.45,
+            "cpuCores": 0.4,
             "ramGB": 0.1875
           },
           "hostFloor": {
@@ -49855,17 +49915,17 @@
               "source": "measured"
             },
             "reservation": {
-              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json",
+              "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json",
               "source": "measured"
             }
           },
           "realization": "apply-ready",
           "recommended": {
-            "cpuCores": 0.25,
+            "cpuCores": 0.5,
             "ramGB": 0.25
           },
           "reservation": {
-            "cpuCores": 0.05,
+            "cpuCores": 0.1,
             "ramGB": 0.3125
           }
         },
@@ -61157,9 +61217,11 @@
             "defaultFallbackAdapterRefs": []
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "navidrome-owner-bootstrap"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],
@@ -61306,9 +61368,11 @@
             "defaultFallbackAdapterRefs": []
           },
           "setup": {
-            "actionRefs": [],
-            "mode": "manual",
-            "owner": "operator"
+            "actionRefs": [
+              "audiobookshelf-owner-bootstrap"
+            ],
+            "mode": "on-demand",
+            "owner": "module"
           }
         }
       ],
@@ -61648,7 +61712,8 @@
             },
             "settings": {
               "allowedRefs": [
-                "lan-listener"
+                "lan-listener",
+                "home-assistant-link"
               ],
               "requiredRefs": []
             }

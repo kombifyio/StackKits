@@ -28,11 +28,12 @@ const (
 )
 
 type publicUpgradeBridge struct {
-	Enabled    bool
-	Current    generationartifact.PlanInspection
-	Verify     architectureV2VerifyReport
-	LiveVerify architectureV2VerifyReport
-	Receipt    releaseindex.Receipt
+	Enabled       bool
+	Current       generationartifact.PlanInspection
+	Verify        architectureV2VerifyReport
+	LiveVerify    architectureV2VerifyReport
+	Receipt       releaseindex.Receipt
+	SourceContext *historicalCloudSourceContext
 }
 
 func inspectExactBeta4UpgradeBridge(

@@ -345,6 +345,9 @@ func architectureV2RuntimeIdentity(engine, adapter, runtimeRef, componentID stri
 	case "komodo":
 		identity.Kind = "komodo_service"
 		identity.Deployment = runtimeRef
+	case "coolify":
+		identity.Kind = "coolify_service"
+		identity.Deployment = runtimeRef
 	case "observed":
 		identity.Kind = engine + "_component"
 	}

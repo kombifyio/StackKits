@@ -21,6 +21,8 @@ type HouseholdUser struct {
 	Status      string
 	ExpiresAt   time.Time
 	SetupURL    string
+	// Access is the member's app grant; the zero value admits every app.
+	Access HouseholdAppAccess
 }
 
 // HouseholdUserSpec is the owner-supplied identity for one household member.
@@ -28,6 +30,8 @@ type HouseholdUserSpec struct {
 	Username    string
 	Email       string
 	DisplayName string
+	// Access defaults to every app, as before per-app grants.
+	Access HouseholdAppAccess
 }
 
 // AddHouseholdUser creates a non-admin PocketID subject in the household
@@ -49,6 +53,10 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 	if username == owner.PocketID.Username || email == owner.PocketID.Email {
 		return HouseholdUser{}, errors.New("localowner: household user cannot reuse the owner identity")
 	}
+	access, err := normalizeHouseholdAccess(spec.Access)
+	if err != nil {
+		return HouseholdUser{}, err
+	}
 	displayName := strings.TrimSpace(spec.DisplayName)
 	if displayName == "" {
 		displayName = username
@@ -56,9 +64,15 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 	if _, err := ensureRequiredGroups(ctx, client); err != nil {
 		return HouseholdUser{}, err
 	}
+	if _, err := ensureHouseholdOpenGroup(ctx, client); err != nil {
+		return HouseholdUser{}, err
+	}
 	householdID, err := client.GetGroupIDByName(ctx, householdGroupName)
 	if err != nil || strings.TrimSpace(householdID) == "" {
 		return HouseholdUser{}, errors.New("localowner: household group is missing")
+	}
+	if err := s.ensureKombifyLinkClient(ctx); err != nil {
+		return HouseholdUser{}, err
 	}
 	existing, err := client.FindUsersByUsername(ctx, username)
 	if err != nil {
@@ -68,6 +82,11 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 		if len(existing) != 1 || existing[0].IsAdmin || !householdMember(existing[0]) ||
 			existing[0].Email != email || effectiveDisplayName(existing[0]) != displayName {
 			return HouseholdUser{}, errors.New("localowner: household username already exists")
+		}
+		if access.Scoped {
+			if err := s.applyHouseholdAccess(ctx, client, existing[0], access); err != nil {
+				return HouseholdUser{}, err
+			}
 		}
 		if err := s.ensureConfiguredImmichUserClaims(ctx, client); err != nil {
 			return HouseholdUser{}, err
@@ -86,11 +105,15 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 		} else if migrated {
 			return s.ActivateHouseholdUser(ctx, username)
 		}
-		return HouseholdUser{Username: username, Email: email, DisplayName: displayName, Status: status}, nil
+		return HouseholdUser{Username: username, Email: email, DisplayName: displayName, Status: status, Access: householdAccessOf(existing[0])}, nil
+	}
+	accessIDs, err := householdAccessGroupIDs(ctx, client, access)
+	if err != nil {
+		return HouseholdUser{}, err
 	}
 	created, err := client.CreateUser(ctx, pocketid.CreateUserRequest{
 		Username: username, Email: email, FirstName: displayName, DisplayName: displayName,
-		IsAdmin: false, UserGroupIDs: []string{householdID},
+		IsAdmin: false, UserGroupIDs: append([]string{householdID}, accessIDs...),
 	})
 	if err != nil || created == nil || strings.TrimSpace(created.ID) == "" {
 		return HouseholdUser{}, errors.New("localowner: household user creation failed")
@@ -98,6 +121,14 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 	readback, err := client.GetUser(ctx, created.ID)
 	if err != nil || readback == nil || readback.IsAdmin || householdMember(*readback) == false {
 		return HouseholdUser{}, errors.New("localowner: household user readback failed")
+	}
+	if !sameAccess(householdAccessOf(*readback), access) {
+		return HouseholdUser{}, errors.New("localowner: household app grant readback failed")
+	}
+	if access.Scoped {
+		if err := s.convergeHouseholdAppClients(ctx, client); err != nil {
+			return HouseholdUser{}, err
+		}
 	}
 	tinyAuthIDs, err := exactRequiredGroupIDs(ctx, client)
 	if err != nil {
@@ -123,7 +154,7 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 	expiresAt := s.now().UTC().Add(ownerEnrollmentTTL).Truncate(time.Second)
 	return HouseholdUser{
 		Username: readback.Username, Email: readback.Email, DisplayName: effectiveDisplayName(*readback),
-		Status: "pending", ExpiresAt: expiresAt,
+		Status: "pending", ExpiresAt: expiresAt, Access: access,
 		SetupURL: pocketid.ActivationURL(address.PocketIDOrigin(), token),
 	}, nil
 }
@@ -140,6 +171,11 @@ func (s *Service) ListHouseholdUsers(ctx context.Context) ([]HouseholdUser, erro
 	users, err := client.ListUsers(ctx)
 	if err != nil {
 		return nil, errors.New("localowner: household user list failed")
+	}
+	// Before the open group exists, every member is open (no grants yet).
+	openID, err := client.GetGroupIDByName(ctx, householdOpenGroupName)
+	if err != nil {
+		return nil, errors.New("localowner: PocketID group lookup failed")
 	}
 	result := make([]HouseholdUser, 0)
 	for _, user := range users {
@@ -160,8 +196,12 @@ func (s *Service) ListHouseholdUsers(ctx context.Context) ([]HouseholdUser, erro
 		} else if migrated {
 			status = "reenrollment-required"
 		}
+		access := HouseholdAppAccess{}
+		if openID != "" {
+			access = householdAccessOf(user)
+		}
 		result = append(result, HouseholdUser{
-			Username: user.Username, Email: user.Email, DisplayName: effectiveDisplayName(user), Status: status,
+			Username: user.Username, Email: user.Email, DisplayName: effectiveDisplayName(user), Status: status, Access: access,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Username < result[j].Username })

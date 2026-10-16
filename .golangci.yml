@@ -83,6 +83,8 @@ linters:
         - -QF1012
     misspell:
       locale: US
+      ignore-rules:
+        - mosquitto # Eclipse Mosquitto, the MQTT broker
 
   exclusions:
     generated: lax

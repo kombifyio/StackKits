@@ -53,7 +53,7 @@ Shows:
 func init() {
 	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Output as JSON")
 	statusCmd.Flags().BoolVar(&statusHTTP, "http", false, "Probe verified service routes from this verifier host")
-	statusCmd.Flags().StringVar(&statusResolvedPlanPath, "resolved-plan", "", "Canonical Architecture v2 ResolvedPlan (default: deploy/.stackkit/resolved-plan.json)")
+	statusCmd.Flags().StringVar(&statusResolvedPlanPath, "resolved-plan", "", "Canonical Architecture v2 ResolvedPlan (default: beneath the StackSpec generation.outputRoot)")
 	statusCmd.Flags().StringVar(&statusInventoryPath, "inventory", "", "Architecture v2 observed Inventory used to identify a configured Standard process runtime")
 }
 
@@ -229,7 +229,14 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 	}
 	planPath := strings.TrimSpace(statusResolvedPlanPath)
 	if planPath == "" {
-		planPath = filepath.Join("deploy", ".stackkit", "resolved-plan.json")
+		outputRoot, err := historicalGenerationOutputRoot(wd, specFile)
+		if err != nil {
+			return fmt.Errorf("status: read StackSpec generation output root: %w", err)
+		}
+		if outputRoot == "" {
+			return errors.New("status requires a canonical StackSpec v2 generation output root")
+		}
+		planPath = filepath.Join(outputRoot, ".stackkit", "resolved-plan.json")
 	}
 	planPath = resolvePathFromWorkDir(wd, planPath)
 	raw, err := os.ReadFile(planPath)

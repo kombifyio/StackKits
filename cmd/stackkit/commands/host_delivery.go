@@ -179,7 +179,7 @@ func newWalletItemCommand() *cobra.Command {
 			noDeployObservabilityAnnotation: "true",
 		},
 	}
-	item.AddCommand(newWalletItemImportCommand(), newWalletItemStatusCommand())
+	item.AddCommand(newWalletItemImportCommand(), newWalletItemRemoveCommand(), newWalletItemStatusCommand())
 	return item
 }
 
@@ -223,6 +223,49 @@ names the reference and version only.`,
 	}
 	cmd.Flags().StringVar(&tenantRef, "tenant-ref", "", "Tenant the sealed delivery must be addressed to")
 	cmd.Flags().BoolVar(&approved, "owner-approve", false, "Authorize storing this Wallet item")
+	return cmd
+}
+
+func newWalletItemRemoveCommand() *cobra.Command {
+	var tenantRef string
+	var approved bool
+	cmd := &cobra.Command{
+		Use:   "remove",
+		Short: "Open a sealed Wallet item removal from stdin and drop the item from local custody",
+		Long: `Read one sealed wallet-item-remove envelope on stdin, signed by the pinned
+delivering authority. The node opens it, records it as consumed, and deletes
+every version of the item it names from local custody. A bound consumer such as
+the Private AI provider key fails closed on its next apply until another item is
+delivered. Removing an item this node does not hold succeeds and removes
+nothing. The result names the reference and the removed versions only.`,
+		Example: `  stackkit wallet-item remove --tenant-ref "$TENANT" --owner-approve < envelope.json`,
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !approved || tenantRef == "" {
+				return errors.New("wallet-item remove requires --tenant-ref and --owner-approve")
+			}
+			raw, err := readSealedEnvelope(cmd)
+			if err != nil {
+				return err
+			}
+			workspace := getWorkDir()
+			return withLifecycleMutation(workspace, "wallet-item remove", func() error {
+				store := backupcustody.HostStore(workspace)
+				delivery, err := hostcustody.OpenDelivery(store, raw, hostcustody.Expectation{TenantRef: tenantRef, Operations: []string{hostdelivery.OperationWalletItemRemove}}, time.Now().UTC())
+				if err != nil {
+					return err
+				}
+				defer backupcustody.Clear(delivery.Plaintext)
+				removal, err := hostcustody.RemoveWalletItem(store, delivery)
+				if err != nil {
+					return err
+				}
+				return writeCommandResult(cmd, cmd.CommandPath(), removal)
+			})
+		},
+	}
+	cmd.Flags().StringVar(&tenantRef, "tenant-ref", "", "Tenant the sealed removal must be addressed to")
+	cmd.Flags().BoolVar(&approved, "owner-approve", false, "Authorize removing this Wallet item")
 	return cmd
 }
 

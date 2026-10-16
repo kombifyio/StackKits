@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 )
 
@@ -128,6 +129,11 @@ func ControlCoolifyWorkloadComponent(ctx context.Context, workspace string, depl
 		if action == "stop" {
 			return observed.State == "exited", nil
 		}
-		return observed.State == "running", nil
+		if observed.State != "running" {
+			return false, nil
+		}
+		return blockingStandaloneComposeReadiness(
+			[]architecturev2renderer.ApplicationDeliveryComponentDescriptor{component}, statuses,
+		)
 	})
 }

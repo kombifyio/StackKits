@@ -10,6 +10,7 @@ var governedPeerNetworks = map[string]struct {
 	component string
 	networks  []selectedPaaSPeerNetwork
 }{
+	mosquittoWorkloadModuleID:         {component: "mosquitto", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "smart-home", NetworkRef: "home-assistant-internal"}}},
 	immichPublicProxyWorkloadModuleID: {component: "immich-public-proxy", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "photos", NetworkRef: "immich-internal"}}},
 	immichKioskWorkloadModuleID:       {component: "immich-kiosk", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "photos", NetworkRef: "immich-internal"}}},
 	immichPowerToolsWorkloadModuleID:  {component: "immich-power-tools", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "photos", NetworkRef: "immich-internal"}}},

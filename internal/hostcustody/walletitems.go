@@ -3,10 +3,12 @@ package hostcustody
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	stackcrypto "github.com/kombifyio/stackkits/internal/crypto"
@@ -156,6 +158,64 @@ func StoreWalletItem(store Store, delivery Delivery, now time.Time) (WalletItemR
 		}
 	}
 	return receipt, nil
+}
+
+// WalletItemRemoval reports which versions of an item left local custody. It
+// carries references and versions only. An item already absent is not an
+// error: Removed is empty and the node holds nothing of it.
+type WalletItemRemoval struct {
+	TenantRef string   `json:"tenantRef"`
+	ItemRef   string   `json:"itemRef"`
+	Removed   []uint64 `json:"removedVersions"`
+	// CleanupPending names value records that could not be deleted; the index
+	// no longer serves them.
+	CleanupPending []string `json:"cleanupPending,omitempty"`
+}
+
+// RemoveWalletItem applies an opened wallet-item-remove delivery: every
+// version of the item it names leaves the index first, so nothing serves it
+// any more, and then its encrypted value records are deleted. The delivered
+// registry keeps the reference: the value did reach this node, so a later
+// detach still lists it for rotation.
+func RemoveWalletItem(store Store, delivery Delivery) (WalletItemRemoval, error) {
+	context := delivery.Context
+	if context.Operation != hostdelivery.OperationWalletItemRemove {
+		return WalletItemRemoval{}, errors.New("hostcustody: delivery is not a Wallet item removal")
+	}
+	if !validItemRef(context.DeliveryRef) {
+		return WalletItemRemoval{}, errors.New("hostcustody: Wallet item reference is invalid")
+	}
+	var payload hostdelivery.WalletItemRemove
+	if err := json.Unmarshal(delivery.Plaintext, &payload); err != nil || strings.TrimSpace(string(delivery.Plaintext)) != "{}" {
+		return WalletItemRemoval{}, errors.New("hostcustody: Wallet item removal payload must be {}")
+	}
+	removal := WalletItemRemoval{TenantRef: context.TenantRef, ItemRef: context.DeliveryRef, Removed: []uint64{}}
+	index, existing, err := readWalletIndex(store)
+	if err != nil || !existing {
+		return removal, err
+	}
+	var held []walletEntry
+	index.Items = slices.DeleteFunc(index.Items, func(entry walletEntry) bool {
+		match := entry.TenantRef == context.TenantRef && entry.ItemRef == context.DeliveryRef
+		if match {
+			held = append(held, entry)
+		}
+		return match
+	})
+	if len(held) == 0 {
+		return removal, nil
+	}
+	if err := store.Write(walletIndexName, &index, &index.Signature, false); err != nil {
+		return WalletItemRemoval{}, err
+	}
+	for _, entry := range held {
+		removal.Removed = append(removal.Removed, entry.Version)
+		if err := store.Remove(entry.Record); err != nil {
+			removal.CleanupPending = append(removal.CleanupPending, entry.Record)
+		}
+	}
+	slices.Sort(removal.Removed)
+	return removal, nil
 }
 
 // admitWalletVersion returns the versions of the item already in custody and

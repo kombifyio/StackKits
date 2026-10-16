@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdh"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
@@ -228,8 +229,20 @@ func (o *osKomodoBootstrapOperations) ApplyKomodo(ctx context.Context, document 
 	if err != nil {
 		return KomodoBootstrapObservation{}, err
 	}
-	if _, err := workspaceView.WriteAtomic0600(".stackkit/platform.json", cfgRaw); err != nil {
+	retainedDefault := false
+	if _, err := workspaceView.Lstat(".stackkit/platform.json"); err == nil {
+		prior, err := platformdeploy.LoadOwnerKomodoConfig(o.workspace)
+		if err != nil {
+			return KomodoBootstrapObservation{}, err
+		}
+		retainedDefault = prior.ServerID != state.ServerID
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return KomodoBootstrapObservation{}, err
+	}
+	if !retainedDefault {
+		if _, err := workspaceView.WriteAtomic0600(".stackkit/platform.json", cfgRaw); err != nil {
+			return KomodoBootstrapObservation{}, err
+		}
 	}
 	return KomodoBootstrapObservation{Status: "ready", ServerID: state.ServerID, CoreImage: images["core"], PeripheryImage: images["periphery"], PeripheryConnected: true, MinimumTLSVersion: "TLS1.3", PrivateAPI: true}, nil
 }
@@ -262,8 +275,9 @@ func (o *osKomodoBootstrapOperations) loadOrCreateCustody(ctx context.Context, r
 		}
 		if _, err := workspaceView.Lstat(".stackkit/platform.json"); err == nil {
 			cfg, err := platformdeploy.LoadOwnerKomodoConfig(o.workspace)
-			if err != nil || state.APIKey == "" || cfg.APIKey != state.APIKey || cfg.Secret != state.APISecret || cfg.ServerID != state.ServerID {
-				return state, errors.New("current platform configuration belongs to another control identity; request an explicit transition before bootstrap")
+			if err != nil || state.APIKey == "" || state.ServerID == "" || cfg.ServerID == "" ||
+				(cfg.ServerID == state.ServerID && (cfg.APIKey != state.APIKey || cfg.Secret != state.APISecret)) {
+				return state, errors.New("current platform configuration has an invalid control identity; preserve custody and repair it before bootstrap")
 			}
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return state, err
@@ -530,6 +544,12 @@ func waitKomodoCoreAPI(ctx context.Context, client *http.Client, endpoint, versi
 }
 
 func renderKomodoBootstrapCompose(workspace string, document architecturev2renderer.KomodoBootstrapDocument) ([]byte, error) {
+	rootPEM, _, err := localevidence.BasementStepCARootCAPEM(workspace)
+	if err != nil {
+		return nil, err
+	}
+	rootDigest := sha256.Sum256(rootPEM)
+	trustLabel := hex.EncodeToString(rootDigest[:])
 	services := map[string]any{}
 	host := "komodo-control." + document.DomainBase
 	rootCA := filepath.Join(workspace, ".stackkit", "custody", "basement-runtime", "step-ca", "certs", "root_ca.crt")
@@ -561,11 +581,15 @@ func renderKomodoBootstrapCompose(workspace string, document architecturev2rende
 			service["depends_on"] = map[string]any{"mongo": map[string]string{"condition": "service_healthy"}}
 			service["networks"] = []string{"komodo-control", "basement-core"}
 			service["labels"] = map[string]string{"komodo.skip": "", "stackkit.owner.module": architecturev2renderer.KomodoBootstrapModuleRef, "traefik.enable": "true", "traefik.docker.network": "stackkit-basement-core",
+				"stackkit.trust.root-sha256":                        trustLabel,
 				"traefik.http.routers.stackkit-komodo-control.rule": "Host(`" + host + "`) && PathPrefix(`/ws/periphery`)", "traefik.http.routers.stackkit-komodo-control.entrypoints": "komodo-control",
 				"traefik.http.routers.stackkit-komodo-control.tls": "true", "traefik.http.routers.stackkit-komodo-control.tls.options": "stackkit-komodo@file",
 				"traefik.http.routers.stackkit-komodo-control.tls.certresolver": "stackkits", "traefik.http.routers.stackkit-komodo-control.service": "stackkit-komodo-control",
 				"traefik.http.services.stackkit-komodo-control.loadbalancer.server.port": "9120"}
 		case "periphery":
+			// A root replaced atomically leaves a running file bind on its old
+			// inode. Let Compose recreate this trust consumer when the CA changes.
+			service["labels"].(map[string]string)["stackkit.trust.root-sha256"] = trustLabel
 			service["environment"] = map[string]string{"PERIPHERY_CORE_ADDRESS": "wss://" + host + ":8443", "PERIPHERY_CONNECT_AS": komodoBootstrapServerName,
 				"PERIPHERY_PRIVATE_KEY_FILE": "/config/keys/periphery.key", "PERIPHERY_CORE_PUBLIC_KEYS": "file:/config/keys/core.pub", "PERIPHERY_SERVER_ENABLED": "false", "PERIPHERY_ROOT_DIRECTORY": workspace}
 			service["volumes"] = []string{"./periphery.key:/config/keys/periphery.key:ro", "./core.pub:/config/keys/core.pub:ro",

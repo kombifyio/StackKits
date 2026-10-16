@@ -1,12 +1,12 @@
 ---
 adr: ADR-0049
-title: Marketplace use case on Coolify; Coolify out of the default core; Dokploy dropped
+title: Marketplace on Coolify and the Layer-2 PaaS platform boundary
 status: Accepted
 date: 2026-10-10
-last_verified: 2026-10-10
+last_verified: 2026-10-16
 ---
 
-# ADR-0049: Marketplace use case on Coolify; Coolify out of the default core; Dokploy dropped
+# ADR-0049: Marketplace on Coolify and the Layer-2 PaaS platform boundary
 
 **Decision owner:** Marcel (2026-10-10, owner direction for the twelfth main
 intent "Marketplace"; engine choice accepted on the evidence below).
@@ -55,7 +55,9 @@ check. Without PocketID login it cannot meet the identity promise.
 ## Decision
 
 1. **Coolify is the Marketplace engine, as an application of the
-   Marketplace use case, not as a runtime target.** StackKits installs and
+   Marketplace use case, in addition to its Layer-2 PaaS platform role.**
+   Coolify, Komodo and Dokploy remain later OpenTofu runtime targets under
+   ADR-0045 and the owner amendment below. StackKits installs and
    operates a pinned Coolify 4.4.x (digest pin, `AUTOUPDATE=false`), its backup
    and its upgrade. Apps installed from the store belong to Coolify and the
    user; curated kombify apps stay StackKits-owned. This keeps one execution
@@ -68,8 +70,9 @@ check. Without PocketID login it cannot meet the identity promise.
    selectable for existing installations until the Marketplace use case can
    take them over; they are not offered for new installations and are retired
    by a tracked package.
-3. **Dokploy is not pursued** for the Marketplace. Komodo stays a possible
-   later operations platform without a store.
+3. **Dokploy is not selected as the Marketplace engine.** Its Layer-2 PaaS
+   and later runtime-target scope remains active. Komodo is the operations
+   platform without a store; support claims still require current-pin evidence.
 4. Identity: the owner e-mail is the Coolify root user and signs in through
    PocketID; household users are created on first OIDC login as members;
    further rights are granted explicitly by StackKits. The Coolify UI stays
@@ -93,3 +96,16 @@ check. Without PocketID login it cannot meet the identity promise.
   remain until existing installations can be migrated to the Marketplace use
   case, because the beta4 upgrade checkpoint and the core runtime profiles
   still serve those installations.
+
+## Amendment (owner, 2026-10-15)
+
+The original Decision 1 phrase "not as a runtime target" and original Decision 3
+phrase "Dokploy is not pursued" were withdrawn; the active decision above now
+reflects this amendment. Coolify, Komodo and Dokploy are the Layer-2 PaaS
+platforms and later OpenTofu runtime targets, as planned before this ADR
+(ADR-0003, ADR-0045). Direct Compose without a PaaS stays the default until
+further PaaS platforms are available; 1.0 requires both paths. The
+Marketplace use case on Coolify remains, in addition to Coolify's platform
+role. Dokploy stays out of the Marketplace engine role because its OIDC/SSO is
+licence-gated. Support for any platform or runtime target still requires
+current-pin evidence.

@@ -8,6 +8,14 @@
 #   curl -sSL https://install.stackkit.cc | sh -s -- basement-kit     # CLI + basement-kit
 #   curl -sSL https://install.stackkit.cc | sh -s -- cloud-kit        # CLI + cloud-kit
 #   curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab   # CLI + Modern Homelab Preview
+#   curl -sSL https://install.stackkit.cc | sh -s -- --channel preview  # newest Nightly prerelease (unsigned)
+#
+# --channel stable|preview selects the release channel (default: stable, or the
+# choice saved in ~/.stackkits/channel by `stackkit channel set`). It can also
+# be given as STACKKIT_CHANNEL. An unknown channel fails closed. Returning to
+# stable never downgrades a running preview build; it waits for the next stable
+# release at least as new (STACKKIT_ALLOW_DOWNGRADE=1 or an exact
+# STACKKIT_RELEASE_VERSION overrides that).
 #
 # Called by the short website entrypoints (`base.stackkit.cc`,
 # `cloud.stackkit.cc`) to provide the shared install + kit-download step
@@ -27,6 +35,33 @@ case "$0" in
   *) printf 'Use the complete entrypoint: curl -fsSL https://install.stackkit.cc | sh\n' >&2; exit 2 ;;
 esac
 # END STACKKIT_BOOTSTRAP_SOURCE
+
+# Take --channel out of the arguments; the first remaining argument is the kit.
+CHANNEL_FLAG=""
+CHANNEL_FLAG_SET=""
+_stackkit_argc=$#
+while [ "$_stackkit_argc" -gt 0 ]; do
+  _stackkit_arg=$1
+  shift
+  _stackkit_argc=$((_stackkit_argc - 1))
+  case "$_stackkit_arg" in
+    --channel)
+      if [ "$_stackkit_argc" -eq 0 ]; then
+        echo "Error: --channel needs a value: stable or preview." >&2
+        exit 2
+      fi
+      CHANNEL_FLAG=$1
+      CHANNEL_FLAG_SET=1
+      shift
+      _stackkit_argc=$((_stackkit_argc - 1))
+      ;;
+    --channel=*)
+      CHANNEL_FLAG=${_stackkit_arg#--channel=}
+      CHANNEL_FLAG_SET=1
+      ;;
+    *) set -- "$@" "$_stackkit_arg" ;;
+  esac
+done
 
 # KIT_NAME controls which kit definitions are downloaded alongside the binary.
 # ""             → CLI + catalog, then ask to install a StackKit (default yes)
@@ -53,6 +88,8 @@ fi
 
 REPO="${STACKKIT_RELEASE_REPO:-kombifyio/stackKits}"
 RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
+# The preview channel reads the release list (prereleases are never "latest").
+PREVIEW_RELEASES_API_URL="${STACKKIT_PREVIEW_RELEASES_API_URL:-https://api.github.com/repos/$REPO/releases?per_page=100}"
 RELEASES_PAGE_URL="${STACKKIT_RELEASES_PAGE_URL:-https://github.com/$REPO/releases/latest}"
 # STACKKIT_INSTALL_DIR relocates the binaries (default /usr/local/bin); the
 # provider mirror goes to ../lib/stackkit/providers beside that directory.
@@ -69,6 +106,30 @@ if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]
     TARGET_USER="$SUDO_USER"
     TARGET_HOME="$sudo_home"
   fi
+fi
+
+# Release channel: flag, then STACKKIT_CHANNEL, then the saved choice, then
+# stable. Anything but stable or preview fails closed before any download.
+CHANNEL_EXPLICIT=""
+if [ -n "$CHANNEL_FLAG_SET" ]; then
+  CHANNEL_REQUEST=$CHANNEL_FLAG
+  CHANNEL_EXPLICIT=1
+elif [ -n "${STACKKIT_CHANNEL:-}" ]; then
+  CHANNEL_REQUEST=$STACKKIT_CHANNEL
+  CHANNEL_EXPLICIT=1
+elif [ -f "$TARGET_HOME/.stackkits/channel" ]; then
+  CHANNEL_REQUEST=$(head -n 1 "$TARGET_HOME/.stackkits/channel" | tr -d '[:space:]')
+else
+  CHANNEL_REQUEST=stable
+fi
+if ! CHANNEL=$(installer_channel_normalize "$CHANNEL_REQUEST"); then
+  echo "Error: unknown release channel '${CHANNEL_REQUEST}'. Use stable or preview." >&2
+  exit 2
+fi
+# Kit installers started from here keep an explicit choice.
+if [ -n "$CHANNEL_EXPLICIT" ]; then
+  STACKKIT_CHANNEL=$CHANNEL
+  export STACKKIT_CHANNEL
 fi
 
 installer_journal_begin core "$(cd "$TARGET_HOME" && pwd -P)/.stackkits/installer" "$TARGET_USER"
@@ -150,6 +211,19 @@ RELEASE_JSON=""
 if [ -n "${STACKKIT_RELEASE_VERSION:-}" ]; then
   LATEST=$(printf '%s' "$STACKKIT_RELEASE_VERSION" | sed -E 's/^v//')
   echo "  -> pinned to v${LATEST} via STACKKIT_RELEASE_VERSION (existence verified at download)"
+elif [ "$CHANNEL" = preview ]; then
+  echo "  -> channel: preview (Nightly, unsigned prerelease built from main)"
+  RELEASE_JSON=$(curl_release -sSL "$PREVIEW_RELEASES_API_URL" 2>/dev/null || true)
+  PREVIEW_TAG=$(installer_newest_preview_tag "$RELEASE_JSON")
+  # The release list is not one release; asset lookups fetch the tag's own JSON.
+  RELEASE_JSON=""
+  if [ -z "$PREVIEW_TAG" ]; then
+    echo "Error: no preview (Nightly) release found at $PREVIEW_RELEASES_API_URL." >&2
+    echo "  Nothing is installed from the stable channel instead. Retry later, set STACKKIT_GITHUB_TOKEN if GitHub rate-limits you," >&2
+    echo "  or install stable with --channel stable. Releases: https://github.com/$REPO/releases" >&2
+    exit 1
+  fi
+  LATEST=${PREVIEW_TAG#v}
 else
   RELEASE_JSON=$(curl_release -sSL "$RELEASE_API_URL" 2>/dev/null || true)
   LATEST=$(extract_release_version "$RELEASE_JSON")
@@ -181,6 +255,24 @@ if [ -z "$LATEST" ]; then
   exit 1
 fi
 echo "  -> v${LATEST} (${OS}/${ARCH})"
+
+# Returning to stable never downgrades a running preview build: the switch
+# takes effect with the next stable release at least as new as the running one.
+if [ "$CHANNEL" = stable ] && [ -z "${STACKKIT_RELEASE_VERSION:-}" ] && [ "${STACKKIT_ALLOW_DOWNGRADE:-0}" != 1 ]; then
+  _stackkit_running=$( (command -v stackkit >/dev/null 2>&1 && stackkit version 2>/dev/null) | sed -n 's/^stackkit version v\{0,1\}//p' | head -n 1)
+  case "$_stackkit_running" in
+    *-preview.*)
+      if [ "$(installer_semver_compare "$LATEST" "$_stackkit_running")" = -1 ]; then
+        echo "  -> Staying on preview build v${_stackkit_running}: stable v${LATEST} is older."
+        echo "     The stable channel takes over with the next stable release at least as new."
+        echo "     To downgrade anyway, rerun with STACKKIT_ALLOW_DOWNGRADE=1."
+        installer_store_channel "$TARGET_HOME/.stackkits" "$CHANNEL" "$TARGET_USER" || true
+        installer_complete
+        exit 0
+      fi
+      ;;
+  esac
+fi
 
 # --- Select archive -----------------------------------------------------------
 # Kit bundles include the binary plus the public StackKit definitions.
@@ -377,6 +469,18 @@ if [ -d "$TMP/providers" ]; then
   echo "  -> Installed the OpenTofu provider mirror to $PROVIDERS_DIR"
 fi
 
+# The Coolify relocation engine (`stackkit relocate`, Linux only) lives beside
+# the provider mirror; the CLI resolves ../lib/stackkit/coolify-mirror and
+# accepts only the build pinned by this release.
+if [ -f "$TMP/coolify-mirror" ]; then
+  as_root=""
+  [ "$(id -u)" -eq 0 ] || as_root="sudo"
+  $as_root mkdir -p "$INSTALL_DIR/../lib/stackkit"
+  ENGINE_PATH="$(cd "$INSTALL_DIR/../lib/stackkit" && pwd)/coolify-mirror"
+  $as_root install -m 755 "$TMP/coolify-mirror" "$ENGINE_PATH"
+  echo "  -> Installed the Coolify relocation engine to $ENGINE_PATH"
+fi
+
 # --- Optional short `sk` alias ------------------------------------------------
 # Create a convenience `sk -> stackkit` symlink, but never clobber an existing
 # `sk` command: `skim` (the fuzzy finder) and other tools also ship an `sk`
@@ -461,6 +565,10 @@ if [ -n "$INSTALL_KITS" ]; then
 fi
 fi
 command -v stackkit >/dev/null 2>&1 || { printf 'stackkit is not on PATH; add %s and re-run this installer.\n' "$INSTALL_DIR" >&2; exit 1; }
+if [ -n "$CHANNEL_EXPLICIT" ]; then
+  installer_store_channel "$TARGET_HOME/.stackkits" "$CHANNEL" "$TARGET_USER" ||
+    echo "Warning: could not save the release channel to $TARGET_HOME/.stackkits/channel." >&2
+fi
 installer_complete
 
 # --- Summary ------------------------------------------------------------------

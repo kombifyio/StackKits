@@ -13,6 +13,13 @@ func defaultArchitectureV2InitDomain(kit, domain string) (string, bool, error) {
 	if kit != "cloud-kit" {
 		return domain, false, nil
 	}
+	// Init records explicit intent before DNS or installation exists. Retain
+	// the shared public-domain admission for local names, without DNS fallback
+	// replacing a chosen identity realm with the shared kombify.me parent.
+	domain = strings.ToLower(strings.Trim(domain, "."))
+	if domain != "" && !models.IsLocalDomain(domain) {
+		return domain, false, nil
+	}
 	return netenv.SelectPublicCloudDomain(domain)
 }
 

@@ -49,12 +49,21 @@ type HostManagerPlanBinding struct {
 // HostManagerHandover retains an interrupted transfer in the existing node
 // custody. Neither manager may act until the exact transfer is completed.
 type HostManagerHandover struct {
-	ID            string `json:"id"`
-	From          string `json:"from"`
-	To            string `json:"to"`
-	Status        string `json:"status"`
-	RecipeDigest  string `json:"recipeDigest"`
-	RuntimeDigest string `json:"runtimeDigest"`
+	AttachmentState   string `json:"attachmentState,omitempty"`
+	SourceDetachState string `json:"sourceDetachState,omitempty"`
+	ID                string `json:"id"`
+	From              string `json:"from"`
+	To                string `json:"to"`
+	Status            string `json:"status"`
+	RecipeDigest      string `json:"recipeDigest"`
+	RuntimeDigest     string `json:"runtimeDigest"`
+	SourceServerID    string `json:"sourceServerId,omitempty"`
+	SourceExternalID  string `json:"sourceExternalId,omitempty"`
+	TargetServerID    string `json:"targetServerId,omitempty"`
+	TargetExternalID  string `json:"targetExternalId,omitempty"`
+	TargetPlanHash    string `json:"targetPlanHash,omitempty"`
+	TargetCreateState string `json:"targetCreateState,omitempty"`
+	CoreProtocol      string `json:"coreProtocol,omitempty"`
 }
 
 func HostDeploymentManager(state HostDeployment) string {
@@ -65,7 +74,7 @@ func HostDeploymentManager(state HostDeployment) string {
 }
 
 func RequireHostDeploymentManager(state HostDeployment, manager string) error {
-	if state.Handover != nil && state.Handover.Status != "succeeded" {
+	if state.Handover != nil && state.Handover.Status != "succeeded" && state.Handover.Status != "cancelled" {
 		return errors.New("workload manager handover is incomplete; resume its exact transition before control")
 	}
 	if HostDeploymentManager(state) != manager {
@@ -126,10 +135,20 @@ func validateHostDeployment(project string, state HostDeployment) error {
 		return errors.New("Compose custody does not bind its native project identity")
 	}
 	if h := state.Handover; h != nil {
+		if h.AttachmentState != "" && (h.CoreProtocol != "" || h.From == h.To ||
+			!((h.Status == "pending" && h.AttachmentState == "updating") || (h.Status == "succeeded" && h.AttachmentState == "confirmed"))) {
+			return errors.New("generic manager attachment journal has an invalid signed phase")
+		}
+		detachQualified := h.SourceDetachState == "detached" || (h.Status == "pending" && h.TargetCreateState == "not-started" && (h.SourceDetachState == "not-started" || h.SourceDetachState == "detaching"))
+		coreTransfer := h.CoreProtocol == "komodo-core-detached-create/v2" && detachQualified && h.From == "komodo" && h.To == "komodo" && h.SourceServerID != "" && h.SourceExternalID != "" &&
+			h.TargetServerID != "" && h.TargetServerID != h.SourceServerID && hostArtifactDigestPattern.MatchString(h.TargetPlanHash) &&
+			(h.TargetCreateState == "not-started" || h.TargetCreateState == "creating" || h.TargetCreateState == "restoring-source" || ((h.TargetCreateState == "created" || h.TargetCreateState == "attaching") && h.TargetExternalID != "")) &&
+			(((h.Status == "pending" || (h.Status == "cancelled" && h.TargetCreateState == "restoring-source")) && state.ServerID == h.SourceServerID && state.Deployment.ExternalID == h.SourceExternalID) ||
+				(h.Status == "succeeded" && h.TargetCreateState == "attaching" && state.ServerID == h.TargetServerID && state.Deployment.ExternalID == h.TargetExternalID))
 		if state.Manager == "" || !regexp.MustCompile(`^handover-[0-9a-f]{32}$`).MatchString(h.ID) ||
-			(h.From != "komodo" && h.From != "standalone-compose") || (h.To != "komodo" && h.To != "standalone-compose") || h.From == h.To ||
-			(h.Status != "pending" && h.Status != "succeeded") || !hostArtifactDigestPattern.MatchString(h.RecipeDigest) || !hostArtifactDigestPattern.MatchString(h.RuntimeDigest) ||
-			(h.Status == "pending" && state.Manager != h.From) || (h.Status == "succeeded" && state.Manager != h.To) {
+			(h.From != "komodo" && h.From != "standalone-compose") || (h.To != "komodo" && h.To != "standalone-compose") || (h.From == h.To && !coreTransfer) ||
+			(h.Status != "pending" && h.Status != "succeeded" && !(coreTransfer && h.Status == "cancelled")) || !hostArtifactDigestPattern.MatchString(h.RecipeDigest) || !hostArtifactDigestPattern.MatchString(h.RuntimeDigest) ||
+			((h.Status == "pending" || h.Status == "cancelled") && state.Manager != h.From) || (h.Status == "succeeded" && state.Manager != h.To) {
 			return errors.New("workload manager handover custody is invalid")
 		}
 	}

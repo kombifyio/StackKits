@@ -589,6 +589,12 @@ func aggregateModuleResourceDemand(modules []any) ([]any, error) {
 	return result, nil
 }
 
+// ProjectCapacityModules decodes catalog-bound profile bodies for read-only
+// previews. Callers own the catalog binding; this grants no plan or Apply trust.
+func ProjectCapacityModules(modules []any) ([]capacityfit.Module, error) {
+	return capacityModules(modules)
+}
+
 // capacityModules decodes already catalog-bound profile bodies. It performs no
 // aggregation, sizing, profile selection or inventory attestation.
 func capacityModules(modules []any) ([]capacityfit.Module, error) {

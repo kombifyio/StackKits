@@ -1,5 +1,11 @@
 # Changelog
 
+- Add: `stackkit wallet-item remove` opens a `wallet-item-remove` delivery, signed by the pinned delivering authority (the kombify Wallet), and deletes every version of the named item from the node's local custody. It releases nothing; an unsigned removal is refused like every Wallet operation.
+
+- Preserve newer Builder profile choices when an older assessment finishes; carry the explicit local owner email and target Inventory through the native CLI handoff.
+
+- Add kit-bound `use-cases pick --kit` previews with CUE standard footprints and running capacity guidance for the local host or an explicit Inventory node; preserve unknown facts and the legacy installer selection.
+
 - Change: The Private AI bundle "My private ChatGPT" is now "My private Chat", so the setup no longer carries another company's brand.
 
 - Add: a choice option can say how much server memory it needs (`minMemoryGb`) and whether it needs a GPU (`needsAccelerator`). Private AI `model-size` carries 8, 16 and 32 GB (large also a GPU) and names its model in the note, so a consumer that knows the server recommends the size that fits.
@@ -267,6 +273,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.9](https://github.com/kombifyio/StackKits/compare/v0.53.8...v0.53.9) (2026-10-16)
+
+
+### Added
+
+* **cli:** preview kit selection footprints and capacity
+* **cloud:** retain PocketID across resumable session route repair
+* **identity:** per-app household access groups on the node (platform-zkutf)
+* **identity:** register the kombify account-link PKCE client on connected nodes (platform-xtnpe)
+* **media:** complete native Audiobookshelf owner and library setup
+* **media:** complete native Navidrome owner setup
+* **release:** add the preview (Nightly) release channel
+* **relocate:** drain before the final send, JSON results and receive --wait
+* **relocate:** plan and check Coolify workload moves with a pinned coolify-mirror fork
+* **relocate:** send and receive Coolify workloads with a Wallet-delivered transfer secret
+* restart retained Coolify workload services
+* **smart-home:** configure plan-bound Home Assistant MQTT
+
+
+### Fixed
+
+* align legacy PaaS guidance with Marketplace ownership
+* avoid replaying uncertain manager attachment
+* **bootstrap:** project portable Agent Home context readiness
+* **bootstrap:** reuse host Git authentication for Agent Home
+* complete Marketplace service observation and control
+* **deps:** update internal products
+* diagnose rejected stored plans with source recovery guidance
+* **identity:** reconcile legacy TinyAuth PKCE without replacing custody
+* **init:** refuse unusable shared Cloud identity cookie scope
+* inspect signed Cloud session history with its attested source
+* **komodo:** select native Core and refresh its CA consumers
+* **matrix:** align kit mode matrices with the product boundary
+* migrate retained Cloud TinyAuth with verified data rollback
+* **platform:** restore Coolify and Dokploy as Layer-2 PaaS platforms
+* **public:** allow the affected-test planner to name the website lockfile
+* **public:** export install-host-bootstrap.sh with the installers
+* recover interrupted Coolify application restores
+* **remote:** size CPU demand from measured cold startup
+* sign native Komodo workload manager custody
+* transfer retained Files to native Komodo Core
 
 ## [0.53.8](https://github.com/kombifyio/StackKits/compare/v0.53.7...v0.53.8) (2026-10-14)
 

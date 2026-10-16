@@ -15,16 +15,18 @@ _architectureV2GuacamoleComputeProfile: {
 	description: "Guacamole and guacd with the same normal RDP/input/reconnect and transient XML owner authentication. Module demand is observed from both resident daemons; allocation and physical/high-benefit qualification remain separate."
 	maturity:    "experimental", executable: true, realization: "apply-ready"
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
-	reservation: {ramGB: 0.3125, cpuCores: 0.05}
+	// Keep the conservative measured Standard RAM reservation. Low/High CPU
+	// now includes the observed container-cold phase through the common C1 binder.
+	reservation: {ramGB: 0.3125}
 	components: ["guacd", "guacamole"]
-	provenance: {hostFloor: _architectureV2PolicyFloorProvenance, reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}}
+	provenance: {hostFloor: _architectureV2PolicyFloorProvenance}
 }
 // One module envelope is shared equally by both resident components.
 // The profile label never changes authentication, desktop protocols or user features.
 _architectureV2GuacamoleComputeProfiles: {
-	low: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {headroom: {ramGB: 0.1875, cpuCores: 0.45}, recommended: {ramGB: 0.25, cpuCores: 0.25}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json"}}}
-	standard: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {headroom: {ramGB: 0.4375, cpuCores: 0.95}, recommended: {ramGB: 0.375, cpuCores: 0.5}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}}}
-	high: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {headroom: {ramGB: 1.1875, cpuCores: 1.95}, recommended: {ramGB: 0.25, cpuCores: 0.25}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json"}}}
+	low: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {reservation: cpuCores: 0.1, headroom: {ramGB: 0.1875, cpuCores: 0.4}, recommended: {ramGB: 0.25, cpuCores: 0.5}, provenance: {reservation: {source: "measured", ref: "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"}, headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json"}}}
+	standard: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {reservation: cpuCores: 0.05, headroom: {ramGB: 0.4375, cpuCores: 0.95}, recommended: {ramGB: 0.375, cpuCores: 0.5}, provenance: {reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}, headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/standard.json"}}}
+	high: #ModuleComputeProfileV2 & _architectureV2GuacamoleComputeProfile & {reservation: cpuCores: 0.2, headroom: {ramGB: 1.1875, cpuCores: 1.8}, recommended: {ramGB: 0.25, cpuCores: 1.25}, provenance: {reservation: {source: "measured", ref: "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"}, headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json"}}}
 }
 
 _architectureV2GuacamoleProviders: [{

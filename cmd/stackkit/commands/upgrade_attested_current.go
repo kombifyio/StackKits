@@ -121,8 +121,18 @@ func inspectAttestedSourceAuthority(
 	freezeSourceInventory, sourceOnly bool,
 ) (publicUpgradeBridge, error) {
 	bridge := publicUpgradeBridge{Receipt: receipt}
+	inspectionSpec := requestedSpec
+	if sourceOnly {
+		var remove func()
+		var err error
+		inspectionSpec, bridge.SourceContext, remove, err = materializeHistoricalCloudSourceSpec(workspace, requestedSpec)
+		if err != nil {
+			return publicUpgradeBridge{}, err
+		}
+		defer remove()
+	}
 	inventoryPath, cleanup, err := materializeAttestedSourceInventory(
-		workspace, requestedSpec, receipt.Version, freezeSourceInventory,
+		workspace, inspectionSpec, receipt.Version, freezeSourceInventory,
 	)
 	if err != nil {
 		return publicUpgradeBridge{}, err
@@ -133,7 +143,7 @@ func inspectAttestedSourceAuthority(
 		if runner == nil {
 			return errors.New("attested source inspection runner is unavailable")
 		}
-		common := publicUpgradeCommandPrefix(workspace, requestedSpec)
+		common := publicUpgradeCommandPrefix(workspace, inspectionSpec)
 		withInventory := func(args ...string) []string {
 			command := append(append([]string(nil), common...), args...)
 			if inventoryPath != "" {
@@ -171,6 +181,9 @@ func inspectAttestedSourceAuthority(
 		bridge.Verify, err = validatePublishedStableVerifyResult(
 			rawVerify, bridge.Current, receipt,
 		)
+		if err != nil && sourceOnly && bridge.SourceContext != nil {
+			bridge.Verify, err = validateHistoricalCloudSourceVerify(workspace, rawVerify, bridge.Current, receipt, bridge.SourceContext)
+		}
 		if err != nil {
 			return err
 		}
@@ -191,6 +204,11 @@ func inspectAttestedSourceAuthority(
 	})
 	if err != nil {
 		return publicUpgradeBridge{}, err
+	}
+	if sourceOnly && bridge.SourceContext != nil {
+		if err := verifyHistoricalCloudSourceContext(workspace, bridge.SourceContext); err != nil {
+			return publicUpgradeBridge{}, err
+		}
 	}
 	bridge.Enabled = true
 	return bridge, nil

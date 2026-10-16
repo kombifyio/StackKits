@@ -32,6 +32,7 @@ export class PlannerSession {
   readonly service: PlannerService;
   private current: PlannerState = {};
   private listeners = new Set<PlannerStateListener>();
+  private revision = 0;
 
   constructor(service: PlannerService) {
     this.service = service;
@@ -52,17 +53,20 @@ export class PlannerSession {
     input: ToolInputMap[T],
     signal?: AbortSignal,
   ): Promise<ToolResultMap[T]> {
+    if (signal?.aborted) return abortedResult(tool, this.service.catalog) as ToolResultMap[T];
+    const revision = ++this.revision;
     const result = await this.service.invoke(tool, input, { signal });
-    if (signal?.aborted) {
+    if (signal?.aborted || revision !== this.revision) {
       return abortedResult(tool, this.service.catalog) as ToolResultMap[T];
     }
-    if (!await this.applyResult(tool, input, result, signal)) {
+    if (!await this.applyResult(tool, input, result, revision, signal)) {
       return abortedResult(tool, this.service.catalog) as ToolResultMap[T];
     }
     return result;
   }
 
   setSelection(selection: Selection): void {
+    this.revision++;
     const same = sameJson(this.current.selection, selection);
     this.current = {
       selection: clone(selection),
@@ -74,6 +78,7 @@ export class PlannerSession {
   }
 
   setCapacity(capacity: PartialDeclaredCapacity): void {
+    this.revision++;
     this.current = {
       ...this.current,
       declared_capacity: clone(capacity),
@@ -87,9 +92,10 @@ export class PlannerSession {
     tool: T,
     input: ToolInputMap[T],
     result: ToolResultMap[T],
+    revision: number,
     signal?: AbortSignal,
   ): Promise<boolean> {
-    if (signal?.aborted) return false;
+    if (signal?.aborted || revision !== this.revision) return false;
     const resultStackkitId = result.selection?.stackkit_id;
     const currentStackkitId = this.current.selection?.stackkit_id;
     const preserveExistingSelection = tool === "stackkits_get_module_profiles"
@@ -125,16 +131,16 @@ export class PlannerSession {
         ...(handoffInput.use_cases ? { use_cases: handoffInput.use_cases } : {}),
         declared_capacity: handoffInput.declared_capacity,
       }, { signal });
-      if (signal?.aborted) return false;
+      if (signal?.aborted || revision !== this.revision) return false;
       if (capacityResult.outcome === "success") {
         next.selection = validatedInputSelection(handoffInput);
         next.capacity = clone(capacityResult.data);
         next.declared_capacity = clone(capacityResult.data.declared_capacity);
       }
     }
-    if (signal?.aborted) return false;
+    if (signal?.aborted || revision !== this.revision) return false;
     // Commit once, after all asynchronous validation. Aborting before this
-    // boundary cannot undo edits made by another caller while we were waiting.
+    // boundary or a newer edit/invocation must preserve the current selection.
     this.current = next;
     this.emit();
     return true;

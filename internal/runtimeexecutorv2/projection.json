@@ -1,9 +1,9 @@
 {
   "schemaVersion": "stackkits.runtimeexecutor-projection/v1",
   "source": "kombify-go-common/runtimeexecutor",
-  "sourceVersion": "v0.2.6",
-  "sourceCommit": "9372059b309c9ba89ddb166043d932bda03bb3ed",
-  "sourceSum": "h1:GoAshnNWwX/9BASyLweYFr9ewv4y+b7jYnhSq8xllzc=",
+  "sourceVersion": "v0.2.7",
+  "sourceCommit": "7589c3329a87e32b5d32939fd828ec71194d3a72",
+  "sourceSum": "h1:TIIlztgJIsS41dNT39eOYJnM5LrHkMV+yN8MSUpF5WE=",
   "sourceFiles": [
     "PROVENANCE.md",
     "README.md",

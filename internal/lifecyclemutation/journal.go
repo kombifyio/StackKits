@@ -724,7 +724,7 @@ func (session *Session) acquireRecoveryClaimLock() error {
 		)
 	}
 	session.claimLock = lock
-	if joinPhase(session.record.Phase) {
+	if session.record.Kind == KindUpgrade && joinPhase(session.record.Phase) {
 		claimPath := joinClaimPath(session.record)
 		exists, _, inspectErr := session.transaction.Exists(claimPath)
 		if inspectErr != nil {

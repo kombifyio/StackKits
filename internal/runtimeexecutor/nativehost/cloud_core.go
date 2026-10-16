@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -40,11 +41,14 @@ type CloudCoreApplyObservation struct {
 	ProjectRef, ArtifactDigest, Status string
 	// The Cloud core owns the same local PocketID owner binding as Basement.
 	OwnerRef, PocketIDSubject, OwnerBindingDigest string
+	SessionTransitionDigest, SessionOverlayDigest string
 }
 
 type CloudCoreVerifyObservation struct {
 	ProjectRef, ArtifactDigest, Status            string
 	OwnerRef, PocketIDSubject, OwnerBindingDigest string
+	SessionTransitionDigest, SessionOverlayDigest string
+	SessionComponentMigration                     *localevidence.CloudSessionComponentMigration `json:",omitempty"`
 	Services                                      []BasementCoreServiceObservation
 	Probes                                        []BasementCoreProbeObservation
 }
@@ -215,7 +219,8 @@ func (e *CloudCoreExecutor) Execute(ctx context.Context, request runtimeexecutor
 	}
 	if applied.OwnerRef != verified.OwnerRef ||
 		applied.PocketIDSubject != verified.PocketIDSubject ||
-		applied.OwnerBindingDigest != verified.OwnerBindingDigest {
+		applied.OwnerBindingDigest != verified.OwnerBindingDigest ||
+		applied.SessionTransitionDigest != verified.SessionTransitionDigest || applied.SessionOverlayDigest != verified.SessionOverlayDigest {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Cloud core verification does not prove the applied owner binding")
 	}
 	evidence, err := json.Marshal(struct {
@@ -454,6 +459,16 @@ func validateCloudCoreVerification(project CloudCoreProject, observation CloudCo
 		return errors.New("Cloud core verification does not prove the exact ready project")
 	}
 	wantServices := append([]BasementCoreServiceExpectation(nil), project.Services...)
+	if observation.SessionComponentMigration != nil {
+		if project.ModuleRef != cloudStandaloneCoreModuleRef || !validCoreHostBootstrapDigest(observation.SessionTransitionDigest) || !validCoreHostBootstrapDigest(observation.SessionOverlayDigest) {
+			return errors.New("Cloud component observation requires its verified standalone session derivative")
+		}
+		var err error
+		wantServices, err = sessionComponentServices(wantServices, observation.SessionComponentMigration)
+		if err != nil {
+			return err
+		}
+	}
 	gotServices := append([]BasementCoreServiceObservation(nil), observation.Services...)
 	sort.Slice(wantServices, func(i, j int) bool { return wantServices[i].Ref < wantServices[j].Ref })
 	sort.Slice(gotServices, func(i, j int) bool { return gotServices[i].Ref < gotServices[j].Ref })

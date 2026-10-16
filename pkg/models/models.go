@@ -1122,7 +1122,7 @@ func ResolveReverseProxyForPAAS(paas string) string {
 	}
 }
 
-// ResolvePAAS determines the PAAS platform from explicit setting or compute tier.
+// ResolvePAAS returns the explicit PaaS choice, or none when it is omitted.
 func (s *StackSpec) ResolvePAAS() string {
 	if s.PAAS != "" {
 		return s.PAAS
@@ -1134,7 +1134,7 @@ func (s *StackSpec) ResolvePAAS() string {
 // StackKit platform adapters. Explicit user config wins; otherwise no PaaS is
 // selected (ADR-0049: Coolify is not part of the default core and returns
 // through the Marketplace use case). Komodo and Coolify stay explicit choices;
-// Dokploy remains draft adapter work outside canonical E2E dispatch.
+// Dokploy remains a legacy compatibility value and is not pursued.
 func (s *StackSpec) ResolvePAASForContext(ctx NodeContext) string {
 	if s.PAAS != "" {
 		return s.PAAS

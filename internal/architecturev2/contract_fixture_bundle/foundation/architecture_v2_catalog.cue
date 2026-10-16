@@ -2030,7 +2030,7 @@ _architectureV2WorkloadContracts: [
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
-			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["navidrome-owner-bootstrap"]}
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {allowedRefs: [], requiredRefs: []}
@@ -2065,7 +2065,7 @@ _architectureV2WorkloadContracts: [
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
-			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			setup: {mode: "on-demand", owner: "module", actionRefs: ["audiobookshelf-owner-bootstrap"]}
 			inputs: {
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {allowedRefs: [], requiredRefs: []}
@@ -2173,7 +2173,7 @@ _architectureV2WorkloadContracts: [
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
 			inputs: {
-				settings: {allowedRefs: ["lan-listener"], requiredRefs: []}
+				settings: {allowedRefs: ["lan-listener", "home-assistant-link"], requiredRefs: []}
 				secretInputs: {allowedRefs: ["mqtt-password"], requiredRefs: ["mqtt-password"]}
 			}
 			infrastructure: _architectureV2MosquittoInfrastructure
@@ -2365,8 +2365,8 @@ _architectureV2WorkloadContracts: [
 ]
 
 _architectureV2ApplicationLifecycleContracts: [
-	#ApplicationLifecycleContractV1 & {metadata: {id: "media-music", version: "1.0.0", description: "Music streaming add-on of the media use case."}, workloadRef: "media-music", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle},
-	#ApplicationLifecycleContractV1 & {metadata: {id: "media-audiobooks", version: "1.0.0", description: "Audiobook and podcast add-on of the media use case."}, workloadRef: "media-audiobooks", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "media-music", version: "1.0.0", description: "Music streaming add-on of the media use case."}, workloadRef: "media-music", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "media-audiobooks", version: "1.0.0", description: "Audiobook and podcast add-on of the media use case."}, workloadRef: "media-audiobooks", useCaseRef: "media", packageRef: "media", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-esphome", version: "1.0.0", description: "ESPHome add-on of the smart-home use case."}, workloadRef: "smart-home-esphome", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "files-office", version: "1.0.0", description: "Office editing add-on of the files use case."}, workloadRef: "files-office", useCaseRef: "files", packageRef: "files", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "smart-home-mqtt", version: "1.0.0", description: "MQTT broker add-on of the smart-home use case."}, workloadRef: "smart-home-mqtt", useCaseRef: "smart-home", packageRef: "smart-home", lifecycle: #StandardUseCaseLifecycle},
@@ -7297,7 +7297,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:              "compose", kind:                                            "compose", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
-			contractHash:    "sha256:c4525c75cb5b99ea7b42fed15321ba910a32b13a9f6944e454d5a48c675aa1f5"
+			contractHash:    "sha256:cd226436f4b09d3eaa1cfcd44a10a23ed3200959ec960131e37eee210b839b03"
 			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -12023,6 +12023,7 @@ _architectureV2Modules: list.Concat([[
 				}
 				dependsOn: []
 				networkRefs: ["mosquitto-internal"]
+				peerNetworks: [{workloadRef: "smart-home", networkRef: "home-assistant-internal"}]
 				command: ["/bin/sh", "-ec", "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' > /mosquitto/data/mosquitto.conf && password=$(cat \"$MQTT_PASSWORD_FILE\") && rm -f /mosquitto/data/passwd && mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$password\" && chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd && exec mosquitto -c /mosquitto/data/mosquitto.conf"]
 				// The governed command reads the password from its custody file.
 				// It runs on every container start: mosquitto_passwd -c refuses
@@ -12045,8 +12046,8 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/mosquitto/bundle/v3.json"
 			version:      "3.0.0"
-			contractHash: "sha256:5ba320ad266b73705bb6f67f97ae8fe948e61f44b16edaf15078bc827ee3613b"
-			publicInputRefs: ["delivery-route", "lan-listener", "compute-profile"]
+			contractHash: "sha256:45feb541abaa53eedaaa0be86359fe99dfc138f2734cb933f5aace6b61832189"
+			publicInputRefs: ["delivery-route", "lan-listener", "home-assistant-link", "compute-profile"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
 				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
@@ -12081,19 +12082,19 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
 				unitRefs: ["mosquitto"], artifactRefs: ["mosquitto-workload-bundle"]
-				publicInputRefs: ["delivery-route", "lan-listener", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "lan-listener", "home-assistant-link", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["mosquitto"], artifactRefs: ["mosquitto-workload-bundle"]
-				publicInputRefs: ["delivery-route", "lan-listener", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "lan-listener", "home-assistant-link", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: _architectureV2TerramateStackHashes.workload
 				unitRefs: ["mosquitto", "terramate-stack"], artifactRefs: ["mosquitto-workload-bundle", _architectureV2MosquittoTerramateStack.contract.id]
-				publicInputRefs: ["delivery-route", "lan-listener", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "lan-listener", "home-assistant-link", "compute-profile"], secretInputRefs: ["mqtt-password"], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2MosquittoSupport

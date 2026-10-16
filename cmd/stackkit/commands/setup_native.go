@@ -35,6 +35,7 @@ type nativeSetupOptions struct {
 	connectorRequest                              *appsetup.HomeAssistantConnectorRequest
 	connectorIntent                               string
 	connectorDependencies                         *homeAssistantConnectorDependencies
+	homeAssistantMQTT                             *homeAssistantMQTTSetup
 }
 
 func newSetupCommand() *cobra.Command {
@@ -169,6 +170,15 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 			if err := validateNativeOwnerSetupAction(deployment, setup.ActionRefs[0], options); err != nil {
 				return err
 			}
+			if setup.ActionRefs[0] == "home-assistant-owner-bootstrap" {
+				options.homeAssistantMQTT, err = homeAssistantAppliedMQTT(current, deployment)
+				if err != nil {
+					return err
+				}
+				if options.homeAssistantMQTT != nil {
+					defer func() { options.homeAssistantMQTT.Request.Password = "" }()
+				}
+			}
 			store := applicationlifecycle.Store{Workspace: workspace}
 			operationID, err := beginNativeSetupWithIntent(store, contract, options.operationID, options.connectorIntent)
 			if err != nil {
@@ -210,17 +220,8 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 			if latest.Plan.Binding() != current.Plan.Binding() || latest.Lineage != current.Lineage {
 				return fail(errors.New("application setup authority changed before result verification"))
 			}
-			result = applicationlifecycle.SetupResult{
-				APIVersion:  applicationlifecycle.SetupResultAPIVersion,
-				Authority:   applicationlifecycle.Authority{PlanHash: contract.PlanHash, LifecycleContractHash: contract.ContractHash, LifecycleVersion: contract.Version, PackageRef: contract.PackageRef},
-				WorkloadRef: workload, OperationID: operationID, ActionRef: setup.ActionRefs[0], ApplyResultHash: current.Lineage.ApplyResultHash,
-				ArtifactDigest: deployment.ArtifactDigest, InstanceRef: deployment.InstanceRef, ApplicationVersion: deployment.Release,
-				AccountRef: observed.AccountRef, Initialized: observed.Initialized, AdminLoginVerified: observed.AdminLoginVerified,
-				OnboardingComplete: observed.OnboardingComplete, Preparation: observed.Preparation,
-				EmailVerification: observed.EmailVerification, VerifiedAt: time.Now().UTC(),
-				HomeAssistantConnector: observed.HomeAssistantConnector,
-			}
-			evidence, err := store.SaveSetupResult(contract, result)
+			var evidence applicationlifecycle.Evidence
+			result, evidence, err = saveNativeOwnerSetupResult(store, contract, deployment, operationID, setup.ActionRefs[0], current.Lineage.ApplyResultHash, observed)
 			if err != nil {
 				return fail(err)
 			}
@@ -232,6 +233,25 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 		return applicationlifecycle.SetupResult{}, err
 	}
 	return result, nil
+}
+
+// saveNativeOwnerSetupResult keeps application observations and their signed
+// lifecycle receipt on the same result boundary for every native owner action.
+// The caller owns current signed-Apply admission and the terminal transition.
+func saveNativeOwnerSetupResult(store applicationlifecycle.Store, contract applicationlifecycle.Contract, deployment nativehost.SelectedPaaSWorkloadDeployment, operationID, action, applyResultHash string, observed nativeOwnerSetupObservation) (applicationlifecycle.SetupResult, applicationlifecycle.Evidence, error) {
+	result := applicationlifecycle.SetupResult{
+		APIVersion:  applicationlifecycle.SetupResultAPIVersion,
+		Authority:   applicationlifecycle.Authority{PlanHash: contract.PlanHash, LifecycleContractHash: contract.ContractHash, LifecycleVersion: contract.Version, PackageRef: contract.PackageRef},
+		WorkloadRef: contract.WorkloadRef, OperationID: operationID, ActionRef: action, ApplyResultHash: applyResultHash,
+		ArtifactDigest: deployment.ArtifactDigest, InstanceRef: deployment.InstanceRef, ApplicationVersion: deployment.Release,
+		AccountRef: observed.AccountRef, Initialized: observed.Initialized, AdminLoginVerified: observed.AdminLoginVerified,
+		OnboardingComplete: observed.OnboardingComplete, Preparation: observed.Preparation,
+		EmailVerification: observed.EmailVerification, VerifiedAt: time.Now().UTC(),
+		HomeAssistantConnector: observed.HomeAssistantConnector,
+		HomeAssistantMQTT:      observed.HomeAssistantMQTT,
+	}
+	evidence, err := store.SaveSetupResult(contract, result)
+	return result, evidence, err
 }
 
 func nativeApplicationSetupAdapter(deployment nativehost.SelectedPaaSWorkloadDeployment) (nativehost.ApplicationSetupAdapter, error) {

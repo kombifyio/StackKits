@@ -58,7 +58,9 @@ modeMatrix: foundation.#KitModeSupport & {
 		// by the product Definition (ADR-0042), not this legacy matrix.
 		// coolify/komodo were graded "supported" on the same unresolved
 		// SK-S2/SK-S3 citation; both drop to "draft" (implemented, unproven)
-		// until a real receipt cites them.
+		// until a real receipt cites them. Coolify, Komodo and Dokploy are the
+		// Layer-2 PaaS platforms (STACKKITS-PRODUCT-BOUNDARY-STANDARD, owner
+		// 2026-10-15); Coolify is also the Marketplace application.
 		coolify: "draft"
 		komodo:  "draft"
 		dokploy: "draft"

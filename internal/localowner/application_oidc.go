@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/householdapps"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/pocketid"
 )
@@ -20,7 +21,8 @@ type ApplicationOIDCClientRequest struct {
 	// RequiredPrivilege comes from the validated catalog endpoint. Empty keeps
 	// the existing household application policy; vault always requires vault.
 	RequiredPrivilege string
-	// Public is admitted only for the governed Smart Home PKCE integration.
+	// Public is admitted only for the governed Smart Home and kombify account
+	// link PKCE clients.
 	Public   bool
 	ClientID string
 	Name     string
@@ -64,7 +66,7 @@ func (s *Service) EnsureApplicationOIDCClient(ctx context.Context, request Appli
 	callbackURLs, callbackErr := applicationOIDCCallbackURLs(request)
 	if !applicationOIDCClientIDPattern.MatchString(request.ClientID) || strings.TrimSpace(request.Name) == "" ||
 		callbackErr != nil || (!request.Public && !strings.HasPrefix(request.SecretRef, "secret://")) ||
-		(request.Public && (request.ClientID != ApplicationOIDCClientID("smart-home") || request.SecretRef != "" || request.RequiredPrivilege != "user")) {
+		(request.Public && ((request.ClientID != ApplicationOIDCClientID("smart-home") && request.ClientID != KombifyLinkClientID) || request.SecretRef != "" || request.RequiredPrivilege != "user")) {
 		return ApplicationOIDCClient{}, errors.New("localowner: application OIDC client request is invalid")
 	}
 	_, client, err := s.ready(ctx)
@@ -175,6 +177,12 @@ func applicationOIDCGroupIDs(ctx context.Context, client pocketIDOwnerClient, re
 	names := []string{"admins", "owners", "household"}
 	switch request.RequiredPrivilege {
 	case "", "user":
+		// A grantable app admits the open household group (members without an
+		// explicit app list) or its own app group. The kombify account link
+		// and unlisted clients keep the whole household.
+		if app := strings.TrimPrefix(request.ClientID, "stackkit-"); householdapps.IsGrantable(app) && request.ClientID == ApplicationOIDCClientID(app) {
+			names = []string{"admins", "owners", householdOpenGroupName, householdapps.AppGroup(app)}
+		}
 	case "vault", "admin", "identity", "secrets", "recovery":
 		names = []string{"admins", "owners"}
 	default:
@@ -182,7 +190,16 @@ func applicationOIDCGroupIDs(ctx context.Context, client pocketIDOwnerClient, re
 	}
 	ids := make([]string, 0, len(names))
 	for _, name := range names {
-		id, err := client.GetGroupIDByName(ctx, name)
+		var id string
+		var err error
+		switch {
+		case name == householdOpenGroupName:
+			id, err = ensureHouseholdOpenGroup(ctx, client)
+		case strings.HasPrefix(name, householdAppGroupPrefix):
+			id, _, err = ensureNamedGroup(ctx, client, name, "Household app "+strings.TrimPrefix(name, householdAppGroupPrefix))
+		default:
+			id, err = client.GetGroupIDByName(ctx, name)
+		}
 		if err != nil || strings.TrimSpace(id) == "" {
 			return nil, errors.New("localowner: required application PocketID group is missing")
 		}

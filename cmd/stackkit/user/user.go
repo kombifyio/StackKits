@@ -23,6 +23,7 @@ const (
 type householdAPI interface {
 	AddHouseholdUser(context.Context, localowner.HouseholdUserSpec) (localowner.HouseholdUser, error)
 	ListHouseholdUsers(context.Context) ([]localowner.HouseholdUser, error)
+	SetHouseholdUserApps(context.Context, string, localowner.HouseholdAppAccess) (localowner.HouseholdUser, error)
 	RemoveHouseholdUser(context.Context, string) error
 	OwnerActivationStatus(context.Context) (localowner.OwnerActivation, error)
 	IssueOwnerActivation(context.Context) (localowner.OwnerActivation, error)
@@ -105,6 +106,7 @@ Owner and admin identities cannot be created or removed here.`,
 	add.Flags().String("email", "", "Household member email")
 	add.Flags().String("display-name", "", "Optional display name")
 	add.Flags().Bool("owner-approve", false, "Explicitly approve creating this household user")
+	add.Flags().StringArray("app", nil, "Node app this member may sign into (repeatable); without it the member can use every app")
 	_ = add.MarkFlagRequired("email")
 
 	list := &cobra.Command{
@@ -120,6 +122,24 @@ Owner and admin identities cannot be created or removed here.`,
 			return runUserList(cmd, api)
 		},
 	}
+
+	apps := &cobra.Command{
+		Use:   "apps <username>",
+		Short: "Set which node apps a household user may sign into",
+		Example: `  # Allow Photos and Files only
+  stackkit user apps alex --app photos --app files --owner-approve
+
+  # Allow every app again
+  stackkit user apps alex --all --owner-approve`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runUserApps(cmd, api, args[0])
+		},
+	}
+	apps.Flags().StringArray("app", nil, "App the member may sign into (repeatable)")
+	apps.Flags().Bool("all", false, "Allow every app")
+	apps.Flags().Bool("none", false, "Allow no app")
+	apps.Flags().Bool("owner-approve", false, "Explicitly approve changing this member's apps")
 
 	remove := &cobra.Command{
 		Use:   "remove <username>",
@@ -175,9 +195,9 @@ Owner and admin identities cannot be created or removed here.`,
 		},
 	}
 	ownerActivate.Flags().Bool("owner-approve", false, "Explicitly approve reissuing the owner activation link")
-	owner.AddCommand(ownerStatus, ownerActivate, newDomainMigrationCommand(api))
+	owner.AddCommand(ownerStatus, ownerActivate, newOwnerReconcileCommand(api), newDomainMigrationCommand(api))
 
-	command.AddCommand(add, list, remove, owner, newHouseholdActivateCommand(api), newFilesCommand(api, provisioner))
+	command.AddCommand(add, list, apps, remove, owner, newHouseholdActivateCommand(api), newFilesCommand(api, provisioner))
 	return command
 }
 
@@ -215,6 +235,10 @@ func runUserAdd(cmd *cobra.Command, api householdAPI, provisioner FilesProvision
 	if err != nil {
 		return err
 	}
+	appList, err := cmd.Flags().GetStringArray("app")
+	if err != nil {
+		return err
+	}
 	service, err := resolveHousehold(cmd, api)
 	if err != nil {
 		return err
@@ -223,6 +247,7 @@ func runUserAdd(cmd *cobra.Command, api householdAPI, provisioner FilesProvision
 		Username:    strings.TrimSpace(username),
 		Email:       strings.TrimSpace(email),
 		DisplayName: strings.TrimSpace(displayName),
+		Access:      localowner.HouseholdAppAccess{Scoped: len(appList) > 0, Apps: appList},
 	})
 	if err != nil {
 		return err
@@ -244,6 +269,55 @@ func runUserAdd(cmd *cobra.Command, api householdAPI, provisioner FilesProvision
 	return writeHouseholdInvitation(cmd, invited, files, "success")
 }
 
+func runUserApps(cmd *cobra.Command, api householdAPI, username string) error {
+	if err := requireOwnerApproval(cmd); err != nil {
+		return err
+	}
+	appList, _ := cmd.Flags().GetStringArray("app")
+	all, _ := cmd.Flags().GetBool("all")
+	none, _ := cmd.Flags().GetBool("none")
+	chosen := 0
+	for _, set := range []bool{len(appList) > 0, all, none} {
+		if set {
+			chosen++
+		}
+	}
+	if chosen != 1 {
+		return errors.New("user apps requires exactly one of --app, --all or --none")
+	}
+	service, err := resolveHousehold(cmd, api)
+	if err != nil {
+		return err
+	}
+	member, err := service.SetHouseholdUserApps(cmd.Context(), strings.TrimSpace(username),
+		localowner.HouseholdAppAccess{Scoped: !all, Apps: appList})
+	if err != nil {
+		return err
+	}
+	if jsonOutput(cmd) {
+		return writeJSON(cmd, map[string]any{"username": member.Username, "apps": appsJSON(member.Access)})
+	}
+	_, err = fmt.Fprintf(cmd.OutOrStdout(), "Household user %s apps: %s\n", member.Username, appsText(member.Access))
+	return err
+}
+
+func appsJSON(access localowner.HouseholdAppAccess) any {
+	if !access.Scoped {
+		return "all"
+	}
+	return append([]string{}, access.Apps...)
+}
+
+func appsText(access localowner.HouseholdAppAccess) string {
+	if !access.Scoped {
+		return "all"
+	}
+	if len(access.Apps) == 0 {
+		return "none"
+	}
+	return strings.Join(access.Apps, ", ")
+}
+
 func writeHouseholdInvitation(cmd *cobra.Command, invited localowner.HouseholdUser, files FilesAccount, status string) error {
 	if jsonOutput(cmd) {
 		data := map[string]any{
@@ -251,6 +325,7 @@ func writeHouseholdInvitation(cmd *cobra.Command, invited localowner.HouseholdUs
 			"email":       invited.Email,
 			"displayName": invited.DisplayName,
 			"status":      invited.Status,
+			"apps":        appsJSON(invited.Access),
 		}
 		if invited.SetupURL != "" {
 			data["setupURL"] = invited.SetupURL
@@ -416,13 +491,14 @@ func runUserList(cmd *cobra.Command, api householdAPI) error {
 		return err
 	}
 	if jsonOutput(cmd) {
-		items := make([]map[string]string, 0, len(users))
+		items := make([]map[string]any, 0, len(users))
 		for _, user := range users {
-			items = append(items, map[string]string{
+			items = append(items, map[string]any{
 				"username":    user.Username,
 				"email":       user.Email,
 				"displayName": user.DisplayName,
 				"status":      user.Status,
+				"apps":        appsJSON(user.Access),
 			})
 		}
 		return writeJSON(cmd, map[string]any{"users": items})

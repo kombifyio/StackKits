@@ -110,7 +110,7 @@ func (p servicePlanProjection) applicationServiceControls(declared []serviceDefi
 		}
 		actions := []string{ActionLogs, ActionRestart, ActionStart, ActionStop}
 		if adapterID == "coolify" {
-			actions = []string{ActionStart, ActionStop}
+			actions = []string{ActionRestart, ActionStart, ActionStop}
 		}
 		result = append(result, serviceDefinition{
 			ModuleID: workload.Alternative.ModuleRef,

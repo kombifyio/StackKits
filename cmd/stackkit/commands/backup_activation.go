@@ -256,6 +256,7 @@ func runNativeV2RestoreRecoveryCommand(
 	var (
 		recoveryRestoreResult backuplifecycle.RestoreResult
 		recoveryPlan          generationartifact.VerifiedPlan
+		recoveryWorkload      string
 	)
 	resolver := func(
 		resolveContext context.Context,
@@ -280,6 +281,7 @@ func runNativeV2RestoreRecoveryCommand(
 			return restoreactivation.Authority{}, selectionErr
 		}
 		if narrowed {
+			recoveryWorkload = workload
 			current, currentErr := inspectNativeV2BackupAuthorityForRequest(resolveContext, workspace, specFile)
 			if currentErr != nil {
 				return restoreactivation.Authority{}, currentErr
@@ -337,7 +339,7 @@ func runNativeV2RestoreRecoveryCommand(
 				terminalStatus = applicationlifecycle.StatusRecovered
 			}
 			return completeExistingApplicationLifecycles(
-				workspace, recoveryPlan, operationID, terminalStatus, evidence, time.Now().UTC(),
+				workspace, recoveryPlan, operationID, terminalStatus, evidence, time.Now().UTC(), recoveryWorkload,
 			)
 		},
 	})

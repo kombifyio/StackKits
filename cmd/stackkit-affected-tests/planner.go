@@ -129,11 +129,22 @@ var nativeSetupConsumerTests = []string{
 	"TestAutomaticSSOSetupReusesOwnerCustodyAcrossAuthorityChanges",
 }
 
+var historicalSourceInspectionTests = []string{
+	"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
+	"TestSourceGenerationPlanCannotReinterpretUnattestedHistory",
+	"TestHistoricalUpgradeUsesPersistedPlanInventory",
+	"TestAttestedLegacySourceInventoryKeepsFutureFactsOutOfSourcePlan",
+	"TestHistoricalCloudSourceRequiresSignedApply",
+	"TestMarketplaceUpgradeRequiresSignedApplyCheckpoint",
+}
+
 // fileFocusedTests keeps focused production and shared-fixture slices explicit
 // for packages whose historical full test suite is not a useful beta feedback
 // gate. Adding or renaming a test in one of these slices must update this
 // reviewable binding.
 var fileFocusedTests = map[string][]string{
+	"cmd/stackkit/commands/address.go":         {"TestCloudSessionCommandRequiresExistingOwnerCustody", "TestPublicCommandTreeExcludesPublisherOperations"},
+	"cmd/stackkit/commands/address_session.go": {"TestCloudSessionCommandRequiresExistingOwnerCustody", "TestPublicCommandTreeExcludesPublisherOperations"},
 	"cmd/stackkit/commands/module_scaffold.go": {"TestModuleAuthoringFromFacts"},
 	"internal/usecasecatalog/truth_table.go": {
 		"TestTruthTableRuntimeSourceInvalidatesProducerEvidence",
@@ -181,6 +192,12 @@ var fileFocusedTests = map[string][]string{
 		"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
 		"TestSourceGenerationPlanCannotReinterpretUnattestedHistory",
 	},
+	// These seams authenticate immutable source data; full upgrade execution
+	// remains in its own owners. Keep the shared bridge type's additive source
+	// context on the same cache/Owner/Inventory/signature regression boundary.
+	"cmd/stackkit/commands/cloud_session_source.go":     historicalSourceInspectionTests,
+	"cmd/stackkit/commands/upgrade_attested_current.go": historicalSourceInspectionTests,
+	"cmd/stackkit/commands/upgrade_beta4_bridge.go":     historicalSourceInspectionTests,
 	// These reviewed setup consumers exercise the shared native admission and
 	// Files/automatic callers plus the complete HA custody journey. They do not
 	// qualify other native application branches or cover unrelated CLI sources.
@@ -287,9 +304,30 @@ var fileFocusedTests = map[string][]string{
 		"TestContinueNativeV2BackupProductionMapsEveryOperationToLifecycleInput",
 		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",
 	},
+	"cmd/stackkit/commands/init.go": {
+		"TestInitHelpMarksEveryFlagNativeInitRefuses",
+		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
+		"TestNativeV2CLIRejectsContextFlagBeforeWrite",
+		"TestRunArchitectureV2InitRejectsLegacySemanticsAndLocalPathsBeforeWrite",
+	},
+	"cmd/stackkit/commands/init_placement.go": {
+		"TestAdmitArchitectureV2InitPlacement",
+		"TestDefaultArchitectureV2InitDomain",
+		"TestCloudInitRefusesExplicitLocalDomainBeforePersistingIntent",
+		"TestRunArchitectureV2InitRefusesLocalBasementOnPublicServer",
+	},
 	"cmd/stackkit/commands/init_architecture_v2.go": {
 		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
 		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",
+		"TestRunArchitectureV2InitMaterializesCanonicalProductSpecs",
+		"TestRunArchitectureV2InitCandidateBindsOwnerCustodyToSelectedNode",
+		"TestRunArchitectureV2InitCloudEstablishesLocalOwnerCustody",
+		"TestRunArchitectureV2InitCloudWithoutDomainUsesKombifyMe",
+		"TestRunArchitectureV2InitRejectsNonLocalOwnerSourceBeforeWrite",
+		"TestRunArchitectureV2InitLocalOwnerRequiresRealEmail",
+		"TestRunArchitectureV2InitFilesResumePreservesOmittedOwnerIdentity",
+		"TestRunArchitectureV2InitUsesExpectedHashCASAndRejectsForce",
+		"TestRunArchitectureV2InitUsesExistingSpecAliasWithoutCreatingSecondAuthority",
 	},
 	"cmd/stackkit/commands/wizard.go": {
 		"TestPublicCommandTreeExcludesPublisherOperations",
@@ -686,6 +724,17 @@ func buildPlan(input plannerInput) testPlan {
 				Reason: "validate the private/public website source boundary",
 			},
 		)
+		if websiteBuildAffected(files) {
+			// CI-CD-PLATFORM-STANDARD §4.6: a bundler config or dependency
+			// change can break only the production build, which typechecking
+			// never runs. Same command Render's buildCommand runs in website/.
+			commands = append(commands, testCommand{
+				Kind:   "website",
+				Scope:  "production-build",
+				Argv:   []string{"env", "NODE_ENV=production", "npm", "--prefix", "website", "run", "build"},
+				Reason: "run the deploy's production build when bundler config or dependency manifests change",
+			})
+		}
 	}
 	if classes.WebMCP {
 		commands = append(commands,
@@ -866,6 +915,22 @@ func slicesContain(values []string, want string) bool {
 
 // anyPathUnder reports whether any changed file lives under one of the given
 // directory prefixes. Paths are repository-relative and slash-separated.
+// websiteBuildAffected reports changes that only the production build can
+// prove: framework/bundler config and dependency manifests. Component and
+// library edits stay on the type-check.
+func websiteBuildAffected(files []string) bool {
+	for _, file := range files {
+		switch file {
+		case "website/package.json", "website/package-lock.json":
+			return true
+		}
+		if strings.HasPrefix(file, "website/svelte.config.") || strings.HasPrefix(file, "website/vite.config.") {
+			return true
+		}
+	}
+	return false
+}
+
 func anyPathUnder(files []string, prefixes ...string) bool {
 	for _, file := range files {
 		for _, prefix := range prefixes {

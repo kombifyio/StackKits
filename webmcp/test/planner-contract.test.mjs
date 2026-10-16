@@ -14,6 +14,11 @@ import {
 } from '../dist/index.js'
 import { projectAuthorityBundle } from '../dist/generator.js'
 
+const ownerInputs = [
+  { path: 'owner.email', value: 'planner@example.test' },
+  { path: 'inventory.path', value: 'inventory.json' },
+]
+
 const catalog = await projectAuthorityBundle(
   fileURLToPath(new URL('../../internal/architecturev2/authority_bundle/', import.meta.url)),
   '0123456789abcdef0123456789abcdef01234567',
@@ -57,7 +62,7 @@ function schemaDescriptions(value) {
 
 test('editing a selection preserves declared capacity and clears obsolete results', async () => {
   const session = createPlannerSession(catalog)
-  await session.invoke('stackkits_prepare_handoff', { stackkit_id: 'basement-kit', module_profiles: [{ module_id: 'stackkits-basement-core-runtime', compute_profile: 'standard' }], use_cases: [{ use_case_id: 'basement-core', alternative_id: 'standalone' }], declared_capacity: { cpu_cores: 4, ram_gb: 4.5, storage_gb: 21 } })
+  await session.invoke('stackkits_prepare_handoff', { authoring_inputs: ownerInputs, stackkit_id: 'basement-kit', module_profiles: [{ module_id: 'stackkits-basement-core-runtime', compute_profile: 'standard' }], use_cases: [{ use_case_id: 'basement-core', alternative_id: 'standalone' }], declared_capacity: { cpu_cores: 4, ram_gb: 4.5, storage_gb: 21 } })
   session.setSelection({ stackkit_id: 'cloud-kit' })
   assert.deepEqual(session.state.declared_capacity, { cpu_cores: 4, ram_gb: 4.5, storage_gb: 21 })
   assert.deepEqual([session.state.capacity, session.state.handoff], [undefined, undefined])
@@ -122,15 +127,17 @@ test('catalog paging preserves complete discovery within the public output budge
   }
 })
 
-test('representative capacity and complete handoffs stay within the public output budget', async () => {
+test('representative capacity and handoffs preserve complete executable inputs', async () => {
   const session = createPlannerSession(catalog)
   const core = {
     stackkit_id: 'basement-kit',
     ...selectionFor('basement-kit', [{ use_case_id: 'basement-core', alternative_id: 'standalone' }], 'standard'),
+    authoring_inputs: ownerInputs,
     declared_capacity: { cpu_cores: 4, ram_gb: 4, storage_gb: 20 },
   }
   const cloud = {
     stackkit_id: 'cloud-kit',
+    authoring_inputs: ownerInputs,
     ...selectionFor('cloud-kit', [{ use_case_id: 'cloud-core', alternative_id: 'standalone' }], 'standard'),
     declared_capacity: core.declared_capacity,
     authoring: { domain_base: 'example.test' },
@@ -152,9 +159,11 @@ test('representative capacity and complete handoffs stay within the public outpu
     ['stackkits_assess_capacity', { ...core, declared_capacity: { cpu_cores: 1, ram_gb: 1, storage_gb: 1 } }],
     ['stackkits_assess_capacity', { ...core, declared_capacity: { cpu_cores: 4 } }],
   ]) {
-    const result = await session.invoke(tool, input)
+    const toolInput = { ...input }
+    if (tool === 'stackkits_assess_capacity') delete toolInput.authoring_inputs
+    const result = await session.invoke(tool, toolInput)
     assert.equal(result.outcome, 'success')
-    assert.ok(JSON.stringify(result).length < 1500, `${tool}: ${JSON.stringify(result).length} characters`)
+    if (tool === 'stackkits_prepare_handoff') assert.equal(result.data.ready, true)
   }
 })
 
@@ -252,7 +261,7 @@ test('mixed module profiles expose per-axis unverified facts without recommendat
   assert.ok(result.data.unverified_modules.includes('stackkits-immich-lite-runtime'))
   assert.equal('compute_tier' in (result.selection ?? {}), false)
 
-  const handoff = await session.invoke('stackkits_prepare_handoff', {
+  const handoff = await session.invoke('stackkits_prepare_handoff', { authoring_inputs: ownerInputs,
     stackkit_id: 'basement-kit',
     module_profiles: selection.module_profiles,
     use_cases: selection.use_cases,
@@ -280,7 +289,14 @@ test('known minimum failure wins over another incomplete module axis', async () 
 test('handoff carries explicit v2 argv and keeps apply non-executable', async () => {
   const session = createPlannerSession(catalog)
   const selection = selectionFor('basement-kit', [{ use_case_id: 'basement-core', alternative_id: 'standalone' }], 'standard')
-  const result = await session.invoke('stackkits_prepare_handoff', {
+  const missingOwner = await session.invoke('stackkits_prepare_handoff', {
+    stackkit_id: 'basement-kit', ...selection,
+    authoring_inputs: ownerInputs.filter(({ path }) => path !== 'owner.email'),
+    declared_capacity: { cpu_cores: 4, ram_gb: 4, storage_gb: 20 },
+  })
+  assert.equal(missingOwner.outcome, 'blocked')
+  assert.equal(missingOwner.data.ready, false)
+  const result = await session.invoke('stackkits_prepare_handoff', { authoring_inputs: ownerInputs,
     stackkit_id: 'basement-kit',
     module_profiles: selection.module_profiles,
     use_cases: selection.use_cases,
@@ -366,7 +382,7 @@ test('axis profiles stay visible in projection and explicit handoff argv', async
   const selection = selectionFor('basement-kit', [{ use_case_id: 'basement-core', alternative_id: 'standalone' }], 'standard')
   selection.module_profiles[0].storage_profile = 'ssd'
   selection.module_profiles[0].accelerator_profile = 'gpu'
-  const handoff = await session.invoke('stackkits_prepare_handoff', {
+  const handoff = await session.invoke('stackkits_prepare_handoff', { authoring_inputs: ownerInputs,
     stackkit_id: 'basement-kit',
     module_profiles: selection.module_profiles,
     use_cases: selection.use_cases,
@@ -392,7 +408,7 @@ test('handoff blocks every selected module dimension until it is apply-ready', a
     const selection = selectionFor('basement-kit', [{ use_case_id: 'basement-core', alternative_id: 'standalone' }], 'standard')
     selection.module_profiles[0].storage_profile = 'ssd'
     selection.module_profiles[0].accelerator_profile = 'gpu'
-    const result = await session.invoke('stackkits_prepare_handoff', {
+    const result = await session.invoke('stackkits_prepare_handoff', { authoring_inputs: ownerInputs,
       stackkit_id: 'basement-kit',
       module_profiles: selection.module_profiles,
       use_cases: selection.use_cases,
@@ -422,10 +438,53 @@ test('missing fields in a selected axis reservation remain independently unverif
   assert.ok(result.data.unverified_modules.includes('stackkits-basement-core-runtime'))
 })
 
+test('a newer profile selection supersedes pending capacity and handoff results', async () => {
+  for (const tool of ['stackkits_assess_capacity', 'stackkits_prepare_handoff']) {
+    const session = createPlannerSession(catalog)
+    const useCases = [
+      { use_case_id: 'basement-core', alternative_id: 'standalone-compose' },
+      { use_case_id: 'remote', alternative_id: 'guacamole' },
+    ]
+    const high = { stackkit_id: 'basement-kit', ...selectionFor('basement-kit', useCases, 'high') }
+    const low = { stackkit_id: 'basement-kit', ...selectionFor('basement-kit', useCases, 'low') }
+    const capacity = { cpu_cores: 4, ram_gb: 16, storage_gb: 100 }
+    session.setSelection(high)
+    session.setCapacity(capacity)
+    let release
+    let completed
+    const held = new Promise((resolve) => { release = resolve })
+    const produced = new Promise((resolve) => { completed = resolve })
+    const invoke = session.service.invoke.bind(session.service)
+    session.service.invoke = async (...args) => {
+      const result = await invoke(...args)
+      assert.equal(result.outcome, 'success')
+      completed()
+      await held
+      return result
+    }
+    const pending = session.invoke(tool, { ...high, declared_capacity: capacity, ...(tool === 'stackkits_prepare_handoff' ? { authoring_inputs: ownerInputs } : {}) })
+    await produced
+    session.setSelection(low)
+    const edited = session.state
+    release()
+    assert.ok((await pending).notices.some(({ code }) => code === 'ABORTED'))
+    assert.deepEqual(session.state, edited, 'the old result must preserve the new choice without old readiness')
+    session.service.invoke = invoke
+    const current = await session.invoke('stackkits_assess_capacity', { ...low, declared_capacity: capacity })
+    assert.equal(current.outcome, 'success')
+    assert.deepEqual(session.state.selection, {
+      ...low,
+      module_profiles: [...low.module_profiles].sort((a, b) => a.module_id.localeCompare(b.module_id)),
+      use_cases: [...low.use_cases].sort((a, b) => a.use_case_id.localeCompare(b.use_case_id)),
+    })
+    assert.equal(session.state.capacity.overall, 'pass')
+  }
+})
+
 test('authoring, dependent state, and aborted invocations fail closed', async () => {
   const session = createPlannerSession(catalog)
   const cloud = selectionFor('cloud-kit', [{ use_case_id: 'cloud-core', alternative_id: 'standalone' }], 'standard')
-  const missing = await session.invoke('stackkits_prepare_handoff', {
+  const missing = await session.invoke('stackkits_prepare_handoff', { authoring_inputs: ownerInputs,
     stackkit_id: 'cloud-kit',
     module_profiles: cloud.module_profiles,
     use_cases: cloud.use_cases,

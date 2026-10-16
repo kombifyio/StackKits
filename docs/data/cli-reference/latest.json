@@ -83,7 +83,8 @@
       "flags": [],
       "subcommands": [
         "stackkit address bind",
-        "stackkit address plan"
+        "stackkit address plan",
+        "stackkit address session-zone"
       ]
     },
     {
@@ -138,6 +139,45 @@
       "runnable": true,
       "examples": [],
       "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit address session-zone",
+      "name": "session-zone",
+      "parent": "stackkit address",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit address session-zone [flags]",
+      "short": "Resume an installed Cloud session pair in an allocated private zone, preserving PocketID",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "abort",
+          "type": "bool",
+          "description": "Restore only the signed original session routes and callback after an interrupted transition",
+          "required": false
+        },
+        {
+          "name": "check",
+          "type": "bool",
+          "description": "Inspect existing custody, component pin and source/runtime closure without writing transition state or changing the callback",
+          "required": false
+        },
+        {
+          "name": "migrate-tinyauth",
+          "type": "bool",
+          "description": "Migrate the qualified legacy TinyAuth component to the CUE-pinned image with a verified cold original-data snapshot; no whole-kit upgrade",
+          "required": false
+        },
+        {
+          "name": "zone",
+          "type": "string",
+          "description": "Already allocated private kombify.me zone for Auth and Hub; the existing PocketID origin is retained",
+          "required": false
+        }
+      ],
       "subcommands": []
     },
     {
@@ -2133,6 +2173,45 @@
           "required": false
         }
       ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit channel",
+      "name": "channel",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit channel [flags]",
+      "short": "Show or set the release channel (stable or preview)",
+      "description": "Show which release channel this machine follows.\n\nstable is the default. preview (\"Nightly\") is a prerelease built once a day\nfrom main when main changed; it is unsigned and opt-in. The choice is stored in\n~/.stackkits/channel and read by the installer (install.sh), which fetches the\nnewest release of that channel.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit channel",
+          "description": "Show the current channel"
+        },
+        {
+          "command": "stackkit channel set preview",
+          "description": "Follow the Nightly prereleases, then re-run the installer"
+        }
+      ],
+      "flags": [],
+      "subcommands": [
+        "stackkit channel set"
+      ]
+    },
+    {
+      "path": "stackkit channel set",
+      "name": "set",
+      "parent": "stackkit channel",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit channel set <stable|preview> [flags]",
+      "short": "Choose the release channel",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
       "subcommands": []
     },
     {
@@ -4635,7 +4714,7 @@
       "group": "start",
       "usage": "stackkit init [stackkit] [flags]",
       "short": "Initialize a new deployment from a StackKit",
-      "description": "Create a stack-spec.yaml in your deployment directory.\nThis saves your choices; it does not install services or change the host.\nThe standalone local path works without a kombify account or Techstack.\n\nStart with the selected Kit's catalog defaults. --owner-source=local keeps the\nowner on this machine and needs --owner-email for the local PocketID owner.\nCloud Kit uses a kombify.me address unless --domain names a domain that\nalready points at this host.\n\nReview the saved configuration before generating or applying it. Defaults\nare recorded as explicit intent and validated by the Kit's CUE contract.\nRequired information, such as a domain, is requested when the Kit needs it.\nUse --non-interactive in scripts to fail instead of prompting.\n\nFor precise control, use --use-case-alternative and --module-compute-profile\ninstead of --catalog-defaults. These selections come from the chosen Kit.\nA use case built from capability modules (Private AI) takes\n--use-case-capability <use-case>.<capability>=<option|off>; omitted modules\nkeep their defaults, and planned modules are refused until they install.\nNative authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1\nselects the explicit legacy graph adapter. Flags marked v0.6 compatibility\nare accepted only by an explicitly versioned v0.6 binary.",
+      "description": "Create a stack-spec.yaml in your deployment directory.\nThis saves your choices; it does not install services or change the host.\nThe standalone local path works without a kombify account or Techstack.\n\nStart with the selected Kit's catalog defaults. --owner-source=local keeps the\nowner on this machine and needs --owner-email for the local PocketID owner.\nCloud Kit local ownership requires --domain with your own domain or an\nallocated <zone>.kombify.me install zone. The shared kombify.me parent cannot\nisolate this installation's login cookies. DNS may be configured after init.\n\nReview the saved configuration before generating or applying it. Defaults\nare recorded as explicit intent and validated by the Kit's CUE contract.\nRequired information, such as a domain, is requested when the Kit needs it.\nUse --non-interactive in scripts to fail instead of prompting.\n\nFor precise control, use --use-case-alternative and --module-compute-profile\ninstead of --catalog-defaults. These selections come from the chosen Kit.\nA use case built from capability modules (Private AI) takes\n--use-case-capability <use-case>.<capability>=<option|off>; omitted modules\nkeep their defaults, and planned modules are refused until they install.\nNative authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1\nselects the explicit legacy graph adapter. Flags marked v0.6 compatibility\nare accepted only by an explicitly versioned v0.6 binary.",
       "runnable": true,
       "examples": [
         {
@@ -4647,8 +4726,8 @@
           "description": "Basement Kit with the optional Photos and Files use cases"
         },
         {
-          "command": "mkdir my-cloud && cd my-cloud\nstackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com",
-          "description": "Cloud Kit for a public VPS on a kombify.me address"
+          "command": "mkdir my-cloud && cd my-cloud\nstackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain your-zone.kombify.me",
+          "description": "Cloud Kit for a public VPS with an allocated kombify.me install zone"
         },
         {
           "command": "stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain example.com --non-interactive",
@@ -6334,6 +6413,418 @@
       "subcommands": []
     },
     {
+      "path": "stackkit relocate",
+      "name": "relocate",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit relocate [flags]",
+      "short": "Move PaaS workloads to another server: plan, check, drain, send, receive",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit relocate check",
+        "stackkit relocate drain",
+        "stackkit relocate plan",
+        "stackkit relocate receive",
+        "stackkit relocate send"
+      ]
+    },
+    {
+      "path": "stackkit relocate check",
+      "name": "check",
+      "parent": "stackkit relocate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit relocate check [flags]",
+      "short": "Check on this server whether a relocation plan can land here (read-only)",
+      "description": "Runs on the destination server with a plan from `stackkit relocate plan`. Reports blockers\n(Coolify version, disk space, host dependencies, a non-empty target for a full move) and warnings.\nExits non-zero while any blocker remains.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "engine",
+          "type": "string",
+          "description": "Path to the pinned relocation engine (default: /usr/local/lib/stackkit/coolify-mirror, $STACKKIT_COOLIFY_MIRROR or PATH)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON (engine progress goes to stderr)",
+          "required": false
+        },
+        {
+          "name": "plan",
+          "type": "string",
+          "description": "Relocation plan file from the source server, or - for stdin",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "default": "coolify",
+          "description": "PaaS platform to relocate (coolify)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit relocate drain",
+      "name": "drain",
+      "parent": "stackkit relocate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit relocate drain [flags]",
+      "short": "Stop the planned applications and services on this server before the final send",
+      "description": "Runs on the source server with its plan from `stackkit relocate plan`. Stops the plan's applications\nand services through Coolify; databases keep running, so the following `relocate send` takes a\nconsistent backup with no writer left and the destination still starts everything. Nothing is\ndeleted. `--undo` starts again exactly what the drain stopped (the rollback of a move).",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "engine",
+          "type": "string",
+          "description": "Path to the pinned relocation engine (default: /usr/local/lib/stackkit/coolify-mirror, $STACKKIT_COOLIFY_MIRROR or PATH)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON (engine progress goes to stderr)",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Confirm the owner approved stopping these workloads",
+          "required": false
+        },
+        {
+          "name": "plan",
+          "type": "string",
+          "description": "Relocation plan made on this server, or - for stdin",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "default": "coolify",
+          "description": "PaaS platform to relocate (coolify)",
+          "required": false
+        },
+        {
+          "name": "undo",
+          "type": "bool",
+          "description": "Start again what the active drain stopped",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit relocate plan",
+      "name": "plan",
+      "parent": "stackkit relocate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit relocate plan [flags]",
+      "short": "Inventory what a move would take from this server (read-only, secret-free JSON)",
+      "description": "Runs on the source server. Writes the relocation plan: resources, volumes, host paths, images,\ndatabase dumps and sizes, without credentials. Hand it to `stackkit relocate check` on the destination.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "all",
+          "type": "bool",
+          "description": "Every resource on this server",
+          "required": false
+        },
+        {
+          "name": "domain",
+          "type": "strings",
+          "description": "Resources serving these domains",
+          "required": false
+        },
+        {
+          "name": "engine",
+          "type": "string",
+          "description": "Path to the pinned relocation engine (default: /usr/local/lib/stackkit/coolify-mirror, $STACKKIT_COOLIFY_MIRROR or PATH)",
+          "required": false
+        },
+        {
+          "name": "full",
+          "type": "bool",
+          "description": "Whole Coolify (destination must be an empty Coolify)",
+          "required": false
+        },
+        {
+          "name": "images",
+          "type": "string",
+          "description": "Docker images to carry: apps, all or none (engine default apps)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON (engine progress goes to stderr)",
+          "required": false
+        },
+        {
+          "name": "no-deps",
+          "type": "bool",
+          "description": "Do not add databases the selected resources depend on",
+          "required": false
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "description": "Write the plan to a file instead of stdout",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "default": "coolify",
+          "description": "PaaS platform to relocate (coolify)",
+          "required": false
+        },
+        {
+          "name": "project",
+          "type": "strings",
+          "description": "Whole projects (name, name/environment or a domain)",
+          "required": false
+        },
+        {
+          "name": "uuid",
+          "type": "strings",
+          "description": "Resources by Coolify uuid",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit relocate receive",
+      "name": "receive",
+      "parent": "stackkit relocate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit relocate receive [flags]",
+      "short": "Download the shared backup from the source server and restore it here",
+      "description": "Runs on the destination server while `stackkit relocate send` shares. Downloads over pinned HTTPS,\nverifies, and restores into this Coolify; a failed restore is rolled back by the engine.\nRun `stackkit relocate check` with the plan first.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "engine",
+          "type": "string",
+          "description": "Path to the pinned relocation engine (default: /usr/local/lib/stackkit/coolify-mirror, $STACKKIT_COOLIFY_MIRROR or PATH)",
+          "required": false
+        },
+        {
+          "name": "from",
+          "type": "relocate send",
+          "description": "Source server HOST[:PORT] as relocate send reports it",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON (engine progress goes to stderr)",
+          "required": false
+        },
+        {
+          "name": "no-start",
+          "type": "bool",
+          "description": "Restore without starting the resources",
+          "required": false
+        },
+        {
+          "name": "on-conflict",
+          "type": "string",
+          "default": "copy",
+          "description": "A resource that already exists here: copy or skip",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Confirm the owner approved this move",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "default": "coolify",
+          "description": "PaaS platform to relocate (coolify)",
+          "required": false
+        },
+        {
+          "name": "secret-ref",
+          "type": "string",
+          "description": "Wallet item holding this move's transfer secret (delivered to both servers)",
+          "required": false
+        },
+        {
+          "name": "set-domain",
+          "type": "stringArray",
+          "description": "Replace a restored domain, OLD=NEW (repeatable)",
+          "required": false
+        },
+        {
+          "name": "tenant-ref",
+          "type": "string",
+          "description": "Wallet tenant of the transfer secret",
+          "required": false
+        },
+        {
+          "name": "wait",
+          "type": "duration",
+          "description": "Wait this long for the source's share to come up before downloading",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit relocate send",
+      "name": "send",
+      "parent": "stackkit relocate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit relocate send [flags]",
+      "short": "Back up the selection and share it once with the destination server",
+      "description": "Runs on the source server. Backs up the selected Coolify resources, encrypted with a key derived\nfrom the move's Wallet item, and shares the file over pinned HTTPS until the destination has\ndownloaded it once. The source keeps running; nothing is stopped or removed here.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "all",
+          "type": "bool",
+          "description": "Every resource on this server",
+          "required": false
+        },
+        {
+          "name": "domain",
+          "type": "strings",
+          "description": "Resources serving these domains",
+          "required": false
+        },
+        {
+          "name": "engine",
+          "type": "string",
+          "description": "Path to the pinned relocation engine (default: /usr/local/lib/stackkit/coolify-mirror, $STACKKIT_COOLIFY_MIRROR or PATH)",
+          "required": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Share an existing backup made with the same Wallet item instead of a new one",
+          "required": false
+        },
+        {
+          "name": "full",
+          "type": "bool",
+          "description": "Whole Coolify (destination must be an empty Coolify)",
+          "required": false
+        },
+        {
+          "name": "host",
+          "type": "string",
+          "description": "Address the destination reaches this server on (default: detected)",
+          "required": false
+        },
+        {
+          "name": "images",
+          "type": "string",
+          "description": "Docker images to carry: apps, all or none (engine default apps)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON (engine progress goes to stderr)",
+          "required": false
+        },
+        {
+          "name": "no-deps",
+          "type": "bool",
+          "description": "Do not add databases the selected resources depend on",
+          "required": false
+        },
+        {
+          "name": "open-firewall",
+          "type": "bool",
+          "description": "Open the share port in ufw while sharing",
+          "required": false
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "default": "/data/coolify-mirror/backups/kombify-relocate",
+          "description": "Directory for the new backup",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Confirm the owner approved this move",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "default": "coolify",
+          "description": "PaaS platform to relocate (coolify)",
+          "required": false
+        },
+        {
+          "name": "port",
+          "type": "int",
+          "default": "8123",
+          "description": "HTTPS port of the share",
+          "required": false
+        },
+        {
+          "name": "project",
+          "type": "strings",
+          "description": "Whole projects (name, name/environment or a domain)",
+          "required": false
+        },
+        {
+          "name": "secret-ref",
+          "type": "string",
+          "description": "Wallet item holding this move's transfer secret (delivered to both servers)",
+          "required": false
+        },
+        {
+          "name": "tenant-ref",
+          "type": "string",
+          "description": "Wallet tenant of the transfer secret",
+          "required": false
+        },
+        {
+          "name": "ttl",
+          "type": "string",
+          "default": "2h",
+          "description": "Stop sharing after this long without a complete download",
+          "required": false
+        },
+        {
+          "name": "uuid",
+          "type": "strings",
+          "description": "Resources by Coolify uuid",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit remove",
       "name": "remove",
       "parent": "stackkit",
@@ -6672,7 +7163,7 @@
       "aliases": [],
       "group": "care",
       "usage": "stackkit service manager <workload-ref> [flags]",
-      "short": "Transfer an existing node-owned workload between Compose and Komodo",
+      "short": "Transfer an existing node-owned workload between managers or to its native Core",
       "description": "",
       "runnable": true,
       "examples": [
@@ -6682,9 +7173,21 @@
       ],
       "flags": [
         {
+          "name": "cancel",
+          "type": "bool",
+          "description": "Cancel the exact pending native Core transfer before any target attachment request",
+          "required": false
+        },
+        {
           "name": "json",
           "type": "bool",
           "description": "Write the versioned manager result as JSON",
+          "required": false
+        },
+        {
+          "name": "native-core",
+          "type": "bool",
+          "description": "Transfer an existing Komodo workload to this node's native Core using its fresh generated Plan",
           "required": false
         },
         {
@@ -7069,7 +7572,7 @@
         {
           "name": "resolved-plan",
           "type": "string",
-          "description": "Canonical Architecture v2 ResolvedPlan (default: deploy/.stackkit/resolved-plan.json)",
+          "description": "Canonical Architecture v2 ResolvedPlan (default: beneath the StackSpec generation.outputRoot)",
           "required": false
         }
       ],
@@ -7229,7 +7732,7 @@
       "group": "reference",
       "usage": "stackkit use-cases pick [flags]",
       "short": "Interactively select optional use cases",
-      "description": "List the kit-optional use cases and toggle them in the terminal.\n\nArrow keys or j/k move the cursor. Space toggles the highlighted item.\nEnter confirms. Files, Photos, and Vault start selected (kit L3 defaults).\n\n--print writes the selected IDs as a comma-separated line on stdout so\ninstallers can pass them to stackkit init --use-case. Prompts go to stderr.\nWhen stdin is not a terminal, the current defaults are returned without a prompt.",
+      "description": "List the kit-optional use cases and toggle them in the terminal.\n\nArrow keys or j/k move the cursor. Space toggles the highlighted item.\nEnter confirms. Without --kit, the legacy Files, Photos and Vault selection is used.\n\nWith --kit (Basement or Cloud), choices and defaults come from the embedded CUE kit catalog.\nEach choice shows its standard profile minimum (CPU / RAM GiB / disk GiB).\nThe running numeric preview includes required Core and selected default alternatives.\nIt observes this host unless --inventory and --node select another target.\nData budgets, add-ons, profile changes and resident policy need a resolved plan.\nThis preview writes no configuration and grants no Apply admission.\n\n--print writes the selected IDs as a comma-separated line on stdout so\ninstallers can pass them to stackkit init --use-case. Prompts go to stderr.\nWhen stdin is not a terminal, defaults are returned without a prompt; a kit preview\nis still printed to stderr. Unknown facts are shown as ?, never zero.",
       "runnable": true,
       "examples": [
         {
@@ -7239,9 +7742,35 @@
         {
           "command": "stackkit use-cases pick --print",
           "description": "Print the selected IDs as one comma-separated line for stackkit init --use-case"
+        },
+        {
+          "command": "stackkit use-cases pick --kit basement-kit --print",
+          "description": "Preview standard footprints and capacity on this target, from its kit catalog"
+        },
+        {
+          "command": "stackkit use-cases pick --kit cloud-kit --inventory inventory.yaml --node cloud-node --print",
+          "description": "Preview one explicitly selected Inventory node"
         }
       ],
       "flags": [
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Read capacity from this Inventory instead of observing the local host; requires --kit and --node",
+          "required": false
+        },
+        {
+          "name": "kit",
+          "type": "string",
+          "description": "Preview main use cases admitted by this kit at standard profiles; observe this host by default",
+          "required": false
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "description": "Explicit Inventory node for the kit capacity preview",
+          "required": false
+        },
         {
           "name": "print",
           "type": "bool",
@@ -7287,6 +7816,7 @@
       "subcommands": [
         "stackkit user activate",
         "stackkit user add",
+        "stackkit user apps",
         "stackkit user files",
         "stackkit user list",
         "stackkit user owner",
@@ -7343,6 +7873,12 @@
       ],
       "flags": [
         {
+          "name": "app",
+          "type": "stringArray",
+          "description": "Node app this member may sign into (repeatable); without it the member can use every app",
+          "required": false
+        },
+        {
           "name": "display-name",
           "type": "string",
           "description": "Optional display name",
@@ -7358,6 +7894,61 @@
           "name": "owner-approve",
           "type": "bool",
           "description": "Explicitly approve creating this household user",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user apps",
+      "name": "apps",
+      "parent": "stackkit user",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user apps <username> [flags]",
+      "short": "Set which node apps a household user may sign into",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit user apps alex --app photos --app files --owner-approve",
+          "description": "Allow Photos and Files only"
+        },
+        {
+          "command": "stackkit user apps alex --all --owner-approve",
+          "description": "Allow every app again"
+        }
+      ],
+      "flags": [
+        {
+          "name": "all",
+          "type": "bool",
+          "description": "Allow every app",
+          "required": false
+        },
+        {
+          "name": "app",
+          "type": "stringArray",
+          "description": "App the member may sign into (repeatable)",
+          "required": false
+        },
+        {
+          "name": "none",
+          "type": "bool",
+          "description": "Allow no app",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve changing this member's apps",
           "required": false
         },
         {
@@ -7505,6 +8096,7 @@
       "subcommands": [
         "stackkit user owner activate",
         "stackkit user owner migrate-domain",
+        "stackkit user owner reconcile",
         "stackkit user owner status"
       ]
     },
@@ -7565,6 +8157,34 @@
           "type": "string",
           "default": "stack-spec.yaml",
           "description": "Workspace-relative StackSpec to migrate",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user owner reconcile",
+      "name": "reconcile",
+      "parent": "stackkit user owner",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user owner reconcile [flags]",
+      "short": "Enable legacy TinyAuth PKCE only against the verified existing Owner binding",
+      "description": "Requires explicit Owner approval and an idle native lifecycle. Verifies every existing Owner, client, callback and group binding before enabling PKCE, then verifies again. Keeps Owner keys, users, groups, client secret, enrollment links, Plan and release pin. Other identity drift fails closed. On a managed server invoke through authorized Techstack server access; this performs no Advanced apply or provider execution.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Explicitly approve PKCE-only convergence of the existing verified identity binding",
           "required": false
         },
         {
@@ -7846,6 +8466,7 @@
       "flags": [],
       "subcommands": [
         "stackkit wallet-item import",
+        "stackkit wallet-item remove",
         "stackkit wallet-item status"
       ]
     },
@@ -7875,6 +8496,37 @@
           "name": "tenant-ref",
           "type": "string",
           "description": "Tenant the sealed delivery must be addressed to",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit wallet-item remove",
+      "name": "remove",
+      "parent": "stackkit wallet-item",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit wallet-item remove [flags]",
+      "short": "Open a sealed Wallet item removal from stdin and drop the item from local custody",
+      "description": "Read one sealed wallet-item-remove envelope on stdin, signed by the pinned\ndelivering authority. The node opens it, records it as consumed, and deletes\nevery version of the item it names from local custody. A bound consumer such as\nthe Private AI provider key fails closed on its next apply until another item is\ndelivered. Removing an item this node does not hold succeeds and removes\nnothing. The result names the reference and the removed versions only.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit wallet-item remove --tenant-ref \"$TENANT\" --owner-approve < envelope.json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize removing this Wallet item",
+          "required": false
+        },
+        {
+          "name": "tenant-ref",
+          "type": "string",
+          "description": "Tenant the sealed removal must be addressed to",
           "required": false
         }
       ],

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/householdapps"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"gopkg.in/yaml.v3"
 )
@@ -19,6 +20,8 @@ const (
 )
 
 var tinyAuthRouteACLEnvironmentPattern = regexp.MustCompile(`^TINYAUTH_APPS_ROUTE([A-F0-9]{64})_(CONFIG_DOMAIN|OAUTH_WHITELIST|OAUTH_GROUPS)$`)
+
+var tinyAuthRouteACLGroupsPattern = regexp.MustCompile(`^owners,admins(,household|,household-open,household-app-[a-z][a-z0-9-]*)?$`)
 
 type coreRuntimeValues struct {
 	BackupSource      localbackuppolicy.BackupSourceProjection `json:"backup-source"`
@@ -58,9 +61,15 @@ func validateTinyAuthRouteACLBinding(raw []byte, includeBackup bool, path string
 	return fail(ErrInvalidPlan, path, "does not match the governed route ACL bindings")
 }
 
-func tinyAuthRouteACLGroups(privilege string) (string, bool) {
+// A grantable app admits members without an explicit app list (the open
+// group) or granted to that app; any other user-tier route keeps the flat
+// household.
+func tinyAuthRouteACLGroups(privilege, serviceRef string) (string, bool) {
 	switch privilege {
 	case "user":
+		if householdapps.IsGrantable(serviceRef) {
+			return "owners,admins," + householdapps.OpenGroup + "," + householdapps.AppGroup(serviceRef), true
+		}
 		return "owners,admins,household", true
 	case "admin", "identity", "secrets", "vault", "recovery":
 		return "owners,admins", true
@@ -81,6 +90,15 @@ func tinyAuthRouteACLs(unit RenderUnit) (map[string]string, error) {
 	}
 	domain, _ := unit.NetworkDomainBase()
 	prefix, _ := unit.NetworkSubdomainPrefix()
+	coreHosts := map[string]string{}
+	for _, route := range values.TinyAuthRouteACLs {
+		if unit.ModuleID() == cloudStandaloneCoreModuleID && route.ModuleRef == unit.ModuleID() && route.Exposure == "public" {
+			if prior, exists := coreHosts[route.ServiceRef]; exists && prior != route.Host {
+				return nil, fail(ErrInvalidPlan, "resolvedPlan.modules."+unit.ModuleID()+".routes", "core service has conflicting public hosts")
+			}
+			coreHosts[route.ServiceRef] = route.Host
+		}
+	}
 	for _, endpoint := range endpoints {
 		if endpoint.IngressAuth != "forward-auth" {
 			continue
@@ -93,7 +111,10 @@ func tinyAuthRouteACLs(unit RenderUnit) (map[string]string, error) {
 		if prefix != "" {
 			host = prefix + "-" + service + "." + domain
 		}
-		groups, ok := tinyAuthRouteACLGroups(endpoint.RequiredPrivilege)
+		if explicit, exists := coreHosts[service]; exists {
+			host = explicit
+		}
+		groups, ok := tinyAuthRouteACLGroups(endpoint.RequiredPrivilege, endpoint.ServiceRef)
 		if !ok || !basementDomainPattern.MatchString(host) {
 			return nil, fail(ErrInvalidPlan, "resolvedPlan.modules."+unit.ModuleID()+".serviceEndpoints", "core route %q has no enforceable TinyAuth host/privilege policy", endpoint.ServiceRef)
 		}
@@ -104,7 +125,7 @@ func tinyAuthRouteACLs(unit RenderUnit) (map[string]string, error) {
 			continue
 		}
 		host := strings.ToLower(strings.TrimSpace(route.Host))
-		groups, ok := tinyAuthRouteACLGroups(route.Access.Privilege)
+		groups, ok := tinyAuthRouteACLGroups(route.Access.Privilege, route.ServiceRef)
 		if !ok || host == "" || !basementDomainPattern.MatchString(host) || host != route.Host {
 			return nil, fail(ErrInvalidPlan, "resolvedPlan.modules."+unit.ModuleID()+".values."+tinyAuthRouteACLInputRef, "forward-auth route %q has no enforceable TinyAuth host/privilege policy", route.ID)
 		}
@@ -187,7 +208,7 @@ func stripTinyAuthRouteACLs(content []byte) ([]byte, bool) {
 	for hash, fields := range seen {
 		host, ok := fields["CONFIG_DOMAIN"]
 		if !ok || len(fields) != 3 || !basementDomainPattern.MatchString(host) || host != strings.ToLower(host) ||
-			fields["OAUTH_WHITELIST"] != "/.*/" || (fields["OAUTH_GROUPS"] != "owners,admins" && fields["OAUTH_GROUPS"] != "owners,admins,household") {
+			fields["OAUTH_WHITELIST"] != "/.*/" || !tinyAuthRouteACLGroupsPattern.MatchString(fields["OAUTH_GROUPS"]) {
 			return nil, false
 		}
 		sum := sha256.Sum256([]byte(host))

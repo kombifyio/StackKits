@@ -138,7 +138,7 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "mosquitto"
 			role:       "supporting"
 			required:   false
-			rationale:  "Optional native smart-home-mqtt workload. Broker selection does not configure the Home Assistant integration or enable a LAN listener."
+			rationale:  "Optional native smart-home-mqtt workload. Explicit home-assistant-link joins its private network; the verified Home Assistant owner setup configures MQTT from the applied broker and node custody while preserving existing integrations. A LAN listener remains a separate choice."
 			capabilities: ["mqtt"]
 		}
 		zigbee2mqtt: {

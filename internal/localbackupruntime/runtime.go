@@ -608,7 +608,9 @@ func (r *Runtime) restoreQuiescence(journal backuplifecycle.SnapshotQuiescence, 
 	if err := r.validateQuiescenceGraph(journal); err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), backupexec.QuickOperationTimeout)
+	// Manager-owned starts can wait for declared component health. Resuming the
+	// writer graph needs the lifecycle budget, not one quick engine-call budget.
+	ctx, cancel := context.WithTimeout(context.Background(), backupexec.LongOperationTimeout)
 	defer cancel()
 	expectedByID := make(map[string]backuplifecycle.SnapshotQuiescedContainer, len(journal.Containers))
 	for _, expected := range journal.Containers {

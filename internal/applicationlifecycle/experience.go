@@ -95,6 +95,7 @@ type RuntimeTarget struct {
 // matches the current Plan. Legacy and prior-Plan records leave it empty and
 // cannot affect the current setup axis.
 type SetupRun struct {
+	HomeAssistantMQTT      *HomeAssistantMQTTObservation      `json:"homeAssistantMqtt,omitempty"`
 	HomeAssistantConnector *HomeAssistantConnectorObservation `json:"homeAssistantConnector,omitempty"`
 	// Set by SetupRuns for current-authority operations, even before a terminal
 	// setup receipt exists. Completion still requires authenticated evidence.

@@ -138,6 +138,8 @@ check_archive_contents() {
     stackkit-server \
     stackkit-mcp \
     stackkit-content-bridge \
+    coolify-mirror \
+    licenses/coolify-mirror/LICENSE \
     tofu \
     terramate \
     providers/stackkit-provider-manifest.json \
@@ -237,6 +239,8 @@ validate_public_archive_executables() {
   "$extract_dir/stackkit-server" --help >/dev/null 2>&1
   "$extract_dir/stackkit-mcp" --help >/dev/null 2>&1
   "$extract_dir/stackkit-content-bridge" -version >/dev/null
+  # The relocation engine must be the exact build this release pins.
+  "$extract_dir/coolify-mirror" version --json >/dev/null
   node "$extract_dir/scripts/release/validate-architecture-contract-fixture.mjs" \
     --repo-root "$extract_dir" --proof-only
 }

@@ -217,14 +217,59 @@ func countRenderedLines(text string) int {
 }
 
 func selectMany(ui *os.File, heading string, choices []choice) ([]string, error) {
+	return selectManyWithSummary(ui, heading, choices, nil)
+}
+
+// summary is recalculated after every toggle using the current selection.
+func selectManyWithSummary(ui *os.File, heading string, choices []choice, summary func([]string) (string, error)) ([]string, error) {
 	if len(choices) == 0 {
 		return nil, fmt.Errorf("no options available")
 	}
 	state := newMultiSelectState(choices)
+	out := ui
+	if out == nil {
+		out = os.Stderr
+	}
+	terminalRows := 0
+	render := func() (string, error) {
+		if summary == nil {
+			return renderMultiSelect(heading, state), nil
+		}
+		text, err := summary(state.keys())
+		if err != nil {
+			return "", err
+		}
+		visible := state
+		label := heading
+		// Keep totals visible on a short terminal while navigating the full list.
+		if terminalRows > 0 {
+			slots := terminalRows - countRenderedLines(text) - 4
+			if slots < 1 {
+				return "", fmt.Errorf("terminal too short for selection and capacity advice: need at least %d rows, have %d; enlarge the terminal and retry", countRenderedLines(text)+5, terminalRows)
+			}
+			if slots < len(state.choices) {
+				start := max(0, state.cursor-slots+1)
+				visible.choices = state.choices[start : start+slots]
+				visible.selected = state.selected[start : start+slots]
+				visible.cursor -= start
+				label = fmt.Sprintf("%s (%d-%d/%d)", heading, start+1, start+slots, len(state.choices))
+			}
+		}
+		return renderMultiSelect(label, visible) + text, nil
+	}
 	in, closer, err := openInteractiveInput()
 	if err != nil || !term.IsTerminal(int(in.Fd())) {
 		if closer != nil {
 			closer()
+		}
+		if summary != nil {
+			frame, err := render()
+			if err != nil {
+				return nil, err
+			}
+			if _, err := fmt.Fprint(out, frame); err != nil {
+				return nil, err
+			}
 		}
 		return state.keys(), nil
 	}
@@ -236,16 +281,22 @@ func selectMany(ui *os.File, heading string, choices []choice) ([]string, error)
 	}
 	defer func() { _ = term.Restore(fd, previous) }()
 
-	out := ui
-	if out == nil {
-		out = os.Stderr
-	}
 	drawn := 0
 	buf := make([]byte, 8)
 	for {
-		frame := renderMultiSelect(heading, state)
+		if summary != nil {
+			_, terminalRows, _ = term.GetSize(int(out.Fd()))
+		}
+		frame, err := render()
+		if err != nil {
+			fmt.Fprint(out, "\033[?25h")
+			return nil, err
+		}
 		if drawn > 0 {
 			fmt.Fprintf(out, "\033[%dA", drawn)
+			if summary != nil {
+				fmt.Fprint(out, "\033[J") // A shorter advisory must not retain old reasons.
+			}
 		}
 		fmt.Fprint(out, "\033[?25l")
 		for _, line := range strings.Split(strings.TrimRight(frame, "\n"), "\n") {

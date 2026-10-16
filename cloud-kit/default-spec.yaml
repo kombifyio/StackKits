@@ -12,9 +12,12 @@
 #   3. Deploy: stackkit generate && stackkit apply
 #
 # Domain Access Modes (cloud):
-#   1. Own/custom domain: domain: example.com -> Coolify + managed TLS (ACME)
-#   2. kombify.me:        domain: kombify.me  -> Coolify + kombify.me subdomains
+#   1. Own/custom domain: domain: example.com -> Cloud Core + managed TLS (ACME)
+#   2. kombify.me:        domain: kombify.me  -> Cloud Core + kombify.me subdomains
 #                         (requires KOMBIFY_API_KEY during generate/apply)
+#
+# Marketplace is optional and adds Coolify as its application engine. It does
+# not replace the default Cloud Core or its ingress and identity owners.
 #
 # A public domain and DNS access (e.g. CLOUDFLARE_API_TOKEN for DNS-01 ACME)
 # are required so public HTTPS routes resolve and certificates can be issued.

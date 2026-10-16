@@ -513,7 +513,7 @@
         {#if kit && kit.required_authoring_inputs.length > 0}
           <div class="authoring-fields">
             {#each kit.required_authoring_inputs as path}
-              <label><span>{path}</span><input value={authoringValue(path)} oninput={(event) => setAuthoringValue(path, readValue(event))} placeholder={path === "network.domain.base" ? "example.net" : "Required contract value"} data-authoring-path={path} /></label>
+              <label><span>{path}</span><input type={path === "owner.email" ? "email" : "text"} value={authoringValue(path)} oninput={(event) => setAuthoringValue(path, readValue(event))} placeholder={path === "network.domain.base" ? "example.net" : "Required contract value"} data-authoring-path={path} /></label>
             {/each}
           </div>
         {/if}

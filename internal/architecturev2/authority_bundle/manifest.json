@@ -1,7 +1,7 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:daba86c9d44306f96605cd1e7ee7383260dd65886f3e1b0f7a2642fa84284c3b",
-    "compute-tier-fits.json": "sha256:fcad2aa639807c5b7694396587ec1920c0730d100fa67e89edd9da18b7b18c87",
+    "catalog.json": "sha256:b4cda51122ad5f7e1e5a8971a095828bda47d9c699b2fe961cf729d17b619ece",
+    "compute-tier-fits.json": "sha256:c328232ec92d55e709566dd1e100162a60c9bdd1300fe06b8c5f5fbcf0547a0d",
     "definitions/basement-kit.json": "sha256:1d22c603a55957d4fb0aaf26cf969db94979d76ba195c61a50a83a335786309f",
     "definitions/cloud-kit.json": "sha256:74a009424d65b7b82af29ea596a555c16ef2ea5d7ffce68f7bef8a8b0098df65",
     "definitions/modern-homelab.json": "sha256:f0aae81b85dddeeb2d17dfd21145f5627c0faf3b807c85eff4eb9916e6b028c1",
@@ -28,11 +28,11 @@
     "foundation/architecture_v2.cue": "sha256:f09f339397faf5cf3bb5f59faf7474cbd500f12ad6c90d598b938b6e7cb092a4",
     "foundation/architecture_v2_adguard_home.cue": "sha256:ef255b288da4c17c99039cd2fc32d3455c199ece865957e70074814f61777106",
     "foundation/architecture_v2_backup.cue": "sha256:d48b51ec2e8e11d9511a252e6e3a9f0b5310bedbe5859140d252cd2ba7f6e799",
-    "foundation/architecture_v2_catalog.cue": "sha256:5426bf914958a6d5b6bf3c8e88b22c253b07206626dad2fb89682c6f529b8776",
+    "foundation/architecture_v2_catalog.cue": "sha256:6d25b7331affd0a0f2806b2402f82b17ba93a6fda5302e7b02e217c9b21fcfba",
     "foundation/architecture_v2_cloud_core.cue": "sha256:e62ffb36ef1305078274022932bf41bf7e0737b0402254fcdbe8c1f3f1e5500a",
     "foundation/architecture_v2_definition_binding.cue": "sha256:a3bd59ab840c4d2775dfa1ca9703a76b22a836a38ca363d089c1322453cf947b",
     "foundation/architecture_v2_federation.cue": "sha256:720abfcfd924aacbd3388ee2b88066629f1dcbec3a5ff11d81ffb905e2716b74",
-    "foundation/architecture_v2_guacamole.cue": "sha256:1913070e77b840bf331ccf61917d65123657899b0b02b5bcb32b3114f1d2a7f1",
+    "foundation/architecture_v2_guacamole.cue": "sha256:305639dc29a4b712eb1047f5f6e427add0688c4104f8c4871bedf101304670ce",
     "foundation/architecture_v2_komodo_bootstrap.cue": "sha256:b8b94a8e366e2b9715894dfe17a76f10a03ec777aeae665c6f2d3ab6e9ddc519",
     "foundation/architecture_v2_marketplace.cue": "sha256:0cc590987ab3fac11ae10153f813bacd2e2e0c2ee5e1d61554f5974171b7f0c9",
     "foundation/architecture_v2_module_profiles.cue": "sha256:485dfaf3ed61cf566e6087329ccc1c8ba7b9cc4671abaa37ed0a2254b3d7b821",

@@ -631,11 +631,14 @@ function operationStep(
   profiles: ModuleProfileSelection[],
   useCases: UseCaseSelection[],
 ): HandoffStep {
+  const inventory = authoring.get("inventory.path");
   return [
     operation.id,
     operation.id === "stackkit.init"
       ? initArgv(input.stackkit_id, authoring, profiles, useCases)
-      : ["stackkit", ...operation.command],
+      : ["stackkit", ...operation.command,
+        ...(["stackkit.resolve", "stackkit.generate", "stackkit.plan"].includes(operation.id) && inventory
+          ? ["--inventory", inventory] : [])],
     operation.mutation,
     operation.idempotent,
     operation.owner_approval,
@@ -651,8 +654,10 @@ function initArgv(
   const argv = ["stackkit", "init", stackkitId, "--api-version", "stackkit/v2alpha2", "--non-interactive", "--owner-source=local"];
   const domain = authoring.get("network.domain.base");
   const name = authoring.get("metadata.name");
+  const ownerEmail = authoring.get("owner.email");
   if (domain) argv.push("--domain", domain);
   if (name) argv.push("--name", name);
+  if (ownerEmail) argv.push("--owner-email", ownerEmail);
   for (const profile of profiles) {
     argv.push("--module-compute-profile", `${profile.module_id}=${profile.compute_profile}`);
     if (profile.storage_profile) argv.push("--module-storage-profile", `${profile.module_id}=${profile.storage_profile}`);
@@ -677,12 +682,14 @@ function collectAuthoringInputs(input: PrepareHandoffInput): { values: Map<strin
 }
 
 function isSupportedAuthoringPath(path: string): boolean {
-  return path === "network.domain.base" || path === "metadata.name";
+  return path === "network.domain.base" || path === "metadata.name" || path === "owner.email" || path === "inventory.path";
 }
 
 function isValidAuthoringValue(path: string, value: string): boolean {
   if (path === "network.domain.base") return AUTHORING_DOMAIN.test(value);
   if (path === "metadata.name") return AUTHORING_NAME.test(value);
+  if (path === "owner.email") return /^[^\s@]+@[^\s@]+$/.test(value);
+  if (path === "inventory.path") return value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
   return false;
 }
 

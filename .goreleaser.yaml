@@ -99,6 +99,26 @@ builds:
       - -X main.GitCommit={{ .Commit }}
       - -X main.BuildDate={{ .Date }}
 
+  # Coolify relocation engine (`stackkit relocate`): the pinned kombify fork
+  # of coolify-mirror, its own Go module, Linux only. Installed beside the CLI
+  # under lib/stackkit; the CLI accepts only this exact build.
+  - id: coolify-mirror
+    dir: third_party/coolify-mirror
+    main: ./cmd/coolify-mirror
+    binary: coolify-mirror
+    env:
+      - CGO_ENABLED=0
+      - GOFLAGS=-mod=readonly
+    flags:
+      - -trimpath
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
 archives:
   # Default public bundle — CLI + BaseKit catalog.
   - id: default
@@ -107,6 +127,9 @@ archives:
       - stackkit-server
       - stackkit-mcp
       - stackkit-content-bridge
+      - coolify-mirror
+    # coolify-mirror ships in the Linux archives only.
+    allow_different_binary_count: true
     # GoReleaser assembles uncompressed Unix tar archives. The release workflow
     # compresses them deterministically at level 1 and in parallel, then creates
     # the checksum over the final publishable bytes.
@@ -141,6 +164,8 @@ archives:
       - LICENSE-GPL-3.0-or-later
       - LICENSE-MPL-2.0
       - THIRD-PARTY-NOTICES.md
+      - src: third_party/coolify-mirror/LICENSE
+        dst: licenses/coolify-mirror/LICENSE
       - docs/CLI.md
       - docs/OPEN-SPEC.md
       - docs/OS_COMPATIBILITY.md
@@ -198,6 +223,9 @@ archives:
       - stackkit-server
       - stackkit-mcp
       - stackkit-content-bridge
+      - coolify-mirror
+    # coolify-mirror ships in the Linux archives only.
+    allow_different_binary_count: true
     formats:
       - tar
     format_overrides:
@@ -229,6 +257,8 @@ archives:
       - LICENSE-GPL-3.0-or-later
       - LICENSE-MPL-2.0
       - THIRD-PARTY-NOTICES.md
+      - src: third_party/coolify-mirror/LICENSE
+        dst: licenses/coolify-mirror/LICENSE
       - docs/CLI.md
       - docs/OPEN-SPEC.md
       - docs/OS_COMPATIBILITY.md
@@ -283,6 +313,9 @@ archives:
       - stackkit-server
       - stackkit-mcp
       - stackkit-content-bridge
+      - coolify-mirror
+    # coolify-mirror ships in the Linux archives only.
+    allow_different_binary_count: true
     formats:
       - tar
     format_overrides:
@@ -314,6 +347,8 @@ archives:
       - LICENSE-GPL-3.0-or-later
       - LICENSE-MPL-2.0
       - THIRD-PARTY-NOTICES.md
+      - src: third_party/coolify-mirror/LICENSE
+        dst: licenses/coolify-mirror/LICENSE
       - docs/CLI.md
       - docs/OPEN-SPEC.md
       - docs/OS_COMPATIBILITY.md
@@ -368,6 +403,9 @@ archives:
       - stackkit-server
       - stackkit-mcp
       - stackkit-content-bridge
+      - coolify-mirror
+    # coolify-mirror ships in the Linux archives only.
+    allow_different_binary_count: true
     formats:
       - tar
     format_overrides:
@@ -399,6 +437,8 @@ archives:
       - LICENSE-GPL-3.0-or-later
       - LICENSE-MPL-2.0
       - THIRD-PARTY-NOTICES.md
+      - src: third_party/coolify-mirror/LICENSE
+        dst: licenses/coolify-mirror/LICENSE
       - docs/CLI.md
       - docs/OPEN-SPEC.md
       - docs/OS_COMPATIBILITY.md
@@ -479,6 +519,10 @@ nfpms:
           mode: 0644
       - src: THIRD-PARTY-NOTICES.md
         dst: /usr/share/doc/kombify-stackkits/THIRD-PARTY-NOTICES.md
+        file_info:
+          mode: 0644
+      - src: third_party/coolify-mirror/LICENSE
+        dst: /usr/share/doc/kombify-stackkits/licenses/coolify-mirror/LICENSE
         file_info:
           mode: 0644
       - src: ".dist-tools/opentofu/linux_{{ .Arch }}/tofu"

@@ -53,6 +53,20 @@ Marketplace targets digest-pinned Coolify 4.4.x with `AUTOUPDATE=false`
 record the exact release, digest and matching upstream notice before release;
 the 4.4.6 development probe is not a shipped Marketplace pin.
 
+## coolify-mirror relocation engine
+
+`third_party/coolify-mirror` is a pinned, modified fork of
+[mtalavi/coolify-mirror](https://github.com/mtalavi/coolify-mirror) at upstream
+commit `f46fa093644268759fc0802e7d098e9e45dee984` (release 1.9.3), fork
+revision `kombify.4`. It is MIT licensed; the upstream
+[LICENSE](third_party/coolify-mirror/LICENSE) is kept beside the source and
+must accompany every distributed engine binary. The kombify changes are listed
+in [KOMBIFY-FORK.md](third_party/coolify-mirror/KOMBIFY-FORK.md).
+
+```text
+Copyright (c) 2026 mtalavi
+```
+
 ## Go browser capacity runtime
 
 The WebMCP build includes Go's unmodified `lib/wasm/wasm_exec.js` and the

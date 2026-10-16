@@ -105,6 +105,12 @@ func transitionOwnedWorkloadManagerBound(ctx context.Context, workspace, workloa
 		if state.WorkloadRef != workload || state.SiteRef != owner.Binding.SiteRef || state.NodeRef != owner.Binding.NodeRef {
 			return errors.New("manager transition refuses another owner/site/node binding")
 		}
+		if h := state.Handover; h != nil && h.Status == "pending" && h.CoreProtocol != "" {
+			return errors.New("native Core handover must be resumed through its exact native Core operation")
+		}
+		if h := state.Handover; h != nil && h.Status == "pending" && h.AttachmentState != "updating" {
+			return errors.New("legacy pending manager attachment has no durable request qualification; keep both managers denied and reconcile the original upstream operation without replay")
+		}
 		if bind != nil {
 			binding, err := bind(state)
 			if err != nil {
@@ -115,7 +121,7 @@ func transitionOwnedWorkloadManagerBound(ctx context.Context, workspace, workloa
 			}
 			state.PlanBinding = &binding
 		}
-		cfg, err := platformdeploy.LoadOwnerKomodoConfig(workspace)
+		cfg, err := platformdeploy.LoadOwnerKomodoConfigForServer(ctx, workspace, state.ServerID)
 		if err != nil {
 			return err
 		}
@@ -129,6 +135,7 @@ func transitionOwnedWorkloadManagerBound(ctx context.Context, workspace, workloa
 		from := platformdeploy.HostDeploymentManager(state)
 		directory := filepath.Join(workspace, ".stackkit", "runtime", "applications", project)
 		adapter := platformdeploy.NewKomodoAdapter(cfg)
+		initialWrite := false
 		if h := state.Handover; h != nil && h.Status == "pending" {
 			result.OperationID = h.ID
 			if resume != h.ID || h.To != to || h.RecipeDigest != recipe || h.RuntimeDigest != runtime {
@@ -158,16 +165,32 @@ func transitionOwnedWorkloadManagerBound(ctx context.Context, workspace, workloa
 				return err
 			}
 			state.Manager = from
-			state.Handover = &platformdeploy.HostManagerHandover{ID: "handover-" + hex.EncodeToString(nonce[:]), From: from, To: to, Status: "pending", RecipeDigest: recipe, RuntimeDigest: runtime}
+			state.Handover = &platformdeploy.HostManagerHandover{ID: "handover-" + hex.EncodeToString(nonce[:]), From: from, To: to, Status: "pending", RecipeDigest: recipe, RuntimeDigest: runtime, AttachmentState: "updating"}
 			result.OperationID = state.Handover.ID
 			if err := platformdeploy.SaveOwnerHostDeployment(workspace, project, state); err != nil {
 				return err
 			}
+			initialWrite = true
 		}
 		result.From, result.Status = from, "pending"
 		result.ExternalID, result.RecipeDigest, result.RuntimeDigest = state.Deployment.ExternalID, recipe, runtime
-		if err := adapter.SetHostStackAttachment(ctx, state.Deployment, directory, to == "komodo"); err != nil {
+		// The signed intent above grants this invocation one write. A resumed
+		// caller only observes it, even if the original request has not committed.
+		if initialWrite {
+			if err := adapter.SetHostStackAttachment(ctx, state.Deployment, directory, to == "komodo"); err != nil {
+				return err
+			}
+		}
+		attachment, err := adapter.HostStackAttachment(ctx, state.Deployment, directory)
+		if err != nil {
 			return err
+		}
+		wanted := ""
+		if to == "komodo" {
+			wanted = cfg.ServerID
+		}
+		if attachment != wanted {
+			return errors.New("original manager attachment has no positive upstream acknowledgement; keep this operation pending without another write")
 		}
 		afterRecipe, afterRuntime, err := observe(ctx, workspace, project)
 		if err != nil {
@@ -177,6 +200,7 @@ func transitionOwnedWorkloadManagerBound(ctx context.Context, workspace, workloa
 			return errors.New("manager handover changed recipe, container, data mount or address bindings; custody remains pending")
 		}
 		state.Manager, state.Handover.Status = to, "succeeded"
+		state.Handover.AttachmentState = "confirmed"
 		if err := platformdeploy.SaveOwnerHostDeployment(workspace, project, state); err != nil {
 			return err
 		}
@@ -265,7 +289,7 @@ func observeManagerBindings(ctx context.Context, workspace, project string) (str
 	if hashes["compose.yaml"] == "" || hashes[".env"] == "" {
 		return "", "", errors.New("manager handover requires the existing complete native recipe")
 	}
-	raw, err := exec.CommandContext(ctx, "docker", "ps", "--all", "--filter", "label=com.docker.compose.project="+project, "--format", "{{.ID}}").Output()
+	raw, err := managerNodeDocker(ctx, "ps", "--all", "--filter", "label=com.docker.compose.project="+project, "--format", "{{.ID}}").Output()
 	if err != nil {
 		return "", "", errors.New("manager handover cannot observe its Docker project")
 	}
@@ -274,7 +298,7 @@ func observeManagerBindings(ctx context.Context, workspace, project string) (str
 	if len(ids) == 0 {
 		return "", "", errors.New("manager handover refuses an absent project")
 	}
-	raw, err = exec.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...).Output()
+	raw, err = managerNodeDocker(ctx, append([]string{"inspect"}, ids...)...).Output()
 	if err != nil {
 		return "", "", errors.New("manager handover cannot read its exact runtime bindings")
 	}
@@ -315,4 +339,15 @@ func observeManagerBindings(ctx context.Context, workspace, project string) (str
 		return "", "", err
 	}
 	return managerDigest(hashes), managerDigest(projection), nil
+}
+
+func managerNodeDocker(ctx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "docker", append([]string{"--host", "unix:///var/run/docker.sock"}, args...)...)
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		if !strings.HasPrefix(name, "DOCKER_") {
+			cmd.Env = append(cmd.Env, entry)
+		}
+	}
+	return cmd
 }

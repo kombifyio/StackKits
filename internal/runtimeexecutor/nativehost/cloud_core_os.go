@@ -60,6 +60,15 @@ func newOSCloudCoreOperations(workspaceRoot, runtimeName string) (CloudCoreOpera
 }
 
 func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudCoreProject) (CloudCoreApplyObservation, error) {
+	if state, err := localevidence.LoadCloudSessionRouting(o.workspaceRoot); err == nil && state.Phase != "aborted" {
+		verified, err := o.observeSessionProject(ctx, project, state)
+		if err != nil {
+			return CloudCoreApplyObservation{}, err
+		}
+		return CloudCoreApplyObservation{ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest, Status: "applied", OwnerRef: verified.OwnerRef, PocketIDSubject: verified.PocketIDSubject, OwnerBindingDigest: verified.OwnerBindingDigest, SessionTransitionDigest: verified.SessionTransitionDigest, SessionOverlayDigest: verified.SessionOverlayDigest}, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return CloudCoreApplyObservation{}, err
+	}
 	var bindingErr error
 	project.Definition, bindingErr = bindKopiaApplicationHostPaths(ctx, o.workspaceRoot, project.SiteRef, project.NodeRef, project.Definition)
 	if bindingErr != nil {
@@ -102,6 +111,9 @@ func (o *osCloudCoreOperations) prepareApply(definition []byte) (bool, error) {
 		return false, fmt.Errorf("verify Cloud runtime custody before Apply: %w", err)
 	}
 	if err := requireCloudIdentityAddress(custody, definition); err != nil {
+		return false, err
+	}
+	if err := requireUnmigratedCloudSessionAddress(custody, definition); err != nil {
 		return false, err
 	}
 	serverBinary, err := resolveCoreStackKitServerBinary(o.serverBinary)
@@ -246,6 +258,11 @@ func (o *osCloudCoreOperations) pendingReadiness(ctx context.Context, composePat
 }
 
 func (o *osCloudCoreOperations) VerifyProject(ctx context.Context, project CloudCoreProject) (CloudCoreVerifyObservation, error) {
+	if state, err := localevidence.LoadCloudSessionRouting(o.workspaceRoot); err == nil && state.Phase != "aborted" {
+		return o.observeSessionProject(ctx, project, state)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return CloudCoreVerifyObservation{}, err
+	}
 	var bindingErr error
 	project.Definition, bindingErr = bindKopiaApplicationHostPaths(ctx, o.workspaceRoot, project.SiteRef, project.NodeRef, project.Definition)
 	if bindingErr != nil {
@@ -264,6 +281,9 @@ func (o *osCloudCoreOperations) VerifyProject(ctx context.Context, project Cloud
 	if err := requireCloudIdentityAddress(custody, project.Definition); err != nil {
 		return CloudCoreVerifyObservation{}, err
 	}
+	if err := requireUnmigratedCloudSessionAddress(custody, project.Definition); err != nil {
+		return CloudCoreVerifyObservation{}, err
+	}
 	composePath := filepath.Join(o.workspaceRoot, ".stackkit", "runtime", o.name(), "compose.yaml")
 	content, err := readStablePrivateBasementRuntimeFile(o.workspaceRoot, composePath)
 	if err != nil {
@@ -273,6 +293,15 @@ func (o *osCloudCoreOperations) VerifyProject(ctx context.Context, project Cloud
 		return CloudCoreVerifyObservation{}, errors.New("verified Cloud runtime differs from the authorized Compose project")
 	}
 	return o.observeProject(ctx, project, composePath)
+}
+
+func requireUnmigratedCloudSessionAddress(custody localevidence.CloudRuntimeCustody, definition []byte) error {
+	topology, ok := architecturev2renderer.CloudComposeSessionTopology(definition)
+	address := custody.IdentityAddress()
+	if !ok || topology.TinyAuthHost != address.ServiceHost("auth") || topology.HubHost != address.ServiceHost("base") {
+		return localevidence.CloudSessionRoutingDiagnostic(errors.New("cloud_session_transition_pending: mixed session routes require their authenticated address lifecycle before Apply or Verify"))
+	}
+	return nil
 }
 
 // observeProject is the shared post-authority half of Verify: the pinned
@@ -402,9 +431,21 @@ var cloudCoreRecreateServerArgs = []string{"up", "-d", "--no-deps", "--force-rec
 type osCloudCoreProcessRunner struct{}
 
 func (osCloudCoreProcessRunner) Run(ctx context.Context, args []string, directory string, environment []string) ([]byte, error) {
+	if validCloudSessionComposeArgs(args, directory) {
+		command := exec.CommandContext(ctx, "docker", args...) //nolint:gosec // exact closed session-consumer operation
+		command.Dir, command.Env = directory, append([]string(nil), environment...)
+		output, err := command.CombinedOutput()
+		if err != nil {
+			return nil, &basementCoreProcessError{output: boundedBasementCoreProcessDiagnostic(output), cause: err}
+		}
+		return output, nil
+	}
 	if len(args) < 6 || args[0] != "compose" || args[1] != "--project-name" || (args[2] != "stackkit-cloud-core" && args[2] != "stackkit-cloud-core-standalone") ||
 		args[3] != "-f" || filepath.Clean(args[4]) != args[4] || filepath.Base(args[4]) != "compose.yaml" || filepath.Dir(args[4]) != directory ||
 		(!slices.Equal(args[5:], []string{"up", "-d"}) && !slices.Equal(args[5:], []string{"ps", "--all", "--format", "json"}) &&
+			!slices.Equal(args[5:], []string{"config", "--format", "json"}) &&
+			!slices.Equal(args[5:], cloudSessionRestoreArgs) &&
+			!slices.Equal(args[5:], cloudSessionStopTinyAuthArgs) &&
 			!slices.Equal(args[5:], cloudCoreRecreateServerArgs)) {
 		return nil, errors.New("Cloud core process runner rejected an unbounded command")
 	}
@@ -416,6 +457,17 @@ func (osCloudCoreProcessRunner) Run(ctx context.Context, args []string, director
 		return nil, &basementCoreProcessError{output: boundedBasementCoreProcessDiagnostic(output), cause: err}
 	}
 	return output, nil
+}
+
+func validCloudSessionComposeArgs(args []string, directory string) bool {
+	if len(args) < 8 || !slices.Equal(args[:4], []string{"compose", "--project-name", "stackkit-cloud-core-standalone", "-f"}) ||
+		filepath.Clean(args[4]) != args[4] || filepath.Base(args[4]) != "compose.yaml" || filepath.Dir(args[4]) != directory ||
+		args[5] != "-f" || args[6] != filepath.Join(directory, "session-routing.yaml") {
+		return false
+	}
+	return slices.Equal(args[7:], []string{"up", "-d", "--wait", "--wait-timeout", "60", "--no-build", "--pull", "never", "--no-deps", "tinyauth", "hub"}) ||
+		slices.Equal(args[7:], []string{"config", "--format", "json"}) ||
+		slices.Equal(args[7:], []string{"ps", "--all", "--format", "json"})
 }
 
 var (

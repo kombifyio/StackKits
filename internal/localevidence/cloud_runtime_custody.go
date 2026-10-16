@@ -69,6 +69,9 @@ func EstablishCloudRuntimeCustody(workspaceRoot string, address IdentityRuntimeA
 		return CloudRuntimeCustody{}, loadErr
 	}
 
+	if err := address.ValidateSessionCookieScope(); err != nil {
+		return CloudRuntimeCustody{}, err
+	}
 	finalDirectory, err := confinedCustodyPath(workspaceRoot, cloudRuntimeCustodyRelDir)
 	if err != nil {
 		return CloudRuntimeCustody{}, err

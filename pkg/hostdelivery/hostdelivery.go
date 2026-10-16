@@ -52,6 +52,11 @@ const (
 	// OperationWalletItemRotate delivers a newer version of an item already in
 	// custody; the node removes every older version once it holds the new one.
 	OperationWalletItemRotate = "wallet-item-rotate"
+	// OperationWalletItemRemove tells the node to drop every version of the
+	// item DeliveryRef names from its local custody (WalletItemRemove). It
+	// carries no value; the Wallet sends it when the owner takes the item off
+	// the server or the server is withdrawn.
+	OperationWalletItemRemove = "wallet-item-remove"
 	// OperationSSHCATrust delivers the owner's SSH user CA public keys and the
 	// principals each local user accepts (SSHCATrust). An empty key list
 	// revokes the trust like OperationSSHCARevoke.
@@ -95,6 +100,7 @@ var operations = map[string]OperationSpec{
 	OperationBackupTargetRebind: {MaxPlaintextBytes: MaxPlaintextBytes, Secret: true},
 	OperationWalletItemImport:   {MaxPlaintextBytes: MaxWalletItemPlaintextBytes, AuthoritySigned: true, Secret: true},
 	OperationWalletItemRotate:   {MaxPlaintextBytes: MaxWalletItemPlaintextBytes, AuthoritySigned: true, Secret: true},
+	OperationWalletItemRemove:   {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true},
 	OperationSSHCATrust:         {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true},
 	OperationSSHCARevoke:        {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true},
 	OperationSSHHostCertificate: {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true},
@@ -127,6 +133,9 @@ type SSHCATrust struct {
 
 // SSHCARevoke is the plaintext of OperationSSHCARevoke, encoded as {}.
 type SSHCARevoke struct{}
+
+// WalletItemRemove is the plaintext of OperationWalletItemRemove, encoded as {}.
+type WalletItemRemove struct{}
 
 // SSHHostCertificate is the plaintext of OperationSSHHostCertificate: one
 // OpenSSH host certificate line for a key this server already holds.

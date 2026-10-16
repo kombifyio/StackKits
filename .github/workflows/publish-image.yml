@@ -23,7 +23,8 @@ permissions:
 jobs:
   publish-image:
     name: Publish StackKit Server image
-    if: github.repository == 'kombifyio/StackKits'
+    # Nightly preview prereleases (vX.Y.Z-preview.<date>.<sha>) publish no image.
+    if: github.repository == 'kombifyio/StackKits' && !contains(github.event.release.tag_name || inputs.tag, '-preview.')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:

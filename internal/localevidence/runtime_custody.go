@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"go.step.sm/crypto/pemutil"
 )
 
@@ -530,6 +531,19 @@ func (a IdentityRuntimeAddress) PocketIDOrigin() string {
 // TinyAuthOrigin is TinyAuth's public URL.
 func (a IdentityRuntimeAddress) TinyAuthOrigin() string {
 	return "https://" + a.ServiceHost("auth")
+}
+
+// ValidateSessionCookieScope runs before fixing a new identity origin. Me's
+// shared parent cannot isolate a session shared by this installation's hosts;
+// the edge correctly removes that cross-tenant cookie Domain. An allocated
+// install zone or an own domain provides the required private parent scope.
+// Loading established custody remains possible for diagnosis and removal.
+func (a IdentityRuntimeAddress) ValidateSessionCookieScope() error {
+	if strings.EqualFold(strings.TrimSuffix(strings.TrimSpace(a.Domain), "."), "kombify.me") {
+		return actionableerror.WithDiagnostic("identity_cookie_scope_requires_install_zone",
+			errors.New("identity session requires an installation-owned cookie scope"))
+	}
+	return nil
 }
 
 func (a IdentityRuntimeAddress) valid() bool {

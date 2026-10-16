@@ -40,6 +40,7 @@ type HomeAssistantOwnerRequest struct {
 	// OIDC is supplied only from verified StackKits owner custody.
 	CompleteOnboarding bool
 	OIDC               *HomeAssistantOIDCBinding
+	MQTT               *HomeAssistantMQTTRequest
 	Username           string
 	Password           string
 	DisplayName        string
@@ -51,6 +52,7 @@ type HomeAssistantOwnerRequest struct {
 // setup. A successful return proves the current authenticated user is both an
 // owner and an administrator; onboarding completion is reported separately.
 type HomeAssistantOwnerResult struct {
+	MQTT               *HomeAssistantMQTTEvidence      `json:"mqtt,omitempty"`
 	Connector          *HomeAssistantConnectorEvidence `json:"connector,omitempty"`
 	UserID             string                          `json:"userId"`
 	UserIsOwner        bool                            `json:"userIsOwner"`
@@ -261,6 +263,14 @@ func BootstrapHomeAssistantOwner(
 		return result, errors.New("Home Assistant onboarding did not converge")
 	}
 	var connectorEvidence *HomeAssistantConnectorEvidence
+	var mqttEvidence *HomeAssistantMQTTEvidence
+	if request.MQTT != nil {
+		configured, err := configureHomeAssistantMQTT(ctx, client, baseURL, accessToken, *request.MQTT)
+		if err != nil {
+			return result, err
+		}
+		mqttEvidence = &configured
+	}
 	if connector != nil {
 		connectorEvidence, err = connector.apply(ctx, client, accessToken, user.ID)
 		if err != nil {
@@ -268,6 +278,7 @@ func BootstrapHomeAssistantOwner(
 		}
 	}
 	return HomeAssistantOwnerResult{
+		MQTT:               mqttEvidence,
 		Connector:          connectorEvidence,
 		UserID:             strings.TrimSpace(user.ID),
 		UserIsOwner:        *user.IsOwner,

@@ -394,6 +394,18 @@
           "protocol": "rest",
           "purpose": "HTTP health and library access. Jellyfin has no native product MCP.",
           "auth": "jellyfin-auth"
+        },
+        {
+          "id": "navidrome",
+          "protocol": "rest",
+          "purpose": "Native administrator/library setup and Subsonic-compatible music playback. No native product MCP.",
+          "auth": "navidrome-self-auth"
+        },
+        {
+          "id": "audiobookshelf",
+          "protocol": "rest",
+          "purpose": "Native administrator/library setup, audiobook streaming and per-user listening progress. No native product MCP.",
+          "auth": "audiobookshelf-self-auth"
         }
       ],
       "skills": [
@@ -402,6 +414,18 @@
           "audience": "product-user",
           "source": "stackkits",
           "path": "use-cases/media/agent/owner-setup/SKILL.md"
+        },
+        {
+          "id": "music-library",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/media/agent/music-library/SKILL.md"
+        },
+        {
+          "id": "audiobook-library",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/media/agent/audiobook-library/SKILL.md"
         }
       ],
       "cliHelpers": [

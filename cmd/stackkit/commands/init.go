@@ -78,8 +78,9 @@ The standalone local path works without a kombify account or Techstack.
 
 Start with the selected Kit's catalog defaults. --owner-source=local keeps the
 owner on this machine and needs --owner-email for the local PocketID owner.
-Cloud Kit uses a kombify.me address unless --domain names a domain that
-already points at this host.
+Cloud Kit local ownership requires --domain with your own domain or an
+allocated <zone>.kombify.me install zone. The shared kombify.me parent cannot
+isolate this installation's login cookies. DNS may be configured after init.
 
 Review the saved configuration before generating or applying it. Defaults
 are recorded as explicit intent and validated by the Kit's CUE contract.
@@ -101,9 +102,9 @@ are accepted only by an explicitly versioned v0.6 binary.`,
   # Basement Kit with the optional Photos and Files use cases
   stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case photos,files
 
-  # Cloud Kit for a public VPS on a kombify.me address
+  # Cloud Kit for a public VPS with an allocated kombify.me install zone
   mkdir my-cloud && cd my-cloud
-  stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com
+  stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain your-zone.kombify.me
 
   # Cloud Kit on your own domain, without prompts (for scripts)
   stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain example.com --non-interactive

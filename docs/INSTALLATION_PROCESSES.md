@@ -11,10 +11,10 @@ identity; it is not a Kombify signup.
 
 Standalone Compose is the complete primary experience, including applications.
 The CLI is an optional user-facing interface to the shared lifecycle, not a
-full edition. New native stacks use the CUE standalone defaults. Komodo is
-the explicit operations-platform path; Marketplace installs Coolify as an
-optional application, not a runtime target. Support requires a current-pin
-receipt; Dokploy is not pursued. See
+full edition. New native stacks use the CUE standalone defaults (the beta
+path). Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and later
+runtime targets; Marketplace additionally installs Coolify as the engine of its
+use case. Support requires a current-pin receipt. See
 [ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md).
 
 ## Scope
@@ -104,7 +104,7 @@ Every StackKits installation path should collect the same small set of decisions
 | Target context | Selects environment defaults, not a private-network assumption | `local`, `cloud`, `pi` |
 | Domain strategy | Determines routing, access links, and DNS/TLS evidence | Owner-CA `*.lab.home` with enrolled clients, `kombify.me`, or a custom domain |
 | Owner/admin email | Seeds identity, platform setup, and technical bootstrap material | operator email, tenant-provided owner, synthetic local-only email for tests |
-| Workload execution | Determines the selected workload's execution owner | Standalone Compose by default; explicit Komodo operations platform; Marketplace on Coolify is planned application work. Current-pin receipts admit support; Dokploy is not pursued |
+| Workload execution | Determines the selected workload's execution owner | Standalone Compose by default; Coolify, Komodo and Dokploy are planned Layer-2 PaaS platforms; Marketplace on Coolify is planned application work. Current-pin receipts admit support |
 | Service profile | Controls how much of the default application surface is enabled | `default`, `admin-only` |
 | Apply approval | Separates preview from mutation | explicit shell approval or MCP write gate |
 
@@ -498,6 +498,8 @@ Important environment variables (each pre-seeds one decision):
 | `STACKKIT_SERVER_IMAGE` | stackkit-server image override (skips the local build). |
 | `STACKKIT_INSTALL_URL` | Alternate published release-installer endpoint for fixtures or mirrors. |
 | `STACKKIT_RELEASE_VERSION` | Exact release tag consumed by the shared installer when testing a candidate. |
+| `STACKKIT_CHANNEL` | Release channel, `stable` (default) or `preview` ("Nightly", unsigned). Same as `install.sh --channel`; `stackkit channel set` saves it in `~/.stackkits/channel`. An unknown value fails closed. |
+| `STACKKIT_ALLOW_DOWNGRADE` | `1` lets the stable channel replace a newer running preview build; otherwise the installer keeps it until a stable release at least as new exists. |
 
 Account-free Standard Mode, core only, with all decisions supplied:
 

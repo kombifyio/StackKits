@@ -90,7 +90,7 @@ and include:
 - Rollout evidence lives under `.stackkit/runs/<runId>/` locally and may be mirrored to Admin/TechStack only after redaction.
 - Failure output must classify setup, auth, routing, image, platform, or app-layer causes without dumping provider tokens.
 - Open P0 Beads blockers that affect BaseKit production behavior must be closed with evidence before an Enterprise release is announced; non-core P1 deferrals must be labeled outside the Enterprise claim.
-- The complete native standalone application lifecycle is core Enterprise scope. Optional Marketplace/Coolify and Komodo operations are admitted separately by current-pin receipts; Dokploy is not pursued.
+- The complete native standalone application lifecycle is core Enterprise scope. The Layer-2 PaaS platforms (Coolify, Komodo, Dokploy) and Marketplace on Coolify are admitted separately by current-pin receipts.
 
 ## Current Blockers
 

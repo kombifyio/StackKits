@@ -24,7 +24,7 @@ func newAddressCommand() *cobra.Command {
 		Short:       "Plan and bind secret-free public service addresses",
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	}
-	command.AddCommand(newAddressPlanCommand(), newAddressBindCommand())
+	command.AddCommand(newAddressPlanCommand(), newAddressBindCommand(), newAddressSessionZoneCommand())
 	return command
 }
 

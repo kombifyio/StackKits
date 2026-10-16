@@ -106,7 +106,12 @@ async function projectNativeKit(profileId, definition, useCases, modules, worklo
     planner_link: `${plannerPath}?stackkit_id=${stackkitId}`,
     modules: projectedModules,
     use_cases: kitUseCases,
-    required_authoring_inputs: stringArray(authoring.requiredOverrides ?? [], `${profileId}.authoring.requiredOverrides`, false).sort(),
+    required_authoring_inputs: [
+      ...stringArray(authoring.requiredOverrides ?? [], `${profileId}.authoring.requiredOverrides`, false),
+      // The native local-owner handoff needs both a desired identity and the
+      // target's Inventory; browser-declared capacity is never an attestation.
+      ...(authoring.standaloneOwner?.source === "local" ? ["owner.email", "inventory.path"] : []),
+    ].sort(),
   };
 }
 

@@ -586,30 +586,65 @@ func (c *Client) RetireOneTimeAccessToken(ctx context.Context, token string) err
 
 // RegisterClientRequest is the payload for RegisterOIDCClient.
 type RegisterClientRequest struct {
-	RequiresReauthentication bool     `json:"requiresReauthentication"`
-	ID                       string   `json:"id,omitempty"`
-	Name                     string   `json:"name"`
-	CallbackURLs             []string `json:"callbackURLs"`
-	IsPublic                 bool     `json:"isPublic"`
-	PkceEnabled              bool     `json:"pkceEnabled,omitempty"`
-	IsGroupRestricted        bool     `json:"isGroupRestricted"`
+	Description                         string                `json:"description,omitempty"`
+	RequiresPushedAuthorizationRequests bool                  `json:"requiresPushedAuthorizationRequests,omitempty"`
+	SkipConsent                         bool                  `json:"skipConsent,omitempty"`
+	HasLogo                             bool                  `json:"hasLogo,omitempty"`
+	HasDarkLogo                         bool                  `json:"hasDarkLogo,omitempty"`
+	AccessTokenDurationMinutes          int64                 `json:"accessTokenDurationMinutes,omitempty"`
+	RefreshTokenDurationMinutes         int64                 `json:"refreshTokenDurationMinutes,omitempty"`
+	RequiresReauthentication            bool                  `json:"requiresReauthentication"`
+	ID                                  string                `json:"id,omitempty"`
+	Name                                string                `json:"name"`
+	CallbackURLs                        []string              `json:"callbackURLs"`
+	IsPublic                            bool                  `json:"isPublic"`
+	PkceEnabled                         bool                  `json:"pkceEnabled,omitempty"`
+	IsGroupRestricted                   bool                  `json:"isGroupRestricted"`
+	LogoutCallbackURLs                  []string              `json:"logoutCallbackURLs"`
+	LaunchURL                           *string               `json:"launchURL"`
+	Credentials                         OIDCClientCredentials `json:"credentials"`
+}
+
+type OIDCClientCredentials struct {
+	FederatedIdentities []json.RawMessage `json:"federatedIdentities"`
 }
 
 // OIDCClient describes a registered OIDC client. Secret is only populated
 // after CreateClientSecret returns.
 type OIDCClient struct {
-	Credentials struct {
-		FederatedIdentities []json.RawMessage `json:"federatedIdentities"`
-	} `json:"credentials"`
-	RequiresReauthentication bool        `json:"requiresReauthentication"`
-	PkceEnabled              bool        `json:"pkceEnabled"`
-	ID                       string      `json:"id"`
-	Name                     string      `json:"name"`
-	CallbackURLs             []string    `json:"callbackURLs"`
-	IsPublic                 bool        `json:"isPublic"`
-	IsGroupRestricted        bool        `json:"isGroupRestricted"`
-	AllowedUserGroups        []UserGroup `json:"allowedUserGroups,omitempty"`
-	Secret                   string      `json:"-"`
+	Description                         string                `json:"description,omitempty"`
+	RequiresPushedAuthorizationRequests bool                  `json:"requiresPushedAuthorizationRequests,omitempty"`
+	SkipConsent                         bool                  `json:"skipConsent,omitempty"`
+	HasLogo                             bool                  `json:"hasLogo,omitempty"`
+	HasDarkLogo                         bool                  `json:"hasDarkLogo,omitempty"`
+	AccessTokenDurationMinutes          int64                 `json:"accessTokenDurationMinutes,omitempty"`
+	RefreshTokenDurationMinutes         int64                 `json:"refreshTokenDurationMinutes,omitempty"`
+	Credentials                         OIDCClientCredentials `json:"credentials"`
+	RequiresReauthentication            bool                  `json:"requiresReauthentication"`
+	PkceEnabled                         bool                  `json:"pkceEnabled"`
+	ID                                  string                `json:"id"`
+	Name                                string                `json:"name"`
+	CallbackURLs                        []string              `json:"callbackURLs"`
+	LogoutCallbackURLs                  []string              `json:"logoutCallbackURLs"`
+	LaunchURL                           *string               `json:"launchURL"`
+	IsPublic                            bool                  `json:"isPublic"`
+	IsGroupRestricted                   bool                  `json:"isGroupRestricted"`
+	AllowedUserGroups                   []UserGroup           `json:"allowedUserGroups,omitempty"`
+	Secret                              string                `json:"-"`
+}
+
+// Settings preserves client policy replaced by PocketID v2.7 and v2.16 PUT.
+// Groups and client secrets have separate endpoints and are never recreated.
+func (c OIDCClient) Settings() RegisterClientRequest {
+	return RegisterClientRequest{
+		Description: c.Description, RequiresPushedAuthorizationRequests: c.RequiresPushedAuthorizationRequests,
+		SkipConsent: c.SkipConsent, HasLogo: c.HasLogo, HasDarkLogo: c.HasDarkLogo,
+		AccessTokenDurationMinutes: c.AccessTokenDurationMinutes, RefreshTokenDurationMinutes: c.RefreshTokenDurationMinutes,
+		ID: c.ID, Name: c.Name, CallbackURLs: append([]string(nil), c.CallbackURLs...),
+		LogoutCallbackURLs: append([]string(nil), c.LogoutCallbackURLs...), LaunchURL: c.LaunchURL,
+		RequiresReauthentication: c.RequiresReauthentication, IsPublic: c.IsPublic,
+		PkceEnabled: c.PkceEnabled, IsGroupRestricted: c.IsGroupRestricted, Credentials: c.Credentials,
+	}
 }
 
 // GetOIDCClient reads the exact client including its allowed group projection.

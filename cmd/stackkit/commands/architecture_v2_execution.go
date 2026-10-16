@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/agentsurface"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/applyledger"
@@ -488,6 +489,10 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 	execute := func(transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
 		persisted, err := authority.ReadCanonicalPlan(planPath)
 		if err != nil {
+			var planError *generationartifact.Error
+			if errors.As(err, &planError) && planError.Code == generationartifact.ErrInvalidPlan {
+				return actionableerror.WithDiagnostic("stored_plan_invalid", err)
+			}
 			return err
 		}
 		if mode != architectureV2Generate {

@@ -55,6 +55,9 @@ modeMatrix: foundation.#KitModeSupport & {
 		// (release:mode-matrix-citations failed on main); no runtime evidence
 		// for either adapter exists under docs/data, so both drop to "draft"
 		// (implemented, unproven) until a real receipt cites them.
+		// Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms
+		// (STACKKITS-PRODUCT-BOUNDARY-STANDARD, owner 2026-10-15). Coolify is
+		// also the Marketplace application, in addition to this platform role.
 		coolify: "draft"
 		komodo:  "draft"
 		dokploy: "draft"

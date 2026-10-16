@@ -31,6 +31,10 @@ func DescribeNativeAction(action string, support NativeActionSupport) (NativeAct
 // executing it for a selected runtime target.
 func NativeActionMetadata(action string) (NativeActionDescription, bool) {
 	switch action {
+	case AudiobookshelfOwnerBootstrapAction:
+		return NativeActionDescription{Title: "Audiobook owner and library setup", CredentialFields: []string{"username", "password"}, CredentialsFile: ".stackkit/setup/media-audiobooks-owner.json", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/media/agent/audiobook-library/SKILL.md"}, true
+	case NavidromeOwnerBootstrapAction:
+		return NativeActionDescription{Title: "Music owner and library setup", CredentialFields: []string{"username", "password"}, CredentialsFile: ".stackkit/setup/media-music-owner.json", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/media/agent/music-library/SKILL.md"}, true
 	case AdguardHomePolicyAction:
 		return NativeActionDescription{Title: "Selected-client DNS policy check", GuideURL: "https://github.com/kombifyio/stackKits/blob/main/use-cases/network/agent/dns-policy/SKILL.md"}, true
 	case NtfyLiveDeliveryAction:

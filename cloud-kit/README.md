@@ -19,16 +19,28 @@ kit definition binds the cloud-specific networking, ingress, DNS, and TLS deltas
 
 | Concern | Basement Kit | Cloud Kit |
 |---|---|---|
-| TLS | self-signed, `*.home.localhost` | Let's Encrypt (ACME) on a real domain |
-| Access | host ports, private IP | reverse proxy, public IP |
-| Domain | optional (`.home.localhost`) | required (own/custom domain or `kombify.me`) |
+| TLS | Kit CA with device enrollment for LAN routes; declared public routes use their certificate provider | Let's Encrypt (ACME) on a public domain |
+| Origin | LAN host with admitted public access | Public origin with the same router and identity ownership rules |
+| Domain | `lab.home` LAN zone by default; own/custom public domain or `*.kombify.me` through the admitted access path | Required own/custom domain or `kombify.me` |
 | Installer | `base.stackkit.cc` | `cloud.stackkit.cc` |
 
 The native platform baseline (standalone Compose, PocketID + TinyAuth identity,
 Uptime Kuma, explicitly selected applications) and the Golden-Rules contract are identical — see [basement-kit/README.md](../basement-kit/README.md)
-for the shared platform and security details. Coolify is the optional Marketplace
-application, outside the default core; Komodo is the planned operations platform.
-Dokploy is not pursued. Current-pin runtime receipts govern support claims.
+for the shared platform and security details. Coolify, Komodo and Dokploy are the
+Layer-2 PaaS platforms and later runtime targets, required for 1.0 alongside the
+Compose default;
+Marketplace additionally installs Coolify as the engine of its use case. Current-pin runtime receipts govern support claims.
+
+Remote reachability is a platform promise for both kits. Each installation
+uses its own domain or a `*.kombify.me` address through the declared access
+path; device enrollment establishes client trust for Kit-CA LAN routes.
+
+Marketplace keeps the customer-facing name **Marketplace** and technical slug
+`marketplace`. Its optional Coolify application coexists with the Cloud Core's
+router and PocketID/TinyAuth identity path. The current released catalog can
+describe an executable application while its compute tiers remain excluded
+until the corresponding runtime receipts exist. Cloud-specific Marketplace
+Apply acceptance remains pending; Basement checkpoints do not establish it.
 
 ## Requirements
 

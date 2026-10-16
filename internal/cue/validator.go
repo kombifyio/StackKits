@@ -199,14 +199,13 @@ func (v *Validator) ValidateSpec(spec *models.StackSpec) (*models.ValidationResu
 	validateSetupPolicyMaps(spec, result)
 	validatePlatformFallback(spec, result)
 
-	// Normal StackKits must deploy through a supported platform adapter.
-	// Dockge is kept only as a constrained experimental compose manager, and
-	// "none" would allow platform bypasses.
+	// An explicit legacy PaaS choice must name a supported platform adapter.
+	// Omission selects no PaaS; Marketplace is an optional application.
 	if spec.PAAS != "" && !models.IsSupportedPAAS(spec.PAAS) && !platformFallbackEnabled(spec) {
 		result.Valid = false
 		result.Errors = append(result.Errors, models.ValidationError{
 			Path:    "paas",
-			Message: fmt.Sprintf("invalid paas '%s': normal StackKits must use coolify or komodo; dokploy is draft-only; remove paas to use the default coolify resolver", spec.PAAS),
+			Message: fmt.Sprintf("invalid paas '%s': choose coolify or komodo explicitly, or omit paas for no PaaS; dokploy is not pursued", spec.PAAS),
 			Code:    "INVALID_VALUE",
 		})
 	}

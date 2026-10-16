@@ -661,6 +661,25 @@ func (c *Controller) runtimeTarget(definition serviceDefinition, authority runti
 		}
 		return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: ref.ExternalID, HTTPConfig: cfg}, nil
 	}
+	project := "stackkit-" + definition.RuntimeRef
+	present, err := platformdeploy.HasOwnerHostDeployment(c.workspace, project)
+	if err != nil {
+		return runtimeTarget{}, err
+	}
+	if present {
+		state, err := platformdeploy.LoadOwnerHostDeployment(c.workspace, project)
+		if err != nil {
+			return runtimeTarget{}, err
+		}
+		if err = platformdeploy.RequireHostDeploymentManager(state, "komodo"); err != nil {
+			return runtimeTarget{}, err
+		}
+		cfg, err := platformdeploy.LoadOwnerKomodoConfigForServer(context.Background(), c.workspace, state.ServerID)
+		if err != nil {
+			return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied Komodo configuration is unavailable: " + err.Error()}
+		}
+		return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: state.Deployment.ExternalID, HTTPConfig: cfg}, nil
+	}
 	cfg, err := platformdeploy.LoadOwnerKomodoConfig(c.workspace)
 	if err != nil {
 		return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied Komodo configuration is unavailable: " + err.Error()}

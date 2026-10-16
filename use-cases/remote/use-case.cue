@@ -46,7 +46,7 @@ Package: foundation.#UseCasePackage & {
 	computeTiers: {
 		low: {included: true, moduleSlug: "guacamole", functions: ["browser-remote-access", "remote-session"], load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}, notes: ["Same normal remote-session recipe with a smaller aggregate policy envelope. Physical small-device and whole-case acceptance remain pending."]}
 		standard: {included: true, moduleSlug: "guacamole", functions: ["browser-remote-access", "remote-session"], load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}, notes: ["Aggregate Guacamole/guacd demand is measured; declared allocation remains separate. Destination/browser resources belong to the destination/client."]}
-		high: {included: true, moduleSlug: "guacamole", functions: ["browser-remote-access", "remote-session"], load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}, notes: ["Same normal remote-session recipe with a larger aggregate policy envelope. No named measured high benefit or physical/V1 support is inferred."]}
+		high: {included: true, moduleSlug: "guacamole", functions: ["browser-remote-access", "remote-session"], load: {residency: "always-on", baseline: "idle-resident", burst: "interactive"}, notes: ["Same normal remote-session recipe with a larger aggregate policy envelope. Faster container-cold startup than Low was observed on one development host; client capacity, physical/V1 support and whole-case qualification remain pending."]}
 	}
 
 	tools: guacamole: {

@@ -19,7 +19,7 @@ const (
 	cloudStandaloneCoreComposeTemplate  = "builtin://cloud/core-standalone/compose/v1.yaml"
 	cloudStandaloneCoreComposeOutputRef = "platform/cloud-core-standalone/compose.yaml"
 	cloudStandaloneCoreVersion          = "1.0.0"
-	cloudStandaloneCoreComposeSchema    = `stackkit.cloud-core-standalone-compose/v1|artifact-revision:9|resolved-network-domain:required|resolved-subdomain-prefix:optional|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,hub,stackkit-server,kopia-agent|networks:cloud-core-host-reachable,cloud-control-internal,cloud-backup-outbound-no-peer,issuer-router-alias|kopia:owner-local-source-policy|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01,tls-alpn-bypass-websecure|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
+	cloudStandaloneCoreComposeSchema    = `stackkit.cloud-core-standalone-compose/v1|artifact-revision:10|resolved-network-domain:required|resolved-subdomain-prefix:optional|session-routes:canonical-pair,immutable-pocketid|runtime-listeners:catalog-bound,direct-loopback-only|services:router,socket-proxy,pocketid,tinyauth,hub,stackkit-server,kopia-agent|networks:cloud-core-host-reachable,cloud-control-internal,cloud-backup-outbound-no-peer,issuer-router-alias|kopia:owner-local-source-policy|public-routes:declared-default-closed|credentials:service-scoped-owner-signed-cloud-runtime-custody|external-backup:required-before-apply|public-tls:separate-owner-traefik-acme-http-01,tls-alpn-bypass-websecure|ingress:forward-auth-bound|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources`
 )
 
 type cloudCoreEndpointProfile struct {
@@ -168,11 +168,16 @@ func renderCloudCoreUnit(ctx context.Context, unit RenderUnit, contract Renderer
 	}
 	prefix, _ := unit.NetworkSubdomainPrefix()
 	output := renderSiteListenerBindings(unit, profile.renderCompose(domain, prefix))
+	topology, err := cloudSessionTopology(unit)
+	if err != nil {
+		return nil, wrap(ErrInvalidPlan, path+".routes", "resolve Cloud session routes", err)
+	}
+	output = renderCloudSessionTopology(output, cloudDefaultSessionTopology(domain, prefix), topology)
 	if err := validateRuntimeListenerComposeParity(unit.RuntimeListenersJSON(), output, path+".runtimeListeners"); err != nil {
 		return nil, err
 	}
 	output = renderKopiaSourceVolumeBinds(unit, output)
-	output, err := renderTinyAuthRouteACLs(unit, output)
+	output, err = renderTinyAuthRouteACLs(unit, output)
 	if err != nil {
 		return nil, err
 	}
@@ -241,6 +246,12 @@ func ValidateCloudStandaloneCoreComposeArtifact(content []byte) bool {
 		return false
 	}
 	expected := RenderCloudStandaloneCoreComposeForAddress(domain, prefix)
+	before := cloudDefaultSessionTopology(domain, prefix)
+	topology, topologyOK := cloudArtifactSessionTopology(content, before)
+	if !topologyOK {
+		return false
+	}
+	expected = renderCloudSessionTopology(expected, before, topology)
 	core, err := localbackuppolicy.GovernedSourceForCoreModule(cloudStandaloneCoreModuleID)
 	if err != nil {
 		return false

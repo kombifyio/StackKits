@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 )
 
@@ -41,7 +42,11 @@ func NewOSKomodoWorkloadOperations(workspace string) (SelectedPaaSWorkloadOperat
 }
 
 func (o *osKomodoWorkloadOperations) ApplyWorkload(ctx context.Context, deployment SelectedPaaSWorkloadDeployment) (SelectedPaaSApplyReceipt, error) {
-	cfg, err := platformdeploy.LoadOwnerKomodoConfig(o.workspace)
+	// Establish signing custody before the platform API can create or update a stack.
+	if _, err := localevidence.LoadOwnerCustody(o.workspace); err != nil {
+		return SelectedPaaSApplyReceipt{}, err
+	}
+	cfg, err := platformdeploy.LoadOwnerNativeKomodoConfig(ctx, o.workspace)
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
@@ -61,7 +66,7 @@ func (o *osKomodoWorkloadOperations) ApplyWorkload(ctx context.Context, deployme
 		}
 		if err != nil || state.WorkloadRef != deployment.WorkloadRef || state.NodeRef != deployment.NodeRef ||
 			state.SiteRef != deployment.SiteRef || state.ServerID != cfg.ServerID {
-			return SelectedPaaSApplyReceipt{}, errors.New("existing Komodo project belongs to another node binding")
+			return SelectedPaaSApplyReceipt{}, errors.New("existing Komodo project requires an explicit transition to the selected native Core before Apply")
 		}
 		prior = state
 	} else {
@@ -97,8 +102,8 @@ func (o *osKomodoWorkloadOperations) ApplyWorkload(ctx context.Context, deployme
 		WorkloadRef: deployment.WorkloadRef, InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest,
 		SiteRef: deployment.SiteRef, NodeRef: deployment.NodeRef, ServerID: cfg.ServerID, Deployment: ref,
 	}
-	state.Manager, state.Handover = prior.Manager, prior.Handover
-	if err := platformdeploy.SaveOwnerHostDeployment(o.workspace, prepared.ProjectName, state); err != nil {
+	state.Handover = prior.Handover
+	if err := persistKomodoDeployment(o.workspace, prepared.ProjectName, state); err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	ref.DeploymentID, err = adapter.Deploy(ctx, ref)
@@ -111,7 +116,7 @@ func (o *osKomodoWorkloadOperations) ApplyWorkload(ctx context.Context, deployme
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	state.Deployment = ref
-	if err := platformdeploy.SaveOwnerHostDeployment(o.workspace, prepared.ProjectName, state); err != nil {
+	if err := persistKomodoDeployment(o.workspace, prepared.ProjectName, state); err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	if err := o.prepared.CompleteWorkloadCompose(ctx, prepared); err != nil {
@@ -120,13 +125,20 @@ func (o *osKomodoWorkloadOperations) ApplyWorkload(ctx context.Context, deployme
 	return SelectedPaaSApplyReceipt{InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest, Status: "applied"}, nil
 }
 
+// A native Komodo Apply always establishes an explicit signed manager claim,
+// including when it refreshes an installation's older implicit v1 claim.
+func persistKomodoDeployment(workspace, project string, state platformdeploy.HostDeployment) error {
+	state.Manager = "komodo"
+	return platformdeploy.SaveOwnerHostDeployment(workspace, project, state)
+}
+
 func (o *osKomodoWorkloadOperations) ObserveWorkload(ctx context.Context, deployment SelectedPaaSWorkloadDeployment) (SelectedPaaSWorkloadObservation, error) {
 	project := "stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef
 	state, err := platformdeploy.LoadOwnerHostDeployment(o.workspace, project)
 	if err != nil {
 		return SelectedPaaSWorkloadObservation{}, err
 	}
-	cfg, err := platformdeploy.LoadOwnerKomodoConfig(o.workspace)
+	cfg, err := platformdeploy.LoadOwnerKomodoConfigForServer(ctx, o.workspace, state.ServerID)
 	if err != nil {
 		return SelectedPaaSWorkloadObservation{}, err
 	}

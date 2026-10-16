@@ -19,7 +19,7 @@ const (
 )
 
 const mosquittoWorkloadRendererSchema = `stackkit.workload-bundle/v3|MosquittoWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:mosquitto|release:` +
-	mosquittoRelease + `|secret-material:mqtt-password-reference|lan-listener:1883-owner-setting|compute:module-compute-profile-v1|limits:reservation-plus-headroom|mqtt-flow-control:upstream-count-bounds`
+	mosquittoRelease + `|secret-material:mqtt-password-reference|lan-listener:1883-owner-setting|compute:module-compute-profile-v1|limits:reservation-plus-headroom|mqtt-flow-control:upstream-count-bounds|home-assistant-link:owner-setting-private-peer-network`
 
 type MosquittoWorkloadBundleDescriptor struct {
 	WorkloadRef string
@@ -164,7 +164,7 @@ func validateMosquittoWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
-	deliveryRoute, settings, err := validateApplicationDeliveryInputsWithSettings(routeUnit, mosquittoWorkloadModuleID, "smart-home-mqtt", 8080, []string{"lan-listener"}, path+".inputs")
+	deliveryRoute, settings, err := validateApplicationDeliveryInputsWithSettings(routeUnit, mosquittoWorkloadModuleID, "smart-home-mqtt", 8080, []string{"lan-listener", "home-assistant-link"}, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -193,6 +193,15 @@ func validateMosquittoWorkloadUnit(unit RenderUnit, contract RendererContract) (
 		return selectedPaaSWorkloadBundle{}, wrap(ErrInvalidPlan, path+".runtime.components", "decode closed component graph", err)
 	}
 	for index := range components {
+		var link bool
+		if raw, ok := settings["home-assistant-link"]; ok {
+			if err := json.Unmarshal(raw, &link); err != nil {
+				return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs.home-assistant-link", "requires an explicit boolean")
+			}
+		}
+		if !link {
+			components[index].PeerNetworks = nil
+		}
 		if !mosquittoCommandMatches(components[index].Command) {
 			return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components.command", "catalog command differs from the pinned broker command")
 		}
@@ -262,6 +271,11 @@ func validateMosquittoRuntimeComponents(components []selectedPaaSRuntimeComponen
 }
 
 func validateMosquittoRuntimeComponentsAgainst(components []selectedPaaSRuntimeComponent, command []string, limits *selectedPaaSRuntimeLimits, imageRef, imageDigest, path string) ([]selectedPaaSRuntimeComponent, error) {
+	for _, component := range components {
+		if err := validatePeerNetworks(mosquittoWorkloadModuleID, component, path); err != nil {
+			return nil, err
+		}
+	}
 	if len(components) != 1 || components[0].ID != "mosquitto" || components[0].Lifecycle != "daemon" ||
 		components[0].Image.Ref != imageRef || components[0].Image.Digest != imageDigest ||
 		components[0].Health.Kind != "http" || components[0].Health.Path != "/api/v1/systree" || components[0].Health.Port != 8080 || !sameEnvironment(components[0].Environment, mosquittoEnvironment()) ||

@@ -68,9 +68,18 @@ type HomeAssistantConnectorObservation struct {
 	VerifiedLocalDeployment HomeAssistantConnectorDeployment        `json:"verifiedLocalDeployment"`
 }
 
+// HomeAssistantMQTTObservation binds the upstream effect to the broker artifact
+// admitted by the same Plan and signed Apply as the Home Assistant setup.
+type HomeAssistantMQTTObservation struct {
+	BrokerWorkloadRef    string                             `json:"brokerWorkloadRef"`
+	BrokerArtifactDigest string                             `json:"brokerArtifactDigest"`
+	Integration          appsetup.HomeAssistantMQTTEvidence `json:"integration"`
+}
+
 // SetupResult is a secret-free observation of the application API. It is
 // evidence for the existing application lifecycle, not a second setup state.
 type SetupResult struct {
+	HomeAssistantMQTT      *HomeAssistantMQTTObservation      `json:"homeAssistantMqtt,omitempty"`
 	HomeAssistantConnector *HomeAssistantConnectorObservation `json:"homeAssistantConnector,omitempty"`
 	APIVersion             string                             `json:"apiVersion"`
 	Authority              Authority                          `json:"authority"`
@@ -210,6 +219,7 @@ func (store Store) SetupRuns(contract Contract, applyResultHash, actionRef strin
 					run.PlanHash = contract.PlanHash
 					run.authenticated = true
 					run.HomeAssistantConnector = result.HomeAssistantConnector
+					run.HomeAssistantMQTT = result.HomeAssistantMQTT
 				} else {
 					run.Message = "setup receipt belongs to an earlier Plan or Apply"
 				}
@@ -330,6 +340,11 @@ func (store Store) readSetupResultBytes(contract Contract, operation Operation, 
 }
 
 func validateSetupResult(contract Contract, result SetupResult) error {
+	if mqtt := result.HomeAssistantMQTT; mqtt != nil {
+		if result.WorkloadRef != "smart-home" || result.ActionRef != "home-assistant-owner-bootstrap" || mqtt.BrokerWorkloadRef != "smart-home-mqtt" || !digestPattern.MatchString(mqtt.BrokerArtifactDigest) || strings.TrimSpace(mqtt.Integration.EntryID) == "" || !mqtt.Integration.BrokerRoundTripVerified || mqtt.Integration.Created == mqtt.Integration.ExistingPreserved {
+			return errors.New("Home Assistant MQTT observation does not prove its applied broker integration")
+		}
+	}
 	if connector := result.HomeAssistantConnector; connector != nil {
 		local, issuer := connector.VerifiedLocalDeployment, connector.Issuer
 		if result.ActionRef != "home-assistant-owner-bootstrap" || local.InstanceRef != result.InstanceRef || local.Node != issuer.RequestedBinding.Node || local.Node.SiteRef == "" || local.Node.NodeRef == "" || local.Node.ChannelRef == "" || local.ContainerID != issuer.RequestedBinding.ContainerID || local.ImageDigest != issuer.RequestedBinding.ImageDigest || !digestPattern.MatchString(local.ImageDigest) || !digestPattern.MatchString("sha256:"+local.ContainerID) || issuer.HAUserID != result.AccountRef || issuer.HAVersion != result.ApplicationVersion || !strings.HasPrefix(issuer.SecretRef, "secret://home-assistant/connector/") || issuer.ObservedAt.IsZero() || (issuer.Status != "active" && issuer.Status != "revoked") {

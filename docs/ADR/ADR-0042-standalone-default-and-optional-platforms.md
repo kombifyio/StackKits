@@ -3,7 +3,7 @@ adr: ADR-0042
 title: Standalone Compose default and optional platform adapters
 status: Accepted
 date: 2026-09-06
-last_verified: 2026-09-06
+last_verified: 2026-10-15
 ---
 
 # ADR-0042: Standalone Compose default and optional platform adapters
@@ -30,14 +30,27 @@ adapters, remains authoritative for product boundaries and is unchanged.
 
 [ADR-0049](ADR-0049-marketplace-use-case-coolify.md) and the
 [workspace ownership decision](https://github.com/kombify/kombify-workspace/blob/main/internal/records/DECISION-RECORD-2026-10-11-marketplace-ownership-and-runtime-targets.md)
-take precedence over the historical platform passages below. Coolify is the
-optional Marketplace application, outside the default core and not a runtime
-target. Komodo is the operations platform without a store; Dokploy is not
-pursued. Runtime targets are Compose now, Komodo later and k3s later.
+take precedence over the historical platform passages below for Marketplace
+ownership. Owner correction 2026-10-15: Coolify, Komodo and Dokploy are the
+Layer-2 PaaS platforms and later runtime targets (Compose now; Komodo, Coolify,
+Dokploy and k3s later); Coolify additionally runs the Marketplace use case.
 Standalone operation stays Standard Mode; Techstack-managed operation stays
 Advanced Mode. Existing installations retain explicit intent until a governed
 transition preserves identity, data and addresses. No support promotion follows
 from this amendment: it requires a lifecycle receipt at the current pin.
+
+## 2026-10-15 owner amendment: Compose default and PaaS both required for 1.0
+
+The owner decided on 2026-10-15 that standalone Compose ("bare metal"
+installation) stays the default for new selections until further PaaS
+platforms are available. Before StackKits 1.0, both paths are required: the
+Compose default and the Layer-2 PaaS platforms Coolify, Komodo and Dokploy,
+each executed through OpenTofu (ADR-0045). The PaaS work is P0 in the 1.0
+target (packages 13-16 and 51 in the workspace `STACKKITS-1.0-TARGET.md`),
+and the 1.0 compatibility tuples cover Compose and each PaaS platform. This
+amends, and does not supersede, the Decision below: the Compose default and
+the explicit-intent rules stay. No support promotion follows from this
+amendment; each platform needs a lifecycle receipt at the current pin.
 
 ## Decision
 

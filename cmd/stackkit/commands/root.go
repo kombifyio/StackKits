@@ -223,6 +223,7 @@ func init() {
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(contractProofCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(newChannelCommand())
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(appCmd)
 	rootCmd.AddCommand(compatCmd)
@@ -234,6 +235,7 @@ func init() {
 	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(newAddressCommand())
 	rootCmd.AddCommand(newNetworkCommand())
+	rootCmd.AddCommand(newRelocateCommand())
 	rootCmd.AddCommand(outputTransactionCmd)
 	rootCmd.AddCommand(user.NewCommandWithFilesProvisioner(nativeFilesHouseholdProvisioner{}))
 }

@@ -150,6 +150,21 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		if err := architectureV2RequireRealOwnerEmail(ownerEmail); err != nil {
 			return err
 		}
+		if stackkitName == "cloud-kit" {
+			address, err := architectureV2CanonicalAddress(validation.CanonicalStackSpec)
+			if err != nil {
+				return err
+			}
+			// Established identity custody remains loadable and resumable. A
+			// changed origin is separately refused by custody reconciliation.
+			if _, loadErr := localevidence.LoadCloudRuntimeCustody(wd); errors.Is(loadErr, localevidence.ErrCloudRuntimeCustodyMissing) {
+				if err := address.ValidateSessionCookieScope(); err != nil {
+					return err
+				}
+			} else if loadErr != nil {
+				return loadErr
+			}
+		}
 		ownerBinding, err = architectureV2CanonicalOwnerBinding(
 			validation.CanonicalStackSpec,
 			authoring.StandaloneOwner,

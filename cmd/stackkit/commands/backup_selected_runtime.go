@@ -76,10 +76,10 @@ func requireNativeBackupManagerDelivery(workspace string, targets []generationar
 		if state.WorkloadRef != target.WorkloadRef || state.InstanceRef != target.InstanceRef || state.SiteRef != binding.SiteRef || state.NodeRef != binding.NodeRef {
 			return fmt.Errorf("backup refuses workload custody for another instance or node")
 		}
-		if state.Handover != nil && state.Handover.Status != "succeeded" {
+		manager := platformdeploy.HostDeploymentManager(state)
+		if err := platformdeploy.RequireHostDeploymentManager(state, manager); err != nil {
 			return &pendingBackupManagerDelivery{workload: target.WorkloadRef, operation: state.Handover.ID}
 		}
-		manager := platformdeploy.HostDeploymentManager(state)
 		if manager != target.RuntimeAdapter.ID {
 			return &unsupportedBackupDelivery{workload: target.WorkloadRef, adapter: manager, planAdapter: target.RuntimeAdapter.ID}
 		}

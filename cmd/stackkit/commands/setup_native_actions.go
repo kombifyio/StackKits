@@ -25,6 +25,7 @@ type nativeOwnerSetupObservation struct {
 	Preparation            string
 	EmailVerification      string
 	HomeAssistantConnector *applicationlifecycle.HomeAssistantConnectorObservation
+	HomeAssistantMQTT      *applicationlifecycle.HomeAssistantMQTTObservation
 }
 
 func custodiedOwnerPasswordRef(deployment nativehost.SelectedPaaSWorkloadDeployment, action string) (string, error) {
@@ -51,6 +52,18 @@ func custodiedOwnerPasswordRef(deployment nativehost.SelectedPaaSWorkloadDeploym
 
 func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDeployment, action string, options nativeSetupOptions) error {
 	switch action {
+	case appsetup.AudiobookshelfOwnerBootstrapAction:
+		if options.completeOnboarding {
+			return errors.New("Audiobookshelf setup completes its native library bootstrap; omit --complete-onboarding")
+		}
+		_, err := architecturev2renderer.ParseAudiobookshelfWorkloadBundle(deployment.Bundle)
+		return err
+	case appsetup.NavidromeOwnerBootstrapAction:
+		if options.completeOnboarding {
+			return errors.New("Navidrome has no separate startup wizard; omit --complete-onboarding")
+		}
+		_, err := architecturev2renderer.ParseNavidromeWorkloadBundle(deployment.Bundle)
+		return err
 	case appsetup.AdguardHomePolicyAction:
 		if options.completeOnboarding || options.credentialsFile != "" {
 			return errors.New("Network policy check uses installed owner custody; omit credentials and onboarding flags")
@@ -148,6 +161,34 @@ func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDe
 
 func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, baseURL, workspace string, deployment nativehost.SelectedPaaSWorkloadDeployment, release, action string, options nativeSetupOptions) (observation nativeOwnerSetupObservation, returnErr error) {
 	switch action {
+	case appsetup.AudiobookshelfOwnerBootstrapAction:
+		var credentials struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		defer func() { credentials.Password = "" }()
+		observed, err := appsetup.BootstrapAudiobookshelfOwner(ctx, client, baseURL, appsetup.AudiobookshelfOwnerRequest{Username: credentials.Username, Password: credentials.Password, ExpectedVersion: release, AllowFirstOwnerRegistration: true})
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		return nativeOwnerSetupObservation{AccountRef: observed.AccountRef, Initialized: observed.AdminVerified, AdminLoginVerified: observed.AdminVerified, OnboardingComplete: observed.LibraryReady}, nil
+	case appsetup.NavidromeOwnerBootstrapAction:
+		var credentials struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err := readNativeSetupCredentialJSON(workspace, options.credentialsFile, &credentials); err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		defer func() { credentials.Password = "" }()
+		observed, err := appsetup.BootstrapNavidromeOwner(ctx, client, baseURL, appsetup.NavidromeOwnerRequest{Username: credentials.Username, Password: credentials.Password, ExpectedVersion: release, AllowFirstOwnerRegistration: true})
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		return nativeOwnerSetupObservation{AccountRef: observed.AccountRef, Initialized: observed.AdminVerified, AdminLoginVerified: observed.AdminVerified, OnboardingComplete: observed.LibraryReady}, nil
 	case appsetup.AdguardHomePolicyAction:
 		installed, err := architecturev2renderer.ParseAdguardHomeWorkloadBundle(deployment.Bundle)
 		if err != nil {
@@ -306,11 +347,16 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		if err != nil {
 			return nativeOwnerSetupObservation{}, err
 		}
+		var mqttRequest *appsetup.HomeAssistantMQTTRequest
+		if options.homeAssistantMQTT != nil {
+			mqttRequest = &options.homeAssistantMQTT.Request
+		}
 		observed, connector, err := executeVerifiedHomeAssistantConnector(ctx, workspace, deployment, credentials.Connector, observe, func(request *appsetup.HomeAssistantConnectorRequest) (appsetup.HomeAssistantOwnerResult, error) {
 			return appsetup.BootstrapHomeAssistantOwner(ctx, client, baseURL, appsetup.HomeAssistantOwnerRequest{
 				Connector:          request,
 				CompleteOnboarding: options.completeOnboarding,
 				OIDC:               &oidcBinding,
+				MQTT:               mqttRequest,
 				Username:           credentials.Username, Password: credentials.Password, DisplayName: credentials.DisplayName,
 				Language: credentials.Language, ExpectedVersion: release,
 			})
@@ -321,7 +367,14 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		if !observed.UserIsOwner || !observed.UserIsAdmin || observed.Version != release {
 			return nativeOwnerSetupObservation{}, errors.New("Home Assistant did not verify the owner of the admitted application version")
 		}
-		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: observed.ServerInitialized, AdminLoginVerified: observed.UserIsOwner && observed.UserIsAdmin, OnboardingComplete: observed.OnboardingComplete, HomeAssistantConnector: connector}, nil
+		var mqtt *applicationlifecycle.HomeAssistantMQTTObservation
+		if options.homeAssistantMQTT != nil {
+			if observed.MQTT == nil || !observed.MQTT.BrokerRoundTripVerified {
+				return nativeOwnerSetupObservation{}, errors.New("Home Assistant did not verify the selected MQTT integration")
+			}
+			mqtt = &applicationlifecycle.HomeAssistantMQTTObservation{BrokerWorkloadRef: "smart-home-mqtt", BrokerArtifactDigest: options.homeAssistantMQTT.BrokerArtifactDigest, Integration: *observed.MQTT}
+		}
+		return nativeOwnerSetupObservation{AccountRef: observed.UserID, Initialized: observed.ServerInitialized, AdminLoginVerified: observed.UserIsOwner && observed.UserIsAdmin, OnboardingComplete: observed.OnboardingComplete, HomeAssistantConnector: connector, HomeAssistantMQTT: mqtt}, nil
 	case immichAddOnAPIKeyAction:
 		return executeImmichAddOnAPIKey(ctx, client, baseURL, workspace, deployment, options)
 	case "pterodactyl-game-server-setup", "pelican-game-server-setup", "calagopus-game-server-setup":

@@ -1589,7 +1589,7 @@ the retained fallbacks read apart:
 | --- | --- |
 | `internal/runtimeexecutor/opentofu` | Standard executor (ADR-0045): the `opentofu` and `terramate` units, workload roots and contract roots. |
 | `internal/runtimeexecutor/nativehost` | Native host executors: the S-F Compose fallback behind `compose` (native `up` for the Core and standalone workloads), plus the shared halves the standard executor calls (Compose prepare and complete, native Verify, project naming, generation-target reading) and the native host owners that have no OpenTofu counterpart. |
-| `internal/runtimeexecutor/fallback/platformdeploy` | Historical in-house HTTP compatibility adapters. Komodo may be retained as an operations fallback until its exact replacement has current-pin parity receipts. Coolify is the optional Marketplace application, not an OpenTofu runtime-provider target; Dokploy is not pursued. Existing persisted compatibility behavior is not a promotion path. |
+| `internal/runtimeexecutor/fallback/platformdeploy` | Historical in-house HTTP compatibility adapters. Komodo may be retained as an operations fallback until its exact replacement has current-pin parity receipts. Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and later OpenTofu runtime targets; Coolify additionally powers the Marketplace use case. Existing persisted compatibility behavior does not establish current-pin support. |
 
 `nativehost` is not under `fallback/` because the standard executor imports
 its shared halves. Its fallback-only `up` paths are methods on the same OS
@@ -2945,8 +2945,8 @@ platform does not transfer existing workloads or their routes implicitly.
 For a workload explicitly assigned to Coolify, generated routes must be served
 by the selected Coolify Traefik/proxy authority; a second StackKits router must
 not serve the same route. Any transition must reconcile listener and route
-ownership before activation. Dokploy is not pursued; its historical integrated-router draft is not a
-runtime target or future promotion path.
+ownership before activation. Dokploy is a Layer-2 PaaS platform and later runtime target; its
+historical integrated-router draft does not establish current-pin support.
 
 Komodo is the first explicit exception: the initial `paas: komodo` contract uses exactly one StackKit-owned Traefik while Komodo owns Compose Stack deployment. The generated dashboard/status output and release evidence must label that routing ownership as StackKit-owned, not Komodo-owned.
 

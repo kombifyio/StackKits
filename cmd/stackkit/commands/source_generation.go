@@ -102,7 +102,8 @@ func newSourceGenerationPrepareCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !historical || bridge.Receipt.Version != tag || bridge.Verify.Owner.OwnerRef != owner.OwnerRef || bridge.Verify.Owner.KeyID != owner.KeyID || bridge.Verify.Owner.OwnerBindingDigest != localevidence.OwnerRuntimeBindingDigest(binding) {
+			verifiedOwner := sourceGenerationOwner(bridge)
+			if !historical || bridge.Receipt.Version != tag || verifiedOwner.OwnerRef != owner.OwnerRef || verifiedOwner.KeyID != owner.KeyID || verifiedOwner.OwnerBindingDigest != localevidence.OwnerRuntimeBindingDigest(binding) {
 				return errors.New("source cache preparation changed its historical or current Owner authority")
 			}
 			if asJSON {
@@ -255,11 +256,12 @@ func inspectSourceGeneration(ctx context.Context, workspace, requestedSpec strin
 		return publicUpgradeBridge{}, false, err
 	}
 	owner, err := localevidence.LoadOwnerCustody(workspace)
-	if err != nil || owner.OwnerRef != bridge.Verify.Owner.OwnerRef || owner.KeyID != bridge.Verify.Owner.KeyID {
+	verifiedOwner := sourceGenerationOwner(bridge)
+	if err != nil || owner.OwnerRef != verifiedOwner.OwnerRef || owner.KeyID != verifiedOwner.KeyID {
 		return publicUpgradeBridge{}, false, errors.New("source generation differs from retained local Owner custody")
 	}
 	runtimeBinding, err := localevidence.LoadOwnerRuntimeBinding(workspace)
-	if err != nil || runtimeBinding.PocketIDSubject != bridge.Verify.Owner.PocketIDSubject || localevidence.OwnerRuntimeBindingDigest(runtimeBinding) != bridge.Verify.Owner.OwnerBindingDigest {
+	if err != nil || runtimeBinding.PocketIDSubject != verifiedOwner.PocketIDSubject || localevidence.OwnerRuntimeBindingDigest(runtimeBinding) != verifiedOwner.OwnerBindingDigest {
 		return publicUpgradeBridge{}, false, errors.New("source generation differs from retained signed Owner runtime binding")
 	}
 	return bridge, true, nil
@@ -269,6 +271,10 @@ func writeSourceGenerationInspection(writer io.Writer, bridge publicUpgradeBridg
 	// Preserve the original compiler, Inventory and applied evidence. This is
 	// preparation provenance, never permission to execute an old plan now.
 	publicRelease := sourceGenerationProof(bridge.Receipt)
+	apiVersion := "stackkit.source-generation-inspection/v1"
+	if bridge.SourceContext != nil {
+		apiVersion = "stackkit.source-generation-inspection/v2"
+	}
 	raw, err := json.Marshal(struct {
 		APIVersion         string                            `json:"apiVersion"`
 		Inspection         generationartifact.PlanInspection `json:"inspection"`
@@ -276,7 +282,8 @@ func writeSourceGenerationInspection(writer io.Writer, bridge publicUpgradeBridg
 		Owner              architectureV2OwnerVerifySummary  `json:"owner"`
 		ApplyResultHash    string                            `json:"applyResultHash"`
 		EvidenceBundleHash string                            `json:"evidenceBundleHash"`
-	}{"stackkit.source-generation-inspection/v1", bridge.Current, publicRelease, bridge.Verify.Owner, bridge.Verify.Apply.ResultHash, bridge.Verify.Apply.EvidenceBundleHash})
+		Context            *historicalCloudSourceContext     `json:"historicalContext,omitempty"`
+	}{apiVersion, bridge.Current, publicRelease, bridge.Verify.Owner, bridge.Verify.Apply.ResultHash, bridge.Verify.Apply.EvidenceBundleHash, bridge.SourceContext})
 	if err != nil {
 		return err
 	}

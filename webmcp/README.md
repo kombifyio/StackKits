@@ -123,8 +123,11 @@ All five operations are returned together. The validated `init` argv carries the
 complete selection, so a successful handoff does not echo those IDs again in the
 envelope. Capacity results likewise do not repeat the supplied profile IDs.
 The shared session preserves the full validated selection in the visible planner.
-The current catalog pages, representative capacity checks, and handoffs are checked
-against the 1,500-character JSON output budget. Module profile pages use a
+Catalog pages retain the existing 1,500-character response budget. Handoffs carry
+the explicit local owner email and target Inventory path through the existing
+`authoring_inputs` contract (`owner.email`, `inventory.path`). All required argv
+and approval metadata are preserved regardless of the supplied path lengths;
+browser-declared capacity does not attest the target. Module profile pages use a
 4,096-character budget because they also carry the CUE description and the
 component, capability, and degradation details for every available profile.
 

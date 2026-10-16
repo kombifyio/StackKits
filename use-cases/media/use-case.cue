@@ -26,7 +26,7 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "jellyfin"
 			role:       "primary"
 			required:   true
-			rationale:  "Jellyfin is the only shipped media module and already owns the container, route, storage, and health contract."
+			rationale:  "Jellyfin owns video playback; separately selected Navidrome and Audiobookshelf add music and audiobook libraries."
 			capabilities: ["media-server", "video-stream"]
 		}
 		alternatives: []
@@ -69,8 +69,22 @@ Package: foundation.#UseCasePackage & {
 		moduleSlug: "jellyfin"
 		role:       "primary"
 		required:   true
-		rationale:  "The existing opt-in Jellyfin module is the sole shipped implementation for this package."
+		rationale:  "The opt-in Jellyfin module owns the primary video library; supporting workloads are selected independently."
 		capabilities: ["media-server", "video-stream"]
+	}
+	tools: navidrome: {
+		moduleSlug: "navidrome"
+		role: "supporting"
+		required: false
+		rationale: "The separately selected media-music workload streams the owner-custodied music directory through Navidrome."
+		capabilities: ["music-stream"]
+	}
+	tools: audiobookshelf: {
+		moduleSlug: "audiobookshelf"
+		role: "supporting"
+		required: false
+		rationale: "The separately selected media-audiobooks workload owns audiobook listening and progress over the owner-custodied library."
+		capabilities: ["audiobook-stream", "podcast-library"]
 	}
 
 	setup: {
@@ -79,6 +93,14 @@ Package: foundation.#UseCasePackage & {
 			name:        "jellyfin-owner-bootstrap"
 			policy:      "on_demand"
 			description: "Prepare or verify the native Jellyfin administrator using private owner credentials. Explicit completion closes the startup wizard; library, household and playback choices remain owner-managed."
+		}, {
+			name: "navidrome-owner-bootstrap"
+			policy: "on_demand"
+			description: "Prepare or verify the exact Navidrome administrator and its admitted read-only music library, then request the native scan."
+		}, {
+			name: "audiobookshelf-owner-bootstrap"
+			policy: "on_demand"
+			description: "Prepare or verify the exact Audiobookshelf administrator, reuse or create the admitted read-only audiobook library, then request the native scan."
 		}]
 	}
 
@@ -100,13 +122,13 @@ Package: foundation.#UseCasePackage & {
 			audience: "product-user"
 			source:   "stackkits"
 			path:     "use-cases/media/agent/owner-setup/SKILL.md"
-		}]
+		}, {id: "music-library", audience: "stack-operator", source: "stackkits", path: "use-cases/media/agent/music-library/SKILL.md"}, {id: "audiobook-library", audience: "stack-operator", source: "stackkits", path: "use-cases/media/agent/audiobook-library/SKILL.md"}]
 		apis: [{
 			id:       "jellyfin"
 			protocol: "rest"
 			purpose:  "HTTP health and library access. Jellyfin has no native product MCP."
 			auth:     "jellyfin-auth"
-		}]
+		}, {id: "navidrome", protocol: "rest", purpose: "Native administrator/library setup and Subsonic-compatible music playback. No native product MCP.", auth: "navidrome-self-auth"}, {id: "audiobookshelf", protocol: "rest", purpose: "Native administrator/library setup, audiobook streaming and per-user listening progress. No native product MCP.", auth: "audiobookshelf-self-auth"}]
 		cliHelpers: [{
 			command: "stackkit agent mcp-config"
 			purpose: "Print the stackkit lifecycle MCP client connection."
