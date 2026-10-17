@@ -1024,6 +1024,9 @@ func executeAdvancedMutation(
 				// becomes the applied one before the target resolves the
 				// candidate; the checkpoint restores the Inventory if the
 				// target fails.
+				if externalErr := adoptAdvancedCandidateExternalBindings(workspace, revalidated); externalErr != nil {
+					return fmt.Errorf("adopt the candidate Home or federation bindings: %w", externalErr)
+				}
 				restore, adoptErr := adoptAdvancedCandidateBackupBinding(workspace, revalidated)
 				if adoptErr != nil {
 					return fmt.Errorf("adopt the candidate backup target binding: %w", adoptErr)
@@ -1076,6 +1079,10 @@ func executeAdvancedMutation(
 			lifecyclemutation.PhaseCommitSucceeded,
 		); transitionErr != nil {
 			return transitionErr
+		}
+		// The candidate backup authority is now the committed baseline.
+		if commitErr := backupcustody.CommitS3TargetMove(workspace); commitErr != nil {
+			return fmt.Errorf("commit the backup target custody move: %w", commitErr)
 		}
 		if completeErr := mutation.Complete(lifecyclemutation.StatusSucceeded); completeErr != nil {
 			return completeErr

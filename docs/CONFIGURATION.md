@@ -103,6 +103,42 @@ identity envelope. CUE's `#StackSpecV2` in
 native schema. Generated OpenTofu,
 Compose, tfvars, scripts, and snapshots are outputs and must not be hand-edited.
 
+### Owner notifications
+
+`notifications` declares how the StackKit on this server reaches its owner. It
+is optional; without it `stackkit status` reports `Owner notifications: not
+configured`, so a silent homelab is visible. Channels use the
+`#NotificationChannelV1` contract; credentials are `secret://` references held
+in local custody, never plaintext:
+
+```yaml
+notifications:
+  channels:
+    - type: ntfy
+      ntfy:
+        serverUrl: https://ntfy.example.org
+        topic: my-homelab
+        token: secret://owner/ntfy-token   # optional
+  events: [backup-failed, upgrade-available]   # default: failures and available updates
+```
+
+The ResolvedPlan carries only a secret-free projection: channel name, type,
+event allowlist, secret references and a hash of the destination. ntfy, email,
+gotify, webhook, slack, discord, telegram and pagerduty (Events API v2) deliver
+today (the credential resolves from local custody at send time). `stackkit notify test` sends a delivery check, refuses a
+channel whose StackSpec destination no longer matches the verified plan, and
+records a receipt under `.stackkit/runs/owner-notifications/` that names no
+topic, recipient or credential.
+
+`stackkit notify backup-digest` reads the local backup state without changing
+it and sends one message: `backup-failed` when configuration, schedule,
+repository, the latest snapshot or a recovery objective needs attention,
+`backup-restore-verification-overdue` when only the staged restore proof is
+missing or older than `backupPolicy.restoreVerification.maxEvidenceAgeDays`,
+and otherwise the opt-in `backup-digest`. Add `backup-digest` to `events` and
+run the command from a timer for a regular "all is well" summary; `--dry-run`
+prints the message without sending it.
+
 ## Global CLI Flags
 
 | Flag | Default | Notes |

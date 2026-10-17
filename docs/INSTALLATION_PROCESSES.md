@@ -1,487 +1,132 @@
 # StackKits Installation Processes
 
 
-This specification defines the supported ways a user or agent can install and roll out a StackKit. It separates discovery, installation, execution authority, and post-install management so agents do not confuse a read-only website surface with a target-server control surface.
+The supported ways a user or agent installs and rolls out a StackKit. It
+separates discovery, installation, execution authority and post-install
+management, so a read-only website surface is never mistaken for a
+target-server control surface.
 
-The standalone CLI runs **Standard Mode**, with local Owner custody and no
-Kombify account requirement. Advanced Mode, provider execution and Modern
-multi-site apply belong to Techstack. Installing Modern definitions does not
-admit a standalone Advanced executor. Owner email initializes the node's own
-identity; it is not a Kombify signup.
+The standalone CLI runs **Standard Mode** with local Owner custody and no
+kombify account. Advanced Mode, provider execution and Modern multi-site apply
+belong to Techstack; installing Modern definitions admits no standalone
+Advanced executor. Owner email initializes the node's own identity, not a
+kombify signup. Standalone Compose is the complete primary experience,
+applications included; the CLI is an optional interface to the shared
+lifecycle. Coolify, Komodo and Dokploy are Layer-2 PaaS platforms and later
+runtime targets (Marketplace installs Coolify as its engine); support needs a
+current-pin receipt ([ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md)).
 
-Standalone Compose is the complete primary experience, including applications.
-The CLI is an optional user-facing interface to the shared lifecycle, not a
-full edition. New native stacks use the CUE standalone defaults (the beta
-path). Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and later
-runtime targets; Marketplace additionally installs Coolify as the engine of its
-use case. Support requires a current-pin receipt. See
-[ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md).
-
-## Scope
-
-This document covers StackKits OSS/S1 installation and rollout paths:
-
-- read-only website and Web-MCP discovery;
-- full one-line installer execution;
-- shared CLI installer plus manual or agent-guided CLI workflow;
-- agent execution on the target server;
-- external agent execution through SSH or equivalent remote shell;
-- native MCP connector execution through `stackkit-server` or `stackkit-mcp`, with remote connector operation treated as a target/day-2 capability rather than a default first-install path.
-
-Not implemented yet:
-
-- managed-serverless provisioning;
-- SaaS placement orchestration beyond StackKits S1;
-- `stackkit app add` or customer-owned app lifecycle deployment;
-- internal Kombify operator MCPs.
+Not implemented: managed-serverless provisioning, SaaS placement beyond S1,
+`stackkit app add` customer-app deployment, internal kombify operator MCPs.
 
 ## User-Facing MCP Model
 
-Users should see one MCP connection: `stackkit`.
+Users see one MCP connection: `stackkit`.
 
-Implementation details:
-
-| Runtime form | Binary or endpoint | User-facing meaning |
+| Runtime form | Binary or endpoint | Meaning |
 | --- | --- | --- |
-| Local adapter | `stackkit-mcp` stdio or loopback HTTP | The `stackkit` MCP connection on the same machine as the CLI/workspace |
-| Durable endpoint | `stackkit-server POST /mcp` | The same `stackkit` MCP connection after install, exposed only through a protected access path |
-| State Console authoring | `mcp-use/stackkits-app` | Build/Inspector layer for `ui://stackkits/state-console.html`, not a production connector or lifecycle owner |
-
-This means `P5` and `P6` are not different MCP products. They differ only by where the same `stackkit` connection is hosted and which authority boundary applies.
+| Local adapter | `stackkit-mcp` stdio or loopback HTTP | The `stackkit` connection on the CLI/workspace machine (P6) |
+| Durable endpoint | `stackkit-server POST /mcp` | The same connection after install, only behind a protected access path (P5) |
+| State Console authoring | `mcp-use/stackkits-app` | Build/Inspector layer for `ui://stackkits/state-console.html`; not a production connector or lifecycle owner |
 
 ## Common Contract
 
-All installation paths share the same underlying lifecycle:
+All paths share one lifecycle:
 
 ```text
 discover -> collect intent -> install toolchain -> init -> validate -> generate -> plan -> apply -> verify -> preserve evidence
 ```
 
-Source-of-truth rules:
-
-- `stack-spec.yaml` and CUE contracts are the editable contract.
-- Generated `deploy/`, OpenTofu state, `.stackkit/state.yaml`, logs, run evidence, and snapshots are outputs.
-- Agents must not hand-edit generated rollout artifacts.
-- Basement Kit is the primary standalone path; full current-release target
-  lifecycle evidence remains pending.
-- Unreleased kit definitions stay outside the public beta install surface until their rollout matrices graduate.
-
-Minimum user intent:
+- `stack-spec.yaml` and CUE contracts are the editable contract; generated `deploy/`, OpenTofu state, `.stackkit/state.yaml`, logs, run evidence and snapshots are outputs agents must not hand-edit.
+- Basement Kit is the primary standalone path; full current-release target lifecycle evidence is pending. Unreleased kit definitions stay outside the public beta install surface.
 
 | Input | Purpose | Default or current stance |
 | --- | --- | --- |
-| Owner/admin email | Bootstrap identity and technical admin material | Guided installers require a real email for the local Owner; shared test identities are used for engineering receipts |
-| StackKit | Which kit to install | `basement-kit` for the primary standalone path |
-| Product mode | Execution boundary | Standard Mode only in the standalone CLI; Advanced Mode is Techstack-only |
-| Context | Target environment | `local`, `cloud`, or `pi` |
+| Owner/admin email | Local Owner identity and technical admin material | Guided installers require a real email; shared test identities serve engineering receipts |
+| StackKit | Kit to install | `basement-kit` |
+| Product mode | Execution boundary | Standard only; Advanced is Techstack-only |
+| Context | Target environment | `local`, `cloud` or `pi` |
 | Domain strategy | Routing and user links | device-enrolled `home`, `kombify.me`, or one custom domain |
-| Workspace/spec path | Where the deployment contract lives | `./stack-spec.yaml` in the selected workspace |
-| Target access | Local shell, SSH, or MCP endpoint | Depends on process variant |
-| Write approval | Permission to mutate the target | Explicit operator approval; MCP write tools also require `STACKKIT_MCP_ALLOW_WRITE=true` |
+| Workspace/spec path | Where the contract lives | `./stack-spec.yaml` |
+| Target access | Local shell, SSH or MCP endpoint | per path |
+| Write approval | Permission to mutate | Explicit operator approval; MCP writes also need `STACKKIT_MCP_ALLOW_WRITE=true` |
 
-Common evidence:
+Evidence to keep: latest run ID and `.stackkit/runs/<runId>/`; `stackkit verify --http --json` when routes are expected; `stackkit status --http --json` for a fresh route probe (proves only the verifier host; LAN, mobile, VPN and public clients need their own evidence); relevant `stackkit logs`; the final Hub URL for local Basement (`https://base.lab.home` from an enrolled device); confirmation that generated artifacts were not hand-edited.
 
-- latest run ID and `.stackkit/runs/<runId>/` evidence;
-- `stackkit verify --http --json` output when HTTP routes are expected;
-- `stackkit status --http --json` when the five-axis application view should
-  include a fresh route probe from the machine running the CLI. This proves
-  only that verifier host; LAN, mobile, VPN and public clients need their own
-  explicitly scoped evidence;
-- relevant `stackkit logs` output;
-- final Hub URL for local Basement Kit: `https://base.lab.home` from an enrolled device;
-- confirmation that generated artifacts were not hand-edited.
-
-## Core Decisions Before Install
-
-Every StackKits installation path should collect the same small set of decisions. The method changes how those decisions are collected and executed, not what the product contract needs.
-
-| Decision | Why it matters | Typical values |
-| --- | --- | --- |
-| Execution place | Defines who can mutate the target | Website-only planning, local CLI, on-server agent, external SSH agent, local MCP, protected target MCP |
-| Authority boundary | Defines the security model | No target authority, local shell, SSH user, local process, token-protected target MCP |
-| StackKit | Selects the CUE contract and rollout matrix | `basement-kit` beta |
-| Installer interaction | Controls questions, not product mode | `STACKKIT_INSTALL_MODE=auto`, `guided`, or `expert`; all remain Standard Mode |
-| Target context | Selects environment defaults, not a private-network assumption | `local`, `cloud`, `pi` |
-| Domain strategy | Determines routing, access links, and DNS/TLS evidence | Owner-CA `*.lab.home` with enrolled clients, `kombify.me`, or a custom domain |
-| Owner/admin email | Seeds identity, platform setup, and technical bootstrap material | operator email, tenant-provided owner, synthetic local-only email for tests |
-| Workload execution | Determines the selected workload's execution owner | Standalone Compose by default; Coolify, Komodo and Dokploy are planned Layer-2 PaaS platforms; Marketplace on Coolify is planned application work. Current-pin receipts admit support |
-| Service profile | Controls how much of the default application surface is enabled | `default`, `admin-only` |
-| Apply approval | Separates preview from mutation | explicit shell approval or MCP write gate |
-
-The most important rule for agents: do not treat `P0` website/Web-MCP discovery as authority. It can decide and prepare. Execution happens later through CLI, SSH, an on-server agent, or the native `stackkit` MCP connector.
+Further decisions every path collects: execution place and authority boundary (website-only, local CLI, on-server agent, SSH agent, local MCP, protected target MCP), installer interaction (`STACKKIT_INSTALL_MODE=auto|guided|expert`, all Standard Mode), workload execution (Compose by default; PaaS per receipts), service profile (`default`, `admin-only`) and apply approval. Website/Web-MCP discovery (P0) decides and prepares but is never authority; execution happens through CLI, SSH, an on-server agent or the native connector.
 
 ## What StackSpec And Config Can Express
 
-StackKits configuration is intentionally broad enough to support a guided agent workflow without hand-editing generated rollout files. The user-facing inputs map to `stack-spec.yaml`, CLI flags, environment variables, or `stackkit-server` settings.
-
-For new installations, use the native v2alpha2 fields and flags in
-[CONFIGURATION.md](CONFIGURATION.md#stack-spec). The older unversioned fields
-and retired v0.6 knobs below describe compatibility only: `context`, global
-`compute.tier`, `paas`, and legacy bootstrap fields must not be copied into new
-native intent. Native workload selection and resource profiles are described
-in [OPTIONS_AND_AUTHORING.md](OPTIONS_AND_AUTHORING.md).
+New installations use the native v2alpha2 fields and flags in [CONFIGURATION.md](CONFIGURATION.md#stack-spec); `context`, global `compute.tier`, `paas` and legacy bootstrap fields are migration input and must not be copied into new intent. Workload selection and resource profiles: [OPTIONS_AND_AUTHORING.md](OPTIONS_AND_AUTHORING.md).
 
 | Capability | Config surface | Notes |
 | --- | --- | --- |
-| Owner and admin intent | `--owner-source=local`, `--owner-email`, `--owner-username` | Account-free node custody; legacy `adminEmail` is migration input. |
-| Kit selection | `stackkit`, installer argument, `stackkit init <kit>` | `basement-kit` is the primary standalone path; current full runtime proof remains pending. |
-| Product mode | Standard Mode; retired `STACKKIT_MODE` warns and is ignored | A legacy value cannot select Advanced execution in the standalone CLI. |
-| Target context | legacy v1 `context` field | Migration input only. Native v2 `init` and `generate` do not accept `--context`; `local`/`cloud`/`pi` map to site kind and hardware profile. |
-| Domain strategy | `--domain`, `DOMAIN`, native network intent | Default local links use `*.lab.home`; public/custom domains and enrolled clients require their own DNS/TLS proof. |
-| Optional applications | `--use-case`, `STACKKIT_USE_CASES` | Explicit empty or `none` selects core only; an omitted installer selection offers the picker or catalog defaults. |
-| Compute and topology | Native module profiles, sites, nodes and execution channels | CUE admits the attested local target; standalone execution acts on the installed server. |
-| Native execution selection | Workload alternative plus module-local profile; `--catalog-defaults` during init | Standalone Compose is default. Komodo is the explicit operations-platform path; Marketplace installs Coolify as an application. Legacy `paas` and platform environment controls do not define native defaults or select Marketplace. |
-| Setup policy | `bootstrap.*`, `application.*.setup.policy`, `services.*.setup.policy` | Valid values are `manual`, `on_demand`, `automatic`. |
-| Demo data | `demoData.enabled` | Explicit opt-in only. |
-| MCP write mode | `STACKKIT_MCP_ALLOW_WRITE`, `--mcp-allow-write` | Read-only tools stay available; mutating tools require explicit write mode. |
-| Remote MCP protection | `STACKKIT_MCP_TOKEN`, `--mcp-token`, proxy/tunnel/VPN config | Non-loopback target MCP is a protected day-2 posture. |
+| Owner and admin intent | `--owner-source=local`, `--owner-email`, `--owner-username` | Account-free node custody; legacy `adminEmail` is migration input |
+| Kit selection | installer argument, `stackkit init <kit>` | `basement-kit` primary |
+| Product mode | Standard Mode; retired `STACKKIT_MODE` warns and is ignored | A legacy value cannot select Advanced |
+| Target context | legacy v1 `context` | Native `init`/`generate` reject `--context`; `local`/`cloud`/`pi` map to site kind and hardware profile |
+| Domain strategy | `--domain`, `DOMAIN`, network intent | Local links use `*.lab.home`; public/custom domains and enrolled clients need their own DNS/TLS proof |
+| Optional applications | `--use-case`, `STACKKIT_USE_CASES` | Empty or `none` selects core only; omitted offers the picker or catalog defaults |
+| Compute and topology | Module profiles, sites, nodes, execution channels | CUE admits the attested local target; standalone acts on the installed server |
+| Execution selection | Workload alternative plus module-local profile; `--catalog-defaults` | Compose default; Komodo is the explicit operations-platform path; Marketplace installs Coolify as an application; legacy `paas` selects nothing native |
+| Setup policy | `bootstrap.*`, `application.*.setup.policy`, `services.*.setup.policy` | `manual`, `on_demand`, `automatic` |
+| Demo data | `demoData.enabled` | Explicit opt-in |
+| MCP write mode | `STACKKIT_MCP_ALLOW_WRITE`, `--mcp-allow-write` | Read-only tools stay available |
+| Remote MCP protection | `STACKKIT_MCP_TOKEN`, `--mcp-token`, proxy/tunnel/VPN | Non-loopback target MCP is a protected day-2 posture |
 
-Generated `deploy/`, `.stackkit/state.yaml`, OpenTofu files, Compose files, tfvars, snapshots, and run logs remain outputs. If an installation method needs a different result, change StackSpec/CUE/Go inputs and regenerate.
+## Automation And Individualization
 
-## Automation And Individualization Axes
+Two independent axes. Automation never enlarges the CLI's execution authority; mutating operations always need shell, SSH or MCP write authority. Higher individualization needs more review and evidence (custom domains need DNS/TLS receipts; composition is still generated from StackSpec/CUE).
 
-Installation variants must be described on two independent axes:
-
-- Automation degree: how much of the lifecycle StackKits or an agent executes without the user typing each command.
-- Individualization degree: how much the user changes from the default Basement Kit path before rollout.
-
-### Automation Levels
-
-| Level | Name | User experience | Typical execution |
+| Level | Automation | Level | Individualization |
 | --- | --- | --- | --- |
-| `A0` | Discovery only | User or agent reads docs and chooses a path | Website, `llms.txt`, OpenMCP discovery |
-| `A1` | Manual CLI | User runs each lifecycle command | `install -> init -> prepare -> generate -> plan -> apply -> verify` |
-| `A2` | Guided agent | Agent proposes/runs steps, user supplies intent and approvals | Prompted CLI, StackKits State Console, SSH agent |
-| `A3` | Autonomous approved rollout | User supplies minimum intent, agent/installer executes the rollout | Basement Kit one-line installer, agent on target with approved plan |
-| `A4` | Durable connector operation | Target-local connector performs config/update/verify/log workflows for an external agent after the StackKit is installed | `stackkit-server POST /mcp` with token and write gate |
-
-Automation does not remove approval. Mutating operations still require either shell authority, SSH authority, or MCP write-mode authority.
-
-### Individualization Levels
-
-| Level | Name | User choices | Typical examples |
-| --- | --- | --- | --- |
-| `I0` | Default Basement Kit | No meaningful choices beyond accepting defaults | Device-enrolled local `home`, Basement Kit, default profile |
-| `I1` | Identity and workspace | Owner email, stack name, workspace/spec path | `--owner-email`, `HOMELAB_DIR`, `stack-spec.yaml` |
-| `I2` | Core rollout profile | Kit, optional use cases and module profiles | Native catalog defaults or explicitly authored module profiles |
-| `I3` | Network/platform target | Domain strategy, SSH target, custom DNS/TLS, selected PaaS | `kombify.me`, custom domain, Cloudflare token, Coolify/Komodo |
-| `I4` | Explicit composition | Optional capabilities, workload alternatives and custody policy | Native Standard Mode composition; Advanced topology requires Techstack |
-
-Higher individualization increases review and evidence needs. Custom domains
-need DNS/TLS receipts, and explicit composition must still be generated from
-StackSpec/CUE. An automation level never enlarges the CLI's execution authority.
-
-## Automation x Individualization Map
-
-| Path | Automation range | Individualization range | Notes |
-| --- | --- | --- | --- |
-| `P0` Website and Web-MCP discovery | `A0` | `I0-I4` planning only | Can explain every option, but cannot execute target actions |
-| `P1` Full Basement Kit one-line installer | `A3` | `I0-I3` | Highest automation; customization happens through environment variables before launch |
-| `P2` Shared CLI installer plus direct CLI | `A1-A2` | `I0-I4` | Most transparent path; every step can be reviewed before mutation |
-| `P3` Agent already on target server | `A2-A3` | `I0-I4` | Agent can run CLI directly; authority is the server shell user |
-| `P4` External agent through SSH/remote shell | `A2-A3` | `I1-I4` | Good for remote targets before MCP is installed |
-| `P5` Protected durable StackKits MCP endpoint | target `A4` | `I1-I4` | Future/durable StackKit-owned day-2 path after `stackkit-server` exists and remote access is explicitly enabled |
-| `P6` Local StackKits MCP adapter | `A2` | `I1-I4` | Local MCP client uses `stackkit-mcp` without exposing HTTP |
-
-Recommended product defaults:
-
-- Lowest-friction public path: `P1` with `A3/I0-I1`.
-- Safest review-heavy path: `P2` with `A1/I2-I4`.
-- Target StackKit-owned day-2 path after CLI/server install: `P5` with `A4/I1-I4`.
-- Best first contact for a web agent: `P0` with `A0`, then transition to `P1`, `P2`, `P3`, or `P4`; later transition to `P5` only after a target connector exists.
-
-## Three-Pillar Comparison
-
-Use this table when choosing the user-facing installation path. The three pillars are:
-
-- Configuration and individualization: how many choices the user can safely express before rollout.
-- Access options: where the actor can execute and which authority boundary applies.
-- Automation degree: how much of the lifecycle is performed automatically.
-
-| Process | Configuration / individualization | Access options | Automation degree | Default user journey |
-| --- | --- | --- | --- | --- |
-| `P0` Website and Web-MCP discovery | Very broad planning range (`I0-I4`), but no direct config write. Agent can collect email, kit, domain, mode, target, and approval intent. | Public website, browser, web-capable agent, read-only OpenMCP. No target credentials. | `A0` discovery only. | User asks an agent to inspect StackKits; agent reads public context and recommends an execution channel such as `P1`, `P2`, `P3`, or `P4`. |
-| `P1` Full Basement Kit one-line installer | Low to medium (`I0-I3`). Defaults work with minimal input; customization is mainly env vars such as email, mode, service profile, domain, context, PaaS. | Direct shell on target server with root/sudo. Can be run by user, on-server agent, or SSH agent. | High (`A3`). Installer executes install, prepare, init, generate, apply, verify-oriented output. | User provides minimal intent, runs one command, receives access summary and bootstrap material. |
-| `P2` Shared CLI installer plus direct CLI | Standard Mode (`I0-I4`). Review native intent, generated preview, plan and local custody policy. | Shell on the installed server; root/sudo only when preparing its host. | Low to guided (`A1-A2`). User or agent runs each command. | Install CLI, create/edit spec, validate/generate/plan, then approve apply. |
-| `P3` Agent already on target server | Standard Mode (`I0-I4`) with local context and authority. | Agent has direct target-shell authority. Website prompting is guidance. | Guided to autonomous (`A2-A3`). | Read prompts/docs, collect intent, execute CLI locally, report evidence. |
-| `P4` External agent through SSH/remote shell | Medium to full (`I1-I4`). Strong for target host, SSH user/key, email, domain, custom install mode, and remote evidence. | Agent outside server with SSH or equivalent remote shell. Authority is SSH user privileges. | Guided to autonomous (`A2-A3`). | Agent confirms target safety, downloads installer or CLI on target, runs lifecycle remotely, returns logs/evidence. |
-| `P5` Protected durable StackKits MCP endpoint | Medium to full (`I1-I4`) through typed tools and the State Console. Best for future StackKit-owned config/update/verify/log day-2 operations after install. | Agent outside server connects to target `stackkit-server /mcp` over a protected endpoint, tunnel, VPN, or private network. Token, transport security, and write gate are required for mutation. | Durable connector target (`A4`), not a current primary first-install path. | Installed StackKit keeps `stackkit-server` running; external agent starts read-only, then uses write tools only after explicit write-mode approval. |
-| `P6` Local StackKits MCP adapter | Medium to full (`I1-I4`) on the local workspace. Good when the MCP client and StackKit workspace are colocated. | Same-machine MCP client using `stackkit-mcp` stdio or loopback HTTP. Local process authority. If launched through SSH, the authority boundary is still `P4`. | Guided (`A2`). | User configures one `stackkit` MCP connection; agent reads resources/tools and drives local CLI-equivalent operations where enabled. |
-
-Decision rules:
-
-- Choose `P1` when automation matters more than review and the target is fresh.
-- Choose `P2` when individualization and explicit review matter most.
-- Choose `P4` when the agent is outside the server and must bootstrap it before any native connector exists.
-- Choose `P5` only when the server already exposes `stackkit-server /mcp` through an explicit protected access path and the goal is durable StackKit-owned day-2 management.
-- Choose `P6` when the MCP client and workspace are on the same machine and an HTTP connector is unnecessary.
-
-## User-Facing Method Groups
-
-For users, the product should present five method groups. The internal `P*` IDs only explain authority boundaries and rollout shapes.
-
-| User-facing method | Internal paths | Individualizability | Access options | Automatisability | When to choose it |
-| --- | --- | --- | --- | --- | --- |
-| CLI | `P1`, `P2` | `P1`: low to medium through env vars. `P2`: full through StackSpec, flags, and plan review. | Shell on the target or a controlled operator shell. SSH can be used to run the same commands remotely. | `P1` is highly automated; `P2` is manual to guided. | Choose CLI when users want the clearest, most inspectable product path. |
-| Native MCP | `P5`, `P6` | Medium to full through typed tools and the State Console resource. | Same-machine `stackkit-mcp` or protected target `stackkit-server /mcp`. | Guided locally; durable day-2 remotely after install. | Choose MCP when an agent should manage StackKits through a narrow tool surface instead of arbitrary shell commands. |
-| WebMCP / website discovery | `P0` | Planning across the full range, but no target mutation. | Public website, `llms.txt`, `/openmcp.json`, docs, schemas, OpenAPI. | Discovery only. | Choose WebMCP first when an agent needs to learn StackKits and decide the execution path. |
-| External SSH agent | `P4` | Medium to full; strong for target host, domain, user, key, mode, and evidence choices. | Agent outside the server with SSH or equivalent remote shell. | Guided to autonomous after target approval. | Choose SSH when no native MCP endpoint exists yet and the agent must bootstrap a remote server. |
-| On-server coding agent | `P3` | Full, as long as the agent has local context and explicit approval. | Agent is already inside the target VM/server shell. | Guided to autonomous. | Choose this when the agent already runs on the target and can use CLI directly. |
-
-Recommended simplification for the product UI: show one `stackkit` MCP connection, not separate MCP products. The user chooses where that connection runs: local adapter (`P6`) or protected target endpoint (`P5`) after installation.
-
-## P0/P4/P5/P6 Relationship
-
-These paths are easy to confuse because an agent may be involved in all of them. The distinction is not "agent or no agent"; it is the execution authority.
-
-| Path | What it is | What it is not | Authority boundary |
-| --- | --- | --- | --- |
-| `P0` | Public discovery and decision support. The agent learns installers, prompts, schemas, and local connector metadata from `stackkit.cc`. | A server control plane. It cannot install or mutate anything by itself. | None on the target. |
-| `P4` | External agent uses SSH or another remote shell to run installer/CLI commands on the target. | MCP transport. The website may provide instructions, but SSH is what executes. | SSH user privileges on the target. |
-| `P5` | External agent connects to an already-running target-local MCP endpoint for durable read/verify/log/update workflows. | A current default first-install path. It needs `stackkit-server` first. | MCP token/scope/write-gate policy on the target. |
-| `P6` | Local adapter form of the same `stackkit` MCP connection beside the CLI/workspace. | Remote management by itself. If a client reaches it via SSH command execution, the real authority is `P4`. | Local process authority. |
-
-Typical progression:
-
-```text
-P0 discovery -> choose P1/P2/P3/P4 for initial install -> optional P5 once stackkit-server is installed and explicitly exposed for day-2
-```
+| `A0` | Discovery only (website, `llms.txt`, OpenMCP) | `I0` | Default Basement Kit |
+| `A1` | Manual CLI, user runs each command | `I1` | Owner email, stack name, workspace/spec path |
+| `A2` | Guided agent, user supplies intent and approvals | `I2` | Kit, use cases, module profiles |
+| `A3` | Autonomous approved rollout (one-liner, on-target agent) | `I3` | Domain, SSH target, custom DNS/TLS, PaaS |
+| `A4` | Durable connector day-2 (`stackkit-server /mcp` with token and write gate) | `I4` | Explicit Standard-Mode composition; Advanced topology needs Techstack |
 
 ## Installation Matrix
 
-| ID | Process | Agent location | Main entrypoint | Automation | Individualization | Execution authority | Best fit |
+| ID | Process | Agent location | Entrypoint | Auto | Indiv | Authority | Best fit |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `P0` | Website and Web-MCP discovery | Browser or remote agent | `https://stackkit.cc`, `/llms.txt`, `/openmcp.json` | `A0` | `I0-I4` planning | Read-only | Learn, choose a path, generate commands |
-| `P1` | Full Basement Kit one-line installer | Target server shell | `curl -sSL https://base.stackkit.cc \| sh` | `A3` | `I0-I3` | Target shell/root or sudo | Fastest fresh-server Basement Kit rollout |
-| `P2` | Shared CLI installer plus direct CLI | User or agent shell | `curl -sSL https://install.stackkit.cc \| sh` | `A1-A2` | `I0-I4` | Local shell/root or sudo when preparing host | Operators who want explicit lifecycle steps |
-| `P3` | Agent already on the target server | Target server shell | Website prompt or `stackkit agent prompt ...` | `A2-A3` | `I0-I4` | Direct target shell | Autonomous local rollout on a controlled host |
-| `P4` | External agent through SSH/remote shell | Operator workstation or agent host | SSH plus installer/CLI commands | `A2-A3` | `I1-I4` | SSH user privileges on target | Agent is outside the server and no MCP endpoint is available |
-| `P5` | Protected durable StackKits MCP endpoint | Operator workstation or agent host | `POST https://<protected-target>/mcp`, VPN, or tunnel | target `A4` | `I1-I4` | MCP tools gated by target `stackkit-server` token/scope/write policy | Future durable remote day-2 management after CLI/server are installed |
-| `P6` | Local StackKits MCP adapter | Same machine as CLI workspace | `stackkit-mcp` | `A2` | `I1-I4` | Local process authority; write mode opt-in | Local MCP clients or remote-shell-launched MCP where the real boundary is SSH |
+| `P0` | Website and Web-MCP discovery | Browser/remote agent | `https://stackkit.cc`, `/llms.txt`, `/openmcp.json` | `A0` | `I0-I4` planning | Read-only | Learn, choose a path, generate commands |
+| `P1` | Basement one-line installer | Target shell | `curl -sSL https://base.stackkit.cc \| sh` | `A3` | `I0-I3` (env vars) | Target shell, root or sudo | Fastest fresh-server rollout |
+| `P2` | Shared CLI installer + direct CLI | User/agent shell | `curl -sSL https://install.stackkit.cc \| sh` | `A1-A2` | `I0-I4` | Local shell; root/sudo only to prepare the host | Explicit, reviewable lifecycle steps |
+| `P3` | Agent on the target server | Target shell | Website prompt or `stackkit agent prompt ...` | `A2-A3` | `I0-I4` | Shell user | Autonomous local rollout |
+| `P4` | External agent over SSH | Operator/agent host | SSH plus installer/CLI | `A2-A3` | `I1-I4` | SSH user privileges | Agent outside the server, no MCP endpoint yet |
+| `P5` | Protected durable MCP endpoint | Operator/agent host | `POST https://<protected-target>/mcp`, VPN or tunnel | target `A4` | `I1-I4` | MCP tools gated by token, scope and write policy | Durable day-2 after install without SSH |
+| `P6` | Local MCP adapter | CLI machine | `stackkit-mcp` | `A2` | `I1-I4` | Local process; write mode opt-in | Colocated MCP client (over SSH the real boundary is `P4`) |
 
-## Process Shape By Automation Level
-
-### `A0`: Discovery-Only Guidance
-
-The user is still deciding. The agent should answer:
-
-- which StackKit is release-ready;
-- which install mode and domain strategy fit the user's target;
-- whether a fresh target, SSH rollout, direct CLI, or MCP connector is appropriate;
-- what information is missing before execution.
-
-It should not execute target actions from the website surface.
-
-### `A1`: Manual CLI
-
-The user sees every command and can stop between steps. This is the right shape for high-individualization installs because `plan` and generated diffs can be reviewed before `apply`.
-
-### `A2`: Guided Agent
-
-The agent drives the workflow but asks for the variable choices:
-
-- email and Owner stance;
-- target/workspace;
-- StackKit and mode;
-- domain strategy;
-- optional PaaS/platform target;
-- apply approval.
-
-This is the default shape for initial configuration in the State Console.
-
-### `A3`: Autonomous Approved Rollout
-
-The user supplies minimum intent up front and approves the target. The installer or agent then executes the full lifecycle and reports evidence. This shape should use conservative defaults and fail fast on missing prerequisites.
-
-### `A4`: Durable Connector Operation
-
-The target already has a native connector. An external agent can call read-only tools continuously and mutating tools only when write mode is explicitly enabled. This is the target shape for repeatable StackKit-owned day-2 operations such as update planning, status, verify, logs, drift detection, and evidence review.
-
-## Process Shape By Individualization Level
-
-### `I0`: Default Basement Kit
-
-Use when the operator wants the product default:
-
-- Basement Kit;
-- Standard Mode with the native catalog defaults;
-- device-enrolled local `home`;
-- default service profile;
-- default workload execution and routing owner.
-
-Best paths: `P1`, `P2`, `P3`.
-
-### `I1`: Identity And Workspace
-
-Adds email, stack name, workspace, and spec path. This is the minimum expected
-State Console configuration input set.
-
-Best paths: `P2`, `P3`, `P6`; `P5` only after the target connector exists.
-
-### `I2`: Core Rollout Profile
-
-Adds kit, optional use-case and module-profile decisions. Agents validate the
-native StackSpec before generate/apply; retired bootstrap-depth and context
-flags are migration inputs, not new installation choices.
-
-Best paths: `P2`, `P3`, `P4`; `P5` only for post-install connector operation.
-
-### `I3`: Network And Platform Target
-
-Adds custom domain, `kombify.me`, LAN DNS, SSH target, DNS/TLS credentials, or selected PaaS details. Agents must prove the resulting access summary and route contracts.
-
-Best paths: `P2`, `P4`; `P5` only for post-install connector operation.
-
-### `I4`: Advanced Composition
-
-Explicit local composition uses Standard Mode and the same validation, plan,
-custody and evidence boundaries as the default. Advanced Mode, Terramate/RIL,
-provider control and Modern multi-server/multi-site apply require Techstack.
-No installer interaction mode, SSH session or MCP write flag grants those
-capabilities to the standalone CLI.
-
-## Decision Tree
-
-Use this decision tree when choosing the installation method for a user or agent. It is written from the perspective of the actor that will execute the rollout.
-
-```mermaid
-flowchart TD
-  A["Do you only need to learn, compare, or prepare commands?"] -->|Yes| P0["WebMCP / website discovery (P0)"]
-  A -->|No| B["Is the agent already running on the target server or VM?"]
-  B -->|Yes| P3["On-server coding agent (P3)"]
-  B -->|No| C["Can the external agent SSH or run a remote shell on the target?"]
-  C -->|Yes| P4["External SSH agent (P4)"]
-  C -->|No| D["Is the CLI installed where the StackSpec/workspace lives?"]
-  D -->|No| P1["Install CLI or run the Basement Kit installer (P1/P2)"]
-  D -->|Yes| E["Do you want explicit command-by-command review?"]
-  E -->|Yes| P2["CLI lifecycle with plan review (P2)"]
-  E -->|No| F["Do you want an agent-native tool surface?"]
-  F -->|Yes| G["Use one stackkit MCP connection"]
-  F -->|No| P1b["Basement Kit installer or direct CLI (P1/P2)"]
-  G --> H["Is the MCP client on the same machine as the workspace?"]
-  H -->|Yes| P6["Local stackkit-mcp adapter (P6)"]
-  H -->|No| I["Is stackkit-server already installed and protected on the target?"]
-  I -->|Yes| P5["Protected target /mcp for day-2 (P5)"]
-  I -->|No| P4b["Bootstrap first with SSH, CLI, or on-server agent (P4/P2/P3)"]
-```
-
-Short version:
-
-1. Start with `P0` if the agent is only discovering or deciding.
-2. Use `P1` for the fastest fresh Basement Kit rollout.
-3. Use `P2` when plan review and customization matter.
-4. Use `P3` when the agent is already on the target.
-5. Use `P4` when the agent is outside the target and must bootstrap it through SSH.
-6. Use `P6` when the MCP client and workspace are colocated.
-7. Use `P5` after installation for durable protected day-2 management without giving the agent SSH.
+Decision rules: `P0` first when only discovering; `P1` for a fresh target when automation beats review; `P2` when plan review and customization matter; `P3` when the agent is on the target; `P4` when the agent is outside and must bootstrap before any connector exists; `P6` when MCP client and workspace are colocated; `P5` only after `stackkit-server /mcp` is installed and exposed through a protected path. Typical progression: `P0` -> `P1`-`P4` -> optional `P5`. Recommended UI: one `stackkit` MCP connection, the user chooses local adapter (`P6`) or protected endpoint (`P5`).
 
 ## P0: Website And Web-MCP Discovery
 
-This path does not install anything by itself.
-
-Entrypoints:
-
-- `https://stackkit.cc/llms.txt`
-- `https://stackkit.cc/llms-full.txt`
-- `https://stackkit.cc/llms-snippets.txt`
-- `https://stackkit.cc/openmcp.json`
-- `https://stackkit.cc/mcp/stackkit-mcp.md`
-
-User journey:
-
-1. User asks an agent to inspect StackKits through the website or public MCP discovery.
-2. Agent reads the public docs, current kit stance, installer URLs, OpenAPI, schemas, and prompts.
-3. Agent identifies the right execution path: one-line installer, explicit CLI, SSH rollout, or native MCP.
-4. Agent asks for missing intent such as email, domain mode, target host, SSH key, or write approval.
-5. Agent produces commands or connects to a local/native execution surface.
-
-Boundaries:
-
-- Website discovery is read-only.
-- No target-server actions happen from `stackkit.cc`.
-- The website may point to the native local connector, but it does not host that connector.
-- If the agent later installs or manages a target, the execution channel changes to shell, SSH, local MCP, or protected remote MCP.
+Read-only; installs nothing and acts on no target. Entrypoints: `https://stackkit.cc/llms.txt`, `/llms-full.txt`, `/llms-snippets.txt`, `/openmcp.json`, `/mcp/stackkit-mcp.md`. The agent reads docs, kit stance, installer URLs, OpenAPI, schemas and prompts, picks the execution path, asks for missing intent (email, domain mode, target host, SSH key, write approval) and produces commands or connects to a local/native surface. The website may point to the native local connector but does not host it.
 
 ## P1: Full Basement Kit One-Line Installer
-
-This is the shortest verified Basement Kit user path.
 
 ```bash
 curl -sSL https://base.stackkit.cc | sh
 ```
 
-For local-server tester rollouts, execute this in the target server shell
-itself: SSH session, physical/VM console, or an agent already running on that
-server. The default URLs use `*.lab.home` with Owner-CA HTTPS. Each client enrolls
-once on the LAN so its OS-approved profile scopes `home` lookups to the
-StackKits resolver and trusts the public Owner-CA root. Router/DHCP changes,
-hosts entries and alternate local names are not part of the flow.
-
-Beta validation should pin the tested release explicitly:
+Run it in the target server's own shell (SSH, console or on-server agent). Default URLs use `*.lab.home` with Owner-CA HTTPS; each client enrolls once on the LAN so its OS-approved profile scopes `home` lookups to the StackKits resolver and trusts the public Owner-CA root. No router/DHCP changes, hosts entries or alternate local names. Beta validation pins the release:
 
 ```bash
 env STACKKIT_RELEASE_VERSION='<exact-release-tag>' sh -c 'curl -fsSL https://base.stackkit.cc | sh'
 ```
 
-Current implementation (full guided installation; strict separation from the
-CLI path: whoever wants stepwise control installs the CLI and drives the
-verbs, whoever runs this entrypoint is carried to a running homelab):
+Whoever wants stepwise control installs the CLI and drives the verbs (P2); this entrypoint carries the user to a running homelab:
 
-1. Resolves the install mode: `STACKKIT_INSTALL_MODE=auto|guided|expert`, or
-   an interactive 3-item menu on a TTY (Enter = Quick Install). Non-TTY runs
-   always use `auto`; `guided`/`expert` without a TTY fail closed and print
-   the equivalent parameterized CLI chain.
-2. Collects decisions per mode and maps each onto a CLI parameter.
-   Environment-provided values are never re-asked:
-   - guided: workspace, domain strategy, local Owner email and optional use cases;
-   - expert additionally: stack name and workload adapter. Adapter choices do
-     not change the product mode or select Marketplace.
-3. Re-running on a workspace that already carries deployment intent
-   skips init, prepares the host, resolves the plan again for the host as
-   it is now (`stackkit generate`), and resumes `stackkit apply`
-   (native Apply journal). The installer journal preserves pre-init selections
-   and interrupted phases; the re-run works from any directory when the same
-   workspace is supplied. Saved kit intent wins over new network detection.
-   A re-run never removes an existing stack or converts its kit.
-4. Downloads and runs the shared CLI installer from
-   `https://install.stackkit.cc` (binaries, packaged OpenTofu, kit
-   definitions — SUDO_USER-safe).
-5. `stackkit init basement-kit --catalog-defaults --non-interactive --owner-source=local`
-   with the collected `--domain`, `--name`, `--owner-email`,
-   `--owner-username`, `--use-case`, `--platform` parameters, then
-   `stackkit validate`. Both wrappers materialize the catalog's native
-   alternatives and profiles as explicit intent. Empty use-case input is
-   passed explicitly, so it cannot silently become the default application set.
-6. Bootstraps the container runtime: installs Docker via get.docker.com
-   when missing and activates the docker group for the current session on
-   non-root runs. Native-v2 `stackkit prepare` checks these prerequisites
-   locally without installing packages; the guided installer owns bootstrap.
-7. Builds the local FROM-scratch `stackkit-server:local` image with the
-   host CA bundle, falling back to the configured registry image when
-   Docker or the binary is unavailable.
-8. `stackkit host preflight` admits the host read-only. In unattended
-   (`auto`) mode the installer then runs
-   `stackkit host remediate --auto-reversible --yes` for the undoable
-   fixes — bounded container logs, swap on a host with none — and
-   re-measures; `STACKKIT_REMEDIATE=0` opts out, and a fix that fails
-   never stops the install. Then `stackkit generate`, then one
-   `stackkit apply --auto-approve`. Apply configures the host firewall, sshd
-   and fail2ban, which only root can change: on a non-root run the installer
-   hands that one Apply to root through passwordless `sudo` (and restores
-   workspace ownership); without `sudo` it says so and prints the exact
-   command. Port availability below 1024 is read from the kernel socket
-   table when a non-root bind probe is refused. If the host has less RAM
-   than the selected services reserve, `generate` names the reserved amount
-   and the remedy (larger host or fewer services). The
-   canonical ResolvedPlan owns execution order across core services and
-   applications, so there is no separate platform-app stage to sequence
-   from the installer.
-9. Runs `stackkit verify` before marking the journal complete and printing
-   the access summary: service URLs, initial admin credentials,
-   the machine-readable access summary path, the project directory, and
-   shell-quoted whole-install removal commands with their deletion scope.
-   A refused host exits 3 without mutating anything; a failed rollout
-   exits non-zero and names how to inspect and re-apply.
+1. Resolves the install mode: `STACKKIT_INSTALL_MODE=auto|guided|expert`, or an interactive menu on a TTY (Enter = Quick Install). Non-TTY runs use `auto`; `guided`/`expert` without a TTY fail closed and print the equivalent CLI chain.
+2. Collects decisions per mode, mapping each to a CLI parameter; environment values are never re-asked. Guided: workspace, domain strategy, local Owner email, optional use cases. Expert adds stack name and workload adapter (adapter choice changes neither product mode nor Marketplace).
+3. Re-running on a workspace with deployment intent skips init, prepares the host, re-resolves the plan (`stackkit generate`) and resumes `stackkit apply` (native Apply journal). The installer journal preserves pre-init selections and interrupted phases; any directory works with the same workspace; saved kit intent beats new network detection; a re-run never removes a stack or converts its kit.
+4. Runs the shared CLI installer from `https://install.stackkit.cc` (binaries, packaged OpenTofu, kit definitions; SUDO_USER-safe).
+5. `stackkit init basement-kit --catalog-defaults --non-interactive --owner-source=local` with the collected `--domain`, `--name`, `--owner-email`, `--owner-username`, `--use-case`, `--platform`, then `stackkit validate`. Empty use-case input is passed explicitly so it cannot become the default application set.
+6. Bootstraps the container runtime (Docker via get.docker.com when missing, docker group activated for non-root runs). Native `stackkit prepare` only checks prerequisites; the guided installer owns bootstrap.
+7. Builds the local FROM-scratch `stackkit-server:local` image with the host CA bundle, falling back to the registry image when Docker or the binary is unavailable.
+8. `stackkit host preflight` admits the host read-only; in `auto` mode `stackkit host remediate --auto-reversible --yes` applies undoable fixes (bounded container logs, swap) and re-measures (`STACKKIT_REMEDIATE=0` opts out; a failed fix never stops the install). Then `stackkit generate` and one `stackkit apply --auto-approve`. Apply configures host firewall, sshd and fail2ban, which only root can change: a non-root run hands that Apply to root via passwordless `sudo` (restoring workspace ownership) or prints the exact command. Ports below 1024 are read from the kernel socket table when a non-root bind probe is refused. If the host has less RAM than the services reserve, `generate` names the amount and the remedy. The ResolvedPlan owns execution order, so no platform-app stage exists.
+9. `stackkit verify` runs before the journal completes and the access summary prints (service URLs, initial admin credentials, machine-readable access summary path, project directory, shell-quoted whole-install removal commands with their scope). A refused host exits 3 untouched; a failed rollout exits non-zero and names how to inspect and re-apply.
 
 Important environment variables (each pre-seeds one decision):
 
@@ -511,17 +156,7 @@ STACKKIT_USE_CASES='' \
 sh -c 'curl -fsSL https://base.stackkit.cc | sh'
 ```
 
-Use when:
-
-- the user wants one command to a running homelab, with the mode choice
-  deciding how many questions they answer on the way;
-- the agent or user can execute shell commands directly on the target.
-
-Do not use when:
-
-- the operator wants to drive each lifecycle verb explicitly — install the
-  CLI (`https://install.stackkit.cc`) and run the P2 chain instead;
-- the desired intent is outside the published Basement Kit scope.
+Use when the user wants one command to a running homelab and can run shell on the target. Do not use when the operator wants to drive each verb (install the CLI and run P2) or the intent is outside the published Basement scope.
 
 ### Core installer custody under sudo
 
@@ -640,8 +275,6 @@ provider/device/compatibility acceptance remains test-window work.
 
 ## P2: Shared CLI Installer Plus Direct CLI
 
-This path installs the toolchain first, then runs lifecycle commands explicitly.
-
 ```bash
 curl -sSL https://install.stackkit.cc | sh
 mkdir my-homelab
@@ -655,24 +288,9 @@ stackkit apply          # requires a prepared host with Docker access
 stackkit verify --http --json
 ```
 
-`stackkit prepare` inspects local host prerequisites on the native v2 line;
-it does not install Docker or change host packages. Run it on the target
-through the owner-managed execution channel. Module-local capacity admission
-uses the attested Inventory and canonical ResolvedPlan. For a
-non-root user, ensure Docker group access before apply
-(`sudo usermod -aG docker $USER` + re-login) or let the guided installer
-handle the group activation for you.
+`stackkit prepare` inspects local host prerequisites (no Docker install, no package changes); run it on the target through the owner-managed channel. Module-local capacity admission uses the attested Inventory and ResolvedPlan. A non-root user needs Docker group access before apply (`sudo usermod -aG docker $USER` and re-login) or lets the guided installer activate it.
 
-The shared installer supports kit arguments:
-
-```bash
-curl -sSL https://install.stackkit.cc | sh -s -- basement-kit
-curl -sSL https://install.stackkit.cc | sh -s -- all
-```
-
-`all` installs definitions; it is not a kit slug for `stackkit init`. Modern
-definitions can be authored and inspected through the admitted standalone
-preview path. Modern multi-site apply remains Techstack-owned.
+The shared installer accepts kit arguments (`sh -s -- basement-kit`, `sh -s -- all`); `all` installs definitions and is not a kit slug for `init`. Modern definitions can be authored and inspected through the admitted standalone preview path; Modern multi-site apply stays Techstack-owned.
 
 Native v2 init accepts the full authoring parameter surface (unknown values
 fail closed with the kit's declared choices):
@@ -687,31 +305,11 @@ fail closed with the kit's declared choices):
 | `--platform coolify\|komodo` | Explicit compatibility workload-adapter selection, validated against `runtime.allowedAdapterRefs`; does not select Marketplace or define native defaults. |
 | `--enable <capability-ids>` | Optional kit capabilities (`capabilities.enable`). |
 
-User journey:
-
-1. Install CLI/server/MCP binaries and the selected kit catalog.
-2. Create or select a workspace (the contract ID derives from its name;
-   one host runs one active local deployment).
-3. Run `stackkit init` manually or non-interactively with the flags above.
-4. Ensure Docker access (apply installs Docker on demand; non-root users
-   need docker group membership).
-5. Generate and review the plan.
-6. Apply after explicit approval (`--auto-approve` for automation).
-   Host admission runs first and refuses before any mutation; select its
-   strictness with `--preflight strict|warn|skip`.
-7. Verify and collect evidence.
-
-Best fit:
-
-- operators who want visible checkpoints;
-- agent-guided workflows where the user approves each step;
-- existing machines that should start with compatibility and plan review.
+Journey: install binaries and kit catalog; create or select a workspace (contract ID derives from its name; one host runs one active local deployment); `stackkit init`; ensure Docker access (apply installs Docker on demand); generate and review the plan; apply after explicit approval (`--auto-approve` for automation; host admission runs first and refuses before mutation, strictness via `--preflight strict|warn|skip`); verify and collect evidence.
 
 ## P3: Agent Already On The Target Server
 
-In this path the agent has shell access on the target server already. It can use the website only as guidance, but execution is local to the target.
-
-Recommended flow:
+Execution is local to the target with the shell user's authority (root/sudo may be needed for host preparation); no network-exposed MCP endpoint is required. The website is guidance only.
 
 ```bash
 curl -sSL https://base.stackkit.cc | sh
@@ -729,40 +327,9 @@ stackkit apply
 stackkit verify --http --json
 ```
 
-Authority:
-
-- the agent has the same authority as the shell user;
-- root/sudo may be required for host preparation;
-- no network-exposed MCP endpoint is required.
-
-Use when:
-
-- the agent runs in an SSH session, terminal, VM console, or server-side automation job;
-- the operator wants direct command execution and local logs;
-- MCP client integration is unnecessary or unavailable.
-
 ## P4: External Agent Through SSH Or Remote Shell
 
-In this path the agent is not on the target host, but it can execute remote commands through SSH or a similar remote-shell channel.
-
-Recommended flow:
-
-1. Operator provides target host, SSH user, SSH key path, admin email, and domain strategy.
-2. Agent confirms the host is dedicated to StackKits or safe to prepare.
-3. Agent copies or downloads the installer on the target.
-4. Agent runs the one-line installer or explicit CLI lifecycle remotely.
-5. For a legacy StackSpec v1 target only, the agent may use `stackkit verify --host --legacy-remote-transport`; HTTP checks, logs, and run evidence report status. Architecture v2 instead invokes the on-host verifier through its externally resolved execution channel.
-
-Use when:
-
-- the target host is remote;
-- no native MCP endpoint is installed yet;
-- the operator wants the agent to bootstrap the server from outside.
-
-Boundary:
-
-- SSH is the explicit legacy-v1 execution authority, not website MCP. It is not an Architecture v2 host-binding or execution-channel implementation.
-- The agent should preserve exact remote command output, failing command, stderr summary, and failure class.
+The operator provides target host, SSH user, key path, admin email and domain strategy; the agent confirms the host is dedicated to StackKits or safe to prepare, downloads the installer on the target and runs the one-liner or the explicit CLI lifecycle remotely. For a legacy v1 target only, `stackkit verify --host --legacy-remote-transport` is available; Architecture v2 invokes the on-host verifier through its externally resolved execution channel. SSH is the execution authority (not website MCP) and is not an Architecture v2 host-binding or execution-channel implementation. Preserve exact remote command output, the failing command, a stderr summary and the failure class.
 
 ## Remote MCP Transport And Day-2 Model
 
@@ -799,50 +366,15 @@ Current product stance: StackKit-owned durable day-2 through remote MCP is a tar
 
 ## P5: Protected Durable StackKits MCP Endpoint
 
-In this path the agent is outside the target host, but the target host runs `stackkit-server` and exposes the native MCP connector.
+The agent is outside the target host, which runs `stackkit-server` exposing the native connector (`POST https://<protected-target>/mcp`, `GET /openmcp.json`).
 
-Entrypoints:
-
-```text
-POST https://<protected-target>/mcp
-GET  https://<protected-target>/openmcp.json
-```
-
-Prerequisites:
-
-- `stackkit-server` is installed on the target;
-- target firewall, tunnel, VPN, private network, or reverse access path is explicitly configured;
-- `STACKKIT_MCP_TOKEN` or `--mcp-token` protects non-loopback access;
-- mutating tools require `STACKKIT_MCP_ALLOW_WRITE=true` or `--mcp-allow-write`;
-- the agent has an MCP client that can connect to Streamable HTTP.
-
-User journey:
-
-1. Initial install happens through `P1`, `P2`, `P3`, or `P4`.
-2. Operator starts `stackkit-server` as the target-local StackKits service.
-3. Operator configures protected remote access, MCP token/auth, and optional write mode.
-4. External agent reads `GET /openmcp.json`.
-5. Agent opens `ui://stackkits/state-console.html` if the host supports MCP Apps.
-6. User or agent supplies email, workspace, kit, core settings, domain choice, and approval.
-7. Agent uses read-only tools first: config, status, logs, verify, drift detection, generate preview.
-8. Agent uses write tools only after approval and write gate.
-9. Agent reports evidence and latest run output.
-
-Boundary:
-
-- This is external management of a target-local connector.
-- The connector has the same authority as a user running StackKits on that server once write mode is enabled.
-- The connector is narrower than SSH: it exposes StackKits tools, not an arbitrary shell.
-- Native MCP exposes identity-bound individual StackKits commands; it has no
-  combined rollout or update macro. `stackkit_apply` remains limited to the
-  verified local StackKits artifact closure.
-- This is not the current default first-install path while StackKit-owned day-2 is still being shaped.
+- Prerequisites: `stackkit-server` installed; firewall, tunnel, VPN, private network or reverse access explicitly configured; `STACKKIT_MCP_TOKEN` / `--mcp-token` for non-loopback access; `STACKKIT_MCP_ALLOW_WRITE=true` / `--mcp-allow-write` for mutations; a Streamable-HTTP MCP client.
+- Journey: initial install via `P1`-`P4`; operator starts `stackkit-server` and configures protected access, token and optional write mode; the agent reads `/openmcp.json`, opens `ui://stackkits/state-console.html` where MCP Apps is supported, collects email, workspace, kit, core settings, domain and approval, uses read-only tools first (config, status, logs, verify, drift, generate preview), writes only after approval and the write gate, and reports evidence.
+- Boundary: external management of a target-local connector with the authority of a user running StackKits on that server once write mode is on; narrower than SSH (StackKits tools, no shell). Native MCP exposes individual identity-bound commands, no combined rollout or update macro; `stackkit_apply` stays limited to the verified local artifact closure. Not the default first-install path.
 
 ## P6: Local StackKits MCP Adapter
 
-`stackkit-mcp` is installed beside the CLI. It uses the same internal tool, resource, and prompt registration as `stackkit-server`.
-
-Codex-style stdio example:
+`stackkit-mcp` ships beside the CLI and shares `stackkit-server`'s tool, resource and prompt registration.
 
 ```toml
 [mcp_servers.stackkit]
@@ -850,49 +382,8 @@ command = "stackkit-mcp"
 args = ["--mode", "docs,local,server,actions"]
 ```
 
-Use when:
+Use when the MCP client runs on the CLI machine, no long-running `stackkit-server` exists, or MCP semantics are wanted without a network endpoint. stdio is local process authority; loopback HTTP stays loopback unless token and operator policy are configured; write tools are opt-in and local-only; started over SSH, the boundary is `P4`.
 
-- the MCP client runs on the same machine as the CLI workspace;
-- no long-running `stackkit-server` is available;
-- the agent needs docs/local/server tools through MCP instead of shell commands.
-- the operator wants MCP semantics without exposing any network endpoint.
+## Authority Summary
 
-Boundary:
-
-- stdio is local process authority.
-- loopback HTTP should stay loopback unless token and operator policy are configured.
-- write tools are opt-in and local-only.
-- If an external agent starts `stackkit-mcp` over SSH, treat the workflow as `P4` because SSH remains the authority boundary.
-
-## Choosing A Path
-
-| User situation | Recommended path |
-| --- | --- |
-| "I want an agent to learn StackKits and tell me what to do." | `P0` website discovery |
-| "I have a fresh server and want the fastest Basement Kit install." | `P1` full Basement Kit one-line installer |
-| "I want to install the CLI first and approve each lifecycle step." | `P2` shared CLI installer plus direct CLI |
-| "The agent is already running on the target server." | `P3` on-server agent direct CLI |
-| "The agent is on my workstation and can SSH into the server." | `P4` external agent through SSH |
-| "The server already runs stackkit-server and I want durable StackKit day-2 without giving the agent SSH." | `P5` protected durable StackKits MCP endpoint |
-| "My MCP client is local and I do not want to expose an HTTP endpoint." | `P6` local StackKits MCP adapter |
-
-## Current Capability Summary
-
-Current StackKits supports these paths:
-
-- Website and Web-MCP discovery for read-only agent guidance.
-- Full Basement Kit installation through `https://base.stackkit.cc`.
-- Shared CLI/toolchain installation through `https://install.stackkit.cc`.
-- Direct CLI lifecycle after installation.
-- Agent-guided CLI through public prompts and `stackkit agent ...` helpers.
-- On-server agent execution through shell commands.
-- External agent execution through SSH or equivalent remote shell.
-- The single StackKits MCP connection through `stackkit-mcp` locally or `stackkit-server POST /mcp` after CLI/server installation; durable remote day-2 is a target capability and should remain explicitly protected.
-
-The most important distinction is authority:
-
-- Website/Web-MCP discovery has no target authority.
-- Installer and CLI paths have shell authority.
-- SSH paths have remote-shell authority.
-- Local MCP has local process authority.
-- Remote MCP has target-local StackKits authority exposed through explicit transport protection, token/scope checks, and write gates.
+Website/Web-MCP discovery: none on the target. Installer and CLI: shell. SSH paths: remote shell. Local MCP: local process. Remote MCP: target-local StackKits authority behind explicit transport protection, token/scope checks and write gates.

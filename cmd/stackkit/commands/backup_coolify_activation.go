@@ -8,16 +8,16 @@ import (
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
 )
 
-func nativeCoolifyRestoreActivationRuntime(ctx context.Context, workspace string, base restoreactivation.Runtime, selected restoreactivation.Authority, workload string, held nativeV2BackupAuthority) (restoreactivation.Runtime, error) {
+func nativeApplicationRestoreActivationRuntime(ctx context.Context, workspace string, base restoreactivation.Runtime, selected restoreactivation.Authority, workload string, held nativeV2BackupAuthority) (restoreactivation.Runtime, error) {
 	current := func(ctx context.Context) (backupexec.ApplicationRuntimeBinding, error) {
 		authority, err := inspectNativeV2BackupAuthorityForRequest(ctx, workspace, specFile)
 		if err != nil {
 			return backupexec.ApplicationRuntimeBinding{}, err
 		}
 		if !sameNativeV2BackupAuthority(held, authority) {
-			return backupexec.ApplicationRuntimeBinding{}, errors.New("Coolify restore current Apply authority changed")
+			return backupexec.ApplicationRuntimeBinding{}, errors.New("Application restore current Apply authority changed")
 		}
-		bindings, err := nativeBackupCoolifyBindings(ctx, authority)
+		bindings, err := nativeBackupApplicationBindings(ctx, authority)
 		if err != nil {
 			return backupexec.ApplicationRuntimeBinding{}, err
 		}
@@ -26,7 +26,7 @@ func nativeCoolifyRestoreActivationRuntime(ctx context.Context, workspace string
 				return binding, nil
 			}
 		}
-		return backupexec.ApplicationRuntimeBinding{}, errors.New("Coolify restore workload has no current signed source binding")
+		return backupexec.ApplicationRuntimeBinding{}, errors.New("Application restore workload has no current signed source binding")
 	}
 	binding, err := current(ctx)
 	if err != nil {

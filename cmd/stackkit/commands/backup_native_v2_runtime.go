@@ -29,7 +29,7 @@ var newNativeV2BackupService = func(authority nativeV2BackupAuthority) (nativeV2
 	if err != nil {
 		return nil, err
 	}
-	bindings, err := nativeBackupCoolifyBindings(context.Background(), authority)
+	bindings, err := nativeBackupApplicationBindings(context.Background(), authority)
 	if err != nil {
 		return nil, err
 	}

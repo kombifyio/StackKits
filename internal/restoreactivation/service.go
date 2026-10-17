@@ -100,6 +100,54 @@ func (err *ActivationNotStartedError) Error() string {
 
 func (err *ActivationNotStartedError) Unwrap() error { return err.Cause }
 
+// Closed pre-journal activation steps. After the journal begins, a failure is
+// tagged with the journal phase it reached instead.
+const (
+	StageStagedResult          = "staged-result"
+	StageAuthorityRevalidation = "authority-revalidation"
+	StagePrepareMutation       = "prepare-mutation"
+	StageRuntimeInspect        = "runtime-inspect"
+	StageStagingValidate       = "staging-validate"
+	StageSafetySnapshot        = "safety-snapshot"
+	StageJournalBegin          = "journal-begin"
+	StageResultSign            = "result-sign"
+
+	// Steps the command takes before it hands over to Activate.
+	StageCommandAuthority = "command-authority"
+	StagePlanManifest     = "plan-manifest"
+	StageRestoreResult    = "restore-result"
+	StageRuntimeBind      = "runtime-bind"
+)
+
+// NotStarted tags a failure that happened before the activation service ran,
+// so no live volume was touched, with the closed step it happened at.
+func NotStarted(stage string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &ActivationNotStartedError{Cause: stageFailure(stage, err)}
+}
+
+// StageError names the closed activation step at which activation failed, so a
+// caller can report it without exposing the cause text. Error returns the
+// cause unchanged.
+type StageError struct {
+	Stage string
+	Cause error
+}
+
+func (err *StageError) Error() string { return err.Cause.Error() }
+
+func (err *StageError) Unwrap() error { return err.Cause }
+
+func stageFailure(stage string, err error) error {
+	var tagged *StageError
+	if err == nil || errors.As(err, &tagged) {
+		return err
+	}
+	return &StageError{Stage: stage, Cause: err}
+}
+
 type Runtime interface {
 	Inspect(context.Context, Authority) error
 	ValidateStaging(context.Context, Authority) error
@@ -145,7 +193,7 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 		return Result{}, errors.New("restoreactivation: current authority differs from the staged restore")
 	}
 	if err := backuplifecycle.VerifyRestoreResult(input.WorkspaceRoot, input.RestoreResult); err != nil {
-		return Result{}, fmt.Errorf("restoreactivation: verify staged restore result: %w", err)
+		return Result{}, stageFailure(StageStagedResult, fmt.Errorf("restoreactivation: verify staged restore result: %w", err))
 	}
 	authority, err := DeriveAuthority(
 		input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID,
@@ -154,7 +202,7 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 		authority, err = DeriveApplicationAuthority(input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID, input.WorkloadRef)
 	}
 	if err != nil {
-		return Result{}, &ActivationNotStartedError{Cause: err}
+		return Result{}, &ActivationNotStartedError{Cause: stageFailure(StageStagedResult, err)}
 	}
 	bounded, cancel := boundedContext(ctx)
 	defer cancel()
@@ -183,42 +231,42 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 			if input.RevalidateCurrentAuthority != nil {
 				current, lineage, err := input.RevalidateCurrentAuthority(bounded)
 				if err != nil {
-					return lifecyclemutation.RestoreActivationBeginRequest{}, err
+					return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageAuthorityRevalidation, err)
 				}
 				if err := current.RequireExpectedPlanHash(input.ExpectedPlanHash); err != nil {
-					return lifecyclemutation.RestoreActivationBeginRequest{}, err
+					return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageAuthorityRevalidation, err)
 				}
 				if current.Binding() != input.Plan.Binding() || lineage != input.CurrentLineage {
-					return lifecyclemutation.RestoreActivationBeginRequest{}, errors.New("restoreactivation: current Plan or Apply lineage changed while acquiring the lifecycle lock")
+					return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageAuthorityRevalidation, errors.New("restoreactivation: current Plan or Apply lineage changed while acquiring the lifecycle lock"))
 				}
 			}
 			if input.PrepareMutation != nil {
 				resumeMutation, err = input.PrepareMutation(bounded)
 				if err != nil {
-					return lifecyclemutation.RestoreActivationBeginRequest{}, err
+					return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StagePrepareMutation, err)
 				}
 			}
 			if err := service.runtime.Inspect(bounded, authority); err != nil {
-				return lifecyclemutation.RestoreActivationBeginRequest{}, err
+				return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageRuntimeInspect, err)
 			}
 			if err := service.runtime.ValidateStaging(bounded, authority); err != nil {
-				return lifecyclemutation.RestoreActivationBeginRequest{}, err
+				return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageStagingValidate, err)
 			}
 			safety, err = input.CreateSafetySnapshot(
 				bounded, input.OperationID+"-safety",
 			)
 			if err != nil {
-				return lifecyclemutation.RestoreActivationBeginRequest{}, fmt.Errorf("restoreactivation: create safety snapshot: %w", err)
+				return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageSafetySnapshot, fmt.Errorf("restoreactivation: create safety snapshot: %w", err))
 			}
 			if err := verifySafetySnapshot(authority, safety); err != nil {
-				return lifecyclemutation.RestoreActivationBeginRequest{}, err
+				return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageSafetySnapshot, err)
 			}
 			return beginRequest(authority, safety.ID), nil
 		},
 		releaseMutation,
 	)
 	if err != nil {
-		return Result{}, &ActivationNotStartedError{Cause: err}
+		return Result{}, &ActivationNotStartedError{Cause: stageFailure(StageJournalBegin, err)}
 	}
 	defer func() { _ = session.Close() }()
 	// LIFO: quiescence release must finish before session.Close releases the
@@ -231,6 +279,8 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 		bounded, session, authority, input.VerifyLive,
 	)
 	if executionErr != nil {
+		// The journal phase the activation reached names the failed step.
+		executionErr = stageFailure(session.Record().Phase, executionErr)
 		recovered, rollbackErr := service.recoverAfterFailure(bounded, session, input.WorkspaceRoot, authority, safety.ID, input.VerifyLive, input.FinalizeResult, executionErr)
 		if rollbackErr == nil {
 			return Result{}, &ActivationRecoveredError{Cause: executionErr, Result: recovered}
@@ -241,6 +291,7 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 		input.WorkspaceRoot, authority, safety.ID, "activated", verification,
 	)
 	if err != nil {
+		err = stageFailure(StageResultSign, err)
 		recovered, rollbackErr := service.recoverAfterFailure(bounded, session, input.WorkspaceRoot, authority, safety.ID, input.VerifyLive, input.FinalizeResult, err)
 		if rollbackErr == nil {
 			return Result{}, &ActivationRecoveredError{Cause: err, Result: recovered}

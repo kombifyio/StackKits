@@ -44,6 +44,9 @@ func nativeBackupApplicationCustody(authority nativeV2BackupAuthority) (backupex
 		if deployment.RuntimeAdapter.ID == "coolify" {
 			return nativehost.ObserveCoolifyContainerCustody(ctx, authority.WorkspaceRoot, deployment)
 		}
+		if deployment.RuntimeAdapter.ID == "komodo" {
+			return nativehost.ObserveKomodoContainerCustody(ctx, authority.WorkspaceRoot, deployment)
+		}
 		return nativehost.ObserveStandaloneComposeContainerCustody(ctx, authority.WorkspaceRoot, deployment)
 	}, nil
 }
@@ -163,6 +166,13 @@ func verifyNativeV2BackupApplications(ctx context.Context, authority nativeV2Bac
 		selectedValidator := validator
 		if deployment.RuntimeAdapter.ID == "coolify" {
 			selectedOperations, err = nativehost.NewOSCoolifyWorkloadOperations(authority.WorkspaceRoot)
+			if err != nil {
+				return err
+			}
+			selectedValidator = selectedOperations.(nativehost.SelectedPaaSWorkloadObservationValidator)
+		}
+		if deployment.RuntimeAdapter.ID == "komodo" {
+			selectedOperations, err = nativehost.NewOSKomodoWorkloadOperations(authority.WorkspaceRoot)
 			if err != nil {
 				return err
 			}

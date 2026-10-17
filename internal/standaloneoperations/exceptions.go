@@ -28,13 +28,14 @@ const (
 	scopeAgent      = "agent bootstrap before an MCP connection exists"
 	scopeTransport  = "signed execution-channel transport"
 	scopeTrust      = "owner trust enrollment of a fleet member"
+	scopeOwnerGrant = "owner-only agent access grant"
 )
 
 var exceptions = []Exception{
 	// CLI user experience without a capability of its own.
 	{Command: []string{"help"}, Reason: "Cobra help text; MCP clients discover tools, schemas and descriptions through tools/list.", Scope: scopeCLIUX, Removal: "Never; help is not a capability."},
 	{Command: []string{"completion"}, Reason: "Shell completion script generator for interactive terminals.", Scope: scopeCLIUX, Removal: "Never; completion is not a capability."},
-	{Command: []string{"version"}, Reason: "The MCP initialize result already carries the bound build version, and the connector refuses a CLI of another build.", Scope: scopeCLIUX, Removal: "Never; build identity is part of the MCP handshake."},
+	{Command: []string{"version"}, Reason: "The MCP server/discover result carries the bound build version as serverInfo (legacy initialize carries it too), and the connector refuses a CLI of another build.", Scope: scopeCLIUX, Removal: "Never; build identity is part of the MCP handshake."},
 	{Command: []string{"operations"}, Reason: "Prints this operation catalog; MCP tools/list and /openmcp.json are the connector-native listing of the same contracts.", Scope: scopeCLIUX, Removal: "When MCP discovery stops deriving from this catalog."},
 	{Command: []string{"backup"}, Reason: "Command group whose RunE only prints help; every backup subcommand is classified individually.", Scope: scopeCLIUX, Removal: "When the group gains behavior of its own."},
 	{Command: []string{"backup", "schedule"}, Reason: "Command group whose RunE only prints help; enable, disable and status are projected.", Scope: scopeCLIUX, Removal: "When the group gains behavior of its own."},
@@ -67,6 +68,17 @@ var exceptions = []Exception{
 	{Command: []string{"cluster", "join-token"}, Reason: "Prints a bearer join token; MCP must never return secret values.", Scope: scopeSecret, Removal: "When the token is delivered only to a local file or custody reference and the command output carries no token."},
 	{Command: []string{"user", "add"}, Reason: "Always prints the invited user's one-time passkey setup URL, a bearer enrollment link.", Scope: scopeSecret, Removal: "When invitation can deliver the setup URL out of band and return only the invitation status."},
 	{Command: []string{"user", "owner", "activate"}, Reason: "Returns or reissues the owner's one-time passkey activation URL, a bearer enrollment link; stackkit_user_owner_status covers the non-secret state.", Scope: scopeSecret, Removal: "When activation can be reissued without returning the URL through the caller."},
+
+	// Owner-only administration of agent access.
+	{Command: []string{"agent", "credential"}, Reason: "Command group whose RunE only prints help; mint, rotate, revoke and list are excepted individually.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
+	{Command: []string{"agent", "credential", "mint"}, Reason: "Creates an MCP agent credential and shows its token once; MCP must never return secret values, and an agent must not mint access for itself.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
+	{Command: []string{"agent", "credential", "rotate"}, Reason: "Replaces an MCP agent credential and shows the new token once; MCP must never return secret values, and an agent must not rotate its own access.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
+	{Command: []string{"agent", "credential", "revoke"}, Reason: "Ends an MCP agent credential; revoking access is the owner's decision, made in the owner's shell and never through an agent connection.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
+	{Command: []string{"agent", "credential", "list"}, Reason: "Lists the installation's agent credentials; credential administration stays with the owner's shell.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
+	{Command: []string{"agent", "approval"}, Reason: "Command group whose RunE only prints help; list, approve and deny are excepted individually.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
+	{Command: []string{"agent", "approval", "list"}, Reason: "Lists open per-call write approvals; an agent learns its own request id from the denial.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
+	{Command: []string{"agent", "approval", "approve"}, Reason: "Grants one agent one mutating call; an agent must never be able to approve its own call.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
+	{Command: []string{"agent", "approval", "deny"}, Reason: "Refuses a requested mutating call; answering approvals is the owner's decision in the owner's shell.", Scope: scopeOwnerGrant, Removal: "Never while the MCP surface must not widen its own access."},
 
 	// Execution channel for signed bundles.
 	{Command: []string{"runtime", "execute"}, Reason: "Receiver for a signed execution-channel bundle on stdin from an external executor; exposing it would add a second dispatch path. The lifecycle operations it runs are projected individually.", Scope: scopeTransport, Removal: "When the execution channel is replaced by the projected operations."},

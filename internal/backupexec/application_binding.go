@@ -114,8 +114,12 @@ func bindApplicationSources(source localbackuppolicy.Source, bindings []Applicat
 	seen := map[string]bool{}
 	physicalProjects := map[string]bool{}
 	for _, binding := range bindings {
-		if binding.Runtime.RuntimeAdapterRef != "coolify" || !localbackuppolicy.ValidComposeVolumeName(binding.PhysicalProject) || binding.Control == nil || seen[binding.Runtime.ComposeProject] || physicalProjects[binding.PhysicalProject] {
+		adapter := binding.Runtime.RuntimeAdapterRef
+		if (adapter != "coolify" && adapter != "komodo") || !localbackuppolicy.ValidComposeVolumeName(binding.PhysicalProject) || binding.Control == nil || seen[binding.Runtime.ComposeProject] || physicalProjects[binding.PhysicalProject] {
 			return source, physical, errors.New("invalid or repeated adapter-owned application binding")
+		}
+		if adapter == "komodo" && binding.PhysicalProject != binding.Runtime.ComposeProject {
+			return source, physical, errors.New("Komodo binding changes the held project identity")
 		}
 		found := false
 		for i, runtime := range source.ApplicationRuntimes {
@@ -135,6 +139,9 @@ func bindApplicationSources(source localbackuppolicy.Source, bindings []Applicat
 				continue
 			}
 			name := binding.VolumeNames[volume.VolumeName]
+			if adapter == "komodo" && name != volume.VolumeName {
+				return source, physical, errors.New("Komodo binding changes the held volume identity")
+			}
 			if !localbackuppolicy.ValidComposeVolumeName(name) || (name != volume.VolumeName && name != binding.PhysicalProject+"_"+volume.LogicalName) {
 				return source, physical, errors.New("application binding has no exact selected physical volume")
 			}
@@ -149,8 +156,8 @@ func bindApplicationSources(source localbackuppolicy.Source, bindings []Applicat
 		}
 	}
 	for _, runtime := range source.ApplicationRuntimes {
-		if runtime.RuntimeAdapterRef == "coolify" && !seen[runtime.ComposeProject] {
-			return source, physical, errors.New("Coolify source has no adapter-owned node binding")
+		if (runtime.RuntimeAdapterRef == "coolify" || runtime.RuntimeAdapterRef == "komodo") && !seen[runtime.ComposeProject] {
+			return source, physical, errors.New("managed application source has no adapter-owned node binding")
 		}
 	}
 	for i, name := range physical.ManagedVolumeNames {

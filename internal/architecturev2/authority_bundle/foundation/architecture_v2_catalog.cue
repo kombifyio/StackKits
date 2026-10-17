@@ -1094,7 +1094,7 @@ _architectureV2WorkloadContracts: [
 				defaultFallbackAdapterRefs: []
 				compatibility: [
 					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}

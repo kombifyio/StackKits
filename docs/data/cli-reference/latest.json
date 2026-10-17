@@ -592,12 +592,195 @@
       "examples": [],
       "flags": [],
       "subcommands": [
+        "stackkit agent approval",
+        "stackkit agent credential",
         "stackkit agent diagnose",
         "stackkit agent install-plan",
         "stackkit agent mcp-config",
         "stackkit agent prompt",
         "stackkit agent self-check"
       ]
+    },
+    {
+      "path": "stackkit agent approval",
+      "name": "approval",
+      "parent": "stackkit agent",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent approval [flags]",
+      "short": "Answer per-call write approval requests from attached agents",
+      "description": "A mutating MCP call from an agent with its own credential is denied until you approve that exact call.\nThe denial names an approval request; approving it lets the agent repeat the identical call once, within 15 minutes.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit agent approval approve",
+        "stackkit agent approval deny",
+        "stackkit agent approval list"
+      ]
+    },
+    {
+      "path": "stackkit agent approval approve",
+      "name": "approve",
+      "parent": "stackkit agent approval",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent approval approve <approval-id> [flags]",
+      "short": "Allow the agent to run the requested call once",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent approval deny",
+      "name": "deny",
+      "parent": "stackkit agent approval",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent approval deny <approval-id> [flags]",
+      "short": "Refuse the requested call",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent approval list",
+      "name": "list",
+      "parent": "stackkit agent approval",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent approval list [flags]",
+      "short": "List open and recent approval requests",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent credential",
+      "name": "credential",
+      "parent": "stackkit agent",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent credential [flags]",
+      "short": "Mint, list, rotate and revoke per-agent MCP credentials",
+      "description": "Each agent that attaches to the StackKits MCP endpoint of this server holds its own credential.\nThe server stores only a digest, shows a token exactly once, and re-checks the credential on every request,\nso revoking one denies that agent on its next call without touching the others.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit agent credential list",
+        "stackkit agent credential mint",
+        "stackkit agent credential revoke",
+        "stackkit agent credential rotate"
+      ]
+    },
+    {
+      "path": "stackkit agent credential list",
+      "name": "list",
+      "parent": "stackkit agent credential",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent credential list [flags]",
+      "short": "List agent credentials (never their tokens)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent credential mint",
+      "name": "mint",
+      "parent": "stackkit agent credential",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent credential mint --name <agent> [flags]",
+      "short": "Create a credential for one agent",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit JSON",
+          "required": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Agent name (for example claude-laptop)",
+          "required": true
+        },
+        {
+          "name": "token-file",
+          "type": "string",
+          "description": "Write the token to this new private file instead of stdout",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent credential revoke",
+      "name": "revoke",
+      "parent": "stackkit agent credential",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent credential revoke <agent-id> [flags]",
+      "short": "Deny an agent from its next request on",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit agent credential rotate",
+      "name": "rotate",
+      "parent": "stackkit agent credential",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit agent credential rotate <agent-id> [flags]",
+      "short": "Replace an agent's token; the old token stops working at once",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit JSON",
+          "required": false
+        },
+        {
+          "name": "token-file",
+          "type": "string",
+          "description": "Write the token to this new private file instead of stdout",
+          "required": false
+        }
+      ],
+      "subcommands": []
     },
     {
       "path": "stackkit agent diagnose",
@@ -679,7 +862,7 @@
       "group": "reference",
       "usage": "stackkit agent mcp-config [flags]",
       "short": "Print one StackKits MCP client connection config",
-      "description": "Print a ready-to-paste MCP client configuration named \"stackkit\".\n\nFor users this is one StackKits MCP connection. Locally it starts the\nstackkit-mcp adapter; after install the same connector can also be reached as\nstackkit-server /mcp when a protected endpoint is explicitly enabled.",
+      "description": "Print a ready-to-paste MCP client configuration named \"stackkit\".\n\nFor users this is one StackKits MCP connection. Locally it starts the\nstackkit-mcp adapter; after install the same connector can also be reached as\nstackkit-server /mcp when a protected endpoint is explicitly enabled.\n\nWith --remote-url the output also carries a remote HTTP entry named\n\"stackkit-remote\" for the deployed installation endpoint (own domain or\nkombify.me). It holds only the URL and the NAME of the environment variable\nthat carries the dedicated MCP token; no key or session secret is ever written.",
       "runnable": true,
       "examples": [
         {
@@ -689,6 +872,10 @@
         {
           "command": "stackkit agent mcp-config --client codex",
           "description": "Print the Codex config.toml block"
+        },
+        {
+          "command": "stackkit agent mcp-config --client cursor --remote-url https://home.example.com/mcp",
+          "description": "Add the deployed installation endpoint for Claude, Codex or Cursor"
         }
       ],
       "flags": [
@@ -696,7 +883,14 @@
           "name": "client",
           "type": "string",
           "default": "generic",
-          "description": "Client format: generic, codex, or claude",
+          "description": "Client format: generic, codex, claude, or cursor",
+          "required": false
+        },
+        {
+          "name": "credential-env",
+          "type": "string",
+          "default": "STACKKIT_MCP_TOKEN",
+          "description": "Name of the environment variable that holds the dedicated MCP token for the remote entry",
           "required": false
         },
         {
@@ -704,6 +898,12 @@
           "type": "string",
           "default": "docs,local,server,actions",
           "description": "MCP modes; actions adds the read-only lifecycle tools, and write tools still need STACKKIT_MCP_ALLOW_WRITE=true",
+          "required": false
+        },
+        {
+          "name": "remote-url",
+          "type": "string",
+          "description": "Also emit a remote HTTP entry for the deployed installation MCP endpoint (https)",
           "required": false
         },
         {
@@ -1657,7 +1857,7 @@
         {
           "name": "workload",
           "type": "string",
-          "description": "Activate only this selected Coolify application's backed-up volumes",
+          "description": "Activate only this selected managed application's backed-up volumes",
           "required": false
         }
       ],
@@ -6021,6 +6221,169 @@
       "subcommands": []
     },
     {
+      "path": "stackkit notify",
+      "name": "notify",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit notify [flags]",
+      "short": "Owner notifications declared in the StackSpec",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit notify backup-digest",
+        "stackkit notify event",
+        "stackkit notify test"
+      ]
+    },
+    {
+      "path": "stackkit notify backup-digest",
+      "name": "backup-digest",
+      "parent": "stackkit notify",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit notify backup-digest [flags]",
+      "short": "Send the backup digest to the owner notification channels",
+      "description": "Read the local backup state without changing it and send one owner\nmessage: backup-failed when configuration, schedule, repository, the latest\nsnapshot or a recovery objective needs attention; backup-restore-verification-overdue\nwhen only the staged restore proof is missing or older than the plan's\nrestoreVerification.maxEvidenceAgeDays; otherwise backup-digest.\n\nThe message is sent only when its event is in spec.notifications.events\n(backup-digest is opt-in). It carries states and ages only, never a repository\nlocation or credential. Run it from a timer or an automation for a regular\ndigest.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit notify backup-digest --dry-run",
+          "description": "Preview the message without sending it"
+        },
+        {
+          "command": "stackkit notify backup-digest --json",
+          "description": "Send it and print the receipts as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "channel",
+          "type": "string",
+          "description": "Deliver only to this declared channel name",
+          "required": false
+        },
+        {
+          "name": "dry-run",
+          "type": "bool",
+          "description": "Print the composed message without sending it",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output the message and receipts as JSON",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Canonical Architecture v2 ResolvedPlan (default: beneath the StackSpec generation.outputRoot)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit notify event",
+      "name": "event",
+      "parent": "stackkit notify",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit notify event <apply-failed|upgrade-available|drift-detected|certificate-expiring> [flags]",
+      "short": "Send one lifecycle event to the owner notification channels",
+      "description": "Send one lifecycle event to the owner notification channels. Use it from a\ntimer or an automation for events StackKit does not observe by itself\n(upgrade-available, certificate-expiring); apply-failed and drift-detected are\nsent automatically by 'stackkit apply' and 'stackkit drift detect'.\n\nThe event is sent only when it is in spec.notifications.events. Facts are short\nstates or counts; never put a path, repository location or credential in them.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit notify event certificate-expiring --subject app.example.test --fact \"expires in 9 days\"\nstackkit notify event upgrade-available --fact \"0.27.0 is available\" --remedy \"stackkit upgrade\""
+        }
+      ],
+      "flags": [
+        {
+          "name": "channel",
+          "type": "string",
+          "description": "Deliver only to this declared channel name",
+          "required": false
+        },
+        {
+          "name": "fact",
+          "type": "stringArray",
+          "description": "A short state or count line (repeatable)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output the receipts as JSON",
+          "required": false
+        },
+        {
+          "name": "remedy",
+          "type": "string",
+          "description": "The command the owner can run next",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Canonical Architecture v2 ResolvedPlan (default: beneath the StackSpec generation.outputRoot)",
+          "required": false
+        },
+        {
+          "name": "subject",
+          "type": "string",
+          "description": "What the event is about (service, version or certificate name)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit notify test",
+      "name": "test",
+      "parent": "stackkit notify",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit notify test [flags]",
+      "short": "Send a delivery check to the owner notification channels",
+      "description": "Send a delivery check to every owner notification channel the verified\nResolvedPlan declares (spec.notifications), or to one channel with --channel.\n\nThe plan carries only a secret-free projection of each channel. The check\nreads the destination from the StackSpec on this server, refuses a channel\nwhose destination no longer matches the verified plan, resolves credentials\nfrom local custody and records one receipt per channel under\n.stackkit/runs/owner-notifications. Receipts never contain the topic,\nrecipients, credentials or message body.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit notify test",
+          "description": "Prove every declared channel"
+        },
+        {
+          "command": "stackkit notify test --channel ntfy --json",
+          "description": "Prove one channel and print the receipts as JSON"
+        }
+      ],
+      "flags": [
+        {
+          "name": "channel",
+          "type": "string",
+          "description": "Deliver only to this declared channel name",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output receipts as JSON",
+          "required": false
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Canonical Architecture v2 ResolvedPlan (default: beneath the StackSpec generation.outputRoot)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit operations",
       "name": "operations",
       "parent": "stackkit",
@@ -7358,6 +7721,12 @@
           "name": "json",
           "type": "bool",
           "description": "Emit the secret-free verified setup result",
+          "required": false
+        },
+        {
+          "name": "media-file",
+          "type": "string",
+          "description": "Import one owner-supplied file from media-import/ into the applied Jellyfin named library, then scan it",
           "required": false
         },
         {

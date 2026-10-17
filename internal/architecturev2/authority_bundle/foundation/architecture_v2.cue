@@ -1098,6 +1098,135 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	}
 }
 
+// #NotificationChannelV1 defines typed alerting channels. Dedicated credential
+// fields require opaque secret:// references (Golden Rules §4.5).
+// Legacy backup channels retain their existing format until their consumers
+// migrate; this schema does not establish runtime notification delivery.
+#NotificationChannelTypeV1: "email" | "ntfy" | "gotify" | "slack" | "discord" | "telegram" | "webhook" | "pagerduty"
+
+#NotificationChannelV1: {
+	// Channel name; defaults to the type so a single channel needs no name.
+	name: string | *type
+
+	type: #NotificationChannelTypeV1
+
+	// Email configuration
+	email?: {
+		to: [...string] & [_, ...]
+		from?:     string
+		smarthost: string
+		password?: =~"^secret://"
+	}
+
+	// ntfy configuration (self-hosted or ntfy.sh topic)
+	ntfy?: {
+		serverUrl: string | *"https://ntfy.sh"
+		topic:     string
+		token?:    =~"^secret://"
+		priority:  int & >=1 & <=5 | *3
+	}
+
+	// Gotify configuration
+	gotify?: {
+		url:      string
+		token:    =~"^secret://"
+		priority: int & >=1 & <=10 | *5
+	}
+
+	// Slack configuration
+	slack?: {
+		webhookUrl: =~"^secret://"
+		channel:    string
+		username:   string | *"AlertManager"
+	}
+
+	// Discord configuration
+	discord?: {
+		webhookUrl: =~"^secret://"
+	}
+
+	// Telegram configuration
+	telegram?: {
+		botToken: =~"^secret://"
+		chatId:   string
+	}
+
+	// Webhook configuration
+	webhook?: {
+		url:    string
+		method: "POST" | "PUT" | *"POST"
+		headers?: [string]: string
+		// Authorization material travels as a secret reference, never inline.
+		authorization?: =~"^secret://"
+	}
+
+	// PagerDuty configuration
+	pagerduty?: {
+		routingKey: =~"^secret://"
+	}
+
+	// The type-specific block for the selected type is required.
+	if type == "email" {email: _}
+	if type == "ntfy" {ntfy: _}
+	if type == "gotify" {gotify: _}
+	if type == "slack" {slack: _}
+	if type == "discord" {discord: _}
+	if type == "telegram" {telegram: _}
+	if type == "webhook" {webhook: _}
+	if type == "pagerduty" {pagerduty: _}
+}
+
+// #NotificationEventV1 names one owner-facing event class a StackKit reports
+// from the server it is installed on.
+#NotificationEventV1: "apply-failed" | "backup-digest" | "backup-failed" | "backup-restore-verification-overdue" | "certificate-expiring" | "drift-detected" | "upgrade-applied" | "upgrade-available"
+
+// #NotificationIntentV1 declares how a StackKit reaches its owner. Channels
+// reuse #NotificationChannelV1, so credentials stay opaque secret://
+// references resolved through local custody. Omitting the intent means no
+// channel; status then reports owner notifications as not configured. The
+// default allowlist covers failures and actionable updates; the informational
+// upgrade-applied and backup-digest events are opt-in.
+#NotificationIntentV1: {
+	channels: [...#NotificationChannelV1] & list.MinItems(1)
+	events: [...#NotificationEventV1] & list.MinItems(1) | *[
+		"apply-failed",
+		"backup-failed",
+		"backup-restore-verification-overdue",
+		"certificate-expiring",
+		"drift-detected",
+		"upgrade-available",
+	]
+
+	_channelNamesUnique: list.UniqueItems([for channel in channels {channel.name}]) & true
+	_eventsUnique: list.UniqueItems(events) & true
+}
+
+// #ResolvedNotificationChannelV1 is the secret-free plan projection of one
+// owner channel. destinationHash binds the declared destination (server,
+// topic, recipients) without copying it into the plan; secretRefs name local
+// custody only. delivery is "bound" for channel types with a local delivery
+// adapter and "declared-unbound" for types that still lack delivery evidence.
+#ResolvedNotificationChannelV1: {
+	name:            string & !=""
+	type:            #NotificationChannelTypeV1
+	destinationHash: #ContentHash
+	secretRefs: [...#SecretReference]
+	delivery: "bound" | "declared-unbound"
+
+	_secretRefsUnique: list.UniqueItems(secretRefs) & true
+	// Every channel type has a local delivery adapter.
+	delivery: "bound"
+}
+
+#ResolvedNotificationIntentV1: {
+	apiVersion: "stackkit.notification-intent/v1"
+	channels: [...#ResolvedNotificationChannelV1] & list.MinItems(1)
+	events: [...#NotificationEventV1] & list.MinItems(1)
+
+	_channelNamesUnique: list.UniqueItems([for channel in channels {channel.name}]) & true
+	_eventsUnique: list.UniqueItems(events) & true
+}
+
 #ContainerRuntimeIntentV2: {
 	engine:         *"docker" | "podman"
 	rootless:       bool | *false
@@ -1260,6 +1389,7 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	partitionPolicy:   #PartitionPolicy
 	backupPolicy:      #BackupPolicyV1
 	driftPolicy: #DriftPolicyV1 | *{}
+	notifications?: #NotificationIntentV1
 	observability?: #ModuleOTLPBaselineV1
 	// A deployment managed by Techstack (Advanced Mode) exports metrics to the
 	// loopback Guard sink unless the spec names its own collector transport.
@@ -4407,7 +4537,7 @@ _servicePublicationShape: {
 	// copied from the selected module runtime; dependency order must never be
 	// inferred from Docker names or mutable labels.
 	applicationRuntimes?: [...close({
-		runtimeAdapterRef?: "standalone-compose" | "coolify"
+		runtimeAdapterRef?: "standalone-compose" | "coolify" | "komodo"
 		workloadRef:    #ContractID
 		siteRef:        #SiteID
 		nodeRef:        #NodeID
@@ -8854,6 +8984,7 @@ _guardOTLPSinkIntentV1: {
 	failurePolicy:      #PartitionPolicy
 	backupPolicy:       #BackupPolicyV1
 	driftPolicy:        #DriftPolicyV1
+	notifications?:     #ResolvedNotificationIntentV1
 	observability?:     #ModuleOTLPBaselineV1
 	system:             #ResolvedSystemPlanV2
 	storage:            #StorageIntentV2

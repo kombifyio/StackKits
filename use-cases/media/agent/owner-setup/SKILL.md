@@ -47,6 +47,34 @@ transcoding. Follow the Plan's media volume mapping when adding a library.
 The native library is mounted read-only at `/media`; Jellyfin can scan and
 stream those files but cannot edit or delete the owner-custodied media bytes.
 Its configuration and transcoding cache remain writable in separate volumes.
+
+For the existing named library volume, place one audio or video file directly
+in the workspace's `media-import/` directory on the runtime host, then use:
+
+```sh
+stackkit setup media --credentials-file .stackkit/setup/media-owner.json --owner-approve --media-file media-import/clip.mp4 --json
+```
+
+Complete onboarding first, or include `--complete-onboarding` for an unfinished
+wizard. The existing owner setup verifies the administrator and exact applied
+container, imports the file under its content hash in `/media/Imports`, registers
+that directory with Jellyfin and requests a scan. Repeating the same import
+reuses identical bytes. Conflicting files and links are refused. Other libraries
+are never edited. Jellyfin keeps its read-only mount and cannot delete the
+imported bytes. The original input remains yours; the imported library remains
+excluded from StackKits backups. A successful setup requests indexing; verify
+the item and play it through the intended household client afterward.
+
+If library creation times out or its outcome is unconfirmed, retry setup to
+observe Jellyfin. The durable setup journal prevents another create, including
+under a new operation ID or Plan, until the existing library is observed.
+An absent response does not prove that the original create failed. Keep the
+journal intact; setup resumes scanning when Jellyfin exposes the library.
+
+This import accepts the existing local named library, not an owner-managed
+host bind. Keep copying into an existing host library through its normal
+storage tools. No mount or library-source transition is performed by setup.
+
 To use an existing library on the selected Docker host, set `storage.mediaRoot`
 in the StackSpec to its existing absolute directory, for example
 `/srv/household-media`, before generating and applying. StackKits binds that

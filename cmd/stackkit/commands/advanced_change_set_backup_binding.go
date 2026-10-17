@@ -34,28 +34,50 @@ type advancedCandidateBackupBinding struct {
 }
 
 // resolveAdvancedCandidate resolves the candidate against the persisted
-// Inventory. Only when the node's own backup target binding is what rejects
-// it, the candidate resolves against the Inventory holding the node's
-// successor binding instead.
+// Inventory. Only when a binding the node holds is what rejects it (its own
+// backup target binding, or a Home or federation binding), the candidate
+// resolves against the Inventory holding the successor bindings instead.
 func resolveAdvancedCandidate(
 	service *architecturev2.Service, workspace string, candidateRaw, inventory []byte,
-) (architecturev2.CurrentResolution, *advancedCandidateBackupBinding, error) {
+) (architecturev2.CurrentResolution, *advancedCandidateBackupBinding, []resolvedplan.ReissuedExternalBinding, error) {
 	resolve := func(inventory []byte) (architecturev2.CurrentResolution, error) {
 		return service.ResolveCurrentScoped(
 			architecturev2.ResolveInput{StackSpec: candidateRaw, Inventory: inventory}, advancedCandidateAuthorityScope,
 		)
 	}
+	var backup *advancedCandidateBackupBinding
+	var external []resolvedplan.ReissuedExternalBinding
 	current, err := resolve(inventory)
-	var compileErr *resolvedplan.CompileError
-	if err == nil || !errors.As(err, &compileErr) || compileErr.Code != resolvedplan.ErrExternalBackupTargetBindingMismatch {
-		return current, nil, err
+	// Each kind of binding is carried over at most once.
+	for range 2 {
+		var compileErr *resolvedplan.CompileError
+		if err == nil || !errors.As(err, &compileErr) {
+			break
+		}
+		var next []byte
+		var stepErr error
+		switch {
+		case compileErr.Code == resolvedplan.ErrExternalBackupTargetBindingMismatch && backup == nil:
+			next, backup, stepErr = advancedBackupBindingSuccessor(service, workspace, candidateRaw, inventory)
+			if stepErr != nil {
+				stepErr = fmt.Errorf("candidate backup target binding: %w", stepErr)
+			}
+		case (compileErr.Code == resolvedplan.ErrExternalHomeBackupTargetBindingMismatch ||
+			compileErr.Code == resolvedplan.ErrExternalFederationLinkBindingMismatch) && external == nil:
+			next, external, stepErr = advancedExternalBindingSuccessors(service, candidateRaw, inventory)
+			if stepErr != nil {
+				stepErr = fmt.Errorf("candidate Home or federation binding: %w", stepErr)
+			}
+		default:
+			return current, backup, external, err
+		}
+		if stepErr != nil {
+			return architecturev2.CurrentResolution{}, nil, nil, errors.Join(err, stepErr)
+		}
+		inventory = next
+		current, err = resolve(inventory)
 	}
-	successorInventory, successor, successorErr := advancedBackupBindingSuccessor(service, workspace, candidateRaw, inventory)
-	if successorErr != nil {
-		return architecturev2.CurrentResolution{}, nil, errors.Join(err, fmt.Errorf("candidate backup target binding: %w", successorErr))
-	}
-	current, err = resolve(successorInventory)
-	return current, successor, err
+	return current, backup, external, err
 }
 
 // advancedBackupBindingSuccessor issues the node's binding for the candidate's
@@ -203,10 +225,6 @@ func adoptAdvancedCandidateBackupBinding(workspace string, verified verifiedAdva
 	if verified.candidateBackupAuthority == nil {
 		return nil, errors.New("the candidate backup target authority was not derived during admission")
 	}
-	previous, err := backupcustody.StoredS3TargetAuthority(workspace)
-	if err != nil {
-		return nil, err
-	}
 	raw, path, err := locateArchitectureV2Inventory(workspace, "")
 	if err != nil {
 		return nil, err
@@ -235,10 +253,7 @@ func adoptAdvancedCandidateBackupBinding(workspace string, verified verifiedAdva
 			return nil, err
 		}
 	}
-	restore = func() error { return backupcustody.RebindStoredS3Target(workspace, previous) }
-	if err := backupcustody.RebindStoredS3Target(workspace, *verified.candidateBackupAuthority); err != nil {
-		// The move may have landed before its read-back failed.
-		return nil, errors.Join(err, restore())
-	}
-	return restore, nil
+	// The move is journaled, so a process that dies before the change set
+	// commits leaves custody restorable (recoverPublicUpgradeOperation settles it).
+	return backupcustody.MoveStoredS3TargetJournaled(workspace, *verified.candidateBackupAuthority)
 }

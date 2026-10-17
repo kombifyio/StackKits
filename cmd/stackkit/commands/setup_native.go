@@ -31,6 +31,8 @@ import (
 
 type nativeSetupOptions struct {
 	credentialsFile, operationID                  string
+	mediaFile                                     string
+	mediaLibraryCreate                            func() (bool, error)
 	ownerApproved, completeOnboarding, outputJSON bool
 	connectorRequest                              *appsetup.HomeAssistantConnectorRequest
 	connectorIntent                               string
@@ -56,6 +58,7 @@ func newSetupCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error { return runNativeSetup(cmd, args[0], *options) },
 	}
 	command.Flags().StringVar(&options.credentialsFile, "credentials-file", "", "Workspace-relative private owner credential JSON file (defaults to the selected application's setup guide)")
+	command.Flags().StringVar(&options.mediaFile, "media-file", "", "Import one owner-supplied file from media-import/ into the applied Jellyfin named library, then scan it")
 	command.Flags().StringVar(&options.operationID, "operation-id", "", "Resume a pending setup operation; defaults to the current pending setup or a new ID")
 	command.Flags().BoolVar(&options.ownerApproved, "owner-approve", false, "Approve this Plan-bound application setup")
 	command.Flags().BoolVar(&options.completeOnboarding, "complete-onboarding", false, "Complete the app user and administrator onboarding after verifying the owner login")
@@ -180,9 +183,26 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 				}
 			}
 			store := applicationlifecycle.Store{Workspace: workspace}
-			operationID, err := beginNativeSetupWithIntent(store, contract, options.operationID, options.connectorIntent)
+			intent := options.connectorIntent
+			if options.mediaFile != "" {
+				// The library resource survives setup retries, different imported
+				// files and source-version transitions. A new operation ID must
+				// not erase an earlier unknown create outcome for this resource.
+				raw, err := json.Marshal([]string{"jellyfin-import-library/v1", deployment.InstanceRef, deployment.SiteRef, deployment.NodeRef, "/media/Imports"})
+				if err != nil {
+					return err
+				}
+				hash := sha256.Sum256(raw)
+				intent = "sha256:" + hex.EncodeToString(hash[:])
+			}
+			operationID, err := beginNativeSetupWithIntent(store, contract, options.operationID, intent)
 			if err != nil {
 				return err
+			}
+			if options.mediaFile != "" {
+				options.mediaLibraryCreate = func() (bool, error) {
+					return store.MarkSetupCreateDispatch(contract, operationID, intent)
+				}
 			}
 			fail := func(cause error) error {
 				_, journalErr := store.Transition(contract, applicationlifecycle.TransitionRequest{ID: operationID, Status: applicationlifecycle.StatusFailed, LastError: "application setup did not complete; retry the same operation after correcting its reported cause", Now: time.Now().UTC()})

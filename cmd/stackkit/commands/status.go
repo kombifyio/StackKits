@@ -19,6 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/fleetlifecycle"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/ownernotify"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -86,8 +87,15 @@ type architectureV2StatusResult struct {
 	// Owner-approved schedule still bind the current Apply; a re-apply or CLI
 	// upgrade re-signs the Apply and would otherwise pause scheduled
 	// snapshots without a word.
-	Backup          *architectureV2BackupStatus `json:"backup,omitempty"`
-	ActionableError *actionableerror.Contract   `json:"actionableError,omitempty"`
+	Backup *architectureV2BackupStatus `json:"backup,omitempty"`
+	// Notifications reports whether the owner declared a channel; a
+	// Standard Mode homelab without one is silent, and status says so.
+	Notifications   *ownernotify.Status       `json:"notifications,omitempty"`
+	ActionableError *actionableerror.Contract `json:"actionableError,omitempty"`
+	// StalePlan is set when the saved ResolvedPlan was compiled by another
+	// release than this CLI. Status stays read-only and reports it; Apply and
+	// upgrade keep refusing such a plan.
+	StalePlan *architectureV2StalePlan `json:"stalePlan,omitempty"`
 }
 
 func runStatus(cmd *cobra.Command, args []string) (retErr error) {
@@ -252,6 +260,10 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 	}
 	verified, err := authority.VerifyCanonicalPlan(raw)
 	if err != nil {
+		var stale *resolvedplan.CompilerVersionMismatchError
+		if errors.As(err, &stale) {
+			return writeArchitectureV2StaleStatus(cmd, raw, stale)
+		}
 		return fmt.Errorf("status: verify canonical ResolvedPlan: %w", err)
 	}
 	plan, err := resolvedplan.DecodeCanonicalPlan(verified.Canonical())
@@ -316,6 +328,11 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 		err = errors.Join(err, fmt.Errorf("verify native application setup evidence: %w", setupErr))
 	}
 	output.Backup = readArchitectureV2BackupStatus(ctx, wd)
+	if intent, notifyErr := ownernotify.PlanIntentFromPlan(plan); notifyErr != nil {
+		err = errors.Join(err, notifyErr)
+	} else {
+		output.Notifications = ownernotify.BuildStatus(intent, wd)
+	}
 	applications, experienceErr := buildArchitectureV2ApplicationExperiences(
 		wd, verified, output.ApplicationLifecycles, output.Observations,
 		output.applicationAccess, setupRuns,
@@ -358,6 +375,23 @@ func runArchitectureV2Status(cmd *cobra.Command, wd string) error {
 	if backup := output.Backup; backup != nil {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Backup: configuration %s, schedule %s\n", backup.Configuration, backup.Schedule)
 		for _, attention := range backup.Attention {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", attention)
+		}
+	}
+	if notifications := output.Notifications; notifications != nil {
+		if notifications.State == ownernotify.StateNotConfigured {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Owner notifications: not configured")
+		} else {
+			names := make([]string, 0, len(notifications.Channels))
+			for _, channel := range notifications.Channels {
+				names = append(names, channel.Name+" ("+channel.Type+", "+channel.Delivery+")")
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Owner notifications: %s\n", strings.Join(names, ", "))
+			if last := notifications.LastDelivery; last != nil {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  last %s to %s: %s at %s\n", last.Event, last.Channel, last.Result, last.AttemptedAt)
+			}
+		}
+		for _, attention := range notifications.Attention {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", attention)
 		}
 	}
@@ -724,4 +758,35 @@ func determineOverallStatus(services []models.ServiceState) models.DeploymentSta
 		return models.StatusDegraded
 	}
 	return models.StatusRunning
+}
+
+type architectureV2StalePlan struct {
+	PlanCompiler string `json:"planCompiler"`
+	CLICompiler  string `json:"cliCompiler"`
+	Finding      string `json:"finding"`
+}
+
+// writeArchitectureV2StaleStatus describes an installation whose saved plan an
+// older compiler produced. The plan cannot be authority-verified, so only its
+// declared identity and workloads are reported, never runtime or Apply claims.
+func writeArchitectureV2StaleStatus(cmd *cobra.Command, raw []byte, stale *resolvedplan.CompilerVersionMismatchError) error {
+	var plan map[string]any
+	if err := json.Unmarshal(raw, &plan); err != nil {
+		return fmt.Errorf("status: decode stale ResolvedPlan: %w", err)
+	}
+	finding := fmt.Sprintf("The saved plan was compiled by %s but this CLI is %s; regenerate and redeploy the plan. Apply and upgrade refuse it until then.", stale.PlanCompiler, stale.AuthorityCompiler)
+	output := architectureV2StatusResult{
+		APIVersion: "stackkit.status/v2", StackID: plan["stackId"], Kit: plan["kit"],
+		ExecutionReadiness: plan["executionReadiness"], Workloads: plan["workloads"],
+		ApplicationLifecycles: []applicationlifecycle.State{}, Applications: []applicationlifecycle.ApplicationExperience{},
+		Observations: []runtimeobservation.Observation{}, ApplyState: "unavailable",
+		StalePlan: &architectureV2StalePlan{PlanCompiler: stale.PlanCompiler, CLICompiler: stale.AuthorityCompiler, Finding: finding},
+	}
+	if statusJSON {
+		encoder := json.NewEncoder(cmd.OutOrStdout())
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(output)
+	}
+	_, err := fmt.Fprintf(cmd.OutOrStdout(), "Deployment: %v\nPlan: stale (%s)\n%s\n", plan["stackId"], stale.PlanCompiler, finding)
+	return err
 }

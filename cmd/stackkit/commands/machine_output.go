@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/managedentitlement"
+	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/spf13/cobra"
 )
 
@@ -71,6 +73,30 @@ func machineCommandFailureReason(cmd *cobra.Command, status string) string {
 	}
 	return name + "_" + status
 }
+
+// restoreActivationFailureReason names the outcome and closed step of a failed
+// restore activation, e.g. restore_activation_recovered_in_runtime_start_started.
+// The stage is a closed pre-journal step or the last committed journal phase,
+// never cause text. A typed product reason keeps precedence.
+func restoreActivationFailureReason(err error) (string, bool) {
+	var stage *restoreactivation.StageError
+	if !errors.As(err, &stage) || !restoreActivationStagePattern.MatchString(stage.Stage) {
+		return "", false
+	}
+	step := strings.ReplaceAll(stage.Stage, "-", "_")
+	var notStarted *restoreactivation.ActivationNotStartedError
+	var recovered *restoreactivation.ActivationRecoveredError
+	switch {
+	case errors.As(err, &notStarted):
+		return "restore_activation_not_started_at_" + step, true
+	case errors.As(err, &recovered):
+		return "restore_activation_recovered_in_" + step, true
+	default:
+		return "restore_activation_failed_in_" + step, true
+	}
+}
+
+var restoreActivationStagePattern = regexp.MustCompile(`^[a-z][a-z-]{1,39}$`)
 
 // Preserve the existing product classifications without exposing error fields.
 // Code types can hold arbitrary strings, so only registered values are public.
@@ -203,13 +229,17 @@ func commandFailureDetail(cmd *cobra.Command, err error, guidance ...string) (st
 	reason := machineCommandFailureReason(cmd, status)
 	retryable := false
 	message := logging.RedactText(err.Error())
-	if typedReason, typed := typedProductFailureReason(err); typed {
+	typedReason, typed := typedProductFailureReason(err)
+	if typed {
 		status = "failed"
 		reason = machineCommandFailureReason(cmd, status)
 		if typedReason != "" {
 			reason = typedReason
 		}
 		message = "StackKits rejected the command at a typed product boundary."
+	}
+	if stageReason, ok := restoreActivationFailureReason(err); ok && !typed {
+		reason = stageReason
 	}
 	var pathError *os.PathError
 	if errors.As(err, &pathError) && os.IsNotExist(pathError) {

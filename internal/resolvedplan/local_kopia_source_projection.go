@@ -145,7 +145,7 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 				return nil, nil, fmt.Errorf("native Marketplace backup cannot acquire a workload adapter")
 			}
 			adapterRef = adapterID
-			if adapterID != "standalone-compose" && adapterID != "coolify" {
+			if adapterID != "standalone-compose" && adapterID != "coolify" && adapterID != "komodo" {
 				continue
 			}
 		}
@@ -156,7 +156,7 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 		if nativeMarketplace && workloadRef != "marketplace" {
 			return nil, nil, fmt.Errorf("native Marketplace backup names another workload")
 		}
-		if adapterRef == "coolify" {
+		if adapterRef == "coolify" || adapterRef == "komodo" {
 			supported, err := localKopiaApplicationBackupSupported(lifecycles, workloadRef, adapterRef)
 			if err != nil {
 				return nil, nil, err
@@ -205,7 +205,7 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 			}
 			runtimes = append(runtimes, localbackuppolicy.ApplicationRuntime{
 				RuntimeAdapterRef: func() string {
-					if adapterRef == "coolify" {
+					if adapterRef == "coolify" || adapterRef == "komodo" {
 						return adapterRef
 					}
 					return ""

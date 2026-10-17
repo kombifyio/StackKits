@@ -1623,6 +1623,13 @@ func replaceGeneratedDirectory(staging, outRoot, parent, base string) error {
 	} else if err != nil {
 		return err
 	}
+	// Readers may hold an embedded bundle open on Windows. An identical
+	// generation needs no replacement; retain its complete verified tree.
+	if same, err := generatedDirectoriesEqual(staging, outRoot); err != nil {
+		return err
+	} else if same {
+		return removeGuardedTree(staging, parent, "."+base+"-staging-")
+	}
 
 	backup, err := os.MkdirTemp(parent, "."+base+"-previous-")
 	if err != nil {
@@ -1644,6 +1651,48 @@ func replaceGeneratedDirectory(staging, outRoot, parent, base string) error {
 		return fmt.Errorf("remove previous generated bundle: %w", err)
 	}
 	return nil
+}
+
+func generatedDirectoriesEqual(left, right string) (bool, error) {
+	for _, root := range []string{left, right} {
+		info, err := os.Lstat(root)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return false, err
+		}
+	}
+	l, err := os.ReadDir(left)
+	if err != nil {
+		return false, err
+	}
+	r, err := os.ReadDir(right)
+	if err != nil || len(l) != len(r) {
+		return false, err
+	}
+	for i, entry := range l {
+		other := r[i]
+		if entry.Name() != other.Name() || entry.Type() != other.Type() {
+			return false, nil
+		}
+		lp, rp := filepath.Join(left, entry.Name()), filepath.Join(right, other.Name())
+		if entry.IsDir() {
+			if same, err := generatedDirectoriesEqual(lp, rp); err != nil || !same {
+				return false, err
+			}
+			continue
+		}
+		if !entry.Type().IsRegular() {
+			return false, nil
+		}
+		a, err := os.ReadFile(lp)
+		if err != nil {
+			return false, err
+		}
+		b, err := os.ReadFile(rp)
+		if err != nil || !bytes.Equal(a, b) {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func removeGuardedTree(target, parent, requiredPrefix string) error {

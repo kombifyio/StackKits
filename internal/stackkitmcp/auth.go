@@ -1,6 +1,7 @@
 package stackkitmcp
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
@@ -8,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/mcpagents"
 )
 
 // Dedicated MCP credential sources. The token file lets an installer mint the
@@ -41,30 +44,53 @@ func ResolveMCPToken(flagValue string) (string, error) {
 	return token, nil
 }
 
+type agentContextKey struct{}
+
+// AgentFromContext returns the per-agent credential that authenticated the
+// request. A request admitted by the shared legacy token has none.
+func AgentFromContext(ctx context.Context) (mcpagents.Agent, bool) {
+	agent, ok := ctx.Value(agentContextKey{}).(mcpagents.Agent)
+	return agent, ok
+}
+
 // RequireMCPToken admits only requests that present the configured MCP token
-// as a bearer credential or X-StackKit-MCP-Token value. It fails closed: with
-// no configured token every request is denied with configuration guidance.
+// as a bearer credential or X-StackKit-MCP-Token value.
 func RequireMCPToken(token string, next http.Handler) http.Handler {
+	return RequireMCPCredential(token, nil, next)
+}
+
+// RequireMCPCredential admits requests that present the shared MCP token or an
+// active per-agent credential from the store, and it fails closed: with
+// neither configured every request is denied with configuration guidance. An
+// agent credential is re-checked on every request, so revoking it denies the
+// next call.
+func RequireMCPCredential(token string, agents *mcpagents.Store, next http.Handler) http.Handler {
 	token = strings.TrimSpace(token)
-	if token == "" {
-		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			writeMCPAuthDenial(w, "mcp_token_not_configured",
-				"this StackKits MCP endpoint has no MCP token configured and denies every request",
-				"Configure a dedicated MCP token on the server: write it to a file named by STACKKIT_MCP_TOKEN_FILE (or set STACKKIT_MCP_TOKEN / --mcp-token), then restart the server",
-				"The stackkit-server API key is never accepted as an MCP credential",
-			)
-		})
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !mcpTokenMatches(token, presentedMCPToken(r)) {
-			writeMCPAuthDenial(w, "mcp_token_required",
-				"a valid StackKits MCP token is required",
-				"Send the dedicated MCP token as 'Authorization: Bearer <token>' or in the X-StackKit-MCP-Token header",
-				"The stackkit-server API key is not an MCP credential",
+		if token == "" && (agents == nil || !agents.HasActive()) {
+			writeMCPAuthDenial(w, "mcp_token_not_configured",
+				"this StackKits MCP endpoint has no MCP credential configured and denies every request",
+				"Mint an agent credential with 'stackkit agent credential mint --name <agent>', or write a shared token to a file named by STACKKIT_MCP_TOKEN_FILE (or set STACKKIT_MCP_TOKEN / --mcp-token), then restart the server",
+				"The stackkit-server API key is never accepted as an MCP credential",
 			)
 			return
 		}
-		next.ServeHTTP(w, r)
+		presented := presentedMCPToken(r)
+		if mcpTokenMatches(token, presented) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if agents != nil {
+			if agent, ok := agents.Authenticate(presented); ok {
+				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), agentContextKey{}, agent)))
+				return
+			}
+		}
+		writeMCPAuthDenial(w, "mcp_token_required",
+			"a valid StackKits MCP credential is required",
+			"Send the agent credential as 'Authorization: Bearer <token>' or in the X-StackKit-MCP-Token header; a revoked or rotated-out credential no longer works",
+			"The stackkit-server API key is not an MCP credential",
+		)
 	})
 }
 

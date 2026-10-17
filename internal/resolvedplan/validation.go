@@ -102,6 +102,7 @@ type specView struct {
 	partitionPolicy     map[string]any
 	backupPolicy        map[string]any
 	driftPolicy         map[string]any
+	notifications       map[string]any
 	observability       map[string]any
 	workloads           map[string]any
 	modules             map[string]any
@@ -793,6 +794,9 @@ func populateSpecPolicyContracts(profile *profileView, spec map[string]any, view
 		return err
 	}
 	if view.driftPolicy, err = objectField(spec, "spec", "driftPolicy"); err != nil {
+		return err
+	}
+	if view.notifications, _, err = optionalObjectField(spec, "spec", "notifications"); err != nil {
 		return err
 	}
 	if view.observability, _, err = optionalObjectField(spec, "spec", "observability"); err != nil {

@@ -105,7 +105,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 
 | Command | Purpose |
 | --- | --- |
-| `init [stackkit]` | Create a CUE-owned StackSpec. Published v0.6 binaries also created a legacy output directory; current source uses native v2 plus local Owner custody. |
+| `init [stackkit]` | Create a CUE-owned StackSpec with local Owner custody. |
 | `prepare` / `prep` | Prepare local or SSH target: prerequisites, Docker checks, packaged OpenTofu check, spec validation, hardware checks. |
 | `generate` / `gen` | Generate rollout artifacts from the spec and CUE contracts. |
 | `plan` | Run an OpenTofu plan for the generated deployment. |
@@ -118,8 +118,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
 | `resolve [file]` | Resolve canonical StackSpec v2 through the embedded CUE authority or return a typed v1 migration report. |
 | `migrate [v1-spec-file]` | Classify v1, reconcile one explicit v2 draft, and optionally persist canonical migrated-v1 intent. |
-| `addon` | List add-ons from the embedded CUE catalog; add/remove remains v0.6 compatibility-only until a governed v2 mutation contract exists. |
-| `app` | v0.6 compatibility only: write optional customer-owned PaaS handoff metadata. |
+| `addon` | List add-ons from the embedded CUE catalog (read-only). |
 | `break-glass` | Inspect and rotate break-glass recovery bundles. |
 | `backup` | Configure, inspect, run, verify, restore, and migrate Kopia backups. |
 | `cluster` | Manage multi-node cluster membership. |
@@ -185,30 +184,6 @@ Native Architecture v2 flags:
 - `--owner-username`
 - `--owner-display-name`
 
-The following init flags belong to the exact-v0.6 compatibility surface. They
-are not part of the native v0.8 workflow and do not restore the removed v1
-generator:
-
-- `--force`, `-f`
-- `--mode`
-- `--compute-tier`
-- `--local-dns`
-- `--local-name`
-- `--admin-email`
-- `--owner-bootstrap-mode`
-- `--owner-source=cloud`
-- `--recovery-passphrase-hash`
-- `--recovery-material-ref`
-- `--output`, `-o`
-
-v0.6 compatibility Owner bootstrap modes:
-
-| Mode | CLI shape | Notes |
-| --- | --- | --- |
-| `auto` | `--owner-bootstrap-mode auto --owner-source cloud --recovery-material-ref techstack://...` | SaaS/TechStack handoff. Does not require `--owner-email` or `--owner-username`; Cloud profile resolution happens outside the CLI. |
-| `custom` | `--owner-bootstrap-mode custom --owner-source local --owner-email ... --owner-username ... --recovery-passphrase-hash ...` | Self-hosted explicit Owner. The hash is persisted; plaintext is never stored in `stack-spec.yaml`. |
-| `none` | `--owner-bootstrap-mode none` | Explicitly skip Owner bootstrap for OSS/BYOS or manually managed identity. |
-
 ### `stackkit use-cases add <slug>`
 
 Add a catalog use case to an existing native `stackkit/v2alpha2` standalone
@@ -255,8 +230,7 @@ For native v2alpha2, selected module-local capacity is outside this report and
 remains explicitly unverified here; canonical module admission must use an
 attested Inventory before Apply.
 It never installs or configures packages, persists inventory, prepares a remote
-host, or requires a hosted account. The former remote preparation flags and
-phase events describe immutable v0.6 artifacts only.
+host, or requires a hosted account.
 
 ### `stackkit generate`
 
@@ -306,10 +280,7 @@ the standalone CLI needs no server or account.
 
 ### `stackkit plan`
 
-Exact-v0.6 compatibility builds can still inspect historical generated
-deployments with packaged OpenTofu. The native v0.8 build never selects that path.
-
-On native v0.7, `stackkit plan` is a deterministic read-only inspection of the
+`stackkit plan` is a deterministic read-only inspection of the
 current canonical ResolvedPlan and its verified generation manifest, receipt,
 and artifact hashes. It reports the exact Spec, Inventory, KitDefinition, plan,
 and renderer identity; generation and Apply readiness; and every governed Apply
@@ -606,9 +577,7 @@ authentication; remote consumers still authenticate the pinned StackKits
 producer channel, compare expected custody identity, and use any previously
 established Owner key when authenticating the retained authorization payload.
 
-OpenTofu/Docker whole-deployment cleanup plus `--purge` and `--force` are
-exact-v0.6 compatibility behavior only. Native v2 rejects those flags and
-never falls back to label-based Docker deletion.
+Native v2 rejects `--purge` and `--force` and never falls back to label-based Docker deletion.
 
 ### `stackkit status`
 
@@ -826,9 +795,7 @@ in-flight volume is conservatively treated as modified and rolled back. The
 runtime is restarted and Owner/service verification must pass before the
 operation is marked recovered.
 
-`list`, `verify`, and `migrate-from-restic` still use the exact-v0.6
-compatibility implementation and are rejected by native-v2 builds until their
-corresponding lifecycle slices land. The Kopia-independent `emergency-export`
+The Kopia-independent `emergency-export`
 command streams explicitly selected files into one `tar.gz.age` archive.
 `emergency-restore` authenticates and checks its contents in a new isolated
 directory, without Docker, the original host, or a Kombify account. It reports
@@ -864,7 +831,6 @@ Common commands:
 - `stackkit backup configure [--json]` creates or reconnects the exact CUE-governed local filesystem repository.
 - `stackkit backup status [--json]` checks the exact local repository and reports the age of owner-signed snapshot and staged-restore receipts for its current source policy. It also lists authenticated recorded recovery points, newest first, with their snapshot-anchor IDs, dates and current/historical plan observation. JSON and `stackkit_backup_status` expose them as `data.history.recoveryPoints`. Choose an earlier ID with `stackkit backup restore <snapshot-anchor-id> --owner-approve`; the existing restore verifies its content before staging. Missing or unauthenticated history remains unverified; a future receipt timestamp reports clock skew. A listed point or receipt age does not prove retained content, application recovery, or an RPO/RTO objective.
 - `stackkit backup run [--operation-id ID] [--json]` quiesces the governed Core and selected application writers, then creates a crash-consistent snapshot. CUE retention is applied to ordinary snapshots; protected upgrade and restore-safety anchors are retained. Reusing an operation ID returns its recorded snapshot receipt, without claiming expired bytes remain available.
-- `stackkit backup list [--json]` is a legacy-v0.6 repository command; native deployments use the authenticated history in `backup status`.
 - `stackkit backup target import --owner-approve --candidate-digest sha256:<digest>` reads the S3 target JSON on stdin (endpoint, bucket, prefix, region, accessKeyId, secretAccessKey, passphrase) into encrypted local custody and issues the node's own backup-target binding. The order is `init`, `trust`, `generate`, `import`, `generate`, `plan`, `apply`.
 - `stackkit backup target recipient --challenge <value> --owner-approve` creates this node's separate encryption recipient key once and prints a statement, signed by the local Owner key, that binds the public key to this Site and node and echoes the challenge. The private key never leaves local custody. A delivering authority such as Techstack seals the target JSON to that key (`pkg/hostdelivery`, HPKE with the exact tenant, server, binding generation, operation, recipient and expiry bound in), so only ciphertext and an opaque reference cross the control plane.
 - `stackkit backup target import --sealed --tenant-ref <tenant> --owner-approve --candidate-digest sha256:<digest>` reads that sealed envelope on stdin instead. The node opens it, records the delivery as consumed before using it, and imports it exactly like plain JSON. With `--rebind` it renews an expired node-issued binding over identical custody from a delivery sealed for the `backup-target-rebind` operation. A delivery for another node, tenant, generation or operation, an expired one, and a replay are all denied.
@@ -872,10 +838,8 @@ Common commands:
 - `stackkit backup restore abandon <restore-operation-id> --owner-approve --json` signs terminal abandonment of an exact pending or staged restore journal without invoking Docker/Kopia or changing repository data or live volumes. It is idempotent and requires a new operation ID for any later restore.
 - `stackkit backup restore activate sha256:<restore-result-id> --owner-approve [--workload REF] [--operation-id ID] [--json]` creates the mandatory safety snapshot, activates the exact Plan-owned volume set, restarts the runtime, and verifies Owner binding and services.
 - `stackkit backup restore recover <activation-operation-id> --owner-approve --rollback [--json]` resumes the signed activation journal. Before commit it rolls back and verifies the prior runtime; after commit it preserves activated data and finishes cleanup and application evidence. A completed retry returns the original signed result.
-- `stackkit backup verify` is a legacy-v0.6 command for `kopia repository validate-provider`; it is not the native restore-verification path.
 - `stackkit backup emergency-export --recipient age1PUBLIC_RECIPIENT --source config=/opt/stacks --source documents=/srv/documents --target /backup/emergency-export --json` writes an encrypted portable archive, checksummed manifest, and restore runbook. The target must not exist. Use `--large-media-mode manifest-only|include|exclude` for explicitly selected `large-media` sources.
 - `stackkit backup emergency-restore --archive /backup/emergency-export/stackkit-emergency.tar.gz.age --identity-file /recovery/private/age-key.txt --target /recovery/staged --json` verifies the entire encrypted archive and publishes a new private staging directory. The identity file must have owner-only permissions. `--max-bytes` bounds decompressed input, including metadata (default 512 GiB).
-- `stackkit backup migrate-from-restic [--dry-run]` runs the one-shot legacy importer.
 
 Fleet enrollment and controller operations are outside the public CLI contract.
 The governed Kopia lifecycle has no native `--repo`, `--container`, source,
@@ -1036,54 +1000,11 @@ publication succeeds.
 Report and spec paths must differ, remain beneath the working directory, and
 cannot both be stdout aliases. The legacy input remains unchanged.
 
-Immutable v0.6 release artifacts remain available for rollback and migration
-inspection. Native v0.8 rejects raw v1 operational commands. The CLI generator
-has additionally been removed from current source across every build identity,
-so even an exact-v0.6 version string cannot restore v1 generation. Retry the
-native workflow with `--spec <stack-spec.v2.json>` after migration completion.
+Native builds reject raw v1 operational commands and have no v1 generator; after migration, retry the native workflow with `--spec <stack-spec.v2.json>`.
 
 ### `stackkit addon`
 
-`stackkit addon list` is native on the v0.7 line. It reads only the CUE-bound
-catalog embedded in the CLI; it never scans the checkout. With a validated
-canonical v2 StackSpec, the list is filtered to its explicit `kit.slug` and
-shows enabled selections. Without a spec it shows the product-wide catalog.
-Catalog presence means only that an add-on contract exists for a kit; it is not
-evidence that mutation, planning, generation, apply, or runtime execution is
-ready.
-
-`stackkit addon add` and `stackkit addon remove` remain available only in an
-explicit v0.6 build. In v0.7 they fail before reading or writing a spec because
-the current HA add-on requires a coordinated topology and availability
-transition. Native mutation will require a catalog-declared authoring mode,
-catalog-bound validation, and compare-and-swap-safe canonical spec persistence.
-
-### `stackkit app`
-
-This command is available only on the explicit v0.6 compatibility line. It
-writes optional PaaS app handoff metadata to the legacy `stack-spec.yaml` and
-does not make the app StackKit-owned.
-
-Architecture v2 deliberately has no arbitrary image-to-module or image-to-route
-mapping: StackKit-owned applications come from the governed CUE catalog, while
-a future customer-workload desired-state contract belongs to TechStack. That
-TechStack contract does not exist yet, so v0.7+ fails closed instead of claiming
-that deployment ownership has already moved.
-
-Subcommands:
-
-- `app add <name>`
-
-v0.6 compatibility flags for `app add`:
-
-- `--image`
-- `--kind` (`sveltekit` currently)
-- `--port`
-- `--host`
-- `--auth` (`login-gateway` or `public`)
-- `--health-path`
-- `--env KEY=value`
-- `--secret KEY=env:NAME|doppler:NAME|vault:NAME|file:PATH`
+`stackkit addon list` reads only the CUE-bound catalog embedded in the CLI. With a validated canonical v2 StackSpec it is filtered to the spec's `kit.slug` and shows enabled selections; without a spec it shows the product-wide catalog. Catalog presence is not evidence that mutation, planning, generation, apply or runtime execution is ready. `addon add` and `addon remove` fail before reading or writing a spec (the HA add-on needs a coordinated topology and availability transition).
 
 ### `stackkit break-glass`
 

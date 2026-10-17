@@ -57531,7 +57531,7 @@
               {
                 "adapterRef": "komodo",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true

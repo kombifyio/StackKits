@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
@@ -50,6 +51,10 @@ func recoverPublicUpgradeOperation(
 		return result, nil
 	}
 	if record.Phase == lifecyclemutation.PhaseCommitSucceeded {
+		if err := backupcustody.CommitS3TargetMove(workspace); err != nil {
+			result.Status = "failed"
+			return result, fmt.Errorf("commit the backup target custody move: %w", err)
+		}
 		if err := mutation.Complete(lifecyclemutation.StatusSucceeded); err != nil {
 			result.Status = "failed"
 			return result, fmt.Errorf("complete already committed lifecycle operation: %w", err)
@@ -86,6 +91,11 @@ func recoverPublicUpgradeOperation(
 			}
 			if err := validateExplicitRecoveryAuthority(record, snapshot); err != nil {
 				return err
+			}
+			// A change set that died after moving custody to its candidate
+			// authority returns custody to the authority it recorded.
+			if err := backupcustody.SettleS3TargetMove(workspace); err != nil {
+				return fmt.Errorf("restore the backup target custody: %w", err)
 			}
 			if record.Phase != lifecyclemutation.PhasePrepared {
 				result.Rollback.DataStaged = true

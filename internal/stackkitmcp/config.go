@@ -1,6 +1,10 @@
 package stackkitmcp
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/kombifyio/stackkits/internal/mcpagents"
+)
 
 // Options configures the StackKits MCP server surface.
 type Options struct {
@@ -10,14 +14,25 @@ type Options struct {
 	Transport  string
 	MCPToken   string
 	AllowWrite bool
-	BaseDir    string
+	// Agents holds per-agent MCP credentials. When set, a request that
+	// authenticates with an agent credential may call mutating tools only
+	// after the owner approves that exact call; AllowWrite no longer applies
+	// to it and stays the switch for the shared token and stdio.
+	Agents  *mcpagents.Store
+	BaseDir string
 	// PinBaseDir confines every tool to BaseDir. A remote caller then cannot
 	// point base_dir at other paths of the host or container.
 	PinBaseDir bool
-	Binary     string
-	Version    string
-	GitCommit  string
+	// JSONResponse answers Streamable HTTP calls with application/json instead
+	// of an event stream; stackkit-server sets it because its tools never stream.
+	JSONResponse bool
+	Binary       string
+	Version      string
+	GitCommit    string
 }
+
+// writeEnabled reports whether mutating tools are registered at all.
+func (o Options) writeEnabled() bool { return o.AllowWrite || o.Agents != nil }
 
 func (o Options) normalized() Options {
 	if len(o.Modes) == 0 {

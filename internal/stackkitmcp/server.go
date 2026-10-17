@@ -33,7 +33,7 @@ type App struct {
 func New(opts Options) *App {
 	opts = opts.normalized()
 	app := &App{opts: opts, docs: loadDocs()}
-	if opts.Modes["actions"] && (opts.AllowWrite || stackspecadmission.RejectOperationalV1(opts.Version)) {
+	if opts.Modes["actions"] && (opts.writeEnabled() || stackspecadmission.RejectOperationalV1(opts.Version)) {
 		app.cliBinding, app.cliBindingError = bindCLIBinary(opts)
 	}
 	return app
@@ -55,7 +55,12 @@ func NewHTTPServer(addr string, handler http.Handler) *http.Server {
 
 // Server builds a Model Context Protocol server with the configured modes.
 func (a *App) Server() *mcp.Server {
-	server := mcp.NewServer(&mcp.Implementation{Name: "stackkit-mcp", Version: a.opts.Version}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: "stackkit-mcp", Version: a.opts.Version}, &mcp.ServerOptions{
+		// Every cacheable result (server/discover, the list methods and
+		// resources/read) is served to an authenticated caller, so a shared
+		// cache must never keep it; the SDK default is "public".
+		SetCacheable: func(_ context.Context, _ mcp.Request, c *mcp.Cacheable) { c.CacheScope = "private" },
+	})
 	if a.opts.Modes["docs"] {
 		a.addDocs(server)
 	}
@@ -67,7 +72,7 @@ func (a *App) Server() *mcp.Server {
 	}
 	if a.opts.Modes["actions"] {
 		a.addReadOnlyActions(server)
-		if a.opts.AllowWrite {
+		if a.opts.writeEnabled() {
 			a.addActions(server)
 		}
 	}
@@ -82,7 +87,8 @@ func (a *App) Server() *mcp.Server {
 func (a *App) StreamableHTTPHandler() http.Handler {
 	server := a.Server()
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{
-		Stateless: true,
+		Stateless:    true,
+		JSONResponse: a.opts.JSONResponse,
 	})
 }
 
@@ -90,7 +96,7 @@ func (a *App) StreamableHTTPHandler() http.Handler {
 // request. Without a configured token it denies every request; it never falls
 // back to an open endpoint or to another credential.
 func (a *App) ProtectedStreamableHTTPHandler() http.Handler {
-	return RequireMCPToken(a.opts.MCPToken, a.StreamableHTTPHandler())
+	return RequireMCPCredential(a.opts.MCPToken, a.opts.Agents, a.StreamableHTTPHandler())
 }
 
 // OpenMCP returns agent-native discovery metadata for the local MCP surface.
@@ -117,7 +123,7 @@ func (a *App) OpenMCP() map[string]any {
 			"tokenSources":    []string{"--mcp-token", MCPTokenEnv, MCPTokenFileEnv},
 			"serverEndpoint":  "stackkit-server POST /mcp denies every request until an MCP token is configured",
 			"loopbackAdapter": "stackkit-mcp --transport http serves without a token only on a loopback listen address",
-			"writeGate":       "STACKKIT_MCP_ALLOW_WRITE=true",
+			"writeGate":       "STACKKIT_MCP_ALLOW_WRITE=true for the shared token; a per-agent credential instead needs the owner to approve each mutating call (stackkit agent approval approve <id>)",
 		},
 		"policy": map[string]any{
 			"websiteSurface":          "read-only discovery only",
@@ -125,12 +131,13 @@ func (a *App) OpenMCP() map[string]any {
 			"managedServerless":       "out-of-scope",
 			"providerLifecycle":       "out-of-scope; owned by TechStack or another external executor",
 		},
-		"modes":      enabledModes(a.opts.Modes),
-		"allowWrite": a.opts.AllowWrite,
-		"serverURL":  a.opts.ServerURL,
-		"tools":      a.registeredTools(),
-		"resources":  a.openMCPResources(),
-		"prompts":    stackkitPrompts(),
+		"modes":           enabledModes(a.opts.Modes),
+		"allowWrite":      a.opts.AllowWrite,
+		"perCallApproval": a.opts.Agents != nil,
+		"serverURL":       a.opts.ServerURL,
+		"tools":           a.registeredTools(),
+		"resources":       a.openMCPResources(),
+		"prompts":         stackkitPrompts(),
 		"appResources": []map[string]any{{
 			"uri":                  stateConsoleResourceURI,
 			"mimeType":             "text/html;profile=mcp-app",
@@ -140,6 +147,47 @@ func (a *App) OpenMCP() map[string]any {
 			"appsSdkMetadata":      stateConsoleResourceMeta(),
 		}},
 	}
+}
+
+// OpenMCPPublic is what an unauthenticated GET /openmcp.json may learn: the
+// connector identity, transport and credential model, never the tool,
+// resource or prompt inventory of an installation.
+func (a *App) OpenMCPPublic() map[string]any {
+	full := a.OpenMCP()
+	return map[string]any{
+		"schemaVersion": full["schemaVersion"],
+		"name":          full["name"],
+		"version":       full["version"],
+		"title":         full["title"],
+		"transport":     full["transport"],
+		"auth":          full["auth"],
+		"detail":        "Present the dedicated MCP token to read the tool, resource and prompt inventory, or call server/discover and tools/list on the endpoint.",
+	}
+}
+
+// OpenMCPJSONFor serves the full discovery document only to a request that
+// presents the configured MCP token; every other request gets OpenMCPPublic.
+func (a *App) OpenMCPJSONFor(r *http.Request) []byte {
+	if !a.credentialPresented(r) {
+		raw, err := json.MarshalIndent(a.OpenMCPPublic(), "", "  ")
+		if err != nil {
+			return []byte("{}")
+		}
+		return append(raw, '\n')
+	}
+	return a.OpenMCPJSON()
+}
+
+func (a *App) credentialPresented(r *http.Request) bool {
+	presented := presentedMCPToken(r)
+	if mcpTokenMatches(a.opts.MCPToken, presented) {
+		return true
+	}
+	if a.opts.Agents != nil {
+		_, ok := a.opts.Agents.Authenticate(presented)
+		return ok
+	}
+	return false
 }
 
 // OpenMCPJSON returns pretty JSON discovery metadata.

@@ -24,7 +24,7 @@ func ApplicationAuthorityForVolumes(workspace string, plan generationartifact.Ve
 		return Authority{}, "", false, err
 	}
 	for _, graph := range graphs {
-		if graph.RuntimeAdapterRef != "coolify" {
+		if graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo" {
 			continue
 		}
 		a, err := DeriveApplicationAuthority(workspace, plan, manifest, result, operation, graph.WorkloadRef)
@@ -39,7 +39,7 @@ func ApplicationAuthorityForVolumes(workspace string, plan generationartifact.Ve
 }
 
 // DeriveApplicationAuthority narrows a verified node restore to one selected
-// Coolify workload. Names remain canonical; the existing manager custody
+// managed workload. Names remain canonical; the existing manager custody
 // adapter translates them at the Docker copy boundary, never in the journal.
 func DeriveApplicationAuthority(workspace string, plan generationartifact.VerifiedPlan, manifest generationartifact.ArtifactManifest, result backuplifecycle.RestoreResult, operation, workload string) (Authority, error) {
 	if !activationOperationPattern.MatchString(operation) || !portableNamePattern.MatchString(workload) || manifest.Binding != plan.Binding() {
@@ -79,8 +79,8 @@ func DeriveApplicationAuthority(workspace string, plan generationartifact.Verifi
 	project := ""
 	for _, graph := range source.ApplicationRuntimes {
 		if graph.WorkloadRef == workload {
-			if project != "" || graph.RuntimeAdapterRef != "coolify" {
-				return Authority{}, errors.New("restoreactivation: workload has no unique Coolify source")
+			if project != "" || (graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo") {
+				return Authority{}, errors.New("restoreactivation: workload has no unique managed source")
 			}
 			project = graph.ComposeProject
 		}
@@ -104,7 +104,7 @@ func DeriveApplicationAuthority(workspace string, plan generationartifact.Verifi
 		return Authority{}, err
 	}
 	if derived.renderTarget != renderTargetCompose {
-		return Authority{}, errors.New("restoreactivation: Coolify activation requires the native compose generation target")
+		return Authority{}, errors.New("restoreactivation: application activation requires the native compose generation target")
 	}
 	manifestHash, err := manifest.Hash()
 	if err != nil {

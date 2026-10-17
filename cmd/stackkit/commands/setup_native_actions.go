@@ -51,6 +51,9 @@ func custodiedOwnerPasswordRef(deployment nativehost.SelectedPaaSWorkloadDeploym
 }
 
 func validateNativeOwnerSetupAction(deployment nativehost.SelectedPaaSWorkloadDeployment, action string, options nativeSetupOptions) error {
+	if options.mediaFile != "" && action != "jellyfin-owner-bootstrap" {
+		return errors.New("--media-file belongs only to the Jellyfin owner setup action")
+	}
 	switch action {
 	case appsetup.AudiobookshelfOwnerBootstrapAction:
 		if options.completeOnboarding {
@@ -260,6 +263,17 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 		}()
 		if !observed.UserIsAdmin || observed.Version != appsetup.JellyfinServerVersion {
 			return nativeOwnerSetupObservation{}, errors.New("Jellyfin did not verify the administrator of the admitted application version")
+		}
+		if options.mediaFile != "" {
+			if !observed.StartupWizardCompleted {
+				return nativeOwnerSetupObservation{}, errors.New("complete Jellyfin onboarding before importing media")
+			}
+			if _, err := nativehost.ImportStandaloneComposeJellyfinMedia(ctx, workspace, deployment, options.mediaFile); err != nil {
+				return nativeOwnerSetupObservation{}, err
+			}
+			if err := observed.EnsureImportedLibrary(ctx, client, baseURL, options.mediaLibraryCreate); err != nil {
+				return nativeOwnerSetupObservation{}, err
+			}
 		}
 		if err := configureJellyfinSSO(ctx, client, baseURL, workspace, &observed); err != nil {
 			return nativeOwnerSetupObservation{}, err

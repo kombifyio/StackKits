@@ -100,12 +100,19 @@ func jellyfinJSONRequest(ctx context.Context, client *http.Client, baseURL, meth
 }
 
 func jellyfinJSONRequestStatus(ctx context.Context, client *http.Client, baseURL, method, path, token string, payload any, out any) (int, error) {
+	return jellyfinJSONRequestQuery(ctx, client, baseURL, method, path, token, nil, payload, out)
+}
+
+func jellyfinJSONRequestQuery(ctx context.Context, client *http.Client, baseURL, method, path, token string, query url.Values, payload any, out any) (int, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	endpoint, err := jellyfinEndpointURL(baseURL, path)
 	if err != nil {
 		return 0, err
+	}
+	if len(query) != 0 {
+		endpoint += "?" + query.Encode()
 	}
 	if client == nil {
 		client = NewJellyfinHTTPClient()

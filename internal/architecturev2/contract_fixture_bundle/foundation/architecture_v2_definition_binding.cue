@@ -748,16 +748,21 @@ import "list"
 		for edgeKind in definition.bridge.edgeKinds
 		if site.kind == edgeKind {site.id},
 	]
-	if len(_expectedEdgeVerifierSiteRefs) > 0 {
-		plan: identity: edgeVerifierSiteRefs: [...#SiteID] & list.MinItems(1)
-		integrity: edgeVerifierRefsUnique: list.UniqueItems(plan.identity.edgeVerifierSiteRefs) & true
-		integrity: edgeVerifierCountExact: len(plan.identity.edgeVerifierSiteRefs) & len(_expectedEdgeVerifierSiteRefs)
-		integrity: edgeVerifierRefsExact: [for expected in _expectedEdgeVerifierSiteRefs {
-			site: expected
-			matches: [for actual in plan.identity.edgeVerifierSiteRefs if actual == expected {actual}] & list.MinItems(1) & list.MaxItems(1)
-		}]
-	}
-	if len(_expectedEdgeVerifierSiteRefs) == 0 {
-		plan: identity: edgeVerifierSiteRefs?: _|_
-	}
+	// The binding only reads the plan. Writing plan.identity from an if-clause
+	// whose condition reads plan.sites is a structural cycle that CUE v0.17
+	// leaves incomplete (kombify-StackKits-h175), so presence is checked as an
+	// integrity rule instead of being injected into the plan.
+	_edgeVerifierSitePresent: [if plan.identity.edgeVerifierSiteRefs != _|_ {true}]
+	_edgeVerifierSiteActual: [
+		if plan.identity.edgeVerifierSiteRefs != _|_
+		for ref in plan.identity.edgeVerifierSiteRefs {ref},
+	]
+	_edgeVerifierSitePresenceWanted: [if len(_expectedEdgeVerifierSiteRefs) > 0 {true}]
+	integrity: edgeVerifierRefsPresence: len(_edgeVerifierSitePresent) & len(_edgeVerifierSitePresenceWanted)
+	integrity: edgeVerifierRefsUnique: list.UniqueItems(_edgeVerifierSiteActual) & true
+	integrity: edgeVerifierCountExact: len(_edgeVerifierSiteActual) & len(_expectedEdgeVerifierSiteRefs)
+	integrity: edgeVerifierRefsExact: [for expected in _expectedEdgeVerifierSiteRefs {
+		site: expected
+		matches: [for actual in _edgeVerifierSiteActual if actual == expected {actual}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 }

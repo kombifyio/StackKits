@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
+	"github.com/kombifyio/stackkits/internal/mcpagents"
 	"github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
@@ -209,16 +210,18 @@ func (s *Server) registerMCPRoutes() {
 		slog.Error("write-capable MCP CLI sibling is unavailable; process-backed action tools stay disabled", "error", cliBinaryErr)
 	}
 	app := stackkitmcp.New(stackkitmcp.Options{
-		Modes:      stackkitmcp.ParseModes("docs,local,server,actions"),
-		ServerURL:  serverURL,
-		APIKey:     s.config.APIKey,
-		MCPToken:   s.config.MCPToken,
-		AllowWrite: s.config.MCPAllowWrite,
-		PinBaseDir: s.config.MCPPinBaseDir,
-		BaseDir:    s.config.BaseDir,
-		Binary:     cliBinary,
-		Version:    s.config.Version,
-		GitCommit:  s.config.GitCommit,
+		Modes:        stackkitmcp.ParseModes("docs,local,server,actions"),
+		ServerURL:    serverURL,
+		APIKey:       s.config.APIKey,
+		MCPToken:     s.config.MCPToken,
+		AllowWrite:   s.config.MCPAllowWrite,
+		PinBaseDir:   s.config.MCPPinBaseDir,
+		JSONResponse: true,
+		Agents:       mcpagents.Open(s.config.BaseDir),
+		BaseDir:      s.config.BaseDir,
+		Binary:       cliBinary,
+		Version:      s.config.Version,
+		GitCommit:    s.config.GitCommit,
 	})
 	// The dedicated MCP token is the only /mcp credential; the handler denies
 	// every request while no token is configured.
@@ -226,8 +229,10 @@ func (s *Server) registerMCPRoutes() {
 	s.mux.Handle("POST "+mcpRoutePath, withoutWriteDeadline(mcpHandler))
 	s.mux.HandleFunc("GET /openmcp.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		// The body depends on the presented MCP token; never share it.
+		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(app.OpenMCPJSON())
+		_, _ = w.Write(app.OpenMCPJSONFor(r))
 	})
 }
 

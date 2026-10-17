@@ -3,7 +3,7 @@
   "product": "stackkits",
   "source": {
     "path": "api/openapi/stackkits-v1.yaml",
-    "sha256": "e31bafc67b85e724895d83cc5dcebd5150f78f1252a05dd32db159e8cfce9779"
+    "sha256": "8f017b488c90958618ca7fca0d539d939166c7e1a490bdcc06cac3c2e787c931"
   },
   "envelope": "data",
   "cli": {
@@ -2281,6 +2281,63 @@
                     "minItems": 1,
                     "type": "array"
                   },
+                  "notifications": {
+                    "additionalProperties": false,
+                    "description": "Owner notification intent. Channels follow the canonical NotificationChannelV1 CUE contract; credentials are secret:// references resolved through local custody. Omitted means no channel.",
+                    "properties": {
+                      "channels": {
+                        "items": {
+                          "additionalProperties": true,
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "email",
+                                "ntfy",
+                                "gotify",
+                                "slack",
+                                "discord",
+                                "telegram",
+                                "webhook",
+                                "pagerduty"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "events": {
+                        "items": {
+                          "enum": [
+                            "apply-failed",
+                            "backup-digest",
+                            "backup-failed",
+                            "backup-restore-verification-overdue",
+                            "certificate-expiring",
+                            "drift-detected",
+                            "upgrade-applied",
+                            "upgrade-available"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": [
+                      "channels"
+                    ],
+                    "type": "object"
+                  },
                   "observability": {
                     "additionalProperties": false,
                     "description": "Per-node OTLP collection intent only. Backend selection, retention, dashboards, credentials, headers, and CA material are deliberately excluded.",
@@ -4209,6 +4266,63 @@
                     },
                     "minItems": 1,
                     "type": "array"
+                  },
+                  "notifications": {
+                    "additionalProperties": false,
+                    "description": "Owner notification intent. Channels follow the canonical NotificationChannelV1 CUE contract; credentials are secret:// references resolved through local custody. Omitted means no channel.",
+                    "properties": {
+                      "channels": {
+                        "items": {
+                          "additionalProperties": true,
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "email",
+                                "ntfy",
+                                "gotify",
+                                "slack",
+                                "discord",
+                                "telegram",
+                                "webhook",
+                                "pagerduty"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "events": {
+                        "items": {
+                          "enum": [
+                            "apply-failed",
+                            "backup-digest",
+                            "backup-failed",
+                            "backup-restore-verification-overdue",
+                            "certificate-expiring",
+                            "drift-detected",
+                            "upgrade-applied",
+                            "upgrade-available"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": [
+                      "channels"
+                    ],
+                    "type": "object"
                   },
                   "observability": {
                     "additionalProperties": false,
@@ -6213,6 +6327,63 @@
                     },
                     "minItems": 1,
                     "type": "array"
+                  },
+                  "notifications": {
+                    "additionalProperties": false,
+                    "description": "Owner notification intent. Channels follow the canonical NotificationChannelV1 CUE contract; credentials are secret:// references resolved through local custody. Omitted means no channel.",
+                    "properties": {
+                      "channels": {
+                        "items": {
+                          "additionalProperties": true,
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "email",
+                                "ntfy",
+                                "gotify",
+                                "slack",
+                                "discord",
+                                "telegram",
+                                "webhook",
+                                "pagerduty"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "type"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "events": {
+                        "items": {
+                          "enum": [
+                            "apply-failed",
+                            "backup-digest",
+                            "backup-failed",
+                            "backup-restore-verification-overdue",
+                            "certificate-expiring",
+                            "drift-detected",
+                            "upgrade-applied",
+                            "upgrade-available"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "required": [
+                      "channels"
+                    ],
+                    "type": "object"
                   },
                   "observability": {
                     "additionalProperties": false,

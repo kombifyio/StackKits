@@ -87,6 +87,7 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 				printApplyFailureEnvelope()
 			}
 			rolloutFailure("apply", retErr)
+			emitOwnerLifecycleEvent(cmd.Context(), getWorkDir(), applyFailedEventInput())
 			closeRolloutRecorder(rollout.Summary{
 				Status:  "failed",
 				Message: retErr.Error(),

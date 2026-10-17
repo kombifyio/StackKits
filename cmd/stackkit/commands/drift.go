@@ -18,6 +18,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
+	"github.com/kombifyio/stackkits/internal/ownernotify"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
@@ -250,6 +251,9 @@ func runDriftDetect(cmd *cobra.Command, _ []string) (retErr error) {
 		}
 	} else if err := attachAdvancedStackDrift(ctx, workspace, observation, &report); err != nil {
 		return err
+	}
+	if report.HasDrift {
+		emitOwnerLifecycleEvent(ctx, workspace, driftDetectedEventInput(report))
 	}
 	if driftDetectJSON {
 		machineResultWritten = true
@@ -750,4 +754,19 @@ func writeCommandResultStatus(
 		Status:        status,
 		Data:          data,
 	})
+}
+
+// driftDetectedEventInput summarizes a drift report for the owner as counts and
+// subject names; the report itself stays local.
+func driftDetectedEventInput(report driftReport) ownernotify.LifecycleInput {
+	input := ownernotify.LifecycleInput{Event: ownernotify.EventDriftDetected, Remedy: "stackkit drift reconcile"}
+	for _, subject := range report.Subjects {
+		if subject.Status != "" && subject.Status != "ok" && subject.Status != "in-sync" {
+			input.Facts = append(input.Facts, subject.Subject+": "+subject.Status)
+		}
+	}
+	if len(input.Facts) == 0 {
+		input.Facts = []string{"The runtime differs from the applied plan."}
+	}
+	return input
 }

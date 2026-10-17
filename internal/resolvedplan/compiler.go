@@ -393,6 +393,10 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
+	notifications, err := buildNotificationProjection(spec.notifications)
+	if err != nil {
+		return nil, err
+	}
 	localReachability, homeLANDiscovery, err := buildHomeNetworkProjections(spec, deployment.network, topology.sites)
 	if err != nil {
 		return nil, err
@@ -519,6 +523,9 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	}
 	if spec.observability != nil {
 		plan["observability"] = spec.observability
+	}
+	if notifications != nil {
+		plan["notifications"] = notifications
 	}
 	return c.finalizePlan(plan, spec, resolved, resolvedBridge)
 }

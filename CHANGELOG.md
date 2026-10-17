@@ -1,5 +1,11 @@
 # Changelog
 
+- Add: per-agent StackKits MCP credentials and per-call write approval. `stackkit agent credential mint|list|rotate|revoke` and `stackkit agent approval list|approve|deny` (owner shell only, no MCP tool) manage digest-only credentials in `.stackkit/mcp/agents.json`; revoking one denies that agent on its next request. A mutating MCP call under an agent credential replaces `STACKKIT_MCP_ALLOW_WRITE` with a server-verified, single-use owner approval bound to the agent, operation and exact arguments.
+
+- Change: MCP hardening from the 0.44/0.45 pre-release review. Breaking for `stackkit-server`: the API key is no longer accepted at `POST /mcp` (use the dedicated MCP token via `STACKKIT_MCP_TOKEN`/`STACKKIT_MCP_TOKEN_FILE`/`--mcp-token`); migrate MCP clients to send `Authorization: Bearer <mcp-token>`. `GET /openmcp.json` without that token now returns only identity, transport and credential metadata, and the full tool/resource/prompt inventory needs the token. MCP discovery and list results are cached `private`, `/mcp` answers `application/json`, and `*_file` arguments of read-only operations must stay inside the workspace (symlinks out of it are refused).
+
+- Fix: a failed `stackkit backup restore activate` now names its outcome and step in `reasonCode` (for example `restore_activation_recovered_in_runtime_start_started` or `restore_activation_not_started_at_safety_snapshot`) instead of the generic `activate_failed`; the message is unchanged.
+
 - Add: `stackkit wallet-item remove` opens a `wallet-item-remove` delivery, signed by the pinned delivering authority (the kombify Wallet), and deletes every version of the named item from the node's local custody. It releases nothing; an unsigned removal is refused like every Wallet operation.
 
 - Preserve newer Builder profile choices when an older assessment finishes; carry the explicit local owner email and target Inventory through the native CLI handoff.
@@ -147,6 +153,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Fixed
+
+* **Crash-safe change-set backup custody:** an Advanced change set journals the backup target authority it moves custody away from; explicit upgrade recovery moves custody back from that journal, and the committed baseline drops it.
+
 ### Added
 
 * **Private AI catalog settings:** the `ai` use case declares `inference-location` (on my own hardware, or only my own interface on top of an external provider) and the model packs `model-pack-general`, `model-pack-coding` and `model-pack-vision`. All are `recorded`: consumers show and keep them, the pinned release does not apply them yet.
@@ -273,6 +283,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.10](https://github.com/kombifyio/StackKits/compare/v0.53.9...v0.53.10) (2026-10-17)
+
+
+### Added
+
+* **advanced:** carry Home and federation bindings into change-set create/apply
+* **mcp:** harden MCP, per-agent credentials with per-call write approval, host-execution ADR
+* **media:** add receipted Jellyfin file import
+* **notifications:** owner notification intent and backup digest recipe
+* **notify:** owner lifecycle events (apply-failed, drift-detected, upgrade-available, certificate-expiring)
+* **ownernotify:** PagerDuty delivery adapter
+* **resolvedplan:** re-issue Home backup target and federation link bindings for a successor spec
+* **wave11:** agent mcp-config remote HTTP entry; delete demos/ carry
+
+
+### Fixed
+
+* **backup:** journal change-set backup custody move so recovery restores it
+* **backup:** restore Files through retained Komodo custody
+* prepare attested sources from explicit development readers
+* **release:** verify semantic release notes instead of character count
+* **restore,cue:** name pre-service restore activation steps; CUE v0.17-safe edge verifier binding; Home pairing core
+* **restore:** name the step of a failed restore activation
+* **status:** distinguish Komodo platform and Files recovery
+* **status:** report a plan from an older compiler as stale instead of failing
 
 ## [0.53.9](https://github.com/kombifyio/StackKits/compare/v0.53.8...v0.53.9) (2026-10-16)
 

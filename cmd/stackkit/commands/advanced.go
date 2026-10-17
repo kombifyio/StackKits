@@ -18,6 +18,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/advancedtrust"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/spf13/cobra"
 )
 
@@ -175,6 +176,9 @@ type advancedChangeSetAdmission struct {
 	// candidate, set only when the candidate's requirement differs from the
 	// persisted binding's. The candidate plan hash covers it.
 	candidateBackup *advancedCandidateBackupBinding
+	// candidateExternal are the Home and federation bindings re-issued for the
+	// candidate from the Inventory, which apply persists.
+	candidateExternal []resolvedplan.ReissuedExternalBinding
 }
 
 // advancedAdmissionFingerprint is the comparable identity of an admission. A

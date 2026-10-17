@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -39,7 +40,7 @@ func (a *App) addCatalogOperationTools(server *mcp.Server, mutations bool) {
 	if a.cliBinding == nil || !stackspecadmission.RejectOperationalV1(a.opts.Version) {
 		return
 	}
-	if mutations && !a.opts.AllowWrite {
+	if mutations && !a.opts.writeEnabled() {
 		return
 	}
 	for _, operation := range standaloneoperations.All() {
@@ -129,6 +130,14 @@ func (a *App) runCatalogOperation(ctx context.Context, operation standaloneopera
 		CorrelationID:  stringInput(in, "correlation_id"),
 		TimeoutSeconds: int(integerInput(in, "timeout_seconds")),
 	}
+	if !operation.Mutation {
+		confined, err := a.confineFileArguments(operation, in)
+		if err != nil {
+			out := errorOutput(operation.ToolName, err)
+			return errorJSONResult(out), out, nil
+		}
+		in = confined
+	}
 	args, err := catalogCommandArgs(operation, in)
 	if err != nil {
 		out := errorOutput(operation.ToolName, err)
@@ -139,6 +148,42 @@ func (a *App) runCatalogOperation(ctx context.Context, operation standaloneopera
 		return a.runApprovedStackkitTool(ctx, operation.ID, stringInput(in, "operation_confirmation"), approved, common, args, nil)
 	}
 	return a.runRegisteredReadOnlyTool(ctx, operation.ID, common, args, nil)
+}
+
+// confineFileArguments keeps every file argument (*_file) of a read-only
+// operation inside the workspace, so a remote caller cannot make a read-only
+// tool open another path of the host. Symlinks that lead out are refused too.
+func (a *App) confineFileArguments(operation standaloneoperations.Contract, in map[string]any) (map[string]any, error) {
+	var names []string
+	for _, argument := range operation.Arguments {
+		if argument.Kind == standaloneoperations.ArgumentString && strings.HasSuffix(argument.Name, "_file") && strings.TrimSpace(stringInput(in, argument.Name)) != "" {
+			names = append(names, argument.Name)
+		}
+	}
+	if len(names) == 0 {
+		return in, nil
+	}
+	baseDir, err := a.workspaceDir(stringInput(in, "base_dir"))
+	if err != nil {
+		return nil, err
+	}
+	confined := make(map[string]any, len(in))
+	for key, value := range in {
+		confined[key] = value
+	}
+	for _, name := range names {
+		target, err := resolveWorkspacePath(baseDir, stringInput(in, name))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		realBase, baseErr := filepath.EvalSymlinks(baseDir)
+		realTarget, targetErr := filepath.EvalSymlinks(target)
+		if baseErr == nil && targetErr == nil && !pathWithin(realBase, realTarget) {
+			return nil, fmt.Errorf("%s: path %s escapes workspace %s through a symlink", name, target, baseDir)
+		}
+		confined[name] = target
+	}
+	return confined, nil
 }
 
 // catalogCommandArgs renders typed inputs as the exact CLI argv: command

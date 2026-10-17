@@ -279,7 +279,7 @@ func init() {
 		"Stable idempotency key for this live restore activation")
 	backupRestoreActivateCmd.Flags().String("expected-plan-hash", "",
 		"Require this admitted sha256 ResolvedPlan before the safety snapshot or live activation")
-	backupRestoreActivateCmd.Flags().String("workload", "", "Activate only this selected Coolify application's backed-up volumes")
+	backupRestoreActivateCmd.Flags().String("workload", "", "Activate only this selected managed application's backed-up volumes")
 	backupRestoreActivateCmd.Flags().BoolVar(&backupActivationOwnerApproved, "owner-approve", false,
 		"Authorize live activation with the established local Owner custody")
 	backupRestoreRecoverCmd.Flags().BoolVar(&backupOutputJSON, "json", false,

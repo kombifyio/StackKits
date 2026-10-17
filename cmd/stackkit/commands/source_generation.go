@@ -58,7 +58,7 @@ func newSourceGenerationPrepareCmd() *cobra.Command {
 				return errors.New("explicit source release cache arguments require --cache-only")
 			}
 			workspace := getWorkDir()
-			current, err := releaseindex.ExactTagForBuildVersion(version)
+			current, err := sourceGenerationCompilerVersion()
 			if err != nil {
 				return err
 			}
@@ -132,10 +132,24 @@ type sourceReleaseCacheRequest struct {
 	ArchiveSHA256, IndexSHA256, CLISHA256 string
 }
 
+// Source acquisition authenticates the old public release, not this reader as
+// a published release. Keep an explicit development identity for ordering only;
+// public release resolution still requires its exact release build identity.
+func sourceGenerationCompilerVersion() (string, error) {
+	if strings.TrimSpace(version) == "" || strings.TrimSpace(version) == "dev" {
+		return "", errors.New("source preparation requires an explicit compiler version")
+	}
+	current := "v" + architectureV2ComponentVersion(version)
+	if !semver.IsValid(current) || semver.Canonical(current) != current {
+		return "", errors.New("source preparation requires a canonical compiler version")
+	}
+	return current, nil
+}
+
 // Caller-provided identities select data only. Public attestations and the
 // extracted executable decide whether this cache may survive runtime replacement.
 func prepareSourceReleaseCache(ctx context.Context, request sourceReleaseCacheRequest) (releaseindex.Receipt, string, error) {
-	current, err := releaseindex.ExactTagForBuildVersion(version)
+	current, err := sourceGenerationCompilerVersion()
 	hexDigest := regexp.MustCompile(`^[a-f0-9]{64}$`)
 	if err != nil || !semver.IsValid(request.Tag) || semver.Canonical(request.Tag) != request.Tag || semver.Prerelease(request.Tag) != "" || semver.Compare(request.Tag, current) > 0 ||
 		!hexDigest.MatchString(request.ArchiveSHA256) || !hexDigest.MatchString(request.IndexSHA256) || !hexDigest.MatchString(request.CLISHA256) {

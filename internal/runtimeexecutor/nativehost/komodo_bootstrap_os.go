@@ -511,7 +511,7 @@ func komodoBootstrapEvidence() platformdeploy.BootstrapEvidence {
 	} {
 		evidence.Capabilities = append(evidence.Capabilities, platformdeploy.BootstrapCapabilityEvidence{Capability: capability, Status: "configured", Evidence: markers})
 	}
-	evidence.Capabilities = append(evidence.Capabilities, platformdeploy.BootstrapCapabilityEvidence{Capability: platformdeploy.BootstrapCapabilityBackups, Status: "unavailable", ReasonCode: "komodo_backup_restore_unavailable", Guidance: "Preserve node and application custody; use an explicit supported manager transition before backup or restore."})
+	evidence.Capabilities = append(evidence.Capabilities, platformdeploy.BootstrapCapabilityEvidence{Capability: platformdeploy.BootstrapCapabilityBackups, Status: "unavailable", ReasonCode: "komodo_backup_restore_unavailable", Guidance: "Komodo platform-state recovery remains unavailable. Files/Cloudreve application data can use node-owned backup and scoped restore when admitted by the selected source policy; inspect backup status for current coverage. Preserve node and application custody; other unsupported application data operations require an explicit supported manager transition."})
 	return evidence
 }
 

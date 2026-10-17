@@ -64,16 +64,16 @@ func runNativeV2RestoreActivationCommand(
 		ctx, workspace, specFile,
 	)
 	if err != nil {
-		return fmt.Errorf("backup restore activation authority: %w", err)
+		return restoreactivation.NotStarted(restoreactivation.StageCommandAuthority, fmt.Errorf("backup restore activation authority: %w", err))
 	}
 	plan, manifest, err := readNativeV2RestorePlanManifest(
 		ctx, workspace, authority.OutputRoot,
 	)
 	if err != nil {
-		return err
+		return restoreactivation.NotStarted(restoreactivation.StagePlanManifest, err)
 	}
 	if plan.Binding() != authority.Lineage.Binding {
-		return errors.New("backup restore activation Plan differs from current Apply authority")
+		return restoreactivation.NotStarted(restoreactivation.StagePlanManifest, errors.New("backup restore activation Plan differs from current Apply authority"))
 	}
 	// Reject admission drift before opening application lifecycle records; the
 	// activation service repeats this comparison under the mutation lock.
@@ -84,11 +84,11 @@ func runNativeV2RestoreActivationCommand(
 		workspace, strings.TrimSpace(restoreResultID),
 	)
 	if err != nil {
-		return fmt.Errorf("load staged restore result: %w", err)
+		return restoreactivation.NotStarted(restoreactivation.StageRestoreResult, fmt.Errorf("load staged restore result: %w", err))
 	}
 	if restoreResult.AuthorizationLineage != authority.Lineage ||
 		restoreResult.OwnerRef != authority.OwnerRef {
-		return errors.New("staged restore result differs from the current local Owner and Apply authority")
+		return restoreactivation.NotStarted(restoreactivation.StageRestoreResult, errors.New("staged restore result differs from the current local Owner and Apply authority"))
 	}
 	runtime, err := restoreactivation.NewDockerRuntime(workspace)
 	if err != nil {
@@ -98,19 +98,19 @@ func runNativeV2RestoreActivationCommand(
 	if workload != "" {
 		selected, deriveErr := restoreactivation.DeriveApplicationAuthority(workspace, plan, manifest, restoreResult, operationID, workload)
 		if deriveErr != nil {
-			return deriveErr
+			return restoreactivation.NotStarted(restoreactivation.StageRuntimeBind, deriveErr)
 		}
-		activationRuntime, err = nativeCoolifyRestoreActivationRuntime(ctx, workspace, runtime, selected, workload, authority)
+		activationRuntime, err = nativeApplicationRestoreActivationRuntime(ctx, workspace, runtime, selected, workload, authority)
 		if err != nil {
-			return err
+			return restoreactivation.NotStarted(restoreactivation.StageRuntimeBind, err)
 		}
 	} else {
 		bootstrapRuntime, bindErr := newRestoreActivationBootstrapRuntime(runtime, workspace)
 		if bindErr != nil {
-			return bindErr
+			return restoreactivation.NotStarted(restoreactivation.StageRuntimeBind, bindErr)
 		}
 		if bindErr = bootstrapRuntime.bind(ctx, plan, manifest, operationID); bindErr != nil {
-			return bindErr
+			return restoreactivation.NotStarted(restoreactivation.StageRuntimeBind, bindErr)
 		}
 		activationRuntime = bootstrapRuntime
 	}
@@ -289,7 +289,7 @@ func runNativeV2RestoreRecoveryCommand(
 			if current.Lineage != recoveryRestoreResult.AuthorizationLineage {
 				return restoreactivation.Authority{}, errors.New("application restore recovery differs from the current signed Apply")
 			}
-			bound, bindErr := nativeCoolifyRestoreActivationRuntime(resolveContext, workspace, runtime, selected, workload, current)
+			bound, bindErr := nativeApplicationRestoreActivationRuntime(resolveContext, workspace, runtime, selected, workload, current)
 			if bindErr != nil {
 				return restoreactivation.Authority{}, bindErr
 			}

@@ -542,7 +542,7 @@ func (v *CUEContractValidator) validateBoundAuthority(plan ResolvedPlan) error {
 		return err
 	}
 	if compiler != expected.compiler {
-		return fmt.Errorf("resolvedPlan.compilerVersion %q does not match authority compiler %q", compiler, expected.compiler)
+		return &CompilerVersionMismatchError{PlanCompiler: compiler, AuthorityCompiler: expected.compiler}
 	}
 	compatibility, err := objectField(map[string]any(plan), "resolvedPlan", "compatibility")
 	if err != nil {
@@ -866,4 +866,16 @@ func validateResolvedApprovals(plan ResolvedPlan, expected map[string]map[string
 		}
 	}
 	return nil
+}
+
+// CompilerVersionMismatchError reports a plan that a different compiler
+// release produced. Read-only callers (status) detect it with errors.As to
+// describe the plan as stale; Apply and upgrade keep refusing it.
+type CompilerVersionMismatchError struct {
+	PlanCompiler      string
+	AuthorityCompiler string
+}
+
+func (e *CompilerVersionMismatchError) Error() string {
+	return fmt.Sprintf("resolvedPlan.compilerVersion %q does not match authority compiler %q", e.PlanCompiler, e.AuthorityCompiler)
 }

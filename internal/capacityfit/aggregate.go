@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 )
 
 func Max(left, right Vector) Vector {
@@ -53,9 +54,13 @@ func uniqueStrings(values []string) []string {
 	return slices.Compact(values)
 }
 
-// Aggregate extracts the compiler's original max-floor, additive reservation,
-// recommendation and headroom calculation without changing persisted facts.
+// Aggregate uses a stable module order for floating-point budget sums. Plans
+// normalize module sets before verification; that must not change their demand.
 func Aggregate(modules []Module) ([]Demand, error) {
+	modules = slices.Clone(modules)
+	slices.SortStableFunc(modules, func(left, right Module) int {
+		return strings.Compare(left.ID, right.ID)
+	})
 	byNode := map[string]*Demand{}
 	for _, module := range modules {
 		if module.ID == "" {

@@ -3,7 +3,10 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -46,6 +49,8 @@ var (
 	agentClient          string
 	agentMode            string
 	agentServerURL       string
+	agentRemoteURL       string
+	agentCredentialEnv   string
 	agentPromptList      bool
 )
 
@@ -223,14 +228,26 @@ var agentMCPConfigCmd = &cobra.Command{
 
 For users this is one StackKits MCP connection. Locally it starts the
 stackkit-mcp adapter; after install the same connector can also be reached as
-stackkit-server /mcp when a protected endpoint is explicitly enabled.`,
+stackkit-server /mcp when a protected endpoint is explicitly enabled.
+
+With --remote-url the output also carries a remote HTTP entry named
+"stackkit-remote" for the deployed installation endpoint (own domain or
+kombify.me). It holds only the URL and the NAME of the environment variable
+that carries the dedicated MCP token; no key or session secret is ever written.`,
 	Example: `  # Print the connection as Claude mcpServers JSON
   stackkit agent mcp-config --client claude
 
   # Print the Codex config.toml block
-  stackkit agent mcp-config --client codex`,
+  stackkit agent mcp-config --client codex
+
+  # Add the deployed installation endpoint for Claude, Codex or Cursor
+  stackkit agent mcp-config --client cursor --remote-url https://home.example.com/mcp`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		mode := normalizeAgentMode(agentMode)
+		remote, err := buildRemoteMCPEndpoint(agentRemoteURL, agentCredentialEnv)
+		if err != nil {
+			return err
+		}
 		serverURL := strings.TrimSpace(agentServerURL)
 		client := strings.ToLower(strings.TrimSpace(agentClient))
 		if client == "" {
@@ -245,21 +262,83 @@ stackkit-server /mcp when a protected endpoint is explicitly enabled.`,
 			if _, err := fmt.Fprintln(cmd.OutOrStdout(), "]"); err != nil {
 				return err
 			}
-		case "claude":
-			return writeAgentJSON(cmd, map[string]any{
-				"mcpServers": map[string]any{
-					"stackkit": mcpConfigMap(mode, serverURL),
-				},
-			})
+			if remote != nil {
+				_, err := fmt.Fprintf(cmd.OutOrStdout(), "\n[mcp_servers.stackkit-remote]\nurl = %q\nbearer_token_env_var = %q\n", remote.URL, remote.CredentialEnv)
+				return err
+			}
+		case "claude", "cursor":
+			servers := map[string]any{"stackkit": mcpConfigMap(mode, serverURL)}
+			if remote != nil {
+				servers["stackkit-remote"] = remote.clientEntry(client)
+			}
+			return writeAgentJSON(cmd, map[string]any{"mcpServers": servers})
 		default:
-			return writeAgentJSON(cmd, map[string]any{
+			payload := map[string]any{
 				"name":   "stackkit",
 				"config": mcpConfigMap(mode, serverURL),
-			})
+			}
+			if remote != nil {
+				payload["remote"] = remote.clientEntry("generic")
+			}
+			return writeAgentJSON(cmd, payload)
 		}
 		return nil
 	},
 }
+
+// remoteMCPEndpoint is the deployed installation MCP as a client sees it: a URL
+// plus the name of the environment variable holding the dedicated MCP token.
+type remoteMCPEndpoint struct {
+	URL           string
+	CredentialEnv string
+}
+
+// clientEntry renders the remote entry in the host's HTTP-server dialect. The
+// token is always referenced by variable name, never written.
+func (r remoteMCPEndpoint) clientEntry(client string) map[string]any {
+	switch client {
+	case "cursor":
+		return map[string]any{"url": r.URL, "headers": map[string]any{"Authorization": "Bearer ${env:" + r.CredentialEnv + "}"}}
+	case "claude":
+		return map[string]any{"type": "http", "url": r.URL, "headers": map[string]any{"Authorization": "Bearer ${" + r.CredentialEnv + "}"}}
+	default:
+		return map[string]any{"transport": "http", "url": r.URL, "bearer_token_env": r.CredentialEnv}
+	}
+}
+
+// buildRemoteMCPEndpoint validates the endpoint of a deployed installation. It
+// fails closed: a plaintext endpoint is only accepted on loopback, and a URL
+// that could carry a secret (userinfo, query, fragment) is refused.
+func buildRemoteMCPEndpoint(rawURL, credentialEnv string) (*remoteMCPEndpoint, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil, nil
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Host == "" {
+		return nil, fmt.Errorf("--remote-url must be an absolute http(s) URL")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, fmt.Errorf("--remote-url must not carry credentials, a query or a fragment; the token is referenced by --credential-env")
+	}
+	loopback := parsed.Hostname() == "localhost" || net.ParseIP(parsed.Hostname()).IsLoopback()
+	if parsed.Scheme != "https" && !(parsed.Scheme == "http" && loopback) {
+		return nil, fmt.Errorf("--remote-url must use https (plain http is only accepted on loopback)")
+	}
+	if parsed.Path == "" || parsed.Path == "/" {
+		parsed.Path = "/mcp"
+	}
+	credentialEnv = strings.TrimSpace(credentialEnv)
+	if credentialEnv == "" {
+		credentialEnv = "STACKKIT_MCP_TOKEN"
+	}
+	if !agentEnvNamePattern.MatchString(credentialEnv) {
+		return nil, fmt.Errorf("--credential-env must be an environment variable name, not a value")
+	}
+	return &remoteMCPEndpoint{URL: parsed.String(), CredentialEnv: credentialEnv}, nil
+}
+
+var agentEnvNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 
 func init() {
 	agentCmd.AddCommand(agentInstallPlanCmd, agentSelfCheckCmd, agentPromptCmd, agentMCPConfigCmd)
@@ -275,7 +354,9 @@ func init() {
 	agentPromptCmd.Flags().BoolVar(&agentPromptJSON, "json", false, "Emit JSON")
 	agentPromptCmd.Flags().BoolVar(&agentPromptList, "list", false, "List available prompt scenarios")
 
-	agentMCPConfigCmd.Flags().StringVar(&agentClient, "client", "generic", "Client format: generic, codex, or claude")
+	agentMCPConfigCmd.Flags().StringVar(&agentClient, "client", "generic", "Client format: generic, codex, claude, or cursor")
+	agentMCPConfigCmd.Flags().StringVar(&agentRemoteURL, "remote-url", "", "Also emit a remote HTTP entry for the deployed installation MCP endpoint (https)")
+	agentMCPConfigCmd.Flags().StringVar(&agentCredentialEnv, "credential-env", "STACKKIT_MCP_TOKEN", "Name of the environment variable that holds the dedicated MCP token for the remote entry")
 	agentMCPConfigCmd.Flags().StringVar(&agentMode, "mode", defaultAgentMCPModes, "MCP modes; actions adds the read-only lifecycle tools, and write tools still need STACKKIT_MCP_ALLOW_WRITE=true")
 	agentMCPConfigCmd.Flags().StringVar(&agentServerURL, "server-url", stackkitmcp.DefaultLocalServerURL, "stackkit-server URL")
 }

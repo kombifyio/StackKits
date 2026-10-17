@@ -101,7 +101,7 @@ func admitAdvancedChangeSetOperation(
 		return advancedChangeSetAdmission{}, err
 	}
 	advancedChangeSetPrepareEvent("resolve-candidate")
-	candidateCurrent, candidateBackup, err := resolveAdvancedCandidate(service, workspace, candidateRaw, inventory)
+	candidateCurrent, candidateBackup, candidateExternal, err := resolveAdvancedCandidate(service, workspace, candidateRaw, inventory)
 	if err != nil {
 		return advancedChangeSetAdmission{}, err
 	}
@@ -165,7 +165,7 @@ func admitAdvancedChangeSetOperation(
 		baselineCurrent: baselineCurrent, candidateCurrent: candidateCurrent,
 		baselinePlanHash: baseline.PlanHash, candidate: candidate, grant: grant,
 		capabilityRaw: bytes.Clone(capabilityRaw), candidateRaw: bytes.Clone(candidateRaw),
-		owner: owner, trustSHA256: trust.BundleSHA256, candidateBackup: candidateBackup,
+		owner: owner, trustSHA256: trust.BundleSHA256, candidateBackup: candidateBackup, candidateExternal: candidateExternal,
 	}, nil
 }
 

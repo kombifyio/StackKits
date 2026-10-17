@@ -1899,6 +1899,8 @@ components:
           $ref: "#/components/schemas/ArchitectureV2BackupPolicy"
         driftPolicy:
           $ref: "#/components/schemas/ArchitectureV2DriftPolicy"
+        notifications:
+          $ref: "#/components/schemas/ArchitectureV2NotificationIntent"
         observability:
           $ref: "#/components/schemas/ArchitectureV2ModuleOTLPBaseline"
         workloads:
@@ -2084,6 +2086,83 @@ components:
           $ref: "#/components/schemas/ArchitectureV2DriftEvidencePolicy"
         response:
           $ref: "#/components/schemas/ArchitectureV2DriftResponsePolicy"
+    ArchitectureV2NotificationEvent:
+      type: string
+      enum:
+        - apply-failed
+        - backup-digest
+        - backup-failed
+        - backup-restore-verification-overdue
+        - certificate-expiring
+        - drift-detected
+        - upgrade-applied
+        - upgrade-available
+    ArchitectureV2NotificationIntent:
+      type: object
+      description: >-
+        Owner notification intent. Channels follow the canonical NotificationChannelV1 CUE contract; credentials are secret:// references resolved through local custody. Omitted means no channel.
+      additionalProperties: false
+      required: [channels]
+      properties:
+        channels:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [type]
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+                enum: [email, ntfy, gotify, slack, discord, telegram, webhook, pagerduty]
+            additionalProperties: true
+        events:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2NotificationEvent"
+    ArchitectureV2ResolvedNotificationIntent:
+      type: object
+      description: >-
+        Secret-free plan projection of the owner notification intent: channel name, type, destination hash, secret references and delivery binding.
+      additionalProperties: false
+      required: [apiVersion, channels, events]
+      properties:
+        apiVersion:
+          type: string
+          const: stackkit.notification-intent/v1
+        channels:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, type, destinationHash, secretRefs, delivery]
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+                enum: [email, ntfy, gotify, slack, discord, telegram, webhook, pagerduty]
+              destinationHash:
+                type: string
+                pattern: "^sha256:[a-f0-9]{64}$"
+              secretRefs:
+                type: array
+                uniqueItems: true
+                items:
+                  type: string
+              delivery:
+                type: string
+                enum: [bound, declared-unbound]
+        events:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ArchitectureV2NotificationEvent"
     ArchitectureV2DriftSchedule:
       type: object
       additionalProperties: false
@@ -3204,6 +3283,8 @@ components:
           $ref: "#/components/schemas/ArchitectureV2BackupPolicy"
         driftPolicy:
           $ref: "#/components/schemas/ArchitectureV2DriftPolicy"
+        notifications:
+          $ref: "#/components/schemas/ArchitectureV2ResolvedNotificationIntent"
         observability:
           $ref: "#/components/schemas/ArchitectureV2ModuleOTLPBaseline"
         system:

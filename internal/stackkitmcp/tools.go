@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/mcpagents"
 	"io"
 	"net/http"
 	"os"
@@ -462,7 +463,7 @@ func (a *App) stateConsole(ctx context.Context, req *mcp.CallToolRequest, _ stru
 			{"id": "cloud-kit", "status": "beta"},
 		},
 		"operations":           standaloneoperations.All(),
-		"config_write_enabled": a.opts.AllowWrite,
+		"config_write_enabled": a.opts.writeEnabled(),
 		"cli_actions_enabled":  a.cliBinding != nil,
 		"cli_binding_error": func() string {
 			if a.cliBindingError != nil {
@@ -599,19 +600,9 @@ func (a *App) configSet(ctx context.Context, req *mcp.CallToolRequest, in config
 		out := errorOutput("stackkit_config_set", fmt.Errorf("yaml is required"))
 		return errorJSONResult(out), out, nil
 	}
-	if !a.opts.AllowWrite {
-		out := writeDisabledOutput("stackkit_config_set")
-		return errorJSONResult(out), out, nil
-	}
-	if strings.TrimSpace(in.OperationConfirmation) != "stackkit.config.set" {
-		out := errorOutput("stackkit_config_set", fmt.Errorf("operation confirmation must exactly equal %q", "stackkit.config.set"))
-		out["approval_required"] = true
-		return errorJSONResult(out), out, nil
-	}
-	if !in.OwnerApproved {
-		out := errorOutput("stackkit_config_set", fmt.Errorf("local Owner approval is required for %q", "stackkit.config.set"))
-		out["approval_required"] = true
-		return errorJSONResult(out), out, nil
+	if _, denial := a.admitMutation(ctx, "stackkit_config_set", "stackkit.config.set", in.OperationConfirmation, in.OwnerApproved,
+		"config set "+in.SpecPath, in.BaseDir, in.SpecPath, in.ExpectedSpecHash, in.YAML); denial != nil {
+		return errorJSONResult(denial), denial, nil
 	}
 	baseDir, err := a.workspaceDir(in.BaseDir)
 	if err != nil {
@@ -937,18 +928,20 @@ func (a *App) runApprovedStackkitTool(
 		out := errorOutput(string(id), fmt.Errorf("registered standalone operation is unavailable"))
 		return errorJSONResult(out), out, nil
 	}
-	if !a.opts.AllowWrite {
-		out := writeDisabledOutput(operation.ToolName)
-		return errorJSONResult(out), out, nil
+	if len(args) == 0 {
+		args = operation.Command
 	}
-	if err := standaloneoperations.ConfirmMutation(id, confirmation, ownerApproved); err != nil {
+	approved, denial := a.admitMutation(ctx, operation.ToolName, string(operation.ID), confirmation, ownerApproved,
+		strings.Join(args, " "), in.BaseDir, in.SpecPath, strings.Join(args, "\x00"))
+	if denial != nil {
+		denial["operation"] = operation.ID
+		return errorJSONResult(denial), denial, nil
+	}
+	if err := standaloneoperations.ConfirmMutation(id, confirmation, approved); err != nil {
 		out := errorOutput(operation.ToolName, err)
 		out["operation"] = operation.ID
 		out["approval_required"] = true
 		return errorJSONResult(out), out, nil
-	}
-	if len(args) == 0 {
-		args = operation.Command
 	}
 	return a.runStackkitBoundTool(ctx, operation.ToolName, in, args, env, true)
 }
@@ -1206,6 +1199,55 @@ func truncateOutput(value string) string {
 		return value
 	}
 	return value[:limit] + "\n...(truncated)"
+}
+
+// admitMutation decides whether one mutating call may run. A request that
+// authenticated with a per-agent credential never approves itself: the
+// server runs the call only after the owner approved that exact call out of
+// band (stackkit agent approval approve <id>), once. Every other caller keeps
+// the write switch plus the caller-supplied owner approval. It returns the
+// effective owner approval, or a denial output.
+func (a *App) admitMutation(ctx context.Context, tool, operation, confirmation string, ownerApproved bool, summary string, digestParts ...string) (bool, map[string]any) {
+	agent, isAgent := AgentFromContext(ctx)
+	if !isAgent || a.opts.Agents == nil {
+		if !a.opts.AllowWrite {
+			return false, writeDisabledOutput(tool)
+		}
+		if strings.TrimSpace(confirmation) != operation {
+			out := errorOutput(tool, fmt.Errorf("operation confirmation must exactly equal %q", operation))
+			out["approval_required"] = true
+			return false, out
+		}
+		if !ownerApproved {
+			out := errorOutput(tool, fmt.Errorf("local Owner approval is required for %q", operation))
+			out["approval_required"] = true
+			return false, out
+		}
+		return true, nil
+	}
+	if strings.TrimSpace(confirmation) != operation {
+		out := errorOutput(tool, fmt.Errorf("operation confirmation must exactly equal %q", operation))
+		out["approval_required"] = true
+		return false, out
+	}
+	digest := mcpagents.CallDigest(operation, digestParts...)
+	granted, err := a.opts.Agents.Consume(agent.ID, operation, digest)
+	if err != nil {
+		return false, errorOutput(tool, err)
+	}
+	if granted {
+		return true, nil
+	}
+	request, err := a.opts.Agents.Request(agent.ID, operation, digest, tool+": "+summary)
+	if err != nil {
+		return false, errorOutput(tool, err)
+	}
+	out := errorOutput(tool, fmt.Errorf("the owner has not approved this call yet; ask the owner to run: stackkit agent approval approve %s", request.ID))
+	out["approval_required"] = true
+	out["approval_request_id"] = request.ID
+	out["approval_expires_at"] = request.ExpiresAt
+	out["approval_retry"] = "repeat the identical call after the owner approves; an approval covers one exact call once"
+	return false, out
 }
 
 func writeDisabledOutput(tool string) map[string]any {

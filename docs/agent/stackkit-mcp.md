@@ -45,7 +45,7 @@ Default stance:
 - docs/read-only tools are available by default;
 - mutating tools require `STACKKIT_MCP_ALLOW_WRITE=true` or `stackkit-server --mcp-allow-write`;
 - every tool declares truthful read-only, idempotent, destructive, and open-world hints; only tools that reach beyond the local host (for example `stackkit_upgrade`, `stackkit_kit_list`, `stackkit_federation_control_send`) are open-world;
-- `GET /openmcp.json` lists exactly the tools the running server registers.
+- `GET /openmcp.json` lists exactly the tools the running server registers when the request carries the MCP token; without it, only identity, transport and credential metadata are returned.
 
 MCP HTTP authentication:
 
@@ -65,6 +65,25 @@ Core MCP token lifecycle:
 - `stackkit verify` fails when the server is unhealthy or the router has not loaded the `/mcp` route.
 
 A separately started `stackkit-server` or `stackkit-mcp` on a non-loopback address must be behind a protected path such as VPN, SSH tunnel, private network, mTLS/reverse proxy, or an OAuth-aware gateway. Remote write access also needs explicit write mode and should log run IDs, actor, target, tool inputs, and evidence locations.
+
+### Per-agent credentials and per-call write approval
+
+Every agent that attaches to `stackkit-server` `POST /mcp` can hold its own credential instead of the shared
+`STACKKIT_MCP_TOKEN`. The owner manages them in the server's shell, from the server workspace
+(`stackkit -C <workspace> agent credential ...`); there is no MCP tool for it:
+
+```text
+stackkit agent credential mint --name claude-laptop --token-file ./claude-laptop.token
+stackkit agent credential list | rotate <id> | revoke <id>
+stackkit agent approval list | approve <id> | deny <id>
+```
+
+The server stores only a digest of each token (`.stackkit/mcp/agents.json`, mode 0600) and checks it on every request,
+so a revoked or rotated-out credential is denied on its next call and other agents are unaffected. A mutating tool called
+with an agent credential does not need `STACKKIT_MCP_ALLOW_WRITE`; instead it is denied with an `approval_request_id`
+until the owner runs `stackkit agent approval approve <id>`. The approval covers that agent, that operation and those exact
+arguments, once, within 15 minutes: the agent repeats the identical call. A self-asserted `owner_approved` is ignored for
+agent credentials. The shared token and stdio keep the write switch plus `owner_approved`.
 
 ## StackKits State Console
 

@@ -2,37 +2,19 @@
 
 > Last verified: 2026-07-29
 
-This is the current implementation overview for this repo. Normative product and module rules are summarized here and in accepted ADRs.
+Current implementation overview. Normative product and module rules are summarized here and in accepted ADRs.
 
 ## System Role
 
 ### Non-negotiable product surfaces
 
-- Installers and the `stackkit` CLI invoke the shared StackKits rollout core
-  directly. Standard Mode needs no hosted orchestrator; Advanced Mode may add
-  registered external capabilities and orchestration around the same core.
-- The StackKits State Console is the MCP App for local state review, plan
-  inspection, Owner evidence, and operation-approval requests. It invokes only
-  registered MCP operations and owns no lifecycle implementation.
-- The Easy/Techie Wizard, Finder, operator-capability scoring, recommendation,
-  guidance, and intent drafts belong exclusively to Techstack.
+- Installers and the `stackkit` CLI invoke the shared rollout core directly. Standard Mode needs no hosted orchestrator; Advanced Mode may add registered external capabilities and orchestration around the same core.
+- The State Console is the MCP App for local state review, plan inspection, Owner evidence and operation-approval requests. It invokes only registered MCP operations and owns no lifecycle implementation.
+- The Easy/Techie Wizard, Finder, operator-capability scoring, recommendation, guidance and intent drafts belong exclusively to Techstack.
 
-Standard Mode requires none of Techstack, Kombify Cloud, an account, provider
-credentials, or hosted Kombify state. Advanced Mode is the sole sanctioned
-Techstack dependency and still leaves final validation and execution with the
-pinned StackKits CLI.
+Standard Mode requires no Techstack, kombify Cloud, account, provider credentials or hosted state. Advanced Mode is the only sanctioned Techstack dependency and still leaves final validation and execution with the pinned StackKits CLI. Every Techstack-managed deployment runs Advanced Mode from its first rollout (ADR-0031 amendment 2026-09-24); Standard Mode is the standalone one-shot configuration without Terramate, and Techstack never operates a StackKit in Standard Mode.
 
-Every deployment managed by kombify Techstack runs in Advanced Mode, from its
-first rollout onward (ADR-0031 amendment 2026-09-24). Standard Mode is the
-standalone CLI/installer path, a one-shot configuration without Terramate.
-Techstack does not roll out or operate a StackKit in Standard Mode.
-
-StackKits turns CUE-defined infrastructure contracts into deployable homelab environments:
-
-Before per-clone initialization, [neutral image preparation](GOLDEN_IMAGE_PREPARATION.md)
-can cache the attested release, its existing provider closure and CUE-pinned core
-images. This cache has no Owner, runtime custody, journal or service volumes;
-first boot reuses the existing init/apply lifecycle after fresh local admission.
+StackKits turns CUE-defined contracts into deployable homelab environments. [Neutral image preparation](GOLDEN_IMAGE_PREPARATION.md) may cache the attested release, its provider closure and CUE-pinned core images before per-clone init; the cache holds no Owner, runtime custody, journal or service volumes, and first boot reuses the normal init/apply lifecycle after fresh local admission.
 
 ```text
 operator intent / optional Techstack-approved intent
@@ -54,81 +36,27 @@ generated Compose / OpenTofu / metadata
 stackkit apply + stackkit verify
 ```
 
-CUE is the technical contract source of truth. Lifecycle state and evidence
-remain bound to the executing Stack, whether custody is local or supplied by an
-Advanced-mode owner. Remote databases may mirror registry or fleet state, but
-they do not replace live CUE contracts or gate Standard Mode.
+CUE is the technical contract source. Lifecycle state and evidence stay bound to the executing Stack, whether custody is local or supplied by an Advanced-mode owner; remote databases may mirror registry or fleet state but replace no live CUE contract and gate no Standard Mode.
 
 ### Shared rollout core and orchestration boundary
 
-[ADR-0031](ADR/ADR-0031-stackkits-standalone-lifecycle-boundary.md) defines the
-product boundary: StackKits provides a CLI-manageable Homelab rollout core.
-Standard Mode can execute it directly; Advanced Mode supplies additional
-registered authority and orchestration. CUE, StackSpec, immutable ResolvedPlan,
-lifecycle state, Owner custody, and evidence remain bound to the same rollout.
-Attested GitHub Releases are the account-free distribution source.
+[ADR-0031](ADR/ADR-0031-stackkits-standalone-lifecycle-boundary.md) defines the boundary: StackKits provides a CLI-manageable Homelab rollout core. Standard Mode executes it directly; Advanced Mode adds registered authority and orchestration. CUE, StackSpec, immutable ResolvedPlan, lifecycle state, Owner custody and evidence stay bound to the same rollout. Attested GitHub Releases are the account-free distribution source.
 
-For v0.9, Techstack is the Orchestrator UI, Config Unifier, and Advanced
-Day-2/RIL control plane. Techstack Core sends only a closed `StackKitCommand`
-over its own outbound/reverse mTLS gRPC worker channel to the node-side
-Techstack Agent. The Agent revalidates the exact release pin, index, receipt,
-and executable; scrubs Techstack/Kombify control environment; and starts the
-exact published CLI locally. Results return only as bounded
-`stackkit.command-result/v1` plus `stackkit.rollout-event/v1` JSONL. StackKits
-has no gRPC server and owns no Techstack worker enrollment, certificates, or
-transport.
+Target boundary (v0.9; executable Agent admission is Slice 2, so the channel is not claimed live): Techstack is the Orchestrator UI, Config Unifier and Advanced Day-2/RIL control plane. Techstack Core sends only a closed `StackKitCommand` over its own outbound/reverse mTLS gRPC worker channel to the node-side Techstack Agent, which revalidates the release pin, index, receipt and executable, scrubs Techstack/kombify control environment and starts the published CLI locally. Results return only as bounded `stackkit.command-result/v1` plus `stackkit.rollout-event/v1` JSONL. StackKits has no gRPC server and owns no worker enrollment, certificates or transport.
 
-This paragraph specifies the v0.9 target boundary. Slice 1 does not claim the
-execution channel is live; executable Agent admission is Slice 2.
+The Config Unifier emits a review proposal, not a ResolvedPlan; the local Owner approves it and the pinned CLI performs final CUE validation and generation. Advanced Terramate change sets, Advanced reconcile, coordinated rollback and restore drills require a short-lived offline-valid capability before rendering or side effects. Standard CLI apply, verify, upgrade, backup, restore and read-only drift detection need neither Techstack nor that capability (under Techstack management they run in Advanced Mode).
 
-The Config Unifier emits a review proposal, not a ResolvedPlan. The local Owner
-approves it and the pinned CLI performs final CUE validation and generation.
-Advanced Terramate change sets, Advanced reconcile, coordinated rollback, and
-restore drills require a short-lived offline-valid capability before rendering
-or side effects. Standard CLI apply, verify, upgrade, backup, restore, and
-read-only drift detection require neither Techstack nor that capability. When
-Techstack manages the deployment, these operations run in Advanced Mode.
-
-The Owner is local: PocketID holds the human directory, TinyAuth is the local
-protected-service login and policy broker, and StackKits binds the PocketID
-subject to `ownerRef` plus the local Ed25519 key and its step-ca certificate.
-kombify Cloud may offer only a signed, time-bounded desired identity projection
-for explicit local approval. Outage, unlink, expiry, staleness, or failed
-verification withdraws future Cloud mutation authority without deleting or
-disabling an already approved local identity. Passwords, passkeys, sessions,
-private keys, CA material, and recovery secrets never cross this boundary.
+The Owner is local: PocketID holds the human directory, TinyAuth is the local protected-service login and policy broker, and StackKits binds the PocketID subject to `ownerRef` plus the local Ed25519 key and its step-ca certificate. kombify Cloud may offer only a signed, time-bounded desired identity projection for explicit local approval; outage, unlink, expiry, staleness or failed verification withdraws future Cloud mutation authority without deleting or disabling an approved local identity. Passwords, passkeys, sessions, private keys, CA material and recovery secrets never cross this boundary.
 
 ## Architecture v2 Keystone
 
-The architecture-v2 Keystone decision is
-the private ADR-0029 decision record. Beads
-`kombify-StackKits-dqcp` is a closed implementation epic, independently read
-back on 2026-10-13; it is historical provenance rather than the active program.
-GitHub Projects owns cross-repository priorities, the owning
-[ROADMAP](../ROADMAP.md) owns milestones, and repository-bound Cloudflare Beads
-owns executable work under the workspace
-[planning standard](https://github.com/kombify/kombify-workspace/blob/main/GITHUB-PROJECTS-PLANNING-STANDARD.md). The current runtime still
-contains transitional global-`context`, independent Go validation, and legacy
-Modern/HA surfaces. New work MUST target the v2 spine instead of adding consumers
-to those compatibility paths.
+The Keystone decision is the private ADR-0029 decision record; its implementation epic (Beads `kombify-StackKits-dqcp`) is closed provenance. Milestones live in the [ROADMAP](../ROADMAP.md), executable work in Beads. The runtime still contains transitional global-`context`, independent Go validation and legacy Modern/HA surfaces; new work MUST target the v2 spine, not add consumers to those paths.
 
-The v2 boundary is:
-
-1. Kit selection chooses a concrete `#KitDefinition` with required, default,
-   optional, and forbidden capabilities.
-2. Site locality, trust/failure domains, node hardware, reachability, placement,
-   and availability are independent typed axes.
-3. Kit definition, user intent, detected inventory, implementation adapters, and add-ons compile
-   once into a canonical secret-free `#ResolvedPlan`.
-4. CLI, API, generation, apply, Node Hub, registry, and downstream consumers use
-   the same schema/compiler version and `planHash`.
-5. v0.6 is the sole legacy execution compatibility minor while its first-party
-   init/mutation commands still write v1. The migration boundary already accepts
-   a complete v2 draft, reconciles it against exact v1 bytes, synthesizes
-   hash-bound `migrated-v1` lineage, resolves the final bytes through CUE, and
-   persists canonical v2 intent. From v0.7/M+1, raw v1 cannot enter `generate`,
-   `plan`, `apply`, `verify`, or the legacy remote verifier; v1 remains readable
-   only for validation and explicit migration.
+1. Kit selection chooses a concrete `#KitDefinition` with required, default, optional and forbidden capabilities.
+2. Site locality, trust/failure domains, node hardware, reachability, placement and availability are independent typed axes.
+3. Kit definition, user intent, detected inventory, implementation adapters and add-ons compile once into a canonical secret-free `#ResolvedPlan`.
+4. CLI, API, generation, apply, Node Hub, registry and downstream consumers use the same schema/compiler version and `planHash`.
+5. v0.6 was the sole legacy execution compatibility minor. The migration boundary accepts a complete v2 draft, reconciles it against exact v1 bytes, synthesizes hash-bound `migrated-v1` lineage, resolves the result through CUE and persists canonical v2 intent. From v0.7, raw v1 cannot enter `generate`, `plan`, `apply`, `verify` or the legacy remote verifier; v1 stays readable only for validation and explicit migration.
 
 ### Target-bound LAN DNS listeners
 
@@ -2467,366 +2395,50 @@ change; deleting the blocker or attaching a generic no-op adapter is invalid.
 
 #### Basement native-Apply graduation map
 
-The v0.8 single-node Basement plan has a complete local Product Apply
-composition. Modules outside that closed default graph remain contracts until
-their separately typed runtime owners and evidence paths exist:
+The v0.8 single-node Basement plan has a complete local Product Apply composition. Modules outside that closed default graph remain contracts until their own typed runtime owners and evidence exist.
 
 | Module | Current truth | Required independent runtime owner |
 | --- | --- | --- |
-| `security-baseline` | Exact node-local host adapter exists as the first bounded pilot | Retain the script/contract-bound host adapter and product evidence path |
-| `stackkits-home-host-security-runtime` | Home-only node-local owner of the inbound firewall, ssh and brute-force baseline. Its input-free policy artifact is exact CUE-owned content; the executor enforces it through the `internal/hostsecurity` engine (the same one behind `stackkit host security repair`) and proves every enforced control compliant or an owner-approved exception before it reports healthy. It never closes the ssh session in use or a configured management network and keeps password logins, as an open `no_authorized_key` finding on an otherwise healthy module, when no account holds an authorized key. Registered in the full runtime-owner registry, not in the single-target security-baseline Product Apply path. Live home-host evidence is pending | Declared-service ports are not yet a plan input, so the apply-time firewall trusts the LAN, overlay interfaces and container bridges on every port; `stackkit host security repair --resolved-plan` restricts them to declared ports |
-| `stackkits-core-host-bootstrap` | Exact node-local, provider-free pilot prepares only declared local StackKit storage roots and observes an already bootstrapped Docker runtime | Bind the adapter to an authenticated execution channel before product registration; expand only through new typed operations and evidence |
-| `stackkits-core-topology` | Declarative shared Home/Cloud site-topology authority; it selects no runtime module and performs no host or provider lifecycle work | Keep site/node intent in the resolved plan and lower only explicit downstream owners |
-| `stackkits-service-catalog` | Declarative catalog authority selected directly into the plan; it has no module or runtime target | Keep workload/service selection in CUE and let explicit runtime owners consume the resolved catalog |
-| `stackkits-access-policy-contract` | Shared declarative access-policy prerequisite; it does not enforce Home or Cloud access | Bind kit-specific enforcers to the exact resolved policy and their own Health/evidence |
-| `stackkits-storage-data-policy`, `stackkits-storage-allocation`, `stackkits-workload-data-binding` | Shared plan-only storage authority. Every Application Kit names its exact persistent/cache allocation and data binding in ResolvedPlan; the modules render no artifact and perform no mount, migration, backup, or provider operation. | Keep allocation and placement facts in CUE/ResolvedPlan; let bounded workload and lifecycle owners consume them without product-specific compiler or renderer branches. |
-| `stackkits-workload-runtime-contract` | Shared delivery interface required by workloads; it selects no engine and is not a Basement, Cloud, or Modern runtime | Let each concrete workload module bind its exact artifacts to an explicitly registered runtime adapter; do not recreate a kit-level runtime umbrella |
-| `stackkits-basement-core-runtime` | Required Basement-only generation and Apply owner. The CUE catalog fixes the complete legacy Full single-node graph for Traefik, socket proxy, PocketID, TinyAuth, step-ca, Coolify/PostgreSQL/Redis/realtime, and Hub. The native default is standalone Compose; the retained legacy graph does not make Coolify default core or establish Marketplace runtime support. Exact hash-bound Compose/OpenTofu artifacts carry pinned images, persistent backup-marked volumes, local-custody references, container Healthchecks, and module verification probes. The local Product Apply composition binds this graph to exact Site/node/channel custody, realizes PocketID/TinyAuth Owner binding, and records local signed evidence. An empty workload set or an unregistered/tampered renderer is rejected. | Keep the v0.8 graph single-node and local-authority bound; graduate HA and optional workloads independently in v0.9. |
-| `stackkits-immich-runtime` | Concrete apply-ready workload owner pinned to the full Immich v2.7.0 server, machine-learning, PostgreSQL, database-init, and Valkey graph. Its provider-neutral, target-bound bundle carries immutable image digests, dependencies, internal network membership, opaque secret slots, persistent/cache volumes, backup intent, Health declarations, and the exact compiler-selected route/TLS descriptor. The shared runtime-executor SPI accepts only this closed bundle and requires apply receipt plus full component/route readback. Product Runtime factories bind the complete selector for Coolify, Komodo, or standalone Compose plus Site, node, channel, catalog hashes, agent authority, and Health contract. | Keep provider/PaaS lifecycle external for Coolify/Komodo; use only local Owner custody and the fixed Docker Compose capability for standalone delivery. |
-| `stackkits-cloudreve-runtime`, `stackkits-vaultwarden-runtime` | Concrete apply-ready Files and Vault workload owners use the exact image ref/digest pairs in the CUE catalog. Vault rendering, setup and execution consume its generated image authority. Each has a distinct closed application-adapter bundle, parser, executor, Product factory, and three adapter registrations, while both select the unchanged common Application Lifecycle and shared storage/data/backup/recovery modules. | Retain workload-specific validation at the artifact/adapter edge and reuse the common compiler, lifecycle, state and State Console. |
-| `stackkits-coolify-runtime` | Workload-scoped generation-ready adapter handoff distinct from the retained legacy Full core's locally installed Coolify service. Native defaults install no Coolify; Marketplace is its optional application owner. Its node-bound handoff accepts workload-bundle v2 with `apply`/`observe`, external credential/provider-lifecycle custody, and mandatory digest, runtime, route, and Health readback. | Connect authenticated Coolify operations through the shared executor boundary; keep external provider/server lifecycle outside this artifact. |
-| `stackkits-standalone-compose-runtime` | StackKits-owned no-PaaS application adapter. It persists owner-only digest-pinned Compose and environment files, resolves only signed local secret custody, attaches the entry service to `stackkit-basement-core`, emits exact Traefik host/TLS labels, and proves service/image plus loopback HTTP readback. | Keep Docker/server lifecycle outside the adapter; do not promote its fixed Compose capability into generic command, path, socket, or host authority. |
-| `stackkits-komodo-core-runtime`, `stackkits-komodo-periphery-runtime` | Explicit Komodo alternative split into one workload adapter/API authority on Control Plane members and one typed Periphery node-agent on Control Authority Site workers. The generated node-bound contracts require external mutual-key custody, outbound TLS 1.3, executor-mediated host execution, and digest/Health/runtime/route/agent-registration readback without carrying endpoints, credentials, sockets, provider lifecycle, or general host/LAN authority. | Implement authenticated Core operations and Periphery onboarding in the external adapter owner, bind exact endpoint/key custody there, and prove every registered worker and workload artifact before product Apply registration. |
-| `stackkits-basement-compose-runtime` | Optional Basement-only generation contract selected only by explicit capability intent; it is not part of the Kit identity. Its sole Product factory is restricted to the pinned socket-proxy unit on one exact Home Site/node/channel and cannot discover Docker. | Supply an authenticated finite Compose Operations owner only for an exact observed Docker daemon; keep real projects/workloads under their concrete workload owners rather than promoting this helper into a generic Kit runtime. |
-| `stackkits-backup-core-contract`, `stackkits-backup-source`, `stackkits-snapshot`, `stackkits-restore`, `stackkits-recovery` | Shared plan-only backup lifecycle authority. The exact backup-enabled persistent allocations flow through `backupSource`; snapshot, staged restore with safety snapshot, and recovery bind to the existing common Application Lifecycle operations, phases, durable state, Owner approval, and evidence. These contracts render no artifact and own no credential, target, provider lifecycle, or multi-server orchestration. Photos/Immich, Files/Cloudreve, and Vault/Vaultwarden consume the same chain. | Keep the v0.12 Application Lifecycle as the only execution/state owner; add authenticated target-specific backup implementations only behind its existing bounded operation boundary. |
-| `stackkits-secrets-recovery-contract`, `stackkits-observability-evidence-contract`, `stackkits-lifecycle-update-contract` | Three distinct non-executable shared contracts; none creates a runtime target, artifact, Health claim, evidence claim, or host operation. Drift-observation intent remains separately normalized as the closed provider-free `driftPolicy` in every ResolvedPlan. | Bind kit-specific secret recovery, drift observation/reconciliation, telemetry, and update owners independently without recreating a Core executor umbrella. |
-| `stackkits-home-backup-target` | Exact node-local Home Control Plane adapter observes the CUE-declared prepared backup root | Retain the observation-only boundary; add backup jobs, repository lifecycle, retention, and restore as separate typed owners |
-| `stackkits-monitoring-agent-runtime` | Optional node-local collector intent plus one exact remote-only Product Runtime target per selected node. The catalog binds apply/reconcile/verify/evidence operations and post-Apply Health to the same artifact/Site/node without carrying endpoints, credentials, provider details, sockets, or management addresses. | Supply the authenticated external Operations implementation through an admitted execution channel; keep collector/backend lifecycle and credentials outside StackKits. |
-| `stackkits-home-device-authority-policy-manifest` | Policy JSON plus exact unbound-owner requirement; isolated typed configuration adapter exists | Bind an authenticated Home authority backend and product registration only with local pairing, possession proof, revocation, and fresh exact-policy readback |
-| `stackkits-basement-identity-trust-policy-manifest` | Policy JSON plus exact unbound-owner requirement; isolated typed verifier adapter exists | Bind an authenticated operations backend and product registration only with fresh device/human/workload verifier readback; no enrollment, issuance, signing, or credential material enters the adapter |
-| `stackkits-home-access-policy-manifest` | Policy JSON plus exact unbound-owner requirement; isolated typed adapter exists | Bind an authenticated operations backend and product registration only with fresh exact-policy readback; LAN presence never becomes identity |
-| `stackkits-local-autonomy-policy-manifest` | Policy JSON plus exact unbound-owner requirement; isolated typed adapter exists | Bind an authenticated operations backend and product registration only with observable link-loss and local-control evidence |
+| `security-baseline` | Exact node-local host adapter; first bounded pilot | Keep the script/contract-bound adapter and evidence path |
+| `stackkits-home-host-security-runtime` | Home-only owner of inbound firewall, ssh and brute-force baseline. CUE-owned input-free policy artifact enforced through `internal/hostsecurity` (the engine behind `stackkit host security repair`); reports healthy only when every control is compliant or an owner-approved exception. Never closes the ssh session in use or a configured management network; keeps password logins as an open `no_authorized_key` finding when no account holds an authorized key. In the full runtime-owner registry, not the single-target security-baseline path. Live home-host evidence pending | Declared-service ports are not yet a plan input, so apply-time firewall trusts LAN, overlay interfaces and container bridges on every port; `host security repair --resolved-plan` restricts to declared ports |
+| `stackkits-core-host-bootstrap` | Node-local, provider-free pilot: prepares declared StackKit storage roots, observes an already bootstrapped Docker runtime | Bind to an authenticated execution channel before product registration; expand only via new typed operations and evidence |
+| `stackkits-core-topology` | Declarative Home/Cloud site-topology authority; selects no runtime module, does no host or provider work | Keep site/node intent in the plan; lower only explicit downstream owners |
+| `stackkits-service-catalog` | Declarative catalog authority selected directly into the plan | Keep workload/service selection in CUE; explicit owners consume the resolved catalog |
+| `stackkits-access-policy-contract` | Shared declarative access-policy prerequisite; enforces nothing | Bind kit-specific enforcers to the exact policy with their own Health/evidence |
+| `stackkits-storage-data-policy`, `stackkits-storage-allocation`, `stackkits-workload-data-binding` | Plan-only storage authority: every Application Kit names its persistent/cache allocation and data binding in ResolvedPlan; render nothing, mount/migrate/back up nothing | Keep allocation and placement facts in CUE/ResolvedPlan; workload and lifecycle owners consume them without product-specific compiler or renderer branches |
+| `stackkits-workload-runtime-contract` | Shared delivery interface for workloads; selects no engine | Each workload binds its artifacts to an explicitly registered adapter; no kit-level runtime umbrella |
+| `stackkits-basement-core-runtime` | Required Basement-only generation and Apply owner. The CUE catalog fixes the legacy Full single-node graph (Traefik, socket proxy, PocketID, TinyAuth, step-ca, Coolify/PostgreSQL/Redis/realtime, Hub); the native default is standalone Compose and the retained legacy graph neither makes Coolify the default core nor establishes Marketplace support. Hash-bound Compose/OpenTofu artifacts carry pinned images, backup-marked persistent volumes, custody references, Healthchecks and probes. Local Product Apply binds the graph to Site/node/channel custody, realizes the PocketID/TinyAuth Owner binding, records signed evidence; empty workload sets and unregistered or tampered renderers are rejected | Keep the v0.8 graph single-node and local-authority bound; graduate HA and optional workloads independently (v0.9) |
+| `stackkits-immich-runtime` | Apply-ready owner for the full Immich v2.7.0 server, machine-learning, PostgreSQL, database-init and Valkey graph. Provider-neutral, target-bound bundle with image digests, dependencies, internal network, opaque secret slots, volumes, backup intent, Health and the compiler-selected route/TLS descriptor; the executor SPI accepts only this closed bundle and requires apply receipt plus component/route readback. Product Runtime factories bind the full selector for Coolify, Komodo or standalone Compose plus Site, node, channel, catalog hashes, agent authority and Health | Provider/PaaS lifecycle stays external for Coolify/Komodo; standalone uses only local Owner custody and the fixed Docker Compose capability |
+| `stackkits-cloudreve-runtime`, `stackkits-vaultwarden-runtime` | Apply-ready Files and Vault owners using the CUE catalog's image ref/digest pairs; each has its own closed adapter bundle, parser, executor, Product factory and three adapter registrations, and selects the common Application Lifecycle and shared storage/data/backup/recovery modules | Keep workload-specific validation at the artifact/adapter edge; reuse the common compiler, lifecycle, state and State Console |
+| `stackkits-coolify-runtime` | Workload-scoped handoff distinct from the legacy Full core's Coolify. Native defaults install no Coolify; Marketplace is its optional owner. Accepts workload-bundle v2 with `apply`/`observe`, external credential/provider-lifecycle custody, mandatory digest, runtime, route and Health readback | Connect authenticated Coolify operations through the shared executor boundary; keep provider/server lifecycle outside |
+| `stackkits-standalone-compose-runtime` | StackKits-owned no-PaaS adapter: owner-only digest-pinned Compose and env files, signed local secret custody only, attaches the entry service to `stackkit-basement-core`, emits Traefik host/TLS labels, proves service/image plus loopback HTTP readback | Keep Docker/server lifecycle outside the adapter; never promote the fixed Compose capability into generic command, path, socket or host authority |
+| `stackkits-komodo-core-runtime`, `stackkits-komodo-periphery-runtime` | Explicit Komodo alternative: a workload adapter/API authority on Control Plane members and a typed Periphery node-agent on Control Authority Site workers. Node-bound contracts require external mutual-key custody, outbound TLS 1.3, executor-mediated host execution and digest/Health/runtime/route/agent-registration readback, with no endpoints, credentials, sockets, provider lifecycle or general host/LAN authority | Implement authenticated Core operations and Periphery onboarding in the external adapter owner; prove every registered worker and artifact before Apply registration |
+| `stackkits-basement-compose-runtime` | Optional Basement-only generation contract selected by explicit capability intent; its Product factory is restricted to the pinned socket-proxy unit on one exact Home Site/node/channel and cannot discover Docker | Supply an authenticated finite Compose Operations owner only for an exact observed Docker daemon; real projects stay under their workload owners |
+| `stackkits-backup-core-contract`, `-backup-source`, `-snapshot`, `-restore`, `-recovery` | Plan-only backup lifecycle authority: backup-enabled persistent allocations flow through `backupSource`; snapshot, staged restore with safety snapshot and recovery bind to the common Application Lifecycle operations, phases, durable state, Owner approval and evidence. Render nothing, own no credential, target, provider lifecycle or multi-server orchestration; Photos/Immich, Files/Cloudreve, Vault/Vaultwarden consume the same chain | Keep the v0.12 Application Lifecycle the only execution/state owner; add target-specific backup implementations only behind its bounded operations |
+| `stackkits-secrets-recovery-contract`, `-observability-evidence-contract`, `-lifecycle-update-contract` | Three non-executable shared contracts: no runtime target, artifact, Health or evidence claim, no host operation. Drift intent is the closed provider-free `driftPolicy` in every ResolvedPlan | Bind kit-specific secret recovery, drift, telemetry and update owners independently; no Core executor umbrella |
+| `stackkits-home-backup-target` | Node-local Home Control Plane adapter observes the CUE-declared prepared backup root | Stay observation-only; backup jobs, repository lifecycle, retention and restore are separate typed owners |
+| `stackkits-monitoring-agent-runtime` | Optional node-local collector intent plus one remote-only Product Runtime target per selected node; the catalog binds apply/reconcile/verify/evidence and post-Apply Health to the same artifact/Site/node without endpoints, credentials, provider details, sockets or management addresses | Supply the authenticated external Operations implementation through an admitted channel; collector/backend lifecycle and credentials stay outside StackKits |
+| `stackkits-home-device-authority-policy-manifest` | Policy JSON plus unbound-owner requirement; isolated typed configuration adapter | Bind an authenticated Home authority backend only with pairing, possession proof, revocation and fresh exact-policy readback |
+| `stackkits-basement-identity-trust-policy-manifest` | Policy JSON plus unbound-owner requirement; isolated typed verifier adapter | Bind an authenticated backend only with fresh device/human/workload verifier readback; no enrollment, issuance, signing or credential material enters the adapter |
+| `stackkits-home-access-policy-manifest` | Policy JSON plus unbound-owner requirement; isolated typed adapter | Bind an authenticated backend only with fresh exact-policy readback; LAN presence never becomes identity |
+| `stackkits-local-autonomy-policy-manifest` | Policy JSON plus unbound-owner requirement; isolated typed adapter | Bind an authenticated backend only with observable link-loss and local-control evidence |
 
-These map to three implementation classes, not seven bespoke CLI branches:
-Core host execution is limited to the separately selected Security Baseline and
-Host Bootstrap modules. Home-local host execution and explicit policy enforcement
-remain separate.
-A generic renderer or no-op policy adapter must never promote generation-only
-output to Apply-ready. The corresponding execution tasks are Beads
-`.8.9`, `.8.10`, and `.8.11`; evidence producer/trust graduation remains `.8.8`.
+These are three implementation classes, not seven bespoke CLI branches: Core host execution is limited to the separately selected Security Baseline and Host Bootstrap; Home-local host execution and policy enforcement stay separate. A generic renderer or no-op policy adapter must never promote generation-only output to Apply-ready (Beads `.8.9`, `.8.10`, `.8.11`; evidence producer/trust graduation `.8.8`). The generation-only `stackkits-local-runtime` and `stackkits-home-extensions` umbrellas are no longer selectable: LAN DNS is contract-only, and private remote access, public publication egress and encrypted offsite backup each have separate generation contracts and typed owners.
 
-The former generation-only `stackkits-local-runtime` and
-`stackkits-home-extensions` umbrella are no longer selectable. Optional Home
-capabilities resolve independently: LAN DNS is contract-only, while private
-remote access, public publication egress, and encrypted offsite backup have
-separate generation contracts and must graduate through separate typed owners.
+Execution mechanics:
 
-The Core host-bootstrap and Home backup-target pilots are intentionally not
-registered by the product Apply path yet. Their constructors require one
-explicit `(siteRef, nodeRef)` local binding and reject every other target before
-a host operation. The neutral
-shared runtime target now also carries the exact opaque `executionChannelRef`
-from the matching plan-owned Host requirement when one exists; this value is
-request-digest-bound and the local adapter requires an exact channel match. No
-address, endpoint, credential, provider reference, or discovery input crosses
-that bridge. The adapter has no
-generic command, package-manager, network, provider, credential, or arbitrary
-file-write capability. Multi-node product execution still requires transport
-registration around the isolated dispatcher described below; neither target
-order, hostname, LAN discovery, nor “current machine” may select a channel.
-Until authenticated transports and their product policy are registered, a
-complete multi-node Kit remains fail-closed even though each planned node has
-its own rendered policy.
-
-Node-local execution also owns node-local health. CUE health contracts marked
-`scope: each-node` materialize one distinct, contract-hash-bound gate for every
-selected node, retaining the exact Site/node pair. Security Baseline, Core host
-bootstrap, and the Home backup target use this scope. Aggregate
-application/module health remains the default and is unchanged. This prevents
-a dispatcher from assigning one shared
-module gate to an arbitrary worker or fabricating one aggregate success from
-partial per-node results; every node-local runtime target has exactly one
-independently receipted health target on the same Site and node.
-
-`internal/runtimeexecutordispatch` is the transport-neutral composite boundary
-for that model. It accepts only a sealed parent request, groups exact
-single-node Runtime/Health pairs by their opaque channel, filters each child to
-its referenced immutable artifacts plus plan metadata and exact Home access
-binding subset, re-seals the child request under the child executor identity,
-retains the parent's once-captured authorization instant, and verifies every
-child result via the shared runtime contract before returning the complete
-parent outcome.
-Missing/unknown channels, aggregate health, cross-Site bindings, ambiguous
-owners, child identity panics, partial authority sets, and cross-node artifacts
-fail closed. The dispatcher contains no transport implementation or
-credentials. A product integration may fix the shared provider-neutral
-`runtimeapply.Journal` SPI at construction. The sealed parent request digest is
-the operation identity; each re-sealed child digest is one fenced CAS step.
-Completed exact child results replay without repeating their executor, failed
-steps can resume, and an unresolved running step fails closed for the journal's
-abandoned-operation policy. A retried `stackkit apply` does not meet that
-refusal: it seals fresh evidence, so it opens a new operation and re-converges
-every owner. What a killed Apply strands is its application lifecycle
-operation, which a retry holding the exclusive lifecycle-mutation and
-output-root locks records as abandoned (`docs/CLI.md`). The dispatcher reports
-every child as `apply.channel` / `apply.owner` rollout events to an observer
-carried by the request context. Execution remains serial and no automatic
-rollback is inferred.
-
-Multiple executable owners on the same node are a separate routing dimension,
-not another execution channel. A channel child can therefore be a service-owned
-`OwnerRouter`: its construction binds the complete canonical `RuntimeTarget`
-(including every contract, workload, artifact, access, Site, node, and channel
-field) to one typed executor. It accepts routes for exactly one Site/node and
-one opaque channel, partitions matching Health/access/artifact authority, and
-re-seals every child request before invoking any owner. Matching only an owner
-name, module, or requirement ID is forbidden. The outer channel dispatcher and
-inner owner router compose without learning an endpoint, credential, provider
-lifecycle, lease, generation, or transport. Journaled routing records the outer
-channel operation and the inner owner operation separately, so recovery cannot
-repeat a verified successful owner merely because a later owner or channel
-failed. Compensation is a closed per-route declaration (`none` or `explicit`);
-execution of an explicit compensation remains the owning integration's
-separately receipted operation and is never guessed by StackKits.
-
-`ProductRuntimeOwnerRegistry` is the next product-side admission boundary. Its
-immutable construction maps one closed CUE/catalog selector either to one
-integration-owned local factory or to an explicit `remote-only` registration;
-a request can never contribute a factory or executor. A remote-only
-registration intentionally carries no local Operations dependency or success
-stub. Construction also requires one service-owned execution-channel
-factory and fixes one valid root executor identity before authorization. The
-channel DTO and factory/admission/local-builder interfaces are the canonical
-`runtimeexecutor.ExecutionChannel*` contract from `kombify-go-common`
-`791a699`; StackKits keeps Product-prefixed aliases only for source
-compatibility. The shared request validates one opaque channel and its exact
-single-Site/single-node Runtime+Health closure before the service-owned factory
-can observe it. This lets TechStack or another authorized control service
-implement remote routing against the same value contract without importing
-StackKits internals or copying its Product DTOs. The registry implements the
-shared Executor boundary itself; a sealed request with
-any other root identity fails before factory or channel admission.
-Preparation consumes the already sealed shared request, requires a registration and
-exact Health owner for every target, rejects a channel spanning multiple
-Site/node authorities, and admits every exact channel/Site/node scope before
-preparing any typed owner. The returned immutable channel admission receives a
-one-shot lazy builder for the channel-local `OwnerRouter`: explicit local
-execution first requires every selected registration to have a real local
-factory and otherwise fails before preparing any factory. An authenticated
-remote transport returns its own executor without constructing local owners or
-requiring their Operations dependencies. Direct in-process execution is
-therefore an explicit adapter choice, never an inference from an opaque channel
-ref. Both callbacks
-receive defensive provider-free request data; repeated local construction,
-ignored local-construction errors, panics, typed nils, and missing executors
-fail closed. Endpoint, credential,
-transport configuration, provider lifecycle, lease, and generation authority
-remain private to the service-owned channel implementation and never enter the
-StackKits or shared DTO.
-
-Remote integrations do not reconstruct those selectors from documentation or
-from an Apply request. `ProductStaticRuntimeOwnerCatalog` exposes a fresh
-value-only descriptor projection for every stable static Product factory; its
-typed ID is the exact CUE/catalog-owned owner ref, and
-`NewProductRemoteStaticRuntimeOwnerRegistrations` resolves only an explicit
-service-owned allowlist. Blank, non-normalized, unknown, or duplicate IDs fail
-before Registry or channel construction. The Immich selected-PaaS owner remains
-separate because its selector is incomplete without the exact service-owned
-adapter ref and adapter-module ref; its remote constructor requires both and
-adds no Operations dependency. The catalog carries no target, channel,
-endpoint, credential, provider resource, lease, generation, or mutation
-authority.
-
-Cross-repository integrations consume that selector truth through
-`pkg/productruntime`, not by importing `internal/architecturev2`. The public
-package aliases the canonical owner ID/selector/descriptor and the shared
-go-common execution-channel, Apply-evidence Collector, Journal, and opaque
-recovery-custody interfaces, then delegates every catalog and selected-PaaS
-projection back to the internal CUE/catalog authority. `NewComposition` is the
-external construction root: it fixes an explicit remote-only owner allowlist,
-root executor identity, channel factory, Collector, Journal, and Recovery
-store before any resolution. `ApplyPrepared` and `ReconcilePrepared` accept
-only an authenticated authority scope, an already-generated workspace, the
-current StackSpec/Inventory, and an exact recovery digest when applicable.
-They re-resolve through the embedded CUE authority, require the persisted plan
-to be byte-identical, check compatibility/readiness and host-conformance
-freshness, acquire StackKits' held output lock, and call the internal one-shot
-Apply/recovery capability without exposing it. Caller evidence and implicit
-local channels are absent from the public request shape. StackKits validates
-evidence and recovery bytes on both sides of the shared custody seams and
-returns only a hash-bound provider-neutral result. Endpoint selection,
-observation implementation, signing keys, transport, credentials, provider
-lifecycle, leases, generation, discovery, retry policy, and durable storage
-remain private to the consuming service behind those interfaces.
-If durable execution requires continuation, the facade projects only a typed
-`ReconcileRequiredError` with the opaque exact request digest; internal child
-steps and provider-native state remain behind Journal/recovery custody.
-
-This registry is available in a journal-required form which fixes the same
-integration-owned SPI across both dispatcher levels. A separate
-product-service constructor fixes the root identity, complete owner
-registration set, execution-channel factory, and Journal together; only that
-configured service selects the multi-owner registry during
-`ExecuteProductApply`. The ordinary embedded product service retains the
-single-owner pilot for compatibility integrations, but production
-`stackkit apply` no longer selects it.
-
-The standalone CLI constructs the v0.8 single-node Basement Product Apply
-authority from local custody created by `init --owner-source=local`. It loads
-the signed Owner/runtime binding, derives exactly one Site/node/execution
-channel, installs a local Owner registry, uses workspace-bound file
-Journal/recovery custody, and collects evidence with the local private key.
-The explicit `--local-site`, `--local-node`, and
-`--local-execution-channel` flags are equality-checked overrides, not routing
-or authority injection. `stackkit generate` accepts `--local-site` and
-`--local-node` for the same inventory attest binding. Caller-provided evidence
-and foreign channels are rejected.
-
-That authority is deliberately host-local and provider-free. It can execute
-only the exact CUE-selected Basement owners with registered implementations;
-it cannot create a server, discover provider credentials, manage leases, or
-claim provider/PaaS lifecycle. Techstack may invoke the same published CLI as
-an optional Orchestrator UI, but cannot inject an executor, mint evidence, or
-expand the resolved operation set. Multi-node/hybrid channel authority remains
-a v0.9 concern.
-
-Architecture v2 workload removal is a distinct destructive protocol, never a
-negative Apply. `stackkit remove --workload <ref>` first verifies the current
-Plan/generation/Apply closure and loads the exact sealed Shared request retained
-by Apply recovery custody. Recovery expiry limits retry authority but does not
-erase this historical record of what crossed the channel. StackKits reduces
-that request to exactly one workload target and its referenced executable plus
-selected-adapter artifacts, re-seals the child, and signs a fresh five-minute
-authorization with established local Owner custody. The digest-pinned Standard
-execution process receives
-`stackkit.standard-workload-removal-request/v1` and must return
-`stackkit.standard-workload-removal-result/v1`; success requires selected
-runtime-owner readback of `absent` bound to the exact requirement, instance,
-and applied artifact digest. The content-addressed request/result pair is local
-Owner evidence. An opt-in `stackkit.workload-removal-evidence/v1` projection
-can cross a pinned execution channel without exporting applied artifact
-content; it is persisted content-addressed beside the local request/result pair,
-and its StackKits-owned parser checks the internal equality of workload, Site,
-node, channel, runtime owner, artifact, authorization window, and terminal
-result. Its digest provides canonical integrity, not independent authenticity
-or a new Owner identity: consumers must authenticate the pinned StackKits
-producer channel, compare expected custody identity, and may authenticate the
-original authorization bytes only against an Owner key already established by
-separate custody.
-
-Legacy `--purge`/`--force`, raw provider deletion, unselected
-targets, and generic command execution cannot enter this path.
-
-The native v0.8 backup path reuses that local authority rather than creating a
-parallel backup control plane. Before configure, status, or snapshot side
-effects it binds the full Plan identity, manifest and generation receipt, the
-current Apply result and owner-signed Apply receipt, and the exact
-CUE-generated Kopia policy. The passphrase is held only in owner-signed local
-custody and passed through a redacted stdin boundary. Snapshot operations are
-journaled under `.stackkit/backups/`; their content-addressed
-`stackkit.local-backup-snapshot-anchor/v1` records are owner-signed and
-idempotent by operation ID. Techstack may display or dispatch this public CLI
-contract, but cannot supply repository credentials, rewrite the policy, or
-replace local PocketID/TinyAuth/step-ca authority.
-
-Full and Lite Basement Core select the same Kopia implementation with distinct
-generated source policies. Full retains its existing managed volumes and
-legacy source identity. Lite selects only its PocketID, step-ca and TinyAuth
-volumes, plus the selected backup-enabled application volumes. Its policy has
-a distinct artifact path and explicitly identifies the Lite Core module;
-admission binds the policy to that exact Core runtime. Neither profile silently
-includes volumes belonging to the other. Both reuse the same application
-dependency graph, writer custody, snapshot and restore lifecycle.
-Restore activation binds the complete source volume set to the selected Core
-and standalone applications before cutover. Missing application volumes or
-additional foreign volumes fail admission. Full and Lite share the runtime
-owner and verifier, which validate the selected profile's exact Compose output
-and health requirements.
-
-Upgrade recovery follows the executor that actually performed Product Apply.
-For the v0.8 Basement default this is Compose, not the alternative OpenTofu
-renderer. The internal `stackkit.executor-state-snapshot/v1` store already
-provides private content-addressed blobs, owner signatures, an operation marker
-as final commit point, an immutable offline-verified installed-release proof,
-byte matching of the recovery executable, and re-verification of the exact
-persisted Kopia anchor plus the current PocketID Owner runtime binding. CAS
-objects are atomically published under one non-blocking store lock and their
-directory hierarchy is durability-synced where the platform supports it.
-
-The public upgrade checkpoint reaches this store through the sealed
-current-state authority constructor. It re-runs the current
-Plan/Generation/Apply authority gate and binds every captured artifact to its
-verified manifest and receipts before capture. Full and Lite select their
-Compose and source-policy artifacts from the exact Plan-owned runtime; the
-checkpoint never substitutes a Full artifact for Lite. New snapshots retain
-the selected module and artifact identities. Historical snapshots without
-profile fields remain Full-only compatibility data. These are implementation
-and local verification claims; the final exact-candidate upgrade and rollback
-on a test host remain pending. OpenTofu state is required only if a Product
-Apply selects an OpenTofu state owner; unsupported executor targets fail before
-runtime side effects rather than recording empty or unrelated state.
-
-`ProductApplyFileJournal` is the concrete provider-free durable option for a
-workspace-bound product integration. Construction opens and validates the
-held workspace without creating files; the first real Journal/recovery
-operation lazily creates and verifies the private control directories. It then
-stores one canonical private record per
-exact operation beneath the held workspace control root, serializes each
-operation with a non-blocking cross-process advisory lock, atomically replaces
-and syncs `0600` state, and rotates a random fence on every matching resume.
-The latest Begin therefore owns recovery and every older writer loses CAS
-authority; final exact state replays without executing an owner again.
-Noncanonical/corrupt records, foreign operations, stale tokens, invalid state
-transitions, unsafe filesystem entries, and uncertain atomic writes fail
-closed. A server integration may instead inject a DB-backed implementation of
-the same Shared Journal SPI. Neither store kind selects an executor, transport,
-provider, lease, credential, generation, or compensation action.
-
-Operation state alone is not restart authority. A product-configured registry
-therefore also requires a separate `ProductApplyRecoveryStore`. Immediately
-before the first executor call, the Shared bridge seals a canonical recovery
-capsule containing the already verified internal request, its exactly
-reconstructed Shared request, the plan-owned output root, and the earliest
-evidence expiry. The service-owned store must return byte-identical canonical
-data before execution can continue; missing custody, panics, substitutions, or
-conflicting capsules fail closed. The file Journal implements this opaque
-custody beside (but not inside) the Shared Journal record; DB-backed products
-can implement the same interface. The public reconcile entry reacquires and
-revalidates the held workspace/output authority. An access-bound request cannot
-reuse its old `authorization_time` as a new invocation instant: the service
-creates a `stackkits.product-apply-continuation/v1alpha1` contract with freshly
-collected and verified evidence, while retaining the original recovery lookup
-identity and immutable plan, artifact, executor, and requirement bindings.
-
-The registry's reconcile core can load one exact capsule
-after process restart, reject expired/foreign authority, reconstruct only the
-construction-owned routing tree, and resume a no-access request through the
-same fenced Journal. A persisted successful owner is not prepared for
-execution again merely because a later owner failed before restart. The public
-`Service.ReconcileProductApply` entry encloses that core with a fresh
-CurrentResolution, held workspace/output-lock reacquisition, and immutable
-plan/manifest/receipt/artifact revalidation. Access- or backup-target-bound
-continuations require the service-owned evidence collector. Their verification
-instant is sampled after collection; admission samples the clock again after
-loading recovery custody. Both the original recovery authority and the fresh
-evidence must remain valid. Slow collection or custody reads therefore cannot
-extend an expired authorization. The shared request retains its sealed
-evaluation instant; the independently checked admission time is not a caller
-override. An expired original capsule requires a newly authorized Apply.
-A continuation's result binds the continuation's own request digest, so the
-registry seals and retains a capsule for the exact continuation request under
-that digest before the first executor call, valid no longer than the original
-recovery authority. Verify, upgrade checkpoints and Advanced reconcile load
-the applied runtime request by that digest.
-
-The v0.8 CLI registers all factories and local transport required by the
-closed single-node Basement default graph. It opts into the durable file
-implementation and local evidence collector explicitly; other embedded
-services do not do so silently. Optional modules, Modern/HA plans, and external
-runtime adapters remain fail-closed until their own authenticated owners,
-channels, compensation, and verification evidence exist.
-
-A journaled partial failure is not collapsed into a generic Apply error.
-`ProductApplyReconcileRequiredError` exposes defensive copies of every exact
-validated `runtimeapply.Operation` and its `reconcile-required` Snapshot from
-the error chain. For nested dispatch this includes the outer channel operation
-and the inner owner operation; their relationship is exact because the inner
-operation ID equals its outer child-step request digest. Successful steps carry
-only their verified Shared Runtime result, failed steps carry one closed failure
-code, and pending work remains explicit. The original typed executor error is
-retained as the cause. Provider payloads, logs, endpoints, credentials, leases,
-and handles cannot enter this evidence. Reconciliation execution itself remains
-an explicit integration-owned operation, not an automatic retry or rollback.
+- **Node-local pilots.** The Core host-bootstrap and Home backup-target pilots are not registered by the product Apply path yet. Their constructors require one explicit `(siteRef, nodeRef)` binding and reject any other target before a host operation. The shared runtime target carries the opaque `executionChannelRef` from the plan's Host requirement (request-digest-bound; the adapter requires an exact match), with no address, endpoint, credential or provider reference, and the adapter has no generic command, package-manager, network, provider, credential or file-write capability. Target order, hostname, LAN discovery or "current machine" never select a channel; a multi-node Kit stays fail-closed until authenticated transports and their policy are registered.
+- **Node-local health.** CUE health contracts with `scope: each-node` materialize one contract-hash-bound gate per selected node (Security Baseline, Core host bootstrap, Home backup target). Aggregate health stays the default. Every node-local runtime target has exactly one independently receipted health target on the same Site and node, so no dispatcher can assign one shared gate to an arbitrary worker or fabricate aggregate success from partial results.
+- **Channel dispatcher.** `internal/runtimeexecutordispatch` accepts only a sealed parent request, groups exact single-node Runtime/Health pairs by opaque channel, filters each child to its immutable artifacts, plan metadata and Home access binding subset, re-seals the child under the child executor identity, keeps the parent's captured authorization instant, and verifies every child result through the shared runtime contract. Missing or unknown channels, aggregate health, cross-Site bindings, ambiguous owners, identity panics, partial authority sets and cross-node artifacts fail closed. It holds no transport or credentials. With the provider-neutral `runtimeapply.Journal` SPI fixed at construction, the sealed parent digest is the operation identity and each re-sealed child digest one fenced CAS step: completed children replay without re-execution, failed steps resume, an unresolved running step fails closed per the journal's abandoned-operation policy. A retried `stackkit apply` seals fresh evidence, opens a new operation and re-converges every owner; what a killed Apply strands is its application lifecycle operation, recorded as abandoned by a retry holding the lifecycle-mutation and output-root locks ([CLI.md](CLI.md)). Children report as `apply.channel` / `apply.owner` rollout events; execution is serial and no rollback is inferred.
+- **Owner router.** Several executable owners on one node are routed by a service-owned `OwnerRouter` bound at construction to the complete canonical `RuntimeTarget` and one typed executor; it accepts routes for exactly one Site/node and opaque channel, partitions Health/access/artifact authority and re-seals every child. Matching only an owner name, module or requirement ID is forbidden. Channel dispatcher and router compose without learning endpoints, credentials, provider lifecycle, leases, generations or transport; journaled routing records outer and inner operations separately so recovery never repeats a verified owner. Compensation is a closed per-route declaration (`none` or `explicit`); executing it is the owning integration's receipted operation.
+- **`ProductRuntimeOwnerRegistry`.** Immutable construction maps one closed CUE/catalog selector to an integration-owned local factory or an explicit `remote-only` registration (no local Operations dependency, no success stub); a request never contributes a factory or executor. It requires one service-owned execution-channel factory and fixes one root executor identity before authorization (a sealed request with another root identity fails). The channel DTO and factory/admission/local-builder interfaces are the canonical `runtimeexecutor.ExecutionChannel*` contract from `kombify-go-common` `791a699` (StackKits keeps Product-prefixed aliases for source compatibility), so Techstack or another authorized service can implement remote routing without importing StackKits internals. Preparation requires a registration and exact Health owner per target, rejects a channel spanning several Site/node authorities, admits every channel/Site/node scope before preparing any owner, and hands the channel admission a one-shot lazy builder for its `OwnerRouter`. Explicit local execution first requires a real local factory for every selected registration; an authenticated remote transport returns its own executor. Direct in-process execution is an explicit adapter choice, never inferred from an opaque channel ref. Repeated or failed local construction, panics, typed nils and missing executors fail closed. Endpoint, credential, transport, provider lifecycle, lease and generation authority stay private to the service-owned channel.
+- **Static owner catalog and public facade.** `ProductStaticRuntimeOwnerCatalog` exposes value-only descriptors for every stable static Product factory (typed ID = the CUE/catalog owner ref); `NewProductRemoteStaticRuntimeOwnerRegistrations` resolves only an explicit service-owned allowlist and rejects blank, non-normalized, unknown or duplicate IDs. The Immich selected-PaaS owner needs its adapter ref and adapter-module ref. Cross-repository integrations use `pkg/productruntime`, never `internal/architecturev2`: it aliases the owner ID/selector/descriptor and the go-common channel, Apply-evidence Collector, Journal and recovery-custody interfaces and delegates catalog projections to the internal authority. `NewComposition` fixes an explicit remote-only allowlist, root identity, channel factory, Collector, Journal and Recovery store; `ApplyPrepared` and `ReconcilePrepared` accept an authenticated scope, a generated workspace, the current StackSpec/Inventory and (for reconcile) an exact recovery digest, re-resolve through the embedded CUE authority, require a byte-identical persisted plan, check compatibility, readiness and host-conformance freshness, take the held output lock and call the internal one-shot capability. Caller evidence and implicit local channels are absent from the request shape; evidence and recovery bytes are validated on both sides of the custody seams and only a hash-bound provider-neutral result returns. A continuation need surfaces as a typed `ReconcileRequiredError` with the opaque request digest.
+- **Product service and CLI composition.** A journal-required registry form fixes the integration-owned SPI across both dispatcher levels; a product-service constructor fixes root identity, owner set, channel factory and Journal together, and only that service selects the multi-owner registry in `ExecuteProductApply`. The ordinary embedded service keeps the single-owner pilot for compatibility; production `stackkit apply` no longer selects it. The standalone CLI builds the v0.8 single-node Basement authority from local custody (`init --owner-source=local`): signed Owner/runtime binding, exactly one derived Site/node/channel, a local Owner registry, workspace-bound file Journal/recovery custody and evidence signed with the local key. `--local-site`, `--local-node`, `--local-execution-channel` are equality-checked overrides, never routing or authority injection (`generate` takes the first two for the same attest binding); caller evidence and foreign channels are rejected. The authority is host-local and provider-free: it executes only the CUE-selected Basement owners with registered implementations, cannot create servers, discover provider credentials, manage leases or claim provider/PaaS lifecycle, and Techstack invoking the published CLI cannot inject an executor, mint evidence or expand the operation set. The CLI registers all factories and local transport for the closed single-node default graph and opts into the file Journal and local collector explicitly. Optional modules, Modern/HA plans and external adapters stay fail-closed until their owners, channels, compensation and evidence exist.
+- **Workload removal** is a destructive protocol, never a negative Apply. `stackkit remove --workload <ref>` verifies the Plan/generation/Apply closure, loads the exact sealed request retained in Apply recovery custody (recovery expiry limits retry authority, not the historical record), reduces it to one workload target with its executable and selected-adapter artifacts, re-seals the child and signs a fresh five-minute authorization with local Owner custody. The digest-pinned Standard process receives `stackkit.standard-workload-removal-request/v1` and returns `-result/v1`; success needs selected-owner readback `absent` bound to the exact requirement, instance and applied artifact digest. The content-addressed request/result pair is local Owner evidence; the opt-in `stackkit.workload-removal-evidence/v1` projection (no applied artifact content, checked by a StackKits-owned parser for workload, Site, node, channel, owner, artifact, window and result equality) may cross a pinned channel. Its digest gives integrity, not authenticity: consumers authenticate the pinned producer channel, compare expected custody identity and verify the authorization bytes only against an Owner key established separately. Legacy `--purge`/`--force`, raw provider deletion, unselected targets and generic commands cannot enter this path.
+- **Backup path.** The v0.8 backup reuses that local authority. Before configure, status or snapshot side effects it binds the Plan identity, manifest and generation receipt, current Apply result and signed receipt, and the CUE-generated Kopia policy; the passphrase lives in owner-signed custody and crosses a redacted stdin boundary. Snapshots are journaled under `.stackkit/backups/` as owner-signed, operation-ID-idempotent `stackkit.local-backup-snapshot-anchor/v1` records. Techstack may display or dispatch the CLI but cannot supply repository credentials, rewrite the policy or replace local PocketID/TinyAuth/step-ca authority. Full and Lite Basement Core use the same Kopia implementation with distinct generated source policies: Full keeps its managed volumes and legacy source identity; Lite selects its PocketID, step-ca and TinyAuth volumes plus selected backup-enabled application volumes, with its own artifact path naming the Lite Core module, and admission binds the policy to that exact Core runtime. Neither includes the other's volumes; both share the dependency graph, writer custody, snapshot and restore lifecycle. Restore activation binds the complete source volume set to the selected Core and applications; missing or foreign volumes fail admission. Full and Lite share the runtime owner and verifier, which validate the selected profile's Compose output and health.
+- **Upgrade recovery** follows the executor that performed Product Apply: Compose for the v0.8 Basement default, not the alternative OpenTofu renderer. `stackkit.executor-state-snapshot/v1` provides private content-addressed blobs, owner signatures, an operation marker as final commit, an offline-verified installed-release proof, recovery-executable byte matching and re-verification of the persisted Kopia anchor plus the current PocketID Owner binding; CAS objects publish atomically under one non-blocking store lock with directory durability sync where supported. The public upgrade checkpoint reaches it through the sealed current-state constructor, which re-runs the Plan/Generation/Apply gate and binds every captured artifact to its manifest and receipts; Full and Lite take their Compose and source-policy artifacts from the exact Plan-owned runtime and snapshots retain module and artifact identities (older snapshots without profile fields are Full-only). These are implementation and local verification claims; exact-candidate upgrade and rollback on a test host remain pending. OpenTofu state is required only when Apply selects an OpenTofu state owner; unsupported targets fail before side effects.
+- **Journal and recovery custody.** `ProductApplyFileJournal` is the provider-free durable option: it opens and validates the held workspace without creating files, lazily creates private control directories on first operation, stores one canonical private record per operation under the workspace control root, serializes each with a non-blocking cross-process advisory lock, atomically replaces and syncs `0600` state and rotates a random fence on every resume (the latest Begin owns recovery; older writers lose CAS; exact final state replays without re-executing). Corrupt or noncanonical records, foreign operations, stale tokens, invalid transitions, unsafe filesystem entries and uncertain atomic writes fail closed. A server may inject a DB-backed implementation of the same SPI. Operation state alone is not restart authority: a configured registry also requires a `ProductApplyRecoveryStore`, and before the first executor call the Shared bridge seals a recovery capsule (verified internal request, reconstructed Shared request, plan-owned output root, earliest evidence expiry) that the store must return byte-identical; missing custody, panics, substitutions or conflicts fail closed. The file Journal implements it beside the Journal record. An access-bound request cannot reuse its old `authorization_time`: the service builds a `stackkits.product-apply-continuation/v1alpha1` contract with freshly collected and verified evidence, keeping the original recovery lookup identity and immutable plan, artifact, executor and requirement bindings. The reconcile core loads one capsule after restart, rejects expired or foreign authority, rebuilds only the construction-owned routing tree and resumes through the fenced Journal; a persisted successful owner is not prepared again. `Service.ReconcileProductApply` wraps it with a fresh CurrentResolution, workspace/output-lock reacquisition and plan/manifest/receipt/artifact revalidation. Access- or backup-target-bound continuations need the service-owned evidence collector; verification time is sampled after collection and admission samples again after loading custody, and both the original authority and fresh evidence must be valid, so slow reads cannot extend an expired authorization (an expired capsule needs a new authorized Apply). A continuation's result binds its own request digest: the registry seals a capsule for it under that digest before the first executor call, valid no longer than the original authority; Verify, upgrade checkpoints and Advanced reconcile load the applied request by that digest.
+- **Partial failure** is not collapsed into a generic error: `ProductApplyReconcileRequiredError` exposes defensive copies of every validated `runtimeapply.Operation` and its `reconcile-required` Snapshot (for nested dispatch the outer channel and inner owner operations; the inner ID equals the outer child-step digest). Successful steps carry only their verified Shared Runtime result, failed steps one closed failure code, pending work stays explicit, and the typed executor error is the cause. Provider payloads, logs, endpoints, credentials, leases and handles cannot enter this evidence. Reconciliation itself is an explicit integration-owned operation, never an automatic retry or rollback.
 
 ### Approved RIL action and recovery boundary
 

@@ -19,7 +19,7 @@ func nativeAppliedWorkloadDeploymentForBackup(authority nativeV2AppliedAuthority
 	}, workload, false)
 }
 
-func nativeBackupCoolifyBindings(ctx context.Context, authority nativeV2BackupAuthority) ([]backupexec.ApplicationRuntimeBinding, error) {
+func nativeBackupApplicationBindings(ctx context.Context, authority nativeV2BackupAuthority) ([]backupexec.ApplicationRuntimeBinding, error) {
 	deployments, err := nativeBackupApplicationDeployments(authority)
 	if err != nil {
 		return nil, err
@@ -31,10 +31,24 @@ func nativeBackupCoolifyBindings(ctx context.Context, authority nativeV2BackupAu
 	}
 	var bindings []backupexec.ApplicationRuntimeBinding
 	for _, graph := range source.ApplicationRuntimes {
-		if graph.RuntimeAdapterRef != "coolify" {
+		if graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo" {
 			continue
 		}
 		deployment := deployments[graph.ComposeProject]
+		volumes := []localbackuppolicy.ApplicationVolume{}
+		for _, volume := range source.ApplicationVolumes {
+			if volume.ComposeProject == graph.ComposeProject {
+				volumes = append(volumes, volume)
+			}
+		}
+		if graph.RuntimeAdapterRef == "komodo" {
+			binding, err := nativehost.BindKomodoBackupRuntime(ctx, authority.WorkspaceRoot, deployment, graph, volumes)
+			if err != nil {
+				return nil, err
+			}
+			bindings = append(bindings, binding)
+			continue
+		}
 		state, err := platformdeploy.LoadOwnerHostDeployment(authority.WorkspaceRoot, graph.ComposeProject)
 		if err != nil {
 			return nil, err
@@ -42,12 +56,6 @@ func nativeBackupCoolifyBindings(ctx context.Context, authority nativeV2BackupAu
 		b := state.PlanBinding
 		if b == nil || b.SourceAdapter != "coolify" || b.PlanHash != authority.Lineage.Binding.PlanHash || b.ApplyResultHash != authority.Lineage.ApplyResultHash || b.SourceDigest != digest || b.ArtifactDigest != deployment.ArtifactDigest {
 			return nil, errors.New("Coolify backup source is not bound to the current signed Apply")
-		}
-		volumes := []localbackuppolicy.ApplicationVolume{}
-		for _, volume := range source.ApplicationVolumes {
-			if volume.ComposeProject == graph.ComposeProject {
-				volumes = append(volumes, volume)
-			}
 		}
 		binding, err := nativehost.BindCoolifyBackupRuntime(ctx, authority.WorkspaceRoot, deployment, graph, volumes)
 		if err != nil {

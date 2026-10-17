@@ -429,81 +429,9 @@ package foundation
 	rules?: [...#AlertRule]
 }
 
-// #NotificationChannelV1 defines typed alerting channels. Dedicated credential
-// fields require opaque secret:// references (Golden Rules §4.5).
-// Legacy backup channels retain their existing format until their consumers
-// migrate; this schema does not establish runtime notification delivery.
-#NotificationChannelV1: {
-	// Channel name; defaults to the type so a single channel needs no name.
-	name: string | *type
-
-	type: "email" | "ntfy" | "gotify" | "slack" | "discord" | "telegram" | "webhook" | "pagerduty"
-
-	// Email configuration
-	email?: {
-		to: [...string] & [_, ...]
-		from?:     string
-		smarthost: string
-		password?: =~"^secret://"
-	}
-
-	// ntfy configuration (self-hosted or ntfy.sh topic)
-	ntfy?: {
-		serverUrl: string | *"https://ntfy.sh"
-		topic:     string
-		token?:    =~"^secret://"
-		priority:  int & >=1 & <=5 | *3
-	}
-
-	// Gotify configuration
-	gotify?: {
-		url:      string
-		token:    =~"^secret://"
-		priority: int & >=1 & <=10 | *5
-	}
-
-	// Slack configuration
-	slack?: {
-		webhookUrl: =~"^secret://"
-		channel:    string
-		username:   string | *"AlertManager"
-	}
-
-	// Discord configuration
-	discord?: {
-		webhookUrl: =~"^secret://"
-	}
-
-	// Telegram configuration
-	telegram?: {
-		botToken: =~"^secret://"
-		chatId:   string
-	}
-
-	// Webhook configuration
-	webhook?: {
-		url:    string
-		method: "POST" | "PUT" | *"POST"
-		headers?: [string]: string
-		// Authorization material travels as a secret reference, never inline.
-		authorization?: =~"^secret://"
-	}
-
-	// PagerDuty configuration
-	pagerduty?: {
-		routingKey: =~"^secret://"
-	}
-
-	// The type-specific block for the selected type is required.
-	if type == "email" {email: _}
-	if type == "ntfy" {ntfy: _}
-	if type == "gotify" {gotify: _}
-	if type == "slack" {slack: _}
-	if type == "discord" {discord: _}
-	if type == "telegram" {telegram: _}
-	if type == "webhook" {webhook: _}
-	if type == "pagerduty" {pagerduty: _}
-}
+// #NotificationChannelV1 lives in architecture_v2.cue so the embedded
+// Architecture v2 authority and the owner notification intent share the one
+// channel contract.
 
 // #AlertReceiver is an alert destination; it is the shared channel contract.
 #AlertReceiver: #NotificationChannelV1
