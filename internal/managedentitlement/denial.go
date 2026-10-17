@@ -4,7 +4,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 )
 
-// UserGuidance is the human-readable half of FEATURE-ENTITLEMENT-UX-STANDARD §1.4.
+// UserGuidance is the human-readable half of ENTITLEMENTS-ARCHITECTURE.md §13.1.4.
 type UserGuidance struct {
 	Title     string   `json:"title"`
 	Body      string   `json:"body"`
@@ -49,7 +49,7 @@ func (d *Denial) Error() string {
 	}
 }
 
-// Envelope is the FEATURE-ENTITLEMENT-UX-STANDARD §1.4 object, with CLI
+// Envelope is the ENTITLEMENTS-ARCHITECTURE.md §13.1.4 object, with CLI
 // actionable-error aliases so `--json` consumers keep a parseable contract.
 func (d *Denial) Envelope() map[string]any {
 	if d == nil {

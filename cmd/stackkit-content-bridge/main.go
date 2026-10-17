@@ -1,7 +1,7 @@
 // Command stackkit-content-bridge is the node side of the kombify Content
 // Bridge. It answers consented counts from the apps of one server as
 // `homelab-content/v1`, strictly read-only, from a container that has no
-// internet egress (HOMELAB-CONTENT-BRIDGE-STANDARD, docs/ADR/ADR-0047).
+// internet egress (STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §11, docs/ADR/ADR-0047).
 //
 // It is a separate binary on purpose: it links only the standard library and
 // internal/contentbridge, so a read-only, capability-free container carries

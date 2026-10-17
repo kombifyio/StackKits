@@ -2,7 +2,7 @@ package models
 
 import "strings"
 
-// Placement axis (PLACEMENT-MODE-STANDARD §4 / STACKKITS-SPEC-PIPELINE §10).
+// Placement axis (STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §12.4 / STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §15.10).
 // StackKits-OSS realizes only S1 (local-only, standard+cloudless);
 // managed-serverless/coupled are S2/S3 (TechStack/Control-Plane), not realized here.
 const (

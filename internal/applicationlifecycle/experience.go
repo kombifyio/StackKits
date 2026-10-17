@@ -277,7 +277,9 @@ func recoveryAxis(contract Contract, state State, activation *RestoreActivationI
 						axis.ObservedAt = activation.VerifiedAt
 						axis.Reason = "restore data was activated and runtime verification completed; application-data readback remains unverified"
 						if activation.Status == "activated" && activation.DataReadbackVolumes > 0 {
-							axis.Reason = "restore data was activated, the restored volume content was read back and matches the snapshot, and runtime verification completed; application behaviour after restore remains unverified"
+							// The readback count is node-wide: a volume outside the snapshot's
+							// backup coverage was left live, so the claim names only covered volumes.
+							axis.Reason = "restore data was activated for the volumes the snapshot covered, their content was read back and matches the snapshot, and runtime verification completed; volumes outside the backup coverage stayed live; application behaviour after restore remains unverified"
 						}
 						if activation.Status == "recovered" {
 							axis.Reason = "restore activation failed and the prior runtime state was restored; the requested restore was not applied"

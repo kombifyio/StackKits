@@ -29,8 +29,17 @@ _architectureV2AdguardHomeProviders: [{
 	evidence: ["adguard-home-selected-paas-runtime-contract"]
 }]
 
-// Only the rendered configuration is backed up; the query log and statistics
-// in work are rebuildable and stay out of the backup.
+// Data contract (backup and restore). The StackSpec owns the DNS policy, so the
+// state is derived: `config` holds only the AdGuardHome.yaml that the startup
+// renders from the current verified plan and the current owner hash; filter
+// lists, statistics and the query log are off. Local backup stops every
+// container of the application graph before it snapshots, so the capture is
+// consistent without relying on the file's atomic replace. Restore replaces
+// the volume byte for byte while the service is stopped, reads it back against
+// the snapshot, and starts the service, which renders the policy of the
+// current plan again: a restore never rolls back DNS policy or a rotated owner
+// password, so change policy through the StackSpec. `work` (sessions, nothing
+// else of value) is rebuildable and stays out of the backup.
 _architectureV2AdguardHomeInfrastructure: #WorkloadInfrastructureV1 & {
 	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
 		{componentRef: "adguard-home", volumeRef: "config", target: "/opt/adguardhome/conf", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "network"},
@@ -62,7 +71,7 @@ _architectureV2AdguardHomeWorkloads: [#WorkloadContractV2 & {
 		runtime: {
 			allowedKinds: ["container"], allowedDeliveries: ["application-adapter"]
 			allowedAdapterRefs: ["standalone-compose"], defaultAdapterRef: "standalone-compose", defaultFallbackAdapterRefs: []
-			compatibility: [{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}}]
+			compatibility: [{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}}]
 		}
 		setup: {mode: "on-demand", owner: "module", actionRefs: ["adguard-home-policy-check"]}
 		inputs: {

@@ -58,12 +58,13 @@ they do not enable every application. Native v2alpha2 records the selected
 alternative and module profile explicitly.
 
 The CUE compatibility map distinguishes the delivery adapters: standalone
-Compose declares support for the native application backup/restore path;
-Coolify declares support for deployment, routing/TLS, and status evidence, but has
-`backupRestore: false` for Files. Files/Cloudreve on Komodo declares the native
-Kopia backup path and workload-scoped restore activation, retaining its signed
-Komodo controller and exact node volume identities. Other Komodo alternatives
-keep their own capability limits; Komodo remains Beta. A rendered
+Compose declares support for the native application backup/restore path.
+Photos/Immich, Files/Cloudreve and Vault/Vaultwarden on Coolify and on Komodo
+declare the native Kopia backup path and workload-scoped restore activation,
+retaining the signed manager and exact node volume identities, as ESPHome on
+Coolify already did. Every other Coolify or Komodo row keeps its own declared
+capability; a row without backup/restore is refused with
+`selected_adapter_backup_restore_unavailable`. Both managers remain Beta. A rendered
 backup classification or a fallback adapter list does not establish recovery
 parity or authorize an automatic adapter switch. These declarations are not
 evidence of a successful live deployment or restore. Existing data stays with its

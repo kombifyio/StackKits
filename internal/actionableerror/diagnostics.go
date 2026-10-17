@@ -6,6 +6,14 @@ import (
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
 )
 
+// ReasonSelectedAdapterBackupRestoreUnavailable is shared by the backup gate and
+// workload-scoped restore activation, which read the same delivery row.
+const ReasonSelectedAdapterBackupRestoreUnavailable = "selected_adapter_backup_restore_unavailable"
+
+// ReasonWorkloadManagerTransitionRequired refuses a manager that does not hold
+// the workload before it acts.
+const ReasonWorkloadManagerTransitionRequired = "workload_manager_transition_required"
+
 // The runtime taxonomy owns runtime causes and actions. This authority adds
 // construction-owned lifecycle conditions; CLI, MCP and generated docs consume
 // the same contracts rather than keeping their own recovery text.
@@ -85,6 +93,25 @@ var lifecycleDiagnostics = []Contract{
 	New("stackkit_command_failed", "remove_incomplete",
 		"Some local StackKits resources could not be removed; the workspace recovery state has been retained.",
 		[]string{"Inspect the reported local resource and Docker availability; preserve the original workspace, release and backups. Release a blocking resource only within its owner-approved scope, then rerun remove with the same data policy. --force does not bypass incomplete removal or erase recovery custody."}, true),
+	New("stackkit_command_denied", ReasonWorkloadManagerTransitionRequired,
+		"The workload's containers and volumes belong to another manager; the requested manager was refused before it acted.",
+		[]string{"Keep the current manager, data and Owner custody; inspect it with `stackkit service manager <workload> --status --json`. Move a workload only through `stackkit service manager <workload> --to <manager> --owner-approve`, which records the handover before the new manager acts; a manager without an admitted transition stays refused. Never delete or recreate the workload's containers or volumes to pass this check."}, false),
+	New("stackkit_command_denied", ReasonSelectedAdapterBackupRestoreUnavailable,
+		"The workload's selected runtime adapter has no admitted backup/restore lifecycle, so its data is outside this node's signed backup source.",
+		[]string{
+			"Keep the existing application data and runtime-manager custody.",
+			"Use an explicitly approved transition to an adapter with admitted backup/restore, or wait for that selected adapter's complete data lifecycle.",
+			"A Core-only snapshot does not prove backup coverage for this application.",
+		}, false),
+	New("stackkit_command_failed", "application_restore_scope_unsupported",
+		"The workload restores together with its node; only a Coolify- or Komodo-managed workload activates on its own.",
+		[]string{"Nothing was activated; keep the staged restore unchanged. Activate the node restore with `stackkit backup restore activate` without `--workload`, which restores the standalone Compose application volumes together."}, false),
+	New("stackkit_command_failed", "application_restore_workload_not_staged",
+		"The restore staged none of this workload's volumes under its backup coverage, so there is nothing to activate.",
+		[]string{"Nothing was activated; the workload's live data stays in place. Check its classes with `stackkit backup status --json`; media classes are an explicit coverage opt-in. Activate only a restore whose snapshot covers the workload."}, false),
+	New("stackkit_command_failed", "application_restore_workload_unselected",
+		"The current Plan selects no application workload with this reference.",
+		[]string{"Nothing was activated; keep the staged restore unchanged. Check the selected workload references with `stackkit status --json`, then retry with one of them."}, false),
 	New("stackkit_command_failed", "unknown_failure",
 		"The operation failed without a recognized terminal diagnosis.",
 		[]string{"Inspect `stackkit logs latest --json` and `stackkit support export --help`; retain the original workspace and report the bounded redacted evidence."}, false),

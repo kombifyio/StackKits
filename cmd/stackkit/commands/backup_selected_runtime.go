@@ -25,11 +25,9 @@ func (e *unsupportedBackupDelivery) Error() string {
 }
 
 func (e *unsupportedBackupDelivery) ActionableError() actionableerror.Contract {
-	return actionableerror.New("stackkit_command_denied", "selected_adapter_backup_restore_unavailable", e.Error(), []string{
-		"Keep the existing application data and runtime-manager custody.",
-		"Use an explicitly approved transition to an adapter with admitted backup/restore, or wait for that selected adapter's complete data lifecycle.",
-		"A Core-only snapshot does not prove backup coverage for this application.",
-	}, false)
+	contract, _ := actionableerror.Diagnostic(actionableerror.ReasonSelectedAdapterBackupRestoreUnavailable)
+	contract.Message = e.Error()
+	return contract
 }
 
 func requireNativeBackupDelivery(workspace string, plan generationartifact.VerifiedPlan, binding localevidence.LocalBinding) error {

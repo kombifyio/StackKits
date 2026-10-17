@@ -5091,6 +5091,18 @@
           "required": false
         },
         {
+          "name": "notify-ntfy-server",
+          "type": "string",
+          "description": "ntfy server URL for --notify-ntfy-topic (default https://ntfy.sh)",
+          "required": false
+        },
+        {
+          "name": "notify-ntfy-topic",
+          "type": "string",
+          "description": "Declare an ntfy owner notification channel (spec.notifications); interactive init asks when omitted",
+          "required": false
+        },
+        {
           "name": "output",
           "shorthand": "o",
           "type": "string",
@@ -8730,6 +8742,12 @@
           "name": "legacy-remote-transport",
           "type": "bool",
           "description": "Explicitly allow the deprecated raw-SSH verifier for a StackSpec v1 target",
+          "required": false
+        },
+        {
+          "name": "notify",
+          "type": "bool",
+          "description": "Also send a delivery check to every declared owner notification channel and record its receipt",
           "required": false
         },
         {

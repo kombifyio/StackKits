@@ -28,6 +28,9 @@ func ApplicationAuthorityForVolumes(workspace string, plan generationartifact.Ve
 			continue
 		}
 		a, err := DeriveApplicationAuthority(workspace, plan, manifest, result, operation, graph.WorkloadRef)
+		if workloadNotStaged(err) {
+			continue
+		}
 		if err != nil {
 			return Authority{}, "", false, err
 		}
@@ -48,6 +51,12 @@ func DeriveApplicationAuthority(workspace string, plan generationartifact.Verifi
 	var document map[string]any
 	if err := json.Unmarshal(plan.Canonical(), &document); err != nil {
 		return Authority{}, err
+	}
+	// Only a workload selection consults its delivery row.
+	if workload != "" {
+		if err := requireApplicationRestoreCapability(document, workload); err != nil {
+			return Authority{}, err
+		}
 	}
 	modules, err := array(document, "modules")
 	if err != nil {
@@ -112,6 +121,9 @@ func DeriveApplicationAuthority(workspace string, plan generationartifact.Verifi
 	}
 	graph := RuntimeRecoveryGraph{PlanBinding: plan.Binding(), PlanHash: plan.Binding().PlanHash, ManifestHash: manifestHash, CorePolicyDigest: derived.policyArtifact.SHA256, StagingRoot: derived.stagingRoot}
 	if err = bindRestoreResult(graph, result); err != nil {
+		return Authority{}, err
+	}
+	if selected, err = stagedWorkloadVolumes(workload, selected, result); err != nil {
 		return Authority{}, err
 	}
 	sortVolumesByLiveName(selected)

@@ -1,5 +1,5 @@
 // Package contentbridge is the node side of the kombify Content Bridge
-// (HOMELAB-CONTENT-BRIDGE-STANDARD, ADR-0047). It reads a closed set of
+// (STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §11, ADR-0047). It reads a closed set of
 // counts from the self-hosted apps of one server, strictly read-only, and
 // answers them as a `homelab-content/v1` document.
 //

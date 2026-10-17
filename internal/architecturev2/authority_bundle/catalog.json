@@ -24721,7 +24721,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:e20d181b90c576ff25b1ba88c8bdabf391d0c7ce9241a0094c256b2e204a6514",
+          "contractHash": "sha256:1932aec8c4e643a6ab9f18d22d9f2923133e5ef4cf102aa64f594747cb5acfc2",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -24899,7 +24899,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:066219def11947ce759f5528517efa7aa0a96a3445e579966d683bbb132b7522",
+          "contractHash": "sha256:2a39681412138ca8d1a6cff2a16c3714a01c98684d558643ac699e18c94a6439",
           "id": "terramate",
           "inputBindings": [
             {
@@ -45895,7 +45895,9 @@
       },
       "runtimeAdapter": {
         "agentRefs": [],
-        "capabilities": [],
+        "capabilities": [
+          "application-setup-local-api"
+        ],
         "credentialCustody": "external-owner",
         "evidenceRequired": true,
         "id": "coolify",
@@ -46236,7 +46238,9 @@
         "agentRefs": [
           "komodo-periphery"
         ],
-        "capabilities": [],
+        "capabilities": [
+          "application-setup-local-api"
+        ],
         "credentialCustody": "external-owner",
         "evidenceRequired": true,
         "id": "komodo",
@@ -57241,7 +57245,7 @@
               {
                 "adapterRef": "coolify",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -57251,7 +57255,7 @@
               {
                 "adapterRef": "komodo",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -57521,7 +57525,7 @@
               {
                 "adapterRef": "coolify",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -57933,7 +57937,7 @@
               {
                 "adapterRef": "coolify",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -57943,7 +57947,7 @@
               {
                 "adapterRef": "komodo",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -62948,6 +62952,7 @@
             "backupSource": {
               "allocations": [
                 {
+                  "backupDataClass": "config",
                   "componentRef": "adguard-home",
                   "dataClasses": [
                     "personal"
@@ -63041,7 +63046,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true

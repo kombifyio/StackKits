@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 )
@@ -29,6 +30,12 @@ type WorkloadManagerConflictError struct {
 
 func (e *WorkloadManagerConflictError) Error() string {
 	return fmt.Sprintf("workload project %q has manager %q; request an explicit transition to %q before Apply", e.Project, e.CurrentManager, e.RequestedManager)
+}
+
+// ActionableError names the refusal; the new manager has not acted.
+func (e *WorkloadManagerConflictError) ActionableError() actionableerror.Contract {
+	contract, _ := actionableerror.Diagnostic(actionableerror.ReasonWorkloadManagerTransitionRequired)
+	return contract
 }
 
 func NewOSKomodoWorkloadOperations(workspace string) (SelectedPaaSWorkloadOperations, error) {

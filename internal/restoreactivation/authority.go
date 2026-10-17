@@ -18,6 +18,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"gopkg.in/yaml.v3"
 )
 
@@ -141,7 +142,10 @@ func BindRuntimeRecoveryGraph(graph RuntimeRecoveryGraph, restoreResult backupli
 	if err := bindRestoreResult(graph, restoreResult); err != nil {
 		return Authority{}, err
 	}
-	volumeDetails := append([]Volume(nil), graph.VolumeDetails...)
+	volumeDetails, volumes, volumeSetHash, err := stagedVolumeSet(graph, restoreResult)
+	if err != nil {
+		return Authority{}, err
+	}
 	for index := range volumeDetails {
 		volumeDetails[index].StagingPath = path.Join(
 			restoreResult.Request.StagingPath,
@@ -157,7 +161,7 @@ func BindRuntimeRecoveryGraph(graph RuntimeRecoveryGraph, restoreResult backupli
 		PlanHash:             graph.PlanHash,
 		ManifestHash:         graph.ManifestHash,
 		ApplyResultHash:      restoreResult.AuthorizationLineage.ApplyResultHash,
-		ManagedVolumeSetHash: graph.ManagedVolumeSetHash,
+		ManagedVolumeSetHash: volumeSetHash,
 		StackID:              graph.StackID,
 		ComposeProject:       graph.ComposeProject,
 		ComposePath:          graph.ComposePath,
@@ -166,9 +170,51 @@ func BindRuntimeRecoveryGraph(graph RuntimeRecoveryGraph, restoreResult backupli
 		KopiaHelperImage:     graph.KopiaHelperImage,
 		StagingVolume:        graph.StagingVolume,
 		StagingPath:          restoreResult.Request.StagingPath,
-		Volumes:              append([]string(nil), graph.Volumes...),
+		Volumes:              volumes,
 		VolumeDetails:        volumeDetails,
 	}, nil
+}
+
+// stagedVolumeSet narrows the complete runtime graph to the volumes the
+// restore result actually staged. A class-based snapshot captures only the
+// classes its coverage selects: under the default content coverage a Photos
+// library (class photos) is never captured, so it is never staged and must
+// stay live instead of failing activation. A whole-root snapshot (no class
+// sources) stages the full graph. A staged source outside the graph fails
+// closed, so a non-empty source list always selects at least one volume. The
+// set hash covers exactly the activated volumes, as the selected-workload
+// authority does.
+func stagedVolumeSet(graph RuntimeRecoveryGraph, result backuplifecycle.RestoreResult) ([]Volume, []string, string, error) {
+	sources := result.Request.SnapshotRequest.Sources
+	if len(sources) == 0 {
+		return append([]Volume(nil), graph.VolumeDetails...), append([]string(nil), graph.Volumes...), graph.ManagedVolumeSetHash, nil
+	}
+	staged := make(map[string]struct{}, len(sources))
+	for _, source := range sources {
+		staged[source.VolumeName] = struct{}{}
+	}
+	selected := make([]Volume, 0, len(graph.VolumeDetails))
+	for _, volume := range graph.VolumeDetails {
+		if _, ok := staged[volume.LiveName]; ok {
+			selected = append(selected, volume)
+			delete(staged, volume.LiveName)
+		}
+	}
+	if len(staged) != 0 {
+		return nil, nil, "", errors.New("restoreactivation: restore result staged a volume outside the runtime recovery graph")
+	}
+	names := make([]string, len(selected))
+	for index := range selected {
+		names[index] = selected[index].LiveName
+	}
+	if len(selected) == len(graph.VolumeDetails) {
+		return selected, names, graph.ManagedVolumeSetHash, nil
+	}
+	hash, err := resolvedplan.CanonicalSHA256(names)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("restoreactivation: hash staged volume set: %w", err)
+	}
+	return selected, names, hash, nil
 }
 
 func derivePlanAuthority(

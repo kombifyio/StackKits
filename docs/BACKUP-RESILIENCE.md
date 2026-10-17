@@ -119,6 +119,13 @@ in the [pinned Immich guide](https://github.com/immich-app/immich/blob/v2.7.0/do
 Logical database export is a separate portability or migration workflow; it is
 not an additional implicit step in ordinary native snapshot or activation.
 
+The whole set is the set the coverage selects. Activation replaces exactly the
+volumes the restore result staged and leaves every volume outside the coverage
+live: under the default content coverage a Photos restore returns the Immich
+database while the live library stays in place, and only media coverage
+captures and restores the library with it. The same holds for any narrower
+coverage choice, such as config only.
+
 `backup status --json` exposes `coverage` from the authenticated configuration:
 the exact policy digest, target, selected managed volumes, application-volume
 bindings and exclusion patterns. Its `declared-source-policy` scope describes

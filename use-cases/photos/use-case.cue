@@ -3,7 +3,7 @@
 // Photos is a default kit use case (Basement and Cloud). The release path stays
 // self-hosted and OSS-realized through Immich. Ente Photos is a Photos alternative
 // and Immich add-ons are optional (owner direction 2026-09-25). There is intentionally no
-// control-plane runtime profile: per PLACEMENT-MODE-STANDARD heavy stateful
+// control-plane runtime profile: per STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §12 heavy stateful
 // media apps such as Immich are local-only/standard and never
 // managed-serverless. Managed value for this use case is realized as lease,
 // routing, backup, and recovery-of-intent entitlements — not as a

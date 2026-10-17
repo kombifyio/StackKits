@@ -28,6 +28,8 @@ var (
 	initUseCaseCapabilities       []string
 	initDataCapacity              []string
 	initHardwareProfile           string
+	initNotifyNtfyTopic           string
+	initNotifyNtfyServer          string
 	initName                      string
 	initDomain                    string
 	initMode                      string
@@ -131,6 +133,8 @@ func init() {
 	initCmd.Flags().StringArrayVar(&initDataCapacity, "data-capacity", nil, "Native v2alpha2: binding=JSON with explicit initialGiB, growthGiBPerMonth, horizonMonths and reservePercent; repeat per selected data binding")
 	initCmd.Flags().BoolVar(&initCatalogDefaults, "catalog-defaults", false, "Accept CUE catalog defaults for omitted native alternatives and compute profiles; persist explicit intent")
 	initCmd.Flags().StringVar(&initHardwareProfile, "hardware-profile", "", "Device class for nodes[0].hardware.profile (standard, pi, gpu, storage). pi is a constrained homelab device, not Raspberry-only. Not auto-detected from inventory")
+	initCmd.Flags().StringVar(&initNotifyNtfyTopic, "notify-ntfy-topic", "", "Declare an ntfy owner notification channel (spec.notifications); interactive init asks when omitted")
+	initCmd.Flags().StringVar(&initNotifyNtfyServer, "notify-ntfy-server", "", "ntfy server URL for --notify-ntfy-topic (default https://ntfy.sh)")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")
 	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "v0.6 compatibility only: use Kombify Point local DNS names")
 	initCmd.Flags().StringVar(&initLocalName, "local-name", "", "v0.6 compatibility only: local DNS short name for --local-dns")

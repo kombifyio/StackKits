@@ -513,9 +513,12 @@ allocations become exact Compose-qualified volume names; their private
 quiesces Applications before Basement, prepares deterministic per-volume
 rollback copies, activates staged content, starts Basement before Applications,
 and records success only after the normal host runtime verification readback.
-That readback does not establish client access or application-data recovery. Coolify, Komodo,
-unknown adapters, missing capability rows, substituted files, and foreign
-volumes remain fail-closed.
+That readback does not establish client access or application-data recovery. Coolify- and
+Komodo-managed applications are outside this node-wide authority: they
+activate one at a time through `backup restore activate --workload`, under
+their retained manager. Unknown adapters,
+missing capability rows, substituted files, and foreign volumes remain
+fail-closed.
 
 For a selected `standalone-compose` application, the local source policy also
 carries the compiler-selected runtime graph beside the backup-enabled volume
@@ -2134,10 +2137,12 @@ Paths: `nh` is `internal/runtimeexecutor/nativehost`, `ot` is
 - Setup resolves an `ApplicationSetupAdapter` from the exact verified runtime
   adapter binding and its `application-setup-local-api` capability. A catalog
   label cannot create execution access: the adapter must also register an
-  executable setup transport. The current standalone Compose implementation
+  executable setup transport. The standalone Compose implementation
   re-renders the bundle and requires the persisted `compose.yaml`, `.env`
-  and configuration files to match. Unknown platform adapters fail closed
-  until they supply that transport. The OpenTofu root writes the identical
+  and configuration files to match. The Komodo and Coolify adapters register
+  the same loopback transport after verifying their signed manager custody;
+  Coolify supplies only its service UUID as the physical Compose project.
+  Unknown platform adapters fail closed until they supply a transport. The OpenTofu root writes the identical
   Compose bytes (`local_file`, mode 0600), so the same admission holds after
   every path. `TestOwnerSetupAdmitsTheWorkloadOnEveryExecutionPath` creates
   the Files owner through a stubbed Cloudreve API after the native Apply,

@@ -39,6 +39,14 @@ _architectureV2GuacamoleProviders: [{
 	evidence: ["guacamole-selected-paas-runtime-contract"]
 }]
 
+// Data contract (backup and restore): nothing to carry. GUACAMOLE_HOME is
+// tmpfs, the connection list is rendered from the `remote-connection` setting,
+// the owner password stays in node custody and destination credentials are
+// prompted per session. The workload therefore declares no storage allocation
+// and its delivery row keeps `backupRestore: false`; a node restore skips it
+// because it holds nothing to restore, and its next start renders the restored
+// plan again. A persistent backup-enabled volume must claim the capability in
+// the same change: the catalog refuses the combination otherwise.
 _architectureV2GuacamoleWorkloads: [#WorkloadContractV2 & {
 	metadata: {id: "remote", version: "1.0.0", description: "Browser access to one explicitly selected SSH, RDP or VNC destination through Apache Guacamole. Static XML authentication is the declared initial profile; SSO and household clients require separate admitted configuration."}
 	kind: "application", useCaseRef: "remote"

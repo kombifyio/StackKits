@@ -121,4 +121,5 @@ _architectureV2VolumeBackupClasses: {
 	"immich-kiosk/config":         "config"
 	"immich-power-tools/data":     "config"
 	"home-assistant/config":       "config"
+	"adguard-home/config":         "config"
 }

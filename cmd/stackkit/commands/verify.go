@@ -12,6 +12,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/docker"
+	"github.com/kombifyio/stackkits/internal/ownernotify"
 	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/ssh"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -25,6 +26,7 @@ var (
 	verifyHTTP               bool
 	verifyStrict             bool
 	verifyOffline            bool
+	verifyNotify             bool
 	verifyHost               string
 	verifyUser               string
 	verifyKey                string
@@ -97,6 +99,7 @@ func init() {
 	verifyCmd.Flags().BoolVar(&verifyHTTP, "http", false, "Verify generated service URLs with HTTP requests")
 	verifyCmd.Flags().BoolVar(&verifyStrict, "strict", false, "Treat warnings as verification failure")
 	verifyCmd.Flags().BoolVar(&verifyOffline, "offline", false, "Verify cached release receipts and attestations without network access")
+	verifyCmd.Flags().BoolVar(&verifyNotify, "notify", false, "Also send a delivery check to every declared owner notification channel and record its receipt")
 	verifyCmd.Flags().StringVar(&verifyHost, "host", "", "Remote host to verify over SSH")
 	verifyCmd.Flags().StringVar(&verifyUser, "user", "", "SSH username for remote verification")
 	verifyCmd.Flags().StringVar(&verifyKey, "key", "", "SSH private key path for remote verification")
@@ -186,9 +189,13 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 			v2Report.Releases = receipts
 		}
 		httpProbeFailed := architectureV2HTTPProbeFailed(v2Report.Observations)
+		notifyFailed := false
+		if verifyNotify {
+			v2Report.OwnerNotifications, notifyFailed = verifyOwnerNotifications(ctx, wd, v2Options.planPath)
+		}
 		if verifyJSON {
 			status := "success"
-			if httpProbeFailed {
+			if httpProbeFailed || notifyFailed {
 				status = "failed"
 			}
 			retErr = writeCommandResultStatus(cmd, cmd.CommandPath(), status, v2Report)
@@ -196,9 +203,15 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 			if retErr == nil && httpProbeFailed {
 				retErr = errors.New("verify failed: one or more explicitly requested HTTP routes were unreachable")
 			}
+			if retErr == nil && notifyFailed {
+				retErr = errors.New("verify failed: an owner notification channel did not receive the delivery check")
+			}
 			return retErr
 		}
 		retErr = printArchitectureV2VerifyReport(cmd.OutOrStdout(), v2Report)
+		if retErr == nil && notifyFailed {
+			retErr = errors.New("verify failed: an owner notification channel did not receive the delivery check")
+		}
 		if retErr == nil && httpProbeFailed {
 			retErr = errors.New("verify failed: one or more explicitly requested HTTP routes were unreachable")
 		}
@@ -407,4 +420,22 @@ func printVerifyReport(w io.Writer, report stackverify.Report) {
 		}
 		_, _ = fmt.Fprintf(w, "- %s: %s%s - %s\n", check.Name, check.Status, target, check.Message)
 	}
+}
+
+// verifyOwnerNotifications sends the delivery check of `verify --notify`. An
+// undeclared owner channel is reported, not failed: silence stays visible.
+func verifyOwnerNotifications(ctx context.Context, wd, planPath string) (*architectureV2OwnerNotificationCheck, bool) {
+	receipts, err := deliverOwnerNotification(ctx, wd, planPath, "", ownernotify.Message{
+		Event: ownernotify.EventVerify,
+		Title: "StackKit delivery check",
+		Body:  "Verify succeeded and your StackKit can reach you on this channel. No action is needed.",
+		Tags:  []string{"white_check_mark"},
+	})
+	switch {
+	case errors.Is(err, ownernotify.ErrNotConfigured):
+		return &architectureV2OwnerNotificationCheck{Status: "not-configured"}, false
+	case err != nil:
+		return &architectureV2OwnerNotificationCheck{Status: "failed", Receipts: receipts}, true
+	}
+	return &architectureV2OwnerNotificationCheck{Status: "delivered", Receipts: receipts}, false
 }

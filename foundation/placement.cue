@@ -1,4 +1,4 @@
-// Package foundation — Placement axis (PLACEMENT-MODE-STANDARD §4).
+// Package foundation — Placement axis (STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §12.4).
 //
 // Publishable vocabulary for the placement axis. Realization is LAYERED:
 // StackKits-OSS realizes ONLY S1 (local-only, standard+cloudless). managed-

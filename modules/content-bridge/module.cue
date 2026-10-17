@@ -1,5 +1,5 @@
 // Package content_bridge describes the node side of the kombify Content
-// Bridge (HOMELAB-CONTENT-BRIDGE-STANDARD, docs/ADR/ADR-0047).
+// Bridge (STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §11, docs/ADR/ADR-0047).
 //
 // The bridge answers consented, read-only counts of the self-hosted apps of
 // one server (Photos from Immich first) to kombify Cloud and the Companion.

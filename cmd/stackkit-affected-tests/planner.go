@@ -28,6 +28,11 @@ const perKitTemplateParityTest = "TestPerKitTemplatesMatchCanonical"
 
 const kitInventoryParityTest = "TestProductKitsMatchesCUEDerivedAuthorityProfiles"
 
+// rendererRegistryParityTest proves every catalog render unit hash equals the
+// production renderer registry. It lives in ./internal/architecturev2, which a
+// renderer-only change leaves compile-only (#2195 merged a stale catalog hash).
+const rendererRegistryParityTest = "TestModuleCatalogRenderUnitsAreRegisteredExactlyByTheProductionRegistry"
+
 // kitRoots are the directories whose contents define an active product kit.
 var kitRoots = activeKitPaths("", "/")
 
@@ -619,6 +624,27 @@ func buildPlan(input plannerInput) testPlan {
 			kitInventoryParityTest,
 		))
 	}
+	// A renderer contract hash and its catalog literal change on opposite sides
+	// of the package boundary: a renderer schema edit or a catalog edit runs the
+	// parity proof, unless the whole authority package already runs.
+	if anyGoPathUnder(files, "internal/architecturev2renderer/") || anyPathUnder(files, "foundation/architecture_v2") {
+		const authorityPattern = "./internal/architecturev2"
+		// An explicit empty focus is the compile-only marker, not a full run.
+		_, focused := focusedTests["internal/architecturev2"]
+		fullyRun := slicesContain(goSelection.Changed, authorityPattern) && !focused
+		if !fullyRun {
+			goSelection.CompileOnly = withoutString(goSelection.CompileOnly, authorityPattern)
+			goSelection.Reverse = withoutString(goSelection.Reverse, authorityPattern)
+			goSelection.TestOnly = withoutString(goSelection.TestOnly, authorityPattern)
+			if !slicesContain(goSelection.Changed, authorityPattern) {
+				goSelection.Changed = sortedUnique(append(goSelection.Changed, authorityPattern))
+			}
+			focusedTests["internal/architecturev2"] = sortedUnique(append(
+				focusedTests["internal/architecturev2"],
+				rendererRegistryParityTest,
+			))
+		}
+	}
 	// Per-kit templates are generated copies of foundation/templates. Editing either
 	// side is the only way they can diverge, and nothing else in the plan would
 	// notice: template files are not Go and not CUE, so they would otherwise
@@ -827,6 +853,14 @@ func buildPlan(input plannerInput) testPlan {
 			Scope:  "test-window-report",
 			Argv:   []string{"node", "--test", "scripts/test-window/aggregate-window-report.test.mjs"},
 			Reason: "the consolidated window report keeps missing results pending and clusters failures by signature",
+		})
+	}
+	if anyPathUnder(files, "scripts/release/cli-preview-receipt.mjs", "scripts/release/cli-preview-receipt.test.mjs", ".github/workflows/cli-preview-smoke.yml") {
+		commands = append(commands, testCommand{
+			Kind:   "node",
+			Scope:  "cli-preview-receipt",
+			Argv:   []string{"node", "--test", "scripts/release/cli-preview-receipt.test.mjs"},
+			Reason: "the train's preview receipt names the registered packed consumers and follows only a self-check that ran on the built binaries",
 		})
 	}
 	if anyPathUnder(files, "scripts/release/website-delivery-phase.mjs", "scripts/release/website-delivery-phase.test.mjs", "scripts/release/dispatch-website-installer-smoke.mjs", ".github/workflows/website-live-installer-smoke.yml", ".github/workflows/publish-oss.yml") {

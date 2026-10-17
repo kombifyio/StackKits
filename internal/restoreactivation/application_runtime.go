@@ -32,10 +32,10 @@ func WithApplicationBinding(base Runtime, authority Authority, binding backupexe
 			return errors.New("restoreactivation: cyclic application graph")
 		}
 		seen[ref] = 1
-		found := false
+		found, daemon := false, false
 		for _, component := range binding.Runtime.Components {
 			if component.ComponentRef == ref {
-				found = true
+				found, daemon = true, component.Lifecycle == "daemon"
 				for _, dep := range component.DependsOn {
 					if err := visit(dep); err != nil {
 						return err
@@ -48,7 +48,11 @@ func WithApplicationBinding(base Runtime, authority Authority, binding backupexe
 			return errors.New("restoreactivation: unknown application dependency")
 		}
 		seen[ref] = 2
-		order = append(order, ref)
+		// Managers control only daemons; restore never reruns a one-shot
+		// initializer such as Immich's database init.
+		if daemon {
+			order = append(order, ref)
+		}
 		return nil
 	}
 	for _, component := range binding.Runtime.Components {

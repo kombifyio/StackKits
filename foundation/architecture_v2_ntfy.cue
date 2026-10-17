@@ -12,6 +12,13 @@ _architectureV2NtfyLiveProviders: [{
 	realization: {kind: "modules", moduleRefs: {required: [], optional: ["stackkits-ntfy-live-runtime"]}}
 	evidence: ["ntfy-live-selected-paas-runtime-contract"]
 }]
+// Data contract (backup and restore): nothing to carry. The live-only relay
+// keeps no cache, SQL store, native account, Web Push key or attachment, so the
+// workload declares no storage allocation and its delivery row keeps
+// `backupRestore: false`; a node restore skips it because it holds nothing to
+// restore. Durable push is a separate prerequisite and must claim the capability
+// together with its first backup-enabled volume: the catalog refuses the
+// combination otherwise.
 _architectureV2NtfyLiveWorkloads: [#WorkloadContractV2 & {
 	metadata: {id: "automation-notifications", version: "1.0.0", description: "Explicit ntfy live-only notification add-on: forward to connected subscribers; no queued replay, native accounts, Web Push or attachments. Durable push and backup digest delivery remain separate prerequisites."}
 	kind: "application", useCaseRef: "automation", functionalCapabilities: ["live-notifications"], supportedSiteKinds: ["home", "cloud"], dataClasses: []

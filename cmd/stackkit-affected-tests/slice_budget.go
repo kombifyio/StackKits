@@ -38,6 +38,16 @@ const budgetedPackageScope = "changed-packages-budgeted"
 // change set (202 s; 191 s alone on main), recovered apply through fresh
 // evidence (35 s), use-case add (17 s), Modern apply readiness (11 s), OpenTofu
 // state roots (7 s) and four tests between one and three seconds.
+// Added 2026-10-17 from a local measurement of the budgeted slice, which took
+// 385 s in this package: the native Home Assistant connector tuple (168 s),
+// Verify beyond the historical result limit (45 s), a retried Apply after a
+// killed Apply (31 s), the Home Assistant MQTT selector (28 s), capacity
+// admission (14 s; bound to its source files in planner.go), native status through
+// the public command and for an older compiler (13 s and 9 s), the generated
+// Immich Lite workload (8 s) and the storage intent check (8 s). Registered
+// tests stay out of the unselected slice only; the sensitive checks of the same
+// measurement (Tinyauth route privilege policy, owner Apply evidence and the
+// wallet-bound provider key) stay in it.
 var sliceBudgetSlowTests = map[string][]string{
 	"cmd/stackkit/commands": {
 		"TestAdvancedChangeSetAdmissionIgnoresRemeasuredFreeDiskOnly",
@@ -58,6 +68,7 @@ var sliceBudgetSlowTests = map[string][]string{
 		"TestArchitectureV2OfflineVerifyBindsCloudPocketIDOwner",
 		"TestAttachAccessClientTrustExposesEnrollmentHandoff",
 		"TestBuildArchitectureV2RuntimeObservationsProjectsLiveCloudServices",
+		"TestCapacityRejectsUnderprovisionedSelection",
 		"TestCloudKitCheckpointSelectsTheCloudCoreRecoveryProfile",
 		"TestCloudRestorePostVerificationUsesTheAppliedRuntimeRequest",
 		"TestCoordinatedRollbackSelectsTheApplyResultOfTheRegeneratedCheckpoint",
@@ -71,19 +82,25 @@ var sliceBudgetSlowTests = map[string][]string{
 		"TestGenerateKeepsExplicitComposeGenerationTarget",
 		"TestGenerateRejectsStackSpecMissingGenerationTarget",
 		"TestGenerateRejectsV1OnExactV06BeforeWritingOutputOrState",
+		"TestHomeAssistantMQTTSelectorIgnoresUnlinkedNonlocalBroker",
 		"TestInitNativeMixedModuleProfilesResolveWithoutGlobalTier",
 		"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads",
+		"TestLocalRuntimeOwnersExecuteGeneratedImmichLiteWorkload",
 		"TestManagedCloudKitDriftObservationCarriesTheVerifiedOwnerBinding",
 		"TestMigrateCompletionFailsClosedOnUnknownFieldsAndPlaintextSecretRefs",
 		"TestMigrateDoesNotPublishSpecWhenAuditPublicationFails",
 		"TestModernApplyReadinessBlocksANodeWithoutExecutionChannel",
+		"TestNativeHomeAssistantConnectorRequiresCurrentLocalTupleAndRetainsSecretFreeEvidence",
 		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
+		"TestNativeV2StatusReportsPlanFromOlderCompilerAsStale",
+		"TestNativeV2StatusRunsThroughPublicCommand",
 		"TestOpenTofuStateRootsFollowCanonicalCoreAndApplicationPlan",
 		"TestResolveCommandEmitsDeterministicCanonicalPlanToStdoutOrFile",
 		"TestResolveCommandRejectsUnknownV2Field",
 		"TestResolveCommandReturnsTypedV1MigrationBlockedError",
 		"TestResolveCommandReturnsTypedV1MigrationErrorWithoutOutput",
 		"TestResolveFilesystemAuthorityAcceptsProjectedPublicProfileSet",
+		"TestRetriedApplyAfterAKilledApplyRunsEveryOwner",
 		"TestRunArchitectureV2InitAcceptsBasementLowComputeTier",
 		"TestRunArchitectureV2InitCandidateBindsOwnerCustodyToSelectedNode",
 		"TestRunArchitectureV2InitCloudEstablishesLocalOwnerCustody",
@@ -106,6 +123,8 @@ var sliceBudgetSlowTests = map[string][]string{
 		"TestRunArchitectureV2InitUsesExpectedHashCASAndRejectsForce",
 		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
 		"TestSecretsRevealRequiresDeclaredOwnerCustody",
+		"TestStorageIntentValidationRejectsNFSAndPreservesLocalDisk",
+		"TestVerifySelectsCurrentApplyBeyondHistoricalResultLimit",
 		// 2026-10-11: historical-source inspection was running when the
 		// five-minute guard expired in an unrelated Init capacity slice.
 		"TestSourceGenerationPlanCannotReinterpretUnattestedHistory",

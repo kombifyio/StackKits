@@ -98,6 +98,14 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			}
 		}
 
+		if !initNonInteractive && !commandFlagChanged(cmd, "notify-ntfy-topic") {
+			topic, askErr := askOwnerNtfyTopicIfTerminal(os.Stderr)
+			if askErr != nil {
+				return askErr
+			}
+			initNotifyNtfyTopic = topic
+		}
+
 		name, normalizedName := architectureV2InitName(wd)
 		if normalizedName {
 			printInfo("Using normalized deployment contract ID %q for workspace %q", name, filepath.Base(filepath.Clean(wd)))
@@ -136,6 +144,8 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			UseCaseCapabilities: useCaseCapabilities,
 			DataCapacityDemands: dataCapacity,
 			HardwareProfile:     initHardwareProfile,
+			NtfyTopic:           initNotifyNtfyTopic,
+			NtfyServerURL:       initNotifyNtfyServer,
 		})
 		if err != nil {
 			return fmt.Errorf("materialize %s initial StackSpec from CUE authority: %w", stackkitName, err)

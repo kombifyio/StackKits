@@ -66,6 +66,11 @@ type AuthoringOverrides struct {
 	// pi is a constrained homelab device class, not Raspberry-only. Empty leaves
 	// the CUE default. This is never auto-detected from inventory.
 	HardwareProfile string
+	// NtfyTopic declares one ntfy owner notification channel in
+	// spec.notifications. NtfyServerURL empty keeps the CUE default server.
+	// Credentials never travel here; CUE validates the resulting intent.
+	NtfyTopic     string
+	NtfyServerURL string
 }
 
 // InitialStackSpecAuthoring exposes only the workflow metadata a CLI or UI
@@ -493,6 +498,7 @@ func materializeInitialStackSpec(
 	if err := applyHardwareProfile(spec, overrides.HardwareProfile); err != nil {
 		return StackSpecValidation{}, err
 	}
+	applyOwnerNtfyNotifications(spec, overrides.NtfyTopic, overrides.NtfyServerURL)
 	if strings.TrimSpace(overrides.Name) != "" {
 		if err := setNestedString(spec, overrides.Name, "metadata", "name"); err != nil {
 			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "apply metadata.name override: "+err.Error(), err)
@@ -973,4 +979,20 @@ func setNestedString(document map[string]any, value string, path ...string) erro
 	}
 	current[path[len(path)-1]] = value
 	return nil
+}
+
+// applyOwnerNtfyNotifications writes the owner's ntfy channel into
+// spec.notifications. The event allowlist and server default stay with CUE.
+func applyOwnerNtfyNotifications(spec map[string]any, topic, serverURL string) {
+	topic = strings.TrimSpace(topic)
+	if topic == "" {
+		return
+	}
+	ntfy := map[string]any{"topic": topic}
+	if serverURL = strings.TrimSpace(serverURL); serverURL != "" {
+		ntfy["serverUrl"] = serverURL
+	}
+	spec["notifications"] = map[string]any{
+		"channels": []any{map[string]any{"name": "ntfy", "type": "ntfy", "ntfy": ntfy}},
+	}
 }

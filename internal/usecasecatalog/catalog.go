@@ -444,6 +444,12 @@ func generate(repoRoot string, release ReleaseIdentity, generatorVersion string,
 	if err := validateBackupVolumesAllocated(source); err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
 	}
+	if err := validateBackupHasARestoreClaim(source); err != nil {
+		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
+	}
+	if err := validateBackedUpAllocationsAreClassified(source); err != nil {
+		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
+	}
 	compat.ContentDigest, err = contentDigest(compat)
 	if err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
@@ -925,9 +931,9 @@ func validatePlatformOwnership(source sourceCatalog) error {
 // volume of an alternative that claims backup/restore to be a backed-up
 // storage allocation of that alternative (docs/USE_CASE_STANDARD.md F2),
 // because the local backup and restore read only allocations: a volume
-// missing there would be skipped without notice. An alternative without the
-// capability is refused by restore and excluded from backup by its declared
-// capability.
+// missing there would be skipped without notice. An alternative that owns
+// backup-enabled storage without the capability is refused by
+// validateBackupHasARestoreClaim.
 func validateBackupVolumesAllocated(source sourceCatalog) error {
 	modules := map[string]map[string]any{}
 	for _, module := range source.catalogModules {
@@ -983,6 +989,120 @@ func claimsBackupRestore(alternative map[string]any) bool {
 		row, _ := raw.(map[string]any)
 		capabilities, _ := row["capabilities"].(map[string]any)
 		if boolField(capabilities, "backupRestore") {
+			return true
+		}
+	}
+	return false
+}
+
+// validateBackupHasARestoreClaim refuses a standalone Compose alternative that
+// owns backup-enabled storage but claims no backup/restore. Backup would
+// capture its data while every restore of a plan that selects it stopped
+// closed (docs/USE_CASE_STANDARD.md F2). A stateless alternative owns no such
+// storage and keeps the claim false; restore skips it as holding nothing.
+func validateBackupHasARestoreClaim(source sourceCatalog) error {
+	modules := map[string]map[string]any{}
+	for _, module := range source.catalogModules {
+		modules[metadataID(module)] = module
+	}
+	for _, workload := range source.catalogWorkloads {
+		if stringField(workload, "kind") != "application" {
+			continue
+		}
+		alternatives, _ := workload["alternatives"].([]any)
+		for _, rawAlternative := range alternatives {
+			alternative, _ := rawAlternative.(map[string]any)
+			if !hasDeliveryRow(alternative, "standalone-compose") || claimsStandaloneBackupRestore(alternative) {
+				continue
+			}
+			module, found := modules[stringField(alternative, "moduleRef")]
+			if !found {
+				return fmt.Errorf("workload %s alternative %s names module %q that the catalog does not define; restore treats unresolvable storage as holding data", metadataID(workload), stringField(alternative, "id"), stringField(alternative, "moduleRef"))
+			}
+			if !ownsBackupEnabledStorage(alternative, module) {
+				continue
+			}
+			return fmt.Errorf("workload %s alternative %s owns backup-enabled storage but its standalone-compose row claims no backup/restore; a plan that selects it could not be restored", metadataID(workload), stringField(alternative, "id"))
+		}
+	}
+	return nil
+}
+
+// validateBackedUpAllocationsAreClassified requires every backed-up allocation
+// of an alternative to carry its semantic backupDataClass. The class-based
+// source policy admits only classified volumes and the default content coverage
+// only the classes it names, so an unclassified volume would make every backup
+// of a plan that selects it stop at run time.
+func validateBackedUpAllocationsAreClassified(source sourceCatalog) error {
+	for _, workload := range source.catalogWorkloads {
+		if stringField(workload, "kind") != "application" {
+			continue
+		}
+		alternatives, _ := workload["alternatives"].([]any)
+		for _, rawAlternative := range alternatives {
+			alternative, _ := rawAlternative.(map[string]any)
+			infrastructure, _ := alternative["infrastructure"].(map[string]any)
+			backupSource, _ := infrastructure["backupSource"].(map[string]any)
+			allocations, _ := backupSource["allocations"].([]any)
+			for _, rawAllocation := range allocations {
+				allocation, _ := rawAllocation.(map[string]any)
+				if stringField(allocation, "backupDataClass") == "" {
+					return fmt.Errorf("workload %s alternative %s backs up %s/%s without a backupDataClass; add it to _architectureV2VolumeBackupClasses", metadataID(workload), stringField(alternative, "id"), stringField(allocation, "componentRef"), stringField(allocation, "volumeRef"))
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// ownsBackupEnabledStorage reports whether an alternative backs up any data:
+// a backup-enabled storage allocation or a backup-enabled module volume.
+func ownsBackupEnabledStorage(alternative, module map[string]any) bool {
+	infrastructure, _ := alternative["infrastructure"].(map[string]any)
+	storage, _ := infrastructure["storageAllocation"].(map[string]any)
+	allocations, _ := storage["allocations"].([]any)
+	for _, raw := range allocations {
+		allocation, _ := raw.(map[string]any)
+		if boolField(allocation, "backup") {
+			return true
+		}
+	}
+	runtime, _ := module["runtime"].(map[string]any)
+	components, _ := runtime["components"].([]any)
+	for _, rawComponent := range components {
+		component, _ := rawComponent.(map[string]any)
+		volumes, _ := component["volumes"].([]any)
+		for _, rawVolume := range volumes {
+			volume, _ := rawVolume.(map[string]any)
+			if boolField(volume, "backup") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasDeliveryRow(alternative map[string]any, adapterRef string) bool {
+	runtime, _ := alternative["runtime"].(map[string]any)
+	compatibility, _ := runtime["compatibility"].([]any)
+	for _, raw := range compatibility {
+		row, _ := raw.(map[string]any)
+		if stringField(row, "adapterRef") == adapterRef {
+			return true
+		}
+	}
+	return false
+}
+
+// claimsStandaloneBackupRestore reports whether the standalone Compose row of
+// an alternative claims the backup/restore capability.
+func claimsStandaloneBackupRestore(alternative map[string]any) bool {
+	runtime, _ := alternative["runtime"].(map[string]any)
+	compatibility, _ := runtime["compatibility"].([]any)
+	for _, raw := range compatibility {
+		row, _ := raw.(map[string]any)
+		capabilities, _ := row["capabilities"].(map[string]any)
+		if stringField(row, "adapterRef") == "standalone-compose" && boolField(capabilities, "backupRestore") {
 			return true
 		}
 	}

@@ -1,5 +1,7 @@
 # Changelog
 
+- Add: `stackkit verify --notify` sends the delivery check to every declared owner notification channel after a successful verify, records the per-channel receipts and fails verify when a declared channel does not receive it; an undeclared channel reports `not-configured`.
+
 - Add: per-agent StackKits MCP credentials and per-call write approval. `stackkit agent credential mint|list|rotate|revoke` and `stackkit agent approval list|approve|deny` (owner shell only, no MCP tool) manage digest-only credentials in `.stackkit/mcp/agents.json`; revoking one denies that agent on its next request. A mutating MCP call under an agent credential replaces `STACKKIT_MCP_ALLOW_WRITE` with a server-verified, single-use owner approval bound to the agent, operation and exact arguments.
 
 - Change: MCP hardening from the 0.44/0.45 pre-release review. Breaking for `stackkit-server`: the API key is no longer accepted at `POST /mcp` (use the dedicated MCP token via `STACKKIT_MCP_TOKEN`/`STACKKIT_MCP_TOKEN_FILE`/`--mcp-token`); migrate MCP clients to send `Authorization: Bearer <mcp-token>`. `GET /openmcp.json` without that token now returns only identity, transport and credential metadata, and the full tool/resource/prompt inventory needs the token. MCP discovery and list results are cached `private`, `/mcp` answers `application/json`, and `*_file` arguments of read-only operations must stay inside the workspace (symlinks out of it are refused).
@@ -283,6 +285,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.12](https://github.com/kombifyio/StackKits/compare/v0.53.11...v0.53.12) (2026-10-17)
+
+
+### Fixed
+
+* **docs:** drop the private backup doc path from the public architecture doc
+
+## [0.53.11](https://github.com/kombifyio/StackKits/compare/v0.53.10...v0.53.11) (2026-10-17)
+
+
+### Added
+
+* **init:** declare an ntfy owner channel during stackkit init
+* **network:** claim AdGuard Home backup/restore and declare the Network, Remote and ntfy data contracts
+* **paas:** restore Photos, Files and Vault through Coolify and Komodo (2ujh.3.7)
+* **train:** adopt the on-demand train lane (D5b)
+* **train:** CLI preview receipt and the daily train occasion for StackKits (D5c)
+* **verify:** add --notify owner delivery check (y5d6)
+
+
+### Fixed
+
+* **affected-tests:** run the renderer registry parity proof for renderer and catalog changes
+* **architecture-v2:** register the Cloud standalone OpenTofu and Terramate hashes after #2195
+* **compat:** bind current release lifecycle receipts (platform-7rni.10.27.3)
+* **compat:** bind terminal Photos Debian receipt (platform-7rni.10.27.3)
+* **cue:** evaluate OTLP transport, pi backends and provider owner guard under CUE 0.17
+* **restore:** activate exactly the volumes the restore staged under its backup coverage
+* **train:** one authority-sha on every release-please producer call (D5c)
 
 ## [0.53.10](https://github.com/kombifyio/StackKits/compare/v0.53.9...v0.53.10) (2026-10-17)
 

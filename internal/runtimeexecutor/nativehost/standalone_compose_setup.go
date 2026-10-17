@@ -35,6 +35,20 @@ var applicationSetupAdapterRegistrations = []applicationSetupAdapterRegistration
 		},
 		adapter: standaloneComposeApplicationSetupAdapter{},
 	},
+	{
+		matches: func(binding runtimeexecutor.RuntimeAdapterBinding) bool {
+			return binding.ID == "komodo" && binding.ProviderRef == "stackkits-komodo" &&
+				binding.ModuleRef == "stackkits-komodo-core-runtime"
+		},
+		adapter: platformApplicationSetupAdapter{adapterRef: "komodo"},
+	},
+	{
+		matches: func(binding runtimeexecutor.RuntimeAdapterBinding) bool {
+			return binding.ID == "coolify" && binding.ProviderRef == "stackkits-coolify" &&
+				binding.ModuleRef == "stackkits-coolify-runtime"
+		},
+		adapter: platformApplicationSetupAdapter{adapterRef: "coolify"},
+	},
 }
 
 // ResolveApplicationSetupAdapter admits an executable setup transport from
@@ -152,12 +166,23 @@ func (o *osStandaloneComposeWorkloadOperations) withHTTP(ctx context.Context, de
 }
 
 func (o *osStandaloneComposeWorkloadOperations) withHTTPIdentityMutation(ctx context.Context, deployment SelectedPaaSWorkloadDeployment, run func(*http.Client, string) error, ensureIdentity bool) error {
+	return o.withRuntimeProjectHTTP(ctx, deployment, run, ensureIdentity, "")
+}
+
+// withRuntimeProjectHTTP admits the same endpoint for a workload its platform
+// manager runs under another physical Compose project (Coolify's service
+// UUID). The caller has verified that manager's signed custody; "" keeps the
+// node project.
+func (o *osStandaloneComposeWorkloadOperations) withRuntimeProjectHTTP(ctx context.Context, deployment SelectedPaaSWorkloadDeployment, run func(*http.Client, string) error, ensureIdentity bool, runtimeProject string) error {
 	if run == nil {
 		return errors.New("application setup requires a bounded API action")
 	}
 	project, err := o.prepareWithIdentityMutation(ctx, deployment, ensureIdentity)
 	if err != nil {
 		return err
+	}
+	if runtimeProject != "" {
+		project.runtimeProject = runtimeProject
 	}
 	inspect := func(ctx context.Context) (string, string, error) {
 		if err := o.verifyPersisted(project); err != nil {

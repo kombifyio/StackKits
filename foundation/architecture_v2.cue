@@ -3333,6 +3333,9 @@ _servicePublicationShape: {
 
 	if realization.kind == "host" || realization.kind == "external" {
 		realization: ownerRef: metadata.id
+		// Read-only twin of the line above: newer CUE evaluators drop a conflicting
+		// ownerRef when the comprehension extends the disjunction it is guarded by.
+		_ownerRefIsProviderID: metadata.id & realization.ownerRef
 		health: [...#HealthCheckContractV2] & list.MinItems(1)
 		evidence: [...string & =~"^.+$"] & list.MinItems(1)
 		_ownerInputCapabilityRefs: [
@@ -5460,6 +5463,17 @@ _guardOTLPSinkIntentV1: {
 	}
 }
 
+// _otlpTransportPostureV1 admits plaintext OTLP only toward this host's
+// loopback, where the local telemetry sink listens; every other endpoint uses
+// verified TLS. It is a disjunction rather than a conditional on the bool,
+// which newer CUE evaluators report as incomplete.
+_otlpTransportPostureV1: {
+	tls: insecure: false
+} | {
+	tls: insecure: true
+	endpoint: #OtelLoopbackEndpoint
+}
+
 // #ModuleOTLPBaselineV1 is the only observability projection a product
 // renderer may receive before an explicit backend owner is selected. It is
 // intentionally limited to per-node collection intent and transport posture:
@@ -5481,13 +5495,7 @@ _guardOTLPSinkIntentV1: {
 		tls: close({
 			insecure: bool
 		})
-		// Plaintext OTLP is admitted only toward this host's loopback, where
-		// the local telemetry sink listens; every other endpoint uses
-		// verified TLS.
-		if tls.insecure {
-			endpoint: #OtelLoopbackEndpoint
-		}
-	})
+	}) & _otlpTransportPostureV1
 	let logsEnabled = signals.logs
 	let tracesEnabled = signals.traces
 	optionalSignals?: close({

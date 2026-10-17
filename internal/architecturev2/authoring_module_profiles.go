@@ -165,6 +165,15 @@ func resolveNativeSelectedWorkloads(profile stackspecmigration.KitProfile, defin
 			result[id] = selection
 		}
 	}
+	// The coolify adapter delivers through this node's Marketplace Coolify
+	// (ADR-0049). Without it Apply would refuse only after Core changed.
+	if includeInitial && strings.TrimSpace(overrides.Platform) == "coolify" && !selected["marketplace"] {
+		for _, id := range ids {
+			if result[id].RuntimeAdapterRef == "coolify" {
+				return nil, resolveError(ErrInvalidStackSpec, fmt.Sprintf("use case %q on --platform coolify needs this node's Coolify engine; add --use-case marketplace", id), nil)
+			}
+		}
+	}
 	for moduleID, moduleOverride := range overrides.ModuleProfiles {
 		if selectedModules[moduleID] {
 			continue

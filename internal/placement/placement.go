@@ -1,6 +1,6 @@
 // Package placement resolves the S1 (StackKit-Standalone) capability bindings
 // for a StackSpec. It is the OSS-side implementation of the shared
-// resolver-output contract (STACKKITS-SPEC-PIPELINE §10): each abstract
+// resolver-output contract (STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §15.10): each abstract
 // capability (relational, vector, ai_inference, …) is bound to a concrete
 // provider+target for the realizable placement modes.
 //
@@ -23,7 +23,7 @@ type CapabilityBinding struct {
 	Target   string `json:"target"`
 }
 
-// Result is the resolved placement block (STACKKITS-SPEC-PIPELINE §10 shape).
+// Result is the resolved placement block (STACKKITS-PRODUCT-BOUNDARY-STANDARD.md §15.10 shape).
 type Result struct {
 	Mode         string                       `json:"mode"`
 	Exposure     string                       `json:"exposure"`

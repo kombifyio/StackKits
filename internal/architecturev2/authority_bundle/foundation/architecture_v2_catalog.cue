@@ -1016,8 +1016,8 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
@@ -1093,7 +1093,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
@@ -1170,8 +1170,8 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
-					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
@@ -7309,7 +7309,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "opentofu", kind:                                          "opentofu", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/opentofu/v1.tf", version: "1.0.0"
-			contractHash:    "sha256:e20d181b90c576ff25b1ba88c8bdabf391d0c7ce9241a0094c256b2e204a6514"
+			contractHash:    "sha256:1932aec8c4e643a6ab9f18d22d9f2923133e5ef4cf102aa64f594747cb5acfc2"
 			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7321,7 +7321,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "terramate", kind:                                       "terramate", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/terramate/v1", version: "1.0.0"
-			contractHash:    "sha256:066219def11947ce759f5528517efa7aa0a96a3445e579966d683bbb132b7522"
+			contractHash:    "sha256:2a39681412138ca8d1a6cff2a16c3714a01c98684d558643ac699e18c94a6439"
 			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -12809,6 +12809,7 @@ _architectureV2Modules: list.Concat([[
 			supportedKinds: ["container"]
 			supportedDeliveries: ["application-adapter"]
 			operations: ["apply", "observe"]
+			capabilities: ["application-setup-local-api"]
 			credentialCustody: "external-owner"
 			providerLifecycle: "not-owned"
 			evidenceRequired:  true
@@ -12868,9 +12869,9 @@ _architectureV2Modules: list.Concat([[
 			evidenceRequired:  true
 			// application-setup-local-api admits native `stackkit setup` for
 			// this adapter across every generation target that binds to it
-			// (compose, opentofu, terramate). Platform adapters (coolify,
-			// komodo) do not declare it yet: P3 must add it before their
-			// targets can carry the same bootstrap outcome.
+			// (compose, opentofu, terramate). The coolify and komodo adapters
+			// declare it too: their managers run the same bundle, so setup
+			// reuses this loopback session under the verified manager custody.
 			capabilities: ["application-setup-local-api"]
 		}
 		runtime: {execution: "contract-handoff", kind: "host", delivery: "stackkit"}
@@ -12925,6 +12926,7 @@ _architectureV2Modules: list.Concat([[
 			supportedKinds: ["container"]
 			supportedDeliveries: ["application-adapter"]
 			operations: ["apply", "observe"]
+			capabilities: ["application-setup-local-api"]
 			agentRefs: ["komodo-periphery"]
 			credentialCustody: "external-owner"
 			providerLifecycle: "not-owned"

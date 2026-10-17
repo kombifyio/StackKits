@@ -392,7 +392,7 @@ package foundation
 		}
 	}
 	if profile == "pi" {
-		optionalBackends: close({})
+		optionalBackends: {[string]: _|_}
 	}
 	if profile == "single-node" {
 		optionalBackends?: {

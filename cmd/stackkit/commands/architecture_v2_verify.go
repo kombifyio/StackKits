@@ -22,6 +22,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/fleetmember"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/ownernotify"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
@@ -159,6 +160,14 @@ type architectureV2VerifyReport struct {
 	OpenTofuState []opentofu.StateInspection          `json:"openTofuState,omitempty"`
 	Observations  []runtimeobservation.Observation    `json:"observations"`
 	Releases      []releaseindex.Receipt              `json:"releases"`
+	// OwnerNotifications is set only by `verify --notify`: the delivery check
+	// of every declared owner channel, or "not-configured".
+	OwnerNotifications *architectureV2OwnerNotificationCheck `json:"ownerNotifications,omitempty"`
+}
+
+type architectureV2OwnerNotificationCheck struct {
+	Status   string                `json:"status"`
+	Receipts []ownernotify.Receipt `json:"receipts,omitempty"`
 }
 
 type architectureV2OwnerVerifySummary struct {
@@ -886,6 +895,16 @@ func printArchitectureV2VerifyReport(w io.Writer, report architectureV2VerifyRep
 		if _, err := fmt.Fprintf(w, "Release: %s %s (%s, %s/%s)\n",
 			receipt.Kit, receipt.Version, receipt.Channel, receipt.Platform.OS, receipt.Platform.Arch); err != nil {
 			return err
+		}
+	}
+	if check := report.OwnerNotifications; check != nil {
+		if _, err := fmt.Fprintf(w, "Owner notifications: %s\n", check.Status); err != nil {
+			return err
+		}
+		for _, receipt := range check.Receipts {
+			if _, err := fmt.Fprintf(w, "  %s (%s): %s\n", receipt.Channel, receipt.Type, receipt.Result); err != nil {
+				return err
+			}
 		}
 	}
 	if report.Offline {
