@@ -1209,6 +1209,18 @@ func truncateOutput(value string) string {
 // effective owner approval, or a denial output.
 func (a *App) admitMutation(ctx context.Context, tool, operation, confirmation string, ownerApproved bool, summary string, digestParts ...string) (bool, map[string]any) {
 	agent, isAgent := AgentFromContext(ctx)
+	if !isAgent && a.opts.AgentToken != "" {
+		// A directly attached agent never falls back to the write switch: an
+		// unknown, rotated-out or revoked credential denies the call.
+		if a.opts.Agents == nil {
+			return false, errorOutput(tool, errors.New("an agent credential is configured but no credential store is available"))
+		}
+		if agent, isAgent = a.opts.Agents.Authenticate(a.opts.AgentToken); !isAgent {
+			out := errorOutput(tool, errors.New("the attached agent credential is unknown, rotated or revoked; ask the owner to mint a new one (stackkit agent credential mint)"))
+			out["credential_denied"] = true
+			return false, out
+		}
+	}
 	if !isAgent || a.opts.Agents == nil {
 		if !a.opts.AllowWrite {
 			return false, writeDisabledOutput(tool)

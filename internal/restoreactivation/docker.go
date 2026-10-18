@@ -540,6 +540,17 @@ func (runtime *dockerRuntime) copyVolume(
 }
 
 func (runtime *dockerRuntime) stopCopyHelpers(ctx context.Context, authority Authority) error {
+	return runtime.settleCopyHelpers(ctx, authority, false)
+}
+
+func (runtime *dockerRuntime) settleJournalCopyHelpers(ctx context.Context, authority Authority) error {
+	if err := runtime.verifyCompose(authority); err != nil {
+		return err
+	}
+	return runtime.settleCopyHelpers(ctx, authority, true)
+}
+
+func (runtime *dockerRuntime) settleCopyHelpers(ctx context.Context, authority Authority, requireJournalLabels bool) error {
 	allowedNames := map[string]bool{helperName(authority, "staging"): true}
 	allowedVolumes := map[string]bool{authority.StagingVolume: true}
 	for _, volume := range authority.VolumeDetails {
@@ -598,7 +609,7 @@ func (runtime *dockerRuntime) stopCopyHelpers(ctx context.Context, authority Aut
 		planLabel := container.Config.Labels["io.stackkit.restore.plan"]
 		legacy := operationLabel == "" && planLabel == ""
 		if container.ID != id || !allowedNames[strings.TrimPrefix(container.Name, "/")] || container.Config.Image != authority.KopiaHelperImage ||
-			(!legacy && (operationLabel != authority.OperationID || planLabel != authority.PlanHash)) ||
+			((requireJournalLabels || !legacy) && (operationLabel != authority.OperationID || planLabel != authority.PlanHash)) ||
 			!validRestoreHelperMounts(container.Mounts, allowedVolumes) {
 			return errors.New("restoreactivation: interrupted helper differs from the verified operation")
 		}

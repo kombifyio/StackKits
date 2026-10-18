@@ -19,6 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localbackupschedule"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
@@ -230,7 +231,15 @@ func runNativeV2BackupRequest(
 	if operation == nativeV2BackupStatus {
 		err = execute()
 	} else {
-		err = withLifecycleMutation(workspace, "backup "+string(operation), execute)
+		if operation == nativeV2BackupRun {
+			join, joinErr := currentLifecycleMutationJoin("backup " + string(operation))
+			if joinErr != nil {
+				return joinErr
+			}
+			err = lifecyclemutation.WithSnapshotMutation(workspace, join, request.OperationID, execute)
+		} else {
+			err = withLifecycleMutation(workspace, "backup "+string(operation), execute)
+		}
 	}
 	if err != nil {
 		return err

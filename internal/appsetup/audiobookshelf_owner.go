@@ -18,6 +18,7 @@ const AudiobookshelfOwnerBootstrapAction = "audiobookshelf-owner-bootstrap"
 type AudiobookshelfOwnerRequest struct {
 	Username, Password, ExpectedVersion string
 	AllowFirstOwnerRegistration         bool
+	OIDC                                *AudiobookshelfOIDCRequest
 }
 
 type AudiobookshelfOwnerResult struct {
@@ -74,7 +75,7 @@ func BootstrapAudiobookshelfOwner(ctx context.Context, client *http.Client, base
 		}
 		resp, err := session.Do(req)
 		if err != nil {
-			return errors.New("Audiobookshelf setup request failed")
+			return fmt.Errorf("Audiobookshelf setup %s %s request failed", method, strings.SplitN(path, "?", 2)[0])
 		}
 		defer resp.Body.Close()
 		raw, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
@@ -148,6 +149,11 @@ func BootstrapAudiobookshelfOwner(ctx context.Context, client *http.Client, base
 	}
 	if !admin(owner) || owner.ID != login.User.ID {
 		return result, errors.New("Audiobookshelf administrator readback differs from the authenticated owner")
+	}
+	if request.OIDC != nil {
+		if err := configureAudiobookshelfOIDC(ctx, call, login.User.AccessToken, *request.OIDC); err != nil {
+			return result, err
+		}
 	}
 	type library struct {
 		ID, MediaType string

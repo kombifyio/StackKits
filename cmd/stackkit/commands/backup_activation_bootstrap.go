@@ -10,6 +10,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
@@ -193,4 +194,13 @@ func restoreActivationCoreModule(plan generationartifact.VerifiedPlan) (string, 
 		return "", errors.New("restore activation bootstrap has no supported local Core module")
 	}
 	return moduleRef, nil
+}
+
+func (r *restoreActivationBootstrapRuntime) BindControlJournal(s *lifecyclemutation.Session) error {
+	if binder, ok := r.Runtime.(interface {
+		BindControlJournal(*lifecyclemutation.Session) error
+	}); ok {
+		return binder.BindControlJournal(s)
+	}
+	return nil
 }

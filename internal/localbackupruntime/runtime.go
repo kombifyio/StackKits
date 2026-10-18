@@ -43,11 +43,13 @@ type engineFactory func() engineAPI
 // Runtime is the production RepositoryRuntime for the CUE-owned local Kopia
 // service. It retains only a confined workspace name and an engine factory.
 type Runtime struct {
-	workspaceRoot   string
-	newEngine       engineFactory
-	policy          *localbackuppolicy.Policy
-	quiescer        backupexec.ContainerQuiescer
-	snapshotSettler func(context.Context) error
+	workspaceRoot    string
+	newEngine        engineFactory
+	policy           *localbackuppolicy.Policy
+	quiescer         backupexec.ContainerQuiescer
+	snapshotSettler  func(context.Context) error
+	componentControl func(backuplifecycle.SnapshotQuiescedContainer, string) (backuplifecycle.RuntimeControlDriver, error)
+	storeControl     func(localbackuppolicy.MarketplaceService, string) (backuplifecycle.RuntimeControlDriver, error)
 }
 
 // New binds all current repository operations to the exact policy
@@ -331,7 +333,12 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 			}
 			settlementComplete = true
 		}
-		cleanupErr := r.restoreQuiescence(journal, persist)
+		var cleanupErr error
+		if journal.ControlVersion == 1 {
+			cleanupErr = r.restoreControlledQuiescence(request.OperationID, &journal, persist)
+		} else {
+			cleanupErr = r.restoreQuiescence(journal, persist)
+		}
 		if resultErr != nil {
 			resultErr = combineQuiescenceErrors(resultErr, cleanupErr)
 			return
@@ -414,7 +421,7 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 		}
 	}
 
-	if err := r.stopQuiescence(ctx, journal); err != nil {
+	if err := r.stopSnapshotWriters(ctx, request.OperationID, &journal, persist); err != nil {
 		return backuplifecycle.RepositorySnapshotReceipt{}, err
 	}
 	journal.Phase = "stopped"
@@ -479,26 +486,33 @@ func (r *Runtime) prepareQuiescence(ctx context.Context) (backuplifecycle.Snapsh
 	// original value, including nil in legacy journals; they cannot refresh age.
 	startedAt := time.Now().UTC()
 	journal := backuplifecycle.SnapshotQuiescence{Phase: "prepared", GraphDigest: graphDigest, CaptureStartedAt: &startedAt}
+	if len(r.sourceProjection().MarketplaceServices) != 0 {
+		journal.ControlVersion = 1
+	}
 	for _, container := range observed {
 		if container.Paused || container.Restarting {
 			return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: managed Docker container %q is paused or restarting", container.ID)
 		}
-		if !container.Running {
+		if !container.Running && journal.ControlVersion == 0 {
 			continue
 		}
-		if container.Lifecycle == "one-shot" {
+		if container.Running && container.Lifecycle == "one-shot" {
 			return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: one-shot Docker component %q must complete before snapshot quiescence", container.ComponentRef)
 		}
-		if !backupexec.SupportedStopSignal(container.StopSignal) {
+		if container.Running && !backupexec.SupportedStopSignal(container.StopSignal) {
 			return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: Docker component %q declares stop signal %q, which snapshot quiescence cannot use; nothing was stopped", container.ComponentRef, container.StopSignal)
 		}
 		journal.Containers = append(journal.Containers, backuplifecycle.SnapshotQuiescedContainer{
-			ID: container.ID, Name: container.Name, WasRunning: true,
+			ID: container.ID, Name: container.Name, WasRunning: container.Running,
+			MarketplaceService: container.MarketplaceService, MarketplaceComponent: container.MarketplaceComponent,
 			WorkloadRef: container.WorkloadRef, SiteRef: container.SiteRef, NodeRef: container.NodeRef,
 			ComposeProject: container.ComposeProject, ComposeService: container.ComposeService,
 			ComponentRef: container.ComponentRef, Image: container.Image, StopOrder: container.StopOrder,
 			Mounts: snapshotQuiesceMounts(container.Mounts),
 		})
+		if journal.ControlVersion == 1 {
+			journal.Controls = append(journal.Controls, backuplifecycle.RuntimeControl{ComponentRef: container.Name, ContainerID: container.ID, WasRunning: container.Running})
+		}
 	}
 	return journal, nil
 }
@@ -515,7 +529,7 @@ func (r *Runtime) validateQuiescence(ctx context.Context, journal backuplifecycl
 	}
 	byID := make(map[string]backuplifecycle.SnapshotQuiescedContainer, len(journal.Containers))
 	for _, expected := range quiescenceStopOrder(journal) {
-		if !expected.WasRunning || expected.ID == "" || expected.Name == "" {
+		if journal.ControlVersion == 0 && !expected.WasRunning || expected.ID == "" || expected.Name == "" {
 			return errors.New("localbackupruntime: snapshot quiescence journal has incomplete container identity")
 		}
 		if _, exists := byID[expected.ID]; exists {
@@ -729,6 +743,7 @@ func (r *Runtime) settleQuiescenceStop(ctx context.Context, expected backuplifec
 
 func exactQuiescedContainer(expected backuplifecycle.SnapshotQuiescedContainer, current backupexec.QuiesceContainer) error {
 	if current.ID != expected.ID || current.Name != expected.Name ||
+		current.MarketplaceService != expected.MarketplaceService || current.MarketplaceComponent != expected.MarketplaceComponent ||
 		!reflect.DeepEqual(snapshotQuiesceMounts(current.Mounts), expected.Mounts) {
 		return fmt.Errorf("localbackupruntime: Docker container %q identity or mounts differ from the persisted quiescence set", expected.ID)
 	}
@@ -783,6 +798,10 @@ func quiescenceStopOrder(journal backuplifecycle.SnapshotQuiescence) []backuplif
 		return ordered
 	}
 	sort.SliceStable(ordered, func(left, right int) bool {
+		leftStore, rightStore := ordered[left].MarketplaceService != "", ordered[right].MarketplaceService != ""
+		if leftStore != rightStore {
+			return leftStore
+		}
 		leftGraph := ordered[left].ComposeProject != ""
 		rightGraph := ordered[right].ComposeProject != ""
 		if leftGraph != rightGraph {

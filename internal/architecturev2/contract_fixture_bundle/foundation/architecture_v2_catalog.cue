@@ -1528,7 +1528,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
@@ -1562,7 +1562,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
@@ -1582,7 +1582,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
@@ -1620,7 +1620,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
@@ -2238,7 +2238,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 				]
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
@@ -2858,6 +2858,7 @@ _architectureV2Providers: list.Concat([[
 		supportedSiteKinds: ["home"]
 		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-private-remote-access-runtime"], optional: []}}
 		selection: defaultForSiteKinds: ["home"]
+		homeAccessOverlay: #HomeWireGuardOverlayContractV1
 		health: [{id: "home-private-remote-access-contract", kind: "contract"}]
 		evidence: ["home-private-remote-access-contract"]
 	},
@@ -11706,6 +11707,13 @@ _architectureV2Modules: list.Concat([[
 				}
 				dependsOn: []
 				networkRefs: ["audiobookshelf-internal"]
+				homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["NODE_EXTRA_CA_CERTS"]}
+				// Owner setup configures authentication through the upstream API;
+				// the client template fixes the frontend's dedicated-host URL base.
+				pocketIDClient: {
+					callbackURLs: ["{{origin}}/auth/openid/callback", "{{origin}}/auth/openid/mobile-redirect"]
+					environment: {ROUTER_BASE_PATH: ""}
+				}
 				volumes: [for allocation in _architectureV2AudiobookshelfInfrastructure.storageAllocation.allocations {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 					if allocation.volumeRef == "library" {readOnly: true}

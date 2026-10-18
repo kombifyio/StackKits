@@ -173,7 +173,11 @@ func executeNativeOwnerSetupAction(ctx context.Context, client *http.Client, bas
 			return nativeOwnerSetupObservation{}, err
 		}
 		defer func() { credentials.Password = "" }()
-		observed, err := appsetup.BootstrapAudiobookshelfOwner(ctx, client, baseURL, appsetup.AudiobookshelfOwnerRequest{Username: credentials.Username, Password: credentials.Password, ExpectedVersion: release, AllowFirstOwnerRegistration: true})
+		oidc, err := audiobookshelfOIDCCustody(workspace, deployment.Bundle)
+		if err != nil {
+			return nativeOwnerSetupObservation{}, err
+		}
+		observed, err := appsetup.BootstrapAudiobookshelfOwner(ctx, client, baseURL, appsetup.AudiobookshelfOwnerRequest{Username: credentials.Username, Password: credentials.Password, ExpectedVersion: release, AllowFirstOwnerRegistration: true, OIDC: oidc})
 		if err != nil {
 			return nativeOwnerSetupObservation{}, err
 		}

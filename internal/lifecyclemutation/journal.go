@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/backupcustody"
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
@@ -139,10 +140,11 @@ type RestoreActivationProgress struct {
 }
 
 type RestoreActivationState struct {
-	Authority        RestoreActivationAuthority `json:"authority"`
-	RollbackPrepared []string                   `json:"rollbackPrepared"`
-	Activated        []string                   `json:"activated"`
-	InFlight         *RestoreActivationStep     `json:"inFlight,omitempty"`
+	Controls         []backuplifecycle.RuntimeControl `json:"controls,omitempty"`
+	Authority        RestoreActivationAuthority       `json:"authority"`
+	RollbackPrepared []string                         `json:"rollbackPrepared"`
+	Activated        []string                         `json:"activated"`
+	InFlight         *RestoreActivationStep           `json:"inFlight,omitempty"`
 }
 
 type Record struct {
@@ -245,6 +247,9 @@ func BeginUpgradePrepared(
 			current.OperationID, current.Phase,
 		))
 	}
+	if err := backuplifecycle.RequireSettledRuntimeControls(workspace, ""); err != nil {
+		return fail(err)
+	}
 	request, err := prepare()
 	if err != nil {
 		return fail(err)
@@ -323,6 +328,9 @@ func BeginRestoreActivationPrepared(
 			"lifecycle mutation %s is active at phase %s; recover it explicitly",
 			current.OperationID, current.Phase,
 		))
+	}
+	if err := backuplifecycle.RequireSettledRuntimeControls(workspace, ""); err != nil {
+		return fail(err)
 	}
 	request, err := prepare()
 	if err != nil {
@@ -435,6 +443,9 @@ func openRecoveryForKind(workspace, operationID, kind string) (*Session, Record,
 }
 
 func RequireIdle(workspace string) error {
+	if err := backuplifecycle.RequireSettledRuntimeControls(workspace, ""); err != nil {
+		return err
+	}
 	record, active, err := ActiveRecord(workspace)
 	if err != nil {
 		return err
@@ -487,11 +498,25 @@ func WithIdleMutation(
 	join JoinRequest,
 	execute func() error,
 ) error {
+	return withIdleMutation(workspace, join, "", execute)
+}
+
+// WithSnapshotMutation admits recovery of only the original authenticated
+// snapshot operation. Its service still revalidates exact Plan/Owner input;
+// a changed operation or Plan cannot discard an older control obligation.
+func WithSnapshotMutation(workspace string, join JoinRequest, operation string, execute func() error) error {
+	return withIdleMutation(workspace, join, operation, execute)
+}
+
+func withIdleMutation(workspace string, join JoinRequest, snapshot string, execute func() error) error {
 	if execute == nil {
 		return errors.New("lifecycle mutation callback is required")
 	}
 	if strings.TrimSpace(join.OperationID) != "" ||
 		strings.TrimSpace(join.Phase) != "" {
+		if err := backuplifecycle.RequireSettledRuntimeControls(workspace, snapshot); err != nil {
+			return err
+		}
 		if err := AdmitJoin(workspace, join); err != nil {
 			return err
 		}
@@ -511,6 +536,9 @@ func WithIdleMutation(
 			"lifecycle mutation %s is active at phase %s; ordinary mutation is denied",
 			record.OperationID, record.Phase,
 		)
+	}
+	if err := backuplifecycle.RequireSettledRuntimeControls(workspace, snapshot); err != nil {
+		return err
 	}
 	return execute()
 }
@@ -788,6 +816,7 @@ func (session *Session) Record() Record {
 	record := session.record
 	if session.record.RestoreActivation != nil {
 		state := *session.record.RestoreActivation
+		state.Controls = append([]backuplifecycle.RuntimeControl(nil), state.Controls...)
 		state.Authority.Volumes = append(
 			[]string{}, session.record.RestoreActivation.Authority.Volumes...,
 		)
@@ -847,6 +876,7 @@ func (session *Session) TransitionRestoreActivation(
 		return err
 	}
 	nextState := &RestoreActivationState{
+		Controls:         append([]backuplifecycle.RuntimeControl(nil), session.record.RestoreActivation.Controls...),
 		Authority:        session.record.RestoreActivation.Authority,
 		RollbackPrepared: progress.RollbackPrepared,
 		Activated:        progress.Activated, InFlight: progress.InFlight,
@@ -927,7 +957,7 @@ func (session *Session) transitionWithUpgradeData(
 	if session == nil || session.transaction == nil ||
 		session.record.Status != StatusActive ||
 		session.record.Phase != expected ||
-		!allowedTransition(session.record.Kind, expected, next) {
+		!(allowedTransition(session.record.Kind, expected, next) || validRestoreControlTransition(session.record, expected, next, restoreActivation)) {
 		return errors.New("lifecycle mutation transition is not authorized")
 	}
 	if session.record.Kind == KindRestoreActivation {
@@ -1834,6 +1864,9 @@ func validateRestoreActivationState(record Record) error {
 		record.Prior != (ReleaseAuthority{}) {
 		return errors.New("restore activation journal authority is incomplete")
 	}
+	if err := backuplifecycle.ValidateRuntimeControls(state.Controls); err != nil {
+		return err
+	}
 	authority := state.Authority
 	if authority.OperationID != record.OperationID ||
 		authority.OwnerRef != record.OwnerRef ||
@@ -1870,6 +1903,9 @@ func validateRestoreActivationPhaseProgress(
 	phase string,
 	state RestoreActivationState,
 ) error {
+	if err := validateRestoreControlsForPhase(phase, state.Controls); err != nil {
+		return err
+	}
 	volumeCount := len(state.Authority.Volumes)
 	rollbackCount := len(state.RollbackPrepared)
 	activatedCount := len(state.Activated)
@@ -1949,6 +1985,7 @@ func validateRestoreActivationProgressTransition(
 	next RestoreActivationProgress,
 ) error {
 	candidate := RestoreActivationState{
+		Controls:         append([]backuplifecycle.RuntimeControl(nil), current.Controls...),
 		Authority:        current.Authority,
 		RollbackPrepared: next.RollbackPrepared,
 		Activated:        next.Activated, InFlight: next.InFlight,

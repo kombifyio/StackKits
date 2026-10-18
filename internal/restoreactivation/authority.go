@@ -527,8 +527,7 @@ func bindManagedVolumes(
 		nameSet[entry] = struct{}{}
 	}
 	for _, volume := range applicationVolumes {
-		if !portableNamePattern.MatchString(volume.LiveName) || volume.ComposeProject == "" || volume.LogicalName == "" ||
-			volume.LiveName != volume.ComposeProject+"_"+volume.LogicalName {
+		if !portableNamePattern.MatchString(volume.LiveName) || (volume.MarketplaceService == "" && (volume.ComposeProject == "" || volume.LogicalName == "" || volume.LiveName != volume.ComposeProject+"_"+volume.LogicalName)) || (volume.MarketplaceService != "" && (volume.MarketplaceComponent == "" || volume.ComposeProject != "" || volume.LogicalName != "" || volume.ComponentRef != "")) {
 			return "", nil, nil, errors.New("restoreactivation: selected Application volume identity is invalid")
 		}
 		if _, duplicate := applicationNames[volume.LiveName]; duplicate {

@@ -1,6 +1,6 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:8aea52fe4f18201633a2154954c3e16d4fa0a4797a8d6e90aaa28e2f02bdbd4f",
+    "catalog.json": "sha256:008b56184d2558557228e6b355f5c34c9ba961975a5622abcd7e528d2939a72a",
     "compute-tier-fits.json": "sha256:c328232ec92d55e709566dd1e100162a60c9bdd1300fe06b8c5f5fbcf0547a0d",
     "definitions/basement-kit.json": "sha256:1d22c603a55957d4fb0aaf26cf969db94979d76ba195c61a50a83a335786309f",
     "definitions/cloud-kit.json": "sha256:74a009424d65b7b82af29ea596a555c16ef2ea5d7ffce68f7bef8a8b0098df65",
@@ -25,16 +25,17 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:accec124889a00e3ea7cc24ed2cbb6af2c5d8b86b2b104dc6da284a4739a468c",
-    "foundation/architecture_v2.cue": "sha256:d635cfe01fb717ecd76639126ec917f628eb2a5a81ba897d3804fd6d807cfe4d",
+    "foundation/architecture_v2.cue": "sha256:a9362a51057fb2f6bc82a12acc498a7b34b30ecbd3f5b0e0f82b5a94fe5de7ed",
     "foundation/architecture_v2_adguard_home.cue": "sha256:cbbc58423f37cc13885bc8b2c03b88cdebada4eb72348b1f0a99f3fc65017956",
     "foundation/architecture_v2_backup.cue": "sha256:a29a48840eefd3a50db72844e3628d69b0d6d64b81eb580e787aa6cf2e6307d1",
-    "foundation/architecture_v2_catalog.cue": "sha256:2a98c4cb4f9ba3701b5c637e20f3c24881c2ee6cb978ca06a35e11431e24033b",
+    "foundation/architecture_v2_catalog.cue": "sha256:3d5b525f45d92832c1af0bdbe0a6bae0e4602eeb903ce5b0b761a9a8a02d7cf0",
     "foundation/architecture_v2_cloud_core.cue": "sha256:e62ffb36ef1305078274022932bf41bf7e0737b0402254fcdbe8c1f3f1e5500a",
     "foundation/architecture_v2_definition_binding.cue": "sha256:0f991a3a54360298f7ee1e9404f07952a6a94c801f6cb60b5920247a2596c462",
     "foundation/architecture_v2_federation.cue": "sha256:720abfcfd924aacbd3388ee2b88066629f1dcbec3a5ff11d81ffb905e2716b74",
     "foundation/architecture_v2_guacamole.cue": "sha256:80d15b4d7b5562a5d2c7aad7b63a92d5a12ffa58bdc0e0e22151e9de9748620f",
     "foundation/architecture_v2_komodo_bootstrap.cue": "sha256:b8b94a8e366e2b9715894dfe17a76f10a03ec777aeae665c6f2d3ab6e9ddc519",
     "foundation/architecture_v2_marketplace.cue": "sha256:0cc590987ab3fac11ae10153f813bacd2e2e0c2ee5e1d61554f5974171b7f0c9",
+    "foundation/architecture_v2_marketplace_backup.cue": "sha256:d603ac092e24ef329bd04e3a24ec22e4d40b9d4d0ad40c3233771cdc33d0ba56",
     "foundation/architecture_v2_module_profiles.cue": "sha256:485dfaf3ed61cf566e6087329ccc1c8ba7b9cc4671abaa37ed0a2254b3d7b821",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",

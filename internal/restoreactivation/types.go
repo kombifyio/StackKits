@@ -147,12 +147,14 @@ type StandaloneComposeRuntimeCustody struct {
 // Compose-qualified Docker volume name. RollbackName is deterministic for the
 // activation operation and never caller supplied.
 type Volume struct {
-	ComponentRef   string `json:"componentRef"`
-	LogicalName    string `json:"logicalName"`
-	ComposeProject string `json:"composeProject"`
-	LiveName       string `json:"liveName"`
-	StagingPath    string `json:"stagingPath"`
-	RollbackName   string `json:"rollbackName"`
+	MarketplaceService   string `json:"marketplaceService,omitempty"`
+	MarketplaceComponent string `json:"marketplaceComponent,omitempty"`
+	ComponentRef         string `json:"componentRef"`
+	LogicalName          string `json:"logicalName"`
+	ComposeProject       string `json:"composeProject"`
+	LiveName             string `json:"liveName"`
+	StagingPath          string `json:"stagingPath"`
+	RollbackName         string `json:"rollbackName"`
 }
 
 // DeriveAuthority binds a staged, owner-verified restore to the exact kit

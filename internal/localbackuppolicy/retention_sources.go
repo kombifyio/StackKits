@@ -67,6 +67,11 @@ func (policy Policy) SnapshotSources() ([]SnapshotSource, error) {
 			return nil, fmt.Errorf("retention override selects a class outside backup coverage")
 		}
 	}
+	for _, s := range policy.Source.MarketplaceServices {
+		if !selected[s.BackupDataClass] {
+			return nil, fmt.Errorf("selected Marketplace source class %s is outside backup coverage", s.BackupDataClass)
+		}
+	}
 	if !selected["config"] {
 		return nil, fmt.Errorf("Core recovery coverage requires the config class")
 	}
@@ -101,6 +106,9 @@ func (policy Policy) ClassifiedSnapshotSources() ([]SnapshotSource, error) {
 			return nil, fmt.Errorf("backup volume %s requires an explicit backupDataClass; privacy labels cannot supply it", volume.VolumeName)
 		}
 		classes[volume.VolumeName] = volume.BackupDataClass
+	}
+	for _, service := range source.MarketplaceServices {
+		classes[service.VolumeName] = service.BackupDataClass
 	}
 	result := make([]SnapshotSource, 0, len(source.ManagedVolumeNames))
 	for _, name := range source.ManagedVolumeNames {

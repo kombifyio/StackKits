@@ -45,7 +45,15 @@ func ApplicationAuthorityForVolumes(workspace string, plan generationartifact.Ve
 // managed workload. Names remain canonical; the existing manager custody
 // adapter translates them at the Docker copy boundary, never in the journal.
 func DeriveApplicationAuthority(workspace string, plan generationartifact.VerifiedPlan, manifest generationartifact.ArtifactManifest, result backuplifecycle.RestoreResult, operation, workload string) (Authority, error) {
-	if !activationOperationPattern.MatchString(operation) || !portableNamePattern.MatchString(workload) || manifest.Binding != plan.Binding() {
+	return deriveSelectedSourceAuthority(workspace, plan, manifest, result, operation, workload, "")
+}
+
+func DeriveMarketplaceServiceAuthority(workspace string, plan generationartifact.VerifiedPlan, manifest generationartifact.ArtifactManifest, result backuplifecycle.RestoreResult, operation, service string) (Authority, error) {
+	return deriveSelectedSourceAuthority(workspace, plan, manifest, result, operation, "", service)
+}
+
+func deriveSelectedSourceAuthority(workspace string, plan generationartifact.VerifiedPlan, manifest generationartifact.ArtifactManifest, result backuplifecycle.RestoreResult, operation, workload, service string) (Authority, error) {
+	if !activationOperationPattern.MatchString(operation) || (workload == "" && service == "" || workload != "" && service != "" || workload != "" && !portableNamePattern.MatchString(workload)) || manifest.Binding != plan.Binding() {
 		return Authority{}, errors.New("restoreactivation: invalid application selection or manifest binding")
 	}
 	var document map[string]any
@@ -94,7 +102,7 @@ func DeriveApplicationAuthority(workspace string, plan generationartifact.Verifi
 			project = graph.ComposeProject
 		}
 	}
-	if project == "" {
+	if project == "" && service == "" {
 		return Authority{}, errors.New("restoreactivation: workload is outside the signed backup source")
 	}
 	var all, selected []Volume
@@ -102,6 +110,13 @@ func DeriveApplicationAuthority(workspace string, plan generationartifact.Verifi
 		volume := Volume{ComponentRef: v.ComponentRef, LogicalName: v.LogicalName, ComposeProject: v.ComposeProject, LiveName: v.VolumeName, RollbackName: v.VolumeName + "-rollback-" + rollbackSuffixForOperation(operation)}
 		all = append(all, volume)
 		if v.WorkloadRef == workload && v.ComposeProject == project {
+			selected = append(selected, volume)
+		}
+	}
+	for _, s := range source.MarketplaceServices {
+		volume := Volume{MarketplaceService: s.ServiceUUID, MarketplaceComponent: s.ComponentUUID, LiveName: s.VolumeName, RollbackName: s.VolumeName + "-rollback-" + rollbackSuffixForOperation(operation)}
+		all = append(all, volume)
+		if service == s.ServiceUUID {
 			selected = append(selected, volume)
 		}
 	}

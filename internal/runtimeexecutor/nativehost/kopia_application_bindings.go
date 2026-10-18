@@ -89,7 +89,9 @@ func bindKopiaApplicationHostPaths(ctx context.Context, workspace, site, node st
 			return nil, errors.New("Kopia source mount differs from its declared logical volume")
 		}
 		project, volume, application := strings.Cut(logical, "_")
-		if !application {
+		// Only curated StackKit workloads have logical-to-physical aliases.
+		// Store volumes already carry their selected native physical identity.
+		if !application || !strings.HasPrefix(project, "stackkit-") {
 			continue
 		}
 		present, err := platformdeploy.HasOwnerHostDeployment(workspace, project)

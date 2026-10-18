@@ -60,6 +60,7 @@ func runNativeV2RestoreActivationCommand(
 			return flagErr
 		}
 	}
+	storeService, _ := cmd.Flags().GetString("marketplace-service")
 	authority, err := inspectNativeV2BackupAuthorityForRequest(
 		ctx, workspace, specFile,
 	)
@@ -95,7 +96,16 @@ func runNativeV2RestoreActivationCommand(
 		return err
 	}
 	activationRuntime := runtime
-	if workload != "" {
+	if storeService != "" {
+		selected, deriveErr := restoreactivation.DeriveMarketplaceServiceAuthority(workspace, plan, manifest, restoreResult, operationID, storeService)
+		if deriveErr != nil {
+			return restoreactivation.NotStarted(restoreactivation.StageRuntimeBind, deriveErr)
+		}
+		activationRuntime, err = nativeMarketplaceServiceActivationRuntime(ctx, runtime, selected, authority, storeService)
+		if err != nil {
+			return restoreactivation.NotStarted(restoreactivation.StageRuntimeBind, err)
+		}
+	} else if workload != "" {
 		selected, deriveErr := restoreactivation.DeriveApplicationAuthority(workspace, plan, manifest, restoreResult, operationID, workload)
 		if deriveErr != nil {
 			return restoreactivation.NotStarted(restoreactivation.StageRuntimeBind, deriveErr)
@@ -130,15 +140,16 @@ func runNativeV2RestoreActivationCommand(
 	err = func() error {
 		var activateErr error
 		result, activateErr = service.Activate(ctx, restoreactivation.ActivateInput{
-			WorkloadRef:      workload,
-			WorkspaceRoot:    workspace,
-			OperationID:      operationID,
-			ExpectedPlanHash: expectedPlanHash,
-			OwnerApproved:    ownerApproved,
-			Plan:             plan,
-			Manifest:         manifest,
-			RestoreResult:    restoreResult,
-			CurrentLineage:   authority.Lineage,
+			WorkloadRef:        workload,
+			MarketplaceService: storeService,
+			WorkspaceRoot:      workspace,
+			OperationID:        operationID,
+			ExpectedPlanHash:   expectedPlanHash,
+			OwnerApproved:      ownerApproved,
+			Plan:               plan,
+			Manifest:           manifest,
+			RestoreResult:      restoreResult,
+			CurrentLineage:     authority.Lineage,
 			RevalidateCurrentAuthority: func(readContext context.Context) (generationartifact.VerifiedPlan, backuplifecycle.AuthorityLineage, error) {
 				current, err := inspectNativeV2BackupAuthorityForRequest(readContext, workspace, specFile)
 				if err != nil {
@@ -150,6 +161,9 @@ func runNativeV2RestoreActivationCommand(
 				return current.Plan, current.Lineage, nil
 			},
 			PrepareMutation: func(prepareContext context.Context) (func() error, error) {
+				if storeService != "" {
+					return nil, nil
+				}
 				var err error
 				lifecycleRuns, err = beginArchitectureV2ApplicationLifecyclesWithID(workspace, plan, "restore", "stackkit.restore", workload, operationID, time.Now().UTC())
 				if err != nil {
@@ -178,6 +192,9 @@ func runNativeV2RestoreActivationCommand(
 				workspace, restoreResult,
 			),
 			FinalizeResult: func(_ context.Context, finalized restoreactivation.Result, _ error) error {
+				if storeService != "" {
+					return nil
+				}
 				evidence, evidenceRef, finalizeErr := restoreActivationApplicationLifecycleEvidence(workspace, finalized)
 				if finalizeErr != nil {
 					return finalizeErr
@@ -257,6 +274,7 @@ func runNativeV2RestoreRecoveryCommand(
 		recoveryRestoreResult backuplifecycle.RestoreResult
 		recoveryPlan          generationartifact.VerifiedPlan
 		recoveryWorkload      string
+		recoveryStoreService  string
 	)
 	resolver := func(
 		resolveContext context.Context,
@@ -276,6 +294,29 @@ func runNativeV2RestoreRecoveryCommand(
 			return restoreactivation.Authority{}, resolveErr
 		}
 		recoveryPlan = plan
+		current, readErr := inspectNativeV2BackupAuthorityForRequest(resolveContext, workspace, specFile)
+		if readErr != nil {
+			return restoreactivation.Authority{}, readErr
+		}
+		for _, source := range current.Policy.SourceProjection().MarketplaceServices {
+			if len(journal.Volumes) == 1 && journal.Volumes[0] == source.VolumeName {
+				if current.Lineage != recoveryRestoreResult.AuthorizationLineage {
+					return restoreactivation.Authority{}, errors.New("Store recovery differs from the original signed Apply")
+				}
+				selected, err := restoreactivation.DeriveMarketplaceServiceAuthority(workspace, plan, manifest, recoveryRestoreResult, journal.OperationID, source.ServiceUUID)
+				if err != nil {
+					return restoreactivation.Authority{}, err
+				}
+				bound, err := nativeMarketplaceServiceActivationRuntime(resolveContext, runtime, selected, current, source.ServiceUUID)
+				if err != nil {
+					return restoreactivation.Authority{}, err
+				}
+				recoveryStoreService = source.ServiceUUID
+				bootstrapRuntime.Runtime = bound
+				bootstrapRuntime.applicationOnly = true
+				return selected, nil
+			}
+		}
 		selected, workload, narrowed, selectionErr := restoreactivation.ApplicationAuthorityForVolumes(workspace, plan, manifest, recoveryRestoreResult, journal.OperationID, journal.Volumes)
 		if selectionErr != nil {
 			return restoreactivation.Authority{}, selectionErr
@@ -330,17 +371,19 @@ func runNativeV2RestoreRecoveryCommand(
 			)(verifyContext)
 		},
 		FinalizeResult: func(_ context.Context, finalized restoreactivation.Result, _ error) error {
-			evidence, _, finalizeErr := restoreActivationApplicationLifecycleEvidence(workspace, finalized)
-			if finalizeErr != nil {
-				return finalizeErr
-			}
-			terminalStatus := applicationlifecycle.StatusSucceeded
-			if finalized.Status == "recovered" {
-				terminalStatus = applicationlifecycle.StatusRecovered
-			}
-			return completeExistingApplicationLifecycles(
-				workspace, recoveryPlan, operationID, terminalStatus, evidence, time.Now().UTC(), recoveryWorkload,
-			)
+			return finalizeRestoreRecoveryScope(recoveryStoreService, func() error {
+				evidence, _, finalizeErr := restoreActivationApplicationLifecycleEvidence(workspace, finalized)
+				if finalizeErr != nil {
+					return finalizeErr
+				}
+				terminalStatus := applicationlifecycle.StatusSucceeded
+				if finalized.Status == "recovered" {
+					terminalStatus = applicationlifecycle.StatusRecovered
+				}
+				return completeExistingApplicationLifecycles(
+					workspace, recoveryPlan, operationID, terminalStatus, evidence, time.Now().UTC(), recoveryWorkload,
+				)
+			})
 		},
 	})
 	if err != nil {
@@ -673,4 +716,13 @@ func emitRestoreActivationResult(
 		return err
 	}
 	return nil
+}
+
+// Store owns no compiler application lifecycle records. Recovery retains the
+// resolved discriminator instead of treating an empty workload as all apps.
+func finalizeRestoreRecoveryScope(storeService string, finalizeCurated func() error) error {
+	if storeService != "" {
+		return nil
+	}
+	return finalizeCurated()
 }

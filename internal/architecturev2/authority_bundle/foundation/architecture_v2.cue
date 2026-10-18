@@ -2555,6 +2555,49 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	_peerUnique: list.UniqueItems(peerSiteRefs) & true
 }
 
+// #HomeWireGuardOverlayContractV1 is the kit-owned Standard Mode realization of
+// the remote-private exposure (owner decision 2026-09-30 §4): one WireGuard
+// interface on the Home node whose peers are exactly the enrolled, unrevoked,
+// unexpired household devices. It needs no kombify account and no external
+// access binding. The node generates its own private key into local custody;
+// no private key ever appears in a rendered artifact, plan, log or receipt.
+// Each device generates its own key pair and registers only its public key.
+#HomeWireGuardOverlayContractV1: {
+	capabilityRef:   "private-remote-access"
+	implementation:  "wireguard"
+	ownership:       "kit-owned"
+	accountRequired: false
+	interfaceName:   "wg-stackkit"
+	transport:       "udp"
+	listenPort:      uint16 & >=1024 | *51820
+	// One /24 overlay pool: the node holds the first host address, devices
+	// receive one /32 each from the rest of the pool.
+	addressPool:                "10.8.0.0/24"
+	nodeAddress:                "10.8.0.1"
+	persistentKeepaliveSeconds: int & >=10 & <=120 | *25
+	peers: {
+		source:     "enrolled-home-devices"
+		identity:   "device-key-thumbprint"
+		allowedIPs: "single-host"
+		// A revoked or expired device enrollment drops the peer at the next render.
+		removal: "on-revoke-or-expiry"
+	}
+	routing: {
+		routeScope:        "declared-services-only"
+		allowDefaultRoute: false
+		allowBroadLAN:     false
+	}
+	keyCustody: {
+		nodePrivateKey:   "node-generated-local-custody"
+		devicePrivateKey: "device-generated-never-transferred"
+		renderedOutput:   "public-keys-only"
+	}
+	// Device sessions keep the custody sessionTTLSeconds; the overlay carries
+	// no session of its own.
+	sessionPolicy:     "custody-session-ttl"
+	endpointDiscovery: "owner-declared"
+}
+
 _servicePublicationShape: {
 	serviceRef:    #ContractID
 	sourceSiteRef: #SiteID
@@ -3304,6 +3347,12 @@ _servicePublicationShape: {
 	certificateIssuers: [...#CertificateIssuerV2] | *[]
 	overlayContracts: [...#OverlayProviderContractV2] | *[]
 	remoteActionContracts: [...#RemoteActionContractV2] | *[]
+	// homeAccessOverlay names the kit-owned transport that realizes the
+	// remote-private exposure; only a private-remote-access provider carries it.
+	homeAccessOverlay?: #HomeWireGuardOverlayContractV1
+	if homeAccessOverlay != _|_ {
+		_homeAccessOverlayCapability: [for capabilityRef in provides if capabilityRef == homeAccessOverlay.capabilityRef {capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
+	}
 	_providesUnique:           list.UniqueItems(provides) & true
 	_workloadRefsUnique:       list.UniqueItems(workloadRefs) & true
 	_runtimeAdapterRefsUnique: list.UniqueItems(runtimeAdapterRefs) & true

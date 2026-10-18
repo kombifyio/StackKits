@@ -26,26 +26,28 @@ type QuiesceMount struct {
 // QuiesceContainer is the Docker identity needed to stop and restore one
 // container without falling back to a mutable name lookup.
 type QuiesceContainer struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	Status         string         `json:"status"`
-	Running        bool           `json:"running"`
-	Paused         bool           `json:"paused"`
-	Restarting     bool           `json:"restarting"`
-	ExitCode       int            `json:"exitCode"`
-	OOMKilled      bool           `json:"oomKilled"`
-	Error          string         `json:"error,omitempty"`
-	StopSignal     string         `json:"stopSignal,omitempty"`
-	WorkloadRef    string         `json:"workloadRef,omitempty"`
-	SiteRef        string         `json:"siteRef,omitempty"`
-	NodeRef        string         `json:"nodeRef,omitempty"`
-	ComposeProject string         `json:"composeProject,omitempty"`
-	ComposeService string         `json:"composeService,omitempty"`
-	ComponentRef   string         `json:"componentRef,omitempty"`
-	Lifecycle      string         `json:"lifecycle,omitempty"`
-	Image          string         `json:"image,omitempty"`
-	StopOrder      int            `json:"stopOrder,omitempty"`
-	Mounts         []QuiesceMount `json:"mounts"`
+	MarketplaceService   string         `json:"marketplaceService,omitempty"`
+	MarketplaceComponent string         `json:"marketplaceComponent,omitempty"`
+	ID                   string         `json:"id"`
+	Name                 string         `json:"name"`
+	Status               string         `json:"status"`
+	Running              bool           `json:"running"`
+	Paused               bool           `json:"paused"`
+	Restarting           bool           `json:"restarting"`
+	ExitCode             int            `json:"exitCode"`
+	OOMKilled            bool           `json:"oomKilled"`
+	Error                string         `json:"error,omitempty"`
+	StopSignal           string         `json:"stopSignal,omitempty"`
+	WorkloadRef          string         `json:"workloadRef,omitempty"`
+	SiteRef              string         `json:"siteRef,omitempty"`
+	NodeRef              string         `json:"nodeRef,omitempty"`
+	ComposeProject       string         `json:"composeProject,omitempty"`
+	ComposeService       string         `json:"composeService,omitempty"`
+	ComponentRef         string         `json:"componentRef,omitempty"`
+	Lifecycle            string         `json:"lifecycle,omitempty"`
+	Image                string         `json:"image,omitempty"`
+	StopOrder            int            `json:"stopOrder,omitempty"`
+	Mounts               []QuiesceMount `json:"mounts"`
 }
 
 // ContainerQuiescer is the narrow Docker control boundary used by the local
@@ -76,6 +78,8 @@ type dockerQuiesceClientFactory func(time.Duration) dockerQuiesceClient
 type ApplicationContainerCustodyVerifier func(context.Context, localbackuppolicy.ApplicationRuntime) (map[string]string, error)
 
 type dockerV2Quiescer struct {
+	storeSelections    []localbackuppolicy.MarketplaceService
+	storeObserve       func(context.Context, localbackuppolicy.MarketplaceService) (QuiesceContainer, error)
 	newClient          dockerQuiesceClientFactory
 	managed            map[string]struct{}
 	applicationVolumes map[string]struct{}
@@ -169,6 +173,7 @@ func dockerV2QuiescerForSourceWithApplicationCustody(newClient dockerQuiesceClie
 	return &dockerV2Quiescer{
 		newClient: newClient, managed: managed, applicationVolumes: applicationVolumes,
 		applicationGraphs: graphs, applicationCustody: verifier,
+		storeSelections: append([]localbackuppolicy.MarketplaceService(nil), source.MarketplaceServices...),
 	}
 }
 
@@ -178,6 +183,9 @@ func dockerV2QuiescerForSourceWithApplicationCustody(newClient dockerQuiesceClie
 // a database volume is snapshotted. Stopped containers are retained so a
 // paused/restarting target cannot be silently ignored during validation.
 func (q *dockerV2Quiescer) ManagedContainers(ctx context.Context) ([]QuiesceContainer, error) {
+	if err := q.validateStoreSources(ctx); err != nil {
+		return nil, err
+	}
 	client, err := q.client(ctx)
 	if err != nil {
 		return nil, err
@@ -316,6 +324,13 @@ func (q *dockerV2Quiescer) verifyApplicationContainerIdentity(ctx context.Contex
 }
 
 func (q *dockerV2Quiescer) InspectContainer(ctx context.Context, id string) (QuiesceContainer, error) {
+	for _, selected := range q.storeSelections {
+		if selected.ExpectedGeneration.ContainerID == id {
+			if err := q.validateStoreSources(ctx); err != nil {
+				return QuiesceContainer{}, err
+			}
+		}
+	}
 	client, err := q.client(ctx)
 	if err != nil {
 		return QuiesceContainer{}, err
@@ -346,6 +361,9 @@ func (q *dockerV2Quiescer) StopContainer(ctx context.Context, id string) error {
 	container, _, err = q.classifyContainer(container)
 	if err != nil {
 		return err
+	}
+	if container.MarketplaceService != "" {
+		return fmt.Errorf("Store component control requires its durable Coolify-owned handle; Docker fallback is denied")
 	}
 	if err := q.verifyApplicationContainerIdentity(ctx, container); err != nil {
 		return err
@@ -400,6 +418,9 @@ func (q *dockerV2Quiescer) StartContainer(ctx context.Context, id string) error 
 	container, _, err = q.classifyContainer(container)
 	if err != nil {
 		return err
+	}
+	if container.MarketplaceService != "" {
+		return fmt.Errorf("Store component control requires its durable Coolify-owned handle; Docker fallback is denied")
 	}
 	if err := q.verifyApplicationContainerIdentity(ctx, container); err != nil {
 		return err
@@ -482,6 +503,13 @@ func (q *dockerV2Quiescer) inspectWithClient(ctx context.Context, client dockerQ
 	if info.ID != id && !strings.HasPrefix(info.ID, id) {
 		return QuiesceContainer{}, fmt.Errorf("Docker inspection identity %q differs from requested %q", info.ID, id)
 	}
+	return ObserveQuiesceContainer(*info)
+}
+
+// ObserveQuiesceContainer projects only identity, mounts and power. Inherited
+// environment/credential values never enter backup operation evidence.
+func ObserveQuiesceContainer(value docker.ContainerInfo) (QuiesceContainer, error) {
+	info := &value
 	name := strings.TrimPrefix(strings.TrimSpace(info.Name), "/")
 	if name == "" {
 		return QuiesceContainer{}, fmt.Errorf("Docker container %q has no exact name", info.ID)
@@ -541,6 +569,20 @@ func composeIdentityLabels(info *docker.ContainerInfo) (map[string]string, error
 }
 
 func (q *dockerV2Quiescer) classifyContainer(container QuiesceContainer) (QuiesceContainer, bool, error) {
+	for _, selected := range q.storeSelections {
+		for _, mount := range container.Mounts {
+			if mount.Type != "volume" || mount.Name != selected.VolumeName || !mount.RW {
+				continue
+			}
+			if container.ID != selected.ExpectedGeneration.ContainerID || mount.Source != selected.ExpectedGeneration.VolumeMountpoint || mount.Destination != selected.ContainerTarget {
+				return QuiesceContainer{}, false, fmt.Errorf("Store volume has a foreign or changed writer")
+			}
+			container.MarketplaceService, container.MarketplaceComponent = selected.ServiceUUID, selected.ComponentUUID
+			container.ComposeProject, container.ComposeService, container.ComponentRef, container.WorkloadRef = "", "", "", ""
+			container.Image, container.Lifecycle = "", ""
+			return container, true, nil
+		}
+	}
 	if graph, exists := q.applicationGraphs[container.ComposeProject]; exists {
 		if container.ComposeService == "" {
 			return QuiesceContainer{}, false, fmt.Errorf("Docker container %q in selected Compose project %q has no service identity", container.ID, container.ComposeProject)

@@ -282,6 +282,9 @@ func safeModuleBackupPolicy(policy map[string]any) (map[string]any, error) {
 		}
 		projection["retentionByDataClass"] = retentions
 	}
+	if services, exists := policy["marketplaceServices"]; exists {
+		projection["marketplaceServices"] = services
+	}
 	projection["schedule"] = safeSchedule
 	projection["retention"] = safeRetention
 	projection["restoreVerification"] = safeRestoreVerification

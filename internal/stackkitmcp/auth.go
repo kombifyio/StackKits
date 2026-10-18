@@ -19,7 +19,35 @@ const (
 	MCPTokenEnv     = "STACKKIT_MCP_TOKEN"
 	MCPTokenFileEnv = "STACKKIT_MCP_TOKEN_FILE"
 	mcpTokenHeader  = "X-StackKit-MCP-Token"
+
+	// AgentCredentialEnv and AgentCredentialFileEnv carry the per-agent
+	// credential of a directly attached (stdio) agent.
+	AgentCredentialEnv     = "STACKKIT_MCP_AGENT_CREDENTIAL"
+	AgentCredentialFileEnv = "STACKKIT_MCP_AGENT_CREDENTIAL_FILE"
 )
+
+// ResolveAgentCredential returns the per-agent credential of a directly
+// attached agent from STACKKIT_MCP_AGENT_CREDENTIAL or the file named by
+// STACKKIT_MCP_AGENT_CREDENTIAL_FILE. An empty result means none is
+// configured; an unreadable or empty file is an error.
+func ResolveAgentCredential() (string, error) {
+	if token := strings.TrimSpace(os.Getenv(AgentCredentialEnv)); token != "" {
+		return token, nil
+	}
+	path := strings.TrimSpace(os.Getenv(AgentCredentialFileEnv))
+	if path == "" {
+		return "", nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", AgentCredentialFileEnv, err)
+	}
+	token := strings.TrimSpace(string(raw))
+	if token == "" {
+		return "", fmt.Errorf("%s: credential file %s is empty", AgentCredentialFileEnv, path)
+	}
+	return token, nil
+}
 
 // ResolveMCPToken returns the dedicated MCP token from the explicit flag value,
 // STACKKIT_MCP_TOKEN, or the file named by STACKKIT_MCP_TOKEN_FILE, in that

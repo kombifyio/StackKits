@@ -364,6 +364,10 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	if err != nil {
 		return nil, err
 	}
+	deviceProvisioner, err := basementDeviceProvisioner(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
 	config, err := json.MarshalIndent(basementStepCAConfig{
 		Root:     "/home/step/certs/root_ca.crt",
 		Crt:      "/home/step/certs/intermediate_ca.crt",
@@ -373,7 +377,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 		Logger:   basementStepCALogger{Format: "text"},
 		DB:       basementStepCADatabase{Type: "badgerV2", DataSource: "/home/step/db"},
 		Authority: basementStepCAAuthority{
-			Provisioners: []basementStepCAProvisioner{basementACMEProvisioner(), workloadProvisioner, peerProvisioner},
+			Provisioners: []basementStepCAProvisioner{basementACMEProvisioner(), workloadProvisioner, peerProvisioner, deviceProvisioner},
 		},
 	}, "", "  ")
 	if err != nil {

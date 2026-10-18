@@ -221,6 +221,7 @@ type Source struct {
 	ManagedVolumeNames  []string             `json:"managedVolumeNames"`
 	ApplicationVolumes  []ApplicationVolume  `json:"applicationVolumes,omitempty"`
 	ApplicationRuntimes []ApplicationRuntime `json:"applicationRuntimes,omitempty"`
+	MarketplaceServices []MarketplaceService `json:"marketplaceServices,omitempty"`
 	ExcludePaths        []string             `json:"excludePaths"`
 	RepositoryPath      string               `json:"repositoryPath"`
 	ConfigPath          string               `json:"configPath"`
@@ -616,6 +617,7 @@ func (policy Policy) SourceProjection() Source {
 	source.ManagedVolumeNames = append([]string(nil), policy.Source.ManagedVolumeNames...)
 	source.ApplicationVolumes = cloneApplicationVolumes(policy.Source.ApplicationVolumes)
 	source.ApplicationRuntimes = cloneApplicationRuntimes(policy.Source.ApplicationRuntimes)
+	source.MarketplaceServices = append([]MarketplaceService(nil), policy.Source.MarketplaceServices...)
 	source.ExcludePaths = append([]string(nil), policy.Source.ExcludePaths...)
 	return source
 }

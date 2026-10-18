@@ -38,6 +38,9 @@ func validateHomeIdentityRights(moduleRef string, component selectedPaaSRuntimeC
 	if err := validateHomeAssistantOIDC(moduleRef, component, path); err != nil {
 		return err
 	}
+	if err := validateAudiobookshelfOIDC(moduleRef, component, path); err != nil {
+		return err
+	}
 	access, client := component.HomeIdentityAccess, component.PocketIDClient
 	if access == nil && client == nil {
 		return nil

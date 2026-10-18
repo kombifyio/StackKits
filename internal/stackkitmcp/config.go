@@ -17,9 +17,15 @@ type Options struct {
 	// Agents holds per-agent MCP credentials. When set, a request that
 	// authenticates with an agent credential may call mutating tools only
 	// after the owner approves that exact call; AllowWrite no longer applies
-	// to it and stays the switch for the shared token and stdio.
-	Agents  *mcpagents.Store
-	BaseDir string
+	// to it and stays the switch for the shared token and an anonymous stdio
+	// attachment.
+	Agents *mcpagents.Store
+	// AgentToken identifies a directly attached (stdio) agent by its per-agent
+	// credential. The credential is re-checked against Agents on every
+	// mutating call, so every write of that agent needs per-call owner
+	// approval and a revoke takes effect on its next call.
+	AgentToken string
+	BaseDir    string
 	// PinBaseDir confines every tool to BaseDir. A remote caller then cannot
 	// point base_dir at other paths of the host or container.
 	PinBaseDir bool
@@ -42,6 +48,7 @@ func (o Options) normalized() Options {
 	o.Transport = strings.ToLower(strings.TrimSpace(FirstNonEmpty(o.Transport, "stdio")))
 	o.MCPToken = strings.TrimSpace(o.MCPToken)
 	o.APIKey = strings.TrimSpace(o.APIKey)
+	o.AgentToken = strings.TrimSpace(o.AgentToken)
 	o.BaseDir = FirstNonEmpty(o.BaseDir, ".")
 	o.Binary = strings.TrimSpace(o.Binary)
 	// An unbound local development build is intentionally identified as dev.

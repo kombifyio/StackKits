@@ -7,6 +7,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
+	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 )
 
 // WithApplicationBinding delegates service control to the retained manager
@@ -69,6 +70,9 @@ type applicationRuntime struct {
 	binding   backupexec.ApplicationRuntimeBinding
 	current   func(context.Context) (backupexec.ApplicationRuntimeBinding, error)
 	order     []string
+	journal   *lifecyclemutation.Session
+	observe   func(context.Context, string) (backupexec.QuiesceContainer, error)
+	driver    func(string, string, string) (backuplifecycle.RuntimeControlDriver, error)
 }
 
 func (r *applicationRuntime) verify(ctx context.Context, a Authority) error {
@@ -130,22 +134,33 @@ func (r *applicationRuntime) Stop(ctx context.Context, a Authority) error {
 			return err
 		}
 	}
+	if err := r.captureControls(ctx); err != nil {
+		return err
+	}
+	if err := r.settleControls(ctx); err != nil {
+		return err
+	}
 	for i := len(r.order) - 1; i >= 0; i-- {
-		if err := r.binding.Control(ctx, r.order[i], "stop"); err != nil {
+		if err := r.advanceControl(ctx, r.order[i], false); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 func (r *applicationRuntime) Start(ctx context.Context, a Authority) error {
 	if err := r.verify(ctx, a); err != nil {
 		return err
 	}
+	if err := r.settleControls(ctx); err != nil {
+		return err
+	}
 	for _, ref := range r.order {
-		if err := r.binding.Control(ctx, ref, "start"); err != nil {
+		if err := r.advanceControl(ctx, ref, true); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 func (r *applicationRuntime) PrepareRollback(ctx context.Context, a Authority, v Volume) error {

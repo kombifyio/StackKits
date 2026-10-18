@@ -33,7 +33,7 @@ func localKopiaRenderInputTarget(unit map[string]any, path string) (moduleRender
 // aggregate logical value to its exact node-local instance. Runtime graphs are
 // copied from the already-resolved module contracts; they are never inferred
 // from generated Compose output.
-func localKopiaBackupSourceProjection(nodes, workloads, modules []any, _ []string, _ []string, coreModuleRef string, data map[string]any, lifecycles []any) (map[string]any, bool, error) {
+func localKopiaBackupSourceProjection(nodes, workloads, modules []any, _ []string, _ []string, coreModuleRef string, data map[string]any, lifecycles []any, backupPolicy map[string]any) (map[string]any, bool, error) {
 	nodeSites, err := localKopiaNodeSites(nodes)
 	if err != nil {
 		return nil, false, err
@@ -45,6 +45,34 @@ func localKopiaBackupSourceProjection(nodes, workloads, modules []any, _ []strin
 	source, err := localbackuppolicy.GovernedSourceWithApplicationVolumesAndRuntimesForCoreModule(coreModuleRef, applications, runtimes)
 	if err != nil {
 		return nil, false, fmt.Errorf("build governed local Kopia source projection: %w", err)
+	}
+	if selected, present := backupPolicy["marketplaceServices"]; present {
+		raw, err := json.Marshal(selected)
+		if err != nil {
+			return nil, false, err
+		}
+		var services []localbackuppolicy.MarketplaceService
+		if err := json.Unmarshal(raw, &services); err != nil {
+			return nil, false, err
+		}
+		for _, service := range services {
+			if nodeSites[service.NodeRef] != service.SiteRef {
+				return nil, false, fmt.Errorf("Marketplace store source is outside the resolved node placement")
+			}
+			selectedMarketplace := false
+			for _, graph := range runtimes {
+				if graph.WorkloadRef == "marketplace" && graph.SiteRef == service.SiteRef && graph.NodeRef == service.NodeRef {
+					selectedMarketplace = true
+				}
+			}
+			if !selectedMarketplace {
+				return nil, false, fmt.Errorf("Marketplace store data requires the installed Marketplace on that exact node")
+			}
+		}
+		source, err = source.WithMarketplaceServices(services)
+		if err != nil {
+			return nil, false, err
+		}
 	}
 	objectives, err := ProjectRecoveryObjectives(data, applications)
 	if err != nil {

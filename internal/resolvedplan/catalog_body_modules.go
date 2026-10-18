@@ -1049,8 +1049,13 @@ func validateResolvedModulePlanInputProjection(plan ResolvedPlan, module map[str
 		if err != nil {
 			return err
 		}
+		planBackupPolicy, _, err := optionalObjectField(map[string]any(plan), "resolvedPlan", "backupPolicy")
+		if err != nil {
+			return err
+		}
 		bindingSource := moduleRenderInputSource{
-			stackID: stackID, kit: kit, sites: objectMapsAsAny(sites),
+			backupPolicy: planBackupPolicy,
+			stackID:      stackID, kit: kit, sites: objectMapsAsAny(sites),
 			identity: identity, identityTrust: identityTrust, controlPlane: controlPlane, data: data,
 			failurePolicy: failurePolicy, network: network, gates: gates,
 			install: install, system: system, storage: storage, nodes: objectMapsAsAny(nodes), workloads: objectMapsAsAny(workloads), lifecycles: objectMapsAsAny(lifecycles), modules: objectMapsAsAny(modules),

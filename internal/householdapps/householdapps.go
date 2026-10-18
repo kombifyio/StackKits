@@ -12,13 +12,13 @@ const (
 	AppGroupPrefix = "household-app-"
 )
 
-// Grantable lists the use-case app IDs a member can be granted. The IDs equal
-// the StackKits use-case IDs, the application workload refs behind the Pocket
+// Grantable lists the app IDs a member can be granted, including independently
+// selected add-ons. The IDs equal the application workload refs behind the Pocket
 // ID client IDs and the TinyAuth route service refs. Vault and the kombify
 // account link are never member-grantable.
 var Grantable = []string{
 	"ai", "automation", "dev", "documents", "files", "game", "mail",
-	"marketplace", "media", "network", "photos", "remote", "smart-home",
+	"marketplace", "media", "media-audiobooks", "network", "photos", "remote", "smart-home",
 }
 
 // IsGrantable reports whether app is a member-grantable app ID.

@@ -167,6 +167,9 @@ func validateAudiobookshelfWorkloadUnit(unit RenderUnit, contract RendererContra
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
+	if components[0].PocketIDClient != nil && deliveryRoute == nil {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs", "Audiobookshelf OIDC requires a declared HTTPS delivery route; initialize the selected kit with its application routes")
+	}
 	for index := range components[0].Volumes {
 		if components[0].Volumes[index].ID == "library" {
 			components[0].Volumes[index].HostPath = mediaRoot
@@ -199,6 +202,9 @@ func validateAudiobookshelfRuntimeComponents(components []selectedPaaSRuntimeCom
 		components[0].Health.Kind != "http" || components[0].Health.Path != "/healthcheck" || components[0].Health.Port != 80 || !sameEnvironment(components[0].Environment, audiobookshelfEnvironment()) {
 		return nil, fail(ErrInvalidPlan, path, "Audiobookshelf runtime graph differs from the closed "+audiobookshelfRelease+" contract")
 	}
+	if err := validateAudiobookshelfOIDC(audiobookshelfWorkloadModuleID, components[0], path); err != nil {
+		return nil, err
+	}
 	want := map[string]selectedPaaSRuntimeVolume{
 		"config":   {ID: "config", Target: "/config", Class: "persistent", Backup: true},
 		"metadata": {ID: "metadata", Target: "/metadata", Class: "persistent", Backup: true},
@@ -220,6 +226,18 @@ func validateAudiobookshelfRuntimeComponents(components []selectedPaaSRuntimeCom
 		}
 	}
 	return components, nil
+}
+
+func validateAudiobookshelfOIDC(moduleRef string, component selectedPaaSRuntimeComponent, path string) error {
+	if moduleRef != audiobookshelfWorkloadModuleID || (component.HomeIdentityAccess == nil && component.PocketIDClient == nil) {
+		return nil
+	}
+	access := &selectedPaaSHomeIdentityAccess{CABundleTarget: "/etc/stackkit/ca-bundle.pem", CABundleEnvironment: []string{"NODE_EXTRA_CA_CERTS"}}
+	client := &selectedPaaSPocketIDClient{CallbackURLs: []string{"{{origin}}/auth/openid/callback", "{{origin}}/auth/openid/mobile-redirect"}, Environment: map[string]string{"ROUTER_BASE_PATH": ""}}
+	if component.ID != "audiobookshelf" || !reflect.DeepEqual(component.HomeIdentityAccess, access) || !reflect.DeepEqual(component.PocketIDClient, client) {
+		return fail(ErrInvalidPlan, path, "Audiobookshelf identity rights differ from its governed Pocket ID client")
+	}
+	return nil
 }
 
 func validateAudiobookshelfDeliveryInputs(unit RenderUnit, path string) (*applicationDeliveryRoute, string, error) {

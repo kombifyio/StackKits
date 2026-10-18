@@ -161,6 +161,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+* **Per-agent credentials for directly attached MCP agents:** `stackkit-mcp` over stdio accepts an owner-minted agent credential (`STACKKIT_MCP_AGENT_CREDENTIAL[_FILE]`, `--agent-workspace`). With it the process-wide `STACKKIT_MCP_ALLOW_WRITE` switch no longer applies: every mutating call needs the owner's per-call approval (`stackkit agent approval approve <id>`), and a revoked credential is denied on its next call.
 * **Private AI catalog settings:** the `ai` use case declares `inference-location` (on my own hardware, or only my own interface on top of an external provider) and the model packs `model-pack-general`, `model-pack-coding` and `model-pack-vision`. All are `recorded`: consumers show and keep them, the pinned release does not apply them yet.
 
 * **Modern edge listener:** `stackkit-server --bridge-edge-listen` serves only the Owner-signed bridge publication route table on the Cloud node. It is default closed (an absent, unsigned or foreign-target table, an unlisted host, path or method, or a rule without a bound rate limit is refused), enforces each rule's TLS minimum, rate limit and authentication per request, and reaches Home only through the activated federation link. Without a human/device verifier every rule still refuses requests. Verify reports a route `servedReadback` only after a real request through the listener reached the pinned origin. The bridge publication and federation control agent modules declare an `experimental` `standard` profile with their resident components for resource sampling; it has no measured values yet.
@@ -285,6 +286,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.13](https://github.com/kombifyio/StackKits/compare/v0.53.12...v0.53.13) (2026-10-18)
+
+
+### Added
+
+* **backup:** recover explicitly selected Marketplace service data
+* **identity:** enroll household devices through step-ca with stackkit device enroll|list|revoke
+* **mcp:** per-agent credentials and per-call approval for stdio attachments
+* **overlay:** kit-owned WireGuard overlay contract, key custody and peer rendering for enrolled devices
+
+
+### Fixed
+
+* **ci:** carry the release preparation check in the required gate (train gate integrity A4)
+* **ci:** run the public export check in the required gate when the export surface changes (train gate integrity A4)
+* **identity:** configure Audiobookshelf Pocket ID sign-in
+* **train:** CLI preview receipt for every push to main, no path filter (D5c)
+* **usecasecatalog:** stateless alternatives no longer claim backup restore
 
 ## [0.53.12](https://github.com/kombifyio/StackKits/compare/v0.53.11...v0.53.12) (2026-10-17)
 

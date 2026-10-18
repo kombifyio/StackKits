@@ -447,6 +447,9 @@ func generate(repoRoot string, release ReleaseIdentity, generatorVersion string,
 	if err := validateBackupHasARestoreClaim(source); err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
 	}
+	if err := validateRestoreClaimHasBackupStorage(source); err != nil {
+		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
+	}
 	if err := validateBackedUpAllocationsAreClassified(source); err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
 	}
@@ -1028,6 +1031,43 @@ func validateBackupHasARestoreClaim(source sourceCatalog) error {
 	return nil
 }
 
+// validateRestoreClaimHasBackupStorage refuses a standalone Compose alternative
+// whose row claims backup/restore without a backup-enabled storage allocation.
+// Restore admits a claiming workload only through its backed-up allocations,
+// so such a claim would stop every restore of a plan that selects it. A
+// stateless alternative keeps the claim false and restore skips it.
+func validateRestoreClaimHasBackupStorage(source sourceCatalog) error {
+	for _, workload := range source.catalogWorkloads {
+		if stringField(workload, "kind") != "application" {
+			continue
+		}
+		alternatives, _ := workload["alternatives"].([]any)
+		for _, rawAlternative := range alternatives {
+			alternative, _ := rawAlternative.(map[string]any)
+			if !claimsStandaloneBackupRestore(alternative) || allocatesBackupStorage(alternative) {
+				continue
+			}
+			return fmt.Errorf("workload %s alternative %s claims standalone-compose backup/restore but allocates no backup-enabled storage; a plan that selects it could not be restored", metadataID(workload), stringField(alternative, "id"))
+		}
+	}
+	return nil
+}
+
+// allocatesBackupStorage reports whether an alternative has a backup-enabled
+// storage allocation.
+func allocatesBackupStorage(alternative map[string]any) bool {
+	infrastructure, _ := alternative["infrastructure"].(map[string]any)
+	storage, _ := infrastructure["storageAllocation"].(map[string]any)
+	allocations, _ := storage["allocations"].([]any)
+	for _, raw := range allocations {
+		allocation, _ := raw.(map[string]any)
+		if boolField(allocation, "backup") {
+			return true
+		}
+	}
+	return false
+}
+
 // validateBackedUpAllocationsAreClassified requires every backed-up allocation
 // of an alternative to carry its semantic backupDataClass. The class-based
 // source policy admits only classified volumes and the default content coverage
@@ -1058,14 +1098,8 @@ func validateBackedUpAllocationsAreClassified(source sourceCatalog) error {
 // ownsBackupEnabledStorage reports whether an alternative backs up any data:
 // a backup-enabled storage allocation or a backup-enabled module volume.
 func ownsBackupEnabledStorage(alternative, module map[string]any) bool {
-	infrastructure, _ := alternative["infrastructure"].(map[string]any)
-	storage, _ := infrastructure["storageAllocation"].(map[string]any)
-	allocations, _ := storage["allocations"].([]any)
-	for _, raw := range allocations {
-		allocation, _ := raw.(map[string]any)
-		if boolField(allocation, "backup") {
-			return true
-		}
+	if allocatesBackupStorage(alternative) {
+		return true
 	}
 	runtime, _ := module["runtime"].(map[string]any)
 	components, _ := runtime["components"].([]any)

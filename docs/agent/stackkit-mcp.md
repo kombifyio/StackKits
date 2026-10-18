@@ -83,7 +83,13 @@ so a revoked or rotated-out credential is denied on its next call and other agen
 with an agent credential does not need `STACKKIT_MCP_ALLOW_WRITE`; instead it is denied with an `approval_request_id`
 until the owner runs `stackkit agent approval approve <id>`. The approval covers that agent, that operation and those exact
 arguments, once, within 15 minutes: the agent repeats the identical call. A self-asserted `owner_approved` is ignored for
-agent credentials. The shared token and stdio keep the write switch plus `owner_approved`.
+agent credentials. The shared token and an anonymous stdio attachment keep the write switch plus `owner_approved`.
+
+A directly attached (stdio) agent uses the same credentials: start `stackkit-mcp` with
+`STACKKIT_MCP_AGENT_CREDENTIAL_FILE=<token file>` (or `STACKKIT_MCP_AGENT_CREDENTIAL`) and
+`--agent-workspace <workspace>` (default: the current directory). The process refuses to start with an unknown or revoked
+credential, ignores `STACKKIT_MCP_ALLOW_WRITE`, and sends every mutating call through the same per-call owner approval.
+The credential is re-checked on each mutating call, so a revoke denies the next write.
 
 ## StackKits State Console
 

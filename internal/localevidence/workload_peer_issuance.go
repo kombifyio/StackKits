@@ -25,7 +25,11 @@ func basementWorkloadProvisioners(root string) ([]basementStepCAProvisioner, err
 	if err != nil {
 		return nil, err
 	}
-	return []basementStepCAProvisioner{origin, peer, basementACMEProvisioner()}, nil
+	device, err := basementDeviceProvisioner(root)
+	if err != nil {
+		return nil, err
+	}
+	return []basementStepCAProvisioner{origin, peer, device, basementACMEProvisioner()}, nil
 }
 
 func requireBasementWorkloadProvisioners(root string) error {
@@ -33,6 +37,9 @@ func requireBasementWorkloadProvisioners(root string) error {
 		return err
 	}
 	if err := requireBasementWorkloadProvisioner(root, basementPeerProvisionerName, x509.ExtKeyUsageClientAuth); err != nil {
+		return err
+	}
+	if err := requireBasementWorkloadProvisioner(root, basementDeviceProvisionerName, x509.ExtKeyUsageClientAuth); err != nil {
 		return err
 	}
 	return requireBasementProvisioner(root, basementACMEProvisioner())

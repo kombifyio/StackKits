@@ -71,6 +71,7 @@ var productAuthorityRole = embeddedAuthorityRole{
 		"foundation/architecture_v2_catalog.cue",
 		"foundation/architecture_v2_komodo_bootstrap.cue",
 		"foundation/architecture_v2_marketplace.cue",
+		"foundation/architecture_v2_marketplace_backup.cue",
 		"foundation/architecture_v2_cloud_core.cue",
 	},
 }

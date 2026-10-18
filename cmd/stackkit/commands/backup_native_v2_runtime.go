@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/backupexec"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
+	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localbackupruntime"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
 const nativeV2BackupMaximumOperationTimeout = 15 * time.Minute
@@ -36,6 +39,31 @@ var newNativeV2BackupService = func(authority nativeV2BackupAuthority) (nativeV2
 	runtime, err := localbackupruntime.New(authority.WorkspaceRoot, authority.Policy, custody, bindings...)
 	if err != nil {
 		return nil, fmt.Errorf("initialize native v2 backup runtime: %w", err)
+	}
+	if len(authority.Policy.SourceProjection().MarketplaceServices) != 0 {
+		deployments, err := nativeBackupApplicationDeployments(authority)
+		if err != nil {
+			return nil, err
+		}
+		document, err := nativeBackupMarketplaceDocument(context.Background(), authority)
+		if err != nil {
+			return nil, err
+		}
+		err = runtime.BindMarketplaceControl(func(ctx context.Context, s localbackuppolicy.MarketplaceService) (backupexec.QuiesceContainer, error) {
+			return nativehost.ObserveMarketplaceStore(ctx, authority.WorkspaceRoot, document, s)
+		}, func(s localbackuppolicy.MarketplaceService, op string) (backuplifecycle.RuntimeControlDriver, error) {
+			return nativehost.NewMarketplaceStoreControlDriver(authority.WorkspaceRoot, document, s, op)
+		}, func(c backuplifecycle.SnapshotQuiescedContainer, op string) (backuplifecycle.RuntimeControlDriver, error) {
+			for _, dep := range deployments {
+				if dep.WorkloadRef == c.WorkloadRef {
+					return nativehost.NewCoolifyBackupControlDriver(authority.WorkspaceRoot, document, dep, c.ComponentRef, c.ID, op)
+				}
+			}
+			return nil, errors.New("selected curated writer has no native completion driver")
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 	service, err := backuplifecycle.NewCreator().Create(authority.WorkspaceRoot, runtime)
 	if err != nil {

@@ -42134,6 +42134,12 @@
               "path": "/healthcheck",
               "port": 80
             },
+            "homeIdentityAccess": {
+              "caBundleEnvironment": [
+                "NODE_EXTRA_CA_CERTS"
+              ],
+              "caBundleTarget": "/etc/stackkit/ca-bundle.pem"
+            },
             "id": "audiobookshelf",
             "image": {
               "digest": "sha256:3528a93b6442ffe54bd46771bbbab7c97084e1101071586d9dc2254f30bb4358",
@@ -42143,6 +42149,15 @@
             "networkRefs": [
               "audiobookshelf-internal"
             ],
+            "pocketIDClient": {
+              "callbackURLs": [
+                "{{origin}}/auth/openid/callback",
+                "{{origin}}/auth/openid/mobile-redirect"
+              ],
+              "environment": {
+                "ROUTER_BASE_PATH": ""
+              }
+            },
             "resources": {
               "memoryLimit": "1g",
               "memoryReservation": "128m"
@@ -52079,6 +52094,36 @@
           "timeoutSeconds": 30
         }
       ],
+      "homeAccessOverlay": {
+        "accountRequired": false,
+        "addressPool": "10.8.0.0/24",
+        "capabilityRef": "private-remote-access",
+        "endpointDiscovery": "owner-declared",
+        "implementation": "wireguard",
+        "interfaceName": "wg-stackkit",
+        "keyCustody": {
+          "devicePrivateKey": "device-generated-never-transferred",
+          "nodePrivateKey": "node-generated-local-custody",
+          "renderedOutput": "public-keys-only"
+        },
+        "listenPort": 51820,
+        "nodeAddress": "10.8.0.1",
+        "ownership": "kit-owned",
+        "peers": {
+          "allowedIPs": "single-host",
+          "identity": "device-key-thumbprint",
+          "removal": "on-revoke-or-expiry",
+          "source": "enrolled-home-devices"
+        },
+        "persistentKeepaliveSeconds": 25,
+        "routing": {
+          "allowBroadLAN": false,
+          "allowDefaultRoute": false,
+          "routeScope": "declared-services-only"
+        },
+        "sessionPolicy": "custody-session-ttl",
+        "transport": "udp"
+      },
       "metadata": {
         "id": "stackkits-home-private-remote-access",
         "version": "1.0.0"
@@ -59199,7 +59244,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": true,
+                  "backupRestore": false,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -59268,7 +59313,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": true,
+                  "backupRestore": false,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -59317,7 +59362,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": true,
+                  "backupRestore": false,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -59390,7 +59435,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": true,
+                  "backupRestore": false,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -61943,7 +61988,7 @@
               {
                 "adapterRef": "standalone-compose",
                 "capabilities": {
-                  "backupRestore": true,
+                  "backupRestore": false,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true

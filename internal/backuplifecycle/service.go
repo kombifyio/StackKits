@@ -127,6 +127,8 @@ type RepositorySnapshotReceipt struct {
 // time. CaptureStartedAt, when present, precedes the first writer stop and
 // provides a conservative age boundary, not application-consistency evidence.
 type SnapshotQuiescence struct {
+	ControlVersion   int                         `json:"controlVersion,omitempty"`
+	Controls         []RuntimeControl            `json:"controls,omitempty"`
 	Phase            string                      `json:"phase"`
 	GraphDigest      string                      `json:"graphDigest,omitempty"`
 	CaptureStartedAt *time.Time                  `json:"captureStartedAt,omitempty"`
@@ -134,18 +136,20 @@ type SnapshotQuiescence struct {
 }
 
 type SnapshotQuiescedContainer struct {
-	ID             string                 `json:"id"`
-	Name           string                 `json:"name"`
-	WasRunning     bool                   `json:"wasRunning"`
-	WorkloadRef    string                 `json:"workloadRef,omitempty"`
-	SiteRef        string                 `json:"siteRef,omitempty"`
-	NodeRef        string                 `json:"nodeRef,omitempty"`
-	ComposeProject string                 `json:"composeProject,omitempty"`
-	ComposeService string                 `json:"composeService,omitempty"`
-	ComponentRef   string                 `json:"componentRef,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	StopOrder      int                    `json:"stopOrder,omitempty"`
-	Mounts         []SnapshotQuiesceMount `json:"mounts"`
+	MarketplaceService   string                 `json:"marketplaceService,omitempty"`
+	MarketplaceComponent string                 `json:"marketplaceComponent,omitempty"`
+	ID                   string                 `json:"id"`
+	Name                 string                 `json:"name"`
+	WasRunning           bool                   `json:"wasRunning"`
+	WorkloadRef          string                 `json:"workloadRef,omitempty"`
+	SiteRef              string                 `json:"siteRef,omitempty"`
+	NodeRef              string                 `json:"nodeRef,omitempty"`
+	ComposeProject       string                 `json:"composeProject,omitempty"`
+	ComposeService       string                 `json:"composeService,omitempty"`
+	ComponentRef         string                 `json:"componentRef,omitempty"`
+	Image                string                 `json:"image,omitempty"`
+	StopOrder            int                    `json:"stopOrder,omitempty"`
+	Mounts               []SnapshotQuiesceMount `json:"mounts"`
 }
 
 type SnapshotQuiesceMount struct {
@@ -415,6 +419,9 @@ func (s *Service) Configure(ctx context.Context, input ConfigureInput) (Configur
 	if err := s.ready(ctx); err != nil {
 		return Configuration{}, err
 	}
+	if err := RequireSettledRuntimeControls(s.workspaceRoot, ""); err != nil {
+		return Configuration{}, err
+	}
 	owner, err := s.validateBinding(input.OwnerRef, input.AuthorityRef)
 	if err != nil {
 		return Configuration{}, err
@@ -438,6 +445,9 @@ func (s *Service) Configure(ctx context.Context, input ConfigureInput) (Configur
 // returns os.ErrNotExist when no configuration exists yet.
 func (s *Service) Rebind(ctx context.Context, input ConfigureInput) (Configuration, bool, error) {
 	if err := s.ready(ctx); err != nil {
+		return Configuration{}, false, err
+	}
+	if err := RequireSettledRuntimeControls(s.workspaceRoot, ""); err != nil {
 		return Configuration{}, false, err
 	}
 	owner, err := s.validateBinding(input.OwnerRef, input.AuthorityRef)
@@ -553,6 +563,9 @@ func (s *Service) repositoryStatus(ctx context.Context, configuration Configurat
 
 func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, error) {
 	if err := s.ready(ctx); err != nil {
+		return SnapshotAnchor{}, err
+	}
+	if err := RequireSettledRuntimeControls(s.workspaceRoot, input.OperationID); err != nil {
 		return SnapshotAnchor{}, err
 	}
 	if !validOperationID(input.OperationID) {
@@ -688,6 +701,9 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 // closure. It deliberately does not mutate live Docker volumes.
 func (s *Service) Restore(ctx context.Context, input RestoreInput) (RestoreResult, error) {
 	if err := s.ready(ctx); err != nil {
+		return RestoreResult{}, err
+	}
+	if err := RequireSettledRuntimeControls(s.workspaceRoot, ""); err != nil {
 		return RestoreResult{}, err
 	}
 	if !input.OwnerApproved {
@@ -1691,6 +1707,15 @@ func canonicalSnapshotOperation(operation snapshotOperation) ([]byte, error) {
 }
 
 func validateSnapshotQuiescence(quiescence SnapshotQuiescence) error {
+	if quiescence.ControlVersion != 0 && quiescence.ControlVersion != 1 {
+		return errors.New("backuplifecycle: unsupported runtime control protocol")
+	}
+	if quiescence.ControlVersion == 0 && len(quiescence.Controls) != 0 {
+		return errors.New("backuplifecycle: runtime controls require their explicit protocol")
+	}
+	if err := ValidateRuntimeControls(quiescence.Controls); err != nil {
+		return err
+	}
 	switch quiescence.Phase {
 	case "prepared", "stopped", "snapshot-created", "restored":
 	default:
@@ -1704,13 +1729,18 @@ func validateSnapshotQuiescence(quiescence SnapshotQuiescence) error {
 	}
 	seen := make(map[string]struct{}, len(quiescence.Containers))
 	for index, container := range quiescence.Containers {
-		if strings.TrimSpace(container.ID) == "" || strings.TrimSpace(container.Name) == "" || !container.WasRunning {
+		if strings.TrimSpace(container.ID) == "" || strings.TrimSpace(container.Name) == "" || quiescence.ControlVersion == 0 && !container.WasRunning {
 			return fmt.Errorf("backuplifecycle: snapshot quiescence container %d identity or running state is incomplete", index)
 		}
 		if _, exists := seen[container.ID]; exists {
 			return fmt.Errorf("backuplifecycle: snapshot quiescence repeats container %q", container.ID)
 		}
 		seen[container.ID] = struct{}{}
+		if container.MarketplaceService != "" || container.MarketplaceComponent != "" {
+			if container.MarketplaceService == "" || container.MarketplaceComponent == "" || container.ComposeProject != "" || quiescence.ControlVersion != 1 || quiescence.GraphDigest == "" {
+				return errors.New("backuplifecycle: upstream Store control has no exact source identity")
+			}
+		}
 		if container.ComposeProject != "" {
 			if quiescence.GraphDigest == "" || container.WorkloadRef == "" || container.SiteRef == "" ||
 				container.NodeRef == "" || container.ComposeService == "" || container.ComponentRef == "" ||
@@ -1723,6 +1753,30 @@ func validateSnapshotQuiescence(quiescence SnapshotQuiescence) error {
 		}
 		if len(container.Mounts) == 0 && container.ComposeProject == "" {
 			return fmt.Errorf("backuplifecycle: snapshot quiescence container %q has no mount identity", container.ID)
+		}
+	}
+	if quiescence.ControlVersion == 1 {
+		if len(quiescence.Controls) != len(quiescence.Containers) {
+			return errors.New("backuplifecycle: initial power/control identity set is incomplete")
+		}
+		for _, control := range quiescence.Controls {
+			found := false
+			for _, container := range quiescence.Containers {
+				if container.ID == control.ContainerID && container.Name == control.ComponentRef && container.WasRunning == control.WasRunning {
+					found = true
+				}
+			}
+			if !found {
+				return errors.New("backuplifecycle: control is outside its authenticated initial identity set")
+			}
+			if quiescence.Phase == "stopped" || quiescence.Phase == "snapshot-created" {
+				if control.WasRunning && control.Stop.State != ControlObserved {
+					return errors.New("backuplifecycle: snapshot requires completed writer stops")
+				}
+			}
+			if quiescence.Phase == "restored" && control.Stop.State != "" && control.Start.State != ControlObserved {
+				return errors.New("backuplifecycle: writer resume obligation is unresolved")
+			}
 		}
 	}
 	return nil
@@ -1740,9 +1794,11 @@ func validateRestoredSnapshotQuiescence(quiescence SnapshotQuiescence) error {
 
 func cloneSnapshotQuiescence(quiescence SnapshotQuiescence) SnapshotQuiescence {
 	cloned := SnapshotQuiescence{
-		Phase:       quiescence.Phase,
-		GraphDigest: quiescence.GraphDigest,
-		Containers:  make([]SnapshotQuiescedContainer, len(quiescence.Containers)),
+		ControlVersion: quiescence.ControlVersion,
+		Controls:       append([]RuntimeControl(nil), quiescence.Controls...),
+		Phase:          quiescence.Phase,
+		GraphDigest:    quiescence.GraphDigest,
+		Containers:     make([]SnapshotQuiescedContainer, len(quiescence.Containers)),
 	}
 	if quiescence.CaptureStartedAt != nil {
 		startedAt := *quiescence.CaptureStartedAt
@@ -1750,6 +1806,7 @@ func cloneSnapshotQuiescence(quiescence SnapshotQuiescence) SnapshotQuiescence {
 	}
 	for index, container := range quiescence.Containers {
 		cloned.Containers[index] = SnapshotQuiescedContainer{
+			MarketplaceService: container.MarketplaceService, MarketplaceComponent: container.MarketplaceComponent,
 			ID: container.ID, Name: container.Name, WasRunning: container.WasRunning,
 			WorkloadRef: container.WorkloadRef, SiteRef: container.SiteRef, NodeRef: container.NodeRef,
 			ComposeProject: container.ComposeProject, ComposeService: container.ComposeService,

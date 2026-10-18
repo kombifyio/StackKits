@@ -38,8 +38,21 @@ and progress/bookmarks through the application's API, and confirm that a new
 application container retains those effects on the same native data volumes.
 Setup or a healthy service alone does not prove that journey.
 
-The existing compiled route/TinyAuth policy remains authoritative. Audiobookshelf
-has native OIDC, but setup does not invent a PocketID client or claim a verified
-OIDC/household route. Configure and verify that separate identity contract before
-claiming per-app SSO. Never expose a native token through URL parameters, logs,
-receipts or an agent surface.
+The compiled route/TinyAuth policy remains authoritative. Native standalone Compose Apply
+registers the separate `stackkit-media-audiobooks` Pocket ID client. Setup uses
+its custodied secret, asks the application to discover the home issuer through
+its trusted CA mount, and configures OIDC through the upstream admin API. A
+different established provider/client fails closed to preserve account links.
+New subjects become ordinary users; mutable username/email matching and
+automatic administrator mapping remain disabled. The existing local root
+account keeps its password and library state for recovery. A previous applied
+bundle without the OIDC declaration keeps its native login until regenerated
+and applied.
+
+Limit a household member with `stackkit user apps <username> --app
+media-audiobooks --owner-approve`; this replaces their complete app list. The
+`media` grant alone does not grant Audiobookshelf. Preserve other intended
+grants explicitly. Verify the actual browser/mobile sign-in and permissions
+before claiming household access. Setup readback alone is not SSO acceptance.
+Never expose a native token through URL parameters, logs, receipts or an agent
+surface.

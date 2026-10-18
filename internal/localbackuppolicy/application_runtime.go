@@ -252,10 +252,16 @@ func ApplicationGraphDigest(source Source) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(runtimes) == 0 {
+	if len(runtimes) == 0 && len(source.MarketplaceServices) == 0 {
 		return "", nil
 	}
 	encoded, err := json.Marshal(runtimes)
+	if len(source.MarketplaceServices) != 0 {
+		encoded, err = json.Marshal(struct {
+			Runtimes            []ApplicationRuntime `json:"runtimes"`
+			MarketplaceServices []MarketplaceService `json:"marketplaceServices"`
+		}{runtimes, source.MarketplaceServices})
+	}
 	if err != nil {
 		return "", fmt.Errorf("marshal application runtime graph digest: %w", err)
 	}

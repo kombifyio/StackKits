@@ -1843,6 +1843,12 @@
           "required": false
         },
         {
+          "name": "marketplace-service",
+          "type": "string",
+          "description": "Activate only the explicitly selected upstream filesystem service",
+          "required": false
+        },
+        {
           "name": "operation-id",
           "type": "string",
           "description": "Stable idempotency key for this live restore activation",
@@ -2121,6 +2127,31 @@
           "name": "json",
           "type": "bool",
           "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "marketplace-component",
+          "type": "string",
+          "description": "Exact upstream service application UUID",
+          "required": false
+        },
+        {
+          "name": "marketplace-data-class",
+          "type": "string",
+          "default": "config",
+          "description": "Selected filesystem data class: config or user-content",
+          "required": false
+        },
+        {
+          "name": "marketplace-service",
+          "type": "string",
+          "description": "Inspect an explicit upstream service for filesystem backup selection",
+          "required": false
+        },
+        {
+          "name": "marketplace-volume",
+          "type": "string",
+          "description": "Exact local named volume",
           "required": false
         }
       ],
@@ -2552,6 +2583,151 @@
       "usage": "stackkit completion [bash|zsh|fish|powershell]",
       "short": "Generate shell completion scripts",
       "description": "Generate shell completion scripts for stackkit.\n\nTo load completions:\n\nBash:\n  $ source <(stackkit completion bash)\n\n  # To load completions for each session, execute once:\n  # Linux:\n  $ stackkit completion bash > /etc/bash_completion.d/stackkit\n  # macOS:\n  $ stackkit completion bash > $(brew --prefix)/etc/bash_completion.d/stackkit\n\nZsh:\n  # If shell completion is not already enabled in your environment,\n  # you will need to enable it. Execute once:\n  $ echo \"autoload -U compinit; compinit\" >> ~/.zshrc\n\n  # To load completions for each session, execute once:\n  $ stackkit completion zsh > \"${fpath[1]}/_stackkit\"\n\n  # You will need to start a new shell for this to take effect.\n\nFish:\n  $ stackkit completion fish | source\n\n  # To load completions for each session, execute once:\n  $ stackkit completion fish > ~/.config/fish/completions/stackkit.fish\n\nPowerShell:\n  PS> stackkit completion powershell | Out-String | Invoke-Expression\n\n  # To load completions for each session, execute once and source this file\n  # from your PowerShell profile.\n  PS> stackkit completion powershell > stackkit.ps1",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device",
+      "name": "device",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device [flags]",
+      "short": "Enroll, list and revoke household devices (CLI token fallback of the State Console ceremony)",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit device enroll",
+        "stackkit device list",
+        "stackkit device overlay",
+        "stackkit device revoke"
+      ]
+    },
+    {
+      "path": "stackkit device enroll",
+      "name": "enroll",
+      "parent": "stackkit device",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device enroll [flags]",
+      "short": "Issue a single-use pairing token after Owner step-up, or redeem one with a device CSR",
+      "description": "With --owner-session-file, issue a single-use 300-second pairing token; the file holds a PocketID Owner session authenticated within the last 60 seconds ('-' reads stdin). With --code and --csr, redeem the token for the device-generated key in the CSR and receive a client certificate from the node-local step-ca device provisioner. Both steps also combine in one call. Enrollment is refused from outside the LAN.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "code",
+          "type": "string",
+          "description": "single-use pairing token to redeem",
+          "required": false
+        },
+        {
+          "name": "csr",
+          "type": "string",
+          "description": "PEM certificate request generated on the device",
+          "required": false
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "description": "write the issued certificate chain to this file instead of stdout",
+          "required": false
+        },
+        {
+          "name": "owner-session-file",
+          "type": "string",
+          "description": "file with a fresh PocketID Owner session token ('-' for stdin); issues a pairing token",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device list",
+      "name": "list",
+      "parent": "stackkit device",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device list [flags]",
+      "short": "List enrolled and revoked household devices",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device overlay",
+      "name": "overlay",
+      "parent": "stackkit device",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device overlay [flags]",
+      "short": "Join enrolled devices to the kit-owned WireGuard overlay for remote-private access",
+      "description": "The node generates its WireGuard private key into local custody; it is never printed or rendered. Each device generates its own key pair and registers only its public key. Revoked or expired devices drop out of the rendered interface configuration. No kombify account is involved.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit device overlay bind",
+        "stackkit device overlay render"
+      ]
+    },
+    {
+      "path": "stackkit device overlay bind",
+      "name": "bind",
+      "parent": "stackkit device overlay",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device overlay bind <device-id> [flags]",
+      "short": "Register an enrolled device's WireGuard public key and assign its overlay address",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "public-key",
+          "type": "string",
+          "description": "the device's base64 WireGuard public key (generated on the device)",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device overlay render",
+      "name": "render",
+      "parent": "stackkit device overlay",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device overlay render [flags]",
+      "short": "Render the node's wg-quick configuration (public keys only; the private key loads from custody)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "out",
+          "type": "string",
+          "description": "write the configuration to this file instead of stdout",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device revoke",
+      "name": "revoke",
+      "parent": "stackkit device",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device revoke <device-id> [flags]",
+      "short": "Permanently revoke a household device key",
+      "description": "",
       "runnable": true,
       "examples": [],
       "flags": [],

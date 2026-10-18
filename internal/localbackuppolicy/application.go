@@ -205,6 +205,9 @@ func validateApplicationVolume(application ApplicationVolume) error {
 }
 
 func validateSource(source Source, target Target) error {
+	if err := validateMarketplaceServices(source, &target); err != nil {
+		return err
+	}
 	applications, err := canonicalApplicationVolumes(source.ApplicationVolumes)
 	if err != nil {
 		return err
@@ -258,6 +261,10 @@ func validateSourceProjection(source Source) error {
 	} else {
 		expected, err = GovernedSourceWithApplicationVolumesAndRuntimesForCoreModule(source.CoreModuleRef, applications, runtimes)
 	}
+	if err != nil {
+		return err
+	}
+	expected, err = expected.WithMarketplaceServices(source.MarketplaceServices)
 	if err != nil {
 		return err
 	}

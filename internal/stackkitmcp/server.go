@@ -123,7 +123,7 @@ func (a *App) OpenMCP() map[string]any {
 			"tokenSources":    []string{"--mcp-token", MCPTokenEnv, MCPTokenFileEnv},
 			"serverEndpoint":  "stackkit-server POST /mcp denies every request until an MCP token is configured",
 			"loopbackAdapter": "stackkit-mcp --transport http serves without a token only on a loopback listen address",
-			"writeGate":       "STACKKIT_MCP_ALLOW_WRITE=true for the shared token; a per-agent credential instead needs the owner to approve each mutating call (stackkit agent approval approve <id>)",
+			"writeGate":       "STACKKIT_MCP_ALLOW_WRITE=true for the shared token; a per-agent credential (HTTP bearer, or STACKKIT_MCP_AGENT_CREDENTIAL[_FILE] for a stdio attachment) instead needs the owner to approve each mutating call (stackkit agent approval approve <id>)",
 		},
 		"policy": map[string]any{
 			"websiteSurface":          "read-only discovery only",

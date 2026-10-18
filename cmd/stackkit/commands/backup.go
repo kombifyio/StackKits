@@ -260,6 +260,10 @@ func init() {
 	// Subcommand-specific flags.
 	backupConfigureCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
 	backupStatusCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
+	backupStatusCmd.Flags().String("marketplace-service", "", "Inspect an explicit upstream service for filesystem backup selection")
+	backupStatusCmd.Flags().String("marketplace-component", "", "Exact upstream service application UUID")
+	backupStatusCmd.Flags().String("marketplace-volume", "", "Exact local named volume")
+	backupStatusCmd.Flags().String("marketplace-data-class", "config", "Selected filesystem data class: config or user-content")
 	backupRunCmd.Flags().BoolVar(&backupOutputJSON, "json", false, "Emit stackkit.command-result/v1 JSON")
 	backupRunCmd.Flags().StringVar(&backupRunOperationID, "operation-id", "",
 		"Stable idempotency key for this snapshot operation")
@@ -280,6 +284,8 @@ func init() {
 	backupRestoreActivateCmd.Flags().String("expected-plan-hash", "",
 		"Require this admitted sha256 ResolvedPlan before the safety snapshot or live activation")
 	backupRestoreActivateCmd.Flags().String("workload", "", "Activate only this selected managed application's backed-up volumes")
+	backupRestoreActivateCmd.Flags().String("marketplace-service", "", "Activate only the explicitly selected upstream filesystem service")
+	backupRestoreActivateCmd.MarkFlagsMutuallyExclusive("workload", "marketplace-service")
 	backupRestoreActivateCmd.Flags().BoolVar(&backupActivationOwnerApproved, "owner-approve", false,
 		"Authorize live activation with the established local Owner custody")
 	backupRestoreRecoverCmd.Flags().BoolVar(&backupOutputJSON, "json", false,
@@ -346,6 +352,15 @@ func runBackupConfigure(cmd *cobra.Command, args []string) error {
 }
 
 func runBackupStatus(cmd *cobra.Command, args []string) error {
+	service, _ := cmd.Flags().GetString("marketplace-service")
+	if service != "" {
+		return machineAwareCommandError(cmd, runMarketplaceBackupSelection(cmd, service))
+	}
+	for _, flag := range []string{"marketplace-component", "marketplace-volume", "marketplace-data-class"} {
+		if cmd.Flags().Changed(flag) {
+			return machineAwareCommandError(cmd, fmt.Errorf("%s requires --marketplace-service", flag))
+		}
+	}
 	return machineAwareCommandError(cmd, runNativeV2BackupCommand(cmd, nativeV2BackupStatus, ""))
 }
 

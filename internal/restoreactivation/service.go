@@ -31,15 +31,16 @@ var errResultNotFound = errors.New("restoreactivation: persisted result is unava
 type LiveVerification = backuplifecycle.RestoreVerification
 
 type ActivateInput struct {
-	WorkloadRef      string
-	WorkspaceRoot    string
-	OperationID      string
-	ExpectedPlanHash string
-	OwnerApproved    bool
-	Plan             generationartifact.VerifiedPlan
-	Manifest         generationartifact.ArtifactManifest
-	RestoreResult    backuplifecycle.RestoreResult
-	CurrentLineage   backuplifecycle.AuthorityLineage
+	MarketplaceService string
+	WorkloadRef        string
+	WorkspaceRoot      string
+	OperationID        string
+	ExpectedPlanHash   string
+	OwnerApproved      bool
+	Plan               generationartifact.VerifiedPlan
+	Manifest           generationartifact.ArtifactManifest
+	RestoreResult      backuplifecycle.RestoreResult
+	CurrentLineage     backuplifecycle.AuthorityLineage
 	// RevalidateCurrentAuthority reads the existing current authority while
 	// the shared lifecycle lock is held; cached preflight is not admission.
 	RevalidateCurrentAuthority func(context.Context) (generationartifact.VerifiedPlan, backuplifecycle.AuthorityLineage, error)
@@ -183,6 +184,9 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 	if service == nil || service.runtime == nil {
 		return Result{}, errors.New("restoreactivation: service is not initialized")
 	}
+	if input.WorkloadRef != "" && input.MarketplaceService != "" {
+		return Result{}, errors.New("restore activation selects one application or upstream service")
+	}
 	if !input.OwnerApproved {
 		return Result{}, errors.New("restoreactivation: explicit local Owner approval is required")
 	}
@@ -200,6 +204,9 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 	)
 	if input.WorkloadRef != "" {
 		authority, err = DeriveApplicationAuthority(input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID, input.WorkloadRef)
+	}
+	if input.MarketplaceService != "" {
+		authority, err = DeriveMarketplaceServiceAuthority(input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID, input.MarketplaceService)
 	}
 	if err != nil {
 		return Result{}, &ActivationNotStartedError{Cause: stageFailure(StageStagedResult, err)}
@@ -275,6 +282,13 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 		returnErr = errors.Join(returnErr, releaseMutation())
 	}()
 
+	if binder, ok := service.runtime.(interface {
+		BindControlJournal(*lifecyclemutation.Session) error
+	}); ok {
+		if err := binder.BindControlJournal(session); err != nil {
+			return Result{}, err
+		}
+	}
 	verification, executionErr := service.activateLocked(
 		bounded, session, authority, input.VerifyLive,
 	)
@@ -365,6 +379,13 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 	}
 	if err := bindJournalAuthority(authority, record.RestoreActivation.Authority); err != nil {
 		return Result{}, err
+	}
+	if binder, ok := service.runtime.(interface {
+		BindControlJournal(*lifecyclemutation.Session) error
+	}); ok {
+		if err := binder.BindControlJournal(session); err != nil {
+			return Result{}, err
+		}
 	}
 	if record.Status == lifecyclemutation.StatusSucceeded || record.Status == lifecyclemutation.StatusRecovered {
 		result, err := ReadResult(input.WorkspaceRoot, input.OperationID)

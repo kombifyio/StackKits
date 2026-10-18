@@ -270,6 +270,9 @@ func requireBasementWorkloadProvisioner(workspaceRoot, name string, usage x509.E
 		eku = "clientAuth"
 	}
 	expected, err := basementWorkloadProvisioner(workspaceRoot, name, eku)
+	if name == basementDeviceProvisionerName {
+		expected, err = basementDeviceProvisioner(workspaceRoot)
+	}
 	if err != nil {
 		return err
 	}

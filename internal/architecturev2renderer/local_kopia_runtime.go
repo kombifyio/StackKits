@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"reflect"
 
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 )
@@ -170,6 +171,7 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	var inputs struct {
 		homeBackupTargetPlanInputs
 		BackupPolicy struct {
+			MarketplaceServices  []localbackuppolicy.MarketplaceService `json:"marketplaceServices"`
 			APIVersion           string                                 `json:"apiVersion"`
 			Kind                 string                                 `json:"kind"`
 			Schedule             localbackuppolicy.Schedule             `json:"schedule"`
@@ -221,6 +223,21 @@ func validateLocalKopiaRuntimeUnit(unit RenderUnit, contract RendererContract) (
 	policy, err := localbackuppolicy.NewWithApplicationVolumesAndRuntimesForCoreModule(profile.moduleID, inputs.StackID, siteRef, nodeRef, applications, runtimes)
 	if err != nil {
 		return localbackuppolicy.Policy{}, wrap(ErrInvalidPlan, path+".policy", "build governed local Kopia runtime policy", err)
+	}
+	services, err := localbackuppolicy.MarketplaceServicesForTarget(source.MarketplaceServices, siteRef, nodeRef)
+	if err != nil {
+		return localbackuppolicy.Policy{}, err
+	}
+	selectedServices, err := localbackuppolicy.MarketplaceServicesForTarget(inputs.BackupPolicy.MarketplaceServices, siteRef, nodeRef)
+	if err != nil {
+		return localbackuppolicy.Policy{}, err
+	}
+	if !reflect.DeepEqual(services, selectedServices) {
+		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".marketplaceServices", "store source differs from Owner-selected backup intent")
+	}
+	policy.Source, err = policy.Source.WithMarketplaceServices(services)
+	if err != nil {
+		return localbackuppolicy.Policy{}, err
 	}
 	if inputs.BackupPolicy.APIVersion != "stackkit.backup-policy/v1" || inputs.BackupPolicy.Kind != "BackupPolicy" {
 		return localbackuppolicy.Policy{}, fail(ErrInvalidPlan, path+".planInputs.backupPolicy", "requires the resolved CUE backup policy")

@@ -446,6 +446,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		return nil, err
 	}
 	if err := bindResolvedModuleRenderInputs(contracts.modules, moduleRenderInputSource{
+		backupPolicy:  backupPolicy,
 		stackID:       spec.stackID,
 		kit:           resolvedKit,
 		sites:         topology.sites,
