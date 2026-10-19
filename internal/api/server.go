@@ -210,18 +210,20 @@ func (s *Server) registerMCPRoutes() {
 		slog.Error("write-capable MCP CLI sibling is unavailable; process-backed action tools stay disabled", "error", cliBinaryErr)
 	}
 	app := stackkitmcp.New(stackkitmcp.Options{
-		Modes:        stackkitmcp.ParseModes("docs,local,server,actions"),
-		ServerURL:    serverURL,
-		APIKey:       s.config.APIKey,
-		MCPToken:     s.config.MCPToken,
-		AllowWrite:   s.config.MCPAllowWrite,
-		PinBaseDir:   s.config.MCPPinBaseDir,
-		JSONResponse: true,
-		Agents:       mcpagents.Open(s.config.BaseDir),
-		BaseDir:      s.config.BaseDir,
-		Binary:       cliBinary,
-		Version:      s.config.Version,
-		GitCommit:    s.config.GitCommit,
+		Modes:     stackkitmcp.ParseModes("docs,local,server,actions"),
+		ServerURL: serverURL,
+		APIKey:    s.config.APIKey,
+		// Only a normalized origin reaches the State Console link.
+		OwnerStepUpOrigin: ownerStepUpOriginOrEmpty(s.config.OwnerStepUpOrigin),
+		MCPToken:          s.config.MCPToken,
+		AllowWrite:        s.config.MCPAllowWrite,
+		PinBaseDir:        s.config.MCPPinBaseDir,
+		JSONResponse:      true,
+		Agents:            mcpagents.Open(s.config.BaseDir),
+		BaseDir:           s.config.BaseDir,
+		Binary:            cliBinary,
+		Version:           s.config.Version,
+		GitCommit:         s.config.GitCommit,
 	})
 	// The dedicated MCP token is the only /mcp credential; the handler denies
 	// every request while no token is configured.

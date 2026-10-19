@@ -473,6 +473,9 @@ func (a *App) stateConsole(ctx context.Context, req *mcp.CallToolRequest, _ stru
 		}(),
 		"server_url": a.opts.ServerURL,
 	}
+	if a.opts.OwnerStepUpOrigin != "" {
+		out["device_enrollment_url"] = a.opts.OwnerStepUpOrigin + "/api/v1/identity/step-up/device-enroll"
+	}
 	if stackspecadmission.RejectOperationalV1(a.opts.Version) {
 		service, serviceErr := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(a.opts.Version))
 		if serviceErr != nil {

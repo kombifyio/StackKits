@@ -5301,9 +5301,29 @@ _servicePublicationShape: {
 	bindings: [#SiteID]: [#CapabilityID]:     #ExternalHomeBackupTargetBindingV1
 }
 
+// #ModuleHomeAccessHandoffV1 hands the executor exactly one realization per
+// Site and capability: the external binding (Advanced Mode) or the kit-owned
+// overlay of the owning provider (Standard Mode), never both. The overlay is
+// copied from the hash-bound ResolvedPlan record and carries public overlay
+// parameters only.
 #ModuleHomeAccessHandoffV1: {
 	requirements: [#SiteID]: [#CapabilityID]: #HomeAccessRequirementV1
 	bindings: [#SiteID]: [#CapabilityID]:     #ExternalHomeAccessBindingV1
+	overlays: [#SiteID]: [#CapabilityID]:     #HomeAccessOverlayRealizationV1
+	_overlayKeys: [for siteRef, capabilityOverlays in overlays for capabilityRef, overlay in capabilityOverlays {
+		site:       siteRef & overlay.siteRef
+		capability: capabilityRef & overlay.capabilityRef
+		requirementMatches: [
+			for requirementSiteRef, capabilityRequirements in requirements
+			for requirementCapabilityRef, requirement in capabilityRequirements
+			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && overlay.stackId == requirement.stackId && overlay.specHash == requirement.specHash && overlay.contractOwnerRef == requirement.contractOwnerRef && overlay.capabilityContractHash == requirement.capabilityContractHash && overlay.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
+		] & list.MinItems(1) & list.MaxItems(1)
+		externalBindings: [
+			for bindingSiteRef, capabilityBindings in bindings
+			for bindingCapabilityRef, _ in capabilityBindings
+			if bindingSiteRef == siteRef && bindingCapabilityRef == capabilityRef {bindingCapabilityRef},
+		] & list.MaxItems(0)
+	}]
 }
 
 #ModuleCloudOffsiteBackupV1: {
@@ -6878,6 +6898,29 @@ _otlpTransportPostureV1: {
 	bindingHash:            #ContentHash
 }
 
+// #HomeAccessOverlayRealizationV1 is the Standard Mode realization of one
+// private-remote-access requirement by the kit-owned WireGuard overlay of its
+// owning provider. It replaces the external access binding: the node holds
+// the key custody and the fabric lifecycle, no kombify account or Techstack
+// is involved, and no external binding may coexist for the same Site and
+// capability. Advanced Mode never carries it; there the external binding
+// stays the realization. Only public overlay parameters appear here.
+#HomeAccessOverlayRealizationV1: {
+	apiVersion:             "stackkit.home-access-overlay/v1"
+	kind:                   "HomeAccessOverlayRealization"
+	stackId:                #ContractID
+	siteRef:                #SiteID
+	capabilityRef:          "private-remote-access"
+	contractOwnerRef:       #ContractID
+	capabilityContractHash: #ContentHash
+	requirementsHash:       #ContentHash
+	targetNodeRefs: [...#NodeID] & list.MinItems(1)
+	overlay:               #HomeWireGuardOverlayContractV1 & {capabilityRef: capabilityRef}
+	specHash:              #ContentHash
+	realizationHash:       #ContentHash
+	_targetNodeRefsUnique: list.UniqueItems(targetNodeRefs) & true
+}
+
 // #BackupTargetRequirementV1 is the StackKits-owned, provider-neutral
 // requirement for one Cloud offsite backup target. It identifies only the
 // governed Site/node/capability scope and custody properties. Provider,
@@ -7227,6 +7270,7 @@ _otlpTransportPostureV1: {
 	certificateIssuers: [...#CertificateIssuerV2] | *[]
 	overlayContracts: [...#OverlayProviderContractV2] | *[]
 	remoteActionContracts: [...#RemoteActionContractV2] | *[]
+	homeAccessOverlay?: #HomeWireGuardOverlayContractV1
 	_providesUnique:           list.UniqueItems(provides) & true
 	_workloadRefsUnique:       list.UniqueItems(workloadRefs) & true
 	_runtimeAdapterRefsUnique: list.UniqueItems(runtimeAdapterRefs) & true
@@ -8775,6 +8819,7 @@ _otlpTransportPostureV1: {
 	hostConformanceReceipts: [#NodeID]: #HostConformanceReceiptV1
 	homeAccessRequirements: [#SiteID]: [#CapabilityID]:           #HomeAccessRequirementV1
 	externalHomeAccessBindings: [#SiteID]: [#CapabilityID]:       #ExternalHomeAccessBindingV1
+	homeAccessOverlays: [#SiteID]: [#CapabilityID]:               #HomeAccessOverlayRealizationV1
 	backupTargetRequirements: [#SiteID]: [#CapabilityID]:         #BackupTargetRequirementV1
 	externalBackupTargetBindings: [#SiteID]: [#CapabilityID]:     #ExternalBackupTargetBindingV1
 	homeBackupTargetRequirements: [#SiteID]: [#CapabilityID]:     #HomeBackupTargetRequirementV1
@@ -8808,6 +8853,25 @@ _otlpTransportPostureV1: {
 			for requirementCapabilityRef, requirement in capabilityRequirements
 			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && binding.siteRef == siteRef && binding.capabilityRef == capabilityRef && binding.stackId == stackId && binding.specHash == specHash && binding.contractOwnerRef == requirement.contractOwnerRef && binding.capabilityContractHash == requirement.capabilityContractHash && binding.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
 		] & list.MinItems(1) & list.MaxItems(1)
+	}]
+	// The kit-owned overlay replaces the external binding in Standard Mode:
+	// it realizes exactly one requirement, comes from the owning provider's
+	// declared overlay, and never coexists with an external binding.
+	_homeAccessOverlayKeys: [for siteRef, capabilityOverlays in homeAccessOverlays for capabilityRef, overlay in capabilityOverlays {
+		site:       siteRef
+		capability: capabilityRef
+		standard:   install.mode & ("bootstrapped" | "bare")
+		requirementMatches: [
+			for requirementSiteRef, capabilityRequirements in homeAccessRequirements
+			for requirementCapabilityRef, requirement in capabilityRequirements
+			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && overlay.siteRef == siteRef && overlay.capabilityRef == capabilityRef && overlay.stackId == stackId && overlay.specHash == specHash && overlay.contractOwnerRef == requirement.contractOwnerRef && overlay.capabilityContractHash == requirement.capabilityContractHash && overlay.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
+		] & list.MinItems(1) & list.MaxItems(1)
+		providerMatches: [for provider in providers if provider.id == overlay.contractOwnerRef if provider.homeAccessOverlay != _|_ {provider.id}] & list.MinItems(1) & list.MaxItems(1)
+		externalBindings: [
+			for bindingSiteRef, capabilityBindings in externalHomeAccessBindings
+			for bindingCapabilityRef, _ in capabilityBindings
+			if bindingSiteRef == siteRef && bindingCapabilityRef == capabilityRef {bindingCapabilityRef},
+		] & list.MaxItems(0)
 	}]
 	_backupTargetRequirementKeys: [for siteRef, capabilityRequirements in backupTargetRequirements for capabilityRef, requirement in capabilityRequirements {
 		site:       siteRef & requirement.siteRef

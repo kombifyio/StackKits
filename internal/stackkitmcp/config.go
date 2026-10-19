@@ -8,12 +8,16 @@ import (
 
 // Options configures the StackKits MCP server surface.
 type Options struct {
-	Modes      map[string]bool
-	ServerURL  string
-	APIKey     string
-	Transport  string
-	MCPToken   string
-	AllowWrite bool
+	Modes     map[string]bool
+	ServerURL string
+	// OwnerStepUpOrigin is the server's local Owner approval origin. When
+	// set, the State Console links to its device-enroll page; the pairing
+	// code itself never passes through a tool result.
+	OwnerStepUpOrigin string
+	APIKey            string
+	Transport         string
+	MCPToken          string
+	AllowWrite        bool
 	// Agents holds per-agent MCP credentials. When set, a request that
 	// authenticates with an agent credential may call mutating tools only
 	// after the owner approves that exact call; AllowWrite no longer applies

@@ -53,30 +53,12 @@ func HomeVerifierHandler(root string) http.Handler {
 	})
 }
 
-// HomeEnrollmentHandler keeps pairing closed until human step-up authority
-// exists. Workload peer enrollment is a different owner operation.
-func HomeEnrollmentHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != HomeEnrollmentPath {
-			http.NotFound(w, r)
-			return
-		}
-		_ = EnrollHomeDevice("", nil)
-		denyHomeIdentity(w, http.StatusForbidden, "pairing_and_step_up_unbound")
-	})
-}
-
 func denyHomeIdentity(w http.ResponseWriter, status int, reason string) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	code := "home_identity_denied"
-	guidance := "Refresh current Home identity and obtain a new request-bound device proof."
-	if reason == "pairing_and_step_up_unbound" {
-		code = "home_enrollment_unavailable"
-		guidance = "Home device enrollment remains unavailable until local pairing and human step-up authority are connected."
-	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"error_code": code, "reason_code": reason, "retryable": false, "user_guidance": guidance,
+		"error_code": "home_identity_denied", "reason_code": reason, "retryable": false,
+		"user_guidance": "Refresh current Home identity and obtain a new request-bound device proof.",
 	})
 }

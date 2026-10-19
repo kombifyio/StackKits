@@ -309,3 +309,12 @@ func sortedMapKeys[V any](m map[string]V) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+func writeFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0600)
+}
+
+// tfResourceName converts a name to a valid OpenTofu resource name.
+func tfResourceName(name string) string {
+	return strings.ReplaceAll(name, "-", "_")
+}

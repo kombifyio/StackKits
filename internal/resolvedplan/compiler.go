@@ -405,8 +405,8 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
-	homeAccessRequirements, externalHomeAccessBindings, err := buildHomeAccessProjection(
-		spec, hashes.spec, topology.sites, topology.nodes, contracts.capabilities, contracts.modules,
+	homeAccessRequirements, homeAccessOverlays, externalHomeAccessBindings, err := buildHomeAccessProjection(
+		spec, hashes.spec, deployment.install, topology.sites, topology.nodes, contracts.capabilities, contracts.modules, contracts.providers,
 	)
 	if err != nil {
 		return nil, err
@@ -436,6 +436,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		backupPolicy: backupPolicy, driftPolicy: driftPolicy, observability: spec.observability,
 		localReachability: localReachability, homeLANDiscovery: homeLANDiscovery,
 		homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
+		homeAccessOverlays:       homeAccessOverlays,
 		backupTargetRequirements: backupTargetRequirements, externalBackupTargetBindings: externalBackupTargetBindings,
 		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
 		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,
@@ -491,6 +492,7 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"hostConformanceReceipts":          hostConformanceReceipts,
 		"homeAccessRequirements":           homeAccessRequirements,
 		"externalHomeAccessBindings":       externalHomeAccessBindings,
+		"homeAccessOverlays":               homeAccessOverlays,
 		"backupTargetRequirements":         backupTargetRequirements,
 		"externalBackupTargetBindings":     externalBackupTargetBindings,
 		"homeBackupTargetRequirements":     homeBackupTargetRequirements,
@@ -886,7 +888,7 @@ func (c *Compiler) buildProvider(spec *specView, resolved *resolution, id string
 		}
 		entry["certificateIssuers"] = cloned["certificateIssuers"]
 	}
-	for _, field := range []string{"overlayContracts", "remoteActionContracts"} {
+	for _, field := range []string{"overlayContracts", "remoteActionContracts", "homeAccessOverlay"} {
 		if rawContracts, exists := contract[field]; exists {
 			cloned, err := cloneObject(map[string]any{field: rawContracts}, true)
 			if err != nil {

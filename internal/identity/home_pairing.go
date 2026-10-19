@@ -7,17 +7,21 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/x509"
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/localowner"
 )
 
 const (
@@ -77,6 +81,45 @@ type homePairingRecord struct {
 // PocketID human session that is the pinned Owner and was authenticated within
 // HomeOwnerStepUpFreshness, against the current signed Home trust.
 func IssueHomePairing(root, humanSession string, now time.Time) (HomePairing, error) {
+	return issueHomePairing(root, now, func(trust HomePublicTrust, now time.Time) (jwt.Claims, error) {
+		return verifyHomeHumanToken(humanSession, trust, now)
+	})
+}
+
+// IssueHomePairingWithOwnerStepUp issues the pairing code from the local Owner
+// step-up page (device-enroll mode). The ID token comes from the existing
+// confidential step-up client, so its audience is localowner.StepUpClientID
+// rather than the Home access client; everything else is the Home trust check
+// of verifyHomeHumanToken (issuer, pinned Owner subject, signing keys,
+// revocation, time claims), plus the flow nonce and a passkey (amr "phr")
+// authentication, as for an action approval.
+func IssueHomePairingWithOwnerStepUp(root, idToken, nonce string, now time.Time) (HomePairing, error) {
+	if len(nonce) < 43 || len(nonce) > 128 {
+		return HomePairing{}, ErrHomePairingDenied
+	}
+	return issueHomePairing(root, now, func(trust HomePublicTrust, now time.Time) (jwt.Claims, error) {
+		var claims struct {
+			jwt.Claims
+			Type  string   `json:"type"`
+			Nonce string   `json:"nonce"`
+			AMR   []string `json:"amr"`
+		}
+		if err := verifyHomeJWT(idToken, "JWT", trust.PocketID.Keys, &claims); err != nil {
+			return jwt.Claims{}, err
+		}
+		if claims.Type != "id-token" || claims.Issuer != trust.PocketID.Issuer || claims.Subject != trust.PocketID.Subject ||
+			len(claims.Audience) != 1 || claims.Audience[0] != localowner.StepUpClientID ||
+			subtle.ConstantTimeCompare([]byte(claims.Nonce), []byte(nonce)) != 1 || len(claims.AMR) != 1 || claims.AMR[0] != "phr" {
+			return jwt.Claims{}, ErrHomeAccessDenied
+		}
+		if !validHomeTimeClaims(claims.Claims, now) || slices.Contains(trust.RevokedSubjects, claims.Subject) {
+			return jwt.Claims{}, ErrHomeAccessDenied
+		}
+		return claims.Claims, nil
+	})
+}
+
+func issueHomePairing(root string, now time.Time, verify func(HomePublicTrust, time.Time) (jwt.Claims, error)) (HomePairing, error) {
 	now = now.UTC()
 	state, err := loadHomeVerifierState(root)
 	if err != nil || !state.Active {
@@ -89,7 +132,7 @@ func IssueHomePairing(root, humanSession string, now time.Time) (HomePairing, er
 	if err != nil || owner.Binding.SiteRef != state.Trust.HomeSiteRef {
 		return HomePairing{}, ErrHomePairingDenied
 	}
-	human, err := verifyHomeHumanToken(humanSession, state.Trust, now)
+	human, err := verify(state.Trust, now)
 	if err != nil || human.IssuedAt == nil {
 		return HomePairing{}, ErrHomePairingDenied
 	}

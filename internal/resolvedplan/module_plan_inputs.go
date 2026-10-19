@@ -55,6 +55,7 @@ type modulePlanInputSource struct {
 	homeLANDiscovery                 map[string]any
 	homeAccessRequirements           map[string]any
 	externalHomeAccessBindings       map[string]any
+	homeAccessOverlays               map[string]any
 	backupTargetRequirements         map[string]any
 	externalBackupTargetBindings     map[string]any
 	homeBackupTargetRequirements     map[string]any
@@ -1336,7 +1337,14 @@ func safeModuleHomeAccessHandoff(moduleID string, module map[string]any, source 
 	if err != nil {
 		return nil, err
 	}
-	return normalizedObject(map[string]any{"requirements": requirements, "bindings": bindings}, "homeAccessHandoff")
+	// The kit-owned overlay is copied verbatim from the plan's hash-bound
+	// homeAccessOverlays record; only the module's own Sites and capability
+	// reach the executor.
+	overlays, err := safeModuleHomeAccessProjection(moduleID, module, source.homeAccessOverlays, false)
+	if err != nil {
+		return nil, err
+	}
+	return normalizedObject(map[string]any{"requirements": requirements, "bindings": bindings, "overlays": overlays}, "homeAccessHandoff")
 }
 
 func safeModuleHomeOffsiteBackup(moduleID string, module map[string]any, source modulePlanInputSource) (map[string]any, error) {
@@ -2140,6 +2148,10 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 	if err != nil {
 		return modulePlanInputSource{}, err
 	}
+	homeAccessOverlays, err := objectField(top, "resolvedPlan", "homeAccessOverlays")
+	if err != nil {
+		return modulePlanInputSource{}, err
+	}
 	backupTargetRequirements, err := objectField(top, "resolvedPlan", "backupTargetRequirements")
 	if err != nil {
 		return modulePlanInputSource{}, err
@@ -2197,6 +2209,7 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 		controlPlane: controlPlane, bridge: bridge, identity: identity, identityTrust: identityTrust,
 		data: data, failurePolicy: failurePolicy, backupPolicy: backupPolicy, driftPolicy: driftPolicy, observability: observability, localReachability: localReachability,
 		homeLANDiscovery: homeLANDiscovery, homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
+		homeAccessOverlays:       homeAccessOverlays,
 		backupTargetRequirements: backupTargetRequirements, externalBackupTargetBindings: externalBackupTargetBindings,
 		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
 		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,

@@ -105,7 +105,24 @@ func (s *Service) AddHouseholdUser(ctx context.Context, spec HouseholdUserSpec) 
 		} else if migrated {
 			return s.ActivateHouseholdUser(ctx, username)
 		}
-		return HouseholdUser{Username: username, Email: email, DisplayName: displayName, Status: status, Access: householdAccessOf(existing[0])}, nil
+		user := HouseholdUser{Username: username, Email: email, DisplayName: displayName, Status: status, Access: householdAccessOf(existing[0])}
+		if status == "pending" {
+			// A member who never enrolled a passkey gets a fresh one-time setup
+			// link on a re-sent invite, exactly like the first one: an earlier
+			// link may never have reached them (the caller gave up before the
+			// answer), and without one the member could never sign in.
+			token, err := client.CreateOneTimeAccessToken(ctx, existing[0].ID, ownerEnrollmentTTL)
+			if err != nil || strings.TrimSpace(token) == "" {
+				return HouseholdUser{}, errors.New("localowner: household enrollment creation failed")
+			}
+			address, err := localevidence.LocalIdentityRuntimeAddress(s.workspaceRoot)
+			if err != nil {
+				return HouseholdUser{}, err
+			}
+			user.ExpiresAt = s.now().UTC().Add(ownerEnrollmentTTL).Truncate(time.Second)
+			user.SetupURL = pocketid.ActivationURL(address.PocketIDOrigin(), token)
+		}
+		return user, nil
 	}
 	accessIDs, err := householdAccessGroupIDs(ctx, client, access)
 	if err != nil {

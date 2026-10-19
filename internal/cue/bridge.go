@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/netenv"
@@ -816,4 +817,17 @@ func serverLANIPForLocalDNS(spec *models.StackSpec, caps *models.DockerCapabilit
 		return strings.TrimSpace(caps.PrivateIP)
 	}
 	return netenv.PrivateIP()
+}
+
+// defaultDockerHost returns the Docker endpoint the generated OpenTofu
+// provider should target: DOCKER_HOST when set, the named pipe on Windows,
+// otherwise empty so the provider uses its own default socket.
+func defaultDockerHost() string {
+	if dockerHost := os.Getenv("DOCKER_HOST"); dockerHost != "" {
+		return dockerHost
+	}
+	if runtime.GOOS == "windows" {
+		return "npipe:////./pipe/docker_engine"
+	}
+	return ""
 }

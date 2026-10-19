@@ -24,6 +24,9 @@ type localRuntimeExecutorPlan struct {
 	ExternalHomeAccessBindings       json.RawMessage             `json:"externalHomeAccessBindings,omitempty"`
 	HomeBackupTargetRequirements     json.RawMessage             `json:"homeBackupTargetRequirements,omitempty"`
 	ExternalHomeBackupTargetBindings json.RawMessage             `json:"externalHomeBackupTargetBindings,omitempty"`
+	// homeAccessOverlays reaches validation only through the closed
+	// homeAccessHandoff projection; it is never a direct plan input.
+	homeAccessOverlays json.RawMessage
 }
 
 func (localRuntimeExecutorPlan) executorContractPlanMarker() {}
@@ -36,6 +39,7 @@ type homeOffsiteBackupProjection struct {
 type homeAccessHandoffProjection struct {
 	Requirements json.RawMessage `json:"requirements"`
 	Bindings     json.RawMessage `json:"bindings"`
+	Overlays     json.RawMessage `json:"overlays"`
 }
 
 type homeAccessExecutorPlan struct {
@@ -155,6 +159,10 @@ func decodeHomeAccessExecutorPlan(raw []byte, path string, spec executorContract
 		ControlPlane:               exact.ControlPlane,
 		HomeAccessRequirements:     exact.HomeAccessHandoff.Requirements,
 		ExternalHomeAccessBindings: exact.HomeAccessHandoff.Bindings,
+		homeAccessOverlays:         exact.HomeAccessHandoff.Overlays,
+	}
+	if len(exact.HomeAccessHandoff.Overlays) == 0 {
+		return nil, fail(ErrInvalidPlan, path+".homeAccessHandoff.overlays", "Home access handoff requires the exact overlay projection")
 	}
 	if err := validateHomeAccessExecutorProjection(validationPlan, spec, path+".homeAccessHandoff"); err != nil {
 		return nil, err
@@ -391,6 +399,12 @@ func validateHomeAccessExecutorProjection(plan localRuntimeExecutorPlan, spec ex
 	if len(plan.HomeAccessRequirements) == 0 || len(plan.ExternalHomeAccessBindings) == 0 {
 		return fail(ErrInvalidPlan, path, "Home access module requires exact requirement and binding projections")
 	}
+	overlays := map[string]map[string]json.RawMessage{}
+	if len(plan.homeAccessOverlays) != 0 {
+		if err := decodeStrict(plan.homeAccessOverlays, &overlays); err != nil {
+			return wrap(ErrInvalidPlan, path+".overlays", "decode closed Home access overlays", err)
+		}
+	}
 	var requirements map[string]map[string]json.RawMessage
 	if err := decodeStrict(plan.HomeAccessRequirements, &requirements); err != nil {
 		return wrap(ErrInvalidPlan, path+".homeAccessRequirements", "decode closed Home access requirements", err)
@@ -445,6 +459,15 @@ func validateHomeAccessExecutorProjection(plan localRuntimeExecutorPlan, spec ex
 			return fail(ErrInvalidPlan, path+".homeAccessRequirements."+site.ID+"."+capabilityRef, "requirement widens or contradicts the exact Home access authority")
 		}
 		bindingByCapability := bindings[site.ID]
+		if overlayByCapability, realized := overlays[site.ID]; realized {
+			if len(bindingByCapability) != 0 {
+				return fail(ErrInvalidPlan, path+".overlays."+site.ID, "kit-owned overlay and external binding cannot both realize one Home access capability")
+			}
+			if err := validateHomeAccessOverlayHandoff(overlayByCapability, requirement, capabilityRef, path+".overlays."+site.ID); err != nil {
+				return err
+			}
+			continue
+		}
 		if len(bindingByCapability) == 0 {
 			continue
 		}
@@ -472,6 +495,97 @@ func validateHomeAccessExecutorProjection(plan localRuntimeExecutorPlan, spec ex
 		if !containsExecutorBundleString(sortedExecutorBundleSites(plan.Sites, "home"), siteRef) {
 			return fail(ErrInvalidPlan, path+".externalHomeAccessBindings."+siteRef, "binding targets a Site outside the module")
 		}
+	}
+	for siteRef := range overlays {
+		if _, required := requirements[siteRef]; !required {
+			return fail(ErrInvalidPlan, path+".overlays."+siteRef, "overlay targets a Site outside the exact requirement")
+		}
+	}
+	return nil
+}
+
+// homeAccessOverlayProjection is the closed executor view of one
+// stackkit.home-access-overlay/v1 realization. Every field is public overlay
+// configuration; strict decoding refuses anything else, so no private key,
+// endpoint secret or foreign route can travel through the handoff.
+type homeAccessOverlayProjection struct {
+	APIVersion             string   `json:"apiVersion"`
+	Kind                   string   `json:"kind"`
+	StackID                string   `json:"stackId"`
+	SiteRef                string   `json:"siteRef"`
+	CapabilityRef          string   `json:"capabilityRef"`
+	ContractOwnerRef       string   `json:"contractOwnerRef"`
+	CapabilityContractHash string   `json:"capabilityContractHash"`
+	RequirementsHash       string   `json:"requirementsHash"`
+	TargetNodeRefs         []string `json:"targetNodeRefs"`
+	Overlay                struct {
+		CapabilityRef              string `json:"capabilityRef"`
+		Implementation             string `json:"implementation"`
+		Ownership                  string `json:"ownership"`
+		AccountRequired            bool   `json:"accountRequired"`
+		InterfaceName              string `json:"interfaceName"`
+		Transport                  string `json:"transport"`
+		ListenPort                 int    `json:"listenPort"`
+		AddressPool                string `json:"addressPool"`
+		NodeAddress                string `json:"nodeAddress"`
+		PersistentKeepaliveSeconds int    `json:"persistentKeepaliveSeconds"`
+		Peers                      struct {
+			Source     string `json:"source"`
+			Identity   string `json:"identity"`
+			AllowedIPs string `json:"allowedIPs"`
+			Removal    string `json:"removal"`
+		} `json:"peers"`
+		Routing struct {
+			RouteScope        string `json:"routeScope"`
+			AllowDefaultRoute bool   `json:"allowDefaultRoute"`
+			AllowBroadLAN     bool   `json:"allowBroadLAN"`
+		} `json:"routing"`
+		KeyCustody struct {
+			NodePrivateKey   string `json:"nodePrivateKey"`
+			DevicePrivateKey string `json:"devicePrivateKey"`
+			RenderedOutput   string `json:"renderedOutput"`
+		} `json:"keyCustody"`
+		SessionPolicy     string `json:"sessionPolicy"`
+		EndpointDiscovery string `json:"endpointDiscovery"`
+	} `json:"overlay"`
+	SpecHash        string `json:"specHash"`
+	RealizationHash string `json:"realizationHash"`
+}
+
+func validateHomeAccessOverlayHandoff(byCapability map[string]json.RawMessage, requirement homeAccessRequirementProjection, capabilityRef, path string) error {
+	if capabilityRef != "private-remote-access" || len(byCapability) != 1 {
+		return fail(ErrInvalidPlan, path, "a kit-owned overlay realizes only the private remote access capability")
+	}
+	raw, exists := byCapability[capabilityRef]
+	if !exists {
+		return fail(ErrInvalidPlan, path, "overlay capability does not match the module")
+	}
+	path += "." + capabilityRef
+	var overlay homeAccessOverlayProjection
+	if err := decodeStrict(raw, &overlay); err != nil {
+		return wrap(ErrInvalidPlan, path, "decode closed Home access overlay", err)
+	}
+	body := overlay.Overlay
+	if overlay.APIVersion != "stackkit.home-access-overlay/v1" || overlay.Kind != "HomeAccessOverlayRealization" ||
+		overlay.StackID != requirement.StackID || overlay.SiteRef != requirement.SiteRef || overlay.CapabilityRef != requirement.CapabilityRef ||
+		overlay.ContractOwnerRef != requirement.ContractOwnerRef || overlay.CapabilityContractHash != requirement.CapabilityContractHash ||
+		overlay.RequirementsHash != requirement.RequirementsHash || overlay.SpecHash != requirement.SpecHash ||
+		!exactStringList(overlay.TargetNodeRefs, requirement.TargetNodeRefs) {
+		return fail(ErrInvalidPlan, path, "overlay does not realize the exact Home access requirement")
+	}
+	if body.CapabilityRef != capabilityRef || body.Implementation != "wireguard" || body.Ownership != "kit-owned" || body.AccountRequired ||
+		body.KeyCustody.NodePrivateKey != "node-generated-local-custody" || body.KeyCustody.DevicePrivateKey != "device-generated-never-transferred" ||
+		body.KeyCustody.RenderedOutput != "public-keys-only" || body.Routing.RouteScope != "declared-services-only" ||
+		body.Routing.AllowDefaultRoute || body.Routing.AllowBroadLAN || body.Peers.AllowedIPs != "single-host" {
+		return fail(ErrInvalidPlan, path+".overlay", "overlay is not a kit-owned, account-free, public-keys-only, declared-services-only realization")
+	}
+	var hashBody map[string]any
+	if err := decodeStrict(raw, &hashBody); err != nil {
+		return wrap(ErrInvalidPlan, path, "decode Home access overlay body", err)
+	}
+	wantHash, err := resolvedplan.ComputeHomeAccessOverlayRealizationHash(hashBody)
+	if err != nil || overlay.RealizationHash != wantHash {
+		return fail(ErrInvalidPlan, path+".realizationHash", "does not match the canonical overlay realization body")
 	}
 	return nil
 }

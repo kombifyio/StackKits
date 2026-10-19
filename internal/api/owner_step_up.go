@@ -24,6 +24,10 @@ type ownerStepUpFlow struct {
 	issuer, verifier string
 	browserHash      [32]byte
 	started          bool
+	// deviceEnroll flows carry no action binding; binding.ExpiresAt bounds
+	// them and nonce is the random OIDC nonce the pairing step-up must echo.
+	deviceEnroll bool
+	nonce        string
 }
 
 type ownerStepUpHandler struct {
@@ -49,11 +53,15 @@ func (s *Server) registerOwnerStepUpRoutes() {
 	s.mux.HandleFunc("GET "+ownerStepUpPath+"/review", h.review)
 	s.mux.HandleFunc("POST "+ownerStepUpPath+"/review", h.confirm)
 	s.mux.HandleFunc("GET "+localowner.StepUpCallbackPath, h.callback)
+	s.mux.HandleFunc("POST "+ownerStepUpDeviceEnrollPath+"/prepare", h.prepareDeviceEnroll)
+	s.mux.HandleFunc("GET "+ownerStepUpDeviceEnrollPath, h.reviewDeviceEnroll)
+	s.mux.HandleFunc("POST "+ownerStepUpDeviceEnrollPath, h.startDeviceEnroll)
 }
 
 func isOwnerStepUpBrowserRoute(r *http.Request) bool {
 	return (r.URL.Path == ownerStepUpPath+"/review" && (r.Method == http.MethodGet || r.Method == http.MethodPost)) ||
-		(r.URL.Path == localowner.StepUpCallbackPath && r.Method == http.MethodGet)
+		(r.URL.Path == localowner.StepUpCallbackPath && r.Method == http.MethodGet) ||
+		(r.URL.Path == ownerStepUpDeviceEnrollPath && (r.Method == http.MethodGet || r.Method == http.MethodPost))
 }
 
 func stepUpHeaders(w http.ResponseWriter) {
@@ -208,6 +216,10 @@ func (h *ownerStepUpHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
+	if flow.deviceEnroll {
+		h.finishDeviceEnroll(w, ctx, service, r.URL.Query().Get("code"), flow)
+		return
+	}
 	receipt, err := service.ExchangeStepUpCode(ctx, h.origin, r.URL.Query().Get("code"), flow.verifier, flow.binding)
 	if err != nil {
 		stepUpFailure(w)

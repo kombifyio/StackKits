@@ -38,9 +38,8 @@ const (
 )
 
 var (
-	ErrHomeAccessDenied          = errors.New("identity: current independent Home human and device proof required")
-	ErrHomeEnrollmentUnavailable = errors.New("identity: Home enrollment remains unavailable until local pairing and human step-up authority are connected")
-	homeVerifierAllowedJWTAlgs   = []jose.SignatureAlgorithm{jose.EdDSA, jose.ES256, jose.RS256}
+	ErrHomeAccessDenied        = errors.New("identity: current independent Home human and device proof required")
+	homeVerifierAllowedJWTAlgs = []jose.SignatureAlgorithm{jose.EdDSA, jose.ES256, jose.RS256}
 )
 
 // HomePocketIDTrust is the live PocketID OIDC authority. The CUE human issuer
@@ -113,11 +112,6 @@ type homeAccessDecision struct {
 	Device    string
 	ProofID   string
 	ExpiresAt time.Time
-}
-
-// EnrollHomeDevice stays closed until pairing and human step-up exist.
-func EnrollHomeDevice(string, json.RawMessage) error {
-	return ErrHomeEnrollmentUnavailable
 }
 
 // BindHomePublicTrust is local Owner publication of current public trust.

@@ -132,33 +132,55 @@ func (s *Service) stepUpTrust(ctx context.Context, origin string, create bool) (
 // ExchangeStepUpCode uses only the fixed local PocketID endpoint. Neither an
 // incoming token nor discovery metadata may redirect a request to another host.
 func (s *Service) ExchangeStepUpCode(ctx context.Context, origin, code, verifier string, expected RemoteActionApprovalBinding) (json.RawMessage, error) {
-	origin, err := NormalizeStepUpOrigin(origin)
+	idToken, trust, err := s.exchangeStepUpCode(ctx, origin, code, verifier)
 	if err != nil {
 		return nil, err
+	}
+	receipt, _ := json.Marshal(RemoteActionApproval{IDToken: idToken})
+	if err = VerifyRemoteActionApprovalClaims(receipt, expected, trust, s.now()); err != nil {
+		return nil, err
+	}
+	return receipt, nil
+}
+
+// ExchangeStepUpIDToken redeems a step-up authorization code for its PocketID
+// ID token without an action binding. The caller must verify the token against
+// its own purpose (issuer, Owner subject, audience StepUpClientID, its flow
+// nonce, passkey amr and freshness) before acting; the Home device-enroll
+// ceremony does so in identity.IssueHomePairingWithOwnerStepUp. The token is a
+// credential and never leaves the server.
+func (s *Service) ExchangeStepUpIDToken(ctx context.Context, origin, code, verifier string) (string, error) {
+	idToken, _, err := s.exchangeStepUpCode(ctx, origin, code, verifier)
+	return idToken, err
+}
+
+func (s *Service) exchangeStepUpCode(ctx context.Context, origin, code, verifier string) (string, StepUpTrust, error) {
+	origin, err := NormalizeStepUpOrigin(origin)
+	if err != nil {
+		return "", StepUpTrust{}, err
 	}
 	trust, err := s.ReadStepUpTrust(ctx, origin)
 	if err != nil {
-		return nil, err
+		return "", StepUpTrust{}, err
 	}
 	if code == "" || len(code) > 4096 || len(verifier) < 43 || len(verifier) > 128 {
-		return nil, ErrStepUpRejected
+		return "", StepUpTrust{}, ErrStepUpRejected
 	}
 	secret, err := readStepUpSecret(s.workspaceRoot)
 	if err != nil {
-		return nil, err
+		return "", StepUpTrust{}, err
 	}
 	form := url.Values{"grant_type": {"authorization_code"}, "client_id": {StepUpClientID}, "client_secret": {secret}, "code": {code}, "code_verifier": {verifier}, "redirect_uri": {origin + StepUpCallbackPath}}
 	var response struct {
 		IDToken string `json:"id_token"`
 	}
 	if err = stepUpJSON(ctx, http.MethodPost, pocketIDLocalAPI+"/api/oidc/token", form, &response); err != nil {
-		return nil, err
+		return "", StepUpTrust{}, err
 	}
-	receipt, _ := json.Marshal(RemoteActionApproval{IDToken: response.IDToken})
-	if err = VerifyRemoteActionApprovalClaims(receipt, expected, trust, s.now()); err != nil {
-		return nil, err
+	if response.IDToken == "" {
+		return "", StepUpTrust{}, ErrStepUpRejected
 	}
-	return receipt, nil
+	return response.IDToken, trust, nil
 }
 
 func readStepUpSecret(workspaceRoot string) (string, error) {

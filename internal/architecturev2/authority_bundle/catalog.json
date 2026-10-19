@@ -25822,7 +25822,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:a34fa26daf4086a852664f1dbbd18eae15f3c74858ebac41286ce9e54dd38b57",
+          "contractHash": "sha256:87d9111fdea7ca8eff1389fed1a12c596803f19d4c33afb58473fd2317dbc546",
           "id": "compose",
           "inputBindings": [
             {
@@ -25970,6 +25970,18 @@
               "sourceServiceRefs": [],
               "targetPort": 53,
               "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
+              "componentRef": "stackkit-server",
+              "exposure": "lan",
+              "id": "stackkit-server-home-enroll",
+              "port": 9443,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9443,
+              "transport": "tcp"
             }
           ],
           "secretInputBindings": {},
@@ -26052,7 +26064,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:14a8c8894512f82eda21ed133f24335be7d73dbdb45fd082e1f2d35c69ead5fc",
+          "contractHash": "sha256:8ec138b470b0af18c6a34133dc92d9d883b0128894f2ad632f133391672dca77",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -26200,6 +26212,18 @@
               "sourceServiceRefs": [],
               "targetPort": 53,
               "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
+              "componentRef": "stackkit-server",
+              "exposure": "lan",
+              "id": "stackkit-server-home-enroll",
+              "port": 9443,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9443,
+              "transport": "tcp"
             }
           ],
           "secretInputBindings": {},
@@ -26282,7 +26306,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:5472be9308a00e68937f0b502c3f2b7d3509d3f687b8fcb6417f4f24bce87602",
+          "contractHash": "sha256:4f6460d52f07ea50c8530a30bf099db65c3662f08f3fe94f583049f2ac32fae7",
           "id": "terramate",
           "inputBindings": [
             {
@@ -26430,6 +26454,18 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 53,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
+              "componentRef": "stackkit-server",
+              "exposure": "lan",
+              "id": "stackkit-server-home-enroll",
+              "port": 9443,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9443,
               "transport": "tcp"
             }
           ],
@@ -26617,7 +26653,7 @@
             "basement-core-terramate-stack",
             "local-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:5472be9308a00e68937f0b502c3f2b7d3509d3f687b8fcb6417f4f24bce87602",
+          "contractHash": "sha256:4f6460d52f07ea50c8530a30bf099db65c3662f08f3fe94f583049f2ac32fae7",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -27522,7 +27558,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:41af158c529486e41e46a13179d2e5005dc350cc4ca6565dfdef9ee50e083745",
+          "contractHash": "sha256:0093887c9e9b4e4692e99156608469971d8e292052dfb0888980c6095f0e133a",
           "id": "compose",
           "inputBindings": [
             {
@@ -27659,6 +27695,18 @@
               "sourceServiceRefs": [],
               "targetPort": 53,
               "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
+              "componentRef": "stackkit-server",
+              "exposure": "lan",
+              "id": "stackkit-server-home-enroll",
+              "port": 9443,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9443,
+              "transport": "tcp"
             }
           ],
           "secretInputBindings": {},
@@ -27724,7 +27772,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:389f0038b407a8fa28cd5894a9a9e08869cdc28df4491ab8775613957e7c39c0",
+          "contractHash": "sha256:c238bcb154149646c02311b783db5dd1ecf257a12c27a2b82a6519f98da23d32",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -27861,6 +27909,18 @@
               "sourceServiceRefs": [],
               "targetPort": 53,
               "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
+              "componentRef": "stackkit-server",
+              "exposure": "lan",
+              "id": "stackkit-server-home-enroll",
+              "port": 9443,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9443,
+              "transport": "tcp"
             }
           ],
           "secretInputBindings": {},
@@ -27926,7 +27986,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:e951ad882e6e1b44b79445bd5b35b584f7908aee5647eb9faf9f7c8a24747715",
+          "contractHash": "sha256:f4b286a9d2c90d741a4509db369cab866e4c033f1cd1d54838887704cca620ca",
           "id": "terramate",
           "inputBindings": [
             {
@@ -28063,6 +28123,18 @@
               "sharing": "exclusive",
               "sourceServiceRefs": [],
               "targetPort": 53,
+              "transport": "tcp"
+            },
+            {
+              "bindAddress": "0.0.0.0",
+              "bindAddressSource": "node-site",
+              "componentRef": "stackkit-server",
+              "exposure": "lan",
+              "id": "stackkit-server-home-enroll",
+              "port": 9443,
+              "sharing": "exclusive",
+              "sourceServiceRefs": [],
+              "targetPort": 9443,
               "transport": "tcp"
             }
           ],
@@ -28233,7 +28305,7 @@
             "basement-core-lite-terramate-stack",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:e951ad882e6e1b44b79445bd5b35b584f7908aee5647eb9faf9f7c8a24747715",
+          "contractHash": "sha256:f4b286a9d2c90d741a4509db369cab866e4c033f1cd1d54838887704cca620ca",
           "id": "terramate",
           "planInputRefs": [
             "stackId",

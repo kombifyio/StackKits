@@ -359,6 +359,9 @@ func validateResolvedProviderBodies(plan ResolvedPlan, catalog *indexedCatalog, 
 		if err := requireCatalogField(provider, contract, path, "remoteActionContracts"); err != nil {
 			return err
 		}
+		if err := requireCatalogField(provider, contract, path, "homeAccessOverlay"); err != nil {
+			return err
+		}
 		wantProvides := capabilitiesForProvider(capabilityProviders, id)
 		haveProvides, err := stringListField(provider, path, "provides", true)
 		if err != nil {

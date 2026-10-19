@@ -19,7 +19,8 @@ const (
 	StackKitServerMCPRouter = "stackkit-mcp"
 )
 
-const stackKitServerComposeServiceBody = `  stackkit-server:
+const (
+	stackKitServerComposeServiceHead = `  stackkit-server:
     image: docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
     restart: unless-stopped
     logging:
@@ -35,8 +36,8 @@ const stackKitServerComposeServiceBody = `  stackkit-server:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    command: ["/usr/local/bin/stackkit-server", "--port", "8082", "--base-dir", "/var/lib/stackkit-server"]
-    environment:
+`
+	stackKitServerComposeServiceEnvironment = `    environment:
       STACKKITS_RUNTIME_PROFILE: production
       # Credentials arrive as files, never as environment values that
       # container inspection would expose.
@@ -58,8 +59,8 @@ const stackKitServerComposeServiceBody = `  stackkit-server:
         target: /run/stackkit-server
         read_only: true
     tmpfs: [/var/lib/stackkit-server, /tmp]
-    ports: ["127.0.0.1:8082:8082"]
-    healthcheck:
+`
+	stackKitServerComposeServiceTail = `    healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8082/health"]
       interval: 5s
       timeout: 3s
@@ -77,8 +78,19 @@ const stackKitServerComposeServiceBody = `  stackkit-server:
       - traefik.http.middlewares.stackkit-mcp-ratelimit.ratelimit.burst=20
       - traefik.http.services.stackkit-mcp.loadbalancer.server.port=8082
 `
+)
 
+// The Cloud Core serves only the loopback API. The Basement Core adds the Home
+// device enrollment listener (catalog listener stackkit-server-home-enroll):
+// TLS 1.3 on port 9443, published only on the node site address, which the
+// renderer substitutes for 0.0.0.0 from the verified plan.
 const (
-	cloudStackKitServerComposeService    = stackKitServerComposeServiceBody + "    networks: [cloud-core]\n"
-	basementStackKitServerComposeService = stackKitServerComposeServiceBody + "    networks: [basement-core]\n"
+	cloudStackKitServerComposeService = stackKitServerComposeServiceHead +
+		`    command: ["/usr/local/bin/stackkit-server", "--port", "8082", "--base-dir", "/var/lib/stackkit-server"]
+` + stackKitServerComposeServiceEnvironment + `    ports: ["127.0.0.1:8082:8082"]
+` + stackKitServerComposeServiceTail + "    networks: [cloud-core]\n"
+	basementStackKitServerComposeService = stackKitServerComposeServiceHead +
+		`    command: ["/usr/local/bin/stackkit-server", "--port", "8082", "--base-dir", "/var/lib/stackkit-server", "--home-enroll-listen", "0.0.0.0:9443"]
+` + stackKitServerComposeServiceEnvironment + `    ports: ["127.0.0.1:8082:8082", "0.0.0.0:9443:9443"]
+` + stackKitServerComposeServiceTail + "    networks: [basement-core]\n"
 )

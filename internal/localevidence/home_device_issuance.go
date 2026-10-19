@@ -3,8 +3,15 @@ package localevidence
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 )
@@ -79,4 +86,65 @@ func IssueHomeDeviceCertificate(ctx context.Context, root string, csrPEM []byte,
 		return nil, errors.New("localevidence: step-ca device leaf lacks the device marker")
 	}
 	return chain, nil
+}
+
+// HomeEnrollmentServerName is the only DNS name of the LAN enrollment
+// listener's server certificate. It sits under the reserved private-use
+// ".internal" TLD so it never collides with a routed site name; a device
+// connects to the listener's site address and verifies this name against the
+// step-ca root it pinned from the pairing payload.
+const HomeEnrollmentServerName = "stackkit-home-enroll.internal"
+
+// IssueHomeEnrollmentServerCertificate obtains the enrollment listener's TLS
+// identity from the node-local step-ca through the existing owner-authorized
+// serverAuth provisioner. The private key is generated here and never leaves
+// the process; the leaf names only HomeEnrollmentServerName.
+func IssueHomeEnrollmentServerCertificate(ctx context.Context, root string) (tls.Certificate, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	der, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: HomeEnrollmentServerName}, DNSNames: []string{HomeEnrollmentServerName}}, key)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	csr, err := x509.ParseCertificateRequest(der)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	chainPEM, err := issueBasementWorkloadCertificate(ctx, root, csr, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: der}), 86400, basementOriginProvisionerName, x509.ExtKeyUsageServerAuth, nil)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	certificate := tls.Certificate{PrivateKey: key}
+	for rest := chainPEM; ; {
+		var block *pem.Block
+		if block, rest = pem.Decode(rest); block == nil {
+			break
+		}
+		certificate.Certificate = append(certificate.Certificate, block.Bytes)
+	}
+	if len(certificate.Certificate) == 0 {
+		return tls.Certificate{}, errors.New("localevidence: empty enrollment listener certificate chain")
+	}
+	if certificate.Leaf, err = x509.ParseCertificate(certificate.Certificate[0]); err != nil {
+		return tls.Certificate{}, err
+	}
+	return certificate, nil
+}
+
+// HomeEnrollmentCARootSHA256 is the hex SHA-256 of the established step-ca
+// root certificate (DER), the value `step ca bootstrap --fingerprint` takes.
+// A device pins it before it trusts the enrollment listener.
+func HomeEnrollmentCARootSHA256(root string) (string, error) {
+	owner, err := LoadOwnerCustody(root)
+	if err != nil {
+		return "", err
+	}
+	block, _ := pem.Decode([]byte(owner.StepCARootCertificatePEM))
+	if block == nil || block.Type != "CERTIFICATE" {
+		return "", errors.New("localevidence: no established step-ca root")
+	}
+	sum := sha256.Sum256(block.Bytes)
+	return hex.EncodeToString(sum[:]), nil
 }

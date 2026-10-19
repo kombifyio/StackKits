@@ -5908,19 +5908,36 @@ _basementCoreRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
 	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "127.0.0.1", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 	{id: "lan-dns-udp", componentRef: "lan-dns", bindAddressSource: "node-site", transport: "udp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
 	{id: "lan-dns-tcp", componentRef: "lan-dns", bindAddressSource: "node-site", transport: "tcp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
+	// Home device enrollment (State Console ceremony): TLS 1.3 with a step-ca
+	// server leaf, served by stackkit-server on the node site address only. A
+	// device must reach it from the LAN; the server admits the real transport
+	// peer address and refuses the route on every other listener.
+	{id: "stackkit-server-home-enroll", componentRef: "stackkit-server", bindAddressSource: "node-site", transport: "tcp", bindAddress: "0.0.0.0", port: 9443, targetPort: 9443, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
 ]])
 
 // Two core components may bind a host listener another device can reach, and
 // for opposite reasons: the router publishes the site, and the resolver answers
 // it. A resolver on loopback resolves nothing, so LAN binding is its function
-// rather than an exception to tolerate. Everything else stays on loopback. The
-// Basement list is a superset of the Cloud list, so one check covers both.
+// rather than an exception to tolerate. The one further LAN listener is the
+// Home device enrollment listener of stackkit-server, held below to its exact
+// shape. Everything else stays on loopback. The Basement list is a superset of
+// the Cloud list, so one check covers both.
 _coreLANReachableComponents: ["router", "lan-dns"]
+_coreLANEnrollmentListenerRef: "stackkit-server-home-enroll"
 
 _coreDirectListenersLoopbackOnly: [...("127.0.0.1")] & [
 	for listener in _basementCoreRuntimeListeners
-	if !list.Contains(_coreLANReachableComponents, listener.componentRef) {listener.bindAddress},
+	if !list.Contains(_coreLANReachableComponents, listener.componentRef) && listener.id != _coreLANEnrollmentListenerRef {listener.bindAddress},
 ]
+
+// The enrollment carve-out is stackkit-server's only non-loopback listener and
+// must stay on the node site address with exposure "lan" on port 9443.
+_coreStackKitServerLANListenerIsEnrollmentOnly: [...({id: _coreLANEnrollmentListenerRef, port: 9443, transport: "tcp", exposure: "lan", bindAddressSource: "node-site"})] & [
+	for listener in _basementCoreRuntimeListeners
+	if listener.componentRef == "stackkit-server" && listener.bindAddress != "127.0.0.1" {
+		id: listener.id, port: listener.port, transport: listener.transport, exposure: listener.exposure, bindAddressSource: listener.bindAddressSource
+	},
+] & list.MinItems(1) & list.MaxItems(1)
 
 // The carve-out is not a hole: the resolver may bind port 53 and nothing else,
 // and it must say "lan" rather than borrow the router's "public". A widened
@@ -7564,7 +7581,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:a34fa26daf4086a852664f1dbbd18eae15f3c74858ebac41286ce9e54dd38b57"
+				contractHash:    "sha256:87d9111fdea7ca8eff1389fed1a12c596803f19d4c33afb58473fd2317dbc546"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7577,7 +7594,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:14a8c8894512f82eda21ed133f24335be7d73dbdb45fd082e1f2d35c69ead5fc"
+				contractHash:    "sha256:8ec138b470b0af18c6a34133dc92d9d883b0128894f2ad632f133391672dca77"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7590,7 +7607,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:5472be9308a00e68937f0b502c3f2b7d3509d3f687b8fcb6417f4f24bce87602"
+				contractHash:    "sha256:4f6460d52f07ea50c8530a30bf099db65c3662f08f3fe94f583049f2ac32fae7"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7622,7 +7639,7 @@ _architectureV2Modules: list.Concat([[
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:5472be9308a00e68937f0b502c3f2b7d3509d3f687b8fcb6417f4f24bce87602"
+				contractHash: "sha256:4f6460d52f07ea50c8530a30bf099db65c3662f08f3fe94f583049f2ac32fae7"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-terramate-opentofu",
@@ -7843,7 +7860,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:41af158c529486e41e46a13179d2e5005dc350cc4ca6565dfdef9ee50e083745"
+				contractHash:    "sha256:0093887c9e9b4e4692e99156608469971d8e292052dfb0888980c6095f0e133a"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7856,7 +7873,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:389f0038b407a8fa28cd5894a9a9e08869cdc28df4491ab8775613957e7c39c0"
+				contractHash:    "sha256:c238bcb154149646c02311b783db5dd1ecf257a12c27a2b82a6519f98da23d32"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7869,7 +7886,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:e951ad882e6e1b44b79445bd5b35b584f7908aee5647eb9faf9f7c8a24747715"
+				contractHash:    "sha256:f4b286a9d2c90d741a4509db369cab866e4c033f1cd1d54838887704cca620ca"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7901,7 +7918,7 @@ _architectureV2Modules: list.Concat([[
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:e951ad882e6e1b44b79445bd5b35b584f7908aee5647eb9faf9f7c8a24747715"
+				contractHash: "sha256:f4b286a9d2c90d741a4509db369cab866e4c033f1cd1d54838887704cca620ca"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-lite-terramate-opentofu",

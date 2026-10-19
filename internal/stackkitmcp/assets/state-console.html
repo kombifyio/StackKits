@@ -598,6 +598,11 @@
           <button type="button" id="selfCheck" data-i18n="workspace.hostCheck">Host Check</button>
           <button type="button" id="status" data-i18n="workspace.refreshStatus">Refresh Application Status</button>
         </div>
+        <div id="deviceEnrollment" class="hidden">
+          <h3 data-i18n="devices.heading">Household devices</h3>
+          <p data-i18n="devices.note">Enroll a phone or laptop on the Owner approval page. You authenticate there with your passkey, and the pairing code and QR code appear only on that page, never in this conversation.</p>
+          <a id="deviceEnrollmentLink" target="_blank" rel="noopener noreferrer" data-i18n="devices.link">Open device enrollment</a>
+        </div>
         <div id="applicationStatus" aria-live="polite">
           <h3 data-i18n="apps.heading">Your applications</h3>
           <p data-i18n="apps.refreshPrompt">Refresh status to see the applications selected for this workspace.</p>
@@ -1580,6 +1585,11 @@
     callTool("stackkit_state_console").then((result) => {
       const meta = structured(result);
       state.writeEnabled = !!meta?.cli_actions_enabled && !!meta?.config_write_enabled;
+      const enrollmentURL = String(meta?.device_enrollment_url || "");
+      if (enrollmentURL.startsWith("https://")) {
+        document.getElementById("deviceEnrollmentLink").href = enrollmentURL;
+        document.getElementById("deviceEnrollment").classList.remove("hidden");
+      }
       writeDot.classList.toggle("ok", state.writeEnabled);
       writeDot.classList.toggle("error", !window.openai?.callTool);
       setWriteStatus(state.writeEnabled ? "connector.writeEnabled" : "connector.readOnly");

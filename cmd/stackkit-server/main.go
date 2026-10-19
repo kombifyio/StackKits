@@ -29,6 +29,8 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/api"
 	"github.com/kombifyio/stackkits/internal/federationcontrol"
+	"github.com/kombifyio/stackkits/internal/identity"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localorigin"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
@@ -61,6 +63,7 @@ func main() {
 	originListen := flag.String("origin-listen", "", "Optional loopback socket for owner-bound origin mTLS; disabled by default")
 	controlListen := flag.String("federation-control-listen", "", "Optional owner-bound Cloud mTLS receiver socket for Home plan/verify actions")
 	edgeListen := flag.String("bridge-edge-listen", "", "Optional Cloud edge listener serving only the Owner-signed bridge publication route table; disabled by default")
+	homeEnrollListen := flag.String("home-enroll-listen", "", "Optional Home LAN device enrollment listener (TLS 1.3, step-ca server certificate); admits only LAN peers with a valid pairing code; disabled by default")
 	flag.Parse()
 
 	setupLogging(*logLevel)
@@ -110,7 +113,18 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	runServer(httpServer, originServer, controlServer, edgeServer)
+	var enrollServer *http.Server
+	if *homeEnrollListen != "" {
+		root := cfg.BaseDir
+		enrollServer, cfgErr = identity.NewHomeEnrollmentServer(root, *homeEnrollListen, func(ctx context.Context, csrPEM []byte, ttl int) ([]byte, error) {
+			return localevidence.IssueHomeDeviceCertificate(ctx, root, csrPEM, ttl)
+		}, identity.HomeEnrollmentCertificateSource(root))
+		if cfgErr != nil {
+			slog.Error("home enrollment listener configuration rejected", "error", cfgErr)
+			os.Exit(1)
+		}
+	}
+	runServer(httpServer, originServer, controlServer, edgeServer, enrollServer)
 }
 
 func initServerTelemetry(version string) func() {

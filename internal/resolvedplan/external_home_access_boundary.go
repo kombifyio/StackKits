@@ -10,6 +10,7 @@ import (
 
 const (
 	homeAccessRequirementAPIVersion      = "stackkit.home-access-requirement/v1"
+	homeAccessOverlayAPIVersion          = "stackkit.home-access-overlay/v1"
 	externalHomeAccessAPIVersion         = "stackkit.external-home-access-binding/v1"
 	maxExternalHomeAccessBindingValidity = 24 * time.Hour
 )
@@ -43,16 +44,141 @@ func ComputeExternalHomeAccessBindingHash(binding ExternalHomeAccessBinding) (st
 	return canonicalHash(clone, false)
 }
 
-func buildHomeAccessProjection(spec *specView, specHash string, sites, nodes, capabilities, modules []any) (map[string]any, map[string]any, error) {
+func buildHomeAccessProjection(spec *specView, specHash string, install map[string]any, sites, nodes, capabilities, modules, providers []any) (map[string]any, map[string]any, map[string]any, error) {
 	requirements, err := buildHomeAccessRequirements(spec.stackID, specHash, sites, nodes, capabilities, modules)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	bindings, err := projectExternalHomeAccessBindings(spec.originalInventory, requirements)
+	overlays, err := buildHomeAccessOverlays(install, requirements, providers)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return requirements, bindings, nil
+	bindings, err := projectExternalHomeAccessBindings(spec.originalInventory, requirements, overlays)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return requirements, overlays, bindings, nil
+}
+
+// ComputeHomeAccessOverlayRealizationHash binds the complete overlay
+// realization body while avoiding a self-referential digest.
+func ComputeHomeAccessOverlayRealizationHash(realization map[string]any) (string, error) {
+	clone, err := cloneObject(realization, false)
+	if err != nil {
+		return "", fmt.Errorf("clone Home access overlay realization: %w", err)
+	}
+	delete(clone, "realizationHash")
+	return canonicalHash(clone, false)
+}
+
+// buildHomeAccessOverlays derives the Standard Mode realization of every
+// private-remote-access requirement whose owning provider declares the
+// kit-owned WireGuard overlay. Advanced Mode (Techstack-managed) yields none:
+// there the external binding remains the realization.
+func buildHomeAccessOverlays(install map[string]any, requirements map[string]any, providers []any) (map[string]any, error) {
+	result := map[string]any{}
+	mode, err := stringField(install, "resolvedPlan.install", "mode")
+	if err != nil {
+		return nil, err
+	}
+	if mode == "advanced" {
+		return result, nil
+	}
+	providerOverlays := map[string]map[string]any{}
+	for index, value := range providers {
+		path := fmt.Sprintf("resolvedPlan.providers[%d]", index)
+		provider, err := asObject(value, path)
+		if err != nil {
+			return nil, err
+		}
+		overlay, exists, err := optionalObjectField(provider, path, "homeAccessOverlay")
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			continue
+		}
+		id, err := stringField(provider, path, "id")
+		if err != nil {
+			return nil, err
+		}
+		providerOverlays[id] = overlay
+	}
+	for _, siteRef := range sortedStringMapKeys(requirements) {
+		capabilityRequirements, err := asObject(requirements[siteRef], "resolvedPlan.homeAccessRequirements."+siteRef)
+		if err != nil {
+			return nil, err
+		}
+		for _, capabilityRef := range sortedStringMapKeys(capabilityRequirements) {
+			path := "resolvedPlan.homeAccessRequirements." + siteRef + "." + capabilityRef
+			requirement, err := asObject(capabilityRequirements[capabilityRef], path)
+			if err != nil {
+				return nil, err
+			}
+			ownerRef, err := stringField(requirement, path, "contractOwnerRef")
+			if err != nil {
+				return nil, err
+			}
+			overlay, declared := providerOverlays[ownerRef]
+			if !declared {
+				continue
+			}
+			overlayCapability, err := stringField(overlay, "resolvedPlan.providers."+ownerRef+".homeAccessOverlay", "capabilityRef")
+			if err != nil {
+				return nil, err
+			}
+			if overlayCapability != capabilityRef {
+				continue
+			}
+			if err := validateKitOwnedHomeOverlay(overlay, "resolvedPlan.providers."+ownerRef+".homeAccessOverlay"); err != nil {
+				return nil, err
+			}
+			clonedOverlay, err := cloneObject(overlay, false)
+			if err != nil {
+				return nil, err
+			}
+			realization := map[string]any{
+				"apiVersion": homeAccessOverlayAPIVersion, "kind": "HomeAccessOverlayRealization",
+				"stackId": requirement["stackId"], "siteRef": siteRef, "capabilityRef": capabilityRef,
+				"contractOwnerRef": ownerRef, "capabilityContractHash": requirement["capabilityContractHash"],
+				"requirementsHash": requirement["requirementsHash"], "targetNodeRefs": requirement["targetNodeRefs"],
+				"overlay": clonedOverlay, "specHash": requirement["specHash"],
+			}
+			hash, err := ComputeHomeAccessOverlayRealizationHash(realization)
+			if err != nil {
+				return nil, err
+			}
+			realization["realizationHash"] = hash
+			byCapability, _ := result[siteRef].(map[string]any)
+			if byCapability == nil {
+				byCapability = map[string]any{}
+				result[siteRef] = byCapability
+			}
+			byCapability[capabilityRef] = realization
+		}
+	}
+	return result, nil
+}
+
+// validateKitOwnedHomeOverlay refuses an overlay declaration that would move
+// key custody or the fabric out of the node, require an account, or widen
+// routing beyond the declared services.
+func validateKitOwnedHomeOverlay(overlay map[string]any, path string) error {
+	custody, err := objectField(overlay, path, "keyCustody")
+	if err != nil {
+		return err
+	}
+	routing, err := objectField(overlay, path, "routing")
+	if err != nil {
+		return err
+	}
+	if overlay["ownership"] != "kit-owned" || overlay["accountRequired"] != false ||
+		custody["nodePrivateKey"] != "node-generated-local-custody" || custody["devicePrivateKey"] != "device-generated-never-transferred" ||
+		custody["renderedOutput"] != "public-keys-only" || routing["allowDefaultRoute"] != false || routing["allowBroadLAN"] != false ||
+		routing["routeScope"] != "declared-services-only" {
+		return fail(ErrContractConflict, path, "Home access overlay is not a kit-owned, account-free, public-keys-only realization")
+	}
+	return nil
 }
 
 func buildHomeAccessRequirements(stackID, specHash string, sites, nodes, capabilities, modules []any) (map[string]any, error) {
@@ -200,7 +326,7 @@ func buildHomeAccessRequirements(stackID, specHash string, sites, nodes, capabil
 	return result, nil
 }
 
-func projectExternalHomeAccessBindings(inventory, requirements map[string]any) (map[string]any, error) {
+func projectExternalHomeAccessBindings(inventory, requirements, overlays map[string]any) (map[string]any, error) {
 	raw, exists := inventory["externalHomeAccessBindings"]
 	if !exists || raw == nil {
 		return map[string]any{}, nil
@@ -219,6 +345,9 @@ func projectExternalHomeAccessBindings(inventory, requirements map[string]any) (
 			requirement, err := homeAccessRequirementAt(requirements, siteRef, capabilityRef)
 			if err != nil {
 				return nil, fail(ErrExternalHomeAccessBindingMismatch, "inventory.externalHomeAccessBindings."+siteRef+"."+capabilityRef, "binding has no exact selected Home access requirement")
+			}
+			if homeAccessOverlayRealizes(overlays, siteRef, capabilityRef) {
+				return nil, fail(ErrExternalHomeAccessBindingMismatch, "inventory.externalHomeAccessBindings."+siteRef+"."+capabilityRef, "Standard Mode realizes this capability with the kit-owned overlay; an external binding is refused")
 			}
 			binding, err := asObject(capabilityBindings[capabilityRef], "inventory.externalHomeAccessBindings."+siteRef+"."+capabilityRef)
 			if err != nil {
@@ -240,6 +369,12 @@ func projectExternalHomeAccessBindings(inventory, requirements map[string]any) (
 		}
 	}
 	return result, nil
+}
+
+func homeAccessOverlayRealizes(overlays map[string]any, siteRef, capabilityRef string) bool {
+	byCapability, _ := overlays[siteRef].(map[string]any)
+	_, realized := byCapability[capabilityRef]
+	return realized
 }
 
 func homeAccessRequirementAt(requirements map[string]any, siteRef, capabilityRef string) (map[string]any, error) {
@@ -293,6 +428,28 @@ func validateHomeAccessPlanProjection(plan ResolvedPlan) error {
 	if !equal {
 		return fail(ErrExternalHomeAccessBindingMismatch, "resolvedPlan.homeAccessRequirements", "projection is not exactly compiler-derived from the selected Home access modules")
 	}
+	install, err := objectField(top, "resolvedPlan", "install")
+	if err != nil {
+		return err
+	}
+	providers, err := objectListField(top, "resolvedPlan", "providers")
+	if err != nil {
+		return err
+	}
+	wantOverlays, err := buildHomeAccessOverlays(install, wantRequirements, objectMapsAsAny(providers))
+	if err != nil {
+		return err
+	}
+	haveOverlays, err := objectField(top, "resolvedPlan", "homeAccessOverlays")
+	if err != nil {
+		return err
+	}
+	if equal, err = canonicalEqual(haveOverlays, wantOverlays); err != nil {
+		return err
+	}
+	if !equal {
+		return fail(ErrExternalHomeAccessBindingMismatch, "resolvedPlan.homeAccessOverlays", "projection is not exactly compiler-derived from the kit-owned overlay of the owning provider")
+	}
 	bindings, err := objectField(top, "resolvedPlan", "externalHomeAccessBindings")
 	if err != nil {
 		return err
@@ -306,6 +463,9 @@ func validateHomeAccessPlanProjection(plan ResolvedPlan) error {
 			requirement, err := homeAccessRequirementAt(wantRequirements, siteRef, capabilityRef)
 			if err != nil {
 				return fail(ErrExternalHomeAccessBindingMismatch, "resolvedPlan.externalHomeAccessBindings."+siteRef+"."+capabilityRef, "binding has no exact compiler-derived requirement")
+			}
+			if homeAccessOverlayRealizes(wantOverlays, siteRef, capabilityRef) {
+				return fail(ErrExternalHomeAccessBindingMismatch, "resolvedPlan.externalHomeAccessBindings."+siteRef+"."+capabilityRef, "Standard Mode realizes this capability with the kit-owned overlay; an external binding is refused")
 			}
 			binding, err := asObject(capabilityBindings[capabilityRef], "resolvedPlan.externalHomeAccessBindings."+siteRef+"."+capabilityRef)
 			if err != nil {
