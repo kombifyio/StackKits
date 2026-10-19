@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "0263302eb8a1d3564649c3b84978847be321de46",
-  "authority_bundle_sha256": "ae5f3c89302fbac28b83072ae4a6ef783a3552b427b64be3cb4de4ee11b2d2c5",
+  "source_sha": "77bb8e9dcbb24235e39d8ce8bc1c7ab5b64b4d3e",
+  "authority_bundle_sha256": "c86d51d131c56f477fe28d5e4095888c82c625aeb9b0957fb2d6d5876d750a89",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -317,7 +317,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU.",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. AnythingLLM stays on the CPU.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 1,
@@ -338,7 +338,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "83a95b327932805ace58e955056ce91c911f47a1b4afa109fb47cb4bee4e03e5"
+              "profile_sha256": "f756382f9a800d31881349c64b897442c342800090c62a8a392b369b82156c87"
             }
           ]
         },
@@ -1032,7 +1032,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
+              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 2,
@@ -1054,7 +1054,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "e96edc557930ba8c9516c538eac213f1969ab53a6812e19e6814cafbf351927e"
+              "profile_sha256": "0c001c195f2e7c3db4ac6d3d7215beeffff966b55ede5dd8333c043f478c9295"
             }
           ]
         },
@@ -3848,7 +3848,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. Open WebUI stays on the CPU.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 1,
@@ -3869,7 +3869,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "d3c9303a510c3cc9a8a3764bfce4c72004c31bca8362c0f4ddc05ded820ddbef"
+              "profile_sha256": "e1244e34e5bbc5924baa9af48af23a7b65e627918e7f414016e3b9fe1c6abb68"
             }
           ]
         },
@@ -5694,7 +5694,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU.",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. AnythingLLM stays on the CPU.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 1,
@@ -5715,7 +5715,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "83a95b327932805ace58e955056ce91c911f47a1b4afa109fb47cb4bee4e03e5"
+              "profile_sha256": "f756382f9a800d31881349c64b897442c342800090c62a8a392b369b82156c87"
             }
           ]
         },
@@ -6378,7 +6378,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
+              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 2,
@@ -6400,7 +6400,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "e96edc557930ba8c9516c538eac213f1969ab53a6812e19e6814cafbf351927e"
+              "profile_sha256": "0c001c195f2e7c3db4ac6d3d7215beeffff966b55ede5dd8333c043f478c9295"
             }
           ]
         },
@@ -9182,7 +9182,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. Open WebUI stays on the CPU.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 1,
@@ -9203,7 +9203,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "d3c9303a510c3cc9a8a3764bfce4c72004c31bca8362c0f4ddc05ded820ddbef"
+              "profile_sha256": "e1244e34e5bbc5924baa9af48af23a7b65e627918e7f414016e3b9fe1c6abb68"
             }
           ]
         },
@@ -11140,7 +11140,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU.",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. AnythingLLM stays on the CPU.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 1,
@@ -11161,7 +11161,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "83a95b327932805ace58e955056ce91c911f47a1b4afa109fb47cb4bee4e03e5"
+              "profile_sha256": "f756382f9a800d31881349c64b897442c342800090c62a8a392b369b82156c87"
             }
           ]
         },
@@ -11921,7 +11921,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
+              "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 2,
@@ -11943,7 +11943,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "e96edc557930ba8c9516c538eac213f1969ab53a6812e19e6814cafbf351927e"
+              "profile_sha256": "0c001c195f2e7c3db4ac6d3d7215beeffff966b55ede5dd8333c043f478c9295"
             }
           ]
         },
@@ -14507,7 +14507,7 @@
               "capacity_declaration": "declared",
               "maturity": "experimental",
               "realization": "apply-ready",
-              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
+              "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. Open WebUI stays on the CPU.",
               "reservation": {
                 "cpu_cores": 1,
                 "ram_gb": 1,
@@ -14528,7 +14528,7 @@
                   "ref": "Kombify GPU runtime support envelope"
                 }
               },
-              "profile_sha256": "d3c9303a510c3cc9a8a3764bfce4c72004c31bca8362c0f4ddc05ded820ddbef"
+              "profile_sha256": "e1244e34e5bbc5924baa9af48af23a7b65e627918e7f414016e3b9fe1c6abb68"
             }
           ]
         },
@@ -17508,5 +17508,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "b6cbaf6fb96712d70eecf5486b694dd4aec1a88ff765c26735cd557cf196bcd8"
+  "catalog_sha256": "76e5657db59ca6ec74133e50924add417142cf39dddc2fcd2d0f075cd826e73e"
 }

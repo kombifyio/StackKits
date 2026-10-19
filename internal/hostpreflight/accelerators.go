@@ -14,6 +14,7 @@ import (
 // until containers can reach it (CDI for NVIDIA, ROCm device nodes for AMD).
 const (
 	CheckGPUAccelerator     = "gpu-accelerator"
+	CheckGPUDriver          = "gpu-driver"
 	CheckGPUContainerAccess = "gpu-container-access"
 )
 
@@ -62,17 +63,68 @@ func checkAccelerators(facts Facts, requirements Requirements) []Check {
 	selected := make([]AcceleratorRequirement, len(requirements.Accelerators))
 	copy(selected, requirements.Accelerators)
 	sort.Slice(selected, func(i, j int) bool { return selected[i].ModuleRef < selected[j].ModuleRef })
-	return []Check{checkGPUDevice(facts, selected), checkGPUContainerAccess(facts, selected)}
+	return []Check{checkGPUDevice(facts, selected), checkGPUDriver(facts, selected), checkGPUContainerAccess(facts, selected)}
 }
 
-// CheckAcceleratorDevices evaluates only the device, driver and VRAM part of
-// the selected profiles. Apply calls it before plan resolution so a host
-// without a qualifying GPU is refused with guidance, not with a bare
-// readiness blocker.
+// CheckAcceleratorDevices evaluates the device, VRAM and driver part of the
+// selected profiles and returns the first refusal, else the device check.
+// Apply calls it before plan resolution so a host without a qualifying GPU is
+// refused with guidance, not with a bare readiness blocker.
 func CheckAcceleratorDevices(accelerators []hostconformance.AcceleratorFacts, requirements []AcceleratorRequirement) Check {
 	selected := append([]AcceleratorRequirement(nil), requirements...)
 	sort.Slice(selected, func(i, j int) bool { return selected[i].ModuleRef < selected[j].ModuleRef })
-	return checkGPUDevice(Facts{Accelerators: accelerators}, selected)
+	facts := Facts{Accelerators: accelerators}
+	device := checkGPUDevice(facts, selected)
+	if device.Status == StatusBlocked {
+		return device
+	}
+	if driver := checkGPUDriver(facts, selected); driver.Status == StatusBlocked {
+		return driver
+	}
+	return device
+}
+
+// driverPending reports a GPU whose vendor driver must be installed or
+// upgraded before its memory can even be measured.
+func driverPending(requirement AcceleratorRequirement, observed hostconformance.AcceleratorFacts) bool {
+	if requirement.Vendor != "nvidia" {
+		return false
+	}
+	return observed.DriverVersion == "" || (requirement.MinDriverMajor > 0 && observed.DriverMajor() < requirement.MinDriverMajor)
+}
+
+// checkGPUDriver refuses a present NVIDIA GPU whose driver is missing or older
+// than the profile floor. It is a check of its own so that the driver
+// resolution answers exactly this finding and never a VRAM shortfall.
+func checkGPUDriver(facts Facts, selected []AcceleratorRequirement) Check {
+	check := Check{ID: CheckGPUDriver, Status: StatusPass, Summary: "The selected GPUs have a qualifying driver"}
+	var problems []string
+	floor := 0
+	for _, requirement := range selected {
+		observed, found := acceleratorByVendor(facts, requirement.Vendor)
+		if !found || observed.Devices < 1 || !driverPending(requirement, observed) {
+			continue // no GPU is the device check's refusal
+		}
+		subject := fmt.Sprintf("%s (accelerator profile %s)", requirement.ModuleRef, requirement.Profile)
+		if observed.DriverVersion == "" {
+			problems = append(problems, fmt.Sprintf("%s has %d NVIDIA GPU(s) on this host, but no NVIDIA driver answers (nvidia-smi)", subject, observed.Devices))
+		} else {
+			problems = append(problems, fmt.Sprintf("%s needs NVIDIA driver %d or newer, found %s", subject, requirement.MinDriverMajor, observed.DriverVersion))
+		}
+		floor = max(floor, requirement.MinDriverMajor)
+	}
+	if len(problems) == 0 {
+		return check
+	}
+	check.Status = StatusBlocked
+	check.FailureClass = string(applyoutcome.ClassHostIncompatible)
+	check.Summary = strings.Join(problems, "; ")
+	check.Remediation = []string{
+		"On Ubuntu, install the newest prebuilt NVIDIA server driver: sudo stackkit host remediate --apply " + ResolutionNVIDIADriver + " --yes, then reboot.",
+		fmt.Sprintf("Elsewhere, install the NVIDIA driver %d or newer from your distribution or NVIDIA, reboot, and check that nvidia-smi lists the GPU.", floor),
+		"Or choose CPU: re-author without --module-accelerator-profile (the Private AI Accelerator setting \"CPU only\").",
+	}
+	return check
 }
 
 func checkGPUDevice(facts Facts, selected []AcceleratorRequirement) Check {
@@ -84,13 +136,9 @@ func checkGPUDevice(facts Facts, selected []AcceleratorRequirement) Check {
 		switch {
 		case !found || observed.Devices < 1:
 			problems = append(problems, fmt.Sprintf("%s needs an %s GPU, but none was found", subject, vendorName(requirement.Vendor)))
-			remediation = append(remediation, driverGuidance(requirement)...)
-		case requirement.Vendor == "nvidia" && observed.DriverVersion == "":
-			problems = append(problems, fmt.Sprintf("%s needs the NVIDIA driver, but nvidia-smi did not answer", subject))
-			remediation = append(remediation, driverGuidance(requirement)...)
-		case requirement.MinDriverMajor > 0 && observed.DriverMajor() < requirement.MinDriverMajor:
-			problems = append(problems, fmt.Sprintf("%s needs NVIDIA driver %d or newer, found %s", subject, requirement.MinDriverMajor, observed.DriverVersion))
-			remediation = append(remediation, driverGuidance(requirement)...)
+			remediation = append(remediation, deviceGuidance(requirement))
+		case driverPending(requirement, observed):
+			// The driver check refuses; memory is measured once it answers.
 		case requirement.MinVRAMGiB > 0 && observed.MinVRAMGiB == 0:
 			check.Status = StatusUnknown
 			problems = append(problems, fmt.Sprintf("%s needs %d GiB of GPU memory, which could not be measured", subject, requirement.MinVRAMGiB))
@@ -116,10 +164,15 @@ func checkGPUDevice(facts Facts, selected []AcceleratorRequirement) Check {
 func checkGPUContainerAccess(facts Facts, selected []AcceleratorRequirement) Check {
 	check := Check{ID: CheckGPUContainerAccess, Status: StatusPass}
 	var problems, remediation []string
+	waitingForDriver := false
 	for _, requirement := range selected {
 		observed, found := acceleratorByVendor(facts, requirement.Vendor)
 		if !found || observed.Devices < 1 {
 			continue // the device check already refuses with guidance
+		}
+		if driverPending(requirement, observed) {
+			waitingForDriver = true // the CDI spec is generated from the driver
+			continue
 		}
 		switch requirement.Vendor {
 		case "nvidia":
@@ -137,9 +190,15 @@ func checkGPUContainerAccess(facts Facts, selected []AcceleratorRequirement) Che
 		case "amd":
 			if observed.ContainerAccess != hostconformance.AcceleratorAccessROCmDeviceNodes {
 				problems = append(problems, "the ROCm device nodes /dev/kfd and /dev/dri/renderD* are missing")
-				remediation = append(remediation, "Load the amdgpu kernel driver with ROCm (KFD) support for this card; StackKits does not install GPU drivers.")
+				remediation = append(remediation, "Load the amdgpu kernel driver with ROCm (KFD) support for this card; StackKits installs NVIDIA drivers only.")
 			}
 		}
+	}
+	if len(problems) == 0 && waitingForDriver {
+		check.Status = StatusUnknown
+		check.Summary = "Container access to the GPU is measured once the NVIDIA driver answers"
+		check.Remediation = []string{"Install the driver first (see " + CheckGPUDriver + "), reboot, then run stackkit host remediate again."}
+		return check
 	}
 	if len(problems) == 0 {
 		check.Summary = "Containers can use the selected GPUs"
@@ -152,11 +211,11 @@ func checkGPUContainerAccess(facts Facts, selected []AcceleratorRequirement) Che
 	return check
 }
 
-func driverGuidance(requirement AcceleratorRequirement) []string {
+func deviceGuidance(requirement AcceleratorRequirement) string {
 	if requirement.Vendor == "nvidia" {
-		return []string{fmt.Sprintf("Install the NVIDIA driver %d or newer for this GPU from your distribution or NVIDIA, reboot, and check that nvidia-smi lists the GPU. StackKits does not install GPU drivers.", requirement.MinDriverMajor)}
+		return "Attach an NVIDIA GPU to this host; in a VM, pass it through from the hypervisor (Proxmox: hostpci). Once lspci lists it, stackkit host remediate offers the driver install."
 	}
-	return []string{"Use a ROCm-capable AMD GPU with the amdgpu kernel driver on an amd64 host. StackKits does not install GPU drivers."}
+	return "Use a ROCm-capable AMD GPU with the amdgpu kernel driver on an amd64 host; StackKits installs NVIDIA drivers only."
 }
 
 func vendorName(vendor string) string {

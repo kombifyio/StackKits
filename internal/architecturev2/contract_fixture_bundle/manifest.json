@@ -22,7 +22,7 @@
     "foundation/architecture_v2_komodo_bootstrap.cue": "sha256:b8b94a8e366e2b9715894dfe17a76f10a03ec777aeae665c6f2d3ab6e9ddc519",
     "foundation/architecture_v2_marketplace.cue": "sha256:0cc590987ab3fac11ae10153f813bacd2e2e0c2ee5e1d61554f5974171b7f0c9",
     "foundation/architecture_v2_marketplace_backup.cue": "sha256:d603ac092e24ef329bd04e3a24ec22e4d40b9d4d0ad40c3233771cdc33d0ba56",
-    "foundation/architecture_v2_module_profiles.cue": "sha256:485dfaf3ed61cf566e6087329ccc1c8ba7b9cc4671abaa37ed0a2254b3d7b821",
+    "foundation/architecture_v2_module_profiles.cue": "sha256:4636040e778432a719becff4015b22c2cd506c1d2a498139669959c723d7b47c",
     "foundation/architecture_v2_ntfy.cue": "sha256:f59c85e77ba2ee536783403572bbec0de76cb89077cb51b0a53aedb8ac3cbdea",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",

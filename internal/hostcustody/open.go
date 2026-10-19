@@ -161,7 +161,14 @@ func recipientFor(store Store, current recipientRecord, state deliveryState, con
 		if issuedErr != nil || rotatedErr != nil || !issued.Before(rotated) || !retiredOpen(entry, now) {
 			break
 		}
-		return entry.Ciphertext, entry.Authority, nil
+		// A retired generation that was never pinned stays bound by the current
+		// pin: otherwise rotating to a pinned authority would leave an unsigned,
+		// back-dated delivery to the old generation open for its whole window.
+		authority := entry.Authority
+		if authority == nil {
+			authority = state.Authority
+		}
+		return entry.Ciphertext, authority, nil
 	}
 	return nil, nil, errors.New("hostcustody: sealed delivery is for a retired or unknown recipient generation")
 }

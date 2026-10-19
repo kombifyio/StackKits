@@ -3704,6 +3704,7 @@
         "stackkit host conformance",
         "stackkit host delivery",
         "stackkit host environment",
+        "stackkit host gpu-check",
         "stackkit host migrate-browser-ca",
         "stackkit host preflight",
         "stackkit host prepare",
@@ -3911,6 +3912,50 @@
           "name": "json",
           "type": "bool",
           "description": "Emit the observation as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit host gpu-check",
+      "name": "gpu-check",
+      "parent": "stackkit host",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host gpu-check [flags]",
+      "short": "Prove the NVIDIA GPU under a short real CUDA load",
+      "description": "Run NVIDIA's CUDA vectorAdd sample in a container on the GPU (Docker CDI\ndevice nvidia.com/gpu=all), then read the kernel log for NVRM Xid errors and\nask nvidia-smi again.\n\nnvidia-smi listing the GPU is not proof that it works: a GPU on a weak power\nsupply or a marginal link, typical for a Thunderbolt eGPU, answers at idle and\nfalls off the bus (Xid 79) as soon as CUDA draws power. This check refuses\nthen and names the cause.\n\nIt changes nothing on the host except pulling the pinned sample image. Run it\nas root so the kernel log can be read.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit host gpu-check",
+          "description": "Prove the GPU after the driver and Container Toolkit are installed"
+        },
+        {
+          "command": "sudo stackkit host gpu-check --runs 50 --json",
+          "description": "Longer load, machine-readable result"
+        }
+      ],
+      "flags": [
+        {
+          "name": "image",
+          "type": "string",
+          "default": "nvcr.io/nvidia/k8s/cuda-sample:vectoradd-cuda12.5.0@sha256:7c7540bdf1f942d4fb6db97069fd6c289471b54ac29e3c7fcdf914cf77af7d41",
+          "description": "CUDA sample image that prints \"Test PASSED\"",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the check and its evidence as machine-readable JSON",
+          "required": false
+        },
+        {
+          "name": "runs",
+          "type": "int",
+          "default": "10",
+          "description": "How many times the CUDA sample runs",
           "required": false
         }
       ],

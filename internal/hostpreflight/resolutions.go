@@ -85,7 +85,25 @@ type Resolution struct {
 	// its unattended mode. It requires Reversible, no reboot and no credential:
 	// a fix nobody is watching must be one nobody regrets.
 	AutoInstallerEligible bool `json:"autoInstallerEligible"`
+
+	// StepTimeoutSeconds replaces the default bound of one step for a fix
+	// whose packages are large (a GPU driver is several hundred MB).
+	StepTimeoutSeconds int `json:"stepTimeoutSeconds,omitempty"`
 }
+
+// ResolutionNVIDIADriver installs the NVIDIA driver on an Ubuntu host.
+const ResolutionNVIDIADriver = "nvidia-driver"
+
+// NVIDIAServerOpenBranch stands in a declared command for the newest NVIDIA
+// server-open driver branch this host's Ubuntu archive offers with prebuilt,
+// signed kernel modules. ApplyResolution resolves it from
+// `ubuntu-drivers list --gpgpu` right before the command runs, so the plan
+// shows exactly which commands run and only the branch number is late-bound.
+const NVIDIAServerOpenBranch = "{nvidia-server-open-branch}"
+
+// nvidiaDriverFloor is the oldest branch the Private AI accelerator profile
+// admits (foundation acceleratorProfiles minDriverMajor).
+const nvidiaDriverFloor = 550
 
 // The NVIDIA apt source signs with an ASCII-armored key, which apt accepts
 // from a .asc keyring file without gpg.
@@ -193,6 +211,28 @@ func Resolutions() []Resolution {
 			},
 		},
 		{
+			ID: ResolutionNVIDIADriver, Title: "Install the NVIDIA server driver",
+			AppliesTo: CheckGPUDriver, Mode: ModeApply,
+			Summary:       "A selected NVIDIA accelerator profile needs the NVIDIA driver, and the GPU on this host has none (or one older than the profile floor).",
+			Distributions: []string{"ubuntu"},
+			Commands: [][]string{
+				{"apt-get", "update"},
+				{"apt-get", "install", "-y", "ubuntu-drivers-common"},
+				{"ubuntu-drivers", "install", "--gpgpu", "nvidia:" + NVIDIAServerOpenBranch + "-server-open"},
+				{"apt-get", "install", "-y", "nvidia-utils-" + NVIDIAServerOpenBranch + "-server"},
+			},
+			Guidance: []string{
+				"Ubuntu hosts only: it installs the newest server-open branch ubuntu-drivers offers with prebuilt linux-modules-nvidia packages (no DKMS build), plus nvidia-utils for nvidia-smi.",
+				"Reboot the host afterwards; the driver loads only on the next boot. Then run stackkit host remediate again for container access (nvidia-container-toolkit).",
+				"Secure Boot: Ubuntu's prebuilt modules are signed by Canonical and load with Secure Boot on. A driver built by DKMS instead needs Secure Boot off in the VM firmware or its MOK key enrolled.",
+				"In a VM the GPU must be passed through by the hypervisor first (Proxmox: hostpci with the GPU's IOMMU group); lspci inside the guest has to list it.",
+				"Prove the GPU under load afterwards with stackkit host gpu-check: nvidia-smi alone does not show a GPU that falls off the bus (Xid 79) once it draws power.",
+				"Undo with apt-get purge 'nvidia-*' 'linux-modules-nvidia-*' and a reboot.",
+			},
+			RequiresRoot: true, RequiresReboot: true, Reversible: true,
+			StepTimeoutSeconds: 900,
+		},
+		{
 			ID: "nvidia-container-toolkit", Title: "Let containers use the NVIDIA GPU",
 			AppliesTo: CheckGPUContainerAccess, Mode: ModeApply,
 			Summary: "A selected NVIDIA accelerator profile needs the NVIDIA Container Toolkit and a CDI spec for nvidia.com/gpu.",
@@ -208,7 +248,7 @@ func Resolutions() []Resolution {
 			},
 			Guidance: []string{
 				"Debian and Ubuntu hosts only; on other distributions follow NVIDIA's Container Toolkit install guide, then run nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml.",
-				"The NVIDIA driver 550 or newer must already be installed: StackKits never installs GPU drivers.",
+				"The NVIDIA driver 550 or newer must already be installed and loaded; on Ubuntu the nvidia-driver fix installs it.",
 				"Regenerate the CDI spec after every driver upgrade with the same nvidia-ctk command, or containers lose the GPU.",
 				"Undo with apt-get remove nvidia-container-toolkit and by deleting /etc/cdi/nvidia.yaml, the key and the source list.",
 			},

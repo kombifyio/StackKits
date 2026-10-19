@@ -1214,7 +1214,8 @@ pinned authority, and, once an authority is pinned, any unsigned delivery
   authority for the current generation and is refused when another key is
   pinned. `--rotate` re-enrolls under the next generation; the previous key
   opens only deliveries issued before the rotation, for at most 15 minutes,
-  and rotation ends a detach.
+  signed by its own pinned authority or, when it had none, by the current
+  one; rotation ends a detach.
 - `host delivery status` lists the generation, retired generations still
   openable, the pinned authority, the detach state and every delivered secret
   by reference, version and rotation mark.

@@ -32049,7 +32049,7 @@
           "components": [
             "ollama"
           ],
-          "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU.",
+          "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. Open WebUI stays on the CPU.",
           "maturity": "experimental",
           "provenance": {
             "reservation": {
@@ -32828,7 +32828,7 @@
           "components": [
             "ollama"
           ],
-          "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU.",
+          "description": "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. AnythingLLM stays on the CPU.",
           "maturity": "experimental",
           "provenance": {
             "reservation": {
@@ -33377,7 +33377,7 @@
           "components": [
             "comfyui"
           ],
-          "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers.",
+          "description": "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver.",
           "maturity": "experimental",
           "provenance": {
             "reservation": {

@@ -90,8 +90,11 @@ Private AI runs on the CPU unless the owner explicitly selects the `nvidia` or
 `amd` accelerator profile for `stackkits-private-ai-runtime`. NVIDIA requires
 container CDI access and a driver at least as new as the selected profile's
 declared floor. AMD requires ROCm device nodes and uses the digest-pinned ROCm
-Ollama image. Host admission checks these device requirements before Apply;
-StackKits does not install GPU drivers. Only Ollama receives device access.
+Ollama image. Host admission checks these device requirements before Apply.
+On Ubuntu the host remediation `nvidia-driver` installs the NVIDIA driver
+(reboot required) and `stackkit host gpu-check` proves the GPU under CUDA
+load; other distributions and AMD drivers stay with the owner. Only Ollama
+receives device access.
 
 Changes to the retained v2alpha1 graph instead start in
 `basement-kit/stackfile.cue` `computeTierGraphs` and

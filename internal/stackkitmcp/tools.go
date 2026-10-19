@@ -9,6 +9,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/mcpagents"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -423,10 +424,17 @@ func (a *App) logsList(ctx context.Context, req *mcp.CallToolRequest, _ struct{}
 }
 
 func (a *App) logGet(ctx context.Context, req *mcp.CallToolRequest, in runIDInput) (*mcp.CallToolResult, any, error) {
-	if strings.TrimSpace(in.RunID) == "" {
+	runID := strings.TrimSpace(in.RunID)
+	if runID == "" {
 		return TextResult("run_id is required"), nil, nil
 	}
-	return a.serverRequest(ctx, http.MethodGet, "/api/v1/logs/"+strings.TrimSpace(in.RunID), nil)
+	// The run ID becomes a path segment of an authenticated request; anything
+	// but a well-formed run ID could reach other stackkit-server routes.
+	if !logging.IsValidRunID(runID) {
+		out := errorOutput("stackkit_log_get", fmt.Errorf("run_id is not a valid run ID"))
+		return errorJSONResult(out), out, nil
+	}
+	return a.serverRequest(ctx, http.MethodGet, "/api/v1/logs/"+url.PathEscape(runID), nil)
 }
 
 func (a *App) doctor(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {

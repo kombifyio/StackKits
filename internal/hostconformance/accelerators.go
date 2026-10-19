@@ -66,6 +66,7 @@ var nvidiaCDISpecPaths = []string{
 const (
 	maxProbedGPUs       = 16
 	amdPCIVendorID      = "0x1002"
+	nvidiaPCIVendor     = "10de"
 	firstDRMRenderMinor = 128
 )
 
@@ -101,9 +102,14 @@ func observeNVIDIA(ctx context.Context, source LocalSource) (AcceleratorFacts, b
 		}
 	}
 	if !answered {
-		// Device nodes without an answering driver: a card is present, but
-		// its driver is missing or broken. Admission refuses with guidance.
+		// A card without an answering driver: device nodes of a broken
+		// driver, or, with no NVIDIA driver loaded at all, the PCI bus itself.
+		// Admission refuses with the driver resolution instead of reporting
+		// the GPU as unobserved.
 		facts.Devices = countExisting(source, "/dev/nvidia%d", 0)
+		if facts.Devices == 0 {
+			facts.Devices = countNVIDIAPCIDisplayDevices(ctx, source)
+		}
 		if facts.Devices == 0 {
 			return AcceleratorFacts{}, false
 		}
@@ -142,6 +148,40 @@ func ParseNVIDIASMIQuery(output []byte) (devices, minVRAMGiB int, driverVersion 
 		return 0, 0, "", errors.New("nvidia-smi reported no GPU")
 	}
 	return devices, minVRAMGiB, driverVersion, nil
+}
+
+// countNVIDIAPCIDisplayDevices counts NVIDIA display controllers on the PCI
+// bus, which needs no NVIDIA driver: lspci first, then the DRM cards a
+// fallback driver such as nouveau exposes.
+func countNVIDIAPCIDisplayDevices(ctx context.Context, source LocalSource) int {
+	if _, err := source.LookPath("lspci"); err == nil {
+		if output, runErr := source.Run(ctx, "lspci", "-mm", "-n", "-d", nvidiaPCIVendor+":"); runErr == nil {
+			return ParseLSPCIDisplayDevices(output)
+		}
+	}
+	count := 0
+	for card := 0; card < maxProbedGPUs; card++ {
+		vendor, err := source.ReadFile(fmt.Sprintf("/sys/class/drm/card%d/device/vendor", card))
+		if err == nil && strings.TrimSpace(string(vendor)) == "0x"+nvidiaPCIVendor {
+			count++
+		}
+	}
+	return count
+}
+
+// ParseLSPCIDisplayDevices counts display controllers (PCI class 03xx: VGA or
+// 3D controller) in `lspci -mm -n` output, whose lines read
+// `01:00.0 "0300" "10de" "2504" -ra1 "1458" "4096"`. The audio function of
+// the same card (class 0403) is not a GPU.
+func ParseLSPCIDisplayDevices(output []byte) int {
+	count := 0
+	for _, line := range strings.Split(string(output), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && strings.HasPrefix(strings.Trim(fields[1], `"`), "03") {
+			count++
+		}
+	}
+	return count
 }
 
 func hasNVIDIACDISpec(source LocalSource) bool {

@@ -8,7 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -100,14 +103,9 @@ func ApplyResolution(ctx context.Context, resolution Resolution) (Record, error)
 		}
 	}
 	if failure == nil {
-		for _, argv := range resolution.Commands {
-			step, err := runRemediationCommand(ctx, argv)
-			record.Steps = append(record.Steps, step)
-			if err != nil {
-				failure = err
-				break
-			}
-		}
+		steps, err := runResolutionCommands(ctx, resolution, hostCommandOutput)
+		record.Steps = append(record.Steps, steps...)
+		failure = err
 	}
 	if failure != nil {
 		record.Status = "failed"
@@ -210,16 +208,106 @@ func mergeJSONObjects(document, declared map[string]any) {
 	}
 }
 
+// commandOutput runs one argv and returns its combined output.
+type commandOutput func(ctx context.Context, argv []string) ([]byte, error)
+
+func hostCommandOutput(ctx context.Context, argv []string) ([]byte, error) {
+	return exec.CommandContext(ctx, argv[0], argv[1:]...).CombinedOutput()
+}
+
+// runResolutionCommands runs the declared commands in order and stops at the
+// first failure. A command naming NVIDIAServerOpenBranch runs only after the
+// branch was resolved on this host, which is recorded as a step of its own.
+func runResolutionCommands(ctx context.Context, resolution Resolution, run commandOutput) ([]StepRecord, error) {
+	timeout := remediationStepTimeout
+	if resolution.StepTimeoutSeconds > 0 {
+		timeout = time.Duration(resolution.StepTimeoutSeconds) * time.Second
+	}
+	var steps []StepRecord
+	branch := ""
+	for _, argv := range resolution.Commands {
+		if slices.ContainsFunc(argv, func(arg string) bool { return strings.Contains(arg, NVIDIAServerOpenBranch) }) {
+			if branch == "" {
+				step, resolved, err := resolveNVIDIAServerOpenBranch(ctx, run, timeout)
+				steps = append(steps, step)
+				if err != nil {
+					return steps, err
+				}
+				branch = resolved
+			}
+			expanded := make([]string, len(argv))
+			for index, arg := range argv {
+				expanded[index] = strings.ReplaceAll(arg, NVIDIAServerOpenBranch, branch)
+			}
+			argv = expanded
+		}
+		step, err := runRemediationCommand(ctx, argv, run, timeout)
+		steps = append(steps, step)
+		if err != nil {
+			return steps, err
+		}
+	}
+	return steps, nil
+}
+
+// resolveNVIDIAServerOpenBranch asks ubuntu-drivers which GPGPU drivers the
+// archive offers for this kernel and picks the newest server-open branch.
+func resolveNVIDIAServerOpenBranch(ctx context.Context, run commandOutput, timeout time.Duration) (StepRecord, string, error) {
+	argv := []string{"ubuntu-drivers", "list", "--gpgpu"}
+	step := StepRecord{Kind: "resolve", Target: NVIDIAServerOpenBranch, Argv: argv, Status: "applied"}
+	bounded, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	output, err := run(bounded, argv)
+	if err != nil {
+		step.Status, step.Detail = "failed", boundedRemediationDetail(string(output))
+		return step, "", fmt.Errorf("%s: %w", strings.Join(argv, " "), err)
+	}
+	branch, err := NewestNVIDIAServerOpenBranch(output, nvidiaDriverFloor)
+	if err != nil {
+		step.Status, step.Detail = "failed", err.Error()
+		return step, "", err
+	}
+	step.Detail = "nvidia:" + branch + "-server-open"
+	return step, branch, nil
+}
+
+var nvidiaServerOpenPattern = regexp.MustCompile(`\bnvidia-(?:driver|headless(?:-no-dkms)?)-([0-9]+)-server-open\b`)
+
+// NewestNVIDIAServerOpenBranch picks the newest server-open branch from
+// `ubuntu-drivers list --gpgpu` output whose kernel modules come prebuilt
+// ("kernel modules provided by linux-modules-nvidia-..."): a DKMS-only branch
+// would compile on the host and fail under Secure Boot without an enrolled
+// key. A newest branch below floor is refused rather than installed.
+func NewestNVIDIAServerOpenBranch(output []byte, floor int) (string, error) {
+	newest := 0
+	for _, line := range strings.Split(string(output), "\n") {
+		match := nvidiaServerOpenPattern.FindStringSubmatch(line)
+		if match == nil || !strings.Contains(line, "linux-modules-nvidia-") {
+			continue
+		}
+		if branch, err := strconv.Atoi(match[1]); err == nil && branch > newest {
+			newest = branch
+		}
+	}
+	switch {
+	case newest == 0:
+		return "", errors.New("ubuntu-drivers offers no NVIDIA server-open driver with prebuilt kernel modules for this kernel; use a supported Ubuntu kernel (generic or HWE) or install the driver by hand")
+	case newest < floor:
+		return "", fmt.Errorf("the newest NVIDIA server-open driver this host offers is %d, older than the required %d; update the Ubuntu release or install the driver by hand", newest, floor)
+	}
+	return strconv.Itoa(newest), nil
+}
+
 // runRemediationCommand runs one closed argv under a deadline.
-func runRemediationCommand(ctx context.Context, argv []string) (StepRecord, error) {
+func runRemediationCommand(ctx context.Context, argv []string, run commandOutput, timeout time.Duration) (StepRecord, error) {
 	step := StepRecord{Kind: "command", Status: "applied"}
 	if len(argv) == 0 {
 		return step, errors.New("remediation command is empty")
 	}
 	step.Target, step.Argv = argv[0], append([]string(nil), argv...)
-	bounded, cancel := context.WithTimeout(ctx, remediationStepTimeout)
+	bounded, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	output, err := exec.CommandContext(bounded, argv[0], argv[1:]...).CombinedOutput()
+	output, err := run(bounded, argv)
 	if detail := boundedRemediationDetail(string(output)); detail != "" {
 		step.Detail = detail
 	}

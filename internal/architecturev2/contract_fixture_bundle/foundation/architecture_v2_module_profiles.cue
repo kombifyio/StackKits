@@ -484,7 +484,7 @@ _architectureV2AnythingLLMComputeProfiles: {
 // weights still need their own RAM/VRAM and disk.
 _architectureV2PrivateAIAcceleratorProfiles: {
 	nvidia: #ModuleAxisProfileV2 & {
-		description: "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. Open WebUI stays on the CPU."
+		description: "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. Open WebUI stays on the CPU."
 		maturity:    "experimental"
 		realization: "apply-ready"
 		reservation: {cpuCores: 1, ramGB: 1, storageGB: 1}
@@ -510,7 +510,7 @@ _architectureV2PrivateAIAcceleratorProfiles: {
 // receives the device.
 _architectureV2AnythingLLMAcceleratorProfiles: {
 	nvidia: #ModuleAxisProfileV2 & {
-		description: "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers. AnythingLLM stays on the CPU."
+		description: "Ollama inference on NVIDIA GPUs through the Container Device Interface (all GPUs of the node). Needs the NVIDIA driver 550 or newer, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver. AnythingLLM stays on the CPU."
 		maturity:    "experimental"
 		realization: "apply-ready"
 		reservation: {cpuCores: 1, ramGB: 1, storageGB: 1}
@@ -648,7 +648,7 @@ _architectureV2PaperclipComputeProfiles: {standard: _architectureV2PaperclipComp
 // 16 GiB, which the model download refuses to fetch on a smaller GPU.
 _architectureV2ComfyUIAcceleratorProfiles: {
 	nvidia: #ModuleAxisProfileV2 & {
-		description: "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; StackKits never installs GPU drivers."
+		description: "ComfyUI on NVIDIA GPUs through the Container Device Interface (all GPUs of the node), with at least 8 GiB of VRAM (Turing or newer). Needs the NVIDIA driver 580 or newer for the CUDA 13.0 image, the NVIDIA Container Toolkit and a generated CDI spec; on Ubuntu the host remediation nvidia-driver installs the driver."
 		maturity:    "experimental"
 		realization: "apply-ready"
 		reservation: {cpuCores: 1, ramGB: 2, storageGB: 1}
