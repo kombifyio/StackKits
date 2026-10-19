@@ -1,6 +1,7 @@
 package restoreactivation
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -112,4 +113,41 @@ func requireApplicationRestoreCapability(plan map[string]any, workload string) e
 		return nil
 	}
 	return &ApplicationRestoreUnsupportedError{WorkloadRef: workload, Reason: ReasonApplicationRestoreWorkloadUnselected}
+}
+
+// StandaloneComposeWorkloadHoldsNoBackupData reports whether the verified plan
+// delivers the application workload through standalone Compose without any
+// backup-enabled storage. Such a workload (Remote's Guacamole, the ntfy live
+// relay) contributes nothing to the node's signed backup source, so the backup
+// gate admits it exactly as restore skips it. Any other or unreadable shape
+// returns false and stays denied.
+func StandaloneComposeWorkloadHoldsNoBackupData(canonicalPlan []byte, workloadRef string) (bool, error) {
+	var plan map[string]any
+	if err := json.Unmarshal(canonicalPlan, &plan); err != nil {
+		return false, fmt.Errorf("restoreactivation: decode verified plan for backup coverage: %w", err)
+	}
+	workloads, err := array(plan, "workloads")
+	if err != nil {
+		return false, nil
+	}
+	for _, raw := range workloads {
+		workload, ok := raw.(map[string]any)
+		if !ok || text(workload, "kind") != "application" || text(workload, "id") != workloadRef {
+			continue
+		}
+		alternative, err := object(workload, "alternative")
+		if err != nil {
+			return false, nil
+		}
+		runtimeContract, err := object(alternative, "runtime")
+		if err != nil || text(runtimeContract, "delivery") != "application-adapter" {
+			return false, nil
+		}
+		adapter, err := object(runtimeContract, "adapter")
+		if err != nil || text(adapter, "id") != "standalone-compose" {
+			return false, nil
+		}
+		return !holdsBackupEnabledStorage(plan, alternative), nil
+	}
+	return false, nil
 }

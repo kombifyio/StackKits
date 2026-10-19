@@ -281,6 +281,11 @@ Definition: foundation.#ProductKitDefinition & {
 			route: {exposure: "local", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {
 				user: {exposure: "private", authentication: "human", privilege: "user"}
+				// Administrator-only application endpoints (the ntfy live relay).
+				admin: {
+					exposure:               "private", authentication: "human+device", privilege: "admin"
+					enrolledDeviceRequired: true, ownerStepUpRequired: true
+				}
 				vault: {
 					exposure:               "private", authentication: "human+device", privilege: "vault"
 					enrolledDeviceRequired: true, ownerStepUpRequired: true

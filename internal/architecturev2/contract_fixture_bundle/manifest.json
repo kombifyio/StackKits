@@ -9,7 +9,7 @@
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
     "architecture/v2/contractfixture/catalog.cue": "sha256:6cb117f10b2206414547112f5b0d76865f291b58236b198a7581f20ca6b1c4f3",
-    "basement-kit/stackfile.cue": "sha256:de49ba98d7927321c76d78f539db1f97415809d844bdfe68ec7a9d06971ab7c4",
+    "basement-kit/stackfile.cue": "sha256:69102d151976cc432577e8e211cd8ec7ddd27a3804a42aaf9e65a00e0ab1a16c",
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:accec124889a00e3ea7cc24ed2cbb6af2c5d8b86b2b104dc6da284a4739a468c",
     "foundation/architecture_v2.cue": "sha256:300905342289d6e8de185433872e70798874d4b3d065a1fd410b211bc7954240",

@@ -9,6 +9,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 )
 
@@ -43,7 +44,16 @@ func requireNativeBackupDelivery(workspace string, plan generationartifact.Verif
 		return err
 	}
 	for _, contract := range contracts {
-		if !applicationLifecycleStageSupportedByDelivery(contract, "backup") {
+		if applicationLifecycleStageSupportedByDelivery(contract, "backup") {
+			continue
+		}
+		// A standalone Compose workload without backup-enabled storage holds
+		// nothing for the backup, as restore already skips it (Remote, ntfy).
+		stateless, err := restoreactivation.StandaloneComposeWorkloadHoldsNoBackupData(plan.Canonical(), contract.WorkloadRef)
+		if err != nil {
+			return err
+		}
+		if !stateless {
 			return &unsupportedBackupDelivery{workload: contract.WorkloadRef, adapter: contract.Delivery.AdapterRef}
 		}
 	}

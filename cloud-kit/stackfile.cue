@@ -248,7 +248,8 @@ Definition: foundation.#ProductKitDefinition & {
 			// Paperclip runs the owner's agents; this kit's routes are public, so
 			// none of them gets a route here. Open WebUI reaches ComfyUI privately.
 			// The model router's endpoint is never public, so it gets none either.
-			workloadRefs: [for ref in workloads.optional if !list.Contains(foundation.ArchitectureV2RoutelessAddOnWorkloadRefs, ref) && ref != "ai-image-video" && ref != "ai-assistant" && ref != "ai-harness" && ref != "ai-control-plane" && ref != "ai-gateway" {ref}]
+			// The ntfy live relay is administrator-only and never public.
+			workloadRefs: [for ref in workloads.optional if !list.Contains(foundation.ArchitectureV2RoutelessAddOnWorkloadRefs, ref) && ref != "ai-image-video" && ref != "ai-assistant" && ref != "ai-harness" && ref != "ai-control-plane" && ref != "ai-gateway" && ref != "automation-notifications" {ref}]
 			enableCapabilities: []
 			route: {exposure: "public", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {

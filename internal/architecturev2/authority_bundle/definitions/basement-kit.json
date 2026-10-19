@@ -205,6 +205,14 @@
     "requiredOverrides": [],
     "selectedWorkloadAccess": {
       "accessPolicies": {
+        "admin": {
+          "authentication": "human+device",
+          "enrolledDeviceRequired": true,
+          "exposure": "private",
+          "lanStepDown": false,
+          "ownerStepUpRequired": true,
+          "privilege": "admin"
+        },
         "user": {
           "authentication": "human",
           "enrolledDeviceRequired": false,
