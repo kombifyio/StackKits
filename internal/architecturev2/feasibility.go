@@ -68,11 +68,13 @@ type FeasibilityReason struct {
 	Source  string `json:"source,omitempty"`
 }
 
-// FeasibilityAdvisory is resident-load evidence the outcome does not depend on:
-// the node's resident-load policy check is unverified because a module declares
-// no load (MODULE_LOAD_UNDECLARED) or the resident memory budget is incomplete
-// (RESIDENT_BUDGET_UNDECLARED). A caller that needs the node fully verified
-// reads these instead of inferring them from the node verdict.
+// FeasibilityAdvisory is evidence the outcome does not depend on: the node's
+// resident-load policy check is unverified because a module declares no load
+// (MODULE_LOAD_UNDECLARED) or the resident memory budget is incomplete
+// (RESIDENT_BUDGET_UNDECLARED), or its application data is checked against no
+// budget because the StackSpec declares none (DATA_CAPACITY_INTENT_MISSING).
+// A caller that needs the node fully verified reads these instead of inferring
+// them from the node verdict.
 type FeasibilityAdvisory struct {
 	Code    string `json:"code"`
 	NodeRef string `json:"nodeRef"`
@@ -520,7 +522,7 @@ func (s *Service) reportResolvedPlan(report *FeasibilityReport, requested []requ
 			report.Nodes = append(report.Nodes, FeasibilityNode{
 				NodeRef: node.NodeRef, Verdict: string(node.Overall), ReasonCodes: nonNilStrings(node.ReasonCodes),
 			})
-			for _, code := range []string{"MODULE_LOAD_UNDECLARED", "RESIDENT_BUDGET_UNDECLARED"} {
+			for _, code := range []string{"MODULE_LOAD_UNDECLARED", "RESIDENT_BUDGET_UNDECLARED", "DATA_CAPACITY_INTENT_MISSING"} {
 				if slices.Contains(node.ReasonCodes, code) {
 					report.Advisories = append(report.Advisories, FeasibilityAdvisory{Code: code, NodeRef: node.NodeRef})
 				}
@@ -730,7 +732,8 @@ func requirementInt(values map[string]any, name string) (int, bool) {
 
 // addNodeReasons applies the node's capacity assessment to one workload.
 // A failed axis makes every workload that counts toward it infeasible; missing
-// evidence makes only the workloads it concerns unknown.
+// evidence makes only the workloads it concerns unknown. An undeclared data
+// budget is no missing evidence but absent intent, so it stays a reason only.
 func (s *Service) addNodeReasons(builder *verdictBuilder, moduleRef string, module map[string]any, hasData bool, nodeRef string, nodes map[string]capacityfit.NodeAssessment, inventoryNodes map[string]any) {
 	if _, observed := inventoryNodes[nodeRef]; !observed {
 		builder.add(FeasibilityReason{Code: ReasonInventoryNodeMissing, NodeRef: nodeRef,
@@ -759,6 +762,14 @@ func (s *Service) addNodeReasons(builder *verdictBuilder, moduleRef string, modu
 			builder.add(reason, effectNone)
 		case capacityfit.Unverified:
 			if check.ReasonCode == "MODULE_CAPACITY_UNDECLARED" && !unverifiedModule {
+				continue
+			}
+			// No declared data budget is no demand to miss: the host floor still
+			// counts storage, a declared budget that does not fit stays a failure,
+			// and the advisory names the unbudgeted node. A budget is user intent,
+			// so none is assumed.
+			if check.ReasonCode == "DATA_CAPACITY_INTENT_MISSING" {
+				builder.add(reason, effectNone)
 				continue
 			}
 			builder.add(reason, effectUnknown)

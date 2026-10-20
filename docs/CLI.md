@@ -304,16 +304,20 @@ write, no network) and reports, as `stackkit.command-result/v1` data of
   `source: "policy"` because a Kombify policy threshold, not a module
   requirement, produced it) or a module the
   inventory provably does not admit makes the workloads that count toward it
-  `infeasible`; missing evidence (`inventory_fact_missing`,
-  `DATA_CAPACITY_INTENT_MISSING`, a node absent from the inventory) is
-  `unknown`. Advisory reasons such as `CAPACITY_BELOW_RECOMMENDATION` leave the
-  verdict unchanged.
+  `infeasible`; missing evidence (`inventory_fact_missing`, a node absent from
+  the inventory) is `unknown`. Advisory reasons such as
+  `CAPACITY_BELOW_RECOMMENDATION` and `DATA_CAPACITY_INTENT_MISSING` (the
+  StackSpec declares no data budget, so there is no data demand to miss; the
+  host floor still counts storage) leave the verdict unchanged. A `feasible`
+  workload beside that advisory does not assert that its data fits the free
+  space; no budget means none was compared.
 - `nodes[]`: the capacity verdict (`pass`, `warning`, `unverified`, `fail`) and
   reason codes of every node that hosts modules.
-- `advisories[]`: resident-load evidence the outcome does not depend on, as
-  `code` and `nodeRef`: `MODULE_LOAD_UNDECLARED` (a module on the node declares
-  no load, as the kit core runtimes do) and `RESIDENT_BUDGET_UNDECLARED` (the
-  resident memory budget is incomplete). Either one makes the node verdict
+- `advisories[]`: evidence the outcome does not depend on, as `code` and
+  `nodeRef`: `MODULE_LOAD_UNDECLARED` (a module on the node declares no load,
+  as the kit core runtimes do), `RESIDENT_BUDGET_UNDECLARED` (the resident
+  memory budget is incomplete) and `DATA_CAPACITY_INTENT_MISSING` (application
+  data on the node has no declared budget). Each one makes the node verdict
   `unverified` without making any workload `unknown`, so a `feasible` outcome
   can sit beside an `unverified` node; a caller that needs the node fully
   verified reads the advisories.

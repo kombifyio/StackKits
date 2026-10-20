@@ -1,5 +1,7 @@
 # Changelog
 
+- Change: `stackkit feasibility` reports an application data binding without a declared budget (`DATA_CAPACITY_INTENT_MISSING`) as an advisory on its node instead of making the workload `unknown`. Without a budget there is no data demand to miss: the host floor still counts storage, and a declared budget that does not fit stays `infeasible` (`DATA_CAPACITY_UNSATISFIED`). Catalog-default StackSpecs declare no data budget, so before this change every data-bearing workload in them was `unknown`.
+
 - Add: Home device enrollment as a State Console ceremony. The State Console links to the local owner step-up page in `device-enroll` mode; after a fresh PocketID passkey step-up it issues a single-use pairing code and shows it with a QR code carrying the enrollment URL, TLS server name and step-ca root fingerprint. `stackkit-server --home-enroll-listen` serves `POST /api/v1/identity/home/enroll` only on the dedicated LAN listener `stackkit-server-home-enroll` (TLS 1.3, port 9443, node site address, step-ca issued server certificate); admission uses the connection's peer address, never forwarded headers, and the same route on any other listener is refused. A fresh, unused code from the home network yields a step-ca device certificate for the device's own key.
 
 - Add: `stackkit verify --notify` sends the delivery check to every declared owner notification channel after a successful verify, records the per-channel receipts and fails verify when a declared channel does not receive it; an undeclared channel reports `not-configured`.
@@ -300,6 +302,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.18](https://github.com/kombifyio/StackKits/compare/v0.53.17...v0.53.18) (2026-10-20)
+
+
+### Fixed
+
+* **feasibility:** an undeclared data budget is an advisory
 
 ## [0.53.17](https://github.com/kombifyio/StackKits/compare/v0.53.16...v0.53.17) (2026-10-20)
 
