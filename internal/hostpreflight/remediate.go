@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/hostconformance"
 	"github.com/kombifyio/stackkits/internal/rollout"
 )
 
@@ -67,6 +68,10 @@ func Executable(resolution Resolution) (bool, string) {
 		return false, "this is advice: the change is outside what StackKits may do for you"
 	case runtime.GOOS != "linux":
 		return false, "host remediation applies to Linux hosts only"
+	case resolution.WSL == WSLOnly && !hostconformance.OnWSL(nil):
+		return false, "this fix applies to WSL2 hosts only"
+	case resolution.WSL == WSLNever && hostconformance.OnWSL(nil):
+		return false, "this fix does not apply to a WSL2 host: the GPU driver there is the Windows NVIDIA driver, and a Linux NVIDIA driver inside WSL breaks GPU paravirtualization; see " + ResolutionNVIDIAWindowsDriver
 	case resolution.RequiresRoot && os.Geteuid() != 0:
 		return false, "run this again as root (sudo stackkit host remediate --apply " + resolution.ID + " --yes)"
 	case !supportsDistribution(resolution, hostDistributionIDs()):

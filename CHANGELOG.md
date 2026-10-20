@@ -307,6 +307,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## [0.54.3](https://github.com/kombifyio/StackKits/compare/v0.54.2...v0.54.3) (2026-10-20)
+
+
+### Added
+
+* **hostpreflight:** run Local AI on Windows through WSL2 GPU paravirtualization
+
+
+### Fixed
+
+* **upgrade:** run release children on their verified OpenTofu and the installation's provider mirror
+
 ## [0.54.2](https://github.com/kombifyio/StackKits/compare/v0.54.1...v0.54.2) (2026-10-20)
 
 

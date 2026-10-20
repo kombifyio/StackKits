@@ -103,6 +103,19 @@ func (store ExecutorStateStore) RecoverWith(
 			"executor state: protect private recovery directory: %w", err,
 		)
 	}
+	// The snapshot retains stackkit and stackkit-server only, and the
+	// recovered release resolves tofu beside its executable. An OpenTofu
+	// generation therefore recovers on this installation's packaged OpenTofu,
+	// with the installation's provider mirror its roots record (ExecRunner).
+	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
+		if packaged, ok := tofu.PackagedBinaryPath(); ok {
+			if err := copyPrivateExecutable(packaged, filepath.Join(tempRoot, tofu.BinaryName())); err != nil {
+				return ExecutorStateRecoveryResult{}, fmt.Errorf(
+					"executor state: stage packaged OpenTofu for recovery: %w", err,
+				)
+			}
+		}
+	}
 
 	executablePath, restoredPaths, err := store.prepareExecutorStateRecovery(
 		ctx, workspaceRoot, snapshot, tempRoot, options,

@@ -28,6 +28,10 @@ type AcceleratorFacts struct {
 	MinVRAMGiB      int    `json:"minVramGiB,omitempty"`
 	DriverVersion   string `json:"driverVersion,omitempty"`
 	ContainerAccess string `json:"containerAccess"`
+	// WSL marks a GPU that WSL2 paravirtualizes from Windows (/dev/dxg): its
+	// driver is the Windows NVIDIA driver, and a Linux NVIDIA driver must
+	// never be installed inside the distribution.
+	WSL bool `json:"wsl,omitempty"`
 }
 
 // DriverMajor returns the leading numeric component of the driver version, or
@@ -70,7 +74,47 @@ const (
 	firstDRMRenderMinor = 128
 )
 
+// WSL2 exposes a Windows GPU by paravirtualization: no NVIDIA device is on the
+// PCI bus, the DirectX device node stands in for it, and the Windows driver
+// mounts nvidia-smi and libcuda under /usr/lib/wsl/lib. sudo's secure_path
+// drops that directory, so the tool is resolved by its fixed path too.
+const (
+	WSLGPUDevice     = "/dev/dxg"
+	WSLNVIDIASMIPath = "/usr/lib/wsl/lib/nvidia-smi"
+)
+
 var driverVersionPattern = regexp.MustCompile(`^[0-9][0-9A-Za-z.+-]*$`)
+
+// OnWSL reports whether this Linux host is a WSL2 distribution, or a Hyper-V
+// guest whose GPU Windows paravirtualizes (/dev/dxg). Either way the GPU
+// driver belongs to Windows. WSL without GPU paravirtualization
+// (gpuSupport=false) still counts: a Linux NVIDIA driver must not be
+// installed there either. A nil source observes the local host.
+func OnWSL(source LocalSource) bool {
+	if source == nil {
+		source = osLocalSource{}
+	}
+	if exists(source, WSLGPUDevice) || exists(source, "/proc/sys/fs/binfmt_misc/WSLInterop") {
+		return true
+	}
+	release, err := source.ReadFile("/proc/sys/kernel/osrelease")
+	return err == nil && strings.Contains(strings.ToLower(string(release)), "microsoft")
+}
+
+// NVIDIASMICommand returns how to invoke nvidia-smi on this host: from PATH,
+// else from the WSL driver mount. ok is false when neither exists.
+func NVIDIASMICommand(source LocalSource) (string, bool) {
+	if source == nil {
+		source = osLocalSource{}
+	}
+	if _, err := source.LookPath("nvidia-smi"); err == nil {
+		return "nvidia-smi", true
+	}
+	if OnWSL(source) && exists(source, WSLNVIDIASMIPath) {
+		return WSLNVIDIASMIPath, true
+	}
+	return "", false
+}
 
 // ObserveAccelerators reports the GPUs containers could use on this node, in
 // fixed vendor order (nvidia, amd). A host without GPUs yields an empty,
@@ -90,10 +134,11 @@ func ObserveAccelerators(ctx context.Context, source LocalSource) []AcceleratorF
 }
 
 func observeNVIDIA(ctx context.Context, source LocalSource) (AcceleratorFacts, bool) {
-	facts := AcceleratorFacts{Vendor: "nvidia", ContainerAccess: AcceleratorAccessNone}
-	answered := false
-	if _, err := source.LookPath("nvidia-smi"); err == nil {
-		output, runErr := source.Run(ctx, "nvidia-smi", "--query-gpu=memory.total,driver_version", "--format=csv,noheader,nounits")
+	facts := AcceleratorFacts{Vendor: "nvidia", ContainerAccess: AcceleratorAccessNone, WSL: OnWSL(source)}
+	answered, smiFailed := false, false
+	if smi, found := NVIDIASMICommand(source); found {
+		output, runErr := source.Run(ctx, smi, "--query-gpu=memory.total,driver_version", "--format=csv,noheader,nounits")
+		smiFailed = runErr != nil
 		if runErr == nil {
 			if devices, vram, driver, parseErr := ParseNVIDIASMIQuery(output); parseErr == nil {
 				facts.Devices, facts.MinVRAMGiB, facts.DriverVersion = devices, vram, driver
@@ -101,7 +146,17 @@ func observeNVIDIA(ctx context.Context, source LocalSource) (AcceleratorFacts, b
 			}
 		}
 	}
-	if !answered {
+	if !answered && facts.WSL {
+		// WSL has no NVIDIA PCI device or /dev/nvidia* node to count. With
+		// GPU paravirtualization on, the Windows NVIDIA driver's own
+		// nvidia-smi failing is one GPU whose driver must be repaired on
+		// Windows. Without /dev/dxg, without that nvidia-smi, or with output
+		// that is no GPU list, this is not (yet) an NVIDIA GPU.
+		if !exists(source, WSLGPUDevice) || !exists(source, WSLNVIDIASMIPath) || !smiFailed {
+			return AcceleratorFacts{}, false
+		}
+		facts.Devices = 1
+	} else if !answered {
 		// A card without an answering driver: device nodes of a broken
 		// driver, or, with no NVIDIA driver loaded at all, the PCI bus itself.
 		// Admission refuses with the driver resolution instead of reporting

@@ -827,17 +827,20 @@ func withVerifiedPublicUpgradeExecutable(
 		if !reflect.DeepEqual(verifiedReceipt, receipt) {
 			return errors.New("verified installed target receipt changed before execution")
 		}
-		// The target Apply stages the v2 Core's stackkit-server from beside
-		// its own executable, so the same verified release supplies both.
-		executable, server, err := upgradelifecycle.ReleaseExecutablesFromVerifiedRelease(proof)
-		if err != nil {
-			return err
-		}
 		tempRoot, err := os.MkdirTemp("", "stackkit-upgrade-target-")
 		if err != nil {
 			return fmt.Errorf("create private target executable directory: %w", err)
 		}
 		defer os.RemoveAll(tempRoot)
+		// The target Apply stages the v2 Core's stackkit-server from beside
+		// its own executable, and every OpenTofu step of the release runs
+		// the tofu beside it, so the same verified release supplies all
+		// three. Its provider mirror stays the installation's, the path
+		// every OpenTofu root records (upgradelifecycle.ExecRunner).
+		executable, server, err := upgradelifecycle.ReleaseExecutablesWithOpenTofu(proof, tempRoot)
+		if err != nil {
+			return err
+		}
 		binary := filepath.Join(tempRoot, executorRecoveryBinaryPath(receipt.Platform))
 		if err := os.WriteFile(binary, executable, 0o700); err != nil {
 			return fmt.Errorf("materialize exact verified target executable: %w", err)

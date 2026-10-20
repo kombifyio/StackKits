@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
+	"github.com/kombifyio/stackkits/internal/hostconformance"
 )
 
 // CheckGPULoad proves an NVIDIA GPU under real CUDA work. nvidia-smi answering
@@ -87,6 +88,9 @@ type GPULoadEvidence struct {
 	XidDuringLoad  []XidEvent `json:"xidDuringLoad,omitempty"`
 	AnsweredAfter  bool       `json:"nvidiaSmiAnsweredAfter"`
 	LoadFailureLog string     `json:"loadFailureLog,omitempty"`
+	// WSL is set on a WSL2 host, where Windows logs the GPU's Xid errors
+	// (Event Viewer, nvlddmkm) and the distribution's kernel log never does.
+	WSL bool `json:"wsl,omitempty"`
 }
 
 // RunGPULoadCheck runs the CUDA sample through the Docker CDI device
@@ -99,7 +103,11 @@ func RunGPULoadCheck(ctx context.Context, run func(context.Context, []string) ([
 	if runs < 1 {
 		runs = DefaultGPULoadRuns
 	}
-	evidence := GPULoadEvidence{Image: image, Runs: runs}
+	evidence := GPULoadEvidence{Image: image, Runs: runs, WSL: hostconformance.OnWSL(nil)}
+	smi, found := hostconformance.NVIDIASMICommand(nil)
+	if !found {
+		smi = "nvidia-smi"
+	}
 	bounded := func(timeout time.Duration, argv ...string) ([]byte, error) {
 		probe, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
@@ -126,7 +134,7 @@ func RunGPULoadCheck(ctx context.Context, run func(context.Context, []string) ([
 	after, readAfter := kernelLog()
 	evidence.KernelLogRead = readBefore && readAfter
 	evidence.XidDuringLoad = newXidEvents(evidence.XidBefore, ParseXidEvents(after))
-	_, smiErr := bounded(gpuLoadProbeTimeout, "nvidia-smi", "--query-gpu=name", "--format=csv,noheader")
+	_, smiErr := bounded(gpuLoadProbeTimeout, smi, "--query-gpu=name", "--format=csv,noheader")
 	evidence.AnsweredAfter = smiErr == nil
 
 	return gpuLoadVerdict(evidence), evidence
@@ -230,6 +238,10 @@ func gpuLoadRemediation(fatal []XidEvent, evidence GPULoadEvidence) []string {
 	}
 	if !evidence.KernelLogRead {
 		remediation = append(remediation, "Run sudo stackkit host gpu-check so the kernel log (dmesg) can be read.")
+	}
+	if evidence.WSL && (evidence.PassedRuns < evidence.Runs || !evidence.AnsweredAfter) {
+		remediation = append(remediation,
+			"On WSL2 the GPU's Xid errors are logged by Windows, not by this distribution: look in Event Viewer under Windows Logs > System for source nvlddmkm, update the NVIDIA driver on Windows, then run wsl --shutdown and start the distribution again.")
 	}
 	remediation = append(remediation, "Or choose CPU: re-author without --module-accelerator-profile (the Private AI Accelerator setting \"CPU only\").")
 	return remediation

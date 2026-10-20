@@ -263,6 +263,7 @@ func observeCPUBaseline(architecture string) *bool {
 // dockerInfo is the subset of docker info this admission needs.
 type dockerInfo struct {
 	ServerVersion   string         `json:"ServerVersion"`
+	OperatingSystem string         `json:"OperatingSystem"`
 	Driver          string         `json:"Driver"`
 	CgroupDriver    string         `json:"CgroupDriver"`
 	CgroupVersion   string         `json:"CgroupVersion"`
@@ -298,6 +299,7 @@ func observeDocker(ctx context.Context) DockerFacts {
 	}
 	facts.DaemonReachable = true
 	facts.ServerVersion = info.ServerVersion
+	facts.OperatingSystem = info.OperatingSystem
 	facts.StorageDriver = info.Driver
 	facts.CgroupDriver = info.CgroupDriver
 	facts.CgroupVersion = info.CgroupVersion

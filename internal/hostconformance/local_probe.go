@@ -278,6 +278,10 @@ func normalizeVirtualization(value string) string {
 		return "kvm"
 	case "hyper-v":
 		return "hyperv"
+	case "wsl":
+		// WSL2 is a Hyper-V utility VM; systemd names that hypervisor
+		// microsoft. The GPU facts mark WSL itself.
+		return "microsoft"
 	case "virtualbox":
 		return "oracle"
 	case "none":

@@ -19,6 +19,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/tofu"
 )
 
 const (
@@ -37,11 +38,33 @@ type ExecRunner struct{}
 func (ExecRunner) Run(ctx context.Context, binary string, args []string, dir string) ([]byte, error) {
 	command := exec.CommandContext(ctx, binary, args...)
 	command.Dir = dir
+	command.Env = append(os.Environ(), releaseChildEnvironment()...)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("%s failed: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return output, nil
+}
+
+// releaseChildEnvironment binds a release CLI that runs from a private
+// temporary directory to this installation's packaged OpenTofu provider
+// mirror. Every OpenTofu root this installation applied records that mirror's
+// path in its stackkit.tofurc, and live verification refuses a root bound to
+// another path; a mirror resolved beside the temporary executable would fail
+// that binding, and an Apply would record a path deleted when the child
+// exits. The child still validates the mirror's manifest, lock and packages
+// against its own release before any tofu process runs. Without a packaged
+// mirror nothing is set and the child fails closed on its own resolution.
+func releaseChildEnvironment() []string {
+	providers, ok := tofu.PackagedProvidersDir()
+	if !ok {
+		return nil
+	}
+	absolute, err := filepath.Abs(providers)
+	if err != nil {
+		return nil
+	}
+	return []string{tofu.ProvidersDirEnv + "=" + absolute}
 }
 
 type Inspector struct {

@@ -86,10 +86,13 @@ func (r Requirements) Declared() bool {
 // DockerFacts is what one `docker info` and one `docker compose version`
 // observation proves about the container runtime.
 type DockerFacts struct {
-	BinaryPresent        bool   `json:"binaryPresent"`
-	DaemonReachable      bool   `json:"daemonReachable"`
-	PermissionDenied     bool   `json:"permissionDenied"`
-	ServerVersion        string `json:"serverVersion,omitempty"`
+	BinaryPresent    bool   `json:"binaryPresent"`
+	DaemonReachable  bool   `json:"daemonReachable"`
+	PermissionDenied bool   `json:"permissionDenied"`
+	ServerVersion    string `json:"serverVersion,omitempty"`
+	// OperatingSystem is the daemon's own report; "Docker Desktop" names an
+	// engine outside this WSL distribution.
+	OperatingSystem      string `json:"operatingSystem,omitempty"`
 	ComposePluginVersion string `json:"composePluginVersion,omitempty"`
 	StorageDriver        string `json:"storageDriver,omitempty"`
 	CgroupDriver         string `json:"cgroupDriver,omitempty"`

@@ -828,7 +828,7 @@ func verifyExecutorStateCaptureRelease(
 	if len(executableBytes) == 0 || len(executableBytes) > executorStateMaxBlobBytes {
 		return ExecutorStateRelease{}, errors.New("executor state: exact recovery executable bytes are required")
 	}
-	release, archiveExecutable, archiveServer, err := inspectVerifiedReleaseExecutables(proof)
+	release, archiveExecutable, archiveServer, err := inspectVerifiedReleaseExecutables(proof, "")
 	if err != nil {
 		return ExecutorStateRelease{}, err
 	}
@@ -856,19 +856,36 @@ func verifyExecutorStateCaptureRelease(
 func ReleaseExecutablesFromVerifiedRelease(
 	proof releaseindex.VerifiedInstallation,
 ) (cli, server []byte, err error) {
-	_, cli, server, err = inspectVerifiedReleaseExecutables(proof)
+	_, cli, server, err = inspectVerifiedReleaseExecutables(proof, "")
+	return cli, server, err
+}
+
+// ReleaseExecutablesWithOpenTofu is ReleaseExecutablesFromVerifiedRelease
+// that also writes the release's packaged OpenTofu, when it ships one, into
+// the private directory dir. A release CLI resolves tofu beside its own
+// executable, so a release run from dir executes the OpenTofu it was released
+// with. Releases that predate the OpenTofu runtime ship none and need none.
+func ReleaseExecutablesWithOpenTofu(
+	proof releaseindex.VerifiedInstallation,
+	dir string,
+) (cli, server []byte, err error) {
+	if strings.TrimSpace(dir) == "" {
+		return nil, nil, errors.New("executor state: OpenTofu staging directory is required")
+	}
+	_, cli, server, err = inspectVerifiedReleaseExecutables(proof, dir)
 	return cli, server, err
 }
 
 func inspectExecutorStateReleaseProof(
 	proof releaseindex.VerifiedInstallation,
 ) (ExecutorStateRelease, []byte, error) {
-	release, executable, _, err := inspectVerifiedReleaseExecutables(proof)
+	release, executable, _, err := inspectVerifiedReleaseExecutables(proof, "")
 	return release, executable, err
 }
 
 func inspectVerifiedReleaseExecutables(
 	proof releaseindex.VerifiedInstallation,
+	openTofuDir string,
 ) (ExecutorStateRelease, []byte, []byte, error) {
 	var verifiedRelease ExecutorStateRelease
 	var verifiedExecutable, verifiedServer []byte
@@ -943,6 +960,11 @@ func inspectVerifiedReleaseExecutables(
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("executor state: read stackkit-server from verified release: %w", err)
 		}
+		if openTofuDir != "" {
+			if err := stageVerifiedReleaseOpenTofu(extractRoot, openTofuDir, release.Platform); err != nil {
+				return err
+			}
+		}
 		verifiedRelease = release
 		verifiedExecutable = append([]byte(nil), archiveExecutable...)
 		verifiedServer = server
@@ -954,6 +976,53 @@ func inspectVerifiedReleaseExecutables(
 		)
 	}
 	return verifiedRelease, verifiedExecutable, verifiedServer, nil
+}
+
+// stageVerifiedReleaseOpenTofu copies the packaged OpenTofu of an extracted
+// verified release, when it ships one, into dir as a new private executable.
+func stageVerifiedReleaseOpenTofu(extractRoot, dir string, platform releaseindex.Platform) error {
+	name := executorStateOpenTofuExecutablePath(platform)
+	extracted := filepath.Join(extractRoot, name)
+	if _, err := os.Lstat(extracted); errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err := copyPrivateExecutable(extracted, filepath.Join(dir, name)); err != nil {
+		return fmt.Errorf("executor state: stage verified release OpenTofu: %w", err)
+	}
+	return nil
+}
+
+// copyPrivateExecutable copies the regular file source to the new
+// owner-only (0700) executable target.
+func copyPrivateExecutable(source, target string) error {
+	input, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+	info, err := input.Stat()
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", filepath.Base(source))
+	}
+	output, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o700)
+	if err != nil {
+		return err
+	}
+	written, copyErr := io.Copy(output, input)
+	if copyErr == nil && written != info.Size() {
+		copyErr = io.ErrShortWrite
+	}
+	return errors.Join(copyErr, output.Close())
+}
+
+func executorStateOpenTofuExecutablePath(platform releaseindex.Platform) string {
+	if platform.OS == "windows" {
+		return "tofu.exe"
+	}
+	return "tofu"
 }
 
 func executorStateReleaseDigest(raw string) string {

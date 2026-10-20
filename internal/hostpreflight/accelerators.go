@@ -45,6 +45,40 @@ func AcceleratorRequirementsFromModule(moduleRef string, module map[string]any, 
 	}, true
 }
 
+// onWSL reports a WSL2 distribution: preflight saw systemd-detect-virt say
+// wsl, or an observed GPU is paravirtualized from Windows.
+func onWSL(facts Facts) bool {
+	if facts.Virtualization == "wsl" {
+		return true
+	}
+	for _, accelerator := range facts.Accelerators {
+		if accelerator.WSL {
+			return true
+		}
+	}
+	return false
+}
+
+// dockerDesktopEngine is what Docker Desktop's daemon reports as its
+// operating system. On WSL it runs in its own docker-desktop distribution and
+// reads CDI specs there, never the /etc/cdi of the distribution StackKits
+// observes.
+const dockerDesktopEngine = "Docker Desktop"
+
+// wslDriverRemediation is the driver fix on WSL2: the Windows NVIDIA driver
+// serves the distribution, and a Linux NVIDIA driver inside it breaks
+// paravirtualization.
+func wslDriverRemediation(floor int) []string {
+	version := "a current NVIDIA driver"
+	if floor > 0 {
+		version = fmt.Sprintf("the NVIDIA driver %d or newer", floor)
+	}
+	return []string{
+		"This host is WSL2: the GPU driver is the Windows NVIDIA driver. Never install a Linux NVIDIA driver inside WSL; it breaks GPU paravirtualization.",
+		"On Windows, install or update " + version + " (NVIDIA App or nvidia.com/drivers), run wsl --shutdown, start the distribution again and check that " + hostconformance.WSLNVIDIASMIPath + " lists the GPU.",
+	}
+}
+
 func acceleratorByVendor(facts Facts, vendor string) (hostconformance.AcceleratorFacts, bool) {
 	for _, accelerator := range facts.Accelerators {
 		if accelerator.Vendor == vendor {
@@ -99,7 +133,7 @@ func driverPending(requirement AcceleratorRequirement, observed hostconformance.
 func checkGPUDriver(facts Facts, selected []AcceleratorRequirement) Check {
 	check := Check{ID: CheckGPUDriver, Status: StatusPass, Summary: "The selected GPUs have a qualifying driver"}
 	var problems []string
-	floor := 0
+	floor, wsl := 0, onWSL(facts)
 	for _, requirement := range selected {
 		observed, found := acceleratorByVendor(facts, requirement.Vendor)
 		if !found || observed.Devices < 1 || !driverPending(requirement, observed) {
@@ -122,21 +156,25 @@ func checkGPUDriver(facts Facts, selected []AcceleratorRequirement) Check {
 	check.Remediation = []string{
 		"On Ubuntu, install the newest prebuilt NVIDIA server driver: sudo stackkit host remediate --apply " + ResolutionNVIDIADriver + " --yes, then reboot.",
 		fmt.Sprintf("Elsewhere, install the NVIDIA driver %d or newer from your distribution or NVIDIA, reboot, and check that nvidia-smi lists the GPU.", floor),
-		"Or choose CPU: re-author without --module-accelerator-profile (the Private AI Accelerator setting \"CPU only\").",
 	}
+	if wsl {
+		check.Remediation = wslDriverRemediation(floor)
+	}
+	check.Remediation = append(check.Remediation, "Or choose CPU: re-author without --module-accelerator-profile (the Private AI Accelerator setting \"CPU only\").")
 	return check
 }
 
 func checkGPUDevice(facts Facts, selected []AcceleratorRequirement) Check {
 	check := Check{ID: CheckGPUAccelerator, Status: StatusPass}
 	var problems, remediation []string
+	wsl := onWSL(facts)
 	for _, requirement := range selected {
 		subject := fmt.Sprintf("%s (accelerator profile %s)", requirement.ModuleRef, requirement.Profile)
 		observed, found := acceleratorByVendor(facts, requirement.Vendor)
 		switch {
 		case !found || observed.Devices < 1:
 			problems = append(problems, fmt.Sprintf("%s needs an %s GPU, but none was found", subject, vendorName(requirement.Vendor)))
-			remediation = append(remediation, deviceGuidance(requirement))
+			remediation = append(remediation, deviceGuidance(requirement, wsl))
 		case driverPending(requirement, observed):
 			// The driver check refuses; memory is measured once it answers.
 		case requirement.MinVRAMGiB > 0 && observed.MinVRAMGiB == 0:
@@ -182,6 +220,11 @@ func checkGPUContainerAccess(facts Facts, selected []AcceleratorRequirement) Che
 					"Install the NVIDIA Container Toolkit and generate the CDI spec: sudo stackkit host remediate --apply nvidia-container-toolkit --yes",
 					"After every NVIDIA driver upgrade, regenerate it: sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml")
 			}
+			if onWSL(facts) && facts.Docker.OperatingSystem == dockerDesktopEngine {
+				problems = append(problems, "the Docker daemon is Docker Desktop's, which runs in its own WSL distribution and cannot read this distribution's CDI spec")
+				remediation = append(remediation,
+					"Install Docker Engine inside this WSL distribution (Docker's apt repository, with systemd=true under [boot] in /etc/wsl.conf) and turn off Docker Desktop's WSL integration for it, so docker here talks to that engine.")
+			}
 			if facts.Docker.DaemonReachable && !facts.Docker.CDIEnabled {
 				problems = append(problems, "the Docker daemon does not have CDI enabled")
 				remediation = append(remediation,
@@ -211,7 +254,10 @@ func checkGPUContainerAccess(facts Facts, selected []AcceleratorRequirement) Che
 	return check
 }
 
-func deviceGuidance(requirement AcceleratorRequirement) string {
+func deviceGuidance(requirement AcceleratorRequirement, wsl bool) string {
+	if requirement.Vendor == "nvidia" && wsl {
+		return "This host is WSL2, which shows a Windows GPU as " + hostconformance.WSLGPUDevice + " and its nvidia-smi under /usr/lib/wsl/lib. Install the NVIDIA driver on Windows (never inside WSL), run wsl --shutdown and start the distribution again."
+	}
 	if requirement.Vendor == "nvidia" {
 		return "Attach an NVIDIA GPU to this host; in a VM, pass it through from the hypervisor (Proxmox: hostpci). Once lspci lists it, stackkit host remediate offers the driver install."
 	}

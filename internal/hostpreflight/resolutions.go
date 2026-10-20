@@ -74,6 +74,10 @@ type Resolution struct {
 	// Elsewhere the resolution is refused with its guidance; empty means any.
 	Distributions []string `json:"distributions,omitempty"`
 
+	// WSL scopes a resolution to WSL2 hosts (WSLOnly) or away from them
+	// (WSLNever); empty applies to both.
+	WSL WSLScope `json:"wsl,omitempty"`
+
 	RequiresRoot   bool `json:"requiresRoot"`
 	RequiresReboot bool `json:"requiresReboot"`
 
@@ -91,8 +95,22 @@ type Resolution struct {
 	StepTimeoutSeconds int `json:"stepTimeoutSeconds,omitempty"`
 }
 
+// WSLScope says whether a resolution answers a finding on a WSL2 host.
+type WSLScope string
+
+const (
+	// WSLOnly is offered only on WSL2, where Windows owns the GPU driver.
+	WSLOnly WSLScope = "only"
+	// WSLNever is neither offered nor carried out on WSL2.
+	WSLNever WSLScope = "never"
+)
+
 // ResolutionNVIDIADriver installs the NVIDIA driver on an Ubuntu host.
 const ResolutionNVIDIADriver = "nvidia-driver"
+
+// ResolutionNVIDIAWindowsDriver is the WSL2 answer to a missing driver: the
+// Windows NVIDIA driver, which StackKits inside WSL cannot install.
+const ResolutionNVIDIAWindowsDriver = "nvidia-windows-driver"
 
 // NVIDIAServerOpenBranch stands in a declared command for the newest NVIDIA
 // server-open driver branch this host's Ubuntu archive offers with prebuilt,
@@ -215,6 +233,7 @@ func Resolutions() []Resolution {
 			AppliesTo: CheckGPUDriver, Mode: ModeApply,
 			Summary:       "A selected NVIDIA accelerator profile needs the NVIDIA driver, and the GPU on this host has none (or one older than the profile floor).",
 			Distributions: []string{"ubuntu"},
+			WSL:           WSLNever,
 			Commands: [][]string{
 				{"apt-get", "update"},
 				{"apt-get", "install", "-y", "ubuntu-drivers-common"},
@@ -231,6 +250,16 @@ func Resolutions() []Resolution {
 			},
 			RequiresRoot: true, RequiresReboot: true, Reversible: true,
 			StepTimeoutSeconds: 900,
+		},
+		{
+			ID: ResolutionNVIDIAWindowsDriver, Title: "Install the NVIDIA driver on Windows",
+			AppliesTo: CheckGPUDriver, Mode: ModeHint, WSL: WSLOnly,
+			Summary: "This host is a WSL2 distribution: its GPU is paravirtualized from Windows, and only the Windows NVIDIA driver can serve it.",
+			Guidance: []string{
+				"Never install a Linux NVIDIA driver inside WSL; it breaks GPU paravirtualization. StackKits refuses the nvidia-driver fix here.",
+				"On Windows, install or update the NVIDIA driver (NVIDIA App or nvidia.com/drivers), then run wsl --shutdown and start the distribution again.",
+				"Check inside the distribution that " + hostconformance.WSLNVIDIASMIPath + " lists the GPU, then run stackkit host remediate again for container access (nvidia-container-toolkit).",
+			},
 		},
 		{
 			ID: "nvidia-container-toolkit", Title: "Let containers use the NVIDIA GPU",
@@ -250,6 +279,7 @@ func Resolutions() []Resolution {
 				"Debian and Ubuntu hosts only; on other distributions follow NVIDIA's Container Toolkit install guide, then run nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml.",
 				"The NVIDIA driver 550 or newer must already be installed and loaded; on Ubuntu the nvidia-driver fix installs it.",
 				"Regenerate the CDI spec after every driver upgrade with the same nvidia-ctk command, or containers lose the GPU.",
+				"On WSL2 the driver is the Windows NVIDIA driver, nvidia-ctk writes a WSL-mode spec from /dev/dxg and /usr/lib/wsl/lib, and every Windows driver update needs the spec regenerated. Docker must be Docker Engine inside this distribution, not Docker Desktop's integration.",
 				"Undo with apt-get remove nvidia-container-toolkit and by deleting /etc/cdi/nvidia.yaml, the key and the source list.",
 			},
 			RequiresRoot: true, Reversible: true, AutoInstallerEligible: true,
@@ -334,6 +364,7 @@ func ResolutionByID(id string) (Resolution, bool) {
 // actually found. A passing check needs no fix, so only warnings, blocks and
 // unknowns bring one forward.
 func ResolutionsForReport(report Report) []Resolution {
+	wsl := onWSL(report.Facts)
 	wanted := make(map[string]bool, len(report.Checks))
 	for _, check := range report.Checks {
 		switch check.Status {
@@ -343,9 +374,21 @@ func ResolutionsForReport(report Report) []Resolution {
 	}
 	matched := make([]Resolution, 0, len(wanted))
 	for _, resolution := range Resolutions() {
-		if wanted[resolution.AppliesTo] {
+		if wanted[resolution.AppliesTo] && answersHost(resolution, wsl) {
 			matched = append(matched, resolution)
 		}
 	}
 	return matched
+}
+
+// answersHost reports whether a resolution belongs on this host: a Linux
+// driver install never on WSL2, the Windows driver hint only there.
+func answersHost(resolution Resolution, wsl bool) bool {
+	switch resolution.WSL {
+	case WSLOnly:
+		return wsl
+	case WSLNever:
+		return !wsl
+	}
+	return true
 }
