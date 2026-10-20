@@ -16,10 +16,29 @@ sha256_of() {
   fi
 }
 
+download() {
+  url="$1"
+  destination="$2"
+  phase="$3"
+  echo "Downloading Terramate ${TERRAMATE_VERSION} ${phase}: ${url}"
+  # A stalled upstream transfer must fail before the archive job expires.
+  # Curl retries transient HTTP/transport failures, retaining the same asset.
+  if curl -fsSL --connect-timeout 15 --max-time 120 \
+    --speed-limit 1024 --speed-time 30 \
+    --retry 2 --retry-delay 2 --retry-max-time 180 --retry-connrefused \
+    "$url" -o "$destination"; then
+    echo "Downloaded Terramate ${TERRAMATE_VERSION} ${phase}"
+  else
+    status="$?"
+    echo "Terramate download failed (${phase}, curl exit ${status}): ${url}" >&2
+    return "$status"
+  fi
+}
+
 # Every archive is checked against the upstream checksums.txt of the pinned
 # release before it is unpacked.
 SUMS="${DOWNLOAD_DIR}/terramate_${TERRAMATE_VERSION}_checksums.txt"
-curl -fsSL "https://github.com/terramate-io/terramate/releases/download/v${TERRAMATE_VERSION}/checksums.txt" -o "$SUMS"
+download "https://github.com/terramate-io/terramate/releases/download/v${TERRAMATE_VERSION}/checksums.txt" "$SUMS" checksums
 
 verify_archive() {
   archive="$1"
@@ -34,6 +53,7 @@ verify_archive() {
     echo "SHA256 mismatch for ${name}: expected ${expected}, got ${actual}" >&2
     exit 1
   fi
+  echo "Verified Terramate ${TERRAMATE_VERSION} archive ${name} SHA256"
 }
 
 asset_arch() {
@@ -62,7 +82,7 @@ fetch_one() {
 
   mkdir -p "$target_dir"
   echo "Fetching Terramate ${TERRAMATE_VERSION} for ${os}/${arch}"
-  curl -fsSL "$url" -o "$archive"
+  download "$url" "$archive" "${os}/${arch} archive"
   verify_archive "$archive"
   if [ "$archive_ext" = "zip" ]; then
     if command -v unzip >/dev/null 2>&1; then
