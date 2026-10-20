@@ -98,8 +98,11 @@ _architectureV2MarketplaceModules: [{
 			volumes: [for v in _architectureV2MarketplaceStorage if v.componentRef == "redis" {id: v.volumeRef, target: v.target, class: "persistent", backup: true}]
 		}]
 	}
+	// Installation is a node-owned host operation on either target. The
+	// generated recipe retains the same native bootstrap owner; it does not
+	// turn curated Coolify workloads into Docker-provider resources.
 	renderUnits: [{
-		id: "marketplace", kind: "native-config", rendererRef: "stackkit", compatibleTargets: ["compose"]
+		id: "marketplace", kind: "native-config", rendererRef: "stackkit", compatibleTargets: ["compose", "opentofu"]
 		templateRef: "builtin://workloads/marketplace/installation/v1.json", version: "1.0.0", contractHash: "sha256:da9344f190d12d566365c28618922dd94147c82cfff141f0f68c41da7aa6d396"
 		publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: ["kit"]
 		inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
@@ -113,7 +116,7 @@ _architectureV2MarketplaceModules: [{
 		artifacts: {
 			requiredRefs: ["marketplace-installation"]
 			outputBindings: [{artifactRef: "marketplace-installation", unitRef: "marketplace", outputRef: "workloads/marketplace/installation.json"}]
-			contracts: [{id: "marketplace-installation", kind: "native-config", format: "json", mode: "0600", required: true, compatibleTargets: ["compose"], unitRef: "marketplace", outputRef: "workloads/marketplace/installation.json"}]
+			contracts: [{id: "marketplace-installation", kind: "native-config", format: "json", mode: "0600", required: true, compatibleTargets: ["compose", "opentofu"], unitRef: "marketplace", outputRef: "workloads/marketplace/installation.json"}]
 		}
 		evidence: requiredRefs: ["marketplace-native-installation"]
 	}

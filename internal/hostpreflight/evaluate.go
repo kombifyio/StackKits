@@ -352,6 +352,9 @@ func checkPorts(facts Facts) Check {
 		if port.Transport != "" && !port.Observed {
 			check.Status = StatusBlocked
 			check.Summary = fmt.Sprintf("Cannot verify %s %s:%d before mutation", port.Transport, port.BindAddress, port.Port)
+			if port.Detail != "" {
+				check.Summary += ": " + port.Detail
+			}
 			check.FailureClass = string(applyoutcome.ClassPortConflict)
 			check.Remediation = []string{"Refresh the affected host evidence with sufficient access; preserve existing services until the binding can be verified."}
 			return check

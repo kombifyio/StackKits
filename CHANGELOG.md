@@ -1,5 +1,9 @@
 # Changelog
 
+- Fix: Dokploy deployment operations retain the returned compose identity, require the recorded identity for updates, and refuse automatic retry or fallback after a create may have committed. Status validates placement and the last recorded deployment state only; it does not certify the latest queued apply or application health. Full v2 lifecycle acceptance remains separate work.
+
+- Fix: Coolify's node-owned Marketplace installation recipe now renders with Basement's default OpenTofu target as well as Compose. The existing native bootstrap keeps owner custody and routing; provider-target parity and current-pin PaaS lifecycle acceptance remain separate gates.
+
 - Change: `stackkit feasibility` reports an application data binding without a declared budget (`DATA_CAPACITY_INTENT_MISSING`) as an advisory on its node instead of making the workload `unknown`. Without a budget there is no data demand to miss: the host floor still counts storage, and a declared budget that does not fit stays `infeasible` (`DATA_CAPACITY_UNSATISFIED`). Catalog-default StackSpecs declare no data budget, so before this change every data-bearing workload in them was `unknown`.
 
 - Add: Home device enrollment as a State Console ceremony. The State Console links to the local owner step-up page in `device-enroll` mode; after a fresh PocketID passkey step-up it issues a single-use pairing code and shows it with a QR code carrying the enrollment URL, TLS server name and step-ca root fingerprint. `stackkit-server --home-enroll-listen` serves `POST /api/v1/identity/home/enroll` only on the dedicated LAN listener `stackkit-server-home-enroll` (TLS 1.3, port 9443, node site address, step-ca issued server certificate); admission uses the connection's peer address, never forwarded headers, and the same route on any other listener is refused. A fresh, unused code from the home network yields a step-ca device certificate for the device's own key.
@@ -302,6 +306,160 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.54.1](https://github.com/kombifyio/StackKits/compare/v0.54.0...v0.54.1) (2026-10-20)
+
+
+### Fixed
+
+* **hostpreflight:** read systemd socket continuation and vsock lines
+
+## [0.54.0] (2026-10-20)
+
+### Highlights
+
+This release line removes a Coolify generation blocker and makes Dokploy deployment retries safer.
+
+- **Generate Coolify with Basement's default target:** the node-owned Coolify installation recipe now renders for OpenTofu as well as Compose, retaining the existing bootstrap custody and routing.
+- **Retain the actual Dokploy deployment identity:** the adapter keeps the returned compose ID, validates workload placement before updating it, and requires reconciliation before retrying or falling back when creation may already have succeeded.
+
+Full native Coolify and Dokploy lifecycle, identity, routing, data recovery and current-pin acceptance remain pending. Dokploy status reflects the last recorded deployment state; completion of the latest queued deployment requires separate confirmation.
+
+
+
+### Added
+
+* add layout feasibility operation, resident-load policy and add-on placement check (platform-wig6t.1)
+* **advanced:** carry Home and federation bindings into change-set create/apply
+* **ai:** add the LiteLLM model router as the AI API access module
+* **ai:** add the Private AI model manager setup action
+* **ai:** install the NVIDIA driver on Ubuntu guests and prove the GPU under CUDA load
+* **ai:** name the private chat bundle My private Chat
+* **ai:** Private AI bundles by user goal; ComfyUI without a GPU condition
+* **ai:** rename the own-AI bundle to My local AI
+* **backup:** recover explicitly selected Marketplace service data
+* bind Mosquitto resource variants to native compute profiles
+* bind observed complete Guacamole module demand
+* **catalog:** enforce use-case prohibitions, safe defaults and allocated backup volumes
+* **catalog:** group use-case capability modules into bundles
+* **catalog:** memory and GPU fit per choice option; Private AI model size
+* **cli:** preview kit selection footprints and capacity
+* **cloud:** retain PocketID across resumable session route repair
+* **identity:** device enrollment ceremony on a LAN listener
+* **identity:** enroll household devices through step-ca with stackkit device enroll|list|revoke
+* **identity:** per-app household access groups on the node (platform-zkutf)
+* **identity:** register the kombify account-link PKCE client on connected nodes (platform-xtnpe)
+* **init:** declare an ntfy owner channel during stackkit init
+* install explicit ntfy live notifications with native delivery check
+* **mcp:** harden MCP, per-agent credentials with per-call write approval, host-execution ADR
+* **mcp:** per-agent credentials and per-call approval for stdio attachments
+* **media:** add receipted Jellyfin file import
+* **media:** complete native Audiobookshelf owner and library setup
+* **media:** complete native Navidrome owner setup
+* **network:** bind measured native compute envelopes
+* **network:** claim AdGuard Home backup/restore and declare the Network, Remote and ntfy data contracts
+* **notifications:** owner notification intent and backup digest recipe
+* **notify:** owner lifecycle events (apply-failed, drift-detected, upgrade-available, certificate-expiring)
+* **overlay:** kit-owned WireGuard overlay contract, key custody and peer rendering for enrolled devices
+* **ownernotify:** PagerDuty delivery adapter
+* **paas:** restore Photos, Files and Vault through Coolify and Komodo (2ujh.3.7)
+* read back restored volume content during live restore activation
+* **release:** add the preview (Nightly) release channel
+* **relocate:** drain before the final send, JSON results and receive --wait
+* **relocate:** plan and check Coolify workload moves with a pinned coolify-mirror fork
+* **relocate:** send and receive Coolify workloads with a Wallet-delivered transfer secret
+* **remote:** bind measured Guacamole compute envelopes
+* **resolvedplan:** hand the home-access overlay to the private-remote-access executor
+* **resolvedplan:** re-issue Home backup target and federation link bindings for a successor spec
+* **resolvedplan:** Standard Mode private remote access is realized by the kit-owned WireGuard overlay
+* restart retained Coolify workload services
+* restore signed Coolify application data
+* **service:** transfer registered workload managers under shared custody
+* show bound capacity guidance in native plan inspection
+* **smart-home:** configure plan-bound Home Assistant MQTT
+* **smart-home:** pin Home Assistant 2026.9.4 for the reviewed MCP adapter
+* **train:** adopt the on-demand train lane (D5b)
+* **train:** CLI preview receipt and the daily train occasion for StackKits (D5c)
+* verify installed Network policy and reactivate declared configuration
+* **verify:** add --notify owner delivery check (y5d6)
+* **wave11:** agent mcp-config remote HTTP entry; delete demos/ carry
+
+
+### Fixed
+
+* **affected-tests:** run the renderer registry parity proof for renderer and catalog changes
+* align canonical MQTT profile facts with shared delivery
+* align legacy PaaS guidance with Marketplace ownership
+* **architecture-v2:** register the Cloud standalone OpenTofu and Terramate hashes after #2195
+* avoid replaying uncertain manager attachment
+* **backup:** journal change-set backup custody move so recovery restores it
+* **backup:** restore Files through retained Komodo custody
+* **beads:** bridge writes to the Cloudflare store
+* **bootstrap:** project portable Agent Home context readiness
+* **bootstrap:** reuse host Git authentication for Agent Home
+* **catalog:** apply the use-case standard to maturity, kit roles, data contracts and restore
+* **catalog:** option-level realization; Private AI local inference installs
+* **ci:** adopt the registered external consumer updater
+* **ci:** carry the release preparation check in the required gate (train gate integrity A4)
+* **ci:** run the public export check in the required gate when the export surface changes (train gate integrity A4)
+* **compat:** bind current release lifecycle receipts (platform-7rni.10.27.3)
+* **compat:** bind terminal Photos Debian receipt (platform-7rni.10.27.3)
+* complete Marketplace service observation and control
+* **cue:** evaluate OTLP transport, pi backends and provider owner guard under CUE 0.17
+* **deps:** update internal products
+* **deps:** update internal products
+* **deps:** update internal products
+* diagnose PocketID TinyAuth policy mismatches precisely
+* diagnose rejected stored plans with source recovery guidance
+* **docs:** drop the private backup doc path from the public architecture doc
+* **feasibility:** an undeclared data budget is an advisory
+* **hostcustody:** require the pinned authority signature on every delivery
+* **hostdelivery:** each server reports a unique, stable node reference to the Wallet (platform-qujge)
+* **identity:** a re-sent household invite re-issues the setup link of a pending member (platform-usggv)
+* **identity:** configure Audiobookshelf Pocket ID sign-in
+* **identity:** reconcile legacy TinyAuth PKCE without replacing custody
+* **init:** refuse unusable shared Cloud identity cookie scope
+* inspect signed Cloud session history with its attested source
+* **installers:** preserve invoking owner journal custody across sudo
+* **installers:** preserve sealed smoke inputs and real verify refusal
+* keep normal workload controls after signed manager transfer
+* **komodo:** select native Core and refresh its CA consumers
+* layout feasibility review findings and unpinned add-on placement (platform-wig6t.1)
+* **lifecycle:** back up plans with stateless Remote/ntfy and init ntfy behind an admin route (platform-em8dm.17, .18)
+* **marketplace:** repair retained Coolify service configuration
+* **matrix:** align kit mode matrices with the product boundary
+* migrate retained Cloud TinyAuth with verified data rollback
+* **network:** back up the AdGuard Home configuration
+* non-root install path and actionable RAM refusal
+* **platform:** restore Coolify and Dokploy as Layer-2 PaaS platforms
+* prepare attested sources from explicit development readers
+* preserve MQTT offline delivery across compute allocations
+* **productruntime:** align external consumer runtime contracts
+* **public:** allow the affected-test planner to name the website lockfile
+* **public:** export install-host-bootstrap.sh with the installers
+* **public:** project runtime contracts module into the OSS export
+* **public:** retain private backup classification and repair export publication
+* **public:** rewrite the private scenario catalog reference in use_case.cue on export
+* recover interrupted Coolify application restores
+* **release:** verify semantic release notes instead of character count
+* **remote:** size CPU demand from measured cold startup
+* report actual Komodo manager before backup data effects
+* **restore,cue:** name pre-service restore activation steps; CUE v0.17-safe edge verifier binding; Home pairing core
+* **restore:** activate exactly the volumes the restore staged under its backup coverage
+* **restore:** name the step of a failed restore activation
+* **runtime:** align the external consumer contracts dependency
+* **security:** validate stackkit_log_get run IDs and bind unpinned retired generations to the current pin
+* **service:** deny Compose control of platform-owned workloads
+* sign native Komodo workload manager custody
+* **stackkits:** retain Dokploy identity and render Coolify bootstrap
+* **status:** distinguish Komodo platform and Files recovery
+* **status:** report a plan from an older compiler as stale instead of failing
+* stop the legacy v1 bridge from defaulting to Coolify (ADR-0049)
+* **train:** CLI preview receipt for every push to main, no path filter (D5c)
+* **train:** one authority-sha on every release-please producer call (D5c)
+* transfer retained Files to native Komodo Core
+* **usecasecatalog:** stateless alternatives no longer claim backup restore
+* withhold sizing from incomplete workload samples
 
 ## [0.53.19](https://github.com/kombifyio/StackKits/compare/v0.53.18...v0.53.19) (2026-10-20)
 

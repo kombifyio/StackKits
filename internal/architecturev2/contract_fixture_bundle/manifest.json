@@ -20,7 +20,7 @@
     "foundation/architecture_v2_definition_binding.cue": "sha256:0f991a3a54360298f7ee1e9404f07952a6a94c801f6cb60b5920247a2596c462",
     "foundation/architecture_v2_guacamole.cue": "sha256:35e2035fa2449d91ad7297e28132d36e40bc89a242ffb8f3e8a08a7b9f883ec0",
     "foundation/architecture_v2_komodo_bootstrap.cue": "sha256:b8b94a8e366e2b9715894dfe17a76f10a03ec777aeae665c6f2d3ab6e9ddc519",
-    "foundation/architecture_v2_marketplace.cue": "sha256:0cc590987ab3fac11ae10153f813bacd2e2e0c2ee5e1d61554f5974171b7f0c9",
+    "foundation/architecture_v2_marketplace.cue": "sha256:e4d38ccd66cf98cfd108af5c065262d2b36cd1c50344f4c9da660e4005224c18",
     "foundation/architecture_v2_marketplace_backup.cue": "sha256:d603ac092e24ef329bd04e3a24ec22e4d40b9d4d0ad40c3233771cdc33d0ba56",
     "foundation/architecture_v2_module_profiles.cue": "sha256:4636040e778432a719becff4015b22c2cd506c1d2a498139669959c723d7b47c",
     "foundation/architecture_v2_ntfy.cue": "sha256:f59c85e77ba2ee536783403572bbec0de76cb89077cb51b0a53aedb8ac3cbdea",

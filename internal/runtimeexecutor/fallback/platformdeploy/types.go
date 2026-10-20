@@ -41,6 +41,15 @@ type ComponentFailure struct {
 	Retryable         bool   `json:"retryable" yaml:"retryable"`
 }
 
+// DeploymentIdentityUncertainError means a platform mutation may already own
+// the workload. Reconcile it before retrying or selecting another manager.
+type DeploymentIdentityUncertainError struct {
+	Err error
+}
+
+func (e *DeploymentIdentityUncertainError) Error() string { return e.Err.Error() }
+func (e *DeploymentIdentityUncertainError) Unwrap() error { return e.Err }
+
 // BundleResult preserves every successful deployment reference alongside
 // application-scoped failures. Callers can finish the independent graph,
 // persist a degraded state, and retry only components that still need work.

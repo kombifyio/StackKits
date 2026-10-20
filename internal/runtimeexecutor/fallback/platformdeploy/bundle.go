@@ -3,6 +3,7 @@ package platformdeploy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -122,13 +123,19 @@ func ApplyBundleResilient(ctx context.Context, adapter Adapter, bundle BundleMan
 				return result, ctx.Err()
 			}
 			identityCommitted := strings.TrimSpace(ref.ExternalID) != ""
+			var uncertain *DeploymentIdentityUncertainError
+			identityUncertain := errors.As(err, &uncertain)
 			if identityCommitted {
 				// The adapter already created or adopted a durable platform
 				// identity. Retain it for reconciliation and never fan this
 				// component out to a second adapter or Compose fallback.
 				result.Refs = append(result.Refs, ref)
 			}
-			result.Failures = append(result.Failures, componentFailure(app, bundle.Platform, "apply", err, identityCommitted))
+			failure := componentFailure(app, bundle.Platform, "apply", err, identityCommitted || identityUncertain)
+			if identityUncertain {
+				failure.Retryable = false
+			}
+			result.Failures = append(result.Failures, failure)
 			continue
 		}
 

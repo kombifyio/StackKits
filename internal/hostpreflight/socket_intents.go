@@ -27,16 +27,28 @@ func observeSocketIntents(ctx context.Context, workspace string) ([]socketIntent
 	if !ok {
 		return nil, false
 	}
+	return parseSocketIntents(string(raw))
+}
+
+// parseSocketIntents reads `systemctl list-sockets --show-types` output. A
+// socket that triggers several units (Accept=yes with live instances, such as
+// the Guard executor) prints each further unit on a continuation line that
+// holds only the unit name; it adds no listener. Non-IP families (AF_UNIX
+// paths, abstract names, vsock) cannot collide with a host IP port.
+func parseSocketIntents(raw string) ([]socketIntent, bool) {
 	intents := []socketIntent{}
-	for _, line := range strings.Split(string(raw), "\n") {
+	for _, line := range strings.Split(raw, "\n") {
 		fields := strings.Fields(line)
+		if len(fields) == 1 && isSystemdUnitName(fields[0]) {
+			continue
+		}
 		if len(fields) < 3 {
 			if strings.TrimSpace(line) != "" {
 				return nil, false
 			}
 			continue
 		}
-		if strings.HasPrefix(fields[0], "/") || strings.HasPrefix(fields[0], "@") {
+		if strings.HasPrefix(fields[0], "/") || strings.HasPrefix(fields[0], "@") || strings.HasPrefix(fields[0], "vsock:") {
 			continue
 		}
 		transport := ""
@@ -66,6 +78,15 @@ func observeSocketIntents(ctx context.Context, workspace string) ([]socketIntent
 		intents = append(intents, socketIntent{ListenerRequirement: listener, Unit: fields[2]})
 	}
 	return intents, true
+}
+
+func isSystemdUnitName(name string) bool {
+	for _, suffix := range []string{".service", ".socket", ".mount", ".target", ".timer", ".path", ".scope", ".slice", ".swap", ".device", ".automount"} {
+		if strings.HasSuffix(name, suffix) && len(name) > len(suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func socketIntentOverlaps(intent socketIntent, listener ListenerRequirement) bool {

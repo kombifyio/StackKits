@@ -49040,7 +49040,8 @@
           "contracts": [
             {
               "compatibleTargets": [
-                "compose"
+                "compose",
+                "opentofu"
               ],
               "format": "json",
               "id": "marketplace-installation",
@@ -49088,7 +49089,8 @@
         {
           "applyMode": "runtime",
           "compatibleTargets": [
-            "compose"
+            "compose",
+            "opentofu"
           ],
           "contractHash": "sha256:da9344f190d12d566365c28618922dd94147c82cfff141f0f68c41da7aa6d396",
           "id": "marketplace",

@@ -1,6 +1,6 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:483019c624e9367950eed3215aac7f22f35d261514304e24bff4df03c5816e27",
+    "catalog.json": "sha256:3298b52c57e600b67dcde74a1172842c9d8598f02304326eaefeb33c20bc618b",
     "compute-tier-fits.json": "sha256:47a35c078fa09e3afe787155edb02b86be2348ee46b92575c3cd1815ecfad481",
     "definitions/basement-kit.json": "sha256:33de3985ba89a853a73cd96be197366321a72eac473711337eadb69fc378534a",
     "definitions/cloud-kit.json": "sha256:5a06889952d282f1cf5730f285e6519647610f675a946d463e014da47bd5ab40",
@@ -34,7 +34,7 @@
     "foundation/architecture_v2_federation.cue": "sha256:720abfcfd924aacbd3388ee2b88066629f1dcbec3a5ff11d81ffb905e2716b74",
     "foundation/architecture_v2_guacamole.cue": "sha256:35e2035fa2449d91ad7297e28132d36e40bc89a242ffb8f3e8a08a7b9f883ec0",
     "foundation/architecture_v2_komodo_bootstrap.cue": "sha256:b8b94a8e366e2b9715894dfe17a76f10a03ec777aeae665c6f2d3ab6e9ddc519",
-    "foundation/architecture_v2_marketplace.cue": "sha256:0cc590987ab3fac11ae10153f813bacd2e2e0c2ee5e1d61554f5974171b7f0c9",
+    "foundation/architecture_v2_marketplace.cue": "sha256:e4d38ccd66cf98cfd108af5c065262d2b36cd1c50344f4c9da660e4005224c18",
     "foundation/architecture_v2_marketplace_backup.cue": "sha256:d603ac092e24ef329bd04e3a24ec22e4d40b9d4d0ad40c3233771cdc33d0ba56",
     "foundation/architecture_v2_module_profiles.cue": "sha256:4636040e778432a719becff4015b22c2cd506c1d2a498139669959c723d7b47c",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",
