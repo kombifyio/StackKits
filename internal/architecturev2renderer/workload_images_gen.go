@@ -4,9 +4,9 @@
 package architecturev2renderer
 
 const (
-	homeAssistantImageRef          = "ghcr.io/home-assistant/home-assistant:2026.7.2"
-	homeAssistantImageDigest       = "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
-	homeAssistantRelease           = "2026.7.2"
+	homeAssistantImageRef          = "ghcr.io/home-assistant/home-assistant:2026.9.4"
+	homeAssistantImageDigest       = "sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76"
+	homeAssistantRelease           = "2026.9.4"
 	jellyfinImageRef               = "docker.io/jellyfin/jellyfin:12.1"
 	jellyfinImageDigest            = "sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e"
 	jellyfinRelease                = "12.1"

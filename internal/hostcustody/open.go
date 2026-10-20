@@ -70,6 +70,10 @@ func OpenDelivery(store Store, raw []byte, expect Expectation, now time.Time) (D
 	if err != nil {
 		return Delivery{}, err
 	}
+	ownerKey, err := localevidence.LoadOwnerKey(store.Workspace())
+	if err != nil {
+		return Delivery{}, err
+	}
 	current, err := readRecipient(store)
 	if err != nil {
 		return Delivery{}, err
@@ -117,8 +121,12 @@ func OpenDelivery(store Store, raw []byte, expect Expectation, now time.Time) (D
 	if err != nil {
 		return Delivery{}, err
 	}
+	// The node reference is the one this node's statements report; a delivery
+	// sealed to its plain StackSpec reference (statements before the identity
+	// reference) still names this node, whose recipient key alone opens it.
 	if context.Operation != envelope.Context.Operation || context.TenantRef != expect.TenantRef ||
-		context.SiteRef != owner.Binding.SiteRef || context.NodeRef != owner.Binding.NodeRef {
+		context.SiteRef != owner.Binding.SiteRef ||
+		(context.NodeRef != owner.Binding.NodeRef && context.NodeRef != hostdelivery.NodeIdentityRef(owner.Binding.NodeRef, ownerKey.Public())) {
 		clearBytes(plaintext)
 		return Delivery{}, errors.New("hostcustody: sealed delivery is not addressed to this node, tenant and operation")
 	}

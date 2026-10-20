@@ -4,7 +4,7 @@ Implementation status: source and deterministic authentication boundaries are
 implemented. Real Home Assistant startup, browser/native-client sign-in, private
 CA trust and restore qualification remain pending.
 
-Smart Home keeps Home Assistant 2026.7.2 and packages `auth_oidc` 1.2.1 with the
+Smart Home keeps Home Assistant 2026.9.4 and packages `auth_oidc` 1.2.1 with the
 reviewed StackKits owner-binding patch. The extension, private dependencies and
 patch are pinned in CUE and embedded in the CLI; apply performs no extension
 network fetch or Python package installation. See the
@@ -108,10 +108,11 @@ The local HTTP/WebSocket source fixture uses generated pinned workload source,
 synthetic daemon observations and real signed node/lifecycle custody. It proves
 binding denial, enrollment replay/revoke and secret-free receipt projection;
 it does not qualify a deployed Docker installation or native MCP tools.
-StackKits remains pinned at 2026.7.2, while the separately reviewed native MCP
-fixture uses 2026.9.4. Gateway connection eligibility, equipment assignment,
-Techstack handoff and actual agent use remain unavailable until those joins
-and the current-pin customer journey are qualified.
+StackKits pins 2026.9.4, the release the separately reviewed native MCP
+adapter fixture admits; the pin alone qualifies nothing. Gateway connection
+eligibility, equipment assignment, Techstack handoff and actual agent use remain
+unavailable until those joins, a released runtime receipt and the current-pin
+customer journey are qualified.
 
 ### Metadata carrier and signed receipt reconciliation
 
@@ -190,7 +191,7 @@ The local `appsetup.BootstrapHomeAssistantOwner` API accepts an optional
 an agent credential. An authorized local caller explicitly selects `ensure`
 or `revoke`, a lifetime of 1–365 days, and the requested resource/container/image/
 service-revision tuple and established local node binding. The API admits only
-the existing StackKits HA pin, currently 2026.7.2; this is credential setup
+the existing StackKits HA pin, currently 2026.9.4; this is credential setup
 compatibility, **not qualification of that release's native MCP tools**.
 
 The issuer uses the pinned upstream authenticated WebSocket commands
@@ -199,7 +200,7 @@ The issuer uses the pinned upstream authenticated WebSocket commands
 user's authority; it is not a scoped read-only key. The existing native local
 relay and current Gateway read/write lease remain the use-policy boundary.
 The upstream implementation is
-[HA 2026.7.2 auth](https://github.com/home-assistant/core/blob/2026.7.2/homeassistant/components/auth/__init__.py).
+[HA 2026.9.4 auth](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/auth/__init__.py).
 
 Credential lifecycle uses the existing `secret://` local issued-secret store.
 The additive encrypted record kind uses the established Owner key, a distinct

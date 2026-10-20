@@ -10,7 +10,7 @@ import (
 // Complete only the pinned HA onboarding markers after authenticated owner
 // verification. These endpoints keep the current core settings and analytics
 // preferences; they do not choose a location, configure devices or opt in to
-// telemetry. See core 2026.7.2 components/onboarding/views.py.
+// telemetry. See core 2026.9.4 components/onboarding/views.py.
 func completeHomeAssistantOnboarding(ctx context.Context, client *http.Client, baseURL, token string) error {
 	for _, step := range []string{"core_config", "analytics", "integration"} {
 		current, err := readHomeAssistantOnboarding(ctx, client, baseURL, token)

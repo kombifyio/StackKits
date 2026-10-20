@@ -253,7 +253,7 @@ func BootstrapHomeAssistantOwner(
 		return result, err
 	}
 	if finalOnboarding.notFound && expectedVersion == HomeAssistantPinnedVersion && containsHomeAssistantComponent(config.Components, "onboarding") {
-		// HA 2026.7.2 stops registering onboarding views after every step is
+		// HA 2026.9.4 stops registering onboarding views after every step is
 		// complete. An authenticated running config with the loaded component
 		// is the required second signal for that 404 startup state.
 		finalOnboarding.complete = true

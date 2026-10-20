@@ -1087,8 +1087,8 @@ dispatch. Missing or failed connector results remain unavailable. Photos checks
 the applied API version both before setup and after owner readback, so a missing
 or changed final version cannot become a signed success receipt.
 Home Assistant's setup adapter is pinned to the deployed release's
-[login-flow implementation](https://github.com/home-assistant/core/blob/2026.7.2/homeassistant/components/auth/login_flow.py)
-and [token revocation contract](https://github.com/home-assistant/core/blob/2026.7.2/homeassistant/components/auth/__init__.py).
+[login-flow implementation](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/auth/login_flow.py)
+and [token revocation contract](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/auth/__init__.py).
 Its onboarding and credential-login sessions are temporary and both are revoked
 through the bounded cleanup path.
 Immich setup similarly owns its temporary session: failed bootstrap closes it,

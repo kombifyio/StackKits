@@ -22,7 +22,7 @@ PyPI wheels, retaining their licenses/notices alongside this source:
 | joserfc 1.7.0 | `17e5d7a5a35e65442b05efc435a3d5d46696ffa2c8a2ed0eea6f63fc268e3224` | BSD-3-Clause |
 
 The extension's imports target these private packages. No global package or
-`sys.path` is replaced. The immutable HA 2026.7.2 image supplies Jinja2 3.1.6 and
+`sys.path` is replaced. The immutable HA 2026.9.4 image supplies Jinja2 3.1.6 and
 cryptography 48.0.1; startup checks those versions. The extension manifest's
 requirements are emptied to prevent HA's online dependency installer. Upstream
 joserfc 1.7.0 requires cryptography >=45.0.1, satisfied by the pinned image.
@@ -31,8 +31,8 @@ Primary sources:
 
 - [Pinned extension configuration](https://github.com/christiaangoossens/hass-oidc-auth/blob/v1.2.1/docs/configuration.md)
 - [Pinned extension package metadata](https://github.com/christiaangoossens/hass-oidc-auth/blob/v1.2.1/pyproject.toml)
-- [HA image dependency installation](https://github.com/home-assistant/core/blob/2026.7.2/Dockerfile)
-- [HA core dependency pins](https://github.com/home-assistant/core/blob/2026.7.2/pyproject.toml)
+- [HA image dependency installation](https://github.com/home-assistant/core/blob/2026.9.4/Dockerfile)
+- [HA core dependency pins](https://github.com/home-assistant/core/blob/2026.9.4/pyproject.toml)
 - [aiofiles metadata](https://pypi.org/pypi/aiofiles/25.1.0/json)
 - [joserfc metadata](https://pypi.org/pypi/joserfc/1.7.0/json)
 

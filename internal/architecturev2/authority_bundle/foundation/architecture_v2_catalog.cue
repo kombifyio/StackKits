@@ -2465,7 +2465,7 @@ _architectureV2ApplicationLifecycleContracts: [
 			adoption: {
 				imageRef: [for module in _architectureV2Modules if module.metadata.id == "stackkits-home-assistant-runtime" {module.runtime.image.ref}][0]
 				imageDigest: [for module in _architectureV2Modules if module.metadata.id == "stackkits-home-assistant-runtime" {module.runtime.image.digest}][0]
-				version: "2026.7.2"
+				version: "2026.9.4"
 			}
 		}
 	},
@@ -12697,8 +12697,8 @@ _architectureV2Modules: list.Concat([[
 				id: "home-assistant", role: "application", lifecycle: "daemon"
 				entrypoint: ["/bin/sh", "/config/stackkits-init.sh"]
 				image: {
-					ref:    "ghcr.io/home-assistant/home-assistant:2026.7.2"
-					digest: "sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b"
+					ref:    "ghcr.io/home-assistant/home-assistant:2026.9.4"
+					digest: "sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76"
 				}
 				dependsOn: []
 				networkRefs: ["home-assistant-internal"]
@@ -12753,7 +12753,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/home-assistant/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:7da50322d031da6f5c672faed4396ec37bd80e8f2594a4c7ab8d32683994fc61"
+			contractHash: "sha256:87348b292aedf743aa74162c79943ab479b52fc6850d823e07d44aa9463e30b4"
 			publicInputRefs: ["delivery-route", "kombify-notify"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"

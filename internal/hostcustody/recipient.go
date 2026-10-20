@@ -365,7 +365,7 @@ func RecipientStatement(store Store, challenge string, now time.Time) (hostdeliv
 		return hostdelivery.Statement{}, errors.New("hostcustody: recipient record is invalid")
 	}
 	statement := hostdelivery.Statement{
-		APIVersion: hostdelivery.StatementAPIVersion, SiteRef: owner.Binding.SiteRef, NodeRef: owner.Binding.NodeRef,
+		APIVersion: hostdelivery.StatementAPIVersion, SiteRef: owner.Binding.SiteRef, NodeRef: hostdelivery.NodeIdentityRef(owner.Binding.NodeRef, key.Public()),
 		RecipientKey: record.PublicKey, Fingerprint: hostdelivery.Fingerprint(public), Generation: record.Generation,
 		Challenge: challenge, IssuedAt: now.UTC().Format(time.RFC3339Nano),
 		OwnerKeyID: owner.KeyID, OwnerPublic: base64.RawStdEncoding.EncodeToString(key.Public()),

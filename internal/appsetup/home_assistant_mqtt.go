@@ -116,7 +116,12 @@ func configureHomeAssistantMQTT(ctx context.Context, client *http.Client, baseUR
 		}
 		evidence = HomeAssistantMQTTEvidence{EntryID: entries[0].ID, ExistingPreserved: true}
 	} else {
-		if err := homeAssistantJSONRequest(ctx, client, baseURL, http.MethodPost, "/api/config/config_entries/flow/"+url.PathEscape(flowID), map[string]any{"broker": request.Broker, "port": request.Port, "username": request.Username, "password": request.Password}, token, &flow); err != nil {
+		if err := homeAssistantJSONRequest(ctx, client, baseURL, http.MethodPost, "/api/config/config_entries/flow/"+url.PathEscape(flowID), map[string]any{
+			"broker": request.Broker, "port": request.Port, "username": request.Username, "password": request.Password,
+			// HA 2026.9 requires the collapsed other_settings section: plain TCP,
+			// no client certificate and no CA verification for the internal broker.
+			"other_settings": map[string]any{"set_client_cert": false, "set_ca_cert": "off", "transport": "tcp"},
+		}, token, &flow); err != nil {
 			return evidence, errors.New("Home Assistant MQTT broker setup failed")
 		}
 		if flow.Type != "create_entry" || flow.Result.ID == "" {

@@ -212,6 +212,23 @@ func Fingerprint(public []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
+// maxNodeIdentityRef is the delivering authority's bound for a node reference.
+const maxNodeIdentityRef = 100
+
+// NodeIdentityRef is the node reference a server reports for host delivery.
+// A Site/node pair names a place in one StackSpec (every basement kit is
+// home/main), so the pair alone does not tell one owner's servers apart. The
+// suffix comes from the server's local Owner public key, which each
+// installation generates once: unique per server, stable for its lifetime.
+func NodeIdentityRef(nodeRef string, ownerPublic []byte) string {
+	sum := sha256.Sum256(ownerPublic)
+	suffix := "-" + hex.EncodeToString(sum[:6])
+	if len(nodeRef) > maxNodeIdentityRef-len(suffix) {
+		nodeRef = nodeRef[:maxNodeIdentityRef-len(suffix)]
+	}
+	return nodeRef + suffix
+}
+
 // SigningBytes is the canonical payload the owner signs, without the signature.
 func (s Statement) SigningBytes() ([]byte, error) {
 	s.Signature = Signature{}

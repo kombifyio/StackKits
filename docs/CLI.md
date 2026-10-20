@@ -1272,7 +1272,8 @@ pinned authority, and, once an authority is pinned, any unsigned delivery
 (backup targets included) are all refused.
 
 - `host delivery recipient --challenge <value> [--authority-key <base64> --authority-key-id <id>] [--rotate] --owner-approve`
-  prints the recipient statement (generation, fingerprint, pinned authority),
+  prints the recipient statement (Site, this server's node reference,
+  generation, fingerprint, pinned authority),
   signed by the local Owner key. `--authority-key` pins the delivering
   authority for the current generation and is refused when another key is
   pinned. `--rotate` re-enrolls under the next generation; the previous key
