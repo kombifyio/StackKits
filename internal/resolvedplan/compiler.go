@@ -429,6 +429,9 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
+	if err := validateWorkloadCompanionPlacement(contracts.workloads, contracts.modules); err != nil {
+		return nil, err
+	}
 	if err := bindResolvedModulePlanInputs(contracts.modules, modulePlanInputSource{
 		stackID: spec.stackID, kit: resolvedKit, sites: topology.sites,
 		controlPlane: topology.controlPlane, bridge: resolvedBridge,

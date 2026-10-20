@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:8642f0aa358c36ed99c0eae61489cf559efcc7e454745622667880c5ffbc68d2",
+  "contentDigest": "sha256:4e3f8a1b4b5866ee218dc2f24dccf69483b94261ef14d4405ae4ac05c55bc296",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -3540,8 +3540,8 @@
                       "source": "measured"
                     },
                     "reservation": {
-                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
@@ -3551,7 +3551,7 @@
                   },
                   "reservation": {
                     "cpuCores": 0.05,
-                    "ramGB": 0.125
+                    "ramGB": 0.0625
                   }
                 },
                 "low": {
@@ -3580,8 +3580,8 @@
                       "source": "measured"
                     },
                     "reservation": {
-                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
@@ -3620,8 +3620,8 @@
                       "source": "measured"
                     },
                     "reservation": {
-                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
-                      "source": "policy"
+                      "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json",
+                      "source": "measured"
                     }
                   },
                   "realization": "apply-ready",
@@ -3631,7 +3631,7 @@
                   },
                   "reservation": {
                     "cpuCores": 0.05,
-                    "ramGB": 0.125
+                    "ramGB": 0.0625
                   }
                 }
               },
@@ -4252,7 +4252,7 @@
                       "source": "measured"
                     },
                     "reservation": {
-                      "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json",
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json",
                       "source": "measured"
                     }
                   },
@@ -4292,7 +4292,7 @@
                       "source": "measured"
                     },
                     "reservation": {
-                      "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json",
+                      "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json",
                       "source": "measured"
                     }
                   },

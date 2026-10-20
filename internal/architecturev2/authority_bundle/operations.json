@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:b866f782dbd51a0684680ec76251cb318c821ac0298265711da31b76cb675525",
+  "contentDigest": "sha256:17fc1d7f6d6e086d025207971a095a1fc4d4e6b7ba3db632f690b9cc206e7072",
   "operations": [
     {
       "command": [
@@ -963,6 +963,30 @@
       "ownerApproval": true,
       "title": "Reconcile drift",
       "toolName": "stackkit_drift_reconcile"
+    },
+    {
+      "arguments": [
+        {
+          "description": "Path to the local observed Inventory document of the proposed nodes.",
+          "flag": "--inventory",
+          "kind": "string",
+          "name": "inventory_file",
+          "required": true
+        }
+      ],
+      "command": [
+        "feasibility",
+        "--json"
+      ],
+      "description": "Check a proposed StackSpec placement against exact observed node Inventory without side effects; reports per-workload verdicts with requested versus resolved nodes and reasons, and per-node capacity verdicts. It attests, persists and executes nothing.",
+      "destructive": false,
+      "id": "stackkit.feasibility",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Feasibility",
+      "toolName": "stackkit_assess_feasibility"
     },
     {
       "arguments": [

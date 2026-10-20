@@ -364,6 +364,16 @@ import (
 	// headroomFactor bounds the share of observed memory the declared workload
 	// set may claim before Apply warns that the host is over-committed.
 	headroomFactor: number & >0 & <=1 | *0.8
+
+	// maxAlwaysOnPerCPU bounds how many always-on workload modules one
+	// observed CPU core may carry before the compiled-plan capacity assessment
+	// reports the host as over-committed (RESIDENT_LOAD_EXCEEDS_HOST).
+	// headroomFactor applies to the resident RAM of the modules whose
+	// declared load keeps them active-resident (ADR-0037 load vocabulary, bound
+	// per module from the use-case compute-tier fits). Both are Kombify support
+	// policy, not measurements. A module without a declared load stays unknown
+	// (MODULE_LOAD_UNDECLARED) and is never counted as zero.
+	maxAlwaysOnPerCPU: number & >0 | *4
 }
 
 #KitRedactionPolicy: {

@@ -3084,6 +3084,43 @@
       "subcommands": []
     },
     {
+      "path": "stackkit feasibility",
+      "name": "feasibility",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit feasibility [flags]",
+      "short": "Check whether a proposed placement fits an exact node inventory",
+      "description": "Resolve a StackSpec, with the nodeRefs it pins, against the exact observed Inventory and report per workload whether it is feasible, infeasible or unknown, with the requested and resolved nodes and the reasons, plus the capacity verdict of every node. The operation is read-only: it attests no host facts, persists no plan or state, writes no .stackkit files and uses no network. It exits 0 whenever a report is produced, whatever the outcome, and 1 only when an input cannot be read or decoded.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit feasibility --spec stack-spec.yaml --inventory inventory.yaml --json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Observed Inventory of the proposed nodes (required)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false
+        },
+        {
+          "name": "module-root",
+          "type": "string",
+          "description": "Architecture authority root",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit federation",
       "name": "federation",
       "parent": "stackkit",

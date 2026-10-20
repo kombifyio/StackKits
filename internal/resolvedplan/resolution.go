@@ -45,6 +45,9 @@ func resolveContracts(profile *profileView, spec *specView, catalog *indexedCata
 		}
 	}
 	workloads = resolvedWorkloads.workloads
+	if err := followCompanionPrimaries(spec, catalog, workloads); err != nil {
+		return nil, err
+	}
 	workloadProviderSet := make(map[string]struct{}, len(workloads)*2)
 	workloadByModule := make(map[string]string, len(workloads))
 	for id, workload := range workloads {

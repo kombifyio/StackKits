@@ -134,7 +134,7 @@ func loadEmbeddedAuthorityForRole(role embeddedAuthorityRole) (*cueAuthority, er
 		catalogIsNormalizedExport: !role.fixture,
 	}
 	if path := manifest.Documents["computeTierFits"]; path != "" {
-		authority.useCaseCapabilities, err = readEmbeddedUseCaseCapabilities(role.root, path)
+		authority.useCaseCapabilities, authority.moduleLoads, err = readEmbeddedUseCaseProjection(role.root, path)
 		if err != nil {
 			return nil, fmt.Errorf("read embedded %s use-case capabilities: %w", role.name, err)
 		}
@@ -445,30 +445,31 @@ func cleanBundleRelativePath(relativePath string) (string, error) {
 	return clean, nil
 }
 
-// readEmbeddedUseCaseCapabilities reads the capability modules from the
-// hash-verified use-case projection that ships in the product bundle.
-func readEmbeddedUseCaseCapabilities(root, relativePath string) (map[string][]usecasecatalog.Capability, error) {
+// readEmbeddedUseCaseProjection reads the capability modules and the per-module
+// declared load from the hash-verified use-case projection that ships in the
+// product bundle.
+func readEmbeddedUseCaseProjection(root, relativePath string) (map[string][]usecasecatalog.Capability, map[string]map[string]usecasecatalog.UseCaseLoad, error) {
 	clean, err := cleanBundleRelativePath(relativePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	data, err := embeddedBundleFS.ReadFile(root + "/" + clean)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var document struct {
 		UseCases []usecasecatalog.UseCase `json:"useCases"`
 	}
 	if err := json.Unmarshal(data, &document); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	result := map[string][]usecasecatalog.Capability{}
+	capabilities := map[string][]usecasecatalog.Capability{}
 	for _, useCase := range document.UseCases {
 		if len(useCase.Capabilities) > 0 {
-			result[useCase.ID] = useCase.Capabilities
+			capabilities[useCase.ID] = useCase.Capabilities
 		}
 	}
-	return result, nil
+	return capabilities, usecasecatalog.ModuleLoads(document.UseCases), nil
 }
 
 func readEmbeddedDocumentForRoot(root, relativePath string) (map[string]any, error) {

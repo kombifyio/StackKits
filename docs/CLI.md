@@ -278,6 +278,65 @@ host or replace Apply admission. The local MCP tool is `stackkit_assess_capacity
 Browser planners execute the same numeric engine from bundled Go WebAssembly;
 the standalone CLI needs no server or account.
 
+The assessment applies the kit Definition's resident-load policy
+(`hostRequirements.headroomFactor` and `maxAlwaysOnPerCPU`, both declared in
+CUE) with each selected module's declared load per compute profile. A node
+whose always-on or active-resident modules exceed its observed CPU or RAM
+reports `RESIDENT_LOAD_EXCEEDS_HOST`; a module that declares no load reports
+`MODULE_LOAD_UNDECLARED` and stays unknown.
+
+### `stackkit feasibility --spec <file> --inventory <file> --json`
+
+`stackkit feasibility` checks a proposed placement against an exact observed
+Inventory. The StackSpec carries the `nodeRefs` the proposal pins; the command
+resolves it read-only (no host attestation, no persisted plan, no `.stackkit`
+write, no network) and reports, as `stackkit.command-result/v1` data of
+`stackkit.kombify.io/feasibility/v1`:
+
+- `workloads[]`: per selected workload its `modules`, the `requestedNodeRefs`
+  the spec pinned, the `resolvedNodeRefs` the compiler chose, a `verdict`
+  (`feasible`, `infeasible` or `unknown`) and `reasons[]` with a `code`, a
+  `message` and, where they apply, the `nodeRef` and capacity `axis`. A node the
+  compiler would have dropped from an explicit pin is `infeasible`
+  (`node_ref_unknown`, `node_ref_disabled`, `node_ref_not_eligible`); a node
+  that fails a capacity axis (`CAPACITY_BELOW_MINIMUM`,
+  `DATA_CAPACITY_UNSATISFIED`, `RESIDENT_LOAD_EXCEEDS_HOST`, the last with
+  `source: "policy"` because a Kombify policy threshold, not a module
+  requirement, produced it) or a module the
+  inventory provably does not admit makes the workloads that count toward it
+  `infeasible`; missing evidence (`inventory_fact_missing`,
+  `DATA_CAPACITY_INTENT_MISSING`, a node absent from the inventory) is
+  `unknown`. Advisory reasons such as `CAPACITY_BELOW_RECOMMENDATION` leave the
+  verdict unchanged.
+- `nodes[]`: the capacity verdict (`pass`, `warning`, `unverified`, `fail`) and
+  reason codes of every node that hosts modules.
+- `advisories[]`: resident-load evidence the outcome does not depend on, as
+  `code` and `nodeRef`: `MODULE_LOAD_UNDECLARED` (a module on the node declares
+  no load, as the kit core runtimes do) and `RESIDENT_BUDGET_UNDECLARED` (the
+  resident memory budget is incomplete). Either one makes the node verdict
+  `unverified` without making any workload `unknown`, so a `feasible` outcome
+  can sit beside an `unverified` node; a caller that needs the node fully
+  verified reads the advisories.
+- `errors[]`: compile errors that no workload owns. The compiler stops at its
+  first error, so a compile error under `spec.workloads.<id>` makes that
+  workload `infeasible` and every other workload `unknown` (`not_evaluated`).
+  A compile error under `inventory.nodes.<node>` that names a fact the
+  inventory does not carry (for example `contract_conflict` at
+  `inventory.nodes.main.siteAddress` when `siteAddress` is absent) keeps its
+  entry but makes the outcome `unknown`; a fact that is present and contradicts
+  the proposal stays `infeasible`.
+- `outcome`: `infeasible` when any workload is infeasible or an error no
+  workload owns exists, `unknown` when any workload is unknown or the only
+  such error is a missing inventory fact, else `feasible`.
+
+`specDigest` and `inventoryDigest` are the SHA-256 of the canonical JSON of the
+two documents. The command exits 0 whenever a report is produced, whatever the
+outcome, and 1 with a `failed` command-result only when an input cannot be read
+or decoded (an unreadable file, a document that is not a native v2 StackSpec,
+an undecodable Inventory) or an internal fault occurs; an error that is not a
+compiler decision is never reported as `infeasible`. The MCP tool is
+`stackkit_assess_feasibility`.
+
 ### `stackkit plan`
 
 `stackkit plan` is a deterministic read-only inspection of the

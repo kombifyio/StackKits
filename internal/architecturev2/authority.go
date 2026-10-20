@@ -30,6 +30,10 @@ type cueAuthority struct {
 	// UseCaseCatalog capability modules, keyed by use case. Filesystem and
 	// contract-fixture authorities do not carry it.
 	useCaseCapabilities map[string][]usecasecatalog.Capability
+	// moduleLoads is the declared load (ADR-0037 vocabulary) of each module per
+	// compute profile, projected from the same use-case fits; absent for a
+	// module that no use case tier declares.
+	moduleLoads map[string]map[string]usecasecatalog.UseCaseLoad
 	// catalogIsNormalizedExport marks the embedded product bundle: its catalog
 	// is the hash-verified, CUE-exported document, not a caller value.
 	catalogIsNormalizedExport bool

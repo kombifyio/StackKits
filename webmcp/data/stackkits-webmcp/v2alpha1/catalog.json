@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "77bb8e9dcbb24235e39d8ce8bc1c7ab5b64b4d3e",
-  "authority_bundle_sha256": "c86d51d131c56f477fe28d5e4095888c82c625aeb9b0957fb2d6d5876d750a89",
+  "source_sha": "f69086790085307609d99b907a9477b9e7a171ef",
+  "authority_bundle_sha256": "54401606f08b9146306ce605e4dfd90d9d31023bb3a2b48db18a75d4909968cc",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -58,8 +58,8 @@
                   "ref": "Kombify host floor support policy"
                 },
                 "reservation": {
-                  "source": "policy",
-                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -70,7 +70,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "fba9976049895fa8fd136fc314d620b0db2e74ad76d76133629bcfd90941a3b0"
+              "profile_sha256": "5b174d037721e6ce6e79672dc03966d319918f8a155bd797f91e1455cb0421e5"
             },
             {
               "id": "standard",
@@ -78,7 +78,7 @@
               "maturity": "experimental",
               "executable": true,
               "realization": "apply-ready",
-              "description": "Same private selected-client DNS/setup functions with the existing standard RAM envelope; CPU allocation is explicit. Physical/current-public qualification remains pending.",
+              "description": "Same private selected-client DNS/setup functions with the measured idle RAM reservation; CPU allocation is explicit. Physical/current-public qualification remains pending.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -86,7 +86,7 @@
               },
               "reservation": {
                 "cpu_cores": 0.05,
-                "ram_gb": 0.125
+                "ram_gb": 0.0625
               },
               "headroom": {
                 "cpu_cores": 0.95,
@@ -109,8 +109,8 @@
                   "ref": "Kombify host floor support policy"
                 },
                 "reservation": {
-                  "source": "policy",
-                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -121,7 +121,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "53a7d84bf29ca7199a5d061bd15c68b61c7a0122590b9ba0f035a23dbbcbc886"
+              "profile_sha256": "f3f2728f03357613c43bf1fea05920b894235eea99a2de733afb32683b6f1124"
             },
             {
               "id": "high",
@@ -137,7 +137,7 @@
               },
               "reservation": {
                 "cpu_cores": 0.05,
-                "ram_gb": 0.125
+                "ram_gb": 0.0625
               },
               "headroom": {
                 "cpu_cores": 1.95,
@@ -160,8 +160,8 @@
                   "ref": "Kombify host floor support policy"
                 },
                 "reservation": {
-                  "source": "policy",
-                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                  "source": "measured",
+                  "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -172,7 +172,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "1db6074adcbbfb701e0c2d6b2441d0280fdca53d23ac31a32fade8d33fe0d005"
+              "profile_sha256": "09b802ccb80880af44a3fd390c6fdf34fc149a8d0ca735544f085905e96f0781"
             }
           ],
           "storage_profiles": [],
@@ -1611,7 +1611,7 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -1622,7 +1622,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "48bb02d7df3133a50c2ddddf4c56bd2f72bdfb308d4607adbeb29dc8adbbcc86"
+              "profile_sha256": "0b013add9ba97a8d88f7452f039605c39fb09df324c74771777e48d9b60876f4"
             },
             {
               "id": "standard",
@@ -1715,7 +1715,7 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -1726,7 +1726,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "660d006aa108c289eb5a8b766429c6558e23e528f0c7fff0fab14411617cbd7c"
+              "profile_sha256": "1807bea0be70f15ec302dc5a2f0eb0cfb555131637d03fef6b3189dc8eb72e5f"
             }
           ],
           "storage_profiles": [],
@@ -6957,7 +6957,7 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -6968,7 +6968,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "48bb02d7df3133a50c2ddddf4c56bd2f72bdfb308d4607adbeb29dc8adbbcc86"
+              "profile_sha256": "0b013add9ba97a8d88f7452f039605c39fb09df324c74771777e48d9b60876f4"
             },
             {
               "id": "standard",
@@ -7061,7 +7061,7 @@
                 },
                 "reservation": {
                   "source": "measured",
-                  "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json"
+                  "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json"
                 },
                 "recommended": {
                   "source": "measured",
@@ -7072,7 +7072,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "660d006aa108c289eb5a8b766429c6558e23e528f0c7fff0fab14411617cbd7c"
+              "profile_sha256": "1807bea0be70f15ec302dc5a2f0eb0cfb555131637d03fef6b3189dc8eb72e5f"
             }
           ],
           "storage_profiles": [],
@@ -16612,6 +16612,20 @@
       "owner_approval": true
     },
     {
+      "id": "stackkit.feasibility",
+      "tool_name": "stackkit_assess_feasibility",
+      "title": "Feasibility",
+      "description": "Check a proposed StackSpec placement against exact observed node Inventory without side effects; reports per-workload verdicts with requested versus resolved nodes and reasons, and per-node capacity verdicts. It attests, persists and executes nothing.",
+      "command": [
+        "feasibility",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
+    },
+    {
       "id": "stackkit.federation.binding.adopt",
       "tool_name": "stackkit_federation_binding_adopt",
       "title": "Adopt Federation binding",
@@ -17508,5 +17522,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "76e5657db59ca6ec74133e50924add417142cf39dddc2fcd2d0f075cd826e73e"
+  "catalog_sha256": "0d64427c385bca4be6e42e14c37c8c5efe529a51d5567016fe5405b096aae931"
 }

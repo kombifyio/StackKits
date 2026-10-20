@@ -159,9 +159,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+* **Add-on placement follows its primary:** an add-on workload that pins no node now resolves to the nodes of the selected primary it joins, so pinning only the primary on a multi-node StackSpec compiles with the add-on beside it; only an add-on pinned explicitly outside its primary's nodes fails with `unresolved_placement`.
+
+* **Layout feasibility reports missing evidence as unknown:** a compile error under `inventory.nodes.<node>` that names a fact the inventory does not carry (for example `siteAddress`) now gives the outcome `unknown` and keeps the error; only a present, contradicting fact is `infeasible`. A document that is not a native v2 StackSpec and an internal fault (an error that is not a compiler decision) exit 1 with a failed command-result instead of an `infeasible` report. The report gains `advisories` (`MODULE_LOAD_UNDECLARED` and `RESIDENT_BUDGET_UNDECLARED` per node, the evidence a `feasible` outcome does not depend on) and marks `RESIDENT_LOAD_EXCEEDS_HOST` reasons with `source: "policy"`.
+
+* **Add-on placement:** a StackSpec that places an add-on workload (one whose runtime joins its primary's internal network through `peerNetworks`, such as the Immich public proxy, Kiosk or Power Tools beside Photos) on a node its selected primary does not run on now fails compilation with `unresolved_placement` at `spec.workloads.<add-on>.placement`. It compiled before and left the add-on unwired, because the companion wiring silently skipped an add-on that shared no node with its primary.
+
 * **Crash-safe change-set backup custody:** an Advanced change set journals the backup target authority it moves custody away from; explicit upgrade recovery moves custody back from that journal, and the committed baseline drops it.
 
 ### Added
+
+* **Layout feasibility:** `stackkit feasibility --spec <file> --inventory <file> --json` (MCP `stackkit_assess_feasibility`) answers "does this placement fit this inventory" without side effects: it attests no host facts, persists nothing, writes no `.stackkit` file and uses no network. The `stackkit.command-result/v1` data (`stackkit.kombify.io/feasibility/v1`) carries a verdict per workload (`feasible`, `infeasible` or `unknown`) with its requested versus resolved nodeRefs and reasons (capacity axis, missing inventory fact, an explicit nodeRef the compiler would have dropped), a capacity verdict per node, and the compile errors no workload owns. It exits 0 whenever a report exists and 1 only when an input cannot be read or decoded.
+
+* **Resident-load policy in the compiled-plan capacity assessment:** the kit Definition declares `maxAlwaysOnPerCPU` (default 4) next to `headroomFactor` in its host requirements, and `stackkit capacity`, `POST /api/v2/assess-capacity` and the feasibility operation now apply both, with each module's declared load projected per compute profile from the use-case tier fits. A node whose always-on or active-resident modules exceed its observed CPU or RAM reports `RESIDENT_LOAD_EXCEEDS_HOST`; a module without a declared load (the kit core runtimes) reports `MODULE_LOAD_UNDECLARED` and stays unknown, never zero.
+
+* **Measured AdGuard Home reservation:** the AdGuard Home low, standard and high profiles bind their RAM and CPU reservation to the measured resource evidence of the profile that ran (`docs/data/resource-evidence/stackkits-adguard-home-runtime/<profile>.json`) instead of policy; the standard and high RAM reservation is now 0.0625 GiB (it was 0.125). The Guacamole low and high reservation provenance cites the profile's resource evidence, which includes the container-cold observations, instead of a plan record.
 
 * **Per-agent credentials for directly attached MCP agents:** `stackkit-mcp` over stdio accepts an owner-minted agent credential (`STACKKIT_MCP_AGENT_CREDENTIAL[_FILE]`, `--agent-workspace`). With it the process-wide `STACKKIT_MCP_ALLOW_WRITE` switch no longer applies: every mutating call needs the owner's per-call approval (`stackkit agent approval approve <id>`), and a revoked credential is denied on its next call.
 * **Private AI catalog settings:** the `ai` use case declares `inference-location` (on my own hardware, or only my own interface on top of an external provider) and the model packs `model-pack-general`, `model-pack-coding` and `model-pack-vision`. All are `recorded`: consumers show and keep them, the pinned release does not apply them yet.
@@ -288,6 +300,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.53.17](https://github.com/kombifyio/StackKits/compare/v0.53.16...v0.53.17) (2026-10-20)
+
+
+### Added
+
+* add layout feasibility operation, resident-load policy and add-on placement check (platform-wig6t.1)
+
+
+### Fixed
+
+* layout feasibility review findings and unpinned add-on placement (platform-wig6t.1)
 
 ## [0.53.16](https://github.com/kombifyio/StackKits/compare/v0.53.15...v0.53.16) (2026-10-19)
 

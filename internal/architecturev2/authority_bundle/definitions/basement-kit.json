@@ -426,6 +426,7 @@
       ],
       "hostRequirements": {
         "headroomFactor": 0.8,
+        "maxAlwaysOnPerCPU": 4,
         "minCpuCores": 2,
         "minRamGB": 4,
         "minStorageGB": 20,
@@ -438,6 +439,7 @@
     "low": {
       "hostRequirements": {
         "headroomFactor": 0.8,
+        "maxAlwaysOnPerCPU": 4,
         "minCpuCores": 2,
         "minRamGB": 2,
         "minStorageGB": 10,
@@ -454,6 +456,7 @@
     "standard": {
       "hostRequirements": {
         "headroomFactor": 0.8,
+        "maxAlwaysOnPerCPU": 4,
         "minCpuCores": 2,
         "minRamGB": 4,
         "minStorageGB": 20,
@@ -494,6 +497,7 @@
   },
   "hostRequirements": {
     "headroomFactor": 0.8,
+    "maxAlwaysOnPerCPU": 4,
     "minCpuCores": 2,
     "minRamGB": 4,
     "minStorageGB": 20,

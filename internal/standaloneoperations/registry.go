@@ -18,6 +18,7 @@ const (
 	Generate              ID = "stackkit.generate"
 	Plan                  ID = "stackkit.plan"
 	Capacity              ID = "stackkit.capacity"
+	Feasibility           ID = "stackkit.feasibility"
 	Apply                 ID = "stackkit.apply"
 	Verify                ID = "stackkit.verify"
 	Status                ID = "stackkit.status"
@@ -95,6 +96,7 @@ var catalog = append([]Contract{
 	{ID: Generate, ToolName: "stackkit_generate", Title: "Generate", Description: "Generate rollout artifacts from the exact persisted ResolvedPlan.", Command: []string{"generate"}, Mutation: true, Idempotent: true, OwnerApproval: true},
 	{ID: Plan, ToolName: "stackkit_plan", Title: "Plan", Description: "Inspect the persisted ResolvedPlan and generated artifact closure.", Command: []string{"plan", "--json"}, Idempotent: true},
 	{ID: Capacity, ToolName: "stackkit_assess_capacity", Title: "Capacity", Description: "Assess CUE-bound module demand against optional observed Inventory; missing facts remain unverified and no execution is authorized.", Command: []string{"capacity"}, Idempotent: true, Arguments: []Argument{{Name: "inventory_file", Kind: ArgumentString, Flag: "--inventory", Description: "Path to the local observed Inventory document."}}},
+	{ID: Feasibility, ToolName: "stackkit_assess_feasibility", Title: "Feasibility", Description: "Check a proposed StackSpec placement against exact observed node Inventory without side effects; reports per-workload verdicts with requested versus resolved nodes and reasons, and per-node capacity verdicts. It attests, persists and executes nothing.", Command: []string{"feasibility", "--json"}, Idempotent: true, Arguments: []Argument{requiredFlagArg("inventory_file", ArgumentString, "--inventory", "Path to the local observed Inventory document of the proposed nodes.")}},
 	{ID: Apply, ToolName: "stackkit_apply", Title: "Apply", Description: "Apply the exact persisted plan after explicit local Owner approval.", Command: []string{"apply", "--json"}, Mutation: true, Destructive: true, Idempotent: false, OwnerApproval: true},
 	{ID: Verify, ToolName: "stackkit_verify", Title: "Verify", Description: "Verify desired, planned, applied, and observed local state.", Command: []string{"verify", "--json"}, Idempotent: true},
 	{ID: Status, ToolName: "stackkit_status", Title: "Status", Description: "Read the current standalone StackKits lifecycle status.", Command: []string{"status", "--json"}, Idempotent: true},

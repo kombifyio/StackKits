@@ -9,14 +9,17 @@ _architectureV2AdguardHomeComputeProfile: {
 	maturity:  "experimental", executable: true, realization: "apply-ready"
 	hostFloor: _architectureV2CoreComputeProfile.hostFloor
 	components: ["adguard-home"]
-	provenance: {hostFloor: _architectureV2PolicyFloorProvenance, reservation: _architectureV2PolicyReservationProvenance}
+	provenance: {hostFloor: _architectureV2PolicyFloorProvenance}
 }
-// Allocations only: all profiles use exactly the same pinned DNS recipe.
-// These CPU/RAM envelopes are policy, not physical-device or high-benefit proof.
+// All profiles use exactly the same pinned DNS recipe. Reservation and
+// recommended are bound from the profile's own lifecycle receipts
+// (docs/data/resource-evidence, rule in scripts/compat/bind-resource-evidence.mjs);
+// headroom stays a policy envelope. None of this is physical-device or
+// high-benefit proof.
 _architectureV2AdguardHomeComputeProfiles: {
-	low: #ModuleComputeProfileV2 & _architectureV2AdguardHomeComputeProfile & {description: "Same private selected-client DNS/setup functions with a smaller declared allocation. Physical small-device and whole-case qualification remain pending.", reservation: {ramGB: 0.0625, cpuCores: 0.05}, headroom: {ramGB: 0.0625, cpuCores: 0.45}, recommended: {ramGB: 0.125, cpuCores: 0.25}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json"}}}
-	standard: #ModuleComputeProfileV2 & _architectureV2AdguardHomeComputeProfile & {description: "Same private selected-client DNS/setup functions with the existing standard RAM envelope; CPU allocation is explicit. Physical/current-public qualification remains pending.", reservation: {ramGB: 0.125, cpuCores: 0.05}, headroom: {ramGB: 0.125, cpuCores: 0.95}, recommended: {ramGB: 0.125, cpuCores: 0.25}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json"}}}
-	high: #ModuleComputeProfileV2 & _architectureV2AdguardHomeComputeProfile & {description: "Same private selected-client DNS/setup functions with a larger declared allocation. No new product function, QPS setting or measured high benefit is inferred.", reservation: {ramGB: 0.125, cpuCores: 0.05}, headroom: {ramGB: 0.375, cpuCores: 1.95}, recommended: {ramGB: 0.125, cpuCores: 0.25}, provenance: {headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json"}}}
+	low: #ModuleComputeProfileV2 & _architectureV2AdguardHomeComputeProfile & {description: "Same private selected-client DNS/setup functions with a smaller declared allocation. Physical small-device and whole-case qualification remain pending.", reservation: {ramGB: 0.0625, cpuCores: 0.05}, headroom: {ramGB: 0.0625, cpuCores: 0.45}, recommended: {ramGB: 0.125, cpuCores: 0.25}, provenance: {reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json"}, headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json"}}}
+	standard: #ModuleComputeProfileV2 & _architectureV2AdguardHomeComputeProfile & {description: "Same private selected-client DNS/setup functions with the measured idle RAM reservation; CPU allocation is explicit. Physical/current-public qualification remains pending.", reservation: {ramGB: 0.0625, cpuCores: 0.05}, headroom: {ramGB: 0.125, cpuCores: 0.95}, recommended: {ramGB: 0.125, cpuCores: 0.25}, provenance: {reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json"}, headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json"}}}
+	high: #ModuleComputeProfileV2 & _architectureV2AdguardHomeComputeProfile & {description: "Same private selected-client DNS/setup functions with a larger declared allocation. No new product function, QPS setting or measured high benefit is inferred.", reservation: {ramGB: 0.0625, cpuCores: 0.05}, headroom: {ramGB: 0.375, cpuCores: 1.95}, recommended: {ramGB: 0.125, cpuCores: 0.25}, provenance: {reservation: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json"}, headroom: _architectureV2PolicyReservationProvenance, recommended: {source: "measured", ref: "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json"}}}
 }
 
 _architectureV2AdguardHomeProviders: [{

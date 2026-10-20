@@ -49961,7 +49961,7 @@
               "source": "measured"
             },
             "reservation": {
-              "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json",
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/high.json",
               "source": "measured"
             }
           },
@@ -50006,7 +50006,7 @@
               "source": "measured"
             },
             "reservation": {
-              "ref": "docs/plans/2026-10-11-stream-a/a6-remote-cold-latency-observation.json",
+              "ref": "docs/data/resource-evidence/stackkits-guacamole-runtime/low.json",
               "source": "measured"
             }
           },
@@ -50786,8 +50786,8 @@
               "source": "measured"
             },
             "reservation": {
-              "ref": "Kombify reservation policy; declared, not a sum of component limits",
-              "source": "policy"
+              "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/high.json",
+              "source": "measured"
             }
           },
           "realization": "apply-ready",
@@ -50797,7 +50797,7 @@
           },
           "reservation": {
             "cpuCores": 0.05,
-            "ramGB": 0.125
+            "ramGB": 0.0625
           }
         },
         "low": {
@@ -50830,8 +50830,8 @@
               "source": "measured"
             },
             "reservation": {
-              "ref": "Kombify reservation policy; declared, not a sum of component limits",
-              "source": "policy"
+              "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/low.json",
+              "source": "measured"
             }
           },
           "realization": "apply-ready",
@@ -50848,7 +50848,7 @@
           "components": [
             "adguard-home"
           ],
-          "description": "Same private selected-client DNS/setup functions with the existing standard RAM envelope; CPU allocation is explicit. Physical/current-public qualification remains pending.",
+          "description": "Same private selected-client DNS/setup functions with the measured idle RAM reservation; CPU allocation is explicit. Physical/current-public qualification remains pending.",
           "executable": true,
           "headroom": {
             "cpuCores": 0.95,
@@ -50874,8 +50874,8 @@
               "source": "measured"
             },
             "reservation": {
-              "ref": "Kombify reservation policy; declared, not a sum of component limits",
-              "source": "policy"
+              "ref": "docs/data/resource-evidence/stackkits-adguard-home-runtime/standard.json",
+              "source": "measured"
             }
           },
           "realization": "apply-ready",
@@ -50885,7 +50885,7 @@
           },
           "reservation": {
             "cpuCores": 0.05,
-            "ramGB": 0.125
+            "ramGB": 0.0625
           }
         }
       },

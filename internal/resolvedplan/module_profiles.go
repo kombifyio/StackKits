@@ -595,9 +595,20 @@ func ProjectCapacityModules(modules []any) ([]capacityfit.Module, error) {
 	return capacityModules(modules)
 }
 
+// ModuleLoadResolver returns the load a module declares for its selected compute
+// profile, or nil when none is declared. Callers bind it to the owning CUE
+// authority; an undeclared load stays unknown and is never defaulted.
+type ModuleLoadResolver func(moduleID, computeProfile string) *capacityfit.Load
+
 // capacityModules decodes already catalog-bound profile bodies. It performs no
 // aggregation, sizing, profile selection or inventory attestation.
 func capacityModules(modules []any) ([]capacityfit.Module, error) {
+	return capacityModulesWithLoad(modules, nil)
+}
+
+// capacityModulesWithLoad additionally attaches each module's declared load for
+// the resident-load policy. The persisted resourceDemand never reads it.
+func capacityModulesWithLoad(modules []any, loadFor ModuleLoadResolver) ([]capacityfit.Module, error) {
 	result := make([]capacityfit.Module, 0, len(modules))
 	for _, raw := range modules {
 		module, err := asObject(raw, "resolvedPlan.modules")
@@ -620,6 +631,10 @@ func capacityModules(modules []any) ([]capacityfit.Module, error) {
 			return nil, err
 		}
 		selected := capacityfit.Module{ID: moduleID, NodeRefs: nodeRefs}
+		if loadFor != nil {
+			profile, _ := module["computeProfile"].(string)
+			selected.Load = loadFor(moduleID, profile)
+		}
 		for _, field := range []struct {
 			name   string
 			target *capacityfit.Vector
