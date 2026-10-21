@@ -1,7 +1,7 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:3298b52c57e600b67dcde74a1172842c9d8598f02304326eaefeb33c20bc618b",
-    "compute-tier-fits.json": "sha256:47a35c078fa09e3afe787155edb02b86be2348ee46b92575c3cd1815ecfad481",
+    "catalog.json": "sha256:23a8682ffc6e4043a6db21e1969e3717c3e7b7cf849f86811d71c851fe3d1ffc",
+    "compute-tier-fits.json": "sha256:3c24f1e157058514c4b844cbd1e3a0901a8465bddf089cb1f7502708651f1a96",
     "definitions/basement-kit.json": "sha256:33de3985ba89a853a73cd96be197366321a72eac473711337eadb69fc378534a",
     "definitions/cloud-kit.json": "sha256:5a06889952d282f1cf5730f285e6519647610f675a946d463e014da47bd5ab40",
     "definitions/modern-homelab.json": "sha256:bcc6d51b8bd907141c27f9525ed2684775a3b7ed3e5700dd59730eb22014ef97",
@@ -25,7 +25,7 @@
   "sourceHashes": {
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:accec124889a00e3ea7cc24ed2cbb6af2c5d8b86b2b104dc6da284a4739a468c",
-    "foundation/architecture_v2.cue": "sha256:a816675e11253d8b6523ac8c25a1ea33d4ded2df0284c1a8cdaa917e2f9e4c2c",
+    "foundation/architecture_v2.cue": "sha256:cfdd34f3340b6c70437547a2f4829cae2e1427a3eecff4a3c8a6a7ea5a3c0c63",
     "foundation/architecture_v2_adguard_home.cue": "sha256:b50f0c5eb0769992be391a4d91a73af219dd26203e6b502087f20e5cb31c9072",
     "foundation/architecture_v2_backup.cue": "sha256:a29a48840eefd3a50db72844e3628d69b0d6d64b81eb580e787aa6cf2e6307d1",
     "foundation/architecture_v2_catalog.cue": "sha256:c9a05aec5173a7b8e12f03e2128cd8209e56f7e4bae8b3fb77b5c8fe1b19c810",
@@ -34,7 +34,7 @@
     "foundation/architecture_v2_federation.cue": "sha256:720abfcfd924aacbd3388ee2b88066629f1dcbec3a5ff11d81ffb905e2716b74",
     "foundation/architecture_v2_guacamole.cue": "sha256:35e2035fa2449d91ad7297e28132d36e40bc89a242ffb8f3e8a08a7b9f883ec0",
     "foundation/architecture_v2_komodo_bootstrap.cue": "sha256:b8b94a8e366e2b9715894dfe17a76f10a03ec777aeae665c6f2d3ab6e9ddc519",
-    "foundation/architecture_v2_marketplace.cue": "sha256:e4d38ccd66cf98cfd108af5c065262d2b36cd1c50344f4c9da660e4005224c18",
+    "foundation/architecture_v2_marketplace.cue": "sha256:019ce4bc765405a84360a7c45c2821edd72914f97c9d9c3dbf50d0b43b098bd7",
     "foundation/architecture_v2_marketplace_backup.cue": "sha256:d603ac092e24ef329bd04e3a24ec22e4d40b9d4d0ad40c3233771cdc33d0ba56",
     "foundation/architecture_v2_module_profiles.cue": "sha256:4636040e778432a719becff4015b22c2cd506c1d2a498139669959c723d7b47c",
     "foundation/architecture_v2_profiles.cue": "sha256:1b80546a4156f4aeba80f8149f5847fbd2315f2269ed8128fe3cb8b36e7128f3",

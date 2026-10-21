@@ -217,9 +217,10 @@ type AcceleratorProfileFacts struct {
 }
 
 type AuthoringAlternative struct {
-	ID      string            `json:"id"`
-	Name    string            `json:"name"`
-	Modules []AuthoringModule `json:"modules"`
+	ID                        string            `json:"id"`
+	Name                      string            `json:"name"`
+	Modules                   []AuthoringModule `json:"modules"`
+	ProvidesRuntimeAdapterRef string            `json:"providesRuntimeAdapterRef,omitempty"`
 }
 
 type AuthoringWorkload struct {
@@ -1290,7 +1291,7 @@ func internalProjection(source sourceCatalog, receipt *TestReceipt, releaseProje
 			completeGate("product-intent", "typed CUE catalog entry exists", "foundation/use_case_catalog.cue"),
 			gate("use-case-package", pkg != nil, "typed UseCasePackage exists", "USE_CASE_PACKAGE_MISSING", packageSource),
 			gate("runtime-workload", workload != nil, "Architecture v2 application workload exists", "RUNTIME_WORKLOAD_MISSING", "foundation/architecture_v2_catalog.cue"),
-			gate("component-closure", completeComponents, "all declared component IDs resolve to module contracts", "COMPONENT_REFERENCE_MISSING", "foundation/use_case_catalog.cue"),
+			gate("component-closure", completeComponents, "required component IDs resolve to module contracts; recorded alternatives are optional", "COMPONENT_REFERENCE_MISSING", "foundation/use_case_catalog.cue"),
 			gate("delivery-adapter", hasDelivery(workload), "runtime workload declares delivery adapter rows", "DELIVERY_ADAPTER_MISSING", "foundation/architecture_v2_catalog.cue"),
 			gate("setup-network-auth-data-backup", hasOperationalShape(pkg, workload), "setup and runtime data/backup shape exist", "OPERATIONAL_CONTRACTS_INCOMPLETE", "docs/USE_CASE_PACKAGES.md", "foundation/architecture_v2_catalog.cue"),
 			gate("application-lifecycle", lifecycle != nil, "seven-stage Architecture v2 lifecycle exists", "APPLICATION_LIFECYCLE_MISSING", "foundation/architecture_v2_catalog.cue"),
@@ -1387,10 +1388,11 @@ func hasOperationalShape(pkg, workload map[string]any) bool {
 	return false
 }
 
-// componentClosure reports whether every component resolves to a module
+// componentClosure reports whether every required component resolves to a module
 // contract: a modules/<id> directory, or an admitted Architecture v2
 // alternative (whose moduleRef carries the runtime module). A connector binds
 // an externally operated service and has no local module by definition.
+// An unadmitted alternative records a future choice, not a required component.
 func componentClosure(useCase UseCase, known map[string]bool) bool {
 	admitted := make(map[string]bool, len(useCase.Alternatives))
 	for _, alternative := range useCase.Alternatives {
@@ -1400,7 +1402,7 @@ func componentClosure(useCase UseCase, known map[string]bool) bool {
 		if component.Kind == "connector" {
 			continue
 		}
-		if !known[component.ID] && !admitted[component.ID] {
+		if !known[component.ID] && !admitted[component.ID] && component.Role != "alternative" {
 			return false
 		}
 	}
@@ -1574,7 +1576,8 @@ func authoringWorkloadFromCatalog(workload map[string]any, modules map[string]Au
 		module.ComputeProfiles = append([]string(nil), module.ComputeProfiles...)
 		authoring.Alternatives = append(authoring.Alternatives, AuthoringAlternative{
 			ID: alternativeID, Name: alternativeID,
-			Modules: []AuthoringModule{module},
+			Modules:                   []AuthoringModule{module},
+			ProvidesRuntimeAdapterRef: stringField(alternative, "providesRuntimeAdapterRef"),
 		})
 	}
 	if !seen[defaultAlternative] {

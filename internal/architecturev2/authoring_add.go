@@ -42,7 +42,7 @@ func (s *Service) MaterializeUseCaseAddition(raw []byte, slug string) (StackSpec
 	definition := s.authority.definitions[current.KitProfile]
 	overrides := AuthoringOverrides{
 		APIVersion: stackspecmigration.APIVersionV2Alpha2, CatalogDefaults: true,
-		UseCases: []string{slug}, Platform: "standalone-compose",
+		UseCases:       []string{slug},
 		ModuleProfiles: map[string]ModuleProfileOverride{},
 	}
 	selections, err := resolveNativeSelectedWorkloads(current.KitProfile, definition, s.authority.catalog, overrides, false)
@@ -50,11 +50,19 @@ func (s *Service) MaterializeUseCaseAddition(raw []byte, slug string) (StackSpec
 		return StackSpecValidation{}, err
 	}
 	combined := make(map[string]useCaseWorkloadSelection, len(workloads)+len(selections))
-	for id := range workloads {
-		combined[id] = useCaseWorkloadSelection{}
+	for id, raw := range workloads {
+		entry, _ := raw.(map[string]any)
+		if enabled, declared := entry["enabled"].(bool); declared && !enabled {
+			continue
+		}
+		alternative, _ := entry["alternative"].(string)
+		combined[id] = useCaseWorkloadSelection{Alternative: alternative}
 	}
 	for id, selection := range selections {
 		combined[id] = selection
+	}
+	if err := selectNewWorkloadPlatform(s.authority.catalog, combined, selections); err != nil {
+		return StackSpecValidation{}, err
 	}
 	if err := refuseSharedExclusiveNodeUseCases(s.authority.catalog, combined); err != nil {
 		return StackSpecValidation{}, err

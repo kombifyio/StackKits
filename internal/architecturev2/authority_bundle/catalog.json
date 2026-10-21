@@ -62823,8 +62823,10 @@
               "requiredRefs": []
             }
           },
+          "minimumTLSVersion": "TLS1.3",
           "moduleRef": "stackkits-marketplace-coolify-runtime",
           "providerRef": "stackkits-marketplace",
+          "providesRuntimeAdapterRef": "coolify",
           "route": {
             "healthRef": "marketplace-bootstrap-ready",
             "serviceRef": "marketplace"

@@ -7986,6 +7986,12 @@ _otlpTransportPostureV1: {
 	id:          #ContractID
 	providerRef: #ContractID
 	moduleRef:   #ContractID
+	// A selected platform installation can host compatible new workloads.
+	// Authoring persists the resulting adapter choice; existing workloads are
+	// never moved merely because another platform is selected later.
+	providesRuntimeAdapterRef?: #ContractID
+	// Required by this installation's protected UI when authoring new intent.
+	minimumTLSVersion?: "TLS1.2" | "TLS1.3"
 	route: {
 		serviceRef: #ContractID
 		healthRef:  #ContractID

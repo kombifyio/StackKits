@@ -264,6 +264,7 @@ func resolveUseCaseWorkloadSelections(
 }
 
 type useCaseWorkloadSelection struct {
+	MinimumTLSVersion  string
 	ServiceEndpoint    map[string]any
 	ModuleRef          string
 	CoreServiceRefs    []string

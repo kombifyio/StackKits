@@ -94,7 +94,7 @@ func (o *osCoolifyWorkloadOperations) ApplyWorkload(ctx context.Context, deploym
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
-	compose, err := coolifyNodeCompose(prepared)
+	compose, err := platformNodeCompose(prepared)
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
@@ -330,10 +330,9 @@ func (o *osCoolifyWorkloadOperations) project(ctx context.Context, cfg *platform
 	return saveMarketplaceCustody(view, *c)
 }
 
-// Coolify's physical project is its service UUID. Explicit data/network names
-// keep the original node graph; API content contains private file references,
-// never their credentials or contents.
-func coolifyNodeCompose(p NativeWorkloadCompose) ([]byte, error) {
+// Explicit data/network names preserve the node graph under a platform-owned
+// Compose project. API content carries private file references, not credentials.
+func platformNodeCompose(p NativeWorkloadCompose) ([]byte, error) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(p.Compose, &doc); err != nil {
 		return nil, err
@@ -369,7 +368,7 @@ func coolifyNodeCompose(p NativeWorkloadCompose) ([]byte, error) {
 			if text, ok := value.(string); ok && strings.HasPrefix(text, "./") {
 				source, target, ok := strings.Cut(text, ":")
 				if !ok {
-					return nil, errors.New("Coolify private mount is invalid")
+					return nil, errors.New("platform private mount is invalid")
 				}
 				mounts[i] = filepath.Join(p.Directory, source) + ":" + target
 			}

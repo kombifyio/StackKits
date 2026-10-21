@@ -3,7 +3,7 @@ adr: ADR-0042
 title: Standalone Compose default and optional platform adapters
 status: Accepted
 date: 2026-09-06
-last_verified: 2026-10-15
+last_verified: 2026-10-20
 ---
 
 # ADR-0042: Standalone Compose default and optional platform adapters
@@ -53,6 +53,15 @@ the explicit-intent rules stay. No support promotion follows from this
 amendment; each platform needs a lifecycle receipt at the current pin.
 
 ## Decision
+
+### 2026-10-20 scope amendment
+
+Workspace D-2026-10-20-09 and [ADR-0049](ADR-0049-marketplace-use-case-coolify.md#amendment-2026-10-20-runtipi-admission-and-prospective-dockhand)
+extend the accepted platform targets with Runtipi for both Marketplace and
+use-case workload execution. Runtipi is recorded and unimplemented; Dockhand
+is a prospective platform option subject to its BSL/license profile. The
+earlier platform lists are not exhaustive. No executable selection, default,
+adapter or support promotion follows from scope admission.
 
 Standard Mode is the complete, account-free, standalone product. Docker
 Compose is its default workload execution adapter on an admitted physical or

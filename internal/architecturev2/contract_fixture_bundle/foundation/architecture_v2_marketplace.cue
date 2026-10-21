@@ -55,6 +55,8 @@ _architectureV2MarketplaceWorkloads: [#WorkloadContractV2 & {
 	}
 	alternatives: [{
 		id: "coolify", providerRef: "stackkits-marketplace", moduleRef: "stackkits-marketplace-coolify-runtime"
+		providesRuntimeAdapterRef: "coolify"
+		minimumTLSVersion: "TLS1.3"
 		route: {serviceRef: "marketplace", healthRef: "marketplace-bootstrap-ready"}
 		runtime: {allowedKinds: ["host"], allowedDeliveries: ["stackkit"], allowedAdapterRefs: []}
 		setup: {mode: "automatic", owner: "module", actionRefs: ["marketplace-owner-bootstrap"]}

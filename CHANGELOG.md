@@ -1,5 +1,10 @@
 # Changelog
 
+- Change: Advanced capability verification uses the released runtime-contracts codec while retaining the local issuer pin, Owner trust, scope, trusted time and denial codes. Generic Owner-approved identity-projection keys remain supported.
+- Development: the canonical build checks public imports and scans its freshly built CLI once. Standalone release callers retain their independent public-boundary build.
+
+- Fix: new compatible use cases reuse the platform selected through Marketplace. Explicit runtime adapters and existing workloads keep their recorded managers; installations without a compatible selected platform retain the catalog's Compose default. New Marketplace intent carries its required TLS minimum through generation.
+
 - Fix: Dokploy deployment operations retain the returned compose identity, require the recorded identity for updates, and refuse automatic retry or fallback after a create may have committed. Status validates placement and the last recorded deployment state only; it does not certify the latest queued apply or application health. Full v2 lifecycle acceptance remains separate work.
 
 - Fix: Coolify's node-owned Marketplace installation recipe now renders with Basement's default OpenTofu target as well as Compose. The existing native bootstrap keeps owner custody and routing; provider-target parity and current-pin PaaS lifecycle acceptance remain separate gates.
@@ -306,6 +311,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.54.4](https://github.com/kombifyio/StackKits/compare/v0.54.3...v0.54.4) (2026-10-21)
+
+
+### Fixed
+
+* **advanced:** consume central capabilities and reuse CLI build
+* **security:** Go 1.27.3, MCP app dependency bumps, reviewed OSV ignores, verified-only history scan
 
 ## [0.54.3](https://github.com/kombifyio/StackKits/compare/v0.54.2...v0.54.3) (2026-10-20)
 

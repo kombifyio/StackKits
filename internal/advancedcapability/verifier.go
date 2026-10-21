@@ -1,27 +1,21 @@
 package advancedcapability
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io"
-	"net/url"
+	"errors"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
-	"unicode/utf8"
+
+	wire "github.com/kombifyio/stackkits/internal/advancedcapabilityv2"
 )
 
 const (
-	maxDocumentBytes = 64 * 1024
-	maxLifetime      = 30 * 24 * time.Hour
-	futureTolerance  = 5 * time.Minute
-	maxTrustKeys     = 64
+	maxLifetime     = wire.MaxLifetimeSeconds * time.Second
+	futureTolerance = 5 * time.Minute
+	maxTrustKeys    = wire.MaxTrustBundleKeys
 )
 
 // TrustedIssuerID is the only issuer identity whose Advanced capabilities and
@@ -32,95 +26,10 @@ const (
 const TrustedIssuerID = "techstack"
 
 var (
-	uuidV7Pattern   = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 	stackIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
 	ownerRefPattern = regexp.MustCompile(`^owner/local/[0-9a-f]{32}$`)
 	issuerIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
-	keyIDPattern    = regexp.MustCompile(`^ed25519://sha256/[0-9a-f]{64}$`)
-	windowsPath     = regexp.MustCompile(`^[A-Za-z]:[/\\]`)
 )
-
-var allowedOperationSet = map[string]struct{}{
-	OperationDriftReconcileAdvanced:   {},
-	OperationOriginCertificateInstall: {},
-	OperationOriginCertificateRequest: {},
-	OperationRestoreDrill:             {},
-	OperationRollbackCoordinated:      {},
-	OperationTerramateChangeSetApply:  {},
-	OperationTerramateChangeSetCreate: {},
-}
-
-type envelope struct {
-	BackupRenewal     *BackupRenewal
-	AllowedOperations []string
-	Audience          string
-	CapabilityID      string
-	ExpiresAt         string
-	IssuedAt          string
-	IssuerID          string
-	KeyID             string
-	OwnerRef          string
-	RILRef            string
-	SchemaVersion     string
-	Signature         string
-	StackID           string
-	UIManagerRef      string
-}
-
-var exactFields = map[string]func(*envelope, json.RawMessage) error{
-	"backupRenewal": func(document *envelope, raw json.RawMessage) error {
-		var renewal BackupRenewal
-		decoder := json.NewDecoder(bytes.NewReader(raw))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&renewal); err != nil {
-			return err
-		}
-		if !bytes.Equal(raw, renewal.canonical()) {
-			return fmt.Errorf("backup renewal must be canonical")
-		}
-		document.BackupRenewal = &renewal
-		return nil
-	},
-	"allowedOperations": func(document *envelope, raw json.RawMessage) error {
-		return decodeStringArray(raw, &document.AllowedOperations)
-	},
-	"audience": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.Audience)
-	},
-	"capabilityId": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.CapabilityID)
-	},
-	"expiresAt": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.ExpiresAt)
-	},
-	"issuedAt": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.IssuedAt)
-	},
-	"issuerId": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.IssuerID)
-	},
-	"keyId": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.KeyID)
-	},
-	"ownerRef": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.OwnerRef)
-	},
-	"rilRef": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.RILRef)
-	},
-	"schemaVersion": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.SchemaVersion)
-	},
-	"signature": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.Signature)
-	},
-	"stackId": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.StackID)
-	},
-	"uiManagerRef": func(document *envelope, raw json.RawMessage) error {
-		return decodeString(raw, &document.UIManagerRef)
-	},
-}
 
 // Verify validates signature, trust, lifetime, and the exact caller-supplied
 // local scope without network access or side effects.
@@ -132,10 +41,7 @@ func Verify(raw []byte, request Request) (Grant, error) {
 	if err != nil {
 		return Grant{}, err
 	}
-	issuedAt, expiresAt, err := validateClaims(document)
-	if err != nil {
-		return Grant{}, err
-	}
+	issuedAt, expiresAt := document.IssuedAtTime(), document.ExpiresAtTime()
 	if err := requireTechstackIssuer(document.IssuerID); err != nil {
 		return Grant{}, err
 	}
@@ -143,12 +49,8 @@ func Verify(raw []byte, request Request) (Grant, error) {
 	if err != nil {
 		return Grant{}, err
 	}
-	if err := verifySignature(document, trustedKey.PublicKey); err != nil {
-		return Grant{}, err
-	}
-	canonical, err := canonicalDocument(document)
-	if err != nil || !bytes.Equal(raw, canonical) {
-		return Grant{}, deny(ReasonCapabilityMalformed, "document", "must be exact RFC8785/JCS JSON")
+	if err := document.VerifySignature(trustedKey.PublicKey); err != nil {
+		return Grant{}, deny(ReasonCapabilitySignatureInvalid, "signature", "does not verify against the trusted issuer key")
 	}
 
 	now := request.Now.UTC()
@@ -216,152 +118,57 @@ func validateVerificationRequest(request Request) error {
 	if !ownerRefPattern.MatchString(request.OwnerRef) {
 		return deny(ReasonCapabilityScopeMismatch, "ownerRef", "is not canonical")
 	}
-	if _, ok := allowedOperationSet[request.Operation]; !ok {
+	if !wire.IsOperation(request.Operation) {
 		return deny(ReasonCapabilityOperationDenied, "operation", "is not an advanced operation")
 	}
 	return nil
 }
 
-func decodeStrict(raw []byte) (envelope, error) {
-	if len(raw) > maxDocumentBytes {
-		return envelope{}, deny(ReasonCapabilityMalformed, "document", "exceeds 65536 bytes")
-	}
+// decodeStrict translates the central wire's validation failures to the CLI's
+// existing denial codes. The diagnostic projection only classifies errors; the
+// released central decoder is the authority for acceptance and canonical bytes.
+func decodeStrict(raw []byte) (wire.Capability, error) {
 	if len(raw) == 0 {
-		return envelope{}, deny(ReasonCapabilityRequired, "document", "is required")
+		return wire.Capability{}, deny(ReasonCapabilityRequired, "document", "is required")
 	}
-	if !utf8.Valid(raw) {
-		return envelope{}, deny(ReasonCapabilityMalformed, "document", "must be valid UTF-8 JSON")
+	document, err := wire.DecodeCapability(raw)
+	if err == nil {
+		return document, nil
 	}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	first, err := decoder.Token()
-	if err != nil {
-		return envelope{}, deny(ReasonCapabilityMalformed, "document", err.Error())
-	}
-	if delimiter, ok := first.(json.Delim); !ok || delimiter != '{' {
-		return envelope{}, deny(ReasonCapabilityMalformed, "document", "must be one JSON object")
-	}
-
-	var document envelope
-	seen := make(map[string]struct{}, len(exactFields))
-	for decoder.More() {
-		token, err := decoder.Token()
-		if err != nil {
-			return envelope{}, deny(ReasonCapabilityMalformed, "document", err.Error())
-		}
-		field, ok := token.(string)
-		if !ok {
-			return envelope{}, deny(ReasonCapabilityMalformed, "document", "contains a non-string field name")
-		}
-		decode, known := exactFields[field]
-		if !known {
-			return envelope{}, deny(ReasonCapabilityMalformed, field, "unknown field")
-		}
-		if _, duplicate := seen[field]; duplicate {
-			return envelope{}, deny(ReasonCapabilityMalformed, field, "duplicate field")
-		}
-		seen[field] = struct{}{}
-		var value json.RawMessage
-		if err := decoder.Decode(&value); err != nil {
-			return envelope{}, deny(ReasonCapabilityMalformed, field, err.Error())
-		}
-		if err := decode(&document, value); err != nil {
-			return envelope{}, deny(ReasonCapabilityMalformed, field, "has the wrong JSON type")
-		}
-	}
-	if _, err := decoder.Token(); err != nil {
-		return envelope{}, deny(ReasonCapabilityMalformed, "document", err.Error())
-	}
-	if len(seen) != len(exactFields) {
-		for field := range exactFields {
-			if _, ok := seen[field]; !ok && field != "backupRenewal" {
-				return envelope{}, deny(ReasonCapabilityMalformed, field, "required field is missing")
+	reason, field, detail := ReasonCapabilityMalformed, "document", err.Error()
+	var invalid *wire.ValidationError
+	if errors.As(err, &invalid) {
+		field, detail = invalid.Field, invalid.Detail
+		switch field {
+		case "signature":
+			reason = ReasonCapabilitySignatureInvalid
+		case "backupRenewal":
+			// The central document-level renewal rule is the CLI's existing
+			// operation/lifetime scope denial; renewal member errors stay malformed.
+			reason = ReasonCapabilityScopeMismatch
+		case "issuerId", "expiresAt":
+			// Preserve product reasons for a well-formed foreign issuer or an excessive
+			// lifetime. Do not depend on the central validator's diagnostic wording.
+			var diagnostic struct {
+				IssuerID  string `json:"issuerId"`
+				IssuedAt  string `json:"issuedAt"`
+				ExpiresAt string `json:"expiresAt"`
+			}
+			if json.Unmarshal(raw, &diagnostic) == nil {
+				if field == "issuerId" && issuerIDPattern.MatchString(diagnostic.IssuerID) && !wire.IsTechstackIssuerID(diagnostic.IssuerID) {
+					reason = ReasonCapabilityUntrustedKey
+				}
+				if field == "expiresAt" {
+					issued, issuedErr := time.Parse(time.RFC3339, diagnostic.IssuedAt)
+					expires, expiresErr := time.Parse(time.RFC3339, diagnostic.ExpiresAt)
+					if issuedErr == nil && expiresErr == nil && expires.Sub(issued) > maxLifetime {
+						reason = ReasonCapabilityLifetimeExceeded
+					}
+				}
 			}
 		}
 	}
-	if token, err := decoder.Token(); err != io.EOF {
-		if err != nil {
-			return envelope{}, deny(ReasonCapabilityMalformed, "document", err.Error())
-		}
-		return envelope{}, deny(ReasonCapabilityMalformed, "document", fmt.Sprintf("has trailing JSON token %v", token))
-	}
-	return document, nil
-}
-
-func decodeString(raw json.RawMessage, destination *string) error {
-	if len(raw) == 0 || raw[0] != '"' {
-		return fmt.Errorf("must be a JSON string")
-	}
-	return json.Unmarshal(raw, destination)
-}
-
-func decodeStringArray(raw json.RawMessage, destination *[]string) error {
-	if len(raw) == 0 || raw[0] != '[' {
-		return fmt.Errorf("must be a JSON string array")
-	}
-	return json.Unmarshal(raw, destination)
-}
-
-func validateClaims(document envelope) (time.Time, time.Time, error) {
-	if document.SchemaVersion != SchemaVersion {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "schemaVersion", "is unsupported")
-	}
-	if document.Audience != Audience {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "audience", "must be stackkit")
-	}
-	if !uuidV7Pattern.MatchString(document.CapabilityID) {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "capabilityId", "must be a lowercase UUIDv7")
-	}
-	if !issuerIDPattern.MatchString(document.IssuerID) {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "issuerId", "is not canonical")
-	}
-	if !stackIDPattern.MatchString(document.StackID) {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "stackId", "is not canonical")
-	}
-	if !ownerRefPattern.MatchString(document.OwnerRef) {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "ownerRef", "is not a local owner reference")
-	}
-	if !keyIDPattern.MatchString(document.KeyID) {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "keyId", "is not a canonical Ed25519 key ID")
-	}
-	if len(document.AllowedOperations) < 1 || len(document.AllowedOperations) > len(allowedOperationSet) ||
-		!slices.IsSorted(document.AllowedOperations) {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "allowedOperations", "must be a non-empty sorted operation set")
-	}
-	for index, operation := range document.AllowedOperations {
-		if _, ok := allowedOperationSet[operation]; !ok {
-			return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "allowedOperations", "contains an unsupported operation")
-		}
-		if index > 0 && document.AllowedOperations[index-1] == operation {
-			return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "allowedOperations", "contains a duplicate operation")
-		}
-	}
-	if err := validateLogicalReference(document.UIManagerRef); err != nil {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "uiManagerRef", err.Error())
-	}
-	if err := validateLogicalReference(document.RILRef); err != nil {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "rilRef", err.Error())
-	}
-	issuedAt, err := parseCanonicalTime(document.IssuedAt)
-	if err != nil {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "issuedAt", err.Error())
-	}
-	expiresAt, err := parseCanonicalTime(document.ExpiresAt)
-	if err != nil {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "expiresAt", err.Error())
-	}
-	lifetime := expiresAt.Sub(issuedAt)
-	if lifetime <= 0 {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityMalformed, "expiresAt", "must be later than issuedAt")
-	}
-	if lifetime > maxLifetime {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilityLifetimeExceeded, "expiresAt", "lifetime exceeds 30 days")
-	}
-	signature, err := base64.RawStdEncoding.DecodeString(document.Signature)
-	if err != nil || len(signature) != ed25519.SignatureSize ||
-		base64.RawStdEncoding.EncodeToString(signature) != document.Signature {
-		return time.Time{}, time.Time{}, deny(ReasonCapabilitySignatureInvalid, "signature", "must be an unpadded standard-Base64 Ed25519 signature")
-	}
-	return issuedAt, expiresAt, nil
+	return wire.Capability{}, deny(reason, field, detail)
 }
 
 // requireTechstackIssuer refuses any issuer other than the pinned Advanced
@@ -388,8 +195,7 @@ func resolveTrustedKey(bundle *TrustBundle, keyID, issuerID string) (TrustedKey,
 		if !issuerIDPattern.MatchString(key.IssuerID) || len(key.PublicKey) != ed25519.PublicKeySize {
 			return TrustedKey{}, deny(ReasonTrustBundleUnavailable, "keys", "contains a malformed issuer or public key")
 		}
-		digest := sha256.Sum256(key.PublicKey)
-		derived := "ed25519://sha256/" + hex.EncodeToString(digest[:])
+		derived := wire.KeyID(key.PublicKey)
 		if key.KeyID != derived {
 			return TrustedKey{}, deny(ReasonTrustBundleUnavailable, "keys", "contains a key ID that is not bound to its raw public key")
 		}
@@ -459,70 +265,6 @@ func VerifyTrustedDigest(bundle *TrustBundle, issuerID, keyID string, digest, si
 	}
 	if !ed25519.Verify(trustedKey.PublicKey, digest, signature) {
 		return deny(ReasonCapabilitySignatureInvalid, "signature", "does not verify against the trusted issuer key")
-	}
-	return nil
-}
-
-func verifySignature(document envelope, publicKey ed25519.PublicKey) error {
-	signature, err := base64.RawStdEncoding.DecodeString(document.Signature)
-	if err != nil {
-		return deny(ReasonCapabilitySignatureInvalid, "signature", "cannot be decoded")
-	}
-	unsigned := canonicalUnsigned(document)
-	domainSeparated := make([]byte, 0, len(SchemaVersion)+1+len(unsigned))
-	domainSeparated = append(domainSeparated, SchemaVersion...)
-	domainSeparated = append(domainSeparated, 0)
-	domainSeparated = append(domainSeparated, unsigned...)
-	digest := sha256.Sum256(domainSeparated)
-	if !ed25519.Verify(publicKey, digest[:], signature) {
-		return deny(ReasonCapabilitySignatureInvalid, "signature", "does not verify against the trusted issuer key")
-	}
-	return nil
-}
-
-func parseCanonicalTime(value string) (time.Time, error) {
-	parsed, err := time.Parse(time.RFC3339, value)
-	if err != nil || parsed.Location() != time.UTC || parsed.Nanosecond() != 0 ||
-		parsed.Format(time.RFC3339) != value {
-		return time.Time{}, fmt.Errorf("must be UTC RFC3339 with exact-second precision")
-	}
-	return parsed, nil
-}
-
-func validateLogicalReference(value string) error {
-	if len(value) == 0 || len(value) > 256 {
-		return fmt.Errorf("must contain 1 to 256 bytes")
-	}
-	for _, character := range []byte(value) {
-		if character < 0x21 || character > 0x7e {
-			return fmt.Errorf("must contain printable ASCII without whitespace")
-		}
-	}
-	if windowsPath.MatchString(value) || strings.HasPrefix(value, "/") ||
-		strings.HasPrefix(value, `\`) || strings.HasPrefix(value, "./") ||
-		strings.HasPrefix(value, "../") || strings.Contains(value, `\`) {
-		return fmt.Errorf("must be a logical URI reference, not a local path")
-	}
-	parsed, err := url.Parse(value)
-	if err != nil {
-		return fmt.Errorf("must be a valid URI reference")
-	}
-	if parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || parsed.User != nil ||
-		parsed.Host != "" {
-		return fmt.Errorf("must not identify credentials, a network endpoint, query, or fragment")
-	}
-	switch strings.ToLower(parsed.Scheme) {
-	case "file", "ftp", "http", "https", "ssh", "ws", "wss":
-		return fmt.Errorf("must not identify a network or local-file endpoint")
-	}
-	unescaped, err := url.PathUnescape(parsed.Path)
-	if err != nil {
-		return fmt.Errorf("contains invalid percent encoding")
-	}
-	for _, segment := range strings.Split(strings.ReplaceAll(unescaped, `\`, "/"), "/") {
-		if segment == "." || segment == ".." {
-			return fmt.Errorf("must not contain local path traversal")
-		}
 	}
 	return nil
 }

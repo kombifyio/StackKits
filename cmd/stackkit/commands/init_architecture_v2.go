@@ -111,9 +111,6 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			printInfo("Using normalized deployment contract ID %q for workspace %q", name, filepath.Base(filepath.Clean(wd)))
 		}
 		platform := strings.TrimSpace(initPlatform)
-		if platform == "" && len(initUseCases) > 0 {
-			platform = architectureV2StandaloneApplicationAdapterRef
-		}
 		moduleProfiles, err := parseInitModuleProfiles()
 		if err != nil {
 			return err

@@ -19,6 +19,8 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/spf13/cobra"
+
+	wire "github.com/kombifyio/stackkits/internal/advancedcapabilityv2"
 )
 
 // The Advanced restore drill proves that a backup anchor can be restored
@@ -95,24 +97,24 @@ func init() {
 
 // restoreDrillReport is the stackkit.restore-drill-report/v1 subject.
 type restoreDrillReport struct {
-	BackupRenewal    *advancedcapability.BackupRenewal `json:"backupRenewal,omitempty"`
-	SchemaVersion    string                            `json:"schemaVersion"`
-	Mode             string                            `json:"mode"`
-	Operation        string                            `json:"operation"`
-	DrillID          string                            `json:"drillId"`
-	Status           string                            `json:"status"`
-	CapabilityID     string                            `json:"capabilityId"`
-	AnchorID         string                            `json:"anchorId"`
-	AnchorSource     string                            `json:"anchorSource"`
-	KopiaSnapshotIDs []string                          `json:"kopiaSnapshotIds"`
-	RestoreResultID  string                            `json:"restoreResultId"`
-	StagingPath      string                            `json:"stagingPath"`
-	StagingRemoved   bool                              `json:"stagingRemoved"`
-	Activated        bool                              `json:"activated"`
-	Phases           []restoreDrillPhase               `json:"phases"`
-	Verification     []restoreDrillCheck               `json:"verification"`
-	StartedAt        time.Time                         `json:"startedAt"`
-	CompletedAt      time.Time                         `json:"completedAt"`
+	BackupRenewal    *wire.BackupRenewal `json:"backupRenewal,omitempty"`
+	SchemaVersion    string              `json:"schemaVersion"`
+	Mode             string              `json:"mode"`
+	Operation        string              `json:"operation"`
+	DrillID          string              `json:"drillId"`
+	Status           string              `json:"status"`
+	CapabilityID     string              `json:"capabilityId"`
+	AnchorID         string              `json:"anchorId"`
+	AnchorSource     string              `json:"anchorSource"`
+	KopiaSnapshotIDs []string            `json:"kopiaSnapshotIds"`
+	RestoreResultID  string              `json:"restoreResultId"`
+	StagingPath      string              `json:"stagingPath"`
+	StagingRemoved   bool                `json:"stagingRemoved"`
+	Activated        bool                `json:"activated"`
+	Phases           []restoreDrillPhase `json:"phases"`
+	Verification     []restoreDrillCheck `json:"verification"`
+	StartedAt        time.Time           `json:"startedAt"`
+	CompletedAt      time.Time           `json:"completedAt"`
 }
 
 type restoreDrillPhase struct {

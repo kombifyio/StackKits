@@ -5401,7 +5401,7 @@
         {
           "name": "platform",
           "type": "string",
-          "description": "Native v2 only: selected-provider platform adapter (install.platform.providerRef, e.g. coolify or komodo)",
+          "description": "Native v2 only: explicit workload runtime adapter; otherwise reuse a compatible selected platform or the catalog default",
           "required": false
         },
         {

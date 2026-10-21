@@ -1,14 +1,19 @@
 {
   "schemaVersion": "kombify.runtime-contract-consumer-lock/v1",
   "modulePath": "github.com/kombify/kombify-runtime-contracts-go",
-  "moduleVersion": "v0.2.7",
-  "moduleSum": "h1:TIIlztgJIsS41dNT39eOYJnM5LrHkMV+yN8MSUpF5WE=",
+  "moduleVersion": "v0.2.8",
+  "moduleSum": "h1:t9hZUBNFem2F3P3CbSlMhlRZzFOzstz2/qcQ4XfMxdE=",
   "packages": [
+    "advancedcapability",
     "applyevidence",
     "runtimeapply",
     "runtimeexecutor"
   ],
   "fixtures": [
+    {
+      "path": "internal/runtimecontractcompat/testdata/advancedcapability.json",
+      "sha256": "b6882fcb61688706f7752156199a27fa3f2a1786a58cacc869d4c342381d3380"
+    },
     {
       "path": "internal/runtimecontractcompat/testdata/applyevidence.json",
       "sha256": "f6504156db0b86677854a2452aa1d142114d668f64c9b7f7b015e2b47920d43a"

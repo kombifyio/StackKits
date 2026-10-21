@@ -141,10 +141,12 @@ func resolveNativeSelectedWorkloads(profile stackspecmigration.KitProfile, defin
 			}
 		}
 		selectedModules[moduleID] = true
+		minimumTLSVersion, _ := alternative["minimumTLSVersion"].(string)
 		result[id] = useCaseWorkloadSelection{
-			ServiceEndpoint: selectedWorkloadServiceEndpoint(module, alternative),
-			ModuleRef:       moduleID,
-			Alternative:     alternativeID, RuntimeAdapterRef: adapter,
+			MinimumTLSVersion: minimumTLSVersion,
+			ServiceEndpoint:   selectedWorkloadServiceEndpoint(module, alternative),
+			ModuleRef:         moduleID,
+			Alternative:       alternativeID, RuntimeAdapterRef: adapter,
 			RequiredSecretRefs: workloadAlternativeRequiredSecretRefs(contract, alternativeID),
 			PlatformManagement: platformManagement,
 			HoldsNoData:        workloadContractHoldsNoData(contract),
@@ -163,6 +165,11 @@ func resolveNativeSelectedWorkloads(profile stackspecmigration.KitProfile, defin
 				}
 			}
 			result[id] = selection
+		}
+	}
+	if includeInitial {
+		if err := selectNewWorkloadPlatform(catalog, result, result); err != nil {
+			return nil, err
 		}
 	}
 	// The coolify adapter delivers through this node's Marketplace Coolify
@@ -301,6 +308,11 @@ func applyNativeModuleProfiles(spec map[string]any, overrides AuthoringOverrides
 	delete(install, "computeTier")
 	management := ""
 	for _, workload := range workloads {
+		if workload.MinimumTLSVersion == "TLS1.3" {
+			if err := setNestedString(spec, workload.MinimumTLSVersion, "network", "tls", "minVersion"); err != nil {
+				return resolveError(ErrAuthorityLoad, "apply new workload catalog TLS minimum: "+err.Error(), err)
+			}
+		}
 		if workload.PlatformManagement == "" {
 			continue
 		}

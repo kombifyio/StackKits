@@ -15,7 +15,7 @@ Package: foundation.#UseCasePackage & {
 		layer:       "application"
 		category:    "marketplace"
 		lifecycle:   "draft"
-		description: "Optional Coolify app store on the owner's homelab. StackKits owns integration lifecycle; upstream applications retain their own features."
+		description: "Optional app store on the owner's homelab, with Coolify as the current engine and Runtipi as a recorded alternative. StackKits owns integration lifecycle; upstream applications retain their own features."
 	}
 	selection: {role: "optional", alternatives: []}
 	tools: {}
@@ -29,7 +29,9 @@ Package: foundation.#UseCasePackage & {
 		requiresControlPlane:      false
 		requiresLocalBridge:       false
 		notes: [
-			"Coolify is an application, not the selected runtime target or the default core.",
+			"Runtipi is accepted for Marketplace and use-case workload execution (workspace D-2026-10-20-09; ADR-0049). Its module, adapter and current-pin lifecycle evidence remain unimplemented; this declaration does not select or install it.",
+			"Dockhand is a prospective platform option subject to its BSL/license profile; it has no admitted runtime or unqualified open-source support claim.",
+			"Coolify is the current Marketplace engine and an application-execution target, outside the default core.",
 			"The owner signs in through PocketID; household users receive explicit rights. The UI is LAN-only or behind TinyAuth.",
 			"One execution and routing owner controls each workload. Curated kombify apps use the Coolify API; the upstream store is unchanged.",
 			"Users run third-party applications on their own homelab. kombify does not host them; a separately named managed serverless variant is the platform exception.",

@@ -5,19 +5,18 @@ package advancedtrust
 import (
 	"bytes"
 	"crypto/ed25519"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"regexp"
 	"slices"
-	"strconv"
 	"unicode/utf8"
 
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
+
+	wire "github.com/kombifyio/stackkits/internal/advancedcapabilityv2"
 )
 
 const (
@@ -32,14 +31,8 @@ var (
 	sha256Pin       = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 )
 
-type wireKey struct {
-	IssuerID  string
-	KeyID     string
-	PublicKey string
-}
-
 type decodedBundle struct {
-	keys      []wireKey
+	keys      []wire.TrustBundleKey
 	canonical []byte
 	digest    string
 }
@@ -79,60 +72,36 @@ func decodeBundle(raw []byte) (decodedBundle, error) {
 	if err != nil {
 		return decodedBundle{}, err
 	}
-	canonical := canonicalBundle(keys)
+	document := wire.TrustBundle{SchemaVersion: BundleSchemaVersion, Keys: keys}
+	canonical := document.Canonical()
 	if !bytes.Equal(raw, canonical) {
 		return decodedBundle{}, errors.New("advancedtrust: trust bundle must be exact canonical JSON")
 	}
-	digest := sha256.Sum256(canonical)
 	return decodedBundle{
 		keys:      keys,
 		canonical: canonical,
-		digest:    "sha256:" + hex.EncodeToString(digest[:]),
+		digest:    document.Digest(),
 	}, nil
 }
 
-func decodeKeys(raw []byte) ([]wireKey, error) {
-	if len(raw) == 0 || raw[0] != '[' {
+func decodeKeys(raw []byte) ([]wire.TrustBundleKey, error) {
+	var keys []wire.TrustBundleKey
+	if err := json.Unmarshal(raw, &keys); err != nil {
 		return nil, errors.New("advancedtrust: keys must be a JSON array")
 	}
-	var entries []json.RawMessage
-	if err := json.Unmarshal(raw, &entries); err != nil {
-		return nil, errors.New("advancedtrust: keys must be a JSON array")
-	}
-	if len(entries) < 1 || len(entries) > maxTrustKeys {
+	if len(keys) < 1 || len(keys) > maxTrustKeys {
 		return nil, errors.New("advancedtrust: keys must contain 1 to 64 entries")
 	}
-	keys := make([]wireKey, 0, len(entries))
-	seen := make(map[string]struct{}, len(entries))
-	for index, entry := range entries {
-		fields, err := decodeExactObject(entry, map[string]struct{}{
-			"issuerId": {}, "keyId": {}, "publicKey": {},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("advancedtrust: malformed key %d: %w", index, err)
+	seen := make(map[string]struct{}, len(keys))
+	for index, key := range keys {
+		if _, err := key.RawPublicKey(); err != nil {
+			return nil, fmt.Errorf("advancedtrust: key %d: %w", index, err)
 		}
-		issuerID, issuerErr := strictString(fields["issuerId"])
-		keyID, keyIDErr := strictString(fields["keyId"])
-		publicKeyText, publicKeyErr := strictString(fields["publicKey"])
-		if issuerErr != nil || keyIDErr != nil || publicKeyErr != nil ||
-			!issuerIDPattern.MatchString(issuerID) || !keyIDPattern.MatchString(keyID) {
-			return nil, fmt.Errorf("advancedtrust: key %d has malformed identity fields", index)
-		}
-		publicKey, err := base64.RawStdEncoding.Strict().DecodeString(publicKeyText)
-		if err != nil || len(publicKey) != ed25519.PublicKeySize ||
-			base64.RawStdEncoding.EncodeToString(publicKey) != publicKeyText {
-			return nil, fmt.Errorf("advancedtrust: key %d publicKey must be an unpadded standard-Base64 Ed25519 public key", index)
-		}
-		digest := sha256.Sum256(publicKey)
-		if keyID != "ed25519://sha256/"+hex.EncodeToString(digest[:]) {
-			return nil, fmt.Errorf("advancedtrust: key %d keyId is not bound to publicKey", index)
-		}
-		identity := issuerID + "\x00" + keyID
+		identity := key.IssuerID + "\x00" + key.KeyID
 		if _, duplicate := seen[identity]; duplicate {
 			return nil, fmt.Errorf("advancedtrust: key %d duplicates an issuer/keyId binding", index)
 		}
 		seen[identity] = struct{}{}
-		keys = append(keys, wireKey{IssuerID: issuerID, KeyID: keyID, PublicKey: publicKeyText})
 	}
 	return keys, nil
 }
@@ -153,25 +122,6 @@ func (bundle decodedBundle) verifierBundle() advancedcapability.TrustBundle {
 		SchemaVersion: advancedcapability.TrustBundleSchemaVersion,
 		Keys:          keys,
 	}
-}
-
-func canonicalBundle(keys []wireKey) []byte {
-	document := []byte(`{"keys":[`)
-	for index, key := range keys {
-		if index > 0 {
-			document = append(document, ',')
-		}
-		document = append(document, `{"issuerId":`...)
-		document = strconv.AppendQuote(document, key.IssuerID)
-		document = append(document, `,"keyId":`...)
-		document = strconv.AppendQuote(document, key.KeyID)
-		document = append(document, `,"publicKey":`...)
-		document = strconv.AppendQuote(document, key.PublicKey)
-		document = append(document, '}')
-	}
-	document = append(document, `],"schemaVersion":`...)
-	document = strconv.AppendQuote(document, BundleSchemaVersion)
-	return append(document, '}')
 }
 
 func decodeExactObject(raw []byte, expected map[string]struct{}) (map[string]json.RawMessage, error) {

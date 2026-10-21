@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:4e3f8a1b4b5866ee218dc2f24dccf69483b94261ef14d4405ae4ac05c55bc296",
+  "contentDigest": "sha256:842bac4350cc0ff48d7b0dcf33a9a43854eaa65ea9d260cf4071cecf5af63d38",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -3045,7 +3045,8 @@
               "id": "stackkits-marketplace-coolify-runtime"
             }
           ],
-          "name": "coolify"
+          "name": "coolify",
+          "providesRuntimeAdapterRef": "coolify"
         }
       ],
       "components": [
@@ -3054,6 +3055,13 @@
           "kind": "application",
           "name": "Coolify",
           "role": "primary"
+        },
+        {
+          "id": "runtipi",
+          "kind": "application",
+          "name": "Runtipi",
+          "realization": "recorded",
+          "role": "alternative"
         }
       ],
       "computeTiers": {

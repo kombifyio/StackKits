@@ -95,7 +95,7 @@ func validateHostDeployment(project string, state HostDeployment) error {
 		state.WorkloadRef == "" || state.InstanceRef == "" || state.SiteRef == "" || state.NodeRef == "" ||
 		project != "stackkit-"+state.WorkloadRef+"-"+state.NodeRef ||
 		!hostArtifactDigestPattern.MatchString(state.ArtifactDigest) ||
-		(state.Deployment.Platform != "komodo" && state.Deployment.Platform != "coolify" && state.Deployment.Platform != "standalone-compose") ||
+		(state.Deployment.Platform != "komodo" && state.Deployment.Platform != "coolify" && state.Deployment.Platform != "runtipi" && state.Deployment.Platform != "standalone-compose") ||
 		(state.Deployment.Platform != "standalone-compose" && state.ServerID == "") || state.Deployment.AppName != project ||
 		state.Deployment.ExternalID == "" || strings.TrimSpace(state.Deployment.ExternalID) != state.Deployment.ExternalID {
 		return errors.New("platform deployment custody does not bind the exact node project")
@@ -103,11 +103,14 @@ func validateHostDeployment(project string, state HostDeployment) error {
 	if state.APIVersion == hostManagerAPIVersion && state.Manager == "" {
 		return errors.New("v2 workload manager custody requires its explicit manager")
 	}
-	if state.Manager != "" && state.Manager != "komodo" && state.Manager != "coolify" && state.Manager != "standalone-compose" {
+	if state.Manager != "" && state.Manager != "komodo" && state.Manager != "coolify" && state.Manager != "runtipi" && state.Manager != "standalone-compose" {
 		return errors.New("workload manager custody names an unsupported manager")
 	}
 	if state.Deployment.Platform == "coolify" && state.Manager != "coolify" {
 		return errors.New("Coolify requires explicit signed workload manager custody")
+	}
+	if state.Deployment.Platform == "runtipi" && (state.Manager != "runtipi" || state.Deployment.ExternalID != project+":_user" || !runtipiAppName.MatchString(project)) {
+		return errors.New("Runtipi requires its exact custom-app identity and explicit signed workload manager custody")
 	}
 	if state.Deployment.Platform == "coolify" && !regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,125}$`).MatchString(state.Deployment.ExternalID) {
 		return errors.New("Coolify custody has an invalid physical Compose project")

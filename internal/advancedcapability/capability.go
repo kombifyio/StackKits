@@ -10,22 +10,24 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	wire "github.com/kombifyio/stackkits/internal/advancedcapabilityv2"
 )
 
 const (
-	SchemaVersion            = "stackkit.advanced-capability/v1"
-	TrustBundleSchemaVersion = "stackkit.advanced-trust-bundle/v1"
-	Audience                 = "stackkit"
+	SchemaVersion            = wire.SchemaVersion
+	TrustBundleSchemaVersion = wire.TrustBundleSchemaVersion
+	Audience                 = wire.Audience
 )
 
 const (
-	OperationDriftReconcileAdvanced   = "drift.reconcile.advanced"
-	OperationOriginCertificateInstall = "public-tls.origin-certificate.install"
-	OperationOriginCertificateRequest = "public-tls.origin-certificate.request"
-	OperationRestoreDrill             = "restore.drill"
-	OperationRollbackCoordinated      = "rollback.coordinated"
-	OperationTerramateChangeSetApply  = "terramate.change-set.apply"
-	OperationTerramateChangeSetCreate = "terramate.change-set.create"
+	OperationDriftReconcileAdvanced   = wire.OperationDriftReconcileAdvanced
+	OperationOriginCertificateInstall = wire.OperationOriginCertificateInstall
+	OperationOriginCertificateRequest = wire.OperationOriginCertificateRequest
+	OperationRestoreDrill             = wire.OperationRestoreDrill
+	OperationRollbackCoordinated      = wire.OperationRollbackCoordinated
+	OperationTerramateChangeSetApply  = wire.OperationTerramateChangeSetApply
+	OperationTerramateChangeSetCreate = wire.OperationTerramateChangeSetCreate
 )
 
 // ReasonCode is a stable, machine-readable fail-closed denial reason.
@@ -101,7 +103,7 @@ type Request struct {
 
 // Grant is the fully verified and locally scoped capability.
 type Grant struct {
-	BackupRenewal     *BackupRenewal
+	BackupRenewal     *wire.BackupRenewal
 	CapabilityID      string
 	IssuerID          string
 	StackID           string

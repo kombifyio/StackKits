@@ -143,7 +143,7 @@ func init() {
 	initCmd.Flags().BoolVarP(&initForce, "force", "f", false, "v0.6 compatibility only: overwrite existing files")
 	initCmd.Flags().StringVar(&initExpectedSpecHash, "expected-spec-hash", "", "Native v2 only: exact current CUE-normalized spec hash required for replacement")
 	initCmd.Flags().StringVar(&initCandidateSpec, "candidate-spec", "", "Native v2 only: preserve a complete CUE-valid StackSpec from a file or - for stdin; excludes authoring overrides")
-	initCmd.Flags().StringVar(&initPlatform, "platform", "", "Native v2 only: selected-provider platform adapter (install.platform.providerRef, e.g. coolify or komodo)")
+	initCmd.Flags().StringVar(&initPlatform, "platform", "", "Native v2 only: explicit workload runtime adapter; otherwise reuse a compatible selected platform or the catalog default")
 	initCmd.Flags().StringSliceVar(&initUseCases, "use-case", nil, "Optional kit workloads to enable (e.g. photos,files,vault); v2alpha2 requires explicit alternatives")
 	initCmd.Flags().StringSliceVar(&initEnableCapabilities, "enable", nil, "Native v2 only: optional kit capabilities to enable (capabilities.enable, e.g. lan-dns,internal-pki)")
 	initCmd.Flags().BoolVar(&initNonInteractive, "non-interactive", false, "Run in non-interactive mode (fail if input is required)")
