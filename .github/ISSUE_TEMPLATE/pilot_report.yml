@@ -1,0 +1,68 @@
+name: Pilot report
+description: You are a pilot homelab. Tell us how the install went, whether it worked or not.
+labels: ["pilot"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing StackKits. A report helps us even when everything worked.
+        Never paste the contents of `.stackkit/access.json`, passwords, tokens, private hostnames or access URLs.
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Outcome
+      options:
+        - Installed and the first service opens
+        - Installed, but something does not work
+        - The install stopped with an error
+        - I did not get to the install
+    validations:
+      required: true
+  - type: input
+    id: duration
+    attributes:
+      label: Time from start to first service
+      description: Roughly, in minutes. Leave empty if you did not get there.
+      placeholder: "12"
+  - type: input
+    id: version
+    attributes:
+      label: StackKits version
+      description: Output of `stackkit version`, if the CLI is installed.
+      placeholder: "0.54.3"
+  - type: input
+    id: host
+    attributes:
+      label: Host
+      description: OS and version, architecture, and whether it is a VM, bare metal or a VPS.
+      placeholder: "Ubuntu 24.04 amd64, mini PC"
+    validations:
+      required: true
+  - type: dropdown
+    id: kit
+    attributes:
+      label: Kit
+      options:
+        - Basement Kit
+        - Cloud Kit
+        - Modern Homelab (alpha definition)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: stuck
+    attributes:
+      label: Where did you get stuck or confused?
+      description: The step, the command, or the docs page. "Nowhere" is a fine answer.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Diagnostics
+      description: Paste `stackkit logs latest --json`, or run `stackkit support export --output support-evidence.json` and attach the file. Both are redacted.
+      render: shell
+  - type: textarea
+    id: wish
+    attributes:
+      label: What would you change first?

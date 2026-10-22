@@ -23,8 +23,8 @@ const (
 	immichWorkloadOutputRef      = "workloads/immich/bundle.json"
 	immichWorkloadHealthID       = "module-stackkits-immich-runtime-immich-http"
 	immichWorkloadHealthRef      = "immich-http"
-	immichWorkloadImageRef       = "ghcr.io/immich-app/immich-server:v2.7.0"
-	immichWorkloadImageDigest    = "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
+	immichWorkloadImageRef       = "ghcr.io/immich-app/immich-server:v3.3.4"
+	immichWorkloadImageDigest    = "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f"
 	immichWorkloadMaxBytes       = 512 << 10
 
 	immichLiteWorkloadProviderRef    = "stackkits-immich-lite"
@@ -34,7 +34,7 @@ const (
 )
 
 // immichWorkloadVariant is the exact catalog identity of one Photos Immich
-// alternative. Standard and Lite share the Immich v2.7.0 server image, unit,
+// alternative. Standard and Lite share the Immich v3.3.4 server image, unit,
 // route probe, and bundle schema; they differ only in their catalog provider,
 // module, generated artifact, and module Health identities.
 type immichWorkloadVariant struct {

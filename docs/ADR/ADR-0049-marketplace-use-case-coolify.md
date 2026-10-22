@@ -3,14 +3,14 @@ adr: ADR-0049
 title: Marketplace on Coolify and the Layer-2 PaaS platform boundary
 status: Accepted
 date: 2026-10-10
-last_verified: 2026-10-20
+last_verified: 2026-10-22
 ---
 
 # ADR-0049: Marketplace on Coolify and the Layer-2 PaaS platform boundary
 
 **Decision owner:** Marcel (2026-10-10, owner direction for the twelfth main
 intent "Marketplace"; engine choice accepted on the evidence below).
-**Amends:** ADR-0042, ADR-0045. **Related:** ADR-0003, ADR-0035.
+**Amends:** ADR-0042, ADR-0045. **Related:** ADR-0035.
 
 ## Context
 
@@ -56,13 +56,14 @@ check. Without PocketID login it cannot meet the identity promise.
 
 1. **Coolify is the current Marketplace engine, as an application of the
    Marketplace use case, in addition to its Layer-2 PaaS platform role.**
-   Coolify, Komodo and Dokploy remain later OpenTofu runtime targets under
-   ADR-0045 and the owner amendment below. StackKits installs and
-   operates a pinned Coolify 4.4.x (digest pin, `AUTOUPDATE=false`), its backup
-   and its upgrade. Apps installed from the store belong to Coolify and the
-   user; curated kombify apps stay StackKits-owned. This keeps one execution
-   and routing owner per workload (ADR-0042) and does not need the ADR-0045
-   platform-mode migration.
+   Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and OpenTofu
+   runtime targets under ADR-0045. Direct Compose without a PaaS stays the
+   default until further PaaS platforms are available; 1.0 requires both
+   paths. StackKits installs and operates a pinned Coolify 4.4.x (digest pin,
+   `AUTOUPDATE=false`), its backup and its upgrade. Apps installed from the
+   store belong to Coolify and the user; curated kombify apps stay
+   StackKits-owned. This keeps one execution and routing owner per workload
+   (ADR-0042) and does not need the ADR-0045 platform-mode migration.
 2. **Coolify is not part of the default core.** The kit manifests declare
    `paas` as `optional` with `coolify` and `komodo` as explicit alternatives,
    and `stackkit prepare` pre-pulls PaaS images only for an explicitly named
@@ -70,15 +71,31 @@ check. Without PocketID login it cannot meet the identity promise.
    selectable for existing installations until the Marketplace use case can
    take them over; they are not offered for new installations and are retired
    by a tracked package.
-3. **Dokploy is not selected as the Marketplace engine.** Its Layer-2 PaaS
-   and later runtime-target scope remains active. Komodo is the operations
-   platform without a store; support claims still require current-pin evidence.
-   Runtipi is additionally accepted for both Marketplace and use-case workload
-   execution under the 2026-10-20 amendment below. It remains unimplemented.
-4. Identity: the owner e-mail is the Coolify root user and signs in through
+3. **Dokploy is not the Marketplace engine** because its OIDC/SSO is
+   licence-gated; it remains a Layer-2 execution platform. Komodo is the
+   execution and operations platform without a store.
+4. **Runtipi is an accepted target for both the Marketplace app-store use case
+   and use-case workload execution as a platform** (workspace
+   [D-2026-10-20-09](https://github.com/kombify/kombify-workspace/blob/main/internal/records/DECISIONS.md)).
+   The product-intent catalog records Runtipi as a Marketplace alternative.
+   There is no admitted Runtipi module, bootstrap, workload adapter or
+   current-pin lifecycle receipt. Implementation must use the existing CUE,
+   OpenTofu, application-adapter and node-custody seams; no Runtipi OpenTofu
+   provider or API compatibility is presumed. Marketplace installation and
+   workload execution need separate current-pin install, login, routing,
+   app-operation, backup, restore and removal evidence. Scope admission
+   changes neither the current Coolify engine nor selected/default execution
+   adapters.
+5. **Dockhand is a prospective platform option** subject to its BSL/license
+   profile; this is not an unqualified open-source or runtime-support claim.
+6. Identity: the owner e-mail is the Coolify root user and signs in through
    PocketID; household users are created on first OIDC login as members;
    further rights are granted explicitly by StackKits. The Coolify UI stays
    LAN-only or behind TinyAuth.
+
+Support for any platform, Marketplace engine or runtime target requires
+current-pin lifecycle evidence; no decision above promotes a compatibility
+cell.
 
 ## Consequences
 
@@ -93,41 +110,8 @@ check. Without PocketID login it cannot meet the identity promise.
   a patch and is not part of this decision; curated apps deploy through the
   API.
 - The legacy v1 bridge (`internal/cue`, tfvars) resolves an omitted `paas`
-  to none since the retirement package of 2026-10-12; Coolify stays an explicit
+  to none; Coolify stays an explicit
   choice there. The `standalone` (Full) core alternatives with Coolify 4.1.2
   remain until existing installations can be migrated to the Marketplace use
   case, because the beta4 upgrade checkpoint and the core runtime profiles
   still serve those installations.
-
-## Amendment (owner, 2026-10-15)
-
-The original Decision 1 phrase "not as a runtime target" and original Decision 3
-phrase "Dokploy is not pursued" were withdrawn; the active decision above now
-reflects this amendment. Coolify, Komodo and Dokploy are the Layer-2 PaaS
-platforms and later OpenTofu runtime targets, as planned before this ADR
-(ADR-0003, ADR-0045). Direct Compose without a PaaS stays the default until
-further PaaS platforms are available; 1.0 requires both paths. The
-Marketplace use case on Coolify remains, in addition to Coolify's platform
-role. Dokploy stays out of the Marketplace engine role because its OIDC/SSO is
-licence-gated. Support for any platform or runtime target still requires
-current-pin evidence.
-
-## Amendment (2026-10-20): Runtipi admission and prospective Dockhand
-
-Workspace [D-2026-10-20-09](https://github.com/kombify/kombify-workspace/blob/main/internal/records/DECISIONS.md)
-records the owner's admission of the discussed solutions, particularly Runtipi.
-Runtipi is an accepted target for **both the Marketplace app-store use case and
-execution of use-case workloads as a platform**. Coolify retains both roles;
-Komodo remains the execution/operations platform without a store, and Dokploy
-remains a Layer-2 execution platform rather than the selected Marketplace engine.
-Dockhand is included as a prospective platform option subject to its BSL/license
-profile; this is not an unqualified open-source or runtime-support claim.
-
-The product-intent catalog records Runtipi as a Marketplace alternative. There
-is no admitted Runtipi module, bootstrap, workload adapter or current-pin
-lifecycle receipt. Implementation must use the existing CUE, OpenTofu,
-application-adapter and node-custody seams; no Runtipi OpenTofu provider or API
-compatibility is presumed. Marketplace installation and workload execution need
-separate current-pin install, login, routing, app-operation, backup, restore and
-removal evidence. Scope admission changes neither the current Coolify engine
-nor selected/default execution adapters, and grants no compatibility promotion.

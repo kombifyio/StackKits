@@ -1,9 +1,9 @@
 {
   "schemaVersion": "stackkits.apisurface-projection/v1",
   "source": "kombify-go-common/apisurface",
-  "sourceVersion": "v0.8.2",
-  "sourceCommit": "43a8f76348bbb1b725f20bd93417ea4b5d9d3d62",
-  "sourceSum": "h1:6n7IaFYvmqjy0x/RSOEQWk+pVaJ5Q+x0Ai0z+mvbGXI=",
+  "sourceVersion": "v0.8.3",
+  "sourceCommit": "2b0846cfc5f9dde3263590629a95d28ec0bee36b",
+  "sourceSum": "h1:WDw+XogEeHuzsVRjjyc6tgRcPWKqTh6R3bRV8UtDXMk=",
   "sourceFiles": [
     "README.md",
     "catalog.go",

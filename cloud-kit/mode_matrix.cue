@@ -41,7 +41,7 @@ modeMatrix: foundation.#KitModeSupport & {
 		// VPS, StackKits snapshot 80d57455) passed the lifecycle phases but has
 		// no owner setup, application setup, household user or OIDC proof, so
 		// it no longer satisfies the install.advanced gate
-		// (12-bootstrap-parity.md). Scaffolding until a managed Cloud
+		// (ADR-0045 bootstrap parity). Scaffolding until a managed Cloud
 		// Advanced receipt with full bootstrap exists (go-live objective O1).
 		advanced: "scaffolding"
 	}

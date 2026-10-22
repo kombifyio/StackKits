@@ -106,7 +106,7 @@ func (s *Server) registerStackActionRoutes() {
 func (s *Server) requireStackActionServiceAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		secrets := []string{s.config.ServiceAuthSecret, s.config.ServiceAuthSecretNext}
-		if !hasAnySecretStackAction(secrets) {
+		if !hasAnySecretStackAction(secrets) && len(s.config.ServiceAuthCallerKeys) == 0 {
 			writeStructuredError(w, r, http.StatusServiceUnavailable, skerrors.NewAuthError(
 				"service_auth_not_configured",
 				"SERVICE_AUTH_SECRET is required for internal StackActions",
@@ -126,9 +126,11 @@ func (s *Server) requireStackActionServiceAuth(next http.Handler) http.Handler {
 		}
 
 		if _, err := auth.VerifyServiceToken(token, auth.VerifyOptions{
-			Target:         "stackkits",
-			Secrets:        secrets,
-			AllowedCallers: []string{"techstack"},
+			Target:           "stackkits",
+			Secrets:          secrets,
+			AllowedCallers:   []string{"techstack"},
+			CallerPublicKeys: s.config.ServiceAuthCallerKeys,
+			RequireEd25519:   s.config.ServiceAuthRequireEd25519,
 		}); err != nil {
 			writeStructuredError(w, r, http.StatusForbidden, skerrors.NewAuthError(
 				"invalid_service_auth",

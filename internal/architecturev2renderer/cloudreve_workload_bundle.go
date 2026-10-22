@@ -90,6 +90,9 @@ func ParseCloudreveWorkloadBundle(data []byte) (CloudreveWorkloadBundleDescripto
 		if err := validateParsedApplicationDeliveryRoute(*bundle.DeliveryRoute, cloudreveWorkloadModuleID, "files", 5212, path+".deliveryRoute"); err != nil {
 			return CloudreveWorkloadBundleDescriptor{}, err
 		}
+		if err := requireCloudreveForwardAuthRoute(bundle.DeliveryRoute, path+".deliveryRoute"); err != nil {
+			return CloudreveWorkloadBundleDescriptor{}, err
+		}
 	}
 	for _, component := range components {
 		if configured, present := component.Environment["CR_SETTING_siteURL"]; present {
@@ -151,6 +154,9 @@ func validateCloudreveWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	}
 	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, cloudreveWorkloadModuleID, "files", 5212, path+".inputs")
 	if err != nil {
+		return selectedPaaSWorkloadBundle{}, err
+	}
+	if err := requireCloudreveForwardAuthRoute(deliveryRoute, path+".inputs.delivery-route"); err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
 	if len(unit.SecretInputRefs()) != 0 || !emptyJSONObject(unit.SecretRefsJSON()) ||
@@ -217,10 +223,23 @@ func validateCloudreveRuntimeComponents(components []selectedPaaSRuntimeComponen
 	return components, nil
 }
 
+// cloudreveRequiredIngressAuth keeps every Files path behind the TinyAuth
+// gateway. Until the patched Files runtime is admitted
+// (kombify-StackKits-fusz), a native or unauthenticated Files route fails
+// closed.
+const cloudreveRequiredIngressAuth = "forward-auth"
+
+func requireCloudreveForwardAuthRoute(route *applicationDeliveryRoute, path string) error {
+	if route != nil && route.IngressAuth != cloudreveRequiredIngressAuth {
+		return fail(ErrInvalidPlan, path+".ingressAuth", "Files route must stay behind forward-auth")
+	}
+	return nil
+}
+
 func validateCloudreveServiceEndpoint(endpoint selectedPaaSServiceEndpoint, path string) error {
 	if endpoint.ServiceRef != "files" || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != 5212 ||
 		endpoint.RequiredPrivilege != "user" || endpoint.OriginSelector != "control-authority-site" ||
-		endpoint.HealthRef != "cloudreve-http" || !validBundleApplicationIngressAuth(endpoint.IngressAuth) || endpoint.Data.BindingRef != "files" ||
+		endpoint.HealthRef != "cloudreve-http" || endpoint.IngressAuth != cloudreveRequiredIngressAuth || endpoint.Data.BindingRef != "files" ||
 		endpoint.Data.Locality != "primary-site" || !exactStringList(endpoint.Data.RequiredClasses, []string{"personal"}) ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"http", "https"}) ||
 		!sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private", "public"}) {

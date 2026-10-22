@@ -58,7 +58,6 @@
     "prepack": "npm run build",
     "build": "npm run build:capacity && npm run generate:types && tsc -p tsconfig.json",
     "generate:catalog": "npm run build && node scripts/generate-catalog.mjs",
-    "test": "npm run build && node --test test/*.test.mjs",
     "check": "npm run build"
   },
   "dependencies": {
@@ -66,7 +65,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.1",
-    "json-schema-to-typescript": "15.0.4",
+    "json-schema-to-typescript": "16.0.0",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {

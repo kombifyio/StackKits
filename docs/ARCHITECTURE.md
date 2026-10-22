@@ -952,7 +952,7 @@ benchmarks or storage reserved for user content:
 | Files, Vault, Media, Smart Home Standard/High | 2 / 4 GiB / 20 GiB | Standard platform policy |
 
 The Immich CPU/RAM requirements come from the
-[v2.7.0 requirements](https://github.com/immich-app/immich/blob/v2.7.0/docs/docs/install/requirements.md).
+[v3.3.4 requirements](https://github.com/immich-app/immich/blob/v3.3.4/docs/docs/install/requirements.md).
 The other application floors are Kombify starting configurations, not numeric
 manufacturer minima. Module RAM reservations remain additive. A Core Standard
 plus Immich host therefore has a floor of 6 GiB rather than 10 GiB; observed
@@ -2413,7 +2413,7 @@ The v0.8 single-node Basement plan has a complete local Product Apply compositio
 | `stackkits-storage-data-policy`, `stackkits-storage-allocation`, `stackkits-workload-data-binding` | Plan-only storage authority: every Application Kit names its persistent/cache allocation and data binding in ResolvedPlan; render nothing, mount/migrate/back up nothing | Keep allocation and placement facts in CUE/ResolvedPlan; workload and lifecycle owners consume them without product-specific compiler or renderer branches |
 | `stackkits-workload-runtime-contract` | Shared delivery interface for workloads; selects no engine | Each workload binds its artifacts to an explicitly registered adapter; no kit-level runtime umbrella |
 | `stackkits-basement-core-runtime` | Required Basement-only generation and Apply owner. The CUE catalog fixes the legacy Full single-node graph (Traefik, socket proxy, PocketID, TinyAuth, step-ca, Coolify/PostgreSQL/Redis/realtime, Hub); the native default is standalone Compose and the retained legacy graph neither makes Coolify the default core nor establishes Marketplace support. Hash-bound Compose/OpenTofu artifacts carry pinned images, backup-marked persistent volumes, custody references, Healthchecks and probes. Local Product Apply binds the graph to Site/node/channel custody, realizes the PocketID/TinyAuth Owner binding, records signed evidence; empty workload sets and unregistered or tampered renderers are rejected | Keep the v0.8 graph single-node and local-authority bound; graduate HA and optional workloads independently (v0.9) |
-| `stackkits-immich-runtime` | Apply-ready owner for the full Immich v2.7.0 server, machine-learning, PostgreSQL, database-init and Valkey graph. Provider-neutral, target-bound bundle with image digests, dependencies, internal network, opaque secret slots, volumes, backup intent, Health and the compiler-selected route/TLS descriptor; the executor SPI accepts only this closed bundle and requires apply receipt plus component/route readback. Product Runtime factories bind the full selector for Coolify, Komodo or standalone Compose plus Site, node, channel, catalog hashes, agent authority and Health | Provider/PaaS lifecycle stays external for Coolify/Komodo; standalone uses only local Owner custody and the fixed Docker Compose capability |
+| `stackkits-immich-runtime` | Apply-ready owner for the full Immich v3.3.4 server, machine-learning, PostgreSQL, database-init and Valkey graph. Provider-neutral, target-bound bundle with image digests, dependencies, internal network, opaque secret slots, volumes, backup intent, Health and the compiler-selected route/TLS descriptor; the executor SPI accepts only this closed bundle and requires apply receipt plus component/route readback. Product Runtime factories bind the full selector for Coolify, Komodo or standalone Compose plus Site, node, channel, catalog hashes, agent authority and Health | Provider/PaaS lifecycle stays external for Coolify/Komodo; standalone uses only local Owner custody and the fixed Docker Compose capability |
 | `stackkits-cloudreve-runtime`, `stackkits-vaultwarden-runtime` | Apply-ready Files and Vault owners using the CUE catalog's image ref/digest pairs; each has its own closed adapter bundle, parser, executor, Product factory and three adapter registrations, and selects the common Application Lifecycle and shared storage/data/backup/recovery modules | Keep workload-specific validation at the artifact/adapter edge; reuse the common compiler, lifecycle, state and State Console |
 | `stackkits-coolify-runtime` | Workload-scoped handoff distinct from the legacy Full core's Coolify. Native defaults install no Coolify; Marketplace is its optional owner. Accepts workload-bundle v2 with `apply`/`observe`, external credential/provider-lifecycle custody, mandatory digest, runtime, route and Health readback | Connect authenticated Coolify operations through the shared executor boundary; keep provider/server lifecycle outside |
 | `stackkits-standalone-compose-runtime` | StackKits-owned no-PaaS adapter: owner-only digest-pinned Compose and env files, signed local secret custody only, attaches the entry service to `stackkit-basement-core`, emits Traefik host/TLS labels, proves service/image plus loopback HTTP readback | Keep Docker/server lifecycle outside the adapter; never promote the fixed Compose capability into generic command, path, socket or host authority |
@@ -2463,11 +2463,9 @@ independent of Techstack.
 
 ### External infrastructure authority
 
-StackKits has no demo/test server-provider lifecycle authority. The former
-demo/test CUE contract and its server cardinality, lease,
-provider-resource ownership, mutation, cleanup, and second-provider rules were
-removed when the superseded private ADR-0030 decision record was
-superseded.
+StackKits has no demo/test server-provider lifecycle authority: it defines no
+server cardinality, lease, provider-resource ownership, mutation, cleanup, or
+second-provider rules.
 
 TechStack owns provider adapters, execution authority, durable allocation and
 cleanup ledgers, and native absence proof. Simulate may exercise those contracts

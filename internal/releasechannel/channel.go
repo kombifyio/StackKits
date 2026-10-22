@@ -1,8 +1,11 @@
 // Package releasechannel stores which release channel the user follows.
 //
 // The choice is a single word in ~/.stackkits/channel so the shell installer
-// and the CLI read the same file. Stable is the default; preview ("Nightly")
-// is an explicit opt-in (CI-CD-PLATFORM-STANDARD 4.6.2).
+// and the CLI read the same file. Stable is the default; Early Access is the
+// opt-in user channel that gets the builds the owner switched live
+// (CI-CD-PLATFORM-STANDARD 4.6 "Channel model", D-2026-10-20-07/08). preview is
+// the internal development Nightly: it still parses for the owner and the team,
+// but it is never offered to users.
 package releasechannel
 
 import (
@@ -17,28 +20,36 @@ import (
 type Channel string
 
 const (
-	Stable  Channel = "stable"
+	Stable      Channel = "stable"
+	EarlyAccess Channel = "early-access"
+	// Preview is the internal development Nightly; not a user choice.
 	Preview Channel = "preview"
 
 	// FileName is the channel file inside the user's ~/.stackkits directory.
 	FileName = "channel"
 )
 
-// Parse accepts exactly "stable" or "preview". Anything else fails closed.
+// Parse accepts exactly "stable", "early-access" or "preview". Anything else
+// fails closed.
 func Parse(value string) (Channel, error) {
 	switch Channel(strings.TrimSpace(value)) {
 	case Stable:
 		return Stable, nil
+	case EarlyAccess:
+		return EarlyAccess, nil
 	case Preview:
 		return Preview, nil
 	}
-	return "", fmt.Errorf("unknown release channel %q: use stable or preview", strings.TrimSpace(value))
+	return "", fmt.Errorf("unknown release channel %q: use stable or early-access", strings.TrimSpace(value))
 }
 
 // Label is the interface name of the channel.
 func (channel Channel) Label() string {
-	if channel == Preview {
-		return "preview (Nightly)"
+	switch channel {
+	case EarlyAccess:
+		return "Early Access"
+	case Preview:
+		return "preview (internal Nightly)"
 	}
 	return string(channel)
 }

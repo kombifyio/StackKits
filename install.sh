@@ -8,14 +8,18 @@
 #   curl -sSL https://install.stackkit.cc | sh -s -- basement-kit     # CLI + basement-kit
 #   curl -sSL https://install.stackkit.cc | sh -s -- cloud-kit        # CLI + cloud-kit
 #   curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab   # CLI + Modern Homelab Preview
-#   curl -sSL https://install.stackkit.cc | sh -s -- --channel preview  # newest Nightly prerelease (unsigned)
+#   curl -sSL https://install.stackkit.cc | sh -s -- --channel early-access  # Early Access (unsigned prerelease)
 #
-# --channel stable|preview selects the release channel (default: stable, or the
-# choice saved in ~/.stackkits/channel by `stackkit channel set`). It can also
-# be given as STACKKIT_CHANNEL. An unknown channel fails closed. Returning to
-# stable never downgrades a running preview build; it waits for the next stable
-# release at least as new (STACKKIT_ALLOW_DOWNGRADE=1 or an exact
-# STACKKIT_RELEASE_VERSION overrides that).
+# --channel stable|early-access selects the release channel (default: stable,
+# or the choice saved in ~/.stackkits/channel by `stackkit channel set`). It can
+# also be given as STACKKIT_CHANNEL. An unknown channel fails closed.
+# early-access installs the newest Early Access build the owner switched live,
+# or the newest stable release when that is newer. A withdrawn (rolled back)
+# Early Access build is replaced by the channel's current build even when that
+# is older. Returning to stable never downgrades a running prerelease build; it
+# waits for the next stable release at least as new (STACKKIT_ALLOW_DOWNGRADE=1
+# or an exact STACKKIT_RELEASE_VERSION overrides that). The internal Nightly
+# (preview) is for the StackKits team and is not offered to users.
 #
 # Called by the short website entrypoints (`base.stackkit.cc`,
 # `cloud.stackkit.cc`) to provide the shared install + kit-download step
@@ -47,7 +51,7 @@ while [ "$_stackkit_argc" -gt 0 ]; do
   case "$_stackkit_arg" in
     --channel)
       if [ "$_stackkit_argc" -eq 0 ]; then
-        echo "Error: --channel needs a value: stable or preview." >&2
+        echo "Error: --channel needs a value: stable or early-access." >&2
         exit 2
       fi
       CHANNEL_FLAG=$1
@@ -88,7 +92,8 @@ fi
 
 REPO="${STACKKIT_RELEASE_REPO:-kombifyio/stackKits}"
 RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
-# The preview channel reads the release list (prereleases are never "latest").
+# Early Access and the internal Nightly read the release list (prereleases are
+# never "latest").
 PREVIEW_RELEASES_API_URL="${STACKKIT_PREVIEW_RELEASES_API_URL:-https://api.github.com/repos/$REPO/releases?per_page=100}"
 RELEASES_PAGE_URL="${STACKKIT_RELEASES_PAGE_URL:-https://github.com/$REPO/releases/latest}"
 # STACKKIT_INSTALL_DIR relocates the binaries (default /usr/local/bin); the
@@ -109,7 +114,7 @@ if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]
 fi
 
 # Release channel: flag, then STACKKIT_CHANNEL, then the saved choice, then
-# stable. Anything but stable or preview fails closed before any download.
+# stable. Anything but a known channel fails closed before any download.
 CHANNEL_EXPLICIT=""
 if [ -n "$CHANNEL_FLAG_SET" ]; then
   CHANNEL_REQUEST=$CHANNEL_FLAG
@@ -123,7 +128,7 @@ else
   CHANNEL_REQUEST=stable
 fi
 if ! CHANNEL=$(installer_channel_normalize "$CHANNEL_REQUEST"); then
-  echo "Error: unknown release channel '${CHANNEL_REQUEST}'. Use stable or preview." >&2
+  echo "Error: unknown release channel '${CHANNEL_REQUEST}'. Use stable or early-access." >&2
   exit 2
 fi
 # Kit installers started from here keep an explicit choice.
@@ -212,7 +217,7 @@ if [ -n "${STACKKIT_RELEASE_VERSION:-}" ]; then
   LATEST=$(printf '%s' "$STACKKIT_RELEASE_VERSION" | sed -E 's/^v//')
   echo "  -> pinned to v${LATEST} via STACKKIT_RELEASE_VERSION (existence verified at download)"
 elif [ "$CHANNEL" = preview ]; then
-  echo "  -> channel: preview (Nightly, unsigned prerelease built from main)"
+  echo "  -> channel: preview (internal Nightly, unsigned prerelease built from main)"
   RELEASE_JSON=$(curl_release -sSL "$PREVIEW_RELEASES_API_URL" 2>/dev/null || true)
   PREVIEW_TAG=$(installer_newest_preview_tag "$RELEASE_JSON")
   # The release list is not one release; asset lookups fetch the tag's own JSON.
@@ -224,6 +229,29 @@ elif [ "$CHANNEL" = preview ]; then
     exit 1
   fi
   LATEST=${PREVIEW_TAG#v}
+elif [ "$CHANNEL" = early-access ]; then
+  # Early Access serves the newest build the owner switched live, or the
+  # newest stable release when that is newer (a stable release supersedes the
+  # Early Access build of the same version).
+  echo "  -> channel: Early Access (unsigned prerelease the StackKits team switched live)"
+  RELEASES_LIST_JSON=$(curl_release -sSL "$PREVIEW_RELEASES_API_URL" 2>/dev/null || true)
+  EARLY_ACCESS_TAGS=$(installer_channel_tags "$RELEASES_LIST_JSON" early-access)
+  EARLY_ACCESS_TAG=$(printf '%s\n' "$EARLY_ACCESS_TAGS" | head -n 1)
+  STABLE_JSON=$(curl_release -sSL "$RELEASE_API_URL" 2>/dev/null || true)
+  STABLE_LATEST=$(extract_release_version "$STABLE_JSON")
+  if [ -n "$EARLY_ACCESS_TAG" ] && { [ -z "$STABLE_LATEST" ] || [ "$(installer_semver_compare "${EARLY_ACCESS_TAG#v}" "$STABLE_LATEST")" = 1 ]; }; then
+    LATEST=${EARLY_ACCESS_TAG#v}
+  elif [ -n "$STABLE_LATEST" ]; then
+    LATEST=$STABLE_LATEST
+    RELEASE_JSON=$STABLE_JSON
+    if [ -n "$EARLY_ACCESS_TAG" ]; then
+      echo "  -> stable v${STABLE_LATEST} is newer than Early Access ${EARLY_ACCESS_TAG}; installing stable"
+    else
+      echo "  -> no Early Access build is live; installing stable v${STABLE_LATEST}"
+    fi
+  else
+    LATEST=""
+  fi
 else
   RELEASE_JSON=$(curl_release -sSL "$RELEASE_API_URL" 2>/dev/null || true)
   LATEST=$(extract_release_version "$RELEASE_JSON")
@@ -256,19 +284,34 @@ if [ -z "$LATEST" ]; then
 fi
 echo "  -> v${LATEST} (${OS}/${ARCH})"
 
-# Returning to stable never downgrades a running preview build: the switch
-# takes effect with the next stable release at least as new as the running one.
-if [ "$CHANNEL" = stable ] && [ -z "${STACKKIT_RELEASE_VERSION:-}" ] && [ "${STACKKIT_ALLOW_DOWNGRADE:-0}" != 1 ]; then
+# Switching channel never downgrades a running prerelease build: stable (or
+# Early Access) takes over with the next release at least as new as the
+# running one. The one exception is a withdrawn Early Access build: the
+# owner's rollback moves everyone on Early Access to the channel's current
+# build, even when that is older.
+if [ "$CHANNEL" != preview ] && [ -z "${STACKKIT_RELEASE_VERSION:-}" ] && [ "${STACKKIT_ALLOW_DOWNGRADE:-0}" != 1 ]; then
   _stackkit_running=$( (command -v stackkit >/dev/null 2>&1 && stackkit version 2>/dev/null) | sed -n 's/^stackkit version v\{0,1\}//p' | head -n 1)
   case "$_stackkit_running" in
-    *-preview.*)
+    *-preview.*|*-early-access.*)
       if [ "$(installer_semver_compare "$LATEST" "$_stackkit_running")" = -1 ]; then
-        echo "  -> Staying on preview build v${_stackkit_running}: stable v${LATEST} is older."
-        echo "     The stable channel takes over with the next stable release at least as new."
-        echo "     To downgrade anyway, rerun with STACKKIT_ALLOW_DOWNGRADE=1."
-        installer_store_channel "$TARGET_HOME/.stackkits" "$CHANNEL" "$TARGET_USER" || true
-        installer_complete
-        exit 0
+        _stackkit_withdrawn=""
+        if [ "$CHANNEL" = early-access ]; then
+          case "$_stackkit_running" in
+            *-early-access.*)
+              printf '%s\n' "$EARLY_ACCESS_TAGS" | grep -qx "v${_stackkit_running}" || _stackkit_withdrawn=1
+              ;;
+          esac
+        fi
+        if [ -n "$_stackkit_withdrawn" ]; then
+          echo "  -> Early Access build v${_stackkit_running} was withdrawn; rolling back to v${LATEST}."
+        else
+          echo "  -> Staying on build v${_stackkit_running}: v${LATEST} on the ${CHANNEL} channel is older."
+          echo "     The ${CHANNEL} channel takes over with its next release at least as new."
+          echo "     To downgrade anyway, rerun with STACKKIT_ALLOW_DOWNGRADE=1."
+          installer_store_channel "$TARGET_HOME/.stackkits" "$CHANNEL" "$TARGET_USER" || true
+          installer_complete
+          exit 0
+        fi
       fi
       ;;
   esac

@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-10-21T09:43:26Z",
+  "generated_at": "2026-10-22T18:38:56Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -371,6 +371,9 @@
       "description": "Self-hosted deployment platform.",
       "tool_name": "coolify",
       "module_slug": "coolify",
+      "alternatives": [
+        "komodo"
+      ],
       "local_slug": "coolify",
       "public_slug": "coolify",
       "identity_policy": "forwardauth",
@@ -437,6 +440,10 @@
       "description": "Document management and file sharing backed by Cloudreve",
       "tool_name": "cloudreve",
       "module_slug": "cloudreve",
+      "alternatives": [
+        "nextcloud",
+        "opencloud"
+      ],
       "local_slug": "files",
       "public_slug": "files",
       "legacy_aliases": [
@@ -526,6 +533,9 @@
       "description": "Programmable self-hosted PaaS for Compose stack deployment through API keys.",
       "tool_name": "komodo",
       "module_slug": "komodo",
+      "alternatives": [
+        "coolify"
+      ],
       "local_slug": "komodo",
       "public_slug": "komodo",
       "identity_policy": "forwardauth",
@@ -864,6 +874,296 @@
       "setup_policy": "automatic",
       "delivery": {},
       "default": true
+    }
+  ],
+  "applications": [
+    {
+      "tool_name": "cloudreve",
+      "module_slug": "cloudreve",
+      "display_name": "Cloudreve",
+      "service_key": "files",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/files",
+      "vendor": {
+        "name": "Cloudreve",
+        "website": "https://cloudreve.org",
+        "docs": "https://docs.cloudreve.org",
+        "license": "GPL-3.0",
+        "support": [
+          {
+            "kind": "purchase",
+            "url": "https://cloudreve.org/pricing"
+          }
+        ]
+      }
+    },
+    {
+      "tool_name": "dashboard",
+      "module_slug": "dashboard",
+      "display_name": "StackKits Node Hub",
+      "service_key": "base",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/node-hub"
+    },
+    {
+      "tool_name": "dokploy",
+      "module_slug": "dokploy",
+      "display_name": "Dokploy",
+      "service_key": "dokploy",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/overview"
+    },
+    {
+      "tool_name": "home-assistant",
+      "module_slug": "home-assistant",
+      "display_name": "Home Assistant",
+      "service_key": "smart_home",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/smart-home",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=io.homeassistant.companion.android"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/app/id1099568401"
+        }
+      ],
+      "vendor": {
+        "name": "Home Assistant",
+        "website": "https://www.home-assistant.io",
+        "docs": "https://www.home-assistant.io/docs/",
+        "license": "Apache-2.0"
+      }
+    },
+    {
+      "tool_name": "homepage",
+      "module_slug": "homepage",
+      "display_name": "Homepage",
+      "service_key": "home",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/homepage"
+    },
+    {
+      "tool_name": "immich",
+      "module_slug": "immich",
+      "display_name": "Immich",
+      "service_key": "photos",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/immich",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=app.alextran.immich"
+        },
+        {
+          "platform": "android",
+          "kind": "download",
+          "url": "https://github.com/immich-app/immich/releases/latest/download/app-release.apk"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/us/app/immich/id1613945652"
+        }
+      ],
+      "vendor": {
+        "name": "Immich",
+        "website": "https://immich.app",
+        "docs": "https://docs.immich.app/",
+        "license": "AGPL-3.0",
+        "support": [
+          {
+            "kind": "purchase",
+            "url": "https://buy.immich.app/"
+          }
+        ]
+      }
+    },
+    {
+      "tool_name": "jellyfin",
+      "module_slug": "jellyfin",
+      "display_name": "Jellyfin",
+      "service_key": "media",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/jellyfin",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=org.jellyfin.mobile"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/us/app/jellyfin-mobile/id1480192618"
+        },
+        {
+          "platform": "windows",
+          "kind": "download",
+          "url": "https://github.com/jellyfin/jellyfin-media-player/releases"
+        }
+      ],
+      "vendor": {
+        "name": "Jellyfin",
+        "website": "https://jellyfin.org",
+        "docs": "https://jellyfin.org/docs/",
+        "license": "GPL-2.0",
+        "support": [
+          {
+            "kind": "donate",
+            "url": "https://opencollective.com/jellyfin"
+          }
+        ]
+      }
+    },
+    {
+      "tool_name": "kombify-point",
+      "module_slug": "kombify-point",
+      "display_name": "kombify Point DNS",
+      "service_key": "point",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/kombify-point"
+    },
+    {
+      "tool_name": "nextcloud",
+      "module_slug": "nextcloud",
+      "display_name": "Nextcloud",
+      "service_key": "files",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/files",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=com.nextcloud.client"
+        },
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://f-droid.org/packages/com.nextcloud.client/"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/app/id1125420102"
+        },
+        {
+          "platform": "windows",
+          "kind": "download",
+          "url": "https://nextcloud.com/install/#install-clients"
+        },
+        {
+          "platform": "macos",
+          "kind": "download",
+          "url": "https://nextcloud.com/install/#install-clients"
+        },
+        {
+          "platform": "linux",
+          "kind": "download",
+          "url": "https://nextcloud.com/install/#install-clients"
+        }
+      ],
+      "vendor": {
+        "name": "Nextcloud",
+        "website": "https://nextcloud.com",
+        "docs": "https://docs.nextcloud.com",
+        "license": "AGPL-3.0"
+      }
+    },
+    {
+      "tool_name": "opencloud",
+      "module_slug": "opencloud",
+      "display_name": "OpenCloud",
+      "service_key": "files",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/files",
+      "vendor": {
+        "name": "OpenCloud",
+        "website": "https://opencloud.eu",
+        "docs": "https://docs.opencloud.eu",
+        "license": "Apache-2.0"
+      }
+    },
+    {
+      "tool_name": "pocketid",
+      "module_slug": "pocketid",
+      "display_name": "PocketID",
+      "service_key": "id",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/pocketid"
+    },
+    {
+      "tool_name": "tinyauth",
+      "module_slug": "tinyauth",
+      "display_name": "TinyAuth",
+      "service_key": "auth",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/tinyauth"
+    },
+    {
+      "tool_name": "traefik",
+      "module_slug": "traefik",
+      "display_name": "Traefik",
+      "service_key": "traefik",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/traefik"
+    },
+    {
+      "tool_name": "uptime-kuma",
+      "module_slug": "uptime-kuma",
+      "display_name": "Uptime Kuma",
+      "service_key": "kuma",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/uptime-kuma",
+      "vendor": {
+        "name": "Uptime Kuma",
+        "website": "https://uptime.kuma.pet",
+        "license": "MIT",
+        "support": [
+          {
+            "kind": "donate",
+            "url": "https://opencollective.com/uptime-kuma"
+          },
+          {
+            "kind": "sponsor",
+            "url": "https://github.com/sponsors/louislam"
+          }
+        ]
+      }
+    },
+    {
+      "tool_name": "vaultwarden",
+      "module_slug": "vaultwarden",
+      "display_name": "Vaultwarden",
+      "service_key": "vault",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/vaultwarden",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=com.x8bit.bitwarden"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/app/bitwarden-free-password-manager/id1137397744"
+        },
+        {
+          "platform": "windows",
+          "kind": "download",
+          "url": "https://bitwarden.com/download/?app=desktop\u0026platform=windows\u0026variant=exe"
+        }
+      ],
+      "vendor": {
+        "name": "Vaultwarden",
+        "website": "https://github.com/dani-garcia/vaultwarden",
+        "docs": "https://github.com/dani-garcia/vaultwarden/wiki",
+        "license": "AGPL-3.0",
+        "support": [
+          {
+            "kind": "sponsor",
+            "url": "https://github.com/sponsors/dani-garcia"
+          }
+        ]
+      }
+    },
+    {
+      "tool_name": "whoami",
+      "module_slug": "whoami",
+      "display_name": "Whoami",
+      "service_key": "whoami",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/whoami"
     }
   ],
   "modules": [

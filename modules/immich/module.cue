@@ -80,7 +80,7 @@ Contract: foundation.#ModuleContract & {
 			upstream: {
 				github: {repo: "immich-app/immich"}
 				track:   "patch"
-				pinLine: "v2.7"
+				pinLine: "v3.3"
 			}
 			required: false
 			status:   "implemented"
@@ -186,7 +186,7 @@ Contract: foundation.#ModuleContract & {
 			upstream: {
 				github: {repo: "immich-app/immich"}
 				track:   "patch"
-				pinLine: "v2.7"
+				pinLine: "v3.3"
 			}
 			required: false
 			status:   "implemented"

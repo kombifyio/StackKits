@@ -22,7 +22,7 @@ _architectureV2PolicyRecommendedProvenance: #ResourceProvenanceV1 & {source: "po
 _architectureV2ComponentReservationProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"}
 _architectureV2PolicyReservationProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Kombify reservation policy; declared, not a sum of component limits"}
 _architectureV2AcceleratorEnvelopeProvenance: #ResourceProvenanceV1 & {source: "policy", ref: "Kombify GPU runtime support envelope"}
-_architectureV2ImmichUpstreamFloorProvenance: #ResourceProvenanceV1 & {source: "upstream", ref: "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"}
+_architectureV2ImmichUpstreamFloorProvenance: #ResourceProvenanceV1 & {source: "upstream", ref: "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"}
 
 _architectureV2CoreComputeProfile: #ModuleComputeProfileV2 & {
 	maturity:           "supported", executable: true, realization: "apply-ready"
@@ -114,7 +114,7 @@ _architectureV2ImmichStorageFilesystemRequirement: #StorageFilesystemRequirement
 _architectureV2ImmichComputeProfile: #ModuleComputeProfileV2 & {
 	description: "Photo library and mobile backup with the machine-learning service, PostgreSQL and Valkey. Standard and high have the same declared resources and features; neither guarantees a user count or ingest rate. Photo-library growth needs a separate data budget."
 	maturity:    "supported", executable: true, realization: "apply-ready"
-	// CPU/RAM: Immich v2.7.0 docs/install/requirements.md. Disk is the
+	// CPU/RAM: Immich v3.3.4 docs/install/requirements.md. Disk is the
 	// Kombify platform floor; it is not space reserved for the photo library.
 	hostFloor: {
 		minCpuCores:                    2

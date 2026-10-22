@@ -128,11 +128,17 @@ func newDeviceRevokeCommand() *cobra.Command {
 		SilenceErrors: true,
 		Args:          cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			device, err := identity.RevokeHomeDevice(getWorkDir(), strings.TrimSpace(args[0]), time.Now())
+			root, now := getWorkDir(), time.Now()
+			device, err := identity.RevokeHomeDevice(root, strings.TrimSpace(args[0]), now)
 			if err != nil {
 				return err
 			}
-			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"device": device})
+			// A revoked device must lose overlay access now, not at the next manual render.
+			overlay, err := resyncHomeOverlayIfActive(commandContext(cmd), root, now)
+			if err != nil {
+				return fmt.Errorf("device revoked, but the running overlay still admits it: %w", err)
+			}
+			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"device": device, "overlay": overlay})
 		},
 	}
 }
@@ -185,12 +191,34 @@ func newDeviceOverlayCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"peer": peer, "node": node})
+			overlay, err := resyncHomeOverlayIfActive(commandContext(cmd), root, time.Now())
+			if err != nil {
+				return fmt.Errorf("device bound, but the running overlay was not updated: %w", err)
+			}
+			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"peer": peer, "node": node, "overlay": overlay})
+		},
+	}
+	up := &cobra.Command{
+		Use:   "up",
+		Short: "Create or resync the node's WireGuard overlay interface and enable it at boot (requires root)",
+		Long: "Installs the rendered configuration as /etc/wireguard/" + identity.HomeOverlayInterfaceName + ".conf, " +
+			"starts and enables wg-quick@" + identity.HomeOverlayInterfaceName + " so the interface returns after a reboot, " +
+			"or resyncs the peers of a running interface in place. Fails closed when the kernel module, " +
+			"wireguard-tools or systemd are missing. Safe to repeat.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Args:          cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			result, err := ensureHomeOverlayInterface(commandContext(cmd), getWorkDir(), time.Now())
+			if err != nil {
+				return err
+			}
+			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"overlay": result})
 		},
 	}
 	bind.Flags().StringVar(&publicKey, "public-key", "", "the device's base64 WireGuard public key (generated on the device)")
 	_ = bind.MarkFlagRequired("public-key")
-	command.AddCommand(bind, render)
+	command.AddCommand(bind, render, up)
 	return command
 }
 

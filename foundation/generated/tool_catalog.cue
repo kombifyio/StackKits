@@ -5,7 +5,7 @@
 //   stackkit registry bake-from-cue
 //   stackkit registry emit-cue
 //
-// Snapshot: source=cue generated_at=2026-10-11T15:36:55Z
+// Snapshot: source=cue generated_at=2026-10-21T13:22:02Z
 // Snapshot content_hash: (none — CUE-baked snapshot)
 // Services: rendered from CUE module contracts (modules/<slug>/module.cue),
 // the same source 'registry bake-from-cue' uses.
@@ -367,6 +367,7 @@ package foundation
 		description:             "Self-hosted deployment platform."
 		toolName:                "coolify"
 		moduleSlug:              "coolify"
+		alternatives: ["komodo"]
 		localSlug:               "coolify"
 		publicSlug:              "coolify"
 		legacyAliases: []
@@ -433,6 +434,7 @@ package foundation
 		description:             "Document management and file sharing backed by Cloudreve"
 		toolName:                "cloudreve"
 		moduleSlug:              "cloudreve"
+		alternatives: ["nextcloud", "opencloud"]
 		localSlug:               "files"
 		publicSlug:              "files"
 		legacyAliases: ["cloudreve", "nextcloud"]
@@ -509,6 +511,7 @@ package foundation
 		description:             "Programmable self-hosted PaaS for Compose stack deployment through API keys."
 		toolName:                "komodo"
 		moduleSlug:              "komodo"
+		alternatives: ["coolify"]
 		localSlug:               "komodo"
 		publicSlug:              "komodo"
 		legacyAliases: []

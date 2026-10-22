@@ -22,18 +22,19 @@ var channelDir = func() (string, error) {
 func newChannelCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "channel",
-		Short: "Show or set the release channel (stable or preview)",
+		Short: "Show or set the release channel (stable or early-access)",
 		Long: `Show which release channel this machine follows.
 
-stable is the default. preview ("Nightly") is a prerelease built once a day
-from main when main changed; it is unsigned and opt-in. The choice is stored in
-~/.stackkits/channel and read by the installer (install.sh), which fetches the
-newest release of that channel.`,
+stable is the default. early-access is the opt-in channel: it gets builds the
+StackKits team switched live before they become the next stable release, and
+the newest stable release whenever that is newer. Early Access builds are
+unsigned prereleases. The choice is stored in ~/.stackkits/channel and read by
+the installer (install.sh), which fetches the newest release of that channel.`,
 		Example: `  # Show the current channel
   stackkit channel
 
-  # Follow the Nightly prereleases, then re-run the installer
-  stackkit channel set preview`,
+  # Follow Early Access, then re-run the installer
+  stackkit channel set early-access`,
 		Args: cobra.NoArgs,
 		Annotations: map[string]string{
 			noDeployObservabilityAnnotation: "true",
@@ -52,7 +53,7 @@ newest release of that channel.`,
 		},
 	}
 	command.AddCommand(&cobra.Command{
-		Use:   "set <stable|preview>",
+		Use:   "set <stable|early-access>",
 		Short: "Choose the release channel",
 		Args:  cobra.ExactArgs(1),
 		Annotations: map[string]string{
@@ -72,10 +73,10 @@ newest release of that channel.`,
 			}
 			out := cmd.OutOrStdout()
 			_, _ = fmt.Fprintf(out, "Release channel: %s\n", selected.Label())
-			if selected == releasechannel.Preview {
-				_, _ = fmt.Fprintln(out, "Run the installer again to fetch the newest Nightly: curl -sSL https://install.stackkit.cc | sh")
+			if selected == releasechannel.Stable {
+				_, _ = fmt.Fprintln(out, "A running Early Access build stays installed until a stable release at least as new is published; the installer never downgrades it on its own.")
 			} else {
-				_, _ = fmt.Fprintln(out, "A running preview build stays installed until a stable release at least as new is published; the installer never downgrades it on its own.")
+				_, _ = fmt.Fprintln(out, "Run the installer again to fetch the newest build of this channel: curl -sSL https://install.stackkit.cc | sh")
 			}
 			return nil
 		},

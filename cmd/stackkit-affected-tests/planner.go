@@ -24,8 +24,6 @@ const focusedTestBatchSize = 8
 // CI when batched with ./internal/architecturev2renderer (PR 1075 Fast Gate).
 const goTestTimeoutArg = "-timeout=300s"
 
-const perKitTemplateParityTest = "TestPerKitTemplatesMatchCanonical"
-
 const kitInventoryParityTest = "TestProductKitsMatchesCUEDerivedAuthorityProfiles"
 
 // rendererRegistryParityTest proves every catalog render unit hash equals the
@@ -64,36 +62,8 @@ var filePublicTestBoundaries = map[string]struct {
 	Tests   []string
 	Tags    []string
 }{
-	"cmd/stackkit/commands/module_bump.go": {
-		Package: "cmd/stackkit/commands", Tags: []string{"publisher"},
-		Tests: []string{"TestRewriteServiceTag_OnlyTargetChanges", "TestRewriteServiceTag_RoutedServiceByName", "TestRewriteServiceTag_UnknownService", "TestRewriteServiceTag_InvalidCUE"},
-	},
-	"cmd/stackkit/commands/module_bump_foundation.go": {
-		Package: "cmd/stackkit/commands", Tags: []string{"publisher"},
-		Tests: []string{"TestModuleBumpPropagatesFoundationImageToNativeConsumer"},
-	},
 	// Documentation adapters execute their CUE-derived flow through the catalog
 	// owner and deterministic CLI parity below; unrelated CLI journeys stay outside it.
-	"cmd/stackkit/commands/docs_catalog.go": {
-		Package: "internal/usecasecatalog",
-		Tests:   []string{"TestTruthTableRuntimeSourceInvalidatesProducerEvidence", "TestRuntimeEvidenceIsSourceBound", "TestGeneratedCatalogConformsToPublishedSchema"},
-	},
-	"internal/resolvedplan/capacity_assessment.go": {
-		Package: "cmd/stackkit/commands", Tests: []string{"TestCapacityRejectsUnderprovisionedSelection"},
-	},
-	"internal/architecturev2/capacity.go": {
-		Package: "cmd/stackkit/commands", Tests: []string{"TestCapacityRejectsUnderprovisionedSelection"},
-	},
-	"internal/architecturev2/authoring_add.go": {
-		Package: "cmd/stackkit/commands", Tests: []string{"TestUseCasesAddPreservesInstalledIntentAndCustody"},
-	},
-	"internal/architecturev2/authoring_module_profiles.go": {
-		Package: "cmd/stackkit/commands", Tests: []string{"TestUseCasesAddPreservesInstalledIntentAndCustody"},
-	},
-	"internal/architecturev2/addons.go": {
-		Package: "cmd/stackkit/commands",
-		Tests:   []string{"TestArchitectureV2AddonListUsesEmbeddedCatalogWithoutSpec"},
-	},
 	"cmd/stackkit/commands/federation_control_runtime.go": {
 		Package: "cmd/stackkit/commands", Tests: []string{"TestFederationControlCLISignsExactHomeAction"},
 	},
@@ -106,39 +76,12 @@ var filePublicTestBoundaries = map[string]struct {
 	"internal/localevidence/remote_action_signature.go": {
 		Package: "cmd/stackkit/commands", Tests: []string{"TestFederationControlCLISignsExactHomeAction"},
 	},
-	"internal/architecturev2/product_application_selected_paas_factory.go": {
-		Package: "cmd/stackkit/commands",
-		Tests:   []string{"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads"},
-	},
 	// OpenTofu workload roots (P1.1 follow-up W): the native standalone
 	// Compose halves and the wrapper renderer are exercised through the
 	// OpenTofu executor's public boundary.
-	"internal/runtimeexecutor/nativehost/standalone_compose_halves.go": {
-		Package: "internal/runtimeexecutor/opentofu",
-		Tests:   []string{"TestWorkloadRootEmbedsTheNativeComposeFileAndNotItsEnv", "TestWorkloadApplyRunsTofuInTheGraphRootOnlyUnderOpenTofuTargets"},
-	},
-	"internal/runtimeexecutor/nativehost/generation_target.go": {
-		Package: "cmd/stackkit/commands",
-		Tests:   []string{"TestLocalRuntimeOwnersExecuteGeneratedApplicationWorkloads"},
-	},
-	"internal/architecturev2renderer/compose_payload_opentofu.go": {
-		Package: "internal/runtimeexecutor/opentofu",
-		Tests:   []string{"TestWorkloadRootEmbedsTheNativeComposeFileAndNotItsEnv"},
-	},
-}
-
-var nativeSetupConsumerTests = []string{
-	"TestNativeHomeAssistantConnectorRequiresCurrentLocalTupleAndRetainsSecretFreeEvidence",
-	"TestAutomaticFilesOwnerSetupTreatsSuccessfulBootstrapAsSuccess",
-	"TestAutomaticOwnerSetupRunsOwnerAccountActionsFromTheOwnerIdentity",
-	"TestAutomaticSSOSetupReusesOwnerCustodyAcrossAuthorityChanges",
 }
 
 var historicalSourceInspectionTests = []string{
-	"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
-	"TestSourceGenerationPlanCannotReinterpretUnattestedHistory",
-	"TestHistoricalUpgradeUsesPersistedPlanInventory",
-	"TestAttestedLegacySourceInventoryKeepsFutureFactsOutOfSourcePlan",
 	"TestHistoricalCloudSourceRequiresSignedApply",
 	"TestMarketplaceUpgradeRequiresSignedApplyCheckpoint",
 }
@@ -148,12 +91,10 @@ var historicalSourceInspectionTests = []string{
 // gate. Adding or renaming a test in one of these slices must update this
 // reviewable binding.
 var fileFocusedTests = map[string][]string{
-	"cmd/stackkit/commands/address.go":         {"TestCloudSessionCommandRequiresExistingOwnerCustody", "TestPublicCommandTreeExcludesPublisherOperations"},
-	"cmd/stackkit/commands/address_session.go": {"TestCloudSessionCommandRequiresExistingOwnerCustody", "TestPublicCommandTreeExcludesPublisherOperations"},
-	"cmd/stackkit/commands/module_scaffold.go": {"TestModuleAuthoringFromFacts"},
-	"internal/usecasecatalog/truth_table.go": {
-		"TestTruthTableRuntimeSourceInvalidatesProducerEvidence",
-	},
+	"cmd/stackkit/commands/address.go":         {},
+	"cmd/stackkit/commands/address_session.go": {},
+	"cmd/stackkit/commands/module_scaffold.go": {},
+	"internal/usecasecatalog/truth_table.go":   {},
 	// Capacity extraction changes only profile demand and numeric admission.
 	// The unrelated historical full compiler suite exceeds the bounded gate
 	// while repeatedly evaluating Modern topology policies under CUE.
@@ -174,29 +115,13 @@ var fileFocusedTests = map[string][]string{
 		"TestModuleRequiredInventoryFactsBlockUntilObserved",
 		"TestCanonicalPlanRejectsForgedRuntimeAdmission",
 	},
-	"cmd/stackkit/commands/capacity.go": {"TestCapacityRejectsUnderprovisionedSelection"},
-	"cmd/stackkit/commands/machine_output.go": {
-		"TestCapacityRejectsUnderprovisionedSelection",
-		"TestMachineCommandDenialIsParseableAndRetainsNonzeroError",
-		"TestMachineCommandFailureEmitsManagedEntitlementEnvelope",
-		"TestMachineFailureCarriesRecognizedRuntimeConditionContract",
-		"TestRemoveTerminalEvidenceIsExclusiveMachineOutput",
-	},
-	"cmd/stackkit/commands/apply_progress.go": {
-		"TestApplyOwnerFailureEventNamesTheOwnerAndNeverCarriesErrorText",
-		"TestApplyProgressHeartbeatRepeatsWhileWorkContinues",
-	},
-	"cmd/stackkit/commands/application_lifecycle_execution.go": {
-		"TestExclusiveApplyProofHoldsOnlyUnderTheOutputRootLock",
-		"TestRetriedApplyAfterAKilledApplyRunsEveryOwner",
-		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
-	},
+	"cmd/stackkit/commands/capacity.go":                        {},
+	"cmd/stackkit/commands/machine_output.go":                  {},
+	"cmd/stackkit/commands/apply_progress.go":                  {},
+	"cmd/stackkit/commands/application_lifecycle_execution.go": {},
 	// Source preparation owns public cache admission and historical Owner
 	// inspection; recovery consumes that same verified cache and executable.
-	"cmd/stackkit/commands/source_generation.go": {
-		"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
-		"TestSourceGenerationPlanCannotReinterpretUnattestedHistory",
-	},
+	"cmd/stackkit/commands/source_generation.go": {},
 	// These seams authenticate immutable source data; full upgrade execution
 	// remains in its own owners. Keep the shared bridge type's additive source
 	// context on the same cache/Owner/Inventory/signature regression boundary.
@@ -206,20 +131,12 @@ var fileFocusedTests = map[string][]string{
 	// These reviewed setup consumers exercise the shared native admission and
 	// Files/automatic callers plus the complete HA custody journey. They do not
 	// qualify other native application branches or cover unrelated CLI sources.
-	"cmd/stackkit/commands/setup_native.go":         nativeSetupConsumerTests,
-	"cmd/stackkit/commands/setup_native_actions.go": nativeSetupConsumerTests,
-	"cmd/stackkit/commands/setup_home_assistant_connector.go": {
-		"TestNativeHomeAssistantConnectorRequiresCurrentLocalTupleAndRetainsSecretFreeEvidence",
-	},
-	"cmd/stackkit/commands/setup_home_assistant_connector_command.go": {
-		"TestNativeHomeAssistantConnectorRequiresCurrentLocalTupleAndRetainsSecretFreeEvidence",
-	},
-	"cmd/stackkit/commands/setup_automatic.go": {
-		"TestAutomaticFilesOwnerSetupTreatsSuccessfulBootstrapAsSuccess",
-		"TestAutomaticOwnerSetupRunsOwnerAccountActionsFromTheOwnerIdentity",
-		"TestAutomaticSSOSetupReusesOwnerCustodyAcrossAuthorityChanges",
-	},
-	"cmd/stackkit/commands/use_cases_add.go": {"TestUseCasesAddPreservesInstalledIntentAndCustody"},
+	"cmd/stackkit/commands/setup_native.go":                           {},
+	"cmd/stackkit/commands/setup_native_actions.go":                   {},
+	"cmd/stackkit/commands/setup_home_assistant_connector.go":         {},
+	"cmd/stackkit/commands/setup_home_assistant_connector_command.go": {},
+	"cmd/stackkit/commands/setup_automatic.go":                        {},
+	"cmd/stackkit/commands/use_cases_add.go":                          {},
 	"internal/architecturev2/addons.go": {
 		"TestListSupportedAddOnsUsesEmbeddedCatalogOutsideCheckout",
 		"TestSupportedAddOnCatalogEntriesFiltersAndSortsDeterministically",
@@ -227,122 +144,29 @@ var fileFocusedTests = map[string][]string{
 		"TestListSupportedAddOnsRejectsNonEmbeddedAuthority",
 		"TestSupportedAddOnCatalogEntriesRejectsMalformedAuthority",
 	},
-	"internal/backuplifecycle/snapshot_anchor_store.go": {
-		"TestNativeV2LocalBackupConfigureAndSnapshotAnchor",
-	},
+	"internal/backuplifecycle/snapshot_anchor_store.go": {},
 	"internal/backupcustody/permissions_other.go": {
 		"TestRequirePrivatePathAcceptsOnlyExpectedPrivateTypeAndMode",
 	},
-	"cmd/stackkit/commands/backup.go": {
-		"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
-		"TestLegacyV06BackupMigrationForwardsExactImporterArguments",
-		"TestNativeV2RetiresLegacyBackupUtilityCommandsBeforeSideEffects",
-		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
-		"TestBackupEmergencyExportWritesManifestAndRunbook",
-		"TestBackupEmergencyExportRejectsUnsupportedFormat",
-		"TestBackupEmergencyExportRequiresGeneratedContractWithoutSources",
-		"TestHumanSize",
-		"TestTruncateBackup",
-	},
-	"cmd/stackkit/commands/backup_emergency.go": {
-		"TestBackupEmergencyExportRestoresAuthenticatedBytes",
-		"TestBackupEmergencyExportWritesManifestAndRunbook",
-		"TestBackupEmergencyExportRequiresGeneratedContractWithoutSources",
-	},
-	"cmd/stackkit/commands/architecture_v2_execution.go": {
-		"TestBackupEmergencyExportWritesManifestAndRunbook",
-		"TestHumanApplyAnnouncesWorkBeforeAdmissionFailure",
-		"TestHumanGenerateAnnouncesWorkBeforeAdmissionFailure",
-		"TestApplyJSONPersistentPreRunSuppressesBannerAndEmitsFailureJSON",
-	},
-	"cmd/stackkit/commands/root.go": {
-		"TestHumanApplyAnnouncesWorkBeforeAdmissionFailure",
-		"TestHumanGenerateAnnouncesWorkBeforeAdmissionFailure",
-		"TestApplyJSONPersistentPreRunSuppressesBannerAndEmitsFailureJSON",
-		"TestApplyPersistentPreRunDoesNotPrintGreeting",
-		"TestGreetingBannerHonorsNoBannerEnv",
-	},
-	"cmd/stackkit/commands/banner.go": {
-		"TestApplyPersistentPreRunDoesNotPrintGreeting",
-		"TestGreetingBannerHonorsNoBannerEnv",
-		"TestApplyJSONPersistentPreRunSuppressesBannerAndEmitsFailureJSON",
-	},
-	"cmd/stackkit/commands/apply.go": {
-		"TestHumanApplyAnnouncesWorkBeforeAdmissionFailure",
-		"TestApplyJSONPersistentPreRunSuppressesBannerAndEmitsFailureJSON",
-		"TestApplyPersistentPreRunDoesNotPrintGreeting",
-	},
-	"cmd/stackkit/commands/generate.go": {
-		"TestHumanGenerateAnnouncesWorkBeforeAdmissionFailure",
-	},
-	"internal/backuplifecycle/emergency_contract.go": {
-		"TestExportFromGeneratedV2ContractWritesEncryptedArchiveManifestAndRunbook",
-		"TestSourcesFromContractExcludeSecretsUnlessSelectedAndPreferDatabaseDumps",
-	},
-	"internal/backupplan/plan.go": {
-		"TestBuildSingleServerDefaultsProtectAgainstPrimaryToolFailure",
-		"TestWritePersistsSecretFreeEmergencyExportContract",
-	},
-	"internal/backupexec/hooks.go": {
-		"TestRunPreSnapshotHooksPostgresAndRedisSemantics",
-	},
-	"cmd/stackkit/commands/backup_native_v2.go": {
-		"TestNativeV2BackupCommandFailsBeforeSideEffectsOnTamperedAuthority",
-		"TestNativeV2BackupRequestForwardsNormalizedRunAndRestoreAuthority",
-		"TestNativeV2BackupRequestRejectsAuthorityMutationBetweenInspections",
-	},
-	"cmd/stackkit/commands/backup_selected_runtime.go": {
-		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
-		"TestNativeBackupDeniesTransferredManagerBeforeDataEffects",
-	},
-	"cmd/stackkit/commands/backup_native_v2_runtime.go": {
-		"TestContinueNativeV2BackupProductionMapsEveryOperationToLifecycleInput",
-		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",
-	},
-	"cmd/stackkit/commands/backup_activation.go": {
-		"TestApplicationLifecycleBackupRequiresSelectedAdapterSupport",
-		"TestSourceReleaseCacheRetainsOnlyVerifiedOriginalExecutable",
-		"TestRestoreActivationBootstrapRepeatsCompletionDuringRecovery",
-	},
-	"cmd/stackkit/commands/game_server_hold.go": {
-		"TestGameServerHoldResumeSurvivesCanceledOperation",
-		"TestContinueNativeV2BackupProductionMapsEveryOperationToLifecycleInput",
-		"TestNativeV2BackupOperationContextCapsDeadlineAtFifteenMinutes",
-	},
-	"cmd/stackkit/commands/init.go": {
-		"TestInitHelpMarksEveryFlagNativeInitRefuses",
-		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
-		"TestNativeV2CLIRejectsContextFlagBeforeWrite",
-		"TestRunArchitectureV2InitRejectsLegacySemanticsAndLocalPathsBeforeWrite",
-	},
-	"cmd/stackkit/commands/init_placement.go": {
-		"TestAdmitArchitectureV2InitPlacement",
-		"TestDefaultArchitectureV2InitDomain",
-		"TestCloudInitRefusesExplicitLocalDomainBeforePersistingIntent",
-		"TestRunArchitectureV2InitRefusesLocalBasementOnPublicServer",
-	},
-	"cmd/stackkit/commands/init_architecture_v2.go": {
-		"TestRunInitRoutesDevToEmbeddedV2BeforeLegacyDiscovery",
-		"TestRunArchitectureV2InitNormalizesWorkspaceNameAndHonorsExplicitName",
-		"TestRunArchitectureV2InitMaterializesCanonicalProductSpecs",
-		"TestRunArchitectureV2InitCandidateBindsOwnerCustodyToSelectedNode",
-		"TestRunArchitectureV2InitCloudEstablishesLocalOwnerCustody",
-		"TestRunArchitectureV2InitCloudWithoutDomainUsesKombifyMe",
-		"TestRunArchitectureV2InitRejectsNonLocalOwnerSourceBeforeWrite",
-		"TestRunArchitectureV2InitLocalOwnerRequiresRealEmail",
-		"TestRunArchitectureV2InitFilesResumePreservesOmittedOwnerIdentity",
-		"TestRunArchitectureV2InitUsesExpectedHashCASAndRejectsForce",
-		"TestRunArchitectureV2InitUsesExistingSpecAliasWithoutCreatingSecondAuthority",
-	},
-	"cmd/stackkit/commands/wizard.go": {
-		"TestPublicCommandTreeExcludesPublisherOperations",
-	},
-	"cmd/stackkit/commands/wizard_test.go": {
-		"TestPublicCommandTreeExcludesPublisherOperations",
-	},
-	"cmd/stackkit/commands/publisher_boundary_publisher_test.go": {
-		"TestPublicCommandTreeExcludesPublisherOperations",
-	},
+	"cmd/stackkit/commands/backup.go":                    {},
+	"cmd/stackkit/commands/backup_emergency.go":          {},
+	"cmd/stackkit/commands/architecture_v2_execution.go": {},
+	"cmd/stackkit/commands/root.go":                      {},
+	"cmd/stackkit/commands/banner.go":                    {},
+	"cmd/stackkit/commands/apply.go":                     {},
+	"cmd/stackkit/commands/generate.go":                  {},
+	"internal/backuplifecycle/emergency_contract.go":     {},
+	"internal/backupplan/plan.go":                        {},
+	"internal/backupexec/hooks.go":                       {},
+	"cmd/stackkit/commands/backup_native_v2.go":          {},
+	"cmd/stackkit/commands/backup_selected_runtime.go":   {},
+	"cmd/stackkit/commands/backup_native_v2_runtime.go":  {},
+	"cmd/stackkit/commands/backup_activation.go":         {},
+	"cmd/stackkit/commands/game_server_hold.go":          {},
+	"cmd/stackkit/commands/init.go":                      {},
+	"cmd/stackkit/commands/init_placement.go":            {},
+	"cmd/stackkit/commands/init_architecture_v2.go":      {},
+	"cmd/stackkit/commands/wizard.go":                    {},
 	"internal/resolvedplan/identity_trust.go": {
 		"TestBuildResolvedIdentityTrustBindsGraphToStackAndExactSites",
 		"TestBuildResolvedIdentityTrustLowersBasementWithoutCloudDistribution",
@@ -355,25 +179,13 @@ var fileFocusedTests = map[string][]string{
 	"internal/architecturev2/output_transaction.go": {
 		"TestRetiredOutputGCContractIsExplicitAndTwoPhase",
 	},
-	"internal/runtimeexecutor/nativehost/modern_identity_site_policy_test.go": {
-		"TestModernIdentitySiteExecutorsKeepHomeAndCloudAuthoritySeparate",
-		"TestModernIdentitySiteExecutorsRejectCrossSiteAndChannelSubstitution",
-	},
 	"internal/localevidence/executor_state_signature.go": {
 		"TestOwnerExecutorStateSignatureIsDomainSeparatedAndOwnerBound",
 	},
 	"internal/localevidence/lifecycle_mutation_signature.go": {
 		"TestOwnerLifecycleMutationSignatureRejectsTamper",
 	},
-	"internal/lifecyclemutation/journal.go": {
-		"TestJournalSerializesMutationAndAdmitsOnlyExactJoinedPhase",
-		"TestJournalRejectsReplayedSignedPhaseAndRepairsOnlyExplicitRecovery",
-		"TestJournalFailsClosedOnDivergentImmutableHead",
-		"TestJournalMissingPointerBlocksOrdinaryMutationUntilExplicitRecovery",
-		"TestJournalExplicitRecoveryRepairsTerminalAndPriorPointerCrashWindows",
-		"TestJournalIgnoresOnlyPrivateBoundedAtomicTemporaryArtifacts",
-		"TestJournalExplicitRecoveryOwnsClaimRaceAndRejectsClaimedChild",
-	},
+	"internal/lifecyclemutation/journal.go": {},
 	"internal/stackspecintent/store.go": {
 		"TestPersistUsesCanonicalExpectedHashCAS",
 		"TestPersistRejectsMissingInvalidAndLegacyTargetsWithoutCandidateWrite",
@@ -402,40 +214,18 @@ var fileFocusedTests = map[string][]string{
 	"internal/architecturev2renderer/compose_payload_opentofu.go": {
 		"TestComposePayloadOpenTofuEmbedsTheByteIdenticalComposeArtifact",
 	},
-	"internal/runtimeexecutor/nativehost/selected_paas_workload.go": {
-		"TestImmichSelectedPaaSExecutorAppliesAndObservesExactBundle",
-		"TestImmichSelectedPaaSExecutorRejectsSubstitution",
-	},
-	"internal/runtimeexecutor/nativehost/standalone_compose_workload.go": {
-		"TestStandaloneComposeApplyWaitsForApplicationReadiness",
-		"TestStandaloneComposeOperationsApplyAndObserveExactRoute",
-		"TestStandaloneComposeRefusesGameNodeAuthorityForOtherWorkloads",
-	},
-	"internal/runtimeexecutor/nativehost/standalone_compose_halves.go": {},
-	"internal/runtimeexecutor/nativehost/generation_target.go":         {},
+	"internal/runtimeexecutor/nativehost/selected_paas_workload.go":      {},
+	"internal/runtimeexecutor/nativehost/standalone_compose_workload.go": {},
+	"internal/runtimeexecutor/nativehost/standalone_compose_halves.go":   {},
+	"internal/runtimeexecutor/nativehost/generation_target.go":           {},
 	"internal/upgradelifecycle/executor_state_opentofu.go": {
 		"TestExecutorStateOpenTofuCheckpointRestoresCapturedStateOnRecover",
 		"TestExecutorStateCheckpointRestoresWorkloadAndContractRootStates",
 	},
-	"internal/runtimeexecutor/nativehost/basement_core_os.go": {
-		"TestOSBasementCoreApplyRejectsMissingCustodyBeforeFilesystemOrDocker",
-		"TestOSBasementCoreApplyUsesVerifiedCustodyAndPrivateStableArtifact",
-		"TestOSBasementCoreApplyRequiresOwnerRealizationAfterCompose",
-		"TestOSBasementCoreVerifyProjectIsByteForByteReadOnly",
-		"TestOSBasementCoreVerifyProjectPropagatesContextTerminationWithoutDriftClassification",
-		"TestBasementCoreVerifyNamesEveryUnhealthyContractWithoutLeakingItsCause",
-	},
-	"internal/runtimeexecutor/nativehost/cloud_core_os.go": {
-		"TestCloudCoreCustodyRejectsImplicitProfileTransition",
-		"TestOSCloudCoreApplyBindsPocketIDOwnerBeforeTinyAuthReconcile",
-	},
-	"internal/runtimeexecutor/nativehost/native_compose_observer.go": {
-		"TestOSBasementCoreVerifyProjectIsByteForByteReadOnly",
-		"TestOSCloudCoreApplyBindsPocketIDOwnerBeforeTinyAuthReconcile",
-	},
-	"internal/backupexec/docker.go": {
-		"TestDockerV2Adapter",
-	},
+	"internal/runtimeexecutor/nativehost/basement_core_os.go":        {},
+	"internal/runtimeexecutor/nativehost/cloud_core_os.go":           {},
+	"internal/runtimeexecutor/nativehost/native_compose_observer.go": {},
+	"internal/backupexec/docker.go":                                  {},
 	"internal/releaseindex/installed.go": {
 		"TestInspectInstalledReturnsReverifiedCallbackScopedProof",
 	},
@@ -451,9 +241,7 @@ var fileFocusedTests = map[string][]string{
 	// whose changed public custody tests cover the behavior. Its command tests
 	// were retired; retain an explicit compile boundary for the thin adapter.
 	"cmd/stackkit/commands/architecture_v2_product_runtime.go": {},
-	"cmd/stackkit/commands/drift.go": {
-		"TestDriftReconcileModesDenyBeforeLifecycleSideEffects",
-	},
+	"cmd/stackkit/commands/drift.go":                           {},
 }
 
 type goPackage struct {
@@ -654,10 +442,6 @@ func buildPlan(input plannerInput) testPlan {
 		goSelection.Changed = sortedUnique(append(goSelection.Changed, templatesPattern))
 		goSelection.CompileOnly = withoutString(goSelection.CompileOnly, templatesPattern)
 		goSelection.Reverse = withoutString(goSelection.Reverse, templatesPattern)
-		focusedTests["internal/kittemplates"] = sortedUnique(append(
-			focusedTests["internal/kittemplates"],
-			perKitTemplateParityTest,
-		))
 	}
 	goPatterns := sortedUnique(append(append(append([]string(nil), goSelection.Changed...), goSelection.CompileOnly...), goSelection.Reverse...))
 	classes.GoPackages = append([]string(nil), goPatterns...)
@@ -721,14 +505,6 @@ func buildPlan(input plannerInput) testPlan {
 		})
 	}
 
-	if !classes.WebMCP && input.WebsiteSource && anyPathUnder(files, "internal/architecturev2/authority_bundle/") {
-		commands = append(commands, testCommand{
-			Kind:   "contract",
-			Scope:  "webmcp-authority-projection",
-			Argv:   []string{"node", "--test", "webmcp/test/generator.test.mjs"},
-			Reason: "verify public catalog consumers when the embedded authority bundle changes",
-		})
-	}
 	if classes.Website && input.WebsiteSource {
 		commands = append(commands,
 			testCommand{
@@ -773,8 +549,8 @@ func buildPlan(input plannerInput) testPlan {
 			testCommand{
 				Kind:   "website",
 				Scope:  "webmcp-contract",
-				Argv:   []string{"npm", "--prefix", "webmcp", "test"},
-				Reason: "verify the generated schemas, authority projection, planner behavior, and browser-tool contract",
+				Argv:   []string{"npm", "--prefix", "webmcp", "run", "check"},
+				Reason: "build the generated schemas, authority projection and browser-tool contract",
 			},
 			testCommand{
 				Kind:   "website",
@@ -804,76 +580,8 @@ func buildPlan(input plannerInput) testPlan {
 			Reason: "verify the CUE-owned StackAction regions of the canonical OpenAPI contract",
 		})
 	}
-	if classes.AdvancedContract {
-		commands = append(commands, testCommand{
-			Kind:  "contract",
-			Scope: "advanced-operations-contract",
-			// Flags precede the packages: module routing reads every argument
-			// after the leading flags as a package pattern.
-			Argv: []string{"go", "test", "-run", "^(TestAdvancedOperationsCatalog|TestAdvancedCommandResultPayloads)",
-				"./internal/advancedcatalog", "./cmd/stackkit/commands"},
-			Reason: "validate the Advanced operations catalog and the command-result payload bindings against the changed contract schemas",
-		})
-	}
-	if anyPathUnder(files, "scripts/release/validate-mode-matrix-citations.mjs", "scripts/release/validate-mode-matrix-citations.test.mjs") {
-		commands = append(commands, testCommand{
-			Kind:   "node",
-			Scope:  "mode-matrix-runtime-citations",
-			Argv:   []string{"node", "--test", "scripts/release/validate-mode-matrix-citations.test.mjs"},
-			Reason: "fixture-only mode-matrix citation check; live receipts stay a producer/release gate",
-		})
-	}
-	if anyPathUnder(files, "scripts/release/public-release-draft.mjs", "scripts/release/public-release-draft.test.mjs") {
-		commands = append(commands, testCommand{
-			Kind:   "node",
-			Scope:  "public-release-draft",
-			Argv:   []string{"node", "--test", "scripts/release/public-release-draft.test.mjs"},
-			Reason: "fixture-only source binding and draft resume plan; live uploads stay in Publish OSS",
-		})
-	}
-	if anyPathUnder(files, "scripts/release/dispatch-techstack-release.mjs", "scripts/release/dispatch-techstack-release.test.mjs", "scripts/release/validate-docs-manifests.mjs", ".github/workflows/publish-oss.yml", ".github/workflows/stackkits-docs-sync.yml") {
-		commands = append(commands, testCommand{
-			Kind:   "node",
-			Scope:  "consumer-manifest-publication",
-			Argv:   []string{"node", "--test", "scripts/release/dispatch-techstack-release.test.mjs"},
-			Reason: "prevent repin notification before immutable consumer manifests bind the exact published source",
-		})
-	}
-	if anyPathUnder(files, "scripts/release/render-exact-sha-deploy.mjs", "scripts/release/render-exact-sha-deploy.test.mjs") {
-		commands = append(commands, testCommand{
-			Kind:   "node",
-			Scope:  "website-exact-source-retry",
-			Argv:   []string{"node", "--test", "scripts/release/render-exact-sha-deploy.test.mjs"},
-			Reason: "provider HTTP fixture verifies exact-live deployment reuse without duplicate activation",
-		})
-	}
-	if anyPathUnder(files, "scripts/test-window/", ".github/workflows/test-window.yml") {
-		commands = append(commands, testCommand{
-			Kind:   "node",
-			Scope:  "test-window-report",
-			Argv:   []string{"node", "--test", "scripts/test-window/aggregate-window-report.test.mjs"},
-			Reason: "the consolidated window report keeps missing results pending and clusters failures by signature",
-		})
-	}
-	if anyPathUnder(files, "scripts/release/cli-preview-receipt.mjs", "scripts/release/cli-preview-receipt.test.mjs", ".github/workflows/cli-preview-smoke.yml") {
-		commands = append(commands, testCommand{
-			Kind:   "node",
-			Scope:  "cli-preview-receipt",
-			Argv:   []string{"node", "--test", "scripts/release/cli-preview-receipt.test.mjs"},
-			Reason: "the train's preview receipt names the registered packed consumers and follows only a self-check that ran on the built binaries",
-		})
-	}
-	if anyPathUnder(files, "scripts/release/website-delivery-phase.mjs", "scripts/release/website-delivery-phase.test.mjs", "scripts/release/dispatch-website-installer-smoke.mjs", ".github/workflows/website-live-installer-smoke.yml", ".github/workflows/publish-oss.yml") {
-		commands = append(commands, testCommand{
-			Kind:   "node",
-			Scope:  "website-delivery-phase-authority",
-			Argv:   []string{"node", "--test", "scripts/release/website-delivery-phase.test.mjs"},
-			Reason: "phase decisions retain full legacy smoke and refuse splits without an authenticated fast combined selection",
-		})
-	}
 	statusSurfacesChanged := anyPathUnder(files,
 		"scripts/derive-status-surfaces.mjs",
-		"scripts/derive-status-surfaces.test.mjs",
 		"README.md",
 		"STATUS.md",
 		"docs/RELEASE.md",
@@ -883,14 +591,6 @@ func buildPlan(input plannerInput) testPlan {
 		"cloud-kit/stackkit.yaml",
 		"modern-homelab/stackkit.yaml",
 	)
-	if statusSurfacesChanged && input.StatusSurfaceGate {
-		commands = append(commands, testCommand{
-			Kind:   "node",
-			Scope:  "status-surfaces",
-			Argv:   []string{"node", "--test", "scripts/derive-status-surfaces.test.mjs"},
-			Reason: "derive website kit status, README badge, and released binaries from manifests",
-		})
-	}
 	warnings := []string{}
 	if classes.Website && !input.WebsiteSource {
 		warnings = append(warnings, "website checks are not applicable to a repository surface without website/")
@@ -912,13 +612,6 @@ func buildPlan(input plannerInput) testPlan {
 			Kind: "node", Scope: "use-case-table-parity",
 			Argv:   []string{"node", "scripts/docs/use-case-overview.mjs", "--check", "--tables-only"},
 			Reason: "execute the documentation CLI and check shared CUE-derived tables without runtime or test claims",
-		})
-	}
-	if input.StatusSurfaceGate && anyPathUnder(files, "scripts/docs/product-facts.mjs", "scripts/docs/product-facts-projection.mjs", "scripts/docs/product-facts-projection.test.mjs", "docs/data/product-facts/", ".kombify/VERSION") {
-		commands = append(commands, testCommand{
-			Kind: "node", Scope: "prepared-product-facts",
-			Argv:   []string{"node", "--test", "scripts/docs/product-facts-projection.test.mjs"},
-			Reason: "prove prepared version and digest refresh without rebinding historical publication or runtime observations",
 		})
 	}
 

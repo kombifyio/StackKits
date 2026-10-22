@@ -71,9 +71,8 @@ then disconnect and repeat an input effect after reconnect. Mere client state
 or browser transport does not prove desktop control. Revoke the application
 session afterward and observe rejection before returning.
 
-The receipt at docs/plans/2026-10-11-stream-a/a2-vnc-0532-observation.json binds
-this observation to the checksum-verified published archive and its public
-source3d71bfe9dc6e499e86ef0a3726bb9fffc0fe883e. It used an isolated Ubuntu26.04
+The VNC development observation is bound to the checksum-verified published
+archive and its public source 3d71bfe9dc6e499e86ef0a3726bb9fffc0fe883e. It used an isolated Ubuntu26.04
 TigerVNC/Xterm target with no exposed host port or database. This is the VNC
 module boundary only; it neither replaces the owning released-lifecycle
 producer nor marks Remote supported. Preserve actual target identity and
@@ -93,7 +92,7 @@ login UI. Target passwords remain outside public Plan/XML and logs. Observe an
 actual destination effect, disconnect/reconnect and verify a second effect,
 then revoke and verify rejection of the temporary Guacamole token.
 
-The a2-rdp-0532-observation.json receipt records actual public0.53.2 behavior
+The RDP development observation records actual public 0.53.2 behavior
 with fixture-only public certificate trust, preserved private key, non-owner
 Unix desktop and no database. Only that public certificate entered the owned
 guacd system trust store. It did not change host/company/C CA authority or

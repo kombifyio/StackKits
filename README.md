@@ -66,10 +66,10 @@ widens when a cited run exists.
 - The StackKit Open Spec (architecture snapshot, lifecycle verbs, placement
   taxonomy, verification evidence): [docs/OPEN-SPEC.md](docs/OPEN-SPEC.md)
 - Support: see [SUPPORT.md](SUPPORT.md). Questions and ideas go to GitHub
-  Discussions on this repository, bugs to the issue templates, vulnerabilities
-  to GitHub Security Advisories (see `SECURITY.md`). This repository is a
-  generated release mirror; contributions are ported upstream by maintainers
-  (see `CONTRIBUTING.md`)
+  Discussions on this repository, bugs to the bug form, vulnerabilities to
+  GitHub private vulnerability reporting or e-mail (see `SECURITY.md`). This
+  repository is a release mirror; pull requests are reviewed here and imported
+  upstream by maintainers (see `CONTRIBUTING.md`)
 - How the project is built, including the AI-assisted development
   provenance: [docs/BUILT-WITH.md](docs/BUILT-WITH.md)
 

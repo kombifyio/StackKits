@@ -48,6 +48,7 @@ func copyWorkspace(source, target string, maxFiles int, maxBytes int64) error {
 		// source workspace and must not be replayed in this disposable root.
 		if portable == ".git" || strings.HasPrefix(portable, ".git/") ||
 			portable == ".stackkit/releases" || strings.HasPrefix(portable, ".stackkit/releases/") ||
+			portable == ".stackkit/"+providerMirrorsDir || strings.HasPrefix(portable, ".stackkit/"+providerMirrorsDir+"/") ||
 			portable == ".stackkit/logs" || strings.HasPrefix(portable, ".stackkit/logs/") ||
 			portable == ".stackkit/evidence" || strings.HasPrefix(portable, ".stackkit/evidence/") ||
 			portable == ".stackkit/upgrades" || strings.HasPrefix(portable, ".stackkit/upgrades/") ||

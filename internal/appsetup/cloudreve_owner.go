@@ -80,7 +80,9 @@ type cloudreveOwnerReadback struct {
 // sequence shared by native setup and the legacy Files handoff:
 // version/initialization readback, first-user registration when the requested
 // owner is absent, password login, current-user readback, and an admin-only
-// readback. It does not seed demo content or consult PocketID.
+// readback, then removes share-link access from non-admin groups
+// (restrictCloudreveShareLinkAccess). It does not seed demo content or
+// consult PocketID.
 func BootstrapCloudreveOwner(
 	ctx context.Context,
 	client *http.Client,
@@ -303,6 +305,12 @@ func BootstrapCloudreveOwner(
 			"Cloudreve login did not resolve to an administrator",
 			skerrors.WithField("operation", "GET /admin/summary"),
 		)
+	}
+	// Every owner session re-asserts the share-link restriction, so native
+	// setup, household provisioning and the Files session handoff all close
+	// the share-link exposure on existing and new installs alike.
+	if hardeningErr := restrictCloudreveShareLinkAccess(ctx, client, baseURL, accessToken); hardeningErr != nil {
+		return CloudreveOwnerResult{}, hardeningErr
 	}
 
 	result = CloudreveOwnerResult{

@@ -1,8 +1,6 @@
 # Enterprise Readiness
 
-> Last runtime verification recorded here: 2026-08-13
-> Contract reconciliation: 2026-10-11. Historical receipts below are retained;
-> they do not establish support at the current pin.
+> Support at the current pin requires current-pin receipts.
 
 This page is the release contract for Enterprise review of the curated
 StackKits OSS surface. It is intentionally stricter than the general beta
@@ -28,14 +26,14 @@ rollout matrices graduate.
 | Source surface | Curated public `kombifyio/stackKits` mirror only. A private-source build is not Enterprise release evidence. |
 | Operating system | Fresh Ubuntu target used by the production-style VM gate. |
 | Toolchain | `stackkit`, `stackkit-server`, `stackkit-mcp`, packaged OpenTofu, root `cue.mod`, shared `base/`, the released kit definitions, and required `modules/` from the release archive. |
-| Application layer | Platform baseline, protected routes, Node Hub, explicit setup drops, and ready-to-use selected use cases under their native standalone Compose lifecycle. Optional Marketplace installs Coolify outside default core; Komodo is the planned operations platform without a store. Historical Coolify evidence (`kombify-StackKits-85x`, run `28427006994`) proves only its recorded release and path, not current-pin readiness. |
+| Application layer | Platform baseline, protected routes, Node Hub, explicit setup drops, and ready-to-use selected use cases under their native standalone Compose lifecycle. Optional Marketplace installs Coolify outside default core; Komodo is the planned operations platform without a store. |
 
 ## Non-Goals
 
 - No Enterprise claim for unreleased kit definitions.
 - No claim that native Compose evidence proves an explicit legacy Coolify rollout, Marketplace, or Komodo operations; each selected path needs its own current-pin receipt.
 - No unsupported public release path from the private development repo.
-- No production claim for backup controller or backup agent scaffolds until durable storage, queueing, enrollment, and OIDC operator auth land.
+- No multi-tenant backup service: Enterprise backup claims cover only the self-hosted single-node Kopia path.
 - Customer-installed app lifecycle outside StackKits is owned by its selected application/admin surface. Product-bundled use cases are in scope for their exact StackKits lifecycle; Coolify is not their default owner.
 
 ## Security Model
@@ -77,7 +75,7 @@ and include:
 | --- | --- |
 | Public export audit | `scripts/public/export-public.*` plus `scripts/public/check-public-surface.*` pass on exported contents. |
 | Archive validation | `scripts/release/validate-release-archives.sh dist` passes for the full and BaseKit archives. |
-| Retained legacy L3 PaaS compatibility | `scripts/release/check-l3-paas-contract.mjs` validates legacy module/template PaaS intent, retaining the evidence field `release-evidence.json.checks.defaultL3PaaSDelivery.status`. Its historical name does not change native Compose defaults or establish runtime support. Current-pin receipts for the exact selected application lifecycle remain required. User-installed apps outside StackKits lifecycle are out of scope. |
+| Retained legacy L3 PaaS compatibility | `scripts/release/check-l3-paas-contract.mjs` validates legacy module/template PaaS intent, retaining the evidence field `release-evidence.json.checks.defaultL3PaaSDelivery.status`. Its name does not change native Compose defaults or establish runtime support. Current-pin receipts for the exact selected application lifecycle remain required. User-installed apps outside StackKits lifecycle are out of scope. |
 | Live installer smoke | `tests/e2e/test_live_installers.sh` proves shell content instead of HTML fallback. |
 | Fresh Ubuntu BaseKit | Clean target installs from released archive or installer; Base Hub warning appears; protected services reject anonymous access; Photos setup runs. |
 | Supply chain | Checksums, SBOMs, and artifact/image attestations exist and verify before evidence marks them as passed. |
@@ -94,31 +92,20 @@ and include:
 
 ## Current Blockers
 
-Historical verification snapshot, 2026-08-13. Landed since the 2026-07-08 revision: the Coolify-managed
-application-layer contract and evidence (`kombify-StackKits-85x`,
-released-content SK-S1 run `28427006994`), live installer endpoint smoke, the
-daily OSS mirror parity audit (`public-mirror-audit.yml`), and guided installers
-that carry a blank host to a running homelab in auto, guided, and expert modes.
-
 The remaining blockers for an Enterprise Public OSS production claim are:
 
-- released-archive VM smoke ("BaseKit Released Installer Live Test") re-run
-  against published release contents. The 2026-08-13 blank-host runs used the
-  released CLI with a candidate installer script, which is installer evidence
-  but not released-archive evidence,
+- released-archive VM smoke ("BaseKit Released Installer Live Test") against
+  published release contents; a released CLI with a candidate installer script
+  is installer evidence, not released-archive evidence,
 - host compatibility is asserted by policy rather than by evidence: the OS
   matrix is not yet fed by `HostConformanceReceipt`s
   (`kombify-StackKits-y8go.21`, `.22`),
 - Runtime upgrade and rollback VM proof (`kombify-StackKits-3hw.1`). Its own
   owner note declares it is never a v0.x release gate; it is an Enterprise
   blocker only,
-- multi-tenant backup agent/controller remain scaffolds (no durable storage,
-  queueing, enrollment, or OIDC operator auth) — excluded from any Enterprise
-  backup claim beyond the self-hosted single-node Kopia path,
 - install modes `bare` and `advanced` remain `scaffolding` (no verification
   cells); Enterprise claims stay `bootstrapped`-only.
 
-Managed-provider entitlement denial is no longer listed here.
-`kombify-StackKits-zaon` was closed on 2026-07-23 as belonging to
-TechStack/Simulate provider control: StackKits holds no provider admission
-code or release dependency, so it cannot be a StackKits Enterprise blocker.
+Managed-provider entitlement denial is not a StackKits Enterprise blocker: it
+belongs to Techstack provider control, and StackKits holds no provider
+admission code or release dependency.

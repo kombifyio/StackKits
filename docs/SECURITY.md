@@ -43,5 +43,6 @@ If `kombifyio/stackKits` is Internal visibility for a release, treat that
 release as a customer preview instead of a broad Public OSS production
 release.
 
-Report security issues through GitHub Security Advisories on the public
-repository.
+Report security issues privately through GitHub private vulnerability
+reporting on the public repository or by e-mail to info@kombify.io, as
+`SECURITY.md` describes.

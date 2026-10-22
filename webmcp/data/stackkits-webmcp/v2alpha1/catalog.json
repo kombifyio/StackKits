@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "fa83fa6853ae5e2c5833990fcb26a20a6354d934",
-  "authority_bundle_sha256": "bb080ce1612613000b87494582b63ad42f38c559f6497b906f38a38b651e398a",
+  "source_sha": "26a64b6a293f934211b7218594193fa7a6cdc773",
+  "authority_bundle_sha256": "7c82e6371dddf19a94062d371085daf1b51be24a236a5dc8dc11c4c45efb06da",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -2436,7 +2436,7 @@
               "provenance": {
                 "host_floor": {
                   "source": "upstream",
-                  "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
+                  "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
                 },
                 "reservation": {
                   "source": "measured",
@@ -2447,7 +2447,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "32caba55e2a6ec3c749f99d45a3e7676a2e54411eb226452cdbc54a805715b77"
+              "profile_sha256": "e977523c263c59407352dd79ea98525cf27b7797e9eabb4fdf7e3c155b1f4b2e"
             },
             {
               "id": "high",
@@ -2499,7 +2499,7 @@
               "provenance": {
                 "host_floor": {
                   "source": "upstream",
-                  "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
+                  "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
                 },
                 "reservation": {
                   "source": "measured",
@@ -2510,7 +2510,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "1946609320da88fb4308da5de8da9d50a4c5dbfb03def3c942b8ccbff8cc2ba3"
+              "profile_sha256": "498224d8ba609358e4d7c6dd569c88eb3d77450cbe2539fea7ad657d4671dc81"
             }
           ],
           "storage_profiles": [],
@@ -7770,7 +7770,7 @@
               "provenance": {
                 "host_floor": {
                   "source": "upstream",
-                  "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
+                  "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
                 },
                 "reservation": {
                   "source": "measured",
@@ -7781,7 +7781,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "32caba55e2a6ec3c749f99d45a3e7676a2e54411eb226452cdbc54a805715b77"
+              "profile_sha256": "e977523c263c59407352dd79ea98525cf27b7797e9eabb4fdf7e3c155b1f4b2e"
             },
             {
               "id": "high",
@@ -7833,7 +7833,7 @@
               "provenance": {
                 "host_floor": {
                   "source": "upstream",
-                  "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
+                  "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
                 },
                 "reservation": {
                   "source": "measured",
@@ -7844,7 +7844,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "1946609320da88fb4308da5de8da9d50a4c5dbfb03def3c942b8ccbff8cc2ba3"
+              "profile_sha256": "498224d8ba609358e4d7c6dd569c88eb3d77450cbe2539fea7ad657d4671dc81"
             }
           ],
           "storage_profiles": [],
@@ -13209,7 +13209,7 @@
               "provenance": {
                 "host_floor": {
                   "source": "upstream",
-                  "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
+                  "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
                 },
                 "reservation": {
                   "source": "measured",
@@ -13220,7 +13220,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "32caba55e2a6ec3c749f99d45a3e7676a2e54411eb226452cdbc54a805715b77"
+              "profile_sha256": "e977523c263c59407352dd79ea98525cf27b7797e9eabb4fdf7e3c155b1f4b2e"
             },
             {
               "id": "high",
@@ -13272,7 +13272,7 @@
               "provenance": {
                 "host_floor": {
                   "source": "upstream",
-                  "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
+                  "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor"
                 },
                 "reservation": {
                   "source": "measured",
@@ -13283,7 +13283,7 @@
                   "ref": "docs/data/resource-evidence/stackkits-immich-runtime/standard.json"
                 }
               },
-              "profile_sha256": "1946609320da88fb4308da5de8da9d50a4c5dbfb03def3c942b8ccbff8cc2ba3"
+              "profile_sha256": "498224d8ba609358e4d7c6dd569c88eb3d77450cbe2539fea7ad657d4671dc81"
             }
           ],
           "storage_profiles": [],
@@ -17522,5 +17522,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "c5ee252910a0e952e82eef8d4f2799e3d69940bd6a3e1ae0e34d037a6a23a196"
+  "catalog_sha256": "c4ebbc624ace842bca4fc100927b6a0efaf46f1a1a66a47fc4bd66e2322b95bc"
 }

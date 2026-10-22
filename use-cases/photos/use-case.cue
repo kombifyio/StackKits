@@ -103,7 +103,7 @@ Package: foundation.#UseCasePackage & {
 			moduleSlug: "immich"
 			role:       "primary"
 			required:   true
-			rationale:  "Default photo vault implementation: server, ML, pgvecto-rs PostgreSQL, and Redis companions."
+			rationale:  "Default photo vault implementation: server, ML, VectorChord PostgreSQL, and Valkey companions."
 			capabilities: ["photos", "photo-management", "media-backup", "ai-search", "rest-api"]
 		}
 		"immich-lite": {

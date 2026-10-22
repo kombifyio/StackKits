@@ -1721,8 +1721,7 @@ func uploadImmichDemoPhoto(ctx context.Context, client *http.Client, baseURL, to
 	writer := multipart.NewWriter(&body)
 	now := time.Now().UTC().Format(time.RFC3339)
 	fields := map[string]string{
-		"deviceAssetId":  "stackkit-demo-photo-1",
-		"deviceId":       "stackkit-demo",
+		// Immich v3 removed deviceAssetId and deviceId from POST /assets.
 		"fileCreatedAt":  now,
 		"fileModifiedAt": now,
 		"isFavorite":     "true",

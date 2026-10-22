@@ -59,7 +59,7 @@ var ownerStepUpDeviceEnrollReview = template.Must(template.New("device-enroll-re
 
 func (h *ownerStepUpHandler) reviewDeviceEnroll(w http.ResponseWriter, r *http.Request) {
 	stepUpHeaders(w)
-	issuer, ok := h.deviceEnrollIssuer(r.Context())
+	issuer, ok := h.preparedStepUpIssuer(r.Context())
 	if !ok || !stepUpFormPolicy(w, issuer) {
 		stepUpFailure(w)
 		return
@@ -84,7 +84,7 @@ func (h *ownerStepUpHandler) startDeviceEnroll(w http.ResponseWriter, r *http.Re
 		stepUpFailure(w)
 		return
 	}
-	issuer, ok := h.deviceEnrollIssuer(r.Context())
+	issuer, ok := h.preparedStepUpIssuer(r.Context())
 	if !ok || !stepUpFormPolicy(w, issuer) {
 		stepUpFailure(w)
 		return
@@ -128,9 +128,9 @@ func (h *ownerStepUpHandler) startDeviceEnroll(w http.ResponseWriter, r *http.Re
 	http.Redirect(w, r, issuer+"/authorize?"+query.Encode(), http.StatusSeeOther)
 }
 
-// deviceEnrollIssuer reads the prepared step-up trust without creating or
+// preparedStepUpIssuer reads the prepared step-up trust without creating or
 // changing identity resources.
-func (h *ownerStepUpHandler) deviceEnrollIssuer(ctx context.Context) (string, bool) {
+func (h *ownerStepUpHandler) preparedStepUpIssuer(ctx context.Context) (string, bool) {
 	service, err := localowner.NewService(h.root)
 	if err != nil {
 		return "", false

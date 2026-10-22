@@ -1268,6 +1268,11 @@ func (a *App) admitMutation(ctx context.Context, tool, operation, confirmation s
 	out := errorOutput(tool, fmt.Errorf("the owner has not approved this call yet; ask the owner to run: stackkit agent approval approve %s", request.ID))
 	out["approval_required"] = true
 	out["approval_request_id"] = request.ID
+	if a.opts.OwnerStepUpOrigin != "" {
+		// The Owner answers on the server's step-up page with a passkey; the
+		// link carries only the request id, never a capability.
+		out["approval_url"] = a.opts.OwnerStepUpOrigin + "/api/v1/identity/step-up/agent-approval?id=" + url.QueryEscape(request.ID)
+	}
 	out["approval_expires_at"] = request.ExpiresAt
 	out["approval_retry"] = "repeat the identical call after the owner approves; an approval covers one exact call once"
 	return false, out

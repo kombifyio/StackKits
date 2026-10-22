@@ -217,10 +217,108 @@ func OfflineCLIConfig(providersDir string) []byte {
 		"}\n")
 }
 
+// ReleaseProviderLock renders the packaged dependency lock of a provider
+// manifest that another, verified release ships. It applies the structural
+// manifest rules only; the release whose manifest it is applies its own pins.
+func ReleaseProviderLock(manifest []byte) ([]byte, error) {
+	decoded, err := decodeProviderManifestStructure(manifest)
+	if err != nil {
+		return nil, err
+	}
+	return renderProviderLock(decoded), nil
+}
+
+// VerifyReleaseProviderMirror closes the provider mirror in dir over the
+// manifest bytes of another verified release, for the running platform: the
+// mirror carries exactly that manifest, its rendered lock, and unpacked
+// packages whose hashes the manifest names. An upgrade orchestrator uses it to
+// keep a release's own mirror; that release still loads the mirror with
+// LoadProviderClosure against its embedded manifest before tofu runs.
+func VerifyReleaseProviderMirror(dir string, manifest []byte) error {
+	if strings.TrimSpace(dir) == "" {
+		return missingProviderMirrorError()
+	}
+	decoded, err := decodeProviderManifestStructure(manifest)
+	if err != nil {
+		return err
+	}
+	packaged, err := readProviderMetadata(filepath.Join(dir, ProviderManifestFile))
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(packaged, manifest) {
+		return fmt.Errorf("%w: packaged manifest differs from the release manifest", ErrProviderClosureInvalid)
+	}
+	packagedLock, err := readProviderMetadata(filepath.Join(dir, ProviderLockFile))
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(packagedLock, renderProviderLock(decoded)) {
+		return fmt.Errorf("%w: packaged lock differs from its provider manifest", ErrProviderClosureInvalid)
+	}
+	return validateProviderPackages(dir, decoded, runtime.GOOS, runtime.GOARCH)
+}
+
+// ReadProviderManifest returns the bounded manifest bytes a provider mirror
+// carries, without validating them.
+func ReadProviderManifest(dir string) ([]byte, error) {
+	return readProviderMetadata(filepath.Join(dir, ProviderManifestFile))
+}
+
+// OfflineCLIConfigMirror returns the mirror path of a configuration that is
+// exactly OfflineCLIConfig of some path, and false for anything else.
+func OfflineCLIConfigMirror(config []byte) (string, bool) {
+	const prefix = "provider_installation {\n  filesystem_mirror {\n    path = "
+	const suffix = "\n  }\n}\n"
+	text := string(config)
+	if len(text) <= len(prefix)+len(suffix) || !strings.HasPrefix(text, prefix) || !strings.HasSuffix(text, suffix) {
+		return "", false
+	}
+	mirror, err := strconv.Unquote(text[len(prefix) : len(text)-len(suffix)])
+	if err != nil || strings.TrimSpace(mirror) == "" {
+		return "", false
+	}
+	mirror = filepath.FromSlash(mirror)
+	if !bytes.Equal(OfflineCLIConfig(mirror), config) {
+		return "", false
+	}
+	return mirror, true
+}
+
 func decodeProviderManifest(data []byte) (providerManifest, error) {
 	if !bytes.Equal(data, canonicalProviderManifest) {
 		return providerManifest{}, fmt.Errorf("%w: packaged manifest differs from the release source", ErrProviderClosureInvalid)
 	}
+	manifest, err := decodeProviderManifestStructure(data)
+	if err != nil {
+		return providerManifest{}, err
+	}
+	seenProviders := make(map[string]struct{}, len(manifest.Providers))
+	for _, provider := range manifest.Providers {
+		seenProviders[provider.Source] = struct{}{}
+	}
+	for _, source := range []string{ProviderRegistryHost + "/hashicorp/local", ProviderRegistryHost + "/sebastianfs82/komodo", ProviderRegistryHost + "/kreuzwerker/docker"} {
+		if _, ok := seenProviders[source]; !ok {
+			return providerManifest{}, fmt.Errorf("%w: %s is absent", ErrProviderClosureInvalid, source)
+		}
+	}
+	for _, provider := range manifest.Providers {
+		if provider.Source == ProviderRegistryHost+"/hashicorp/local" && provider.Version != PinnedLocalProviderVersion {
+			return providerManifest{}, fmt.Errorf("%w: hashicorp/local pin differs from %s", ErrProviderClosureInvalid, PinnedLocalProviderVersion)
+		}
+		if provider.Source == ProviderRegistryHost+"/sebastianfs82/komodo" && provider.Version != PinnedKomodoProviderVersion {
+			return providerManifest{}, fmt.Errorf("%w: sebastianfs82/komodo pin differs from %s", ErrProviderClosureInvalid, PinnedKomodoProviderVersion)
+		}
+		if provider.Source == ProviderRegistryHost+"/kreuzwerker/docker" && provider.Version != PinnedDockerProviderVersion {
+			return providerManifest{}, fmt.Errorf("%w: kreuzwerker/docker pin differs from %s", ErrProviderClosureInvalid, PinnedDockerProviderVersion)
+		}
+	}
+	return manifest, nil
+}
+
+// decodeProviderManifestStructure applies the schema, identity, ordering and
+// platform rules that every packaged provider manifest satisfies.
+func decodeProviderManifestStructure(data []byte) (providerManifest, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	var manifest providerManifest
@@ -260,22 +358,6 @@ func decodeProviderManifest(data []byte) (providerManifest, error) {
 				!validH1(platform.H1) || !validZH(platform.ZH) {
 				return providerManifest{}, fmt.Errorf("%w: %s platform metadata is incomplete or unordered", ErrProviderClosureInvalid, provider.Source)
 			}
-		}
-	}
-	for _, source := range []string{ProviderRegistryHost + "/hashicorp/local", ProviderRegistryHost + "/sebastianfs82/komodo", ProviderRegistryHost + "/kreuzwerker/docker"} {
-		if _, ok := seenProviders[source]; !ok {
-			return providerManifest{}, fmt.Errorf("%w: %s is absent", ErrProviderClosureInvalid, source)
-		}
-	}
-	for _, provider := range manifest.Providers {
-		if provider.Source == ProviderRegistryHost+"/hashicorp/local" && provider.Version != PinnedLocalProviderVersion {
-			return providerManifest{}, fmt.Errorf("%w: hashicorp/local pin differs from %s", ErrProviderClosureInvalid, PinnedLocalProviderVersion)
-		}
-		if provider.Source == ProviderRegistryHost+"/sebastianfs82/komodo" && provider.Version != PinnedKomodoProviderVersion {
-			return providerManifest{}, fmt.Errorf("%w: sebastianfs82/komodo pin differs from %s", ErrProviderClosureInvalid, PinnedKomodoProviderVersion)
-		}
-		if provider.Source == ProviderRegistryHost+"/kreuzwerker/docker" && provider.Version != PinnedDockerProviderVersion {
-			return providerManifest{}, fmt.Errorf("%w: kreuzwerker/docker pin differs from %s", ErrProviderClosureInvalid, PinnedDockerProviderVersion)
 		}
 	}
 	return manifest, nil

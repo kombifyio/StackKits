@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kombifyio/stackkits/internal/auth"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
 	"github.com/kombifyio/stackkits/internal/mcpagents"
@@ -36,6 +37,8 @@ type ServerConfig struct {
 	LogDir                            string   // Directory containing deploy log files (.stackkit/logs/)
 	ServiceAuthSecret                 string
 	ServiceAuthSecretNext             string
+	ServiceAuthCallerKeys             map[string]auth.CallerPublicKey // SERVICE_AUTH_ED25519_PUBLIC_KEYS
+	ServiceAuthRequireEd25519         bool                            // SERVICE_AUTH_REQUIRE_ED25519
 	StackActionMode                   string
 	StackActionRestoreVerifierCommand string
 	SetupActionMode                   string

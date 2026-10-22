@@ -1,5 +1,19 @@
 # Changelog
 
+- Change: the public repository carries one community kit: a contribution path with Developer Certificate of Origin sign-off (`git commit -s`), a security policy with GitHub private vulnerability reporting (acknowledgement within 48 hours and a fix or mitigation plan for high and critical findings within 14 days, as targets; fixes go to the latest release of each release channel), support routes, the Code of Conduct, the bug form, and an issue chooser that sends ideas and questions to this repository's Discussions until the kombify hub exists. The feature request form is replaced by Discussions, and the pull request notice and README describe the same path.
+- Fix: `stackkit remove --workload basement-core` removes the Basement core through the canonical Owner-signed, data-disposition-aware native path, for the native Compose, OpenTofu and Terramate units. It previously refused the kit-core workload (no application-adapter binding), and `stackkit remove --workload` refused every workload of a node applied locally with `--local-execution-channel`, because that Apply result records no execution channel; the explicit channel must still equal the workspace Owner binding. Containers and project networks are removed; named volumes are kept unless `--delete-data` is set; removal refuses while another StackKits workload still runs beside the Core.
+- Fix: the public release archives build again. `coolify-mirror` returns to `github.com/charmbracelet/bubbles` v1.0.0, which its `internal/ui` and `huh` v1 import; the v2 require broke the v0.54.6 Publish OSS archive build, and Renovate no longer proposes Charm majors for this module.
+- Fix: a managed `kombify.me` Cloud Kit without a PaaS (the standalone Cloud core) now serves its public routes from the delivered Cloudflare Origin CA certificate in Advanced mode, as the Cloud core with Coolify already did (ADR-0047). Its routers no longer request Let's Encrypt certificates, and public TLS verification on the node no longer fails with `x509: certificate signed by unknown authority` after Techstack installs the origin certificate. Standard Mode and custom domains keep ACME.
+- Fix: the public release archives build again. `coolify-mirror` returns to `github.com/charmbracelet/bubbletea` v1.3.10, which its `bubbles` v1 and `huh` v1 dependencies import; the v2 require broke the v0.54.5 Publish OSS archive build, and Renovate no longer proposes that major for this module.
+- Fix: recovering a prior release after a failed `stackkit upgrade` or Advanced rollback of an OpenTofu generation now runs the OpenTofu and provider mirror shipped in that release's own verified archive from workspace release custody, instead of this installation's OpenTofu. Recovery fails closed when that archive cannot be verified or differs from the checkpoint's release.
+- Security: Files with Cloudreve no longer lets anyone other than the owner open share links. Setup, household provisioning and the Files sign-in handoff remove the share-link permission from every non-admin Cloudreve group, closing a share-link exposure for signed-in household members until a fixed Cloudreve release can be pinned. Owners still reach all of their own files.
+- Fix: the registry snapshot no longer drops applications that share a URL slot. A new `applications` projection carries guide URL, clients and vendor once per application (tool name), so OpenCloud and Nextcloud keep their own presentation facts next to Cloudreve; the `files` service records them as `alternatives` and keeps Cloudreve as its default tool.
+- Security: Files with Cloudreve now always stays behind the TinyAuth sign-in. Generation refuses a Cloudreve Files route without forward-auth, and the v1 compatibility template refuses Cloudreve Files when TinyAuth is disabled. This is an interim safeguard until a patched Files runtime is admitted.
+- Fix: the kit-owned WireGuard overlay interface now actually comes up. `sudo stackkit device overlay up` installs the rendered configuration as `/etc/wireguard/wg-stackkit.conf`, starts and enables `wg-quick@wg-stackkit` so the interface returns after a reboot, resyncs the peers of a running interface in place, and verifies the interface holds the node key from local custody. It fails closed with the fixing step when the kernel cannot create a WireGuard link, wireguard-tools or systemd are missing, or it is not run as root. `device overlay bind` and `device revoke` apply the changed peer set to a running interface immediately, so a revoked device loses overlay access at once. Previously only `device overlay render` existed and no step created the interface.
+
+- Fix: `stackkit upgrade` works across a change of the bundled OpenTofu provider set (for example v0.48 to v0.54.x). Each release it runs (source, target, and the prior release on rollback) now runs on a provider mirror that carries its own manifest. That is the installation mirror when the manifests match. Otherwise it is a verified copy of the release's own mirror, kept under `.stackkit/provider-mirrors/sha256-<manifest digest>`. Before each release runs, its workspace OpenTofu roots are rebound to that mirror. A kept mirror that no longer verifies is refused with an operator message, never repaired in place.
+
+- Fix: the Basement Core LAN DNS resolver now uses the multi-arch `klutchell/unbound:1.26.1` index (linux/amd64, linux/arm64, linux/arm/v7, linux/arm/v6) instead of the amd64-only `mvance/unbound:1.22.0`, so default LAN DNS also starts on arm64 hosts such as a Raspberry Pi. The site zone is mounted into `/etc/unbound/custom.conf.d`; the former config volume `lan-dns-data` is no longer used and can be removed.
 - Change: Advanced capability verification uses the released runtime-contracts codec while retaining the local issuer pin, Owner trust, scope, trusted time and denial codes. Generic Owner-approved identity-projection keys remain supported.
 - Development: the canonical build checks public imports and scans its freshly built CLI once. Standalone release callers retain their independent public-boundary build.
 
@@ -168,7 +182,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Security
+
+* **StackActions accept per-caller Ed25519 service tokens:** the internal StackAction routes verify EdDSA tokens against `SERVICE_AUTH_ED25519_PUBLIC_KEYS` (each key bound to one caller service) and reject HS256 tokens once `SERVICE_AUTH_REQUIRE_ED25519=true`, so the shared `SERVICE_AUTH_SECRET` no longer lets its holder speak as Techstack. Without keys the HS256 path is unchanged; a malformed key set stops `stackkit-server` at startup.
+
 ### Fixed
+
+* **Photos moves to Immich v3:** Photos (standard and lite) now installs Immich v3.3.4 server and machine learning, digest-pinned for amd64 and arm64, with Immich Kiosk 0.45.0 (0.40 and later require Immich v3); the pinned Power Tools 0.24.0 already required v3. The PostgreSQL image keeps its VectorChord pin, so v3 dropping pgvecto.rs needs no extension change. Immich v3 migrates the database forward on its first start and cannot be downgraded, so a standalone Apply on an existing Immich v2 install now stops with `immich_major_migration_unqualified` before it changes identity, runtime files or containers, and the v2 runtime keeps running. Fresh installs and same-major reapplies are unaffected. The demo photo upload no longer sends the `deviceAssetId` and `deviceId` fields that v3 removed.
 
 * **Add-on placement follows its primary:** an add-on workload that pins no node now resolves to the nodes of the selected primary it joins, so pinning only the primary on a multi-node StackSpec compiles with the add-on beside it; only an add-on pinned explicitly outside its primary's nodes fails with `unresolved_placement`.
 
@@ -311,6 +331,71 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.54.8](https://github.com/kombifyio/StackKits/compare/v0.54.7...v0.54.8) (2026-10-22)
+
+
+### Added
+
+* **community:** render the community kit into the public mirror surface
+
+
+### Fixed
+
+* **delivery:** pin prepare-release-publication to the queued-parent fix (kombify-workspace #2606)
+
+## [0.54.7](https://github.com/kombifyio/StackKits/compare/v0.54.6...v0.54.7) (2026-10-22)
+
+
+### Fixed
+
+* **coolify-mirror:** return bubbles to v1 so public archives build
+* **remove:** remove the Basement core workload through the native Owner-signed path
+
+## [0.54.6](https://github.com/kombifyio/StackKits/compare/v0.54.5...v0.54.6) (2026-10-22)
+
+
+### Added
+
+* **release:** Early Access channel with owner release and rollback (platform-yn1n3)
+* **website:** count installer fetches as an aggregate, person-free metric
+* **website:** serve stackkit.cc security.txt and add info@kombify.io contact
+
+
+### Fixed
+
+* **deps:** update dependency dockerode to v5
+* **deps:** update module github.com/charmbracelet/bubbles to v2
+* **public-tls:** serve managed kombify.me standalone Cloud core from the origin certificate
+* **release:** pin coolify-mirror bubbletea to v1 so public archives build
+* **website:** link the canonical kombify.io legal pages
+
+## [0.54.5](https://github.com/kombifyio/StackKits/compare/v0.54.4...v0.54.5) (2026-10-22)
+
+
+### Added
+
+* **auth:** verify per-caller Ed25519 service tokens on StackActions
+* **photos:** move Immich to v3.3.4 with a fail-closed v2 major hold
+* **server:** Owner passkey page to approve or deny agent write requests
+
+
+### Fixed
+
+* **basement:** multi-arch LAN DNS resolver for arm64 hosts
+* **beads:** keep cleanup close reasons within the tracker limit
+* **ci:** stop requiring website content in StackKits website gates
+* **compat:** bind v0.54.4 Files and Photos lifecycle receipts (platform-7rni.10.27.3)
+* **deps:** update dependency express to v5
+* **deps:** update module github.com/charmbracelet/bubbletea to v2
+* **files:** keep Cloudreve Files behind forward-auth until patched runtime
+* **files:** restrict Cloudreve share access to owners until upstream fixes shares
+* **overlay:** bring the kit-owned WireGuard interface up and keep it up after reboot
+* **registry:** keep per-application facts for apps sharing a URL slot
+* **release:** reserve the OSS version with the current authority and App token
+* **release:** retry transient GitHub errors when drafting the public release
+* **upgrade:** recover prior release on its own archived OpenTofu
+* **upgrade:** run each release on a provider mirror that carries its own manifest
 
 ## [0.54.4](https://github.com/kombifyio/StackKits/compare/v0.54.3...v0.54.4) (2026-10-21)
 

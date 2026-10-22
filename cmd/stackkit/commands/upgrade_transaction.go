@@ -52,8 +52,10 @@ var (
 		workspace, snapshotID string,
 		invoke upgradelifecycle.RecoveryCommand,
 	) (upgradelifecycle.ExecutorStateRecoveryResult, error) {
-		return (upgradelifecycle.ExecutorStateStore{}).Recover(
-			ctx, workspace, snapshotID, invoke,
+		return (upgradelifecycle.ExecutorStateStore{}).RecoverWith(
+			ctx, workspace, snapshotID,
+			upgradelifecycle.RecoveryOptions{Attestations: newPublicAttestationVerifier()},
+			invoke,
 		)
 	}
 	withPublicUpgradeInstalledExecutable  = withVerifiedPublicUpgradeExecutable
@@ -835,8 +837,9 @@ func withVerifiedPublicUpgradeExecutable(
 		// The target Apply stages the v2 Core's stackkit-server from beside
 		// its own executable, and every OpenTofu step of the release runs
 		// the tofu beside it, so the same verified release supplies all
-		// three. Its provider mirror stays the installation's, the path
-		// every OpenTofu root records (upgradelifecycle.ExecRunner).
+		// three. Its provider mirror is the installation's when that
+		// carries the release's own manifest, else the release's kept
+		// verified mirror; ExecRunner rebinds the roots to it.
 		executable, server, err := upgradelifecycle.ReleaseExecutablesWithOpenTofu(proof, tempRoot)
 		if err != nil {
 			return err

@@ -97,7 +97,33 @@ func IssueHomePairingWithOwnerStepUp(root, idToken, nonce string, now time.Time)
 	if len(nonce) < 43 || len(nonce) > 128 {
 		return HomePairing{}, ErrHomePairingDenied
 	}
-	return issueHomePairing(root, now, func(trust HomePublicTrust, now time.Time) (jwt.Claims, error) {
+	return issueHomePairing(root, now, ownerStepUpIDTokenVerifier(idToken, nonce))
+}
+
+// ErrOwnerStepUpDenied is returned for any Owner step-up ID token that does not
+// prove a fresh passkey authentication of the pinned Home Owner.
+var ErrOwnerStepUpDenied = errors.New("identity: a fresh Owner passkey step-up for this Home is required")
+
+// VerifyOwnerStepUp verifies an ID token of the local Owner step-up client for
+// an Owner decision that is not a remote action approval, such as answering a
+// StackKits MCP agent's write approval request. It applies exactly the checks
+// of IssueHomePairingWithOwnerStepUp (active bound Home trust, Owner custody of
+// this Home, pinned Owner subject, signing keys, audience, flow nonce, passkey
+// authentication, revocation and HomeOwnerStepUpFreshness) and returns the
+// Owner subject. It changes no state.
+func VerifyOwnerStepUp(root, idToken, nonce string, now time.Time) (string, error) {
+	if len(nonce) < 43 || len(nonce) > 128 {
+		return "", ErrOwnerStepUpDenied
+	}
+	_, human, err := verifyFreshHomeOwner(root, now.UTC(), ownerStepUpIDTokenVerifier(idToken, nonce))
+	if err != nil {
+		return "", ErrOwnerStepUpDenied
+	}
+	return human.Subject, nil
+}
+
+func ownerStepUpIDTokenVerifier(idToken, nonce string) func(HomePublicTrust, time.Time) (jwt.Claims, error) {
+	return func(trust HomePublicTrust, now time.Time) (jwt.Claims, error) {
 		var claims struct {
 			jwt.Claims
 			Type  string   `json:"type"`
@@ -116,28 +142,39 @@ func IssueHomePairingWithOwnerStepUp(root, idToken, nonce string, now time.Time)
 			return jwt.Claims{}, ErrHomeAccessDenied
 		}
 		return claims.Claims, nil
-	})
+	}
+}
+
+// verifyFreshHomeOwner checks the active bound Home trust and Owner custody,
+// then that verify proves an Owner authentication within
+// HomeOwnerStepUpFreshness.
+func verifyFreshHomeOwner(root string, now time.Time, verify func(HomePublicTrust, time.Time) (jwt.Claims, error)) (localevidence.OwnerCustody, jwt.Claims, error) {
+	state, err := loadHomeVerifierState(root)
+	if err != nil || !state.Active {
+		return localevidence.OwnerCustody{}, jwt.Claims{}, ErrHomePairingDenied
+	}
+	if err := validateBoundHomePublicTrust(root, state.Trust, now); err != nil {
+		return localevidence.OwnerCustody{}, jwt.Claims{}, ErrHomePairingDenied
+	}
+	owner, err := localevidence.LoadOwnerCustody(root)
+	if err != nil || owner.Binding.SiteRef != state.Trust.HomeSiteRef {
+		return localevidence.OwnerCustody{}, jwt.Claims{}, ErrHomePairingDenied
+	}
+	human, err := verify(state.Trust, now)
+	if err != nil || human.IssuedAt == nil {
+		return localevidence.OwnerCustody{}, jwt.Claims{}, ErrHomePairingDenied
+	}
+	if age := now.Sub(human.IssuedAt.Time()); age < -homeVerifierDPoPWindow || age > HomeOwnerStepUpFreshness {
+		return localevidence.OwnerCustody{}, jwt.Claims{}, ErrHomePairingDenied
+	}
+	return owner, human, nil
 }
 
 func issueHomePairing(root string, now time.Time, verify func(HomePublicTrust, time.Time) (jwt.Claims, error)) (HomePairing, error) {
 	now = now.UTC()
-	state, err := loadHomeVerifierState(root)
-	if err != nil || !state.Active {
-		return HomePairing{}, ErrHomePairingDenied
-	}
-	if err := validateBoundHomePublicTrust(root, state.Trust, now); err != nil {
-		return HomePairing{}, ErrHomePairingDenied
-	}
-	owner, err := localevidence.LoadOwnerCustody(root)
-	if err != nil || owner.Binding.SiteRef != state.Trust.HomeSiteRef {
-		return HomePairing{}, ErrHomePairingDenied
-	}
-	human, err := verify(state.Trust, now)
-	if err != nil || human.IssuedAt == nil {
-		return HomePairing{}, ErrHomePairingDenied
-	}
-	if age := now.Sub(human.IssuedAt.Time()); age < -homeVerifierDPoPWindow || age > HomeOwnerStepUpFreshness {
-		return HomePairing{}, ErrHomePairingDenied
+	owner, human, err := verifyFreshHomeOwner(root, now, verify)
+	if err != nil {
+		return HomePairing{}, err
 	}
 	random := make([]byte, 20)
 	if _, err := rand.Read(random); err != nil {

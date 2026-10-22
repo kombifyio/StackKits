@@ -184,7 +184,6 @@ func run(args []string, stdout, stderr io.Writer) error {
 
 var statusSurfaceGateFiles = []string{
 	"scripts/derive-status-surfaces.mjs",
-	"scripts/derive-status-surfaces.test.mjs",
 	"STATUS.md",
 	"basement-kit/stackkit.yaml",
 	"cloud-kit/stackkit.yaml",

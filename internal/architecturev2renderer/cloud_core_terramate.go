@@ -18,7 +18,7 @@ const (
 	cloudStandaloneCoreTerramateOpenTofuOutputRef = "platform/cloud-core-standalone/main.tf"
 	cloudStandaloneCoreTerramateStackOutputRef    = "platform/cloud-core-standalone/stack.tm.hcl"
 	cloudCoreTerramateSchema                      = `stackkit.cloud-core-terramate/v1|artifact-revision:3|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|managed-kombify-me-tls:origin-ca-file-provider,no-acme-resolver|root:` + cloudCoreOpenTofuSchema
-	cloudStandaloneCoreTerramateSchema            = `stackkit.cloud-core-standalone-terramate/v1|artifact-revision:2|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|root:` + cloudStandaloneCoreOpenTofuSchema
+	cloudStandaloneCoreTerramateSchema            = `stackkit.cloud-core-standalone-terramate/v1|artifact-revision:3|engine:terramate|underlay:opentofu|outputs:main.tf,stack.tm.hcl|stack:terramatestackgraph-core,project-root-per-host|managed-kombify-me-tls:origin-ca-file-provider,no-acme-resolver|root:` + cloudStandaloneCoreOpenTofuSchema
 )
 
 func CloudCoreTerramateRendererContract() RendererContract {
@@ -60,11 +60,23 @@ func cloudCoreOriginCertificateRenderProfile() cloudCoreRenderProfile {
 	return profile
 }
 
+// cloudStandaloneCoreOriginCertificateRenderProfile is the standalone Cloud
+// core profile of the Terramate (Advanced) twin. Like the Cloud core twin, a
+// managed kombify.me address is served by the delivered Origin CA
+// certificate; every other domain keeps ACME. Without it Techstack installs
+// an origin certificate while the routers keep requesting Let's Encrypt, and
+// the origin-trust public TLS probe fails with an unknown authority.
+func cloudStandaloneCoreOriginCertificateRenderProfile() cloudCoreRenderProfile {
+	profile := cloudStandaloneCoreRenderProfile()
+	profile.renderCompose = RenderCloudStandaloneCoreComposeForOriginCertificate
+	return profile
+}
+
 func newCloudStandaloneCoreTerramateRenderer() cloudCoreTerramateRenderer {
 	contract := CloudStandaloneCoreTerramateRendererContract()
 	return cloudCoreTerramateRenderer{
 		contract: contract, openTofuOutput: cloudStandaloneCoreTerramateOpenTofuOutputRef, stackOutput: cloudStandaloneCoreTerramateStackOutputRef,
-		root: cloudCoreTerramatePayloadRenderer(contract, cloudStandaloneCoreRenderProfile(),
+		root: cloudCoreTerramatePayloadRenderer(contract, cloudStandaloneCoreOriginCertificateRenderProfile(),
 			cloudStandaloneCoreTerramateOpenTofuOutputRef, cloudStandaloneCoreOpenTofuResourcePrefix, cloudStandaloneCoreComposeProjectName),
 	}
 }

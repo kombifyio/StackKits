@@ -287,9 +287,9 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 	}
 	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "ImmichWorkloadBundle" ||
 		bundle.Workload.Ref != "photos" || bundle.Workload.AlternativeRef != "immich" || (bundle.Workload.ModuleRef != immichWorkloadModuleID && bundle.Workload.ModuleRef != immichLiteWorkloadModuleID) ||
-		bundle.Workload.Release != "v2.7.0" || bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != "immich-server" ||
+		bundle.Workload.Release != "v3.3.4" || bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != "immich-server" ||
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" || bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
-		return ImmichWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Immich v2.7.0 contract")
+		return ImmichWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Immich v3.3.4 contract")
 	}
 	if len(bundle.SecretRefs) != 1 || !validSecretReference(bundle.SecretRefs["database-password"]) {
 		return ImmichWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires exactly one opaque database-password reference")
@@ -382,8 +382,8 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract, modu
 	imageRef, hasImage := unit.ContainerImageRef()
 	imageDigest, hasDigest := unit.ContainerImageDigest()
 	entryComponent, hasEntry := unit.RuntimeEntryComponentRef()
-	if !hasEngine || engine != "docker" || !hasImage || imageRef != "ghcr.io/immich-app/immich-server:v2.7.0" || !hasDigest || imageDigest != "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1" || !hasEntry || entryComponent != "immich-server" {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact governed Immich v2.7.0 entry component")
+	if !hasEngine || engine != "docker" || !hasImage || imageRef != "ghcr.io/immich-app/immich-server:v3.3.4" || !hasDigest || imageDigest != "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f" || !hasEntry || entryComponent != "immich-server" {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact governed Immich v3.3.4 entry component")
 	}
 	siteRef, hasSite := unit.SiteRef()
 	nodeRef, hasNode := unit.NodeRef()
@@ -452,7 +452,7 @@ func validateImmichWorkloadUnit(unit RenderUnit, contract RendererContract, modu
 	bundle.Workload.Ref = "photos"
 	bundle.Workload.AlternativeRef = "immich"
 	bundle.Workload.ModuleRef = moduleID
-	bundle.Workload.Release = "v2.7.0"
+	bundle.Workload.Release = "v3.3.4"
 	bundle.Workload.Delivery = "application-adapter"
 	bundle.Workload.EntryComponent = entryComponent
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
@@ -537,10 +537,10 @@ func validateImmichRuntimeComponents(raw []byte, path string) ([]selectedPaaSRun
 
 func expectedImmichRuntimeComponents() []selectedPaaSRuntimeComponent {
 	components := []selectedPaaSRuntimeComponent{
-		{ID: "immich-machine-learning", Role: "machine-learning", Lifecycle: "daemon", HealthFailure: "degraded", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/immich-machine-learning:v2.7.0", Digest: "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"}, DependsOn: []string{}, NetworkRefs: []string{"immich-internal"}, Egress: true, Volumes: []selectedPaaSRuntimeVolume{{ID: "model-cache", Target: "/cache", Class: "cache", Backup: false}}, Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"python3", "healthcheck.py"}}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "512m"}},
+		{ID: "immich-machine-learning", Role: "machine-learning", Lifecycle: "daemon", HealthFailure: "degraded", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/immich-machine-learning:v3.3.4", Digest: "sha256:1ab8674e7cec41009abb3812de62a16cc1917e73d486233a5471b048d26fc14d"}, DependsOn: []string{}, NetworkRefs: []string{"immich-internal"}, Egress: true, Volumes: []selectedPaaSRuntimeVolume{{ID: "model-cache", Target: "/cache", Class: "cache", Backup: false}}, Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"python3", "healthcheck.py"}}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "512m"}},
 		{ID: "immich-postgres", Role: "database", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0", Digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"}, DependsOn: []string{}, NetworkRefs: []string{"immich-internal"}, Environment: map[string]string{"POSTGRES_DB": "immich", "POSTGRES_INITDB_ARGS": "--data-checksums", "POSTGRES_USER": "immich"}, SecretEnvironment: map[string]string{"POSTGRES_PASSWORD": "database-password"}, Volumes: []selectedPaaSRuntimeVolume{{ID: "database", Target: "/var/lib/postgresql/data", Class: "persistent", Backup: true}}, Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"pg_isready", "-U", "immich", "-d", "postgres"}}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "2g", MemoryReservation: "256m"}},
 		{ID: "immich-postgres-init", Role: "database-init", Lifecycle: "one-shot", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0", Digest: "sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23"}, DependsOn: []string{"immich-postgres"}, NetworkRefs: []string{"immich-internal"}, Command: []string{"sh", "-c", "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"}, Environment: map[string]string{"PGUSER": "immich"}, SecretEnvironment: map[string]string{"PGPASSWORD": "database-password"}, Health: selectedPaaSRuntimeHealth{Kind: "completion"}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "256m"}},
-		{ID: "immich-server", Role: "application", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/immich-server:v2.7.0", Digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"}, DependsOn: []string{"immich-machine-learning", "immich-postgres-init", "immich-valkey"}, NetworkRefs: []string{"immich-internal"}, Environment: map[string]string{"DB_DATABASE_NAME": "immich", "DB_HOSTNAME": "immich-postgres", "DB_PORT": "5432", "DB_USERNAME": "immich", "IMMICH_MACHINE_LEARNING_URL": "http://immich-machine-learning:3003", "REDIS_HOSTNAME": "immich-valkey", "REDIS_PORT": "6379"}, SecretEnvironment: map[string]string{"DB_PASSWORD": "database-password"}, Volumes: []selectedPaaSRuntimeVolume{{ID: "library", Target: "/data", Class: "persistent", Backup: true}}, Health: selectedPaaSRuntimeHealth{Kind: "http", Path: "/api/server/ping", Port: 2283}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "512m"}},
+		{ID: "immich-server", Role: "application", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: "ghcr.io/immich-app/immich-server:v3.3.4", Digest: "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f"}, DependsOn: []string{"immich-machine-learning", "immich-postgres-init", "immich-valkey"}, NetworkRefs: []string{"immich-internal"}, Environment: map[string]string{"DB_DATABASE_NAME": "immich", "DB_HOSTNAME": "immich-postgres", "DB_PORT": "5432", "DB_USERNAME": "immich", "IMMICH_MACHINE_LEARNING_URL": "http://immich-machine-learning:3003", "REDIS_HOSTNAME": "immich-valkey", "REDIS_PORT": "6379"}, SecretEnvironment: map[string]string{"DB_PASSWORD": "database-password"}, Volumes: []selectedPaaSRuntimeVolume{{ID: "library", Target: "/data", Class: "persistent", Backup: true}}, Health: selectedPaaSRuntimeHealth{Kind: "http", Path: "/api/server/ping", Port: 2283}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "512m"}},
 		{ID: "immich-valkey", Role: "cache", Lifecycle: "daemon", Image: selectedPaaSRuntimeImage{Ref: "docker.io/valkey/valkey:9", Digest: "sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9"}, DependsOn: []string{}, NetworkRefs: []string{"immich-internal"}, Command: []string{"valkey-server"}, Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{"redis-cli", "ping"}}, Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "512m", MemoryReservation: "64m"}},
 	}
 	sort.Slice(components, func(i, j int) bool { return components[i].ID < components[j].ID })

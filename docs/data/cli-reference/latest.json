@@ -2413,8 +2413,8 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit channel [flags]",
-      "short": "Show or set the release channel (stable or preview)",
-      "description": "Show which release channel this machine follows.\n\nstable is the default. preview (\"Nightly\") is a prerelease built once a day\nfrom main when main changed; it is unsigned and opt-in. The choice is stored in\n~/.stackkits/channel and read by the installer (install.sh), which fetches the\nnewest release of that channel.",
+      "short": "Show or set the release channel (stable or early-access)",
+      "description": "Show which release channel this machine follows.\n\nstable is the default. early-access is the opt-in channel: it gets builds the\nStackKits team switched live before they become the next stable release, and\nthe newest stable release whenever that is newer. Early Access builds are\nunsigned prereleases. The choice is stored in ~/.stackkits/channel and read by\nthe installer (install.sh), which fetches the newest release of that channel.",
       "runnable": true,
       "examples": [
         {
@@ -2422,8 +2422,8 @@
           "description": "Show the current channel"
         },
         {
-          "command": "stackkit channel set preview",
-          "description": "Follow the Nightly prereleases, then re-run the installer"
+          "command": "stackkit channel set early-access",
+          "description": "Follow Early Access, then re-run the installer"
         }
       ],
       "flags": [],
@@ -2437,7 +2437,7 @@
       "parent": "stackkit channel",
       "aliases": [],
       "group": "reference",
-      "usage": "stackkit channel set <stable|preview> [flags]",
+      "usage": "stackkit channel set <stable|early-access> [flags]",
       "short": "Choose the release channel",
       "description": "",
       "runnable": true,
@@ -2674,7 +2674,8 @@
       "flags": [],
       "subcommands": [
         "stackkit device overlay bind",
-        "stackkit device overlay render"
+        "stackkit device overlay render",
+        "stackkit device overlay up"
       ]
     },
     {
@@ -2717,6 +2718,20 @@
           "required": false
         }
       ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device overlay up",
+      "name": "up",
+      "parent": "stackkit device overlay",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device overlay up [flags]",
+      "short": "Create or resync the node's WireGuard overlay interface and enable it at boot (requires root)",
+      "description": "Installs the rendered configuration as /etc/wireguard/wg-stackkit.conf, starts and enables wg-quick@wg-stackkit so the interface returns after a reboot, or resyncs the peers of a running interface in place. Fails closed when the kernel module, wireguard-tools or systemd are missing. Safe to repeat.",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
       "subcommands": []
     },
     {

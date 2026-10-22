@@ -235,7 +235,13 @@ func FromCUE(entries []cueval.CatalogEntry) []Service {
 			services = append(services, svc)
 			continue
 		}
-		if key == "files" && entry.ToolName != "" && services[idx].ToolName != "" && entry.ToolName != services[idx].ToolName {
+		if entry.ToolName != "" && services[idx].ToolName != "" && entry.ToolName != services[idx].ToolName {
+			// Another application fills the same URL slot (opencloud and
+			// nextcloud for "files"). The slot keeps its default tool and
+			// records the replacement instead of silently dropping it; the
+			// application's own presentation facts travel in the registry
+			// snapshot's per-application projection.
+			services[idx].Alternatives = appendUnique(services[idx].Alternatives, entry.ToolName)
 			continue
 		}
 		overlayFromCUE(&services[idx], entry)
@@ -668,6 +674,17 @@ func logoURLForKey(key, tool string) string {
 			return ""
 		}
 	}
+}
+
+func appendUnique(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	out := append(append([]string(nil), values...), value)
+	sort.Strings(out)
+	return out
 }
 
 func first(values ...string) string {

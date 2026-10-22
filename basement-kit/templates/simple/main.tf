@@ -6758,6 +6758,15 @@ resource "local_file" "files_compose" {
 
   filename = "${path.module}/.files-compose.yaml"
   content  = local.files_compose_content
+
+  lifecycle {
+    # Cloudreve Files stays behind the TinyAuth gateway until the patched
+    # Files runtime is admitted (kombify-StackKits-fusz).
+    precondition {
+      condition     = !local.cloudreve_enabled || var.enable_tinyauth
+      error_message = "Files with Cloudreve requires enable_tinyauth=true until the patched Files runtime is admitted."
+    }
+  }
 }
 
 resource "local_file" "stackkit_hub_compose" {

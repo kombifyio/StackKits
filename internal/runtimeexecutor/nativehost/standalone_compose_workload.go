@@ -560,6 +560,11 @@ func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
 		if err := o.requireJellyfinApplySafety(ctx, bundle); err != nil {
 			return standaloneComposeProject{}, err
 		}
+		// The same hold covers an Immich major release, whose first start
+		// migrates the Photos database forward without a supported downgrade.
+		if err := o.requireImmichApplySafety(ctx, bundle); err != nil {
+			return standaloneComposeProject{}, err
+		}
 	}
 	dockerRoot := ""
 	if standaloneComposeNeedsDockerRoot(bundle) {
@@ -1415,8 +1420,8 @@ func (osStandaloneComposeProcessRunner) RunStreaming(
 	live io.Writer,
 ) ([]byte, error) {
 	dockerRootQuery := slices.Equal(args, standaloneComposeDockerRootArgs)
-	jellyfinDiscoveryQuery := validJellyfinDiscoveryQuery(args)
-	if !dockerRootQuery && !jellyfinDiscoveryQuery && !validNetworkGatewayQuery(args) && !validWorkloadManagerQuery(args) && !validWorkloadVolumeCreateQuery(args, directory) && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
+	majorHoldDiscoveryQuery := validJellyfinDiscoveryQuery(args) || validImmichDiscoveryQuery(args)
+	if !dockerRootQuery && !majorHoldDiscoveryQuery && !validNetworkGatewayQuery(args) && !validWorkloadManagerQuery(args) && !validWorkloadVolumeCreateQuery(args, directory) && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
 		args[3] != "--env-file" || filepath.Dir(args[4]) != directory ||
 		filepath.Base(args[4]) != ".env" || args[5] != "-f" ||
 		filepath.Dir(args[6]) != directory || filepath.Base(args[6]) != "compose.yaml") {

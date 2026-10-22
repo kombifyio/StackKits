@@ -10,6 +10,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -30,6 +31,9 @@ func requireArchitectureV2RemovalCapability(plan generationartifact.VerifiedPlan
 			return errors.New("Marketplace removal requires its verified Owner-approved installation lifecycle")
 		}
 		return nil
+	}
+	if _, ok := nativehost.BasementCoreRemovalUnit(target); ok {
+		return requireArchitectureV2BasementCoreRemovalCapability(plan, target)
 	}
 	adapter := target.RuntimeAdapter
 	if adapter == nil || adapter.ID == "" || adapter.ModuleRef == "" || adapter.ModuleContractHash == "" {
@@ -61,6 +65,33 @@ func requireArchitectureV2RemovalCapability(plan generationartifact.VerifiedPlan
 		return nil
 	}
 	return errors.New("workload removal adapter is absent from the verified plan")
+}
+
+// requireArchitectureV2BasementCoreRemovalCapability admits the kit-core
+// workload only as the exact module the verified plan selected. The core is
+// not an application adapter: its closed runtime profile, not an adapter
+// operation list, is the removal authority.
+func requireArchitectureV2BasementCoreRemovalCapability(plan generationartifact.VerifiedPlan, target runtimeexecutor.RuntimeTarget) error {
+	var document struct {
+		Modules []struct {
+			ID           string `json:"id"`
+			ContractHash string `json:"contractHash"`
+			ProviderRef  string `json:"providerRef"`
+		} `json:"modules"`
+	}
+	if err := json.Unmarshal(plan.Canonical(), &document); err != nil {
+		return fmt.Errorf("read verified removal capability: %w", err)
+	}
+	for _, module := range document.Modules {
+		if module.ID != target.ModuleRef {
+			continue
+		}
+		if module.ContractHash != target.ModuleContractHash || module.ProviderRef != target.ProviderRef {
+			return errors.New("Basement core removal module differs from the verified plan")
+		}
+		return nil
+	}
+	return errors.New("Basement core removal module is absent from the verified plan")
 }
 
 func architectureV2MarketplaceRemovalTarget(target runtimeexecutor.RuntimeTarget) bool {

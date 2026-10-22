@@ -3,7 +3,8 @@
 // =============================================================================
 // Originally generated 2026-05-27 from the legacy kombify-admin seed
 // (AdminProfile table). The legacy generator is retired (WS-1,
-// docs/plans/2026-06-10-stackkit-lifecycle-truth-consolidation.md); setup
+// git history: docs/plans/2026-06-10-stackkit-lifecycle-truth-consolidation.md
+// at 32491c41b1c8); setup
 // profiles move to kombify-DB sk_stackkit_spec_profile with
 // kombify-StackKits-1if (closes in WS-2), after which this file is emitted
 // from the registry snapshot. Until then: edit by hand and keep the registry

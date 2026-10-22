@@ -1,20 +1,19 @@
-# Support
-
-StackKits is open source and in public beta. Support is asynchronous and
-community-visible; there is no response-time guarantee.
+# Support for kombify StackKits
 
 | Need | Where |
 | --- | --- |
-| Questions, setup help, sharing your homelab | [GitHub Discussions](https://github.com/kombifyio/StackKits/discussions) |
-| A reproducible bug in a released version | [Bug report](https://github.com/kombifyio/StackKits/issues/new/choose) |
-| A feature or use-case request | [Feature request](https://github.com/kombifyio/StackKits/issues/new/choose) |
-| A security vulnerability | [Private security advisory](https://github.com/kombifyio/StackKits/security/advisories/new), never a public issue |
-| Documentation | [docs.kombify.io/stackkits](https://docs.kombify.io/stackkits) |
-| Product site and installers | [stackkit.cc](https://stackkit.cc) |
+| A question, setup help, sharing your setup | [Discussions](https://github.com/kombifyio/stackKits/discussions) |
+| A reproducible bug in a released version | [Bug report](https://github.com/kombifyio/stackKits/issues/new?template=bug_report.yml) |
+| An idea or a vote on one | [Discussions](https://github.com/kombifyio/stackKits/discussions) |
+| What shipped in each release | [Changelog](https://docs.kombify.io/changelog/overview) |
+| A security vulnerability | [Private advisory](https://github.com/kombifyio/stackKits/security/advisories/new), never a public issue |
+| Your kombify account or a subscription | [kombify.io/support](https://kombify.io/support) or [info@kombify.io](mailto:info@kombify.io) |
+| Documentation | [StackKits documentation](https://docs.kombify.io/stackkits) |
 
-Before you post, include the release (`stackkit version`), the kit, the host
-OS, and the relevant part of `stackkit logs latest --json`. Redact hostnames,
-addresses and secrets; the logs are yours.
+Replies may come from an agent, which says so at the end of its reply. The
+target for a first response is one business day (a target, not a promise, during the beta); a reply says when it
+hands over to a person. Include the version, the release channel (Stable or
+Early Access), your environment and the relevant output, with secrets and
+personal data removed.
 
-Only the latest public release receives fixes. Custom infrastructure that the
-released kits do not describe is out of scope.
+Fixes go to the latest release of each release channel.

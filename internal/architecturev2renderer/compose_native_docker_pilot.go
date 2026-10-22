@@ -3,36 +3,30 @@ package architecturev2renderer
 // nativeDockerPilotModules is the closed set of modules an operator may opt
 // into native execution (STACKKIT_OPENTOFU_NATIVE_MODULES). Admission needs
 // the module's full Compose document inside the renderer's translation and
-// its own parity receipts (plan 20, evidence/); secret delivery alone does
+// its own parity receipts; secret delivery alone does
 // not admit a module. Admission is opt-in only: no default changes.
 var nativeDockerPilotModules = map[string]struct{}{
 	"stackkits-vaultwarden-runtime": {},
 	// S2.1: Paperless-ngx, PostgreSQL and Valkey (health checks, depends_on,
-	// command, NAME_FILE secrets); receipt
-	// evidence/stage2-s21-native-paperless-2026-10-02.json.
+	// command, NAME_FILE secrets).
 	"stackkits-paperless-runtime": {},
 	// Mosquitto: the LAN listener and the governed command's Compose secret
-	// file (provider upload); receipt
-	// evidence/stage2-native-mosquitto-2026-10-03.json.
+	// file (provider upload).
 	"stackkits-mosquitto-runtime": {},
 	// Stalwart: the published mail ports, an egress network and the governed
-	// entrypoint's Compose secret file (provider upload); receipt
-	// evidence/stage2-native-stalwart-2026-10-03.json.
+	// entrypoint's Compose secret file (provider upload).
 	"stackkits-stalwart-runtime": {},
 	// zigbee2mqtt: the USB device and the MQTT password reference file, a
-	// Compose secret file (provider upload) on both executions; receipt
-	// evidence/stage2-native-zigbee2mqtt-2026-10-03.json.
+	// Compose secret file (provider upload) on both executions.
 	"stackkits-zigbee2mqtt-runtime": {},
-	// Modules whose secrets the fixed-path readers cover; receipts
-	// evidence/stage2-native-<module>-2026-10-03.json.
+	// Modules whose secrets the fixed-path readers cover.
 	// SearXNG: the secret settings file.
 	"stackkits-searxng-runtime": {},
 	// Roundcube: the des_key file and the governed project files.
 	"stackkits-roundcube-runtime": {},
 	// Euro-Office: the JWT secret pre-seeded in the data volume.
 	"stackkits-euro-office-runtime": {},
-	// Wave 1 single-container modules without secrets; receipts
-	// evidence/stage2-native-<module>-2026-10-03.json.
+	// Wave 1 single-container modules without secrets.
 	"stackkits-cloudreve-runtime":      {},
 	"stackkits-navidrome-runtime":      {},
 	"stackkits-audiobookshelf-runtime": {},

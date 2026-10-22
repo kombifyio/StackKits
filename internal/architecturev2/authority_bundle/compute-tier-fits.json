@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:842bac4350cc0ff48d7b0dcf33a9a43854eaa65ea9d260cf4071cecf5af63d38",
+  "contentDigest": "sha256:a4bd901323cdd0f6a945617d50b1297c6167e4645619af568a21f4309cd8ae74",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -3943,7 +3943,7 @@
                   "maturity": "supported",
                   "provenance": {
                     "hostFloor": {
-                      "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
+                      "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
                       "source": "upstream"
                     },
                     "recommended": {
@@ -3976,7 +3976,7 @@
                   "maturity": "supported",
                   "provenance": {
                     "hostFloor": {
-                      "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
+                      "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
                       "source": "upstream"
                     },
                     "recommended": {

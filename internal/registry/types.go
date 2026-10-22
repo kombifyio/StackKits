@@ -69,6 +69,14 @@ type Snapshot struct {
 	// still come from CUE/StackKit contracts and must be parity-tested here.
 	Services []Service `json:"services"`
 
+	// Applications carries per-application presentation facts (guide URL,
+	// official clients, vendor), one entry per application keyed by its tool
+	// name. Services are URL slots: several applications can fill one slot
+	// (cloudreve, opencloud and nextcloud all serve "files"), so the slot
+	// projection cannot carry every application's facts. Additive and
+	// optional, so the schema version stays 4.
+	Applications []Application `json:"applications,omitempty"`
+
 	// Modules is the latest-version view of the module registry
 	// (sk_module_version, one row per slug -- the "released" version).
 	Modules []Module `json:"modules"`
@@ -134,6 +142,19 @@ type Service struct {
 	Delivery                Delivery    `json:"delivery,omitempty"`
 	BootstrapProvider       string      `json:"bootstrap_provider,omitempty"`
 	Default                 bool        `json:"default"`
+}
+
+// Application is the presentation projection of one application: its tool
+// identity, the module that ships it, the URL slot it fills (if any) and its
+// declared guide, clients and vendor. Only CUE dashboard metadata feeds it.
+type Application struct {
+	ToolName    string      `json:"tool_name"`
+	ModuleSlug  string      `json:"module_slug"`
+	DisplayName string      `json:"display_name,omitempty"`
+	ServiceKey  string      `json:"service_key,omitempty"`
+	GuideURL    string      `json:"guide_url,omitempty"`
+	Clients     []AppClient `json:"clients,omitempty"`
+	Vendor      *AppVendor  `json:"vendor,omitempty"`
 }
 
 // AppClient is one official end-user client of an application: a store entry or

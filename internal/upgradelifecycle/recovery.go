@@ -14,6 +14,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	"gopkg.in/yaml.v3"
 )
@@ -65,6 +66,11 @@ type RecoveryOptions struct {
 	// coordinated rollback restores and converges them per stack, and a
 	// second restore here would overwrite the state its forced apply wrote.
 	SkipOpenTofuRoots bool
+	// Attestations verifies the prior release's archive in workspace release
+	// custody. An OpenTofu generation captured from a verified release
+	// recovers on the OpenTofu and provider mirror of that archive, and
+	// fails closed without a verifier or a verified archive.
+	Attestations releaseindex.AttestationVerifier
 }
 
 // RecoverWith is Recover with explicit options.
@@ -105,9 +111,24 @@ func (store ExecutorStateStore) RecoverWith(
 	}
 	// The snapshot retains stackkit and stackkit-server only, and the
 	// recovered release resolves tofu beside its executable. An OpenTofu
-	// generation therefore recovers on this installation's packaged OpenTofu,
-	// with the installation's provider mirror its roots record (ExecRunner).
-	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) {
+	// generation captured from a verified release therefore stages the tofu
+	// and provider mirror record of that release's own verified archive, as
+	// an upgrade target does (ReleaseExecutablesWithOpenTofu). A running
+	// executable capture has no archive and recovers on this installation's
+	// packaged OpenTofu and a mirror carrying its manifest (ExecRunner).
+	openTofu := executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget)
+	fromArchive := openTofu && snapshot.Release.Authority != ExecutorStateReleaseRunningExecutable
+	if fromArchive {
+		archiveExecutable, err := stagePriorReleaseOpenTofu(ctx, workspaceRoot, snapshot.Release, options.Attestations, tempRoot)
+		if err != nil {
+			return ExecutorStateRecoveryResult{}, err
+		}
+		if executorStateDigest(archiveExecutable) != snapshot.Executable.Blob.SHA256 {
+			return ExecutorStateRecoveryResult{}, errors.New(
+				"executor state: recovery executable differs from its verified release archive",
+			)
+		}
+	} else if openTofu {
 		if packaged, ok := tofu.PackagedBinaryPath(); ok {
 			if err := copyPrivateExecutable(packaged, filepath.Join(tempRoot, tofu.BinaryName())); err != nil {
 				return ExecutorStateRecoveryResult{}, fmt.Errorf(
@@ -123,6 +144,23 @@ func (store ExecutorStateStore) RecoverWith(
 	if err != nil {
 		return ExecutorStateRecoveryResult{}, err
 	}
+	// The recovered release accepts only a provider mirror that carries its
+	// own manifest. The archive staging recorded one already; otherwise it
+	// runs on the installation mirror or the mirror kept when this release
+	// was staged for the upgrade (ExecRunner).
+	if openTofu && !fromArchive {
+		executable, readErr := os.ReadFile(executablePath)
+		if readErr != nil {
+			return ExecutorStateRecoveryResult{}, fmt.Errorf(
+				"executor state: read recovery executable: %w", readErr,
+			)
+		}
+		if mirror, ok := recoveredReleaseProviderMirror(workspaceRoot, executable); ok {
+			if err := writeReleaseProviderMirrorFile(tempRoot, mirror); err != nil {
+				return ExecutorStateRecoveryResult{}, err
+			}
+		}
+	}
 	result := ExecutorStateRecoveryResult{
 		SnapshotID: snapshot.ID, OperationID: snapshot.OperationID,
 		Release: snapshot.Release, KopiaSnapshotAnchor: snapshot.KopiaSnapshotAnchor,
@@ -134,6 +172,54 @@ func (store ExecutorStateStore) RecoverWith(
 		)
 	}
 	return result, nil
+}
+
+// stagePriorReleaseOpenTofu re-verifies the captured release in workspace
+// release custody, binds it to the checkpoint's release identity, and stages
+// its packaged OpenTofu and provider mirror record in dir. It returns the
+// archive's stackkit executable.
+func stagePriorReleaseOpenTofu(
+	ctx context.Context,
+	workspaceRoot string,
+	release ExecutorStateRelease,
+	attestations releaseindex.AttestationVerifier,
+	dir string,
+) ([]byte, error) {
+	if attestations == nil {
+		return nil, errors.New(
+			"executor state: recovering an OpenTofu checkpoint requires verifying its release archive",
+		)
+	}
+	workspace, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	installDir, err := releaseindex.CacheInstallationDirectory(
+		filepath.Join(workspace, ".stackkit", "releases"), release.Kit, release.Version, release.Platform,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("executor state: locate prior release %s: %w", release.Version, err)
+	}
+	var executable []byte
+	err = (releaseindex.Installer{Attestations: attestations}).InspectInstalled(
+		ctx, installDir, func(proof releaseindex.VerifiedInstallation) error {
+			verified, cli, _, inspectErr := inspectVerifiedReleaseExecutables(proof, dir)
+			if inspectErr != nil {
+				return inspectErr
+			}
+			if verified != release {
+				return errors.New("verified release archive differs from the checkpoint release")
+			}
+			executable = cli
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"executor state: stage OpenTofu from verified prior release %s: %w", release.Version, err,
+		)
+	}
+	return executable, nil
 }
 
 func (store ExecutorStateStore) prepareExecutorStateRecovery(

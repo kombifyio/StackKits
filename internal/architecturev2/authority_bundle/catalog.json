@@ -21362,7 +21362,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:f8f0e8ee1989dcd48a2430740abc1f397cb06af3b6f716625d00727bb80e9575",
+          "contractHash": "sha256:1f708eca8c81489fe9a62b1dd558c94fff3a045f36b49e2e0a729c58e07d68f8",
           "id": "policy-bundle",
           "inputBindings": [],
           "kind": "native-config",
@@ -24899,7 +24899,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:2a39681412138ca8d1a6cff2a16c3714a01c98684d558643ac699e18c94a6439",
+          "contractHash": "sha256:7ffd53d94ef7e7f0b0bb558fcb2df12137e5b6e46c19314350f450492797ac35",
           "id": "terramate",
           "inputBindings": [
             {
@@ -25822,7 +25822,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:87d9111fdea7ca8eff1389fed1a12c596803f19d4c33afb58473fd2317dbc546",
+          "contractHash": "sha256:c6d278731cf79352de5a919a2399da4c09fd3a982f07a690005c7bbee8809fc2",
           "id": "compose",
           "inputBindings": [
             {
@@ -26064,7 +26064,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:8ec138b470b0af18c6a34133dc92d9d883b0128894f2ad632f133391672dca77",
+          "contractHash": "sha256:b899557ef57e0631b26019e7ea53f6a78108fb7daf4d72fe5d8fbf4a0f22d97e",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -26306,7 +26306,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:4f6460d52f07ea50c8530a30bf099db65c3662f08f3fe94f583049f2ac32fae7",
+          "contractHash": "sha256:6fe3aacb585e3ddb57a577ddcd1513ed56c6858779d0fe249538861df4f2307d",
           "id": "terramate",
           "inputBindings": [
             {
@@ -26653,7 +26653,7 @@
             "basement-core-terramate-stack",
             "local-kopia-backup-source-policy"
           ],
-          "contractHash": "sha256:4f6460d52f07ea50c8530a30bf099db65c3662f08f3fe94f583049f2ac32fae7",
+          "contractHash": "sha256:6fe3aacb585e3ddb57a577ddcd1513ed56c6858779d0fe249538861df4f2307d",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -26830,8 +26830,8 @@
             },
             "id": "lan-dns",
             "image": {
-              "digest": "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90",
-              "ref": "docker.io/mvance/unbound:1.22.0"
+              "digest": "sha256:9a3939ca33d6d3b42b81a70391bb8e43f0a08d2bd7a3fdffb43d427493345c36",
+              "ref": "docker.io/klutchell/unbound:1.26.1"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -26840,15 +26840,7 @@
             "resources": {
               "memoryLimit": "256m"
             },
-            "role": "application",
-            "volumes": [
-              {
-                "backup": false,
-                "class": "persistent",
-                "id": "lan-dns-data",
-                "target": "/opt/unbound/etc/unbound"
-              }
-            ]
+            "role": "application"
           },
           {
             "dependsOn": [
@@ -27558,7 +27550,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:0093887c9e9b4e4692e99156608469971d8e292052dfb0888980c6095f0e133a",
+          "contractHash": "sha256:3ef64cac9f0c31ba7470c09daa5a3038f072d36b09d5d7425516a9bad0ee7baf",
           "id": "compose",
           "inputBindings": [
             {
@@ -27772,7 +27764,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:c238bcb154149646c02311b783db5dd1ecf257a12c27a2b82a6519f98da23d32",
+          "contractHash": "sha256:fa514dcc07d33a6f168753eea208ee9ea9cb0609e2280d04e82bae243e66c424",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -27986,7 +27978,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:f4b286a9d2c90d741a4509db369cab866e4c033f1cd1d54838887704cca620ca",
+          "contractHash": "sha256:c235e620b92af4c2f37f77fbb4210016ffe37c7a955e6fcb4b0ed88ba55a48d5",
           "id": "terramate",
           "inputBindings": [
             {
@@ -28305,7 +28297,7 @@
             "basement-core-lite-terramate-stack",
             "local-kopia-backup-source-policy-lite"
           ],
-          "contractHash": "sha256:f4b286a9d2c90d741a4509db369cab866e4c033f1cd1d54838887704cca620ca",
+          "contractHash": "sha256:c235e620b92af4c2f37f77fbb4210016ffe37c7a955e6fcb4b0ed88ba55a48d5",
           "id": "terramate",
           "planInputRefs": [
             "stackId",
@@ -28482,8 +28474,8 @@
             },
             "id": "lan-dns",
             "image": {
-              "digest": "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90",
-              "ref": "docker.io/mvance/unbound:1.22.0"
+              "digest": "sha256:9a3939ca33d6d3b42b81a70391bb8e43f0a08d2bd7a3fdffb43d427493345c36",
+              "ref": "docker.io/klutchell/unbound:1.26.1"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -28492,15 +28484,7 @@
             "resources": {
               "memoryLimit": "256m"
             },
-            "role": "application",
-            "volumes": [
-              {
-                "backup": false,
-                "class": "persistent",
-                "id": "lan-dns-data",
-                "target": "/opt/unbound/etc/unbound"
-              }
-            ]
+            "role": "application"
           },
           {
             "dependsOn": [],
@@ -28702,7 +28686,7 @@
           "maturity": "supported",
           "provenance": {
             "hostFloor": {
-              "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
+              "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
               "source": "upstream"
             },
             "recommended": {
@@ -28756,7 +28740,7 @@
           "maturity": "supported",
           "provenance": {
             "hostFloor": {
-              "ref": "Immich v2.7.0 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
+              "ref": "Immich v3.3.4 docs/install/requirements.md (CPU/RAM); storage is the Kombify platform floor",
               "source": "upstream"
             },
             "recommended": {
@@ -29159,8 +29143,8 @@
             },
             "id": "immich-server",
             "image": {
-              "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
-              "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
+              "digest": "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f",
+              "ref": "ghcr.io/immich-app/immich-server:v3.3.4"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -29211,8 +29195,8 @@
             "healthFailure": "degraded",
             "id": "immich-machine-learning",
             "image": {
-              "digest": "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952",
-              "ref": "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
+              "digest": "sha256:1ab8674e7cec41009abb3812de62a16cc1917e73d486233a5471b048d26fc14d",
+              "ref": "ghcr.io/immich-app/immich-machine-learning:v3.3.4"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -29340,8 +29324,8 @@
         "entryComponentRef": "immich-server",
         "execution": "executable",
         "image": {
-          "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
-          "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
+          "digest": "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f",
+          "ref": "ghcr.io/immich-app/immich-server:v3.3.4"
         },
         "kind": "container"
       },
@@ -29701,8 +29685,8 @@
             },
             "id": "immich-server",
             "image": {
-              "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
-              "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
+              "digest": "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f",
+              "ref": "ghcr.io/immich-app/immich-server:v3.3.4"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -29848,8 +29832,8 @@
         "entryComponentRef": "immich-server",
         "execution": "executable",
         "image": {
-          "digest": "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1",
-          "ref": "ghcr.io/immich-app/immich-server:v2.7.0"
+          "digest": "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f",
+          "ref": "ghcr.io/immich-app/immich-server:v3.3.4"
         },
         "kind": "container"
       },
@@ -44371,7 +44355,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:9d48a57999c0134b16e5bf66c60c3025ead547697d4609973871df59ca1902b7",
+          "contractHash": "sha256:d3b9971d8c251f4fb1795df88613a57baac2cc5f10de52f973327c7b15f96b8e",
           "id": "immich-kiosk",
           "inputBindings": [
             {
@@ -44538,8 +44522,8 @@
             },
             "id": "immich-kiosk",
             "image": {
-              "digest": "sha256:b65371b9fbe93cde8355c06ba095fb4801bbb5d7c8c51065a5bfa02183536771",
-              "ref": "ghcr.io/damongolding/immich-kiosk:0.39.3"
+              "digest": "sha256:49d04d67d3cb313124bcb041a0113878c7e91f3f01eca663a3f5ba2646ec0b51",
+              "ref": "ghcr.io/damongolding/immich-kiosk:0.45.0"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -44574,8 +44558,8 @@
         "entryComponentRef": "immich-kiosk",
         "execution": "executable",
         "image": {
-          "digest": "sha256:b65371b9fbe93cde8355c06ba095fb4801bbb5d7c8c51065a5bfa02183536771",
-          "ref": "ghcr.io/damongolding/immich-kiosk:0.39.3"
+          "digest": "sha256:49d04d67d3cb313124bcb041a0113878c7e91f3f01eca663a3f5ba2646ec0b51",
+          "ref": "ghcr.io/damongolding/immich-kiosk:0.45.0"
         },
         "kind": "container"
       },

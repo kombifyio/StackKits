@@ -1,7 +1,6 @@
 // Package auth provides shared authentication primitives for the stackkit
-// CLI and supporting libraries. The single primitive today is the HS256
-// service-auth JWT signer used for service-to-service calls into
-// kombify-Administration.
+// CLI and supporting libraries: the HS256 service-auth JWT signer and the
+// HS256/EdDSA verifier for inbound service-to-service calls.
 //
 // Wire-format mirrors kombify-go-common/servicecall.IssueToken byte-for-byte
 // so admin's tryServiceAuth verifier accepts our tokens. Kept inline (not

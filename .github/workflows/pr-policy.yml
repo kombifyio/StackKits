@@ -2,7 +2,7 @@ name: Pull request policy
 
 # This repository is a generated release mirror: the next release export
 # replaces the tree, so a merged pull request would be lost. Explain that on
-# every new pull request so contributors do not lose work.
+# every new pull request so contributors know what happens to it.
 on:
   pull_request_target:
     types: [opened]
@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file - <<'EOF'
-          Thanks for the change. This repository is a generated release mirror: every release replaces the tree with the curated export of the private upstream, so pull requests cannot be merged here (see `CONTRIBUTING.md`).
+          Thanks for the change. This repository is a generated release mirror: every release replaces the tree with the curated export of the private upstream, so a pull request is not merged here (see `CONTRIBUTING.md`).
 
-          To get this in: open an issue or a Discussion that links this branch. A maintainer ports the patch upstream, and it ships with the next release with credit in the release notes. This pull request stays open until the change is ported or declined.
+          We review it here. If we take it, we import the change upstream with your authorship kept, and this pull request is closed with the commit and the release that carry it; if not, we say why. Sign off your commits (`git commit -s`) under the Developer Certificate of Origin, as `CONTRIBUTING.md` describes.
           EOF

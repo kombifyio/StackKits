@@ -84,12 +84,11 @@ SSH keys, onboarding secrets, owner-spec tokens, and backup credentials have no
 public representation; scoped references are resolved and revalidated only
 behind the internal `StackActionReferenceResolver` seam.
 
-The former RuntimeAction and RIL HTTP routes are removed, not deprecated
-compatibility surfaces. StackKits keeps the CUE action-catalog facts and its
-local execution/verification behavior. Techstack owns RIL admission,
-idempotency, transport, and orchestration and consumes the published
-StackAction/CLI contracts. See [RIL_ACTION_EXECUTION.md](RIL_ACTION_EXECUTION.md)
-for the superseded checkpoint and current ownership boundary.
+StackKits has no RuntimeAction or RIL HTTP routes. It keeps the CUE
+action-catalog facts and its local execution/verification behavior. Techstack
+owns RIL admission, idempotency, transport, and orchestration and consumes the
+published StackAction/CLI contracts. See
+[RIL_ACTION_EXECUTION.md](RIL_ACTION_EXECUTION.md) for the ownership boundary.
 
 ## Local Owner action approval
 
@@ -292,7 +291,7 @@ The exact request/response vocabulary, action set, and paths are generated from
 `foundation/stack_action.cue`; the marked OpenAPI regions are the human- and
 machine-readable projection. Rollout, verification, restore drill, backup run,
 backup status, backup restore, and backup wipe remain implemented through this
-single contract. The retired RuntimeAction envelopes are not accepted aliases.
+single contract; RuntimeAction envelopes are not accepted.
 
 ## Registry
 

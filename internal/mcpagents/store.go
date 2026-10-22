@@ -273,6 +273,26 @@ func (s *Store) Approvals() ([]Approval, error) {
 	return out, nil
 }
 
+// Pending returns one unexpired pending request with the agent that made it,
+// so an owner surface can show what exactly it is asked to approve.
+func (s *Store) Pending(id string) (Approval, Agent, error) {
+	doc, err := s.read()
+	if err != nil {
+		return Approval{}, Agent{}, err
+	}
+	for _, a := range doc.Approvals {
+		if a.ID != id {
+			continue
+		}
+		r := find(&doc, a.AgentID)
+		if a.State != ApprovalPending || !a.ExpiresAt.After(s.now()) || r == nil || !r.Active() {
+			break
+		}
+		return a, r.Agent, nil
+	}
+	return Approval{}, Agent{}, fmt.Errorf("approval %q is not pending", id)
+}
+
 // Decide records the owner's answer to a pending request.
 func (s *Store) Decide(id string, approve bool) (Approval, error) {
 	var out Approval

@@ -38,7 +38,11 @@ type ExecRunner struct{}
 func (ExecRunner) Run(ctx context.Context, binary string, args []string, dir string) ([]byte, error) {
 	command := exec.CommandContext(ctx, binary, args...)
 	command.Dir = dir
-	command.Env = append(os.Environ(), releaseChildEnvironment()...)
+	environment, err := releaseChildEnvironmentFor(binary, dir)
+	if err != nil {
+		return nil, fmt.Errorf("%s failed: %w", strings.Join(args, " "), err)
+	}
+	command.Env = append(os.Environ(), environment...)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("%s failed: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
@@ -55,6 +59,27 @@ func (ExecRunner) Run(ctx context.Context, binary string, args []string, dir str
 // exits. The child still validates the mirror's manifest, lock and packages
 // against its own release before any tofu process runs. Without a packaged
 // mirror nothing is set and the child fails closed on its own resolution.
+//
+// A staged release child carries its own mirror record instead
+// (stageReleaseProviderMirror): the installation mirror when its manifest is
+// the release's, otherwise the release's kept verified mirror. The governed
+// OpenTofu roots of the workspace the child runs in are rebound to that mirror
+// first, so a source and a target release whose bundled provider sets differ
+// each run on the mirror that carries their own manifest.
+func releaseChildEnvironmentFor(binary, workspace string) ([]string, error) {
+	mirror, ok, err := releaseProviderMirrorFor(binary)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return releaseChildEnvironment(), nil
+	}
+	if err := rebindOpenTofuRoots(workspace, mirror); err != nil {
+		return nil, err
+	}
+	return []string{tofu.ProvidersDirEnv + "=" + mirror}, nil
+}
+
 func releaseChildEnvironment() []string {
 	providers, ok := tofu.PackagedProvidersDir()
 	if !ok {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "stackkitsVersion": "v0.53.10",
-  "generatedAt": "2026-10-17T12:59:27Z",
+  "stackkitsVersion": "v0.54.4",
+  "generatedAt": "2026-10-21T18:16:12Z",
   "results": [
     {
       "os": {
@@ -79,15 +79,13 @@
         "backup",
         "restore"
       ],
-      "lastVerifiedRelease": "v0.53.10"
+      "lastVerifiedRelease": "v0.54.4"
     },
     {
       "useCase": "photos",
       "adapter": "standalone-compose",
-      "grade": "preview",
-      "reasonCodes": [
-        "restore-failed"
-      ],
+      "grade": "supported",
+      "reasonCodes": [],
       "verifiedPhases": [
         "install",
         "init",
@@ -95,9 +93,10 @@
         "apply",
         "setup-photos",
         "verify",
-        "backup"
+        "backup",
+        "restore"
       ],
-      "lastVerifiedRelease": "v0.46.8"
+      "lastVerifiedRelease": "v0.54.4"
     },
     {
       "useCase": "vault",

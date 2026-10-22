@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/api"
+	"github.com/kombifyio/stackkits/internal/auth"
 	"github.com/kombifyio/stackkits/internal/federationcontrol"
 	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -217,6 +218,13 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		slog.Warn("StackKits MCP write tools are enabled")
 	}
 
+	// Per-caller Ed25519 service identity; a malformed key stops startup
+	// instead of leaving the shared HS256 secret in charge.
+	serviceAuthKeys, serviceAuthRequireEd25519, err := auth.LoadEd25519FromEnv()
+	if err != nil {
+		return api.ServerConfig{}, err
+	}
+
 	return api.ServerConfig{
 		OwnerStepUpOrigin:                 stepUpOrigin,
 		Port:                              port,
@@ -230,6 +238,8 @@ func resolveConfig(port int, baseDir, apiKey, corsOrigins string, rateLimit int,
 		TrustedProxies:                    proxies,
 		ServiceAuthSecret:                 strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET")),
 		ServiceAuthSecretNext:             strings.TrimSpace(os.Getenv("SERVICE_AUTH_SECRET_NEXT")),
+		ServiceAuthCallerKeys:             serviceAuthKeys,
+		ServiceAuthRequireEd25519:         serviceAuthRequireEd25519,
 		StackActionMode:                   resolveStackActionMode(),
 		StackActionRestoreVerifierCommand: strings.TrimSpace(os.Getenv("STACKKITS_RESTORE_DRILL_COMMAND")),
 		SetupActionMode:                   resolveSetupActionMode(),

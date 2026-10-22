@@ -1,22 +1,24 @@
 <!--
-This repository is a generated release mirror. Pull requests are not merged
-here: the tree is replaced by the next release export. See CONTRIBUTING.md.
-
-To get a change into StackKits, open an issue or a Discussion and link this
-branch; a maintainer ports the patch upstream and credits you in the notes.
+Thanks for contributing to kombify StackKits. This repository is a release mirror of
+kombify's private source. Your pull request is reviewed here, then imported
+into the source with your authorship kept, and closed with a link to the
+commit and release that carry it. See CONTRIBUTING.md.
 -->
 
 ## What this change does
 
-<!-- One paragraph. Conventional Commit title, e.g. `fix(cli): ...` -->
+<!-- One paragraph. -->
 
-## Why
+## Linked issue or discussion
 
-<!-- The user-visible problem or the contract this aligns with. -->
+<!-- Fixes need an issue; new features need an idea discussion first. -->
 
-## How it was verified
+## How you verified it
 
-<!-- Commands and results. Runtime claims need a cited run. -->
+<!-- Commands and results. -->
 
-- [ ] I have linked this branch from an issue or Discussion so it can be ported
-- [ ] No secrets, private hostnames, credentials or internal URLs in the diff
+## Checklist
+
+- [ ] Every commit is signed off (`git commit -s`) under the [Developer Certificate of Origin](https://developercertificate.org/), as CONTRIBUTING.md describes.
+- [ ] If an AI tool helped write this change, I say which one and I can explain every line.
+- [ ] The diff contains no secrets, credentials, personal data or private hostnames.

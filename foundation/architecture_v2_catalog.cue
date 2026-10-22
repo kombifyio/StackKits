@@ -10,7 +10,14 @@ import (
 	"strings"
 )
 
-_architectureV2ImmichServerImage: {ref: "ghcr.io/immich-app/immich-server:v2.7.0", digest: "sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"}
+// Immich v3 (multi-arch index digest, amd64 and arm64). The PostgreSQL image
+// keeps the upstream VectorChord pin, which this catalog has always used, so v3
+// dropping pgvecto.rs needs no extension migration. The first v3 start migrates
+// the database forward without a supported downgrade: standalone Apply holds an
+// existing v2 install (internal/runtimeexecutor/nativehost
+// standalone_compose_immich_upgrade.go) until the governed backup, migration
+// and restore drill passes. Kiosk >= 0.40 and Power Tools >= 0.22 require v3.
+_architectureV2ImmichServerImage: {ref: "ghcr.io/immich-app/immich-server:v3.3.4", digest: "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f"}
 
 _architectureV2PrivateAIImage: {ref: "ghcr.io/open-webui/open-webui:v0.11.3", digest: "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"}
 
@@ -6755,7 +6762,7 @@ _architectureV2Modules: list.Concat([[
 			rendererRef:  "stackkit"
 			templateRef:  "builtin://home/lan-dns/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:f8f0e8ee1989dcd48a2430740abc1f397cb06af3b6f716625d00727bb80e9575"
+			contractHash: "sha256:1f708eca8c81489fe9a62b1dd558c94fff3a045f36b49e2e0a729c58e07d68f8"
 			publicInputRefs: []
 			secretInputRefs: []
 			planInputRefs: ["stackId", "kit", "sites"]
@@ -7339,7 +7346,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "terramate", kind:                                       "terramate", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/terramate/v1", version: "1.0.0"
-			contractHash:    "sha256:2a39681412138ca8d1a6cff2a16c3714a01c98684d558643ac699e18c94a6439"
+			contractHash:    "sha256:7ffd53d94ef7e7f0b0bb558fcb2df12137e5b6e46c19314350f450492797ac35"
 			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7488,21 +7495,24 @@ _architectureV2Modules: list.Concat([[
 					// The resolver that makes the site's own names answer on the
 					// LAN. Pin and architecture match the lan-dns policy manifest
 					// exactly, so the declared contract and the running container
-					// cannot drift apart. Health defers to the image's own check
-					// rather than assuming which tools it ships.
+					// cannot drift apart. The pin is the klutchell/unbound 1.26.1
+					// multi-arch index (linux/amd64, linux/arm64, linux/arm/v7,
+					// linux/arm/v6), so the default resolver also runs on a
+					// Raspberry Pi. The image is distroless and stateless: the
+					// root hints and trust anchor ship in /var/unbound, and the
+					// site zone is included from /etc/unbound/custom.conf.d.
 					id: "lan-dns", role: "application", lifecycle: "daemon"
 					image: {
-						ref:    "docker.io/mvance/unbound:1.22.0"
-						digest: "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"
+						ref:    "docker.io/klutchell/unbound:1.26.1"
+						digest: "sha256:9a3939ca33d6d3b42b81a70391bb8e43f0a08d2bd7a3fdffb43d427493345c36"
 					}
 					dependsOn: [], networkRefs: ["basement-core"]
-					volumes: [{id: "lan-dns-data", target: "/opt/unbound/etc/unbound", class: "persistent", backup: false}]
-					// Deliberately not the image's own HEALTHCHECK: that one runs
-					// "drill @127.0.0.1 cloudflare.com", which makes core health
-					// depend on reaching the Internet. A site that is healthy
-					// while offline must not report otherwise, so this asks the
-					// resolver for a name it answers from its built-in local
-					// zone. Site names are proven by verify, not by liveness.
+					// The image declares no HEALTHCHECK, and a check against an
+					// Internet name would make core health depend on reaching
+					// the Internet. A site that is healthy while offline must
+					// not report otherwise, so this asks the resolver for a name
+					// it answers from its built-in local zone. Site names are
+					// proven by verify, not by liveness.
 					health: {kind: "command", command: ["drill", "@127.0.0.1", "localhost", "A"]}
 					resources: {memoryLimit: "256m"}
 				},
@@ -7581,7 +7591,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:87d9111fdea7ca8eff1389fed1a12c596803f19d4c33afb58473fd2317dbc546"
+				contractHash:    "sha256:c6d278731cf79352de5a919a2399da4c09fd3a982f07a690005c7bbee8809fc2"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7594,7 +7604,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:8ec138b470b0af18c6a34133dc92d9d883b0128894f2ad632f133391672dca77"
+				contractHash:    "sha256:b899557ef57e0631b26019e7ea53f6a78108fb7daf4d72fe5d8fbf4a0f22d97e"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7607,7 +7617,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:4f6460d52f07ea50c8530a30bf099db65c3662f08f3fe94f583049f2ac32fae7"
+				contractHash:    "sha256:6fe3aacb585e3ddb57a577ddcd1513ed56c6858779d0fe249538861df4f2307d"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7639,7 +7649,7 @@ _architectureV2Modules: list.Concat([[
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:4f6460d52f07ea50c8530a30bf099db65c3662f08f3fe94f583049f2ac32fae7"
+				contractHash: "sha256:6fe3aacb585e3ddb57a577ddcd1513ed56c6858779d0fe249538861df4f2307d"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-terramate-opentofu",
@@ -7823,21 +7833,24 @@ _architectureV2Modules: list.Concat([[
 					// The resolver that makes the site's own names answer on the
 					// LAN. Pin and architecture match the lan-dns policy manifest
 					// exactly, so the declared contract and the running container
-					// cannot drift apart. Health defers to the image's own check
-					// rather than assuming which tools it ships.
+					// cannot drift apart. The pin is the klutchell/unbound 1.26.1
+					// multi-arch index (linux/amd64, linux/arm64, linux/arm/v7,
+					// linux/arm/v6), so the default resolver also runs on a
+					// Raspberry Pi. The image is distroless and stateless: the
+					// root hints and trust anchor ship in /var/unbound, and the
+					// site zone is included from /etc/unbound/custom.conf.d.
 					id: "lan-dns", role: "application", lifecycle: "daemon"
 					image: {
-						ref:    "docker.io/mvance/unbound:1.22.0"
-						digest: "sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"
+						ref:    "docker.io/klutchell/unbound:1.26.1"
+						digest: "sha256:9a3939ca33d6d3b42b81a70391bb8e43f0a08d2bd7a3fdffb43d427493345c36"
 					}
 					dependsOn: [], networkRefs: ["basement-core"]
-					volumes: [{id: "lan-dns-data", target: "/opt/unbound/etc/unbound", class: "persistent", backup: false}]
-					// Deliberately not the image's own HEALTHCHECK: that one runs
-					// "drill @127.0.0.1 cloudflare.com", which makes core health
-					// depend on reaching the Internet. A site that is healthy
-					// while offline must not report otherwise, so this asks the
-					// resolver for a name it answers from its built-in local
-					// zone. Site names are proven by verify, not by liveness.
+					// The image declares no HEALTHCHECK, and a check against an
+					// Internet name would make core health depend on reaching
+					// the Internet. A site that is healthy while offline must
+					// not report otherwise, so this asks the resolver for a name
+					// it answers from its built-in local zone. Site names are
+					// proven by verify, not by liveness.
 					health: {kind: "command", command: ["drill", "@127.0.0.1", "localhost", "A"]}
 					resources: {memoryLimit: "256m"}
 				},
@@ -7860,7 +7873,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:0093887c9e9b4e4692e99156608469971d8e292052dfb0888980c6095f0e133a"
+				contractHash:    "sha256:3ef64cac9f0c31ba7470c09daa5a3038f072d36b09d5d7425516a9bad0ee7baf"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7873,7 +7886,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:c238bcb154149646c02311b783db5dd1ecf257a12c27a2b82a6519f98da23d32"
+				contractHash:    "sha256:fa514dcc07d33a6f168753eea208ee9ea9cb0609e2280d04e82bae243e66c424"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7886,7 +7899,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:f4b286a9d2c90d741a4509db369cab866e4c033f1cd1d54838887704cca620ca"
+				contractHash:    "sha256:c235e620b92af4c2f37f77fbb4210016ffe37c7a955e6fcb4b0ed88ba55a48d5"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7918,7 +7931,7 @@ _architectureV2Modules: list.Concat([[
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
-				contractHash: "sha256:f4b286a9d2c90d741a4509db369cab866e4c033f1cd1d54838887704cca620ca"
+				contractHash: "sha256:c235e620b92af4c2f37f77fbb4210016ffe37c7a955e6fcb4b0ed88ba55a48d5"
 				unitRefs: ["terramate", "source-policy"]
 				artifactRefs: [
 					"basement-core-lite-terramate-opentofu",
@@ -8060,8 +8073,8 @@ _architectureV2Modules: list.Concat([[
 					id:            "immich-machine-learning", role: "machine-learning", lifecycle: "daemon"
 					healthFailure: "degraded"
 					image: {
-						ref:    "ghcr.io/immich-app/immich-machine-learning:v2.7.0"
-						digest: "sha256:aff861526d690bb720130a46bd48ee2827c44d2f601a194e61f31e979a591952"
+						ref:    "ghcr.io/immich-app/immich-machine-learning:v3.3.4"
+						digest: "sha256:1ab8674e7cec41009abb3812de62a16cc1917e73d486233a5471b048d26fc14d"
 					}
 					dependsOn: [], networkRefs: ["immich-internal"], egress: true
 					volumes: [for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations if allocation.componentRef == "immich-machine-learning" {
@@ -12365,8 +12378,8 @@ _architectureV2Modules: list.Concat([[
 			components: [{
 				id: "immich-kiosk", role: "application", lifecycle: "daemon"
 				image: {
-					ref:    "ghcr.io/damongolding/immich-kiosk:0.39.3"
-					digest: "sha256:b65371b9fbe93cde8355c06ba095fb4801bbb5d7c8c51065a5bfa02183536771"
+					ref:    "ghcr.io/damongolding/immich-kiosk:0.45.0"
+					digest: "sha256:49d04d67d3cb313124bcb041a0113878c7e91f3f01eca663a3f5ba2646ec0b51"
 				}
 				dependsOn: []
 				networkRefs: ["immich-kiosk-internal"]
@@ -12388,7 +12401,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/immich-kiosk/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:9d48a57999c0134b16e5bf66c60c3025ead547697d4609973871df59ca1902b7"
+			contractHash: "sha256:d3b9971d8c251f4fb1795df88613a57baac2cc5f10de52f973327c7b15f96b8e"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"

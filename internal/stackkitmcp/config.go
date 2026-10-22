@@ -11,8 +11,9 @@ type Options struct {
 	Modes     map[string]bool
 	ServerURL string
 	// OwnerStepUpOrigin is the server's local Owner approval origin. When
-	// set, the State Console links to its device-enroll page; the pairing
-	// code itself never passes through a tool result.
+	// set, the State Console links to its device-enroll page and an agent's
+	// write denial links to its agent-approval page; the pairing code and the
+	// Owner's answer never pass through a tool result.
 	OwnerStepUpOrigin string
 	APIKey            string
 	Transport         string

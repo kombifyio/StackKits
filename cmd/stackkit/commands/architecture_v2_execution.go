@@ -29,6 +29,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
@@ -129,6 +130,7 @@ type architectureV2ExecutionGate struct {
 	now                func() time.Time
 	removeCompose      func(context.Context, string, workloadremoval.Request) (workloadremoval.Result, error)
 	removeMarketplace  func(context.Context, string, workloadremoval.Request) (workloadremoval.Result, error)
+	removeCore         func(context.Context, string, workloadremoval.Request) (workloadremoval.Result, error)
 }
 
 func newArchitectureV2ExecutionGate() architectureV2ExecutionGate {
@@ -1321,6 +1323,7 @@ type architectureV2WorkloadRemovalKind string
 const (
 	architectureV2WorkloadRemovalStandaloneCompose architectureV2WorkloadRemovalKind = "standalone-compose"
 	architectureV2WorkloadRemovalMarketplace       architectureV2WorkloadRemovalKind = "marketplace"
+	architectureV2WorkloadRemovalBasementCore      architectureV2WorkloadRemovalKind = "basement-core"
 )
 
 func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
@@ -1387,9 +1390,16 @@ func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
 	if err != nil {
 		return err
 	}
-	lifecycleRuns, resumed, err := beginOrResumeArchitectureV2Removal(wd, plan, request.WorkloadRef, requestedAt)
-	if err != nil {
-		return err
+	// The kit-core workload is not an application: the plan carries no
+	// application lifecycle for it, and its removal is idempotent and
+	// re-entrant, so a retry needs no recovery record.
+	var lifecycleRuns []architectureV2ApplicationLifecycleRun
+	resumed := false
+	if removalKind != architectureV2WorkloadRemovalBasementCore {
+		lifecycleRuns, resumed, err = beginOrResumeArchitectureV2Removal(wd, plan, request.WorkloadRef, requestedAt)
+		if err != nil {
+			return err
+		}
 	}
 	ctx := options.context
 	if ctx == nil {
@@ -1403,6 +1413,12 @@ func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
 		remove = g.removeMarketplace
 		if remove == nil {
 			remove = nativehost.RemoveMarketplaceWorkload
+		}
+	}
+	if removalKind == architectureV2WorkloadRemovalBasementCore {
+		remove = g.removeCore
+		if remove == nil {
+			remove = removeBasementCoreWorkload
 		}
 	}
 	result, err := remove(ctx, wd, request)
@@ -1472,6 +1488,18 @@ func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
 	return nil
 }
 
+// removeBasementCoreWorkload routes the applied Core to the owner of its unit:
+// the native Compose project, or the OpenTofu or Terramate root that wraps it.
+func removeBasementCoreWorkload(ctx context.Context, workspace string, request workloadremoval.Request) (workloadremoval.Result, error) {
+	if len(request.Applied.RuntimeTargets) == 1 {
+		switch request.Applied.RuntimeTargets[0].UnitRef {
+		case opentofu.UnitRef, opentofu.TerramateUnitRef:
+			return opentofu.RemoveBasementCoreWorkload(ctx, workspace, request)
+		}
+	}
+	return nativehost.RemoveBasementCoreWorkload(ctx, workspace, request)
+}
+
 func architectureV2TargetUsesProcessChannel(target runtimeexecutor.RuntimeTarget, configured *architectureV2ConfiguredStandardRuntime) bool {
 	if configured == nil || target.ExecutionChannelRef == "" || len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 {
 		return false
@@ -1505,6 +1533,9 @@ func architectureV2WorkloadRemovalDispatch(
 	if architectureV2MarketplaceRemovalTarget(target) {
 		return architectureV2WorkloadRemovalMarketplace, nil
 	}
+	if _, ok := nativehost.BasementCoreRemovalUnit(target); ok {
+		return architectureV2WorkloadRemovalBasementCore, nil
+	}
 	if adapterID != "" {
 		return "", fmt.Errorf("applied runtime owner %q does not admit data-disposition-aware workload removal; keep or delete was not sent", adapterID)
 	}
@@ -1530,7 +1561,13 @@ func appliedWorkloadRemovalPlacement(applied architecturev2.VerifiedApplyResult,
 			continue
 		}
 		for _, placement := range workload.Placements {
-			if placement.SiteRef == candidate.SiteRef && placement.NodeRef == candidate.NodeRef && placement.ExecutionChannelRef == candidate.ExecutionChannelRef {
+			// A node this process applied locally has no external host binding, so
+			// its Apply result records no execution channel. The explicit local
+			// channel then stands in for it, and executeNativeWorkloadRemoval
+			// still requires it to equal this workspace's Owner binding before
+			// any signature or effect.
+			if placement.SiteRef == candidate.SiteRef && placement.NodeRef == candidate.NodeRef &&
+				(placement.ExecutionChannelRef == candidate.ExecutionChannelRef || placement.ExecutionChannelRef == "") {
 				candidate.RequirementID, candidate.InstanceRef = workload.RequirementID, workload.InstanceRef
 				matches++
 			}

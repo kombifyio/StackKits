@@ -1,6 +1,6 @@
 # StackSpec v1 Migration Reference
 
-> **Status:** Historical StackSpec v1 input; migration/read-only compatibility.
+> **Status:** StackSpec v1 input; migration/read-only compatibility.
 > **Format:** YAML
 > **Purpose:** Interpret existing installations before explicit migration.
 
@@ -100,8 +100,8 @@ lanDiscovery:
 compute:
   tier: string            # "low", "standard" (default), "high"
 
-# PAAS Platform (optional — Coolify if omitted)
-paas: string              # explicit production choices: "coolify" or "komodo"; "dokploy" is historical draft, a planned Layer-2 PaaS platform
+# PAAS Platform (optional — none if omitted)
+paas: string              # "coolify" or "komodo"; "dokploy" is a draft adapter
 
 # Storage (optional — for devices with limited disk)
 storage:
@@ -258,35 +258,27 @@ Basement host floors (CUE min): `low` 2C/2GB/10GB; `standard` and `high`
 roundtrip only and has no graph. Legacy v1 `compute.tier` remains a StackSpec v1
 sizer; native v2 init does not write it.
 
-## Historical PaaS Compatibility
+## PaaS Selection in v1 Specs
 
-**Status amendment, 2026-10-11:** this section records old v1 resolver and
-bootstrap behavior, not a new-installation recommendation. Native application
-delivery defaults to standalone Compose until further PaaS platforms are available; 1.0 requires both paths. Coolify, Komodo and
-Dokploy are the Layer-2 PaaS platforms and later runtime targets; Marketplace
-additionally installs Coolify as the engine of its use case. Historical metadata such as
-beta/draft and old receipts do not establish support at the current pin.
+In a v1 StackSpec, `paas` is an explicit choice. An omitted `paas` resolves to
+`none` and enables no platform. `coolify` and `komodo` are the standard adapter
+values and `dokploy` is a draft adapter value; `dockge` is a lightweight
+Compose manager, not a standard PaaS. `platformFallback.enabled: true` with
+`mode: standalone-compose` selects the StackKit-owned standalone routing. None
+of these values establishes support at the current pin; that requires a
+current-pin lifecycle receipt.
 
+New installations use native v2 authoring: standalone Compose is the default
+until further PaaS platforms are available, and Coolify, Komodo and Dokploy
+are the optional Layer-2 PaaS platforms; 1.0 requires both paths. The
+Marketplace use case additionally installs Coolify as its engine (ADR-0042,
+ADR-0049).
 
-| Platform | When Used | Reverse Proxy |
-|----------|-----------|---------------|
-| `coolify` | Default when `paas` is omitted | Coolify's Traefik |
-| `komodo` | Historical explicit alternative via `paas: komodo` | StackKit-owned Traefik |
-| `dokploy` | Historical draft; Layer-2 PaaS platform, later runtime target | `dokploy-traefik` |
-
-`dockge` is a lightweight Compose manager, not a normal StackKit PaaS. It can exist as an experimental/constrained service mode, but `paas: dockge` and `paas: none` are invalid for normal Base/Modern/HA StackKits.
-
-User `apps:` require a selected PaaS. The legacy choices were `coolify` and `komodo`; Dokploy was draft and remains a planned Layer-2 PaaS platform. Normal generation rejects explicit `paas: none`; the CLI helper `stackkit app add` migrates stale local Basement Kit specs to Coolify before app-enabled installer runs can create an undeployable platform handoff. Product-bundled L3 applications are not modeled through user `apps:`; they come from module contracts and generated platform manifests with StackKit ownership and are PaaS-intended by default. Applications installed outside these manifests are allowed, but StackKit treats them as state-unmanaged.
-
-When `paas` is omitted, it resolves to `coolify` for local, pi, kombify.me, and custom-domain rollouts. The historical alternative used `paas: komodo`; its retained compatibility does not imply current-pin support. Dokploy is a planned Layer-2 PaaS platform and is outside canonical E2E rollouts until current-pin evidence exists.
-
-During the current transition, `pkg/models.StackSpec.ResolvePAASForContext` is the canonical auto-selection resolver for omitted `paas` values. CUE remains the broader StackKit contract source, and the PaaS default should move fully back into CUE once the CUE export -> tfvars pipeline is complete.
-
-Coolify bootstrap is part of the StackKits implementation. StackKits passes generated credentials to Coolify's official `ROOT_USERNAME`, `ROOT_USER_EMAIL`, and `ROOT_USER_PASSWORD` installer variables using the same technical admin email rendered into `adminEmail`. Local-only rollouts synthesize the reserved `admin@example.com` address when no admin email is supplied; they must not use Kombify-owned domains for local test accounts. After installation, the generated rollout disables Coolify public registration, clears Coolify onboarding, enables the Coolify API, creates the StackKit platform API token, resolves placement IDs, and writes `.stackkit/platform.json`. Generated links must never require the user to create an extra Coolify account or API token manually.
-
-Komodo bootstrap is also generated when explicitly selected. StackKits installs Komodo Core, Periphery, and DB, creates the initial local admin with `KOMODO_INIT_ADMIN_USERNAME`/`KOMODO_INIT_ADMIN_PASSWORD`, disables public registration, creates a Komodo API key/secret through the HTTP API, and writes `.stackkit/platform.json` with `platform: "komodo"`, `apiKey`, `apiSecret`, and `serverId`. The first Komodo contract routes through StackKit-owned Traefik and deploys Compose bundles as Komodo Stack resources.
-
-Dokploy bootstrap is historical draft adapter work. Dokploy is a Layer-2 PaaS platform and later runtime target; it has no canonical E2E admission until current-pin evidence exists.
+User `apps:` are customer-owned handoff metadata for a selected PaaS; StackKit
+does not deploy or manage them. Product-bundled L3 applications are not
+modeled through user `apps:`; they come from module contracts and generated
+platform manifests with StackKit ownership. Applications installed outside
+these manifests are allowed, but StackKit treats them as state-unmanaged.
 
 `mode` is the StackKit installation automation and lifecycle contract: `bare`, `bootstrapped`, or `advanced`. Legacy `simple` is accepted as an alias for `bootstrapped`; legacy `terramate` and `advanced-terramate` inputs normalize to `advanced`.
 
@@ -294,9 +286,9 @@ Dokploy bootstrap is historical draft adapter work. Dokploy is a Layer-2 PaaS pl
 
 `bootstrap` configures setup policy defaults, not a second mode. `bootstrap.platformPolicy` controls L1/L2 platform services and defaults to `automatic` outside `bare`. `bootstrap.applicationDefaultPolicy` controls L3 tools and defaults to `on_demand` in `bootstrapped` and `advanced`. More specific policies win in this order: `services.<tool>.setup.policy`, `application.<useCase>.setup.policy`, bootstrap default, mode default. Valid values are `manual`, `on_demand`, and `automatic`. `demoData.enabled` defaults to `false`.
 
-**Reverse proxy backend:** `reverse_proxy_backend` means the selected router owns the real traffic path. If the selected PaaS has integrated Traefik, that Traefik is the StackKit router for the environment: Coolify's Traefik for `paas: coolify`. For `paas: komodo`, the accepted contract is exactly one StackKit-owned Traefik, and generated output/evidence must label that routing ownership clearly. StackKit must not run a second Traefik instance, Nginx bridge, host-side proxy, or test-only forwarding shim for PaaS-owned-router paths.
+**Reverse proxy backend:** `reverse_proxy_backend` means the selected router owns the real traffic path: Coolify's Traefik for `paas: coolify`, `dokploy-traefik` for `paas: dokploy`, and exactly one StackKit-owned Traefik for `paas: komodo` and for the standalone path. StackKit must not run a second Traefik instance, Nginx bridge, host-side proxy, or test-only forwarding shim for PaaS-owned-router paths.
 
-Release evidence is valid only when generated service URLs are reachable through the declared router. In the default Coolify path, platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami) and StackKit-owned L3 app bundles attach to Coolify's Traefik. The standalone StackKit-owned routing fallback is disabled by default and is valid only when `platformFallback.enabled: true` and `platformFallback.mode: standalone-compose` are set explicitly.
+Release evidence is valid only when generated service URLs are reachable through the declared router.
 
 See [ADR-0006](ADR/ADR-0006-service-url-matrix.md) for the full 9-scenario Service URL Matrix.
 
@@ -463,7 +455,7 @@ Target behavior: platform services (TinyAuth, PocketID, Dashboard, Kuma, Whoami)
 - `stackkit` must reference an existing public StackKit (`basement-kit` or `cloud-kit`)
 - `mode` must resolve to `bare`, `bootstrapped`, or `advanced`; legacy `simple` normalizes to `bootstrapped`, and legacy `terramate` / `advanced-terramate` normalize to `advanced`
 - `compute.tier` must be `low`, `standard`, or `high`
-- The retained v1 `paas` compatibility choices are `coolify` or `komodo` (Coolify when omitted); `dokploy` is historical draft behavior; Dokploy is a planned Layer-2 PaaS platform without current-pin support. These are not native defaults.
+- v1 `paas` accepts `coolify` or `komodo` (`none` when omitted) and the draft adapter `dokploy`; none of them is a native default or establishes current-pin support.
 - Native v2 Files authoring admits only `cloudreve`. The legacy `application.files.tool` compatibility field still accepts `cloudreve` or `nextcloud`; contradictory legacy `application.files.*` and `services.files.*` provider values fail validation.
 - `application.<useCase>.runtimeProfile` selects the package runtime profile when the kit declares one. For Smart Home, `kombify-managed` and `kombify-managed-hybrid` are Control Plane handoffs, not local OSS deployment fallbacks.
 - For Files/DMS, `self-hosted-lightweight` uses the admitted Cloudreve workload, while `kombify-managed-files` / `kombify-managed-dms` are Control Plane handoffs. A richer native collaboration workload has not been admitted.

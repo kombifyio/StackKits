@@ -354,13 +354,16 @@ prepare_cloud_install_host() {
   fi
 }
 
-# --- Release channels (CI-CD-PLATFORM-STANDARD 4.6.2) -------------------------
-# stable is the default; preview ("Nightly") is an explicit opt-in. The choice
-# lives in ~/.stackkits/channel, the file `stackkit channel set` writes.
+# --- Release channels (CI-CD-PLATFORM-STANDARD 4.6 "Channel model") ---------
+# stable is the default; early-access is the opt-in user channel that gets the
+# builds the owner switched live. preview is the internal development Nightly:
+# it still installs for the owner and the team but is never offered to users.
+# The choice lives in ~/.stackkits/channel, the file `stackkit channel set`
+# writes.
 
 installer_channel_normalize() {
   case "$1" in
-    stable|preview) printf '%s' "$1" ;;
+    stable|early-access|preview) printf '%s' "$1" ;;
     *) return 1 ;;
   esac
 }
@@ -374,11 +377,12 @@ installer_store_channel() {
   fi
 }
 
-# installer_newest_preview_tag <GitHub releases list JSON> prints the newest
-# published prerelease tagged vX.Y.Z-preview.<YYYYMMDD>.<sha>; newest is the
-# latest date, and for one date the release GitHub lists first.
-installer_newest_preview_tag() {
-  printf '%s' "$1" | tr '\n' ' ' | awk '
+# installer_channel_tags <GitHub releases list JSON> <preview|early-access>
+# prints every published prerelease tagged vX.Y.Z-<channel>.<YYYYMMDD>.<sha>,
+# newest first: latest date, and for one date the order GitHub lists them in.
+# Drafts (a withdrawn Early Access build is a draft) are never printed.
+installer_channel_tags() {
+  printf '%s' "$1" | tr '\n' ' ' | awk -v channel="$2" '
     {
       gsub(/"tag_name"/, "\n&")
       count = split($0, parts, "\n")
@@ -388,16 +392,27 @@ installer_newest_preview_tag() {
         tag = substr(chunk, RSTART, RLENGTH)
         sub(/^"tag_name"[ ]*:[ ]*"/, "", tag)
         sub(/"$/, "", tag)
-        if (tag !~ /^v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]\.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+$/) continue
+        rest = tag
+        if (!sub(/^v[0-9]+\.[0-9]+\.[0-9]+-/, "", rest)) continue
+        if (substr(rest, 1, length(channel) + 1) != channel ".") continue
+        rest = substr(rest, length(channel) + 2)
+        if (rest !~ /^[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]\.[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]+$/) continue
         if (chunk !~ /"prerelease"[ ]*:[ ]*true/) continue
         if (chunk ~ /"draft"[ ]*:[ ]*true/) continue
-        date = tag
-        sub(/^[^-]*-preview\./, "", date)
-        sub(/\..*$/, "", date)
-        if (best == "" || date > bestdate) { best = tag; bestdate = date }
+        printf "%s %06d %s\n", substr(rest, 1, 8), i, tag
       }
-    }
-    END { if (best != "") print best }'
+    }' | sort -k1,1r -k2,2n | awk '{ print $3 }'
+}
+
+# installer_newest_channel_tag <GitHub releases list JSON> <preview|early-access>
+installer_newest_channel_tag() {
+  installer_channel_tags "$1" "$2" | head -n 1
+}
+
+# installer_newest_preview_tag <GitHub releases list JSON> prints the newest
+# published Nightly prerelease tagged vX.Y.Z-preview.<YYYYMMDD>.<sha>.
+installer_newest_preview_tag() {
+  installer_newest_channel_tag "$1" preview
 }
 
 # installer_semver_compare <a> <b> prints -1, 0 or 1 (SemVer precedence).

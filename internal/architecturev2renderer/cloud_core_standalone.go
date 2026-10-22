@@ -232,6 +232,40 @@ func RenderCloudStandaloneCoreComposeForAddress(domain, prefix string) []byte {
 	return renderCloudComposeForAddress(cloudStandaloneCoreCompose, domain, prefix, []string{"id", "auth", "base"})
 }
 
+const (
+	standaloneOriginCertificateRouterArg = "            - --providers.docker.exposedbydefault=false\n"
+	standaloneOriginCertificateRouterVol = "        volumes:\n            - public-tls-acme:/letsencrypt\n"
+)
+
+var standaloneOriginCertificateResolverLabel = regexp.MustCompile(`(?m)^            - traefik[.]http[.]routers[.][a-z-]+[.]tls[.]certresolver=stackkits\n`)
+
+// RenderCloudStandaloneCoreComposeForOriginCertificate renders the Advanced
+// (Terramate-generated, Techstack-dispatched) standalone Cloud core for a
+// managed kombify.me address (ADR-0047): no core router requests ACME and
+// the router serves the delivered Cloudflare Origin CA certificate mounted
+// read-only from owner custody through the file provider. Other domains keep
+// ACME.
+func RenderCloudStandaloneCoreComposeForOriginCertificate(domain, prefix string) []byte {
+	return withStandaloneOriginCertificateRouter(RenderCloudStandaloneCoreComposeForAddress(domain, prefix), domain)
+}
+
+func withStandaloneOriginCertificateRouter(output []byte, domain string) []byte {
+	if output == nil || domain != managedOriginCertificateZone {
+		return output
+	}
+	text := string(output)
+	if strings.Count(text, standaloneOriginCertificateRouterArg) != 1 || strings.Count(text, standaloneOriginCertificateRouterVol) != 1 ||
+		len(standaloneOriginCertificateResolverLabel.FindAllStringIndex(text, -1)) == 0 {
+		return nil
+	}
+	text = standaloneOriginCertificateResolverLabel.ReplaceAllString(text, "")
+	text = strings.Replace(text, standaloneOriginCertificateRouterArg, standaloneOriginCertificateRouterArg+
+		"            - --providers.file.directory=/origin-tls\n            - --providers.file.watch=true\n", 1)
+	text = strings.Replace(text, standaloneOriginCertificateRouterVol, standaloneOriginCertificateRouterVol+
+		"            - ${STACKKIT_CUSTODY_DIR:?}/public-tls-origin/live:/origin-tls:ro\n", 1)
+	return []byte(text)
+}
+
 // ExpectedCloudStandaloneCoreComposeArtifact returns the immutable default
 // domain artifact used by renderer and executor contract tests.
 func ExpectedCloudStandaloneCoreComposeArtifact() []byte {
@@ -246,6 +280,9 @@ func ValidateCloudStandaloneCoreComposeArtifact(content []byte) bool {
 		return false
 	}
 	expected := RenderCloudStandaloneCoreComposeForAddress(domain, prefix)
+	if domain == managedOriginCertificateZone && bytes.Contains(content, []byte(":/origin-tls:ro")) {
+		expected = withStandaloneOriginCertificateRouter(expected, domain)
+	}
 	before := cloudDefaultSessionTopology(domain, prefix)
 	topology, topologyOK := cloudArtifactSessionTopology(content, before)
 	if !topologyOK {

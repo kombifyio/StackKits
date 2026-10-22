@@ -3,7 +3,7 @@ adr: ADR-0042
 title: Standalone Compose default and optional platform adapters
 status: Accepted
 date: 2026-09-06
-last_verified: 2026-10-20
+last_verified: 2026-10-22
 ---
 
 # ADR-0042: Standalone Compose default and optional platform adapters
@@ -12,62 +12,32 @@ last_verified: 2026-10-20
 **Implementation and integration:** tracked by `kombify-StackKits-fc91.2.3`;
 accepting this decision does not claim implementation or runtime acceptance.
 
-**Supersedes:** ADR-0003's Coolify-first default, mandatory PaaS requirement,
-and classification of standalone Compose solely as a fallback for new native
-StackKits. Explicit existing selections retain their authority.
-**Related:** ADR-0031, ADR-0035, ADR-0039, ADR-0040.
-
-**Superseded in part (2026-09-25):** ADR-0045 supersedes this ADR's
-Compose-executor default for the execution layer: every deployment is now
-executed and tracked by OpenTofu, with Terramate orchestrating managed
-deployments. Docker Compose remains the default application/workload payload
-and the native fallback executor; containers run as Compose workloads inside
-the OpenTofu-tracked stack. This ADR's decision below on standalone Compose as
-the primary product experience, and on Komodo/Coolify as optional platform
-adapters, remains authoritative for product boundaries and is unchanged.
-
-## 2026-10-11 status amendment: Marketplace and runtime targets
-
-[ADR-0049](ADR-0049-marketplace-use-case-coolify.md) and the
-[workspace ownership decision](https://github.com/kombify/kombify-workspace/blob/main/internal/records/DECISION-RECORD-2026-10-11-marketplace-ownership-and-runtime-targets.md)
-take precedence over the historical platform passages below for Marketplace
-ownership. Owner correction 2026-10-15: Coolify, Komodo and Dokploy are the
-Layer-2 PaaS platforms and later runtime targets (Compose now; Komodo, Coolify,
-Dokploy and k3s later); Coolify additionally runs the Marketplace use case.
-Standalone operation stays Standard Mode; Techstack-managed operation stays
-Advanced Mode. Existing installations retain explicit intent until a governed
-transition preserves identity, data and addresses. No support promotion follows
-from this amendment: it requires a lifecycle receipt at the current pin.
-
-## 2026-10-15 owner amendment: Compose default and PaaS both required for 1.0
-
-The owner decided on 2026-10-15 that standalone Compose ("bare metal"
-installation) stays the default for new selections until further PaaS
-platforms are available. Before StackKits 1.0, both paths are required: the
-Compose default and the Layer-2 PaaS platforms Coolify, Komodo and Dokploy,
-each executed through OpenTofu (ADR-0045). The PaaS work is P0 in the 1.0
-target (packages 13-16 and 51 in the workspace `STACKKITS-1.0-TARGET.md`),
-and the 1.0 compatibility tuples cover Compose and each PaaS platform. This
-amends, and does not supersede, the Decision below: the Compose default and
-the explicit-intent rules stay. No support promotion follows from this
-amendment; each platform needs a lifecycle receipt at the current pin.
+**Related:** ADR-0031, ADR-0035, ADR-0039, ADR-0040, ADR-0045 (execution
+layer), ADR-0049 (Marketplace and platform scope).
 
 ## Decision
 
-### 2026-10-20 scope amendment
-
-Workspace D-2026-10-20-09 and [ADR-0049](ADR-0049-marketplace-use-case-coolify.md#amendment-2026-10-20-runtipi-admission-and-prospective-dockhand)
-extend the accepted platform targets with Runtipi for both Marketplace and
-use-case workload execution. Runtipi is recorded and unimplemented; Dockhand
-is a prospective platform option subject to its BSL/license profile. The
-earlier platform lists are not exhaustive. No executable selection, default,
-adapter or support promotion follows from scope admission.
-
 Standard Mode is the complete, account-free, standalone product. Docker
-Compose is its default workload execution adapter on an admitted physical or
-virtual host. Bare metal and VM/VPS describe target hosts, not alternative
-application managers. Techstack remains optional and owns provider lifecycle
-and multi-server orchestration when used.
+Compose is its default workload payload on an admitted physical or virtual
+host; OpenTofu executes and tracks every deployment and Terramate orchestrates
+Techstack-managed deployments (ADR-0045), with containers running as Compose
+workloads inside the OpenTofu-tracked stack. Bare metal and VM/VPS describe
+target hosts, not alternative application managers. Standalone operation is
+Standard Mode; Techstack-managed operation is Advanced Mode. Techstack remains
+optional and owns provider lifecycle and multi-server orchestration when used.
+
+Standalone Compose stays the default for new selections until further PaaS
+platforms are available (owner, 2026-10-15). Before StackKits 1.0 both paths
+are required: the Compose default and the Layer-2 PaaS platforms Coolify,
+Komodo and Dokploy, each executed through OpenTofu; the 1.0 compatibility
+tuples cover Compose and each PaaS platform. Coolify additionally runs the
+Marketplace use case (ADR-0049). Runtipi is accepted for both Marketplace and
+use-case workload execution and is recorded and unimplemented; Dockhand is a
+prospective platform option subject to its BSL/license profile (workspace
+D-2026-10-20-09). k3s is a later runtime target. These platform lists are not
+exhaustive. No executable selection, default, adapter or support promotion
+follows from scope admission: each platform needs a lifecycle receipt at the
+current pin.
 
 Standalone Compose is the primary, first-class product experience for the
 complete stack, including application workloads, not merely a core bootstrap
@@ -78,7 +48,7 @@ manual CLI use mandatory. Other supported interfaces must use the same
 contracts and lifecycle rather than introduce a second implementation.
 
 Full/Lite product labels must not imply that enabling Coolify, Komodo or the
-CLI unlocks the complete product. Historical module identifiers remain stable
+CLI unlocks the complete product. Existing module identifiers remain stable
 for existing intent; they do not define the new product positioning.
 
 The default core installs neither Coolify nor Komodo, including their private
@@ -88,7 +58,8 @@ StackKits' existing contracts and lifecycle. A smaller resource profile is
 not a substitute for those capabilities. Application-owned databases remain
 part of their selected workload and are not removed with a platform manager.
 
-Coolify and Komodo are explicitly enabled integrations on this foundation.
+Coolify, Komodo and Dokploy are explicitly enabled integrations on this
+foundation.
 They consume the same workload, identity, routing, data and evidence contracts
 and add only their platform-specific bootstrap and execution behavior.
 For each workload there is exactly one execution owner and one routing owner.
@@ -98,8 +69,11 @@ Compose, nor implicitly replace the router or its access policy.
 Implementation proceeds in this order: complete standalone Compose, optional
 Komodo integration, then optional Coolify integration. This is a delivery
 priority, not evidence that Komodo already has better operational parity.
-Dokploy remains draft until separately promoted; this decision does not
-promote any kit or compatibility cell.
+Dokploy remains draft until a current-pin receipt promotes it; this decision
+does not promote any kit or compatibility cell. Komodo Core and Periphery are
+pinned together to one exact release and upgraded together; StackKits never
+mixes their versions or uses a floating tag, and Komodo's Mongo database stays
+on its separately governed version.
 
 ## Existing intent and transitions
 

@@ -1,47 +1,81 @@
-# Contributing
+# Contributing to kombify StackKits
 
-StackKits is built around CUE contracts and Go code.
+Thanks for helping. This page says how a contribution reaches a release and
+what to expect from us.
 
-## This repository is a generated release mirror
+## How this repository works
 
-`kombifyio/StackKits` is produced from an explicit allowlist in the private
-upstream repository. Every release replaces the tree here with the curated
-export of that release. Pull requests cannot be merged into this repository:
-a merge would be overwritten by the next sync.
+`kombifyio/stackKits` is the public release mirror of kombify StackKits. Its source of
+truth is a private repository, and each release replaces the tree here with a
+curated export. Your pull request is still the way in:
 
-Contributions are welcome and land through the upstream tree:
+1. We review it here, without running your code on our infrastructure first.
+2. If we take it, we import the change into the source with your authorship
+   kept. Changes to build configuration or to security-sensitive parts we
+   re-implement ourselves and credit to you.
+3. When the release that carries it is published, we close your pull request
+   with the commit and the version, and the release notes credit you by handle.
 
-1. Open an issue (bug or feature template) or a Discussion that describes the
-   change and, if you have one, links to your branch or fork.
-2. A maintainer ports the patch upstream, reviews and merges it there, and it
-   appears here with the next release. You are credited in the release notes.
+If we do not take it, we say why on the pull request.
 
-If you open a pull request anyway, an automatic comment explains this and the
-pull request is closed once the change has been ported or declined.
+## Before you start
 
-## Local Development
+- **Fixes:** open an issue first, or link one.
+- **New features:** start with an idea in [Discussions](https://github.com/kombifyio/stackKits/discussions) so
+  we can say whether it fits before you spend time.
+- **Small changes** (typos, docs): open a pull request directly.
 
-Build the changed product surface locally. Additional checks are optional and
-must not block a pre-1.0 release:
+## Sign off your commits (DCO)
+
+Every commit carries a sign-off line that certifies the
+[Developer Certificate of Origin](https://developercertificate.org/), version
+1.1: you wrote the change or have the right to submit it under the licence of
+this repository ([LICENSING.md](LICENSING.md)). Add the line with
+`git commit -s`:
+
+```text
+Signed-off-by: Your Name <you@example.com>
+```
+
+Use your real name. If you forgot, `git rebase --signoff <base>` adds the line to
+every commit of your branch, and you force-push the result to your own branch.
+We ask for a missing sign-off on the pull request before we review further.
+
+## Rules
+
+- Follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+- Sign off every commit, as above.
+- Say which AI tool helped, if any. A person who can explain the change is
+  accountable for it.
+- No secrets, credentials, personal data or private hostnames in a diff.
+- Draft pull requests are welcome for early feedback.
+
+## What to expect
+
+| Step | Target |
+| --- | --- |
+| First response | One business day |
+| Verdict (take, change, or decline with reason) | Three business days |
+| Release | The next release after import; see the [changelog](https://docs.kombify.io/changelog/overview) |
+
+These are targets, not contractual promises.
+
+## Local development
+
+StackKits is built around CUE contracts and Go code. Build and validate the part
+you changed:
 
 ```sh
 cue vet -c=false ./foundation/...
 cue vet ./basement-kit/... ./cloud-kit/... ./modern-homelab/...
 ```
 
-When changing generated rollout output, update the CUE or Go source and
+When you change generated rollout output, update the CUE or Go source and
 regenerate instead of patching generated files directly.
 
 ## Reporting
 
-- Bugs and feature requests: use the issue templates on this repository.
-- Questions and ideas: GitHub Discussions (see `SUPPORT.md`).
-- Security vulnerabilities: report privately through GitHub Security
-  Advisories on this repository, never in a public issue. See `SECURITY.md`.
-
-This project follows the Contributor Covenant; see `CODE_OF_CONDUCT.md`.
-
-## Public Release Surface
-
-Do not add internal infrastructure details, private service URLs, or secrets
-to public docs, tests, workflows, or examples.
+- Bugs: the [bug form](https://github.com/kombifyio/stackKits/issues/new?template=bug_report.yml) in this repository.
+- Ideas: [Discussions](https://github.com/kombifyio/stackKits/discussions).
+- Questions: see [SUPPORT.md](SUPPORT.md).
+- Vulnerabilities: privately, see [SECURITY.md](SECURITY.md).

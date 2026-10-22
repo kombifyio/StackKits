@@ -282,72 +282,6 @@ keys are never user-sync fields.
 
 `breakGlass` is the separate emergency path. It is enabled by default with `scope: full-emergency-admin` and covers a PocketID admin, TinyAuth static fallback, and server recovery material in the encrypted recovery bundle. Synthetic local defaults use reserved/local domains such as `admin@example.com` and `.invalid`; tests must not invent real `@kombify.io` accounts.
 
-## Historical v0.6 Platform Adapter Contract
-
-The following platform environment, `.stackkit/platform.json`, generated
-technical-admin, and standalone-fallback behavior describes immutable v0.6
-release artifacts only. Native v2 uses local owner-signed runtime custody and
-typed renderer contracts; it does not accept these variables as public Apply
-authority or let a Kit own external platform credentials/lifecycle.
-
-Historical `stackkit apply` resolved platform adapter configuration from
-environment first, then from `.stackkit/platform.json`.
-
-| Variable | Provider alias | Purpose |
-| --- | --- | --- |
-| `STACKKIT_PLATFORM_ENDPOINT` | `DOKPLOY_API_URL`, `COOLIFY_API_URL`, `KOMODO_API_URL` | Platform API base URL. |
-| `STACKKIT_PLATFORM_TOKEN` | `DOKPLOY_API_KEY`, `COOLIFY_API_TOKEN` | Platform API token. |
-| `STACKKIT_PLATFORM_API_KEY` | `KOMODO_API_KEY` | Komodo API key. |
-| `STACKKIT_PLATFORM_API_SECRET` | `KOMODO_API_SECRET` | Komodo API secret. |
-| `STACKKIT_PLATFORM_ENVIRONMENT_ID` | `DOKPLOY_ENVIRONMENT_ID` | Dokploy environment. |
-| `STACKKIT_PLATFORM_SERVER_ID` | `DOKPLOY_SERVER_ID`, `COOLIFY_SERVER_UUID`, `KOMODO_SERVER_ID` | Target server. |
-| `STACKKIT_PLATFORM_PROJECT_UUID` | `COOLIFY_PROJECT_UUID` | Coolify project. |
-| `STACKKIT_PLATFORM_ENVIRONMENT_NAME` | `COOLIFY_ENVIRONMENT_NAME` | Coolify environment name. |
-| `STACKKIT_PLATFORM_ENVIRONMENT_UUID` | `COOLIFY_ENVIRONMENT_UUID` | Coolify environment UUID. |
-| `STACKKIT_PLATFORM_DESTINATION_UUID` | `COOLIFY_DESTINATION_UUID` | Coolify destination. |
-
-Persisted platform config shape:
-
-```json
-{
-  "platform": "coolify",
-  "endpoint": "http://127.0.0.1:8000",
-  "token": "<platform-api-token>",
-  "projectUuid": "<coolify-project-uuid>",
-  "environmentId": "production",
-  "environmentUuid": "<coolify-environment-uuid>",
-  "serverId": "<coolify-server-uuid>",
-  "destinationUuid": "<coolify-destination-uuid>"
-}
-```
-
-Historical Coolify generation bootstrapped a technical root user and API token;
-Komodo was the alternative and Dokploy remained draft. Those generated
-`admin_password_plaintext`, placement-ID, and fallback semantics are not native
-v2 configuration. Current owner identity is realized through PocketID, TinyAuth,
-step-ca, and the signed local Owner binding.
-
-## Dev PaaS App Handoff Env
-
-The variables below describe archived v0.6 development installers only.
-Current `base-install.sh` does not call `stackkit app add`; native applications
-come from the CUE-owned module catalog.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `STACKKIT_ENABLE_DEV_APP_HANDOFF` | `false` | Enables the dev-only handoff helper. |
-| `STACKKIT_DEV_APP_IMAGE` | empty | Immutable container image for the handoff app. |
-| `STACKKIT_APP_NAME` | `web` | App key under `apps:` and route service name. |
-| `STACKKIT_APP_KIND` | `sveltekit` | App kind. Only `sveltekit` is currently accepted. |
-| `STACKKIT_APP_PORT` | `3000` | Internal app port. |
-| `STACKKIT_APP_AUTH` | `login-gateway` | Route auth mode: `login-gateway` or `public`. |
-| `STACKKIT_APP_HOST` | generated | Optional explicit host. kombify.me defaults to `<prefix>-<app>.kombify.me`; custom domains default to `<app>.<domain>`. |
-| `STACKKIT_APP_HEALTH_PATH` | `/health` | Health endpoint path. |
-| `STACKKIT_APP_ENV` | empty | Comma-separated `KEY=value` app environment entries. |
-| `STACKKIT_APP_SECRETS` | empty | Comma-separated `KEY=env:NAME|doppler:NAME|vault:NAME|file:PATH` secret references. |
-
-If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackkit/state.yaml` and generated manifest files. The external PaaS remains responsible for registering, deploying, and operating the user app.
-
 ## Public release and Publisher configuration
 
 | Command | Required configuration |
@@ -383,13 +317,3 @@ If this dev helper is enabled, `stackkit apply` writes the handoff into `.stackk
 | Variable | Purpose |
 | --- | --- |
 | `STACKKIT_LOCAL_DOMAIN` | Compatibility override when no explicit `--domain` or `domain:` is set. The default is `home`; an explicit custom domain becomes the one canonical URL set. The local default is realized by the StackKits resolver and device-enrollment profile. |
-
-## Retired production-test configuration
-
-The current public CLI and native-v2 lifecycle do not consume Fresh-VM,
-Simulate, provider, Cloudflare DNS-test, or SSH/proxy-jump harness variables.
-Those inputs belong to old removed test harnesses and historical release
-versions; they are not current StackKits configuration. Server allocation,
-credentials, cleanup, and compatibility evidence remain TechStack-owned; they
-are not StackKits lifecycle or release prerequisites. Use the documentation
-shipped with the matching historical artifact when reproducing that lane.

@@ -1184,7 +1184,7 @@ package foundation
 }
 
 // #ImmichService - Photo management (Layer 3, standard+ tiers)
-// Multi-container: server + ML + PostgreSQL (pgvecto-rs) + Redis
+// Multi-container: server + ML + PostgreSQL (VectorChord) + Valkey
 #ImmichService: #ServiceDefinition & {
 	name:        "immich"
 	displayName: "Immich"
@@ -1193,7 +1193,7 @@ package foundation
 	required:    false
 	enabled:     true // Release default for standard+ compute tiers; the engine disables it on low tier (EnableImmich = isStandardPlus)
 	image:       "ghcr.io/immich-app/immich-server"
-	tag:         "v2.7.0@sha256:ee60b98e7fcc836d61d7f5e7689514f3de7a9480f31ec6ca62d6221056b46ae1"
+	tag:         "v3.3.4@sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f"
 	description: "Self-hosted photo and video management with its own app login, AI-powered search, facial recognition, and mobile backup."
 	needs: ["traefik"]
 
@@ -1204,7 +1204,7 @@ package foundation
 		ports: [
 			{host: 2283, container: 2283, protocol: "tcp", description: "Web UI"},
 			{host: 3003, container: 3003, protocol: "tcp", description: "ML worker"},
-			{host: 5433, container: 5432, protocol: "tcp", description: "PostgreSQL (pgvecto-rs)"},
+			{host: 5433, container: 5432, protocol: "tcp", description: "PostgreSQL (VectorChord)"},
 			{host: 6380, container: 6379, protocol: "tcp", description: "Redis"},
 		]
 		traefik: {
@@ -1233,7 +1233,7 @@ package foundation
 			target:      "/var/lib/postgresql/data"
 			type:        "volume"
 			backup:      true
-			description: "Immich PostgreSQL with pgvecto-rs (vector search)"
+			description: "Immich PostgreSQL with VectorChord (vector search)"
 		},
 		{
 			source:      "immich-model-cache"

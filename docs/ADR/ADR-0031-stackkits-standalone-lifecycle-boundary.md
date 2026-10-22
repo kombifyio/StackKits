@@ -1,9 +1,8 @@
 # ADR-0031 — StackKits Standalone Lifecycle Boundary
 
 **Status:** Accepted (2026-07-26)
-**Amended:** 2026-08-28; 2026-09-24 (Techstack-managed deployments always run Advanced Mode); 2026-10-08 (Advanced issuer pinned to Techstack)
 **Owner:** StackKits
-**Related:** ADR-0016, ADR-0018, ADR-0029
+**Related:** ADR-0016, ADR-0018, ADR-0029, ADR-0045
 **Supersedes:** ADR-0018 server-side compatibility resolver, mandatory Admin
 node mirror, and Admin-owned public upgrade resolution
 
@@ -70,44 +69,42 @@ the embedded CUE-derived snapshot retain the publication evidence.
 
 ### 4. Lifecycle modes
 
+The mode is chosen by who operates the deployment. A StackKit installed and
+operated with the standalone CLI or installer runs in Standard Mode: a one-shot
+configuration without Terramate. A deployment managed by kombify Techstack runs
+in Advanced Mode, always, from its first rollout onward. Advanced Mode is
+Techstack's standard product path, not an optional add-on. It provides the
+wiring, Day-2 operations and drift detection that Techstack sells. Techstack
+must not roll out or operate a StackKit in Standard Mode. A Standard-only
+Techstack rollout is a defect, not a supported variant.
+
 Standard Mode owns account-free executor-native apply, verify, upgrade,
 snapshot, rollback, backup, restore, drift detection, and approved standard
-reconciliation. The v0.8 Basement default executes Compose directly; its
-recovery state therefore binds the exact Compose generation/runtime closure.
-An OpenTofu state snapshot is mandatory only when OpenTofu is the actual
-selected Product Apply executor. A target without a real state owner fails
-before lifecycle side effects instead of manufacturing an empty state file.
+reconciliation. Recovery state binds the selected executor's closure: the exact
+Compose generation/runtime closure when Compose executes directly, and a
+mandatory OpenTofu state snapshot when OpenTofu is the selected Product Apply
+executor (ADR-0045). A target without a real state owner fails before
+lifecycle side effects instead of manufacturing an empty state file.
 
 Advanced Mode adds StackKits-owned Terramate rendering and coordinated change
-sets, rollback, restore drills, and runtime-intelligence integration. Advanced
-operations require a short-lived Techstack-issued capability that StackKits
-validates offline before rendering or side effects. Standard operations remain
-available without that capability.
+sets, rollback, restore drills, and runtime-intelligence integration. It runs
+only under Techstack dispatch: Advanced operations require a short-lived
+Techstack-issued capability that StackKits validates offline before rendering
+or side effects. Standard operations remain available without that capability.
 
-**Amendment 2026-09-24 (owner decision).** The mode is chosen by who operates
-the deployment. A StackKit installed and operated with the standalone CLI or
-installer runs in Standard Mode: a one-shot configuration without Terramate.
-A deployment managed by kombify Techstack runs in Advanced Mode, always,
-from its first rollout onward. Advanced Mode is Techstack's standard product
-path, not an optional add-on. It provides the wiring, Day-2 operations and
-drift detection that Techstack sells. Techstack must not roll out or operate a
-StackKit in Standard Mode. A Standard-only Techstack rollout is a defect, not
-a supported variant.
-
-**Amendment 2026-10-08 (issuer pin).** The Advanced executors (Terramate change
-sets, coordinated rollback, restore drills, origin-certificate operations) are
-compiled into the standalone CLI binary. What gates them at runtime is the
-combination of a short-lived capability and Owner trust, not a build
-difference. The verifier pins the capability issuer to `techstack`
+The Advanced executors (Terramate change sets, coordinated rollback, restore
+drills, origin-certificate operations) are compiled into the CLI binary; what
+gates them at runtime is the combination of that capability and Owner trust,
+not a build difference. The verifier pins the capability issuer to `techstack`
 (`advancedcapability.TrustedIssuerID`): a capability or an execution-channel
 digest signed by any other issuer is refused with
 `advanced_capability_untrusted_key`, even when the Owner trust bundle holds
 that issuer's key. Desired identity projections are not covered by the pin:
 kombify Cloud may issue them (`docs/IDENTITY-STACKKITS.md`), so they stay bound
-only to the Owner-approved trust-bundle issuer/key binding. A build seam that removes the Advanced executors from the
-standalone artifact is an open owner decision and is not implemented here. The
-capability wire shape is unchanged until `kombify-runtime-contracts-go`
-publishes the generated contract.
+only to the Owner-approved trust-bundle issuer/key binding. A build seam that
+removes the Advanced executors from the standalone artifact is an open owner
+decision and is not implemented. The capability wire shape is unchanged until
+`kombify-runtime-contracts-go` publishes the generated contract.
 
 ### 5. Techstack and kombify Cloud integration
 
@@ -123,10 +120,7 @@ Techstack Core/UI
   -> stackkit.command-result/v1 + stackkit.rollout-event/v1 JSONL
 ```
 
-This is a target boundary, not Slice 1 delivery evidence. Slice 1 establishes
-the additive local Owner/Modern model, Federation admission, and the
-credential-free desired identity projection. Techstack Agent execution-channel
-admission lands in Slice 2.
+This is a target boundary, not delivery evidence.
 
 The Agent verifies the exact release pin, release index, receipt, and
 executable, removes Techstack/Kombify control-plane environment, and invokes no
@@ -140,7 +134,7 @@ pinned CLI's CUE `validate`/`generate` path remains final authority. Techstack
 dispatches capability-gated Advanced operations for every deployment it
 manages, including the initial rollout, Terramate change sets, drift
 detection and reconciliation, coordinated rollback, restore drills, and RIL
-workflows (amendment 2026-09-24). It does not present a Standard-only
+workflows. It does not present a Standard-only
 lifecycle path. It does not import StackKits source
 packages, copy kit catalogs or renderers, mint local owner evidence, or
 reinterpret a ResolvedPlan.

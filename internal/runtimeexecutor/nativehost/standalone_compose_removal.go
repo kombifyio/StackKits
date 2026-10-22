@@ -1196,6 +1196,12 @@ func (osStandaloneComposeDockerCLI) Run(ctx context.Context, args []string) ([]b
 	if err := validateStandaloneComposeDockerArgs(args); err != nil {
 		return nil, err
 	}
+	return runClosedDockerCLI(ctx, args)
+}
+
+// runClosedDockerCLI executes one already-validated fixed Docker argument
+// vector. Each caller owns its closed-contract validator.
+func runClosedDockerCLI(ctx context.Context, args []string) ([]byte, error) {
 	executable, err := exec.LookPath("docker")
 	if err != nil {
 		return nil, &standaloneComposeProcessError{output: "docker-not-found", cause: err}

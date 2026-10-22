@@ -60,10 +60,9 @@ verified application activation and a relevant functional check through the
 existing restore lifecycle. An internal health probe alone establishes neither
 client reachability nor application usability.
 
-## Consequences and implementation status
+## Consequences
 
-This supersedes the prior `.localhost`/`home.test` split in Golden Rules
-§1.10–11. Stable links and device-managed setup are mandatory; observable scope
+Stable links and device-managed setup are mandatory; observable scope
 and honest readiness remain mandatory behavior.
 
 The derived status/State Console projection is implemented. `stackkit verify

@@ -29,11 +29,3 @@ Cloud, and Modern warm-standby/quorum. Authenticated services select those
 stable IDs as remote owners; they cannot reconstruct or substitute the
 provider/module selector. Member-local implementations receive only the
 sealed, provider-free HA policy through the internal Operations boundary.
-
-Focused contract checks stay separate and bounded:
-
-```bash
-go test ./pkg/productruntime -count=1
-cd pkg/productruntime/testdata/externalconsumer
-GOWORK=off go test ./... -count=1
-```

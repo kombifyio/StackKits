@@ -115,7 +115,7 @@ recovery evidence establishes more.
 This cold-backup choice follows the physical full-cluster requirements in the
 [PostgreSQL backup guide](https://www.postgresql.org/docs/14/backup-file.html)
 and the recommendation to stop the server while capturing database and assets
-in the [pinned Immich guide](https://github.com/immich-app/immich/blob/v2.7.0/docs/docs/administration/backup-and-restore.md).
+in the [pinned Immich guide](https://github.com/immich-app/immich/blob/v3.3.4/docs/docs/administration/backup-and-restore.md).
 Logical database export is a separate portability or migration workflow; it is
 not an additional implicit step in ordinary native snapshot or activation.
 

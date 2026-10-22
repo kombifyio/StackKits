@@ -127,12 +127,18 @@ func runRegistryBakeFromCUE(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
+	applications, err := registryApplicationsFromContracts(contracts)
+	if err != nil {
+		return err
+	}
+
 	snap := registry.Snapshot{
 		SchemaVersion: registry.SnapshotVersion,
 		Source:        "cue",
 		GeneratedAt:   reproducibleNow(),
 		Modules:       modules,
 		Services:      registryServicesFromCatalog(servicecatalog.FromCUE(serviceCatalogEntriesFromContracts(contracts))),
+		Applications:  applications,
 		// Tool and service-group facts do not yet have a CUE model. Their
 		// checked-in embedded projection remains the Git authority; the bake
 		// carries it forward without consulting a hosted mirror.
@@ -367,6 +373,53 @@ func serviceCatalogEntriesFromContracts(contracts []skcue.ModuleContract) []skcu
 	return entries
 }
 
+// registryApplicationsFromContracts projects every module service that
+// declares presentation facts (guide URL, clients or vendor) into one entry
+// keyed by its tool name. Unlike the service slots, applications that share a
+// subdomain (cloudreve, opencloud, nextcloud on "files") each keep their own
+// entry, and applications without a subdomain are included too.
+func registryApplicationsFromContracts(contracts []skcue.ModuleContract) ([]registry.Application, error) {
+	byTool := map[string]string{}
+	var applications []registry.Application
+	for _, contract := range contracts {
+		for _, svc := range contract.Services {
+			if svc.DashboardGuideURL == "" && len(svc.DashboardClients) == 0 && svc.DashboardVendor == nil {
+				continue
+			}
+			if svc.Name == "" {
+				return nil, fmt.Errorf("module %s declares application metadata on a service without a name", contract.Metadata.Name)
+			}
+			if owner, dup := byTool[svc.Name]; dup {
+				return nil, fmt.Errorf("application %s declares presentation metadata in both %s and %s", svc.Name, owner, contract.Metadata.Name)
+			}
+			byTool[svc.Name] = contract.Metadata.Name
+			displayName := contract.Metadata.DisplayName
+			if displayName == "" {
+				displayName = svc.DisplayName
+			}
+			app := registry.Application{
+				ToolName:    svc.Name,
+				ModuleSlug:  contract.Metadata.Name,
+				DisplayName: displayName,
+				ServiceKey:  svc.SubdomainKey,
+				GuideURL:    svc.DashboardGuideURL,
+			}
+			for _, client := range svc.DashboardClients {
+				app.Clients = append(app.Clients, registry.AppClient{Platform: client.Platform, Kind: client.Kind, URL: client.URL})
+			}
+			if v := svc.DashboardVendor; v != nil {
+				vendor := &registry.AppVendor{Name: v.Name, Website: v.Website, Docs: v.Docs, License: v.License}
+				for _, link := range v.Support {
+					vendor.Support = append(vendor.Support, registry.AppSupportLink{Kind: link.Kind, URL: link.URL})
+				}
+				app.Vendor = vendor
+			}
+			applications = append(applications, app)
+		}
+	}
+	return applications, nil
+}
+
 func registryServicesFromCatalog(catalog []servicecatalog.Service) []registry.Service {
 	services := make([]registry.Service, 0, len(catalog))
 	for _, svc := range catalog {
@@ -376,6 +429,7 @@ func registryServicesFromCatalog(catalog []servicecatalog.Service) []registry.Se
 			Description:             svc.Description,
 			ToolName:                svc.ToolName,
 			ModuleSlug:              svc.ModuleSlug,
+			Alternatives:            append([]string(nil), svc.Alternatives...),
 			LocalSlug:               svc.LocalSlug,
 			PublicSlug:              svc.PublicSlug,
 			LegacyAliases:           append([]string(nil), svc.LegacyAliases...),
@@ -404,6 +458,7 @@ func registryServicesFromCatalog(catalog []servicecatalog.Service) []registry.Se
 func sortSnapshot(snap *registry.Snapshot) {
 	sort.Slice(snap.Tools, func(i, j int) bool { return snap.Tools[i].Slug < snap.Tools[j].Slug })
 	sort.Slice(snap.Services, func(i, j int) bool { return snap.Services[i].Key < snap.Services[j].Key })
+	sort.Slice(snap.Applications, func(i, j int) bool { return snap.Applications[i].ToolName < snap.Applications[j].ToolName })
 	sort.Slice(snap.Modules, func(i, j int) bool { return snap.Modules[i].Slug < snap.Modules[j].Slug })
 	sort.Slice(snap.StackKits, func(i, j int) bool { return snap.StackKits[i].Slug < snap.StackKits[j].Slug })
 	for i := range snap.StackKits {

@@ -133,7 +133,10 @@ func (rollback *coordinatedRollback) run(ctx context.Context) error {
 	advancedRollbackEvent("restore-authority", "started", map[string]string{"targetSnapshotId": snapshot.ID})
 	_, err = (upgradelifecycle.ExecutorStateStore{}).RecoverWith(
 		ctx, rollback.workspace, snapshot.ID,
-		upgradelifecycle.RecoveryOptions{ReplaceAuthority: true, SkipOpenTofuRoots: true},
+		upgradelifecycle.RecoveryOptions{
+			ReplaceAuthority: true, SkipOpenTofuRoots: true,
+			Attestations: newPublicAttestationVerifier(),
+		},
 		func(recoveryContext context.Context, priorBinary string, recovered upgradelifecycle.ExecutorStateSnapshot) error {
 			if recovered.ID != snapshot.ID || !reflect.DeepEqual(recovered.Release, snapshot.Release) {
 				return errors.New("recovered executor snapshot differs from the rollback checkpoint")

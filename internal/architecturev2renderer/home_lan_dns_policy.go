@@ -24,9 +24,9 @@ const (
 // mandatory DNSSEC) for the plan domain. The Basement core compose runtime owns
 // the container: the same pin appears in the core component graph, the listener
 // inventory carries the port 53 binding, and Basement runtime custody writes the
-// zone that answers site names. The image pin is amd64-only; arm/arm64 support
-// is an explicit follow-up, never silent breakage.
-const homeLANDNSPolicyTemplate = `{"apiVersion":"stackkit.home-lan-dns-policy/v1","kind":"HomeLANDNSPolicy","contract":{"capability":"lan-dns","resolver":"unbound","image":{"ref":"docker.io/mvance/unbound:1.22.0","digest":"sha256:76906da36d1806f3387338f15dcf8b357c51ce6897fb6450d6ce010460927e90"},"architectures":["amd64"],"listen":{"port":53,"protocols":["udp","tcp"],"scope":"lan"},"dnssec":{"required":true},"zone":"@@DOMAIN@@","runtimeEnforcement":"adapter-verified","executor":"basement-core-compose","scope":"home-control-plane-node"},"planInputs":@@PLAN_INPUTS@@}
+// zone that answers site names. The image pin is a multi-arch index; amd64 and
+// arm64 are the declared architectures.
+const homeLANDNSPolicyTemplate = `{"apiVersion":"stackkit.home-lan-dns-policy/v1","kind":"HomeLANDNSPolicy","contract":{"capability":"lan-dns","resolver":"unbound","image":{"ref":"docker.io/klutchell/unbound:1.26.1","digest":"sha256:9a3939ca33d6d3b42b81a70391bb8e43f0a08d2bd7a3fdffb43d427493345c36"},"architectures":["amd64","arm64"],"listen":{"port":53,"protocols":["udp","tcp"],"scope":"lan"},"dnssec":{"required":true},"zone":"@@DOMAIN@@","runtimeEnforcement":"adapter-verified","executor":"basement-core-compose","scope":"home-control-plane-node"},"planInputs":@@PLAN_INPUTS@@}
 `
 
 var homeLANDNSPolicyPlanInputRefs = []string{"kit", "sites", "stackId"}

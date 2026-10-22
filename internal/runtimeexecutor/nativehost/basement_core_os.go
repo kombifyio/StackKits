@@ -475,9 +475,16 @@ func basementCoreComposeArgs(composePath, operation string) []string {
 		return append(prefix, "up", "-d", "--wait", "--wait-timeout", "600")
 	case "recreate-server":
 		return append(prefix, basementCoreRecreateServerArgs...)
+	case "down":
+		return append(prefix, basementCoreDownArgs...)
 	}
 	return append(prefix, "ps", "--all", "--format", "json")
 }
+
+// basementCoreDownArgs removes the project's containers and networks. It never
+// carries --volumes or --remove-orphans: data deletion is a separate,
+// identity-checked step and an undeclared container is refused beforehand.
+var basementCoreDownArgs = []string{"down", "--timeout", "60"}
 
 var basementCoreRecreateServerArgs = []string{
 	"up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", architecturev2renderer.StackKitServerComponentRef,
@@ -518,6 +525,7 @@ func (osBasementCoreProcessRunner) Run(ctx context.Context, args []string, direc
 		(!slices.Equal(args[5:], []string{"up", "-d", "--wait", "--wait-timeout", "600"}) &&
 			!slices.Equal(args[5:], []string{"ps", "--all", "--format", "json"}) &&
 			!slices.Equal(args[5:], basementCoreRecreateServerArgs) &&
+			!slices.Equal(args[5:], basementCoreDownArgs) &&
 			!slices.Equal(args[5:], []string{"up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "step-ca"}) &&
 			!slices.Equal(args[5:], []string{"stop", "--timeout", "60", "router"}) &&
 			!slices.Equal(args[5:], []string{"up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "600", "router", "tinyauth"})) {

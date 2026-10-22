@@ -81,9 +81,7 @@ package foundation
 	// release:mode-matrix-citations`; a citation clears only the cell it is
 	// filed under, never a kit's other supported cells.
 	//
-	// install.advanced is the go-live gate cell (ADR-0045 Acceptance;
-	// docs/plans/2026-09-24-replanning/11-steering-2026-09-25.md "Gate for
-	// go-live" item 4): its citations must resolve to an os-compat receipt
+	// install.advanced is the go-live gate cell (ADR-0045 Acceptance): its citations must resolve to an os-compat receipt
 	// with `dispatcher: "techstack-core"`, a real substrate (`"proxmox-ve"`
 	// for the Basement/Proxmox lane or `"managed-vps"` for the
 	// Techstack-managed Cloud VPS lane), overall `status: "passed"`, and a

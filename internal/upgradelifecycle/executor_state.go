@@ -865,6 +865,8 @@ func ReleaseExecutablesFromVerifiedRelease(
 // the private directory dir. A release CLI resolves tofu beside its own
 // executable, so a release run from dir executes the OpenTofu it was released
 // with. Releases that predate the OpenTofu runtime ship none and need none.
+// It also records in dir the provider mirror that carries the release's own
+// manifest (stageReleaseProviderMirror), which ExecRunner hands the child.
 func ReleaseExecutablesWithOpenTofu(
 	proof releaseindex.VerifiedInstallation,
 	dir string,
@@ -962,6 +964,9 @@ func inspectVerifiedReleaseExecutables(
 		}
 		if openTofuDir != "" {
 			if err := stageVerifiedReleaseOpenTofu(extractRoot, openTofuDir, release.Platform); err != nil {
+				return err
+			}
+			if err := stageReleaseProviderMirror(extractRoot, openTofuDir, receipt); err != nil {
 				return err
 			}
 		}

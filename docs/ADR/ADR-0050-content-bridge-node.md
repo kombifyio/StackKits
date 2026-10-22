@@ -5,8 +5,6 @@ status: Accepted; Apply wiring pending
 date: 2026-10-04
 last_verified: 2026-10-04
 identity_verified: 2026-10-12
-renumbered_from: ADR-0047-content-bridge-node.md
-verification_scope: identifier and owned references only; historical implementation evidence retains its original date
 ---
 
 # ADR-0050: The kombify Content Bridge runs on the node as a separate, read-only, opt-in component

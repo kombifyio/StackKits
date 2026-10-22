@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"strings"
 	"time"
 
@@ -688,16 +689,35 @@ func runtimeOwnerRef(target runtimeexecutor.RuntimeTarget) string {
 	return target.OwnerRef
 }
 
+// terramateRootOutput is the executable OpenTofu root of a Terramate unit; its
+// stack file (stack.tm.hcl) is the second, non-root artifact of that unit.
+const terramateRootOutput = "main.tf"
+
 func appliedArtifactDigest(request runtimeexecutor.ExecutionRequest, target runtimeexecutor.RuntimeTarget) string {
-	if len(target.ArtifactRefs) != 1 {
+	if len(target.ArtifactRefs) == 1 {
+		for _, artifact := range request.Artifacts {
+			if artifact.ID == target.ArtifactRefs[0] {
+				return artifact.Digest
+			}
+		}
 		return ""
 	}
-	for _, artifact := range request.Artifacts {
-		if artifact.ID == target.ArtifactRefs[0] {
-			return artifact.Digest
-		}
+	// A Terramate unit applies its OpenTofu root together with the stack file
+	// that places it. The removal binds the one executable root.
+	if target.UnitRef != "terramate" || len(target.ArtifactRefs) != 2 {
+		return ""
 	}
-	return ""
+	digest := ""
+	for _, artifact := range request.Artifacts {
+		if !containsString(target.ArtifactRefs, artifact.ID) || path.Base(artifact.OutputRef) != terramateRootOutput {
+			continue
+		}
+		if digest != "" {
+			return ""
+		}
+		digest = artifact.Digest
+	}
+	return digest
 }
 
 func selectAccessBindings(values []runtimeexecutor.AccessBinding, refs []string) []runtimeexecutor.AccessBinding {

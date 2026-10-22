@@ -28,6 +28,10 @@ type ownerStepUpFlow struct {
 	// them and nonce is the random OIDC nonce the pairing step-up must echo.
 	deviceEnroll bool
 	nonce        string
+	// agentApproval flows answer one StackKits MCP agent write approval
+	// request; approve is the Owner's answer chosen before the passkey login.
+	agentApproval string
+	approve       bool
 }
 
 type ownerStepUpHandler struct {
@@ -56,12 +60,15 @@ func (s *Server) registerOwnerStepUpRoutes() {
 	s.mux.HandleFunc("POST "+ownerStepUpDeviceEnrollPath+"/prepare", h.prepareDeviceEnroll)
 	s.mux.HandleFunc("GET "+ownerStepUpDeviceEnrollPath, h.reviewDeviceEnroll)
 	s.mux.HandleFunc("POST "+ownerStepUpDeviceEnrollPath, h.startDeviceEnroll)
+	s.mux.HandleFunc("GET "+ownerStepUpAgentApprovalPath, h.reviewAgentApproval)
+	s.mux.HandleFunc("POST "+ownerStepUpAgentApprovalPath, h.startAgentApproval)
 }
 
 func isOwnerStepUpBrowserRoute(r *http.Request) bool {
 	return (r.URL.Path == ownerStepUpPath+"/review" && (r.Method == http.MethodGet || r.Method == http.MethodPost)) ||
 		(r.URL.Path == localowner.StepUpCallbackPath && r.Method == http.MethodGet) ||
-		(r.URL.Path == ownerStepUpDeviceEnrollPath && (r.Method == http.MethodGet || r.Method == http.MethodPost))
+		(r.URL.Path == ownerStepUpDeviceEnrollPath && (r.Method == http.MethodGet || r.Method == http.MethodPost)) ||
+		(r.URL.Path == ownerStepUpAgentApprovalPath && (r.Method == http.MethodGet || r.Method == http.MethodPost))
 }
 
 func stepUpHeaders(w http.ResponseWriter) {
@@ -218,6 +225,10 @@ func (h *ownerStepUpHandler) callback(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	if flow.deviceEnroll {
 		h.finishDeviceEnroll(w, ctx, service, r.URL.Query().Get("code"), flow)
+		return
+	}
+	if flow.agentApproval != "" {
+		h.finishAgentApproval(w, ctx, service, r.URL.Query().Get("code"), flow)
 		return
 	}
 	receipt, err := service.ExchangeStepUpCode(ctx, h.origin, r.URL.Query().Get("code"), flow.verifier, flow.binding)
