@@ -38,12 +38,12 @@ jobs:
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|edge)\.[0-9]+)?$ ]]
 
       - name: Checkout published tag
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.TAG }}
 
       - name: Log in to GHCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -73,7 +73,7 @@ jobs:
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: Attest published image
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ghcr.io/kombifyio/stackkits
           subject-digest: ${{ steps.image.outputs.digest }}
@@ -99,12 +99,12 @@ jobs:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
       POCKETID_PLATFORM: linux/${{ matrix.arch }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ env.TAG }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24.22.1'
       - name: Resolve the locked real protocol driver
@@ -113,14 +113,14 @@ jobs:
         run: node modules/pocketid/compat/native-image.mjs build
       - name: Qualify the actual embedded binary and native protocol
         run: node modules/pocketid/compat/native-image.mjs qualify
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
       - name: Publish exactly the qualified native OCI output
         run: node modules/pocketid/compat/native-image.mjs publish
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: ${{ !cancelled() }}
         with:
           name: pocketid-native-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -140,15 +140,15 @@ jobs:
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ env.TAG }}
           persist-credentials: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           pattern: pocketid-native-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/pocketid-native-receipts
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -162,7 +162,7 @@ jobs:
           subject-name: ghcr.io/kombifyio/stackkits
           subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: pocketid-publication-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/pocketid-publication.json
