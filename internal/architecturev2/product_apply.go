@@ -40,6 +40,10 @@ func (s *Service) ExecuteProductApply(ctx context.Context, input ProductApplyInp
 		return VerifiedApplyResult{}, err
 	}
 	input.Current.plan = scopedPlan
+	program, err := s.observeApplyProgram(ctx)
+	if err != nil {
+		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "observe the current Apply program before execution", err)
+	}
 	registry, err := s.productApplyExecutorRegistry(input.Current.plan, input.Versions.Runtime)
 	if err != nil {
 		return VerifiedApplyResult{}, err
@@ -56,7 +60,11 @@ func (s *Service) ExecuteProductApply(ctx context.Context, input ProductApplyInp
 		return VerifiedApplyResult{}, err
 	}
 	defer func() { returnErr = errors.Join(returnErr, authorization.Close()) }()
-	return registry.execute(ctx, authorization)
+	result, err = registry.execute(ctx, authorization)
+	if err != nil {
+		return VerifiedApplyResult{}, err
+	}
+	return withObservedApplyProgram(result, program)
 }
 
 // BindProductExecutionScope fixes, once and at composition, the host scope a

@@ -21,6 +21,9 @@ import (
 // Request is one coordinated rollback of the local host to one verified
 // checkpoint.
 type Request struct {
+	// Admission is borrowed through pre-child lifecycle preparation. Execute
+	// reacquires after the governed child has performed its normal admission.
+	Admission            *opentofu.GenericRestoreAdmission
 	WorkspaceRoot        string
 	RollbackID           string
 	TargetSnapshotID     string
@@ -32,7 +35,11 @@ type Request struct {
 	Target  []Stack
 	// TargetRoots are the verified OpenTofu roots of the checkpoint.
 	TargetRoots []TargetRoot
-	Tools       terramatehost.Tools
+	// RecreateRoots re-verifies checkpoint custody and establishes ordinary
+	// executor ownership and runnable stacks for the exact pending roots. It
+	// runs under the complete batch lease, after regeneration and before engines.
+	RecreateRoots func(context.Context, *opentofu.GenericRestoreAdmission, []string) error
+	Tools         terramatehost.Tools
 	// Environment adds process environment for one stack's OpenTofu run,
 	// such as the Compose interpolation environment of a Core payload.
 	Environment func(Stack) ([]string, error)
@@ -67,11 +74,20 @@ func (request Request) now() time.Time {
 // before any runtime side effect. The plan is computed once: a resumed
 // rollback executes the original plan, so a stack destroyed by the first
 // invocation is never classified again.
-func Prepare(request Request) (Journal, bool, error) {
+func Prepare(request Request) (_ Journal, _ bool, returnErr error) {
 	existing, found, err := LoadJournal(request.WorkspaceRoot, request.TargetSnapshotID)
 	if err != nil {
 		return Journal{}, false, err
 	}
+	admission, err := acquireGenericRollbackAdmission(request, existing.Steps)
+	if err != nil {
+		return Journal{}, false, err
+	}
+	defer func() {
+		if request.Admission == nil {
+			returnErr = errors.Join(returnErr, admission.Close())
+		}
+	}()
 	if found && existing.InProgress() {
 		return existing, true, nil
 	}
@@ -93,6 +109,48 @@ func Prepare(request Request) (Journal, bool, error) {
 		return Journal{}, false, err
 	}
 	return journal, false, nil
+}
+
+// Materialize places scaffolding only for steps that will still execute.
+// Admission is reacquired after Prepare and held through these writes. It is
+// released before executor-state recovery and its governed child handoff.
+func Materialize(request Request, journal Journal, current *terramatehost.Layout, target terramatehost.Layout) (returnErr error) {
+	admission, err := acquireGenericRollbackAdmission(request, journal.Steps)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if request.Admission == nil {
+			returnErr = errors.Join(returnErr, admission.Close())
+		}
+	}()
+	roots := make([]string, 0, len(journal.Steps))
+	for _, step := range journal.Steps {
+		previous := journal.Results[step.RuntimeRoot]
+		if step.Action == ActionUnchanged || previous.Status == StackConverged || previous.Status == StackSkipped {
+			continue
+		}
+		if step.Role != hostRole {
+			exists, err := directoryExists(request.WorkspaceRoot, step.RuntimeRoot)
+			if err != nil {
+				return err
+			}
+			// Only the executor creates an identified root. Scaffolding must
+			// not turn an absent root into an existing, unmarked one before
+			// checkpoint recovery rechecks destination custody.
+			if !exists {
+				continue
+			}
+		}
+		roots = append(roots, step.RuntimeRoot)
+	}
+	if current != nil {
+		if _, err := terramatehost.MaterializeRoots(request.WorkspaceRoot, *current, roots, admission); err != nil {
+			return err
+		}
+	}
+	_, err = terramatehost.MaterializeRoots(request.WorkspaceRoot, target, roots, admission)
+	return err
 }
 
 // Plan decides one action per local stack. Stacks of the current graph run
@@ -179,10 +237,60 @@ func Plan(request Request) ([]Step, error) {
 // previous invocation already converged are skipped. The first failing step
 // stops the rollback; the journal stays in progress so a second invocation
 // resumes at that step.
-func Execute(ctx context.Context, request Request, journal Journal, resumed bool) (Report, error) {
+func Execute(ctx context.Context, request Request, journal Journal, resumed bool) (out Report, returnErr error) {
+	// Re-admit resumed journals too, before any earlier stack is changed.
+	admission, err := acquireGenericRollbackAdmission(request, journal.Steps)
+	if err != nil {
+		result := report(journal, resumed)
+		result.Status = StatusFailed
+		return result, err
+	}
+	ctx = admission.Context(ctx)
+	defer func() {
+		if request.Admission == nil {
+			returnErr = errors.Join(returnErr, admission.Close())
+		}
+		if returnErr != nil {
+			out.Status = StatusFailed
+		}
+	}()
 	targetRoots := make(map[string]RootFiles, len(request.TargetRoots))
 	for _, root := range request.TargetRoots {
 		targetRoots[root.RuntimeRoot] = root.Files
+	}
+	// Recreated roots cannot wait for joined Apply: this execution precedes it.
+	// Prepare all selected roots before the first engine, then persist restoration
+	// before an interrupted engine can advance their state.
+	var recreated []string
+	for _, step := range journal.Steps {
+		previous := journal.Results[step.RuntimeRoot]
+		if step.Action != ActionRecreated || previous.Status == StackConverged || previous.Status == StackSkipped {
+			continue
+		}
+		exists, err := directoryExists(request.WorkspaceRoot, step.RuntimeRoot)
+		if err != nil {
+			return report(journal, resumed), err
+		}
+		if !previous.FilesRestored || !exists {
+			recreated = append(recreated, step.RuntimeRoot)
+		}
+	}
+	if len(recreated) > 0 {
+		if request.RecreateRoots == nil {
+			return report(journal, resumed), &Error{Code: ErrInvalid, Detail: "recreated roots require verified checkpoint executor ownership"}
+		}
+		if err := request.RecreateRoots(ctx, admission, recreated); err != nil {
+			return report(journal, resumed), err
+		}
+		for _, root := range recreated {
+			result := journal.Results[root]
+			result.FilesRestored = true
+			journal.Results[root] = result
+		}
+		journal.UpdatedAt = request.now()
+		if err := SaveJournal(request.WorkspaceRoot, journal); err != nil {
+			return report(journal, resumed), err
+		}
 	}
 	emit := request.Event
 	if emit == nil {
@@ -197,7 +305,7 @@ func Execute(ctx context.Context, request Request, journal Journal, resumed bool
 		if failure != nil {
 			break
 		}
-		result := runStep(ctx, request, &journal, step, targetRoots)
+		result := runStep(ctx, request, &journal, step, targetRoots, admission)
 		journal.Results[step.RuntimeRoot] = result
 		journal.UpdatedAt = request.now()
 		if err := SaveJournal(request.WorkspaceRoot, journal); err != nil {
@@ -227,6 +335,48 @@ func Execute(ctx context.Context, request Request, journal Journal, resumed bool
 	return report(journal, resumed), nil
 }
 
+// AcquireAdmission admits persisted resume destinations as well as both layouts
+// before a controller begins or transitions its persistent lifecycle mutation.
+func AcquireAdmission(request Request) (*opentofu.GenericRestoreAdmission, error) {
+	journal, _, err := LoadJournal(request.WorkspaceRoot, request.TargetSnapshotID)
+	if err != nil {
+		return nil, err
+	}
+	return acquireGenericRollbackAdmission(request, journal.Steps)
+}
+
+// Admission covers the complete batch before its first side effect, including
+// roots only the checkpoint or a resumed journal names.
+func acquireGenericRollbackAdmission(request Request, steps []Step) (*opentofu.GenericRestoreAdmission, error) {
+	roots := make([]string, 0, len(request.Current)+len(request.Target)+len(request.TargetRoots)+len(steps))
+	for _, stacks := range [][]Stack{request.Current, request.Target} {
+		for _, stack := range stacks {
+			if stack.Role != hostRole {
+				roots = append(roots, stack.RuntimeRoot)
+			}
+		}
+	}
+	for _, root := range request.TargetRoots {
+		roots = append(roots, root.RuntimeRoot)
+	}
+	for _, step := range steps {
+		if step.Role != hostRole {
+			roots = append(roots, step.RuntimeRoot)
+		}
+	}
+	if request.Admission != nil {
+		if err := request.Admission.CheckRoots(request.WorkspaceRoot, roots); err != nil {
+			return nil, err
+		}
+		return request.Admission, nil
+	}
+	admission, err := opentofu.AcquireGenericRestoreAdmission(request.WorkspaceRoot, roots)
+	if err != nil {
+		return nil, &Error{Code: ErrInvalid, Detail: "admit coordinated rollback destinations", Err: err}
+	}
+	return admission, nil
+}
+
 func report(journal Journal, resumed bool) Report {
 	result := Report{
 		SchemaVersion: ResultSchemaVersion, RollbackID: journal.RollbackID,
@@ -253,7 +403,7 @@ func report(journal Journal, resumed bool) Report {
 	return result
 }
 
-func runStep(ctx context.Context, request Request, journal *Journal, step Step, targetRoots map[string]RootFiles) StepResult {
+func runStep(ctx context.Context, request Request, journal *Journal, step Step, targetRoots map[string]RootFiles, admission *opentofu.GenericRestoreAdmission) StepResult {
 	started := time.Now()
 	// A retried step keeps only the fact that its checkpoint files are
 	// already written, so the forced apply does not clobber state a
@@ -340,7 +490,7 @@ func runStep(ctx context.Context, request Request, journal *Journal, step Step, 
 				return finish(StackFailed, err.Error())
 			}
 		}
-		if err := opentofu.AlignRestoredWorkloadRoot(request.WorkspaceRoot, step.RuntimeRoot); err != nil {
+		if err := admission.AlignRestoredWorkloadRoot(step.RuntimeRoot); err != nil {
 			return finish(StackFailed, "align the restored workload root: "+err.Error())
 		}
 		applyArgs, err := terramatehost.ForcedApplyArgs(files.Config)
@@ -512,6 +662,9 @@ func rootEquals(workspaceRoot, runtimeRoot string, files RootFiles) (bool, error
 // executor's root marker: the runtime executor, not the rollback, creates
 // roots.
 func restoreRoot(workspaceRoot, runtimeRoot string, files RootFiles) error {
+	if err := opentofu.RequireGenericRestoreAdmission(workspaceRoot, []string{runtimeRoot}); err != nil {
+		return err
+	}
 	marker, err := confinedFile(workspaceRoot, path.Join(runtimeRoot, opentofu.MarkerFile), false)
 	if err != nil {
 		return err

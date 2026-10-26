@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "license": "Apache-2.0",
-  "engines": { "node": ">=24.21.0" },
+  "engines": { "node": ">=24.22.1 <25 || >=26.12.1" },
   "scripts": {
     "prebuild": "node scripts/prebuild.mjs",
     "dev": "node scripts/prebuild.mjs && vite --host 127.0.0.1",

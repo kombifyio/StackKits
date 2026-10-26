@@ -42,6 +42,8 @@ type EmergencySource struct {
 }
 
 type EmergencyEntry struct {
+	UID       int    `json:"uid,omitempty"`
+	GID       int    `json:"gid,omitempty"`
 	Path      string `json:"path"`
 	Directory bool   `json:"directory,omitempty"`
 	Bytes     int64  `json:"bytes"`
@@ -52,20 +54,23 @@ type EmergencyEntry struct {
 // EmergencyManifest describes bytes actually archived, not a requested backup
 // policy. Copying live files is never an application consistency/restore proof.
 type EmergencyManifest struct {
-	APIVersion           string            `json:"apiVersion"`
-	CreatedAt            time.Time         `json:"createdAt"`
-	Consistency          string            `json:"consistency"`
-	LargeMediaMode       string            `json:"largeMediaMode"`
-	Sources              []EmergencySource `json:"sources"`
-	Entries              []EmergencyEntry  `json:"entries"`
-	ApplicationsVerified bool              `json:"applicationsVerified"`
+	APIVersion           string               `json:"apiVersion"`
+	CreatedAt            time.Time            `json:"createdAt"`
+	Consistency          string               `json:"consistency"`
+	LargeMediaMode       string               `json:"largeMediaMode"`
+	Sources              []EmergencySource    `json:"sources"`
+	Entries              []EmergencyEntry     `json:"entries"`
+	ApplicationsVerified bool                 `json:"applicationsVerified"`
+	ApplicationTransfer  *ApplicationTransfer `json:"applicationTransfer,omitempty"`
 }
 
 type EmergencyExportInput struct {
-	Target         string
-	Sources        []EmergencySource
-	Recipients     []age.Recipient
-	LargeMediaMode string
+	Target           string
+	Sources          []EmergencySource
+	Recipients       []age.Recipient
+	LargeMediaMode   string
+	finalizeManifest func(*EmergencyManifest) error
+	memorySources    map[int]map[string][]byte
 }
 
 type EmergencyExportResult struct {
@@ -133,8 +138,14 @@ func ExportEmergency(ctx context.Context, input EmergencyExportInput) (Emergency
 			}
 			compressed := gzip.NewWriter(encrypted)
 			archive := tar.NewWriter(compressed)
-			for _, source := range manifest.Sources {
+			for sourceIndex, source := range manifest.Sources {
 				if source.Coverage != "included" {
+					continue
+				}
+				if files, exists := input.memorySources[sourceIndex]; exists {
+					if err := archiveEmergencyMemorySource(archive, source, files, &manifest); err != nil {
+						return err
+					}
 					continue
 				}
 				if err := archiveEmergencySource(ctx, archive, source, &manifest); err != nil {
@@ -143,6 +154,11 @@ func ExportEmergency(ctx context.Context, input EmergencyExportInput) (Emergency
 			}
 			if len(manifest.Entries) == 0 {
 				return errors.New("emergency export has no included sources")
+			}
+			if input.finalizeManifest != nil {
+				if err := input.finalizeManifest(&manifest); err != nil {
+					return err
+				}
 			}
 			raw, err := json.MarshalIndent(manifest, "", "  ")
 			if err != nil {
@@ -285,7 +301,13 @@ func archiveEmergencySource(ctx context.Context, archive *tar.Writer, source Eme
 		suffix := strings.TrimPrefix(strings.TrimPrefix(entry.Path, name), "/")
 		archived := path.Join(source.ArchivePath, suffix)
 		item := EmergencyEntry{Path: archived, Directory: entry.Info.IsDir(), Mode: uint32(entry.Info.Mode().Perm())}
+		metadata, err := tar.FileInfoHeader(entry.Info, "")
+		if err != nil {
+			return err
+		}
+		item.UID, item.GID = metadata.Uid, metadata.Gid
 		header := &tar.Header{Name: archived, Mode: int64(item.Mode), ModTime: entry.Info.ModTime(), Typeflag: tar.TypeDir}
+		header.Uid, header.Gid = item.UID, item.GID
 		if !item.Directory {
 			header.Typeflag = tar.TypeReg
 			header.Size = entry.Info.Size()
@@ -368,3 +390,24 @@ Then inspect with tar -tzf emergency.tar.gz and extract only into a new isolated
 directory. Delete the decrypted temporary archive after recovery. The embedded
 manifest records SHA-256 checksums and the original-to-staged source mapping.
 `
+
+// Secret transfer material enters age encryption directly from memory and never
+// needs a plaintext source-workspace file, including after a process kill.
+func archiveEmergencyMemorySource(archive *tar.Writer, source EmergencySource, files map[string][]byte, manifest *EmergencyManifest) error {
+	if err := archive.WriteHeader(&tar.Header{Name: source.ArchivePath + "/", Typeflag: tar.TypeDir, Mode: 0o700}); err != nil {
+		return err
+	}
+	manifest.Entries = append(manifest.Entries, EmergencyEntry{Path: source.ArchivePath, Directory: true, Mode: 0o700})
+	for name, data := range files {
+		if !validEmergencyExclude(name) || strings.Contains(name, "/") {
+			return errors.New("invalid memory transfer entry")
+		}
+		entry := path.Join(source.ArchivePath, name)
+		if err := writeEmergencyTarBytes(archive, entry, data); err != nil {
+			return err
+		}
+		sum := sha256.Sum256(data)
+		manifest.Entries = append(manifest.Entries, EmergencyEntry{Path: entry, Bytes: int64(len(data)), SHA256: hex.EncodeToString(sum[:]), Mode: 0o600})
+	}
+	return nil
+}

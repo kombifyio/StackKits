@@ -125,7 +125,7 @@ Definition: foundation.#ProductKitDefinition & {
 		]
 		forbidden: ["site-cloud", "cloud-control-authority", "inter-site-link"]
 	}
-	workloads: {required: ["basement-core"], defaults: [], optional: list.Concat([["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "remote", "network", "game", "mail", "marketplace", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "automation-notifications", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video", "ai-assistant", "ai-speech", "ai-harness", "ai-control-plane", "ai-gateway"], foundation.ArchitectureV2InternalHomeWorkloadRefs]), forbidden: []}
+	workloads: {required: ["basement-core"], defaults: [], optional: list.Concat([["files", "photos", "vault", "media", "smart-home", "ai", "dev", "documents", "remote", "network", "game", "mail", "marketplace", "media-music", "media-audiobooks", "smart-home-esphome", "files-office", "smart-home-mqtt", "smart-home-zigbee", "automation-notifications", "photos-share", "photos-kiosk", "photos-tools", "ai-search", "ai-documents", "ai-image-video", "ai-assistant", "ai-speech", "ai-harness", "ai-control-plane", "ai-gateway", "ai-vectors"], foundation.ArchitectureV2InternalHomeWorkloadRefs]), forbidden: []}
 	accessDefaults: {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false

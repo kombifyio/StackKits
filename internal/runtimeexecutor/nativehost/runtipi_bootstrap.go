@@ -141,7 +141,8 @@ func (o *osRuntipiMarketplaceOperations) ApplyRuntipiMarketplace(ctx context.Con
 		if err != nil {
 			return RuntipiMarketplaceObservation{}, err
 		}
-		settings["trustedProxyIps"] = []string{proxyIP}
+		// Upstream v4.10.2 accepts only a comma-separated string here.
+		settings["trustedProxyIps"] = proxyIP
 	}
 	settingsRaw, err := json.Marshal(settings)
 	if err != nil {
@@ -153,6 +154,14 @@ func (o *osRuntipiMarketplaceOperations) ApplyRuntipiMarketplace(ctx context.Con
 	directory := filepath.Join(o.workspace, runtipiRuntimeDirectory)
 	command := exec.CommandContext(ctx, filepath.Join(directory, "runtipi-cli"), "prepare")
 	command.Dir = directory
+	// The verified upstream CLI checks Docker internally, so its child reads
+	// need the same node daemon as the direct bootstrap/custody operations.
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "DOCKER_") {
+			command.Env = append(command.Env, entry)
+		}
+	}
+	command.Env = append(command.Env, "DOCKER_HOST=unix:///var/run/docker.sock")
 	if _, err := command.CombinedOutput(); err != nil {
 		return RuntipiMarketplaceObservation{}, errors.New("verified upstream Runtipi CLI could not prepare its node environment")
 	}
@@ -248,7 +257,7 @@ func (o *osRuntipiMarketplaceOperations) custody(ctx context.Context, owner, ema
 		{"ps", "--all", "--filter", "label=com.docker.compose.project=" + runtipiComposeProject, "--quiet"},
 		{"network", "ls", "--filter", "name=^runtipi_tipi_main_network$", "--quiet"},
 	} {
-		output, err := exec.CommandContext(ctx, "docker", query...).Output()
+		output, err := (&osMarketplaceOperations{workspace: o.workspace}).run(ctx, query, nil, o.workspace)
 		if err != nil || strings.TrimSpace(string(output)) != "" {
 			return runtipiInstallationCustody{}, errors.New("Runtipi refuses to adopt an existing platform or control network without its encrypted node custody")
 		}
@@ -270,6 +279,26 @@ func saveRuntipiInstallationCustody(workspace string, state runtipiInstallationC
 		return err
 	}
 	defer clear(raw)
+	prior, readErr := localevidence.ResolveEncryptedLocalIssuedSecret(workspace, runtipiInstallationSecretRef)
+	if readErr == nil {
+		defer clear(prior)
+		var fields, changed map[string]json.RawMessage
+		if json.Unmarshal(prior, &fields) != nil || json.Unmarshal(raw, &changed) != nil {
+			return errors.New("retained installation payload invalid")
+		}
+		for key, value := range changed {
+			fields[key] = value
+		}
+		merged, err := json.Marshal(fields)
+		if err != nil {
+			return err
+		}
+		defer clear(merged)
+		return localevidence.StoreEncryptedLocalIssuedSecret(workspace, runtipiInstallationSecretRef, merged)
+	}
+	if !errors.Is(readErr, os.ErrNotExist) {
+		return readErr
+	}
 	return localevidence.StoreEncryptedLocalIssuedSecret(workspace, runtipiInstallationSecretRef, raw)
 }
 
@@ -390,9 +419,9 @@ func (o *osRuntipiMarketplaceOperations) writeOverride(view confinedfs.View, d a
 func (o *osRuntipiMarketplaceOperations) compose(ctx context.Context, args ...string) ([]byte, error) {
 	directory := filepath.Join(o.workspace, runtipiRuntimeDirectory)
 	commandArgs := []string{"compose", "--project-name", runtipiComposeProject, "--env-file", filepath.Join(directory, ".env"), "-f", filepath.Join(directory, "docker-compose.yml"), "-f", filepath.Join(directory, "stackkit-compose.yml")}
-	command := exec.CommandContext(ctx, "docker", append(commandArgs, args...)...)
-	command.Dir = directory
-	output, err := command.CombinedOutput()
+	// Bootstrap and custody discovery must inspect the same node daemon used
+	// by the Kit router, regardless of an inherited Docker context or host.
+	output, err := (&osMarketplaceOperations{workspace: o.workspace}).run(ctx, append(commandArgs, args...), nil, directory)
 	if err != nil {
 		return nil, fmt.Errorf("Runtipi node Compose operation failed: %w", err)
 	}

@@ -1,7 +1,7 @@
 # Notices for bundled third-party software
 
 StackKits distributes the following unmodified executables alongside its own
-code. Their MPL-2.0 license does not change the StackKits license choice in
+code. Their upstream licenses do not change the StackKits license choice in
 [LICENSING.md](LICENSING.md). The complete MPL-2.0 text is in
 [LICENSE-MPL-2.0](LICENSE-MPL-2.0).
 
@@ -12,6 +12,8 @@ code. Their MPL-2.0 license does not change the StackKits license choice in
 | OpenTofu `hashicorp/local` provider | 2.5.3 | MPL-2.0 | [Source](https://github.com/opentofu/terraform-provider-local/tree/v2.5.3), [LICENSE](https://github.com/opentofu/terraform-provider-local/blob/v2.5.3/LICENSE); upstream LICENSE is also present beside each bundled provider binary |
 | OpenTofu `kreuzwerker/docker` provider | 4.6.0 | MPL-2.0 | [Source](https://github.com/kreuzwerker/terraform-provider-docker/tree/v4.6.0), [LICENSE](https://github.com/kreuzwerker/terraform-provider-docker/blob/v4.6.0/LICENSE); upstream LICENSE is also present beside each bundled provider binary. Used only by roots of modules explicitly opted in to the ADR-0045 Stage 2 pilot |
 | OpenTofu `sebastianfs82/komodo` provider | 0.12.0 | MPL-2.0 | [Source](https://github.com/sebastianfs82/terraform-provider-komodo/tree/v0.12.0), [LICENSE](https://github.com/sebastianfs82/terraform-provider-komodo/blob/v0.12.0/LICENSE); upstream LICENSE is also present beside each bundled provider binary |
+| OpenTofu `coolify-terraform/coolify` provider | 0.1.27 | MPL-2.0 | [Source](https://github.com/coolify-terraform/terraform-provider-coolify/tree/v0.1.27), [LICENSE](https://github.com/coolify-terraform/terraform-provider-coolify/blob/v0.1.27/LICENSE); upstream LICENSE is also present beside each bundled provider binary |
+| OpenTofu `vanillauys/dokploy` provider | 1.10.0 | MIT | [Source](https://github.com/vanillauys/terraform-provider-dokploy/tree/v1.10.0), [LICENSE](https://github.com/vanillauys/terraform-provider-dokploy/blob/v1.10.0/LICENSE); upstream LICENSE and its copyright notice are present beside each bundled provider binary |
 
 The pinned upstream LICENSE files carry these copyright notices:
 
@@ -58,7 +60,7 @@ the 4.4.6 development probe is not a shipped Marketplace pin.
 `third_party/coolify-mirror` is a pinned, modified fork of
 [mtalavi/coolify-mirror](https://github.com/mtalavi/coolify-mirror) at upstream
 commit `f46fa093644268759fc0802e7d098e9e45dee984` (release 1.9.3), fork
-revision `kombify.4`. It is MIT licensed; the upstream
+revision `kombify.5`. It is MIT licensed; the upstream
 [LICENSE](third_party/coolify-mirror/LICENSE) is kept beside the source and
 must accompany every distributed engine binary. The kombify changes are listed
 in [KOMBIFY-FORK.md](third_party/coolify-mirror/KOMBIFY-FORK.md).
@@ -137,3 +139,7 @@ Source: [ntfy v2.30.0](https://github.com/binwiederhier/ntfy/tree/v2.30.0).
 The upstream [LICENSE](https://github.com/binwiederhier/ntfy/blob/v2.30.0/LICENSE)
 is Apache-2.0, copyright2021 Philipp C. Heckel. No ntfy feature is reimplemented
 by StackKits; the upstream image retains its bundled dependency notices.
+
+## PocketID membership CAS compatibility derivative
+
+The optional `modules/pocketid/compat` source recipe builds PocketID 2.16.0, upstream commit `bb05e6922444c33eec87466919f1bcf105967825`, with the reviewed membership CAS patch. PocketID remains BSD-2-Clause, copyright (c) 2024 Elias Schneider. The complete [upstream license](modules/pocketid/compat/UPSTREAM-LICENSE), pinned [source provenance](modules/pocketid/compat/provenance.json), and [build recipe](modules/pocketid/compat/build-recipe.json) accompany the derivative. The native image contains the full notice at `/usr/share/licenses/pocket-id/LICENSE`. Its version is `2.16.0-kombify-cas.1`; the application reports the retained upstream version and the CAS capability identifies the extension. The official module pin remains unchanged until authenticated native publication and both platform qualifications permit adoption.

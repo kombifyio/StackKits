@@ -8,13 +8,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"sort"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
+	"github.com/kombifyio/stackkits/internal/terramatehost"
+	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 	"github.com/kombifyio/stackkits/internal/tofu"
 	"gopkg.in/yaml.v3"
 )
@@ -56,6 +62,10 @@ func (store ExecutorStateStore) Recover(
 // RecoveryOptions narrows Recover for the Advanced coordinated rollback
 // (docs/ARCHITECTURE.md "Coordinated rollback across stacks (Stage 1)").
 type RecoveryOptions struct {
+	// Admission transfers an already-held complete preparation lease. Recovery
+	// checks its destinations and closes it before invoking the governed child.
+	// This joins lifecycle preparation to authority restoration without a gap.
+	Admission *opentofu.GenericRestoreAdmission
 	// ReplaceAuthority restores the captured StackSpec and Inventory even
 	// when they changed after the checkpoint. Only an Owner-approved
 	// rollback to this exact checkpoint sets it; a change set promotes its
@@ -81,6 +91,9 @@ func (store ExecutorStateStore) RecoverWith(
 	options RecoveryOptions,
 	invoke RecoveryCommand,
 ) (ExecutorStateRecoveryResult, error) {
+	if options.Admission != nil {
+		defer options.Admission.Close()
+	}
 	if ctx == nil {
 		return ExecutorStateRecoveryResult{}, errors.New("executor state: recovery requires a context")
 	}
@@ -166,7 +179,7 @@ func (store ExecutorStateStore) RecoverWith(
 		Release: snapshot.Release, KopiaSnapshotAnchor: snapshot.KopiaSnapshotAnchor,
 		RestoredPaths: append([]string(nil), restoredPaths...),
 	}
-	if err := invoke(ctx, executablePath, snapshot); err != nil {
+	if err := invoke(opentofu.WithoutGenericRestoreAdmission(ctx), executablePath, snapshot); err != nil {
 		return result, fmt.Errorf(
 			"executor state: invoke verified recovery executable: %w", err,
 		)
@@ -342,6 +355,22 @@ func (store ExecutorStateStore) prepareExecutorStateRecovery(
 	if err != nil {
 		return "", nil, err
 	}
+	// A captured manager can rewrite the runtime even with SkipOpenTofuRoots,
+	// or when the checkpoint predates OpenTofu. Admit the actual destination
+	// before Inventory, runtime files, StackSpec or the callback can change it.
+	admission := options.Admission
+	if admission == nil {
+		admission, err = opentofu.AcquireGenericRestoreAdmission(workspaceRoot, executorStateOpenTofuRestoreDestinations(snapshot.RuntimeOpenTofu))
+	} else {
+		err = admission.CheckRoots(workspaceRoot, executorStateOpenTofuRestoreDestinations(snapshot.RuntimeOpenTofu))
+	}
+	if err != nil {
+		return "", nil, err
+	}
+	// Retain the provider project locks through every recovery write. This
+	// function returns before RecoverWith invokes the governed child; that
+	// child must acquire its normal manager admission rather than inherit locks.
+	defer func() { returnErr = errors.Join(returnErr, admission.Close()) }()
 	// Inventory is installed before the StackSpec, which remains the recovery
 	// authority commit point for a workspace that uses both files.
 	if snapshot.Inventory != nil {
@@ -356,7 +385,7 @@ func (store ExecutorStateStore) prepareExecutorStateRecovery(
 	// roots are restored before the StackSpec commit point so the recovered
 	// release plans against the checkpoint's state.
 	if executorStateTargetExecutesOpenTofu(snapshot.GenerationTarget) && !options.SkipOpenTofuRoots {
-		roots, err := restoreExecutorStateOpenTofuRoots(transaction, view, snapshot.RuntimeOpenTofu)
+		roots, err := restoreExecutorStateOpenTofuRoots(transaction, view, snapshot.RuntimeOpenTofu, snapshot.ID)
 		if err != nil {
 			return "", nil, err
 		}
@@ -614,4 +643,208 @@ func inventoryEquivalentIgnoringFreeSpace(current, captured []byte) bool {
 	}
 	right, ok := normalize(captured)
 	return ok && reflect.DeepEqual(left, right)
+}
+
+// PrepareRollbackRecreatedRoots is the checkpoint-to-current-executor handoff
+// after joined generation and before coordinated per-stack execution. It reads
+// immutable signed custody again, validates the entire selected batch, restores
+// authenticated files and stack definitions, and hands them to their ordinary
+// executors under the caller's still-held project locks.
+func (store ExecutorStateStore) PrepareRollbackRecreatedRoots(ctx context.Context, workspace, snapshotID string, roots []string, admission *opentofu.GenericRestoreAdmission) error {
+	if err := admission.CheckRoots(workspace, roots); err != nil {
+		return err
+	}
+	custody, err := store.LoadRollbackCustody(workspace, snapshotID)
+	if err != nil {
+		return err
+	}
+	if custody.Snapshot.GenerationTarget != executorStateTargetTerramate {
+		return errors.New("coordinated recreation requires a Terramate checkpoint")
+	}
+	owner, err := localevidence.LoadOwnerCustody(workspace)
+	if err != nil {
+		return err
+	}
+	graph, err := terramatestackgraph.Parse(custody.Artifacts[terramatestackgraph.ArtifactID])
+	if err != nil {
+		return err
+	}
+	if graph.PlanHash != custody.Snapshot.Lineage.Binding.PlanHash {
+		return errors.New("checkpoint stack graph differs from captured generation authority")
+	}
+	layout, err := terramatehost.Plan(graph, custody.Artifacts, owner.Binding.SiteRef, owner.Binding.NodeRef)
+	if err != nil {
+		return err
+	}
+	mirror, ok := tofu.PackagedProvidersDir()
+	if !ok {
+		return tofu.ErrProviderMirrorMissing
+	}
+	providers, err := tofu.LoadProviderClosure(mirror)
+	if err != nil {
+		return err
+	}
+	batch := make([]opentofu.OrdinaryRootRecreation, 0, len(roots))
+	for _, root := range roots {
+		var stack terramatestackgraph.Stack
+		found := false
+		for _, id := range layout.Host.RunOrder {
+			candidate, ok := layout.Stack(id)
+			if ok && candidate.RuntimeRoot == root && candidate.Role != terramatestackgraph.RoleHost {
+				stack, found = candidate, true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("checkpoint has no local executor stack for %s", root)
+		}
+		var payload ExecutorStateRootPayload
+		found = false
+		for _, candidate := range custody.Roots {
+			if candidate.Root == root {
+				payload, found = candidate, true
+				break
+			}
+		}
+		if !found || payload.ModuleRef != stack.ModuleRef || stack.InstanceRef == "" {
+			return fmt.Errorf("checkpoint root %s differs from its executor generation identity", root)
+		}
+		marker := opentofu.RootMarker{SchemaVersion: opentofu.RootMarkerSchemaVersion, ModuleRef: stack.ModuleRef, InstanceRef: stack.InstanceRef, RuntimeDir: path.Base(path.Dir(root))}
+		switch stack.Role {
+		case terramatestackgraph.RoleCore:
+			matched := false
+			for _, binding := range opentofu.DefaultModuleBindings() {
+				if binding.ModuleRef == stack.ModuleRef {
+					expected, err := opentofu.RootRelativePath(binding.RuntimeDir)
+					if err != nil {
+						return err
+					}
+					if expected == root {
+						marker.ComposeProject = binding.ComposeProject
+						matched = true
+					}
+				}
+			}
+			if !matched || !bytes.Equal(payload.Config, custody.Artifacts[stack.Artifacts.OpenTofu]) {
+				return errors.New("checkpoint Core root does not match its ordinary executor artifact")
+			}
+		case terramatestackgraph.RoleWorkload:
+			matched := false
+			for _, raw := range custody.Artifacts {
+				bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(raw)
+				if err != nil || bundle.ModuleRef != stack.ModuleRef || bundle.WorkloadRef != stack.WorkloadRef {
+					continue
+				}
+				project := "stackkit-" + bundle.WorkloadRef + "-" + bundle.NodeRef
+				expected, err := opentofu.WorkloadRootRelativePath(project)
+				if err != nil {
+					return err
+				}
+				if expected == root && bundle.WorkloadRef == stack.WorkloadRef && bundle.SiteRef == stack.SiteRef && bundle.NodeRef == stack.NodeRef {
+					// The Terramate unit and delivery runtime unit have different
+					// instance IDs. Ownership belongs to the verified delivery executor.
+					if matched && marker.InstanceRef != bundle.InstanceRef {
+						return errors.New("checkpoint workload delivery identity is ambiguous")
+					}
+					marker.Kind, marker.ComposeProject, marker.InstanceRef = opentofu.RootKindWorkload, project, bundle.InstanceRef
+					matched = true
+				}
+			}
+			if !matched {
+				return errors.New("checkpoint workload has no matching ordinary delivery identity")
+			}
+			if !payload.HasCompose || !payload.HasEnvironment {
+				return errors.New("checkpoint workload lacks its captured Compose/environment ownership")
+			}
+			marker.Execution, err = opentofu.ValidateOrdinaryWorkloadCheckpoint(marker.ModuleRef, marker.ComposeProject, payload.Config, payload.Compose)
+			if err != nil {
+				return err
+			}
+		case terramatestackgraph.RoleEdge, terramatestackgraph.RoleFederation:
+			expected, err := opentofu.ModuleRootRelativePath(stack.ModuleRef)
+			if err != nil {
+				return err
+			}
+			if expected != root {
+				return errors.New("checkpoint contract root differs from its ordinary executor")
+			}
+			marker.Kind = opentofu.RootKindModule
+			marker.InstanceRef, err = checkpointRuntimeInstance(custody.Artifacts["resolved-plan"], stack)
+			if err != nil {
+				return err
+			}
+		default:
+			return errors.New("checkpoint stack has no ordinary executor recreation")
+		}
+		stackFile, ok := custody.Artifacts[stack.Artifacts.Stack]
+		if !ok || len(stackFile) == 0 {
+			return errors.New("checkpoint executor has no runnable stack definition")
+		}
+		files := map[string][]byte{path.Join(root, opentofu.StateFile): payload.State, path.Join(root, opentofu.ConfigFile): payload.Config,
+			path.Join(root, opentofu.StackFile): stackFile, path.Join(root, opentofu.CLIConfigFile): tofu.OfflineCLIConfig(providers.Directory())}
+		if payload.HasLock {
+			files[path.Join(root, opentofu.LockFile)] = payload.Lock
+		} else {
+			lock, err := providers.LockForConfiguration(payload.Config)
+			if err != nil {
+				return err
+			}
+			files[path.Join(root, opentofu.LockFile)] = lock
+		}
+		if payload.HasCompose {
+			files[path.Join(path.Dir(root), opentofu.ComposeFile)] = payload.Compose
+		}
+		if payload.HasEnvironment {
+			files[path.Join(path.Dir(root), opentofu.EnvFile)] = payload.Environment
+		}
+		batch = append(batch, opentofu.OrdinaryRootRecreation{RuntimeRoot: root, Marker: marker, Files: files})
+	}
+	// No earlier root is written until every selected identity and closure passed.
+	return admission.RecreateOrdinaryRoots(ctx, snapshotID, batch)
+}
+
+// Contract roots belong to the runtime unit, not the separate Terramate unit.
+// The captured canonical plan is already covered by the checkpoint signature
+// and blob digests. Ambiguous runtime ownership is refused.
+func checkpointRuntimeInstance(canonical []byte, stack terramatestackgraph.Stack) (string, error) {
+	var plan struct {
+		Modules []struct {
+			ID          string `json:"id"`
+			RenderUnits []struct {
+				ApplyMode string `json:"applyMode"`
+				Instances []struct {
+					ID      string `json:"id"`
+					SiteRef string `json:"siteRef"`
+					NodeRef string `json:"nodeRef"`
+				} `json:"instances"`
+			} `json:"renderUnits"`
+		} `json:"modules"`
+	}
+	if err := json.Unmarshal(canonical, &plan); err != nil {
+		return "", err
+	}
+	instance := ""
+	for _, module := range plan.Modules {
+		if module.ID != stack.ModuleRef {
+			continue
+		}
+		for _, unit := range module.RenderUnits {
+			if unit.ApplyMode != "" && unit.ApplyMode != "runtime" {
+				continue
+			}
+			for _, candidate := range unit.Instances {
+				if candidate.SiteRef != stack.SiteRef || candidate.NodeRef != stack.NodeRef {
+					continue
+				}
+				if instance != "" && instance != candidate.ID {
+					return "", errors.New("checkpoint contract runtime identity is ambiguous")
+				}
+				instance = candidate.ID
+			}
+		}
+	}
+	if instance == "" {
+		return "", errors.New("checkpoint contract has no matching runtime executor")
+	}
+	return instance, nil
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramate"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 	"github.com/kombifyio/stackkits/internal/tofu"
@@ -198,7 +199,7 @@ func LocalRootRequired(role, moduleRef string, remoteOwnedModules []string) bool
 // state: the apply already happened through the runtime executor. The report
 // is returned on every path after validation, so a failed change set still
 // records what each stack showed.
-func Converge(ctx context.Context, request ConvergeRequest) (Report, error) {
+func Converge(ctx context.Context, request ConvergeRequest) (_ Report, returnErr error) {
 	layout := request.Layout
 	emit := request.Event
 	if emit == nil {
@@ -223,6 +224,11 @@ func Converge(ctx context.Context, request ConvergeRequest) (Report, error) {
 		return report, fmt.Errorf("resolve workspace: %w", err)
 	}
 
+	ctx, releaseAdmission, err := opentofu.AdmitGenericOperation(ctx, workspace, LayoutRuntimeRoots(layout))
+	if err != nil {
+		return report, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, releaseAdmission()) }()
 	// Core roots are generated and installed by the runtime executor, which
 	// also writes the root marker the executor-state checkpoint requires. A
 	// core root created here would be marker-less and break later
@@ -244,7 +250,7 @@ func Converge(ctx context.Context, request ConvergeRequest) (Report, error) {
 	}
 
 	emit("materialize-host", "started", map[string]string{"hostManifestSha256": layout.ManifestSHA256})
-	materialized, err := Materialize(workspace, layout)
+	materialized, err := MaterializeContext(ctx, workspace, layout)
 	report.Materialized = append(report.Materialized, materialized.Written...)
 	if err != nil {
 		emit("materialize-host", "failed", map[string]string{"error": err.Error()})

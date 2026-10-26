@@ -1,5 +1,49 @@
 # Changelog
 
+- Fix: lifecycle interruption recovery stops only leftover processes that prove they belong to the dead owner: each owner exports a random `STACKKIT_LEASE_OWNER` token to its children, and only processes carrying that exact token in the same boot are stopped (pidfd-pinned). An unrelated process that reuses the group or session is never signalled. A resumed operation claim is checked under the state lock, and the dead owner's lease stays held until its interruption is recorded. When nothing could be stopped, the record says the old effects may still be in progress.
+
+- Fix: a lifecycle operation whose process was killed (for example `stackkit backup run` stopped with SIGKILL) no longer blocks every later Apply and backup. Each operation, including a resumed one, holds a kernel advisory lease while its process runs; the next Apply or backup that finds the lease free stops any child processes left in the dead owner's process group, records the operation as interrupted with its uncertain effects, and continues. A live or resumed operation still blocks.
+
+- Fix: Marketplace (Coolify) bootstrap also deletes pending team-0 invitations, so a revoked account cannot regain root-team access by accepting one later.
+
+- Fix: the first Apply of a Marketplace together with Coolify-managed workloads (for example Photos) completes. Coolify workload owners now run after the Marketplace installation they need, instead of in name order.
+
+- Fix: local backups of Coolify-managed workloads (for example Vault and Photos) configure and run. Coolify service identities that start with a digit are accepted as physical project names, and quiescence stops and starts database containers through Coolify's database controls.
+
+- Fix: every Marketplace (Coolify) Apply revokes root-team memberships, OIDC identities, API tokens and sessions of accounts other than the root admin. Installs from before registration was closed could hold household accounts with root-equivalent access. The accounts themselves are kept for the owner's review.
+
+- Fix: `stackkit verify` verifies Coolify-managed workloads through their Coolify owner observation instead of failing on an OpenTofu root they never had; `stackkit drift detect` no longer expects that root but does not observe these workloads yet. The exemption needs the workload's owner-signed Coolify deployment record; every other workload keeps its OpenTofu root check.
+
+- Fix: Coolify-managed workloads receive their secret variables again. Vault on Coolify crash-looped because `SSO_CLIENT_SECRET` and `ADMIN_TOKEN` never reached the container. StackKits now writes an owner-only `.env.platform` beside the node `.env`, and Coolify reads it by path, so secret values are still never sent to or stored by Coolify. Photos on Coolify starts: one-shot services such as Immich's postgres init now keep `restart: "no"`, so Coolify no longer restarts them in a loop and blocks the server.
+
+- Fix: the owner can sign in to a Basement Marketplace (Coolify) with Pocket ID. The root admin is now linked to the owner's signed Pocket ID subject, so sign-in no longer fails on the unverified owner email, and Coolify never links an account by email alone. Pocket ID sign-in creates no other Coolify accounts and joins nobody to the root team.
+
+- Add: Runtipi is an explicit, non-default Marketplace alternative (`stackkit init --use-case marketplace --use-case-alternative marketplace=runtipi`). The native owner installs the pinned Runtipi 4.10.2 behind the Kit router and Pocket ID forward-auth. Coolify stays the default; Runtipi has no compute tier or support claim yet. Fix: Runtipi settings carry `trustedProxyIps` as the string upstream requires.
+
+- Fix: `stackkit verify` and `stackkit drift detect` again check the OpenTofu state root of every workload. Only the natively executed Marketplace installation is exempt, so a missing, tampered or foreign root is reported again.
+
+- Fix: a Basement Marketplace installs completely. Coolify now reaches the node's Pocket ID issuer through the host gateway, as the other home applications do, so its sign-in setup no longer stops at issuer discovery. `stackkit verify` no longer expects an OpenTofu state root for the natively executed Marketplace.
+
+- Add: Full Local bundle commands authenticate tools, container images and the small Ollama coding model for offline import through native initialization. Canonical intent keeps the profile and bundle reference; owned containers use homelab destination rules and local OpenTelemetry collection. After a host or Docker restart, recover through guarded Apply. Signed full-installation and complete J3 qualification remain pending.
+
+- Fix: recovery and historical Apply custody authenticate the full retained artifact set against the original signed result, including artifact-only outputs omitted from the executor request. Changed content, owner metadata or missing artifacts fail verification instead of inheriting prior execution evidence.
+
+- Add: the Private AI use case installs Qdrant as the vector database (`stackkit init --use-case ai --use-case-capability ai.vectors=qdrant`). It joins the private AI network, keeps its data in backed-up persistent storage, enforces an API key from custody (`api-key`), and wires itself into Open WebUI and AnythingLLM (bge-m3 embeddings via Ollama). The owner pulls bge-m3 once; existing vectors are not migrated. AnythingLLM no longer pins LanceDB in its base environment.
+
+- Add: native CLI Apply and recovery record the observed executable SHA-256 in the existing Owner/member-signed result. Original-program inspection uses the same content-addressed evidence store, exact generation binding and signature checks, and refuses missing or non-CLI provenance instead of guessing from a version. Existing results remain readable without retroactive executable claims; a process hash alone does not establish a private candidate archive or index identity.
+
+- Add: native selected-application transfer commands export encrypted data and credentials for one pinned receiving node, preserve metadata and quiesce selected stateless companions. Migration holds the source stopped until signed destination readback and canonical source retirement, retaining source data. Advanced source retirement requires an exact Techstack capability recorded in the same signed snapshot journal; Advanced receiving activation and transfers containing only stateless workloads remain refused. Installed two-node acceptance is still required before qualifying this CLI artifact.
+
+- Add: retained-data removal candidates accept `--expected-spec-hash` and refuse a changed native baseline before authoring. This flag requires `--candidate-output` and never authorizes runtime deletion. The producing release catalog advertises `retainedRemovalCandidates` for managed clients; older release catalogs remain unsupported.
+
+- Add: selected Coolify project or application relocation retains source data and journals exact transfer identity, source restart fences and destination effects. Managed abort requires verified no-effects destination evidence before source resume; uncertain destination effects retain the move fence. Real two-server runtime acceptance remains required before qualifying the new CLI artifact.
+
+- Add: an explicit internal Preview candidate verifier binds offline GitHub timestamp attestations to the exact source, workflow run and reviewed trust roots. Public release verification keeps its existing policy. The shared root-check helper accepts a separate preview-candidate purpose; installation and retained-source admission require the existing signed Guard binding.
+
+- Fix: optional application removal now retires its desired selection after verified runtime removal, so later Apply does not reinstall it. `remove --use-case` retires the complete selected catalog composition in one intent update, retaining data by default. Advanced change sets remove baseline-only local workloads through their existing runtime owners before candidate adoption under the mandatory rollback checkpoint; per-node change-set receipts list only local Terramate stacks.
+
+- Add: incremental native use-case configuration (`use-cases configure`, alias `update`), explicit alternatives, runtime adapters and module profiles for additions, and Foundation capability configuration. Changes retain unrelated applications, routes, data and selections. Advanced and multi-node authoring writes a separate candidate for the existing Techstack change-set lifecycle; it never replaces the active managed baseline or starts an executor.
+
 - Change: the public repository carries one community kit: a contribution path with Developer Certificate of Origin sign-off (`git commit -s`), a security policy with GitHub private vulnerability reporting (acknowledgement within 48 hours and a fix or mitigation plan for high and critical findings within 14 days, as targets; fixes go to the latest release of each release channel), support routes, the Code of Conduct, the bug form, and an issue chooser that sends ideas and questions to this repository's Discussions until the kombify hub exists. The feature request form is replaced by Discussions, and the pull request notice and README describe the same path.
 - Fix: `stackkit remove --workload basement-core` removes the Basement core through the canonical Owner-signed, data-disposition-aware native path, for the native Compose, OpenTofu and Terramate units. It previously refused the kit-core workload (no application-adapter binding), and `stackkit remove --workload` refused every workload of a node applied locally with `--local-execution-channel`, because that Apply result records no execution channel; the explicit channel must still equal the workspace Owner binding. Containers and project networks are removed; named volumes are kept unless `--delete-data` is set; removal refuses while another StackKits workload still runs beside the Core.
 - Fix: the public release archives build again. `coolify-mirror` returns to `github.com/charmbracelet/bubbles` v1.0.0, which its `internal/ui` and `huh` v1 import; the v2 require broke the v0.54.6 Publish OSS archive build, and Renovate no longer proposes Charm majors for this module.
@@ -182,6 +226,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+- Native authoring catalogs expose CUE-owned public configuration descriptors and exact module profile choices for installed-use-case configuration. Candidate receipts include the canonical previous spec alongside its native hash; no-change inspection retains that spec exactly. Declared scalar types and options are checked while other existing CLI inputs keep their original contract. Active intent and custody are unchanged with a separate output candidate.
+
+- `plan --json` reports the local Owner's verified public identity and host binding for the exact inspected StackInstance and plan. Missing or member-only custody is explicitly unavailable; invalid custody fails inspection. No signing key is exposed and no executor is invoked.
+
 ### Security
 
 * **StackActions accept per-caller Ed25519 service tokens:** the internal StackAction routes verify EdDSA tokens against `SERVICE_AUTH_ED25519_PUBLIC_KEYS` (each key bound to one caller service) and reject HS256 tokens once `SERVICE_AUTH_REQUIRE_ED25519=true`, so the shared `SERVICE_AUTH_SECRET` no longer lets its holder speak as Techstack. Without keys the HS256 path is unchanged; a malformed key set stops `stackkit-server` at startup.
@@ -331,6 +379,79 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.54.10](https://github.com/kombifyio/StackKits/compare/v0.54.9...v0.54.10) (2026-10-26)
+
+
+### Fixed
+
+* **delivery:** produce the Candidate receipt the fast publish gate requires
+* **terramatehost:** give the Day 2 encrypted-state fixture its owner root marker
+* **website:** deploy stackkit.cc with the Pages Write purpose token
+
+## [0.54.9](https://github.com/kombifyio/StackKits/compare/v0.54.8...v0.54.9) (2026-10-26)
+
+
+### Added
+
+* **ai:** add Qdrant as Private AI vector store
+* **authoring:** expose typed installed configuration contracts
+* **backup:** transfer selected native applications with retained source custody
+* bind retained removal candidates to native baseline
+* **compat:** ingest source-bound retained Files evidence
+* configure retained use cases and foundation capabilities
+* **coolify:** admit imported Files provider workloads
+* **full-local:** install authenticated offline bundles with LAN-only runtimes
+* **identity:** publish qualified PocketID CAS image and enforce managed writer drain
+* **komodo:** bind imported Files to guarded provider lifecycle
+* **komodo:** execute guarded provider lifecycle and exact-ID recovery
+* **lifecycle:** record native Apply executable provenance
+* **lifecycle:** remove selected applications and use cases safely
+* **lifecycle:** retain and verify selected workload transfers
+* **marketplace:** admit Runtipi as an explicit non-default alternative
+* **plan:** expose verified native Owner binding
+* **preview:** produce and retain exact private StackKits candidates
+* **release:** serve installers, release archives and stackkit.cc from Cloudflare instead of Render
+* **release:** verify internal Preview candidate provenance
+* **runtime:** add guarded Coolify and Dokploy Vault provider execution
+* **runtipi:** journal app-group backup and restore custody
+* **runtipi:** order native API workload execution through OpenTofu
+* **tofu:** bundle Coolify and Dokploy providers offline
+* **tofu:** guard platform plans and preserve action process leases
+
+
+### Fixed
+
+* **ai:** require storage-data-policy and backup-core on the Qdrant provider
+* **apply:** run Coolify workload owners after the Marketplace installation
+* authenticate complete retained Apply artifact snapshots
+* **backup:** back up Coolify workloads with digit-led service identities and database components
+* **ci:** adopt Node security workflow producers
+* **cli:** report apply completion after finalization
+* **compat:** require preservation of unselected guest workloads
+* **coolify:** deliver workload secret variables through an owner-only env file
+* **delivery:** call the Delivery producer with the fixed public surface scan
+* **delivery:** preserve publication results and original retest coordinates
+* **deps:** update internal products
+* **host:** match privileged listener probes to the planned address
+* **lifecycle:** claim under the state lock and reap only token-proven leftovers
+* **lifecycle:** recover operations whose owning process died
+* **marketplace:** link the Coolify root admin to the signed Pocket ID owner
+* **marketplace:** reach the Basement issuer and verify native Marketplace
+* **marketplace:** revoke foreign root-team access on every Coolify bootstrap
+* **marketplace:** revoke pending team-0 invitations on every Coolify bootstrap
+* **preview:** preserve native candidate verification authority in packaged CLI
+* **preview:** reserve hosted runner disk for candidate archives
+* realize Komodo bootstrap for Standard OpenTofu generation
+* **runtime:** diagnose the deficient host capacity
+* **runtipi:** activate custom revisions through installed recipes
+* **runtipi:** bind bootstrap to the node Docker daemon
+* **runtipi:** verify actual removal and retained data volumes
+* **tenantdb:** adopt released verified-context Common in StackKits
+* **tofu:** admit selected runtime roots before apply and recovery
+* **verify:** keep OpenTofu state roots for every non-Marketplace workload
+* **verify:** name the actual adapter in applied-workload errors
+* **verify:** verify Coolify API workloads through their owner observation
 
 ## [0.54.8](https://github.com/kombifyio/StackKits/compare/v0.54.7...v0.54.8) (2026-10-22)
 

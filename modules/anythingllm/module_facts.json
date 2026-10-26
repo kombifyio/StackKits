@@ -48,7 +48,6 @@
         "OLLAMA_BASE_PATH": "http://ollama:11434",
         "EMBEDDING_ENGINE": "ollama",
         "EMBEDDING_BASE_PATH": "http://ollama:11434",
-        "VECTOR_DB": "lancedb",
         "DISABLE_TELEMETRY": "true"
       },
       "routed": true,

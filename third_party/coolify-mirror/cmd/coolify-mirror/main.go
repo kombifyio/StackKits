@@ -6,10 +6,12 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -77,6 +79,12 @@ func realMain(args []string) int {
 		err = cmdDrain(ctx, args)
 	case "undrain":
 		err = cmdUndrain(ctx, args)
+	case "relocation-resume":
+		err = cmdRelocationResume(ctx, args)
+	case "relocation-abort":
+		err = cmdRelocationAbort(ctx, args)
+	case "relocation-status":
+		err = cmdRelocationStatus(ctx, args)
 	case "check":
 		err = cmdCheck(ctx, args)
 	case "version", "--version", "-v":
@@ -456,6 +464,8 @@ func cmdBackup(ctx context.Context, args []string) error {
 	host := fs.String("host", "", "")
 	openFW := fs.Bool("open-firewall", false, "")
 	drainedPath := fs.String("drained", "", "")
+	expectedPlan := fs.String("expected-plan", "", "")
+	transferID := fs.String("transfer-id", "", "")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -465,12 +475,30 @@ func cmdBackup(ctx context.Context, args []string) error {
 	}
 	req := engine.BackupRequest{Mode: engine.ModeSelective, OutputDir: *output, Consistency: *consistency,
 		Images: *images, IncludeBackups: *includeBackups, Key: os.Getenv(engine.KeyEnv)}
+	if *expectedPlan != "" {
+		raw, err := os.ReadFile(*expectedPlan)
+		if err != nil {
+			return err
+		}
+		req.ExpectedPlan = raw
+	}
 	if *drainedPath != "" {
 		rec, err := readDrainRecord(*drainedPath)
 		if err != nil {
 			return err
 		}
 		req.Drained = rec.Running()
+		if len(req.ExpectedPlan) > 0 && (!rec.Complete() || rec.TransferID != *transferID || rec.PlanSHA256 != fmt.Sprintf("sha256:%x", sha256.Sum256(req.ExpectedPlan)) || rec.Server != in.Hostname) {
+			return errors.New("source drain does not match this exact plan, transfer and server")
+		}
+		if len(req.ExpectedPlan) > 0 {
+			if err := engine.VerifySourceDrain(ctx, rec); err != nil {
+				return err
+			}
+		}
+	}
+	if len(req.ExpectedPlan) > 0 && *drainedPath == "" {
+		return errors.New("checked relocation backup requires its completed source drain")
 	}
 	if *full {
 		req.Mode = engine.ModeFull
@@ -803,6 +831,9 @@ func cmdRestore(ctx context.Context, args []string) error {
 	noStart := fs.Bool("no-start", false, "")
 	verifyRedeploy := fs.Bool("verify-redeploy", false, "")
 	keepDownload := fs.Bool("keep-download", false, "")
+	expectedPlan := fs.String("expected-plan", "", "")
+	receiptFile := fs.String("receipt-file", "", "")
+	transferID := fs.String("transfer-id", "", "")
 	var setDomains multiFlag
 	fs.Var(&setDomains, "set-domain", "")
 	src, rest := firstArg(args)
@@ -841,6 +872,18 @@ func cmdRestore(ctx context.Context, args []string) error {
 		return err
 	}
 	m := f.Manifest
+	if *expectedPlan != "" {
+		raw, err := os.ReadFile(*expectedPlan)
+		if err != nil {
+			return err
+		}
+		if err := engine.MatchRelocationManifest(raw, m); err != nil {
+			return err
+		}
+	}
+	if *receiptFile != "" && (*noStart || *expectedPlan == "") {
+		return errors.New("a relocation receipt requires the checked plan and verified start")
+	}
 	fmt.Printf("\nBackup from %s (%s, Coolify %s) taken %s - %s, %d resource(s), %s of data\n",
 		m.Source.Hostname, m.Source.IPv4, m.Source.CoolifyVersion, m.CreatedAt.Local().Format("2006-01-02 15:04"),
 		m.Mode, len(m.Resources), engine.HumanBytes(m.TotalBytes))
@@ -851,6 +894,9 @@ func cmdRestore(ctx context.Context, args []string) error {
 	var report *engine.RestoreReport
 	shown := map[string]bool{}
 	if m.Mode == engine.ModeFull {
+		if *receiptFile != "" {
+			return errors.New("checked relocation requires selective resources; full controller replacement has no safe abort authority")
+		}
 		chk, err := engine.CheckFull(ctx, in, f)
 		if err != nil {
 			return err
@@ -938,6 +984,16 @@ func cmdRestore(ctx context.Context, args []string) error {
 		}
 		pr := engine.NewProgress("Restore")
 		stop := printProgress(pr)
+		if *receiptFile != "" {
+			raw, err := os.ReadFile(*expectedPlan)
+			if err != nil {
+				return err
+			}
+			sr.BeforeApply = func() error {
+				_, err := engine.RecordRelocationIntent(engine.RelocationIntentPath(*receiptFile), *transferID, raw, "effects_started")
+				return err
+			}
+		}
 		report, err = sr.Apply(ctx, pr)
 		stop()
 		if err != nil {
@@ -952,6 +1008,9 @@ func cmdRestore(ctx context.Context, args []string) error {
 	}
 	if err := cliDomains(ctx, in, report, domainMap, !*yes); err != nil {
 		// The resources are restored; a clashing one simply stays stopped.
+		if *receiptFile != "" || len(domainMap) > 0 {
+			return fmt.Errorf("requested relocation domains were not changed: %w", err)
+		}
 		fmt.Println("  ! domains were not changed:", err, "- change them in Coolify")
 	}
 	for _, p := range report.Problems {
@@ -987,6 +1046,33 @@ func cmdRestore(ctx context.Context, args []string) error {
 	}
 	if v := engine.Verdict(failed, held, report.Problems); v != "" {
 		return errors.New(v)
+	}
+	if *receiptFile != "" {
+		raw, err := os.ReadFile(*expectedPlan)
+		if err != nil {
+			return err
+		}
+		receipt, err := engine.RelocationReceipt(results, raw, *transferID)
+		if err != nil {
+			return err
+		}
+		archive, err := os.Open(f.Path)
+		if err != nil {
+			return err
+		}
+		h := sha256.New()
+		_, hashErr := io.Copy(h, archive)
+		closeErr := archive.Close()
+		if hashErr != nil {
+			return hashErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		receipt.ArchiveSHA256 = fmt.Sprintf("sha256:%x", h.Sum(nil))
+		if err := writeJSON(*receiptFile, receipt); err != nil {
+			return err
+		}
 	}
 	redeployed := false
 	if *verifyRedeploy {
@@ -1141,8 +1227,14 @@ func parseSetDomains(set []string) (map[string]string, error) {
 // every restored domain as the last step before starting.
 func cliDomains(ctx context.Context, in *coolify.Instance, rep *engine.RestoreReport, repl map[string]string, ask bool) error {
 	fields, err := engine.DomainFields(ctx, in, rep.Resources)
-	if err != nil || len(fields) == 0 {
+	if err != nil {
 		return err
+	}
+	if len(fields) == 0 {
+		if len(repl) > 0 {
+			return errors.New("requested domain switches match no restored domain")
+		}
+		return nil
 	}
 	ask = ask && term.IsTerminal(int(os.Stdin.Fd()))
 	if ask {
@@ -1194,7 +1286,41 @@ func cliDomains(ctx context.Context, in *coolify.Instance, rep *engine.RestoreRe
 			f.Value = v
 		}
 	}
-	return engine.ApplyDomains(ctx, in, rep.Resources, fields)
+	if len(repl) > 0 {
+		matched := map[string]bool{}
+		for _, f := range fields {
+			for _, d := range coolify.SplitDomains(f.Original) {
+				if _, ok := repl[coolify.Host(d)]; ok {
+					matched[coolify.Host(d)] = true
+				}
+			}
+		}
+		for old := range repl {
+			if !matched[old] {
+				return fmt.Errorf("requested domain %s is absent from restored selection", old)
+			}
+		}
+	}
+	if err := engine.ApplyDomains(ctx, in, rep.Resources, fields); err != nil {
+		return err
+	}
+	actual, err := engine.DomainFields(ctx, in, rep.Resources)
+	if err != nil {
+		return err
+	}
+	values := map[string]string{}
+	key := func(f engine.DomainField) string {
+		return fmt.Sprintf("%s/%s/%s/%d", f.Resource, f.Kind, f.Service, f.ID)
+	}
+	for _, f := range actual {
+		values[key(f)] = f.Value
+	}
+	for _, f := range fields {
+		if values[key(f)] != f.Value {
+			return fmt.Errorf("domain readback differs for %s", f.Label)
+		}
+	}
+	return nil
 }
 
 // SourceEnv carries the restore source (a share code) instead of argv.

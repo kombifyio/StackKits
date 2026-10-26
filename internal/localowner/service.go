@@ -25,6 +25,15 @@ const (
 	ownerEnrollmentRelPath = ".stackkit/custody/pocketid-owner-enrollment.json"
 )
 
+// pocketIDMembershipClient is required for projected household effects. Legacy
+// owner bootstrap remains compatible with an unpatched standalone provider.
+type pocketIDMembershipClient interface {
+	RequireMembershipCAS(context.Context) error
+	GetMembership(context.Context, string) (*pocketid.MembershipSnapshot, error)
+	UpdateMembership(context.Context, pocketid.MembershipSnapshot, []string) (*pocketid.MembershipSnapshot, error)
+	DeleteMembership(context.Context, pocketid.MembershipSnapshot) error
+}
+
 type pocketIDOwnerClient interface {
 	WaitHealthy(context.Context, time.Duration) error
 	BootstrapInitialAdmin(context.Context, string, string, string) (string, error)

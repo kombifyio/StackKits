@@ -19,7 +19,7 @@ const Pinned = true
 // ForkRevision identifies the kombify changes on top of UpstreamCommit.
 const (
 	UpstreamCommit = "f46fa093644268759fc0802e7d098e9e45dee984"
-	ForkRevision   = "kombify.4"
+	ForkRevision   = "kombify.5"
 )
 
 // FormatName identifies the backup layout.

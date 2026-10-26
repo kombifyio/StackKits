@@ -1,8 +1,10 @@
 package foundation
 
-// Prepared source only: none of these definitions is appended to
-// ArchitectureV2Catalog. Marketplace remains recorded and Runtipi cannot be
-// selected until the current-pin application lifecycle has real evidence.
+// The Marketplace module and alternative below are admitted to
+// ArchitectureV2Catalog as an explicit, non-default Marketplace alternative
+// (--use-case-alternative marketplace=runtipi). The provider and adapter
+// module remain prepared only; no compute tier selects Runtipi and no
+// current-pin support follows until a test-window receipt exists.
 #PreparedRuntipiMarketplaceAlternative: #WorkloadAlternativeV2 & {
 	id:                        "runtipi", providerRef:       "stackkits-marketplace", moduleRef: "stackkits-marketplace-runtipi-runtime"
 	providesRuntimeAdapterRef: "runtipi", minimumTLSVersion: "TLS1.3"

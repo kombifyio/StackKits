@@ -11,6 +11,19 @@ type liveHousehold struct {
 	workspace string
 }
 
+func (h liveHousehold) ProjectHouseholdUser(ctx context.Context, request localowner.HouseholdProjection) (localowner.HouseholdUser, error) {
+	var member localowner.HouseholdUser
+	err := lifecyclemutation.WithIdleMutation(h.workspace, lifecyclemutation.JoinRequest{Command: "user project"}, func() error {
+		service, err := localowner.NewService(h.workspace)
+		if err != nil {
+			return err
+		}
+		member, err = service.ProjectHouseholdUser(ctx, request)
+		return err
+	})
+	return member, err
+}
+
 func (h liveHousehold) AddHouseholdUser(ctx context.Context, spec localowner.HouseholdUserSpec) (localowner.HouseholdUser, error) {
 	var invited localowner.HouseholdUser
 	err := lifecyclemutation.WithIdleMutation(h.workspace, lifecyclemutation.JoinRequest{Command: "user add"}, func() error {

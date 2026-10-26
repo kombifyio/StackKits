@@ -1,0 +1,8 @@
+{
+  "name": "stackkits-pocketid-native-qualification",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pg": "8.23.1"
+  }
+}

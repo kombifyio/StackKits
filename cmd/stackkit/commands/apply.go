@@ -67,12 +67,14 @@ func init() {
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	machineResultWritten := false
+	var pendingResult *architectureV2ApplyCommandResult
 	applyV2ExecutionOptions.applySink = nil
 	if applyJSON {
 		applyV2ExecutionOptions.applySink = func(result architectureV2ApplyCommandResult) error {
-			err := writeCommandResult(cmd, cmd.CommandPath(), result)
-			machineResultWritten = err == nil
-			return err
+			// Runtime convergence is not command completion: the synchronous
+			// post-hooks still have to finish before the terminal result.
+			pendingResult = &result
+			return nil
 		}
 	}
 	applyV2ExecutionOptions.legacyPlanFile = ""
@@ -122,10 +124,23 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			// Apply (an upgraded CLI re-signs it even for an unchanged spec)
 			// and the owner is set up in every application, as on every
 			// other execution path.
-			runAutomaticBackupRebind(cmd.Context(), wd)
-			runAutomaticOwnerSetup(cmd.Context(), wd)
+			runApplyPostHook("backup-rebind", "Carrying forward local backup configuration", func() {
+				runAutomaticBackupRebind(cmd.Context(), wd)
+			})
+			runApplyPostHook("owner-setup", "Setting up application owners", func() {
+				runAutomaticOwnerSetup(cmd.Context(), wd)
+			})
 			// A server carried to another network recovers by itself.
-			runAutomaticNetworkWatch(cmd.Context(), wd)
+			runApplyPostHook("network-watch", "Configuring network recovery", func() {
+				runAutomaticNetworkWatch(cmd.Context(), wd)
+			})
+		}
+		if pendingResult != nil {
+			writeErr := writeCommandResult(cmd, cmd.CommandPath(), *pendingResult)
+			machineResultWritten = writeErr == nil
+			if err == nil {
+				return writeErr
+			}
 		}
 		return err
 	}
@@ -141,6 +156,19 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 		"apply: StackSpec %s exists but could not be classified for execution; repair the file or recreate it with stackkit init",
 		specFile,
 	)
+}
+
+// Completion means the hook returned, not that its best-effort work succeeded.
+// Each hook retains its own warning, failure event and retry guidance.
+func runApplyPostHook(phase, message string, run func()) {
+	phase = "apply." + phase
+	rolloutEvent(phase, "started", message, nil)
+	printInfo("%s", message)
+	run()
+	rolloutEvent(phase, "succeeded", message+" finished (hook returned; see hook outcomes)", map[string]string{
+		"completionScope": "hook-return",
+	})
+	printInfo("%s finished", message)
 }
 
 // noteInertApplyFlags reports the flags the native Architecture v2 lifecycle

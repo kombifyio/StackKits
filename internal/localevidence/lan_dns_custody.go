@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/kombifyio/stackkits/internal/siteaddress"
 	"net/netip"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
+	"github.com/kombifyio/stackkits/internal/siteaddress"
 )
 
 // lanDNSRecordsPath is the resolver zone file the Basement core mounts read-only
@@ -21,7 +23,12 @@ func discoverSiteAddress() (netip.Addr, error) { return siteaddress.DiscoverSite
 // answer on the LAN. The zone is a redirect, so every name under the domain
 // resolves to the node running the router rather than requiring one record per
 // service; services are added and removed by the router, not by DNS.
-func buildLANDNSRecords(domain string, address netip.Addr) ([]byte, error) {
+type LANDNSOptions struct {
+	FullLocal bool
+	Upstream  []string
+}
+
+func buildLANDNSRecords(domain string, address netip.Addr, options ...LANDNSOptions) ([]byte, error) {
 	if !validBasementRuntimeDomain(domain) && domain != LegacyBasementDomain {
 		return nil, fmt.Errorf("localevidence: invalid Basement runtime domain %q for the LAN resolver", domain)
 	}
@@ -37,7 +44,57 @@ func buildLANDNSRecords(domain string, address netip.Addr) ([]byte, error) {
 	zone.WriteString("server:\n")
 	fmt.Fprintf(&zone, "  local-zone: %q redirect\n", domain+".")
 	fmt.Fprintf(&zone, "  local-data: \"%s. IN %s %s\"\n", domain, recordType, address.String())
+	if len(options) > 0 && options[0].FullLocal {
+		if err := runtimeprofile.ValidateLocalDNS(options[0].Upstream); err != nil {
+			return nil, err
+		}
+		zone.WriteString("# stackkit-full-local-dns\n")
+		if len(options[0].Upstream) == 0 {
+			zone.WriteString("  local-zone: \".\" refuse\n")
+		} else {
+			zone.WriteString("forward-zone:\n  name: \".\"\n  forward-first: no\n")
+			for _, upstream := range options[0].Upstream {
+				if upstream == address.String() {
+					return nil, errors.New("LAN DNS cannot forward to itself")
+				}
+				fmt.Fprintf(&zone, "  forward-addr: %s\n", upstream)
+			}
+		}
+	}
 	return []byte(zone.String()), nil
+}
+
+func lanDNSOptions(raw []byte) LANDNSOptions {
+	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
+	if len(lines) <= 4 || lines[4] != "# stackkit-full-local-dns" {
+		return LANDNSOptions{}
+	}
+	options := LANDNSOptions{FullLocal: true}
+	for _, line := range lines[5:] {
+		if value, ok := strings.CutPrefix(line, "  forward-addr: "); ok {
+			options.Upstream = append(options.Upstream, value)
+		}
+	}
+	return options
+}
+
+func VerifyBasementLANDNSPolicy(workspace string, expected LANDNSOptions) error {
+	raw, custody, err := readBasementRuntimeFile(workspace, lanDNSRecordsPath)
+	if err != nil {
+		return err
+	}
+	address, err := parseLANDNSRecords(custody.Domain, raw)
+	if err != nil {
+		return err
+	}
+	want, err := buildLANDNSRecords(custody.Domain, address, expected)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(raw, want) {
+		return errors.New("signed LAN DNS custody differs from canonical Full Local DNS policy")
+	}
+	return nil
 }
 
 // BasementLANDNSResolverAddress returns the exact address written into the
@@ -57,7 +114,7 @@ func BasementLANDNSResolverAddress(workspaceRoot string) (string, error) {
 
 func parseLANDNSRecords(domain string, raw []byte) (netip.Addr, error) {
 	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
-	if len(lines) != 4 {
+	if len(lines) < 4 {
 		return netip.Addr{}, errors.New("localevidence: verified LAN DNS runtime input is malformed")
 	}
 	record := strings.TrimPrefix(strings.TrimSuffix(lines[3], `"`), `  local-data: "`)
@@ -69,7 +126,7 @@ func parseLANDNSRecords(domain string, raw []byte) (netip.Addr, error) {
 	if err != nil || (fields[2] == "A") != address.Is4() || (fields[2] == "AAAA") != address.Is6() {
 		return netip.Addr{}, errors.New("localevidence: verified LAN DNS runtime address is malformed")
 	}
-	expected, err := buildLANDNSRecords(domain, address)
+	expected, err := buildLANDNSRecords(domain, address, lanDNSOptions(raw))
 	if err != nil || !bytes.Equal(raw, expected) {
 		return netip.Addr{}, errors.New("localevidence: verified LAN DNS runtime input does not match its canonical zone")
 	}

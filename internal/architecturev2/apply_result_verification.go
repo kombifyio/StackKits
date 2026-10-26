@@ -43,6 +43,7 @@ func IsOtherGenerationApplyResult(err error) bool {
 // ApplyResultSummary is the secret-free public projection consumed by CLI
 // verification output.
 type ApplyResultSummary struct {
+	Program              *ApplyProgramIdentity     `json:"program,omitempty"`
 	ResultHash           string                    `json:"resultHash"`
 	PlanHash             string                    `json:"planHash"`
 	AppliedRequestDigest string                    `json:"appliedRequestDigest,omitempty"`
@@ -109,6 +110,7 @@ type ApplyObservationSummary struct {
 func (r VerifiedApplyResult) Summary() ApplyResultSummary {
 	appliedAt, _ := time.Parse(time.RFC3339Nano, r.envelope.AppliedAt)
 	return ApplyResultSummary{
+		Program:    cloneApplyProgram(r.envelope.Program),
 		ResultHash: r.resultHash, PlanHash: r.envelope.Binding.PlanHash,
 		AppliedRequestDigest: r.envelope.SharedRequestDigest, AppliedAt: appliedAt,
 		EvidenceBundleHash: r.envelope.EvidenceBundleHash,
@@ -234,6 +236,9 @@ func (s *Service) verifyProductApplyResultForPlan(input ProductApplyResultVerifi
 	}
 	if envelope.APIVersion != verifiedApplyResultAPIVersion || envelope.Kind != verifiedApplyResultKind {
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrInvalidContract, "apply.result", "unsupported Apply result contract", nil)
+	}
+	if err := validateApplyProgram(envelope.Program); err != nil {
+		return VerifiedApplyResult{}, err
 	}
 	if envelope.Binding != input.Plan.Binding() {
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrBindingMismatch, "apply.result.binding", "does not match the current ResolvedPlan", nil)

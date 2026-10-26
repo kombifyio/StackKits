@@ -30,11 +30,14 @@ type Engine struct {
 // Check is the destination's verdict on a plan. Ready is false while any
 // blocker remains; Detail is the engine's own check document.
 type Check struct {
-	Format   string          `json:"format"`
-	Platform Platform        `json:"platform"`
-	Engine   Engine          `json:"engine"`
-	Ready    bool            `json:"ready"`
-	Blockers []string        `json:"blockers"`
-	Warnings []string        `json:"warnings"`
-	Detail   json.RawMessage `json:"detail"`
+	RecoveryFormat       string          `json:"recoveryFormat"`
+	RestoreReceiptFormat string          `json:"restoreReceiptFormat"`
+	PlanSHA256           string          `json:"planSha256"`
+	Format               string          `json:"format"`
+	Platform             Platform        `json:"platform"`
+	Engine               Engine          `json:"engine"`
+	Ready                bool            `json:"ready"`
+	Blockers             []string        `json:"blockers"`
+	Warnings             []string        `json:"warnings"`
+	Detail               json.RawMessage `json:"detail"`
 }

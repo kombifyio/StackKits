@@ -20,6 +20,8 @@ var governedPeerNetworks = map[string]struct {
 	doclingWorkloadModuleID: {component: "docling", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 	// The model router joins the private AI network to reach Ollama.
 	litellmWorkloadModuleID: {component: "litellm", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
+	// The vector store joins the private AI network so the chat module reaches it.
+	qdrantWorkloadModuleID: {component: "qdrant", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 	// ComfyUI joins the private AI network so Open WebUI reaches it.
 	comfyUIWorkloadModuleID: {component: "comfyui", networks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}}},
 	// OpenHands joins the private AI network to reach Ollama.

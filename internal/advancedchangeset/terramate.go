@@ -27,7 +27,7 @@ type TerramateScope struct {
 // baseline. Plan-owned artifacts (the graph itself) affect no stack; the host
 // bootstrap and security baseline modules affect the host pre-step stack
 // (owner decision O1). A module
-// rendered on several nodes affects each of its node stacks; stacks that
+// rendered on several nodes affects only this host's node stacks; stacks that
 // exist only in the baseline (a removed workload) are not part of the
 // candidate graph and are not listed.
 func DeriveTerramateScope(
@@ -39,10 +39,10 @@ func DeriveTerramateScope(
 	if err != nil {
 		return TerramateScope{}, wrap(ErrInvalid, "terramate", "candidate has no usable Terramate host project", err)
 	}
-	order, err := terramatestackgraph.RunOrder(layout.Graph)
-	if err != nil {
-		return TerramateScope{}, wrap(ErrInvalid, "terramate", "candidate stack graph has no run order", err)
-	}
+	// The graph contains every host. Its selected Host already carries the
+	// dependency-ordered local projection that Converge admits; using the
+	// global run order here would authorize non-local stacks for shared modules.
+	order := layout.Host.RunOrder
 	modules := make(map[string]struct{})
 	owners := func(artifacts []architecturev2renderer.Artifact) map[string]string {
 		result := make(map[string]string, len(artifacts))

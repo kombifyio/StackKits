@@ -129,7 +129,7 @@ func observeListenersWithPriorCompose(ctx context.Context, workspace string, lis
 		if err != nil && errors.Is(err, syscall.EACCES) {
 			// A non-root bind probe on a privileged port is refused before the
 			// kernel checks occupancy; read the kernel socket table instead.
-			if bound, seen := procNetBound(listener.Transport, listener.Port); seen {
+			if bound, seen := procNetBound(listener.Transport, address, listener.Port); seen {
 				fact.Observed, fact.InUse = true, bound
 			}
 		}

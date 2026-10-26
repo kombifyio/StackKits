@@ -68,7 +68,7 @@ var lifecycleDiagnostics = []Contract{
 		[]string{"On the target Linux host, run `stackkit host preflight` with non-interactive sudo or as root; an unprivileged unshare refusal does not prove an incompatible kernel."}, true),
 	New("stackkit_command_failed", "runtime-capacity-unsatisfied",
 		"The observed host capacity does not satisfy the selected module profiles.",
-		[]string{"Inspect the attested host inventory and selected profiles, then resize the host or reduce demand; nominal RAM includes the kernel reservation and must not be guessed from rounded MemTotal."}, true),
+		[]string{"Inspect the reported deficient resource and its observed and required values. Increase that resource or reduce selected profile demand, then regenerate; do not replace attested inventory with guessed capacity."}, true),
 	New("stackkit_command_failed", "host_virtualization_unrecognized",
 		"The observed virtualization label is not recognized by this CLI.",
 		[]string{"Use the current released CLI and regenerate the measured inventory; EC2 Nitro's systemd `amazon` label is recognized as KVM. Do not substitute an invented inventory fact."}, true),

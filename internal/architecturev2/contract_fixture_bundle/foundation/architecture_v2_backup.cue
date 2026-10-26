@@ -95,6 +95,7 @@ _architectureV2VolumeBackupClasses: {
 	"paperclip/home":              "user-content"
 	"paperclip-postgres/database": "database"
 	"speechkit/data":              "user-content"
+	"qdrant/storage":              "user-content"
 	"gitea/data":                  "user-content"
 	"gitea/config":                "config"
 	"forgejo/data":                "user-content"

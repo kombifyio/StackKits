@@ -35,6 +35,9 @@ type ApplicationVolume struct {
 var (
 	applicationRefPattern      = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	applicationVolumeNameRegex = regexp.MustCompile(`^[a-z][a-z0-9_.-]*$`)
+	// Platform-owned project and volume identities (for example a Coolify
+	// service UUID) may start with a digit, as Docker permits.
+	platformVolumeNameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]*$`)
 	// cacheSubpathPattern mirrors CUE #StorageSubpath: relative, "/"-separated,
 	// and unable to express ".", ".." or an absolute path.
 	cacheSubpathPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*$`)
@@ -44,6 +47,13 @@ var (
 // identity the backup source may mount.
 func ValidComposeVolumeName(name string) bool {
 	return applicationVolumeNameRegex.MatchString(name)
+}
+
+// ValidPlatformVolumeName reports whether name is a node-observed physical
+// project or volume identity of a platform-managed workload. Logical,
+// compiler-owned names keep ValidComposeVolumeName.
+func ValidPlatformVolumeName(name string) bool {
+	return platformVolumeNameRegex.MatchString(name)
 }
 
 // StandaloneComposeProjectName is the shared project-name derivation used by

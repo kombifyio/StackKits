@@ -14,6 +14,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,6 +33,15 @@ import (
 const marketplaceDirectory = localbackuppolicy.MarketplaceRuntimeDirectory
 const marketplaceProject = localbackuppolicy.MarketplaceComposeProject
 
+// MarketplaceRevokedAccess reports access the Marketplace bootstrap revoked.
+type MarketplaceRevokedAccess struct {
+	RootTeamMembers int `json:"rootTeamMembers"`
+	OIDCIdentities  int `json:"oidcIdentities"`
+	// RootTeamInvitations counts pending team-0 invitations, which another
+	// account could accept after the Apply to regain root-team access.
+	RootTeamInvitations int `json:"rootTeamInvitations"`
+}
+
 type MarketplaceObservation struct {
 	Status             string                     `json:"status"`
 	RootAdmin          bool                       `json:"rootAdmin"`
@@ -45,6 +55,9 @@ type MarketplaceObservation struct {
 	UIProtected        bool                       `json:"uiProtected"`
 	OwnHostSSH         bool                       `json:"ownHostSSH"`
 	SSH                *marketplaceSSHObservation `json:"ssh,omitempty"`
+	// RevokedForeignAccess counts root-team memberships and OIDC identities of
+	// other accounts that the bootstrap revoked on this Apply.
+	RevokedForeignAccess *MarketplaceRevokedAccess `json:"revokedForeignAccess,omitempty"`
 }
 
 type MarketplaceOperations interface {
@@ -150,6 +163,12 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 	if err != nil {
 		return MarketplaceObservation{}, err
 	}
+	// The root admin is linked to the owner's exact signed Pocket ID subject,
+	// never by email, so Coolify needs no email_verified claim to sign in.
+	ownerBinding, err := service.Verify(ctx)
+	if err != nil || ownerBinding.OwnerRef != owner.OwnerRef || ownerBinding.PocketIDEmail != owner.PocketID.Email || ownerBinding.PocketIDSubject == "" {
+		return MarketplaceObservation{}, errors.New("Marketplace requires the signed Pocket ID owner binding")
+	}
 	client, err := service.EnsureApplicationOIDCClient(ctx, localowner.ApplicationOIDCClientRequest{
 		RequiredPrivilege: "user", ClientID: localowner.ApplicationOIDCClientID("marketplace"), Name: "Marketplace",
 		CallbackURL: "https://" + d.Host() + "/auth/oidc/callback", SecretRef: localowner.ApplicationOIDCClientSecretRef("marketplace"),
@@ -162,7 +181,7 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 		return MarketplaceObservation{}, err
 	}
 	defer clear(secret)
-	if err := o.prepareMarketplace(view, state, owner.PocketID.Email, d); err != nil {
+	if err := o.prepareMarketplace(view, state, owner.PocketID.Email, client.Issuer, d); err != nil {
 		return MarketplaceObservation{}, err
 	}
 	directory := filepath.Join(o.workspace, filepath.FromSlash(marketplaceDirectory))
@@ -195,7 +214,7 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 	if err := waitMarketplaceHTTP(ctx, endpoint); err != nil {
 		return MarketplaceObservation{}, err
 	}
-	input, _ := json.Marshal(map[string]string{"ownerEmail": owner.PocketID.Email, "clientId": client.ClientID, "clientSecret": string(secret), "issuer": client.Issuer, "origin": "https://" + d.Host(), "existingToken": state.APIToken})
+	input, _ := json.Marshal(map[string]string{"ownerEmail": owner.PocketID.Email, "ownerSubject": ownerBinding.PocketIDSubject, "clientId": client.ClientID, "clientSecret": string(secret), "issuer": client.Issuer, "origin": "https://" + d.Host(), "existingToken": state.APIToken})
 	defer clear(input)
 	raw, err := o.compose(ctx, directory, input, "exec", "-T", "coolify", "php", "-r", strings.TrimPrefix(marketplaceBootstrapPHP, "<?php\n"))
 	if err != nil {
@@ -343,8 +362,12 @@ func saveMarketplaceCustody(view confinedfs.View, state marketplaceCustody) erro
 	return err
 }
 
-func (o *osMarketplaceOperations) prepareMarketplace(view confinedfs.View, s marketplaceCustody, email string, d architecturev2renderer.MarketplaceCoolifyDocument) error {
+func (o *osMarketplaceOperations) prepareMarketplace(view confinedfs.View, s marketplaceCustody, email, issuer string, d architecturev2renderer.MarketplaceCoolifyDocument) error {
 	_, coreNetwork, err := marketplaceCoreRuntime(d)
+	if err != nil {
+		return err
+	}
+	extraHosts, err := marketplaceIssuerHosts(d, issuer)
 	if err != nil {
 		return err
 	}
@@ -392,7 +415,7 @@ func (o *osMarketplaceOperations) prepareMarketplace(view confinedfs.View, s mar
 		case "coolify":
 			entry["env_file"] = []string{"./coolify.env"}
 			entry["ports"] = []string{"127.0.0.1::8080"}
-			entry["extra_hosts"] = []string{"host.docker.internal:host-gateway"}
+			entry["extra_hosts"] = extraHosts
 			entry["volumes"] = []string{"./coolify.env:/var/www/html/.env:ro", "./ca-bundle.crt:/etc/ssl/certs/stackkit-ca-bundle.crt:ro", "./php-trust.ini:/usr/local/etc/php/conf.d/zzzz-stackkit-trust.ini:ro", "marketplace-ssh:/var/www/html/storage/app/ssh", "marketplace-applications:/var/www/html/storage/app/applications", "marketplace-databases:/var/www/html/storage/app/databases", "marketplace-services:/var/www/html/storage/app/services", "marketplace-backups:/var/www/html/storage/app/backups", "marketplace-images:/var/www/html/storage/app/images"}
 			entry["networks"] = []string{"marketplace", "kit-core"}
 			if d.Route.ID != "" {
@@ -425,6 +448,23 @@ func (o *osMarketplaceOperations) prepareMarketplace(view confinedfs.View, s mar
 	defer clear(raw)
 	_, err = view.WriteAtomic0600("compose.yaml", raw)
 	return err
+}
+
+// marketplaceIssuerHosts keeps the canonical Pocket ID issuer reachable from
+// Coolify for its OIDC discovery. Basement publishes its router on the node,
+// so the issuer host resolves to the host gateway exactly as for the other
+// home applications. Cloud resolves the issuer through the router alias on
+// its core network, which a host-gateway entry would shadow.
+func marketplaceIssuerHosts(d architecturev2renderer.MarketplaceCoolifyDocument, issuer string) ([]string, error) {
+	hosts := []string{"host.docker.internal:host-gateway"}
+	if d.KitRef != "basement-kit" {
+		return hosts, nil
+	}
+	parsed, err := url.Parse(issuer)
+	if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" || parsed.Port() != "" || net.ParseIP(parsed.Hostname()) != nil {
+		return nil, errors.New("Marketplace requires the canonical HTTPS Pocket ID issuer host")
+	}
+	return append(hosts, parsed.Hostname()+":host-gateway"), nil
 }
 
 func (o *osMarketplaceOperations) run(ctx context.Context, args []string, input []byte, directory string) ([]byte, error) {
@@ -558,6 +598,15 @@ func (o *osMarketplaceOperations) verifyPrivateUI(ctx context.Context, d archite
 	return nil
 }
 
+// marketplaceBootstrapPHP binds Coolify sign-in to the node's own Pocket ID.
+// Its accounts are owner-provisioned and passkey-bound, and email
+// verification there is an optional SMTP flow, so Coolify must not demand an
+// email_verified claim the owner's account does not carry by default. The root
+// admin is pre-linked to the owner's signed subject, so no account is ever
+// linked by email alone (Coolify keeps that guard for existing accounts).
+// OIDC registration and root-team auto-join stay off: any other Pocket ID
+// user admitted by the client would otherwise become a root-team member able
+// to deploy to server 0, which is root on the node.
 const marketplaceBootstrapPHP = `<?php
 require '/var/www/html/vendor/autoload.php';
 $app=require '/var/www/html/bootstrap/app.php';
@@ -582,7 +631,37 @@ try {
  $oidc=App\Models\OauthSetting::updateOrCreate(['provider'=>'oidc'],[
   'client_id'=>$input['clientId'],'client_secret'=>$input['clientSecret'],'base_url'=>$input['issuer'],
   'redirect_uri'=>$input['origin'].'/auth/oidc/callback','enabled'=>true,'custom_label'=>'Pocket ID',
-  'scopes'=>'openid email profile','allow_registration'=>true,'auto_join_root_team'=>true,'require_email_verified'=>true,'use_pkce'=>true]);
+  'scopes'=>'openid email profile','allow_registration'=>false,'auto_join_root_team'=>false,'require_email_verified'=>false,'use_pkce'=>true]);
+ $phase='owner-identity';
+ if (!is_string($input['ownerSubject']??null) || $input['ownerSubject']==='') {throw new RuntimeException('Owner subject missing');}
+ $ownerIdentity=['provider'=>'oidc','issuer'=>$input['issuer'],'provider_user_id'=>$input['ownerSubject']];
+ $identity=App\Models\OauthIdentity::where($ownerIdentity)->first();
+ if ($identity && $identity->user_id!==$root->id) {throw new RuntimeException('Owner identity is linked to another account');}
+ if (!$identity) {
+  if ($root->oauthIdentities()->exists()) {throw new RuntimeException('Root admin is linked to another identity');}
+  App\Models\OauthIdentity::create($ownerIdentity+['user_id'=>$root->id,'email'=>$root->email,'raw_claims'=>[]]);
+ }
+ $phase='access-revocation';
+ // Installs before registration was closed may hold household-created
+ // accounts in the root team or OIDC identities of other subjects. Revoke
+ // their access (team-0 membership, pending team-0 invitations, OIDC
+ // identities, API tokens, sessions) and keep the user rows and their
+ // resources for the owner's review. The owner re-invites through Coolify.
+ $foreignMembers=Illuminate\Support\Facades\DB::table('team_user')->where('team_id',0)->where('user_id','!=',$root->id)->pluck('user_id')->all();
+ $foreignIdentityUsers=App\Models\OauthIdentity::where('user_id','!=',$root->id)->pluck('user_id')->all();
+ $foreignUsers=array_values(array_unique(array_merge($foreignMembers,$foreignIdentityUsers)));
+ $rootInvitations=Illuminate\Support\Facades\DB::table('team_invitations')->where('team_id',0)->count();
+ $revoked=['rootTeamMembers'=>count(array_unique($foreignMembers)),'oidcIdentities'=>count($foreignIdentityUsers),'rootTeamInvitations'=>$rootInvitations];
+ if ($foreignUsers || $rootInvitations) {
+  Illuminate\Support\Facades\DB::transaction(function() use ($root,$foreignUsers) {
+   Illuminate\Support\Facades\DB::table('team_invitations')->where('team_id',0)->delete();
+   Illuminate\Support\Facades\DB::table('team_user')->where('team_id',0)->where('user_id','!=',$root->id)->delete();
+   App\Models\OauthIdentity::where('user_id','!=',$root->id)->delete();
+   Illuminate\Support\Facades\DB::table('personal_access_tokens')->where('tokenable_type',App\Models\User::class)->whereIn('tokenable_id',$foreignUsers)->delete();
+   if (Illuminate\Support\Facades\Schema::hasTable('sessions')) { Illuminate\Support\Facades\DB::table('sessions')->whereIn('user_id',$foreignUsers)->delete(); }
+  });
+ }
+ if (Illuminate\Support\Facades\DB::table('team_user')->where('team_id',0)->where('user_id','!=',$root->id)->exists() || App\Models\OauthIdentity::where('user_id','!=',$root->id)->exists() || Illuminate\Support\Facades\DB::table('team_invitations')->where('team_id',0)->exists()) {throw new RuntimeException('Foreign root-team access remained');}
  $server=App\Models\Server::findOrFail(0);
  $phase='proxy';
  $server->proxy=['type'=>'NONE','status'=>'exited'];$server->save();
@@ -593,6 +672,6 @@ try {
  session(['currentTeam'=>App\Models\Team::findOrFail(0)]);
  if (!$token) { $existing=$root->tokens()->where('name','stackkit-node-marketplace')->exists();if($existing){throw new RuntimeException('Uncertain API token issuance; inspect custody');} $token=$root->createToken('stackkit-node-marketplace',['read','write','deploy'])->plainTextToken; }
  $phase='observation';
- echo json_encode(['token'=>$token,'observation'=>['rootAdmin'=>true,'registrationClosed'=>!$settings->is_registration_enabled,'autoUpdateDisabled'=>!$settings->is_auto_update_enabled,'serverId'=>$server->uuid,'proxy'=>$proxy['type']]],JSON_THROW_ON_ERROR);
+ echo json_encode(['token'=>$token,'observation'=>['revokedForeignAccess'=>$revoked,'rootAdmin'=>true,'registrationClosed'=>!$settings->is_registration_enabled,'autoUpdateDisabled'=>!$settings->is_auto_update_enabled,'serverId'=>$server->uuid,'proxy'=>$proxy['type']]],JSON_THROW_ON_ERROR);
 } catch (Throwable $e) {fwrite(STDERR,"Marketplace bootstrap postcondition failed: ".$phase." (".get_class($e).")\n");exit(1);}
 `

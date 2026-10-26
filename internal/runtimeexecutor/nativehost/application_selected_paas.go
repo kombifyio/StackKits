@@ -45,6 +45,7 @@ const (
 	SelectedPaaSApplicationTika              SelectedPaaSApplication = "tika"
 	SelectedPaaSApplicationDocling           SelectedPaaSApplication = "docling"
 	SelectedPaaSApplicationLitellm           SelectedPaaSApplication = "litellm"
+	SelectedPaaSApplicationQdrant            SelectedPaaSApplication = "qdrant"
 	SelectedPaaSApplicationPaperless         SelectedPaaSApplication = "paperless-ngx"
 	SelectedPaaSApplicationPterodactyl       SelectedPaaSApplication = "pterodactyl"
 	SelectedPaaSApplicationCalagopus         SelectedPaaSApplication = "calagopus"
@@ -341,6 +342,17 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.LitellmWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseLitellmWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationQdrant:
+		return selectedPaaSApplicationSpec{
+			name: "Qdrant", providerRef: "stackkits-qdrant", moduleRef: "stackkits-qdrant-runtime",
+			unitRef: "qdrant", workloadRef: "ai-vectors", artifactRef: "qdrant-workload-bundle",
+			outputRef: "workloads/qdrant/bundle.json", healthRef: "qdrant-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.QdrantWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseQdrantWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true

@@ -82,6 +82,9 @@ func Verify(raw []byte, request Request) (Grant, error) {
 		return Grant{}, deny(ReasonCapabilityScopeMismatch, "rilRef", "does not match the approved RIL reference")
 	}
 
+	if request.Operation == OperationApplicationTransferRetire && (document.TransferRetirement == nil || *document.TransferRetirement != *request.TransferRetirement) {
+		return Grant{}, deny(ReasonCapabilityScopeMismatch, "transferRetirement", "does not match the authenticated held snapshot, peer outcome and intent transition")
+	}
 	if document.BackupRenewal != nil {
 		if request.Operation != OperationRestoreDrill || len(document.AllowedOperations) != 1 || expiresAt.Sub(issuedAt) > 15*time.Minute {
 			return Grant{}, deny(ReasonCapabilityScopeMismatch, "backupRenewal", "requires one short-lived restore.drill operation")
@@ -91,17 +94,18 @@ func Verify(raw []byte, request Request) (Grant, error) {
 		}
 	}
 	return Grant{
-		BackupRenewal:     document.BackupRenewal,
-		CapabilityID:      document.CapabilityID,
-		IssuerID:          document.IssuerID,
-		StackID:           document.StackID,
-		OwnerRef:          document.OwnerRef,
-		AllowedOperations: slices.Clone(document.AllowedOperations),
-		UIManagerRef:      document.UIManagerRef,
-		RILRef:            document.RILRef,
-		IssuedAt:          issuedAt,
-		ExpiresAt:         expiresAt,
-		KeyID:             document.KeyID,
+		TransferRetirement: document.TransferRetirement,
+		BackupRenewal:      document.BackupRenewal,
+		CapabilityID:       document.CapabilityID,
+		IssuerID:           document.IssuerID,
+		StackID:            document.StackID,
+		OwnerRef:           document.OwnerRef,
+		AllowedOperations:  slices.Clone(document.AllowedOperations),
+		UIManagerRef:       document.UIManagerRef,
+		RILRef:             document.RILRef,
+		IssuedAt:           issuedAt,
+		ExpiresAt:          expiresAt,
+		KeyID:              document.KeyID,
 	}, nil
 }
 
@@ -117,6 +121,12 @@ func validateVerificationRequest(request Request) error {
 	}
 	if !ownerRefPattern.MatchString(request.OwnerRef) {
 		return deny(ReasonCapabilityScopeMismatch, "ownerRef", "is not canonical")
+	}
+	if request.Operation == OperationApplicationTransferRetire && request.TransferRetirement == nil {
+		return deny(ReasonCapabilityScopeMismatch, "transferRetirement", "authenticated local scope is required")
+	}
+	if request.TransferRetirement != nil && request.Operation != OperationApplicationTransferRetire {
+		return deny(ReasonCapabilityScopeMismatch, "transferRetirement", "cannot authorize another operation")
 	}
 	if !wire.IsOperation(request.Operation) {
 		return deny(ReasonCapabilityOperationDenied, "operation", "is not an advanced operation")

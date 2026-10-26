@@ -25,6 +25,7 @@ type nativeV2AppliedAuthority struct {
 	Owner                                             localevidence.OwnerCustody
 	Lineage                                           backuplifecycle.AuthorityLineage
 	AppliedWorkloads                                  []architecturev2.AppliedWorkloadIdentity
+	AppliedRequestDigest                              string
 }
 
 func inspectNativeV2AppliedAuthority(ctx context.Context, workspace, requestedSpec string) (nativeV2AppliedAuthority, error) {
@@ -168,6 +169,7 @@ func inspectNativeV2Authority(ctx context.Context, workspace, requestedSpec stri
 			PocketIDSubject:    ownerSummary.PocketIDSubject,
 		},
 		Manifest: manifest, Receipt: receipt, Owner: owner,
-		AppliedWorkloads: verifiedApply.Summary().AppliedWorkloads,
+		AppliedWorkloads:     verifiedApply.Summary().AppliedWorkloads,
+		AppliedRequestDigest: verifiedApply.Summary().AppliedRequestDigest,
 	}, nil
 }

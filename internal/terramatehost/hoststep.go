@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/hostsecurity"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
@@ -104,11 +105,16 @@ func errorText(err error) string {
 // loop. The host-security baseline is policy, not a stored root, so the
 // checkpoint's evidence blob records what was proven and the repair restores
 // what it describes. The returned status is converged only when verify exits 0.
-func RestoreHostStep(ctx context.Context, workspaceRoot string, tools Tools, timeout time.Duration, stack terramatestackgraph.Stack) (StackResult, error) {
+func RestoreHostStep(ctx context.Context, workspaceRoot string, tools Tools, timeout time.Duration, stack terramatestackgraph.Stack) (_ StackResult, returnErr error) {
 	workspace, err := filepath.Abs(workspaceRoot)
 	if err != nil {
 		return StackResult{}, err
 	}
+	ctx, releaseAdmission, err := opentofu.AdmitGenericOperation(ctx, workspace, nil)
+	if err != nil {
+		return StackResult{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, releaseAdmission()) }()
 	result := StackResult{
 		StackID: stack.ID, Role: string(stack.Role), SiteRef: stack.SiteRef, NodeRef: stack.NodeRef,
 		RuntimeRoot: stack.RuntimeRoot,

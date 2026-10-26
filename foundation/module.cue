@@ -172,7 +172,7 @@ package foundation
 //
 // Examples: kuma-provisioner, dokploy-provisioner, pocketid-provisioner, lldap-provisioner
 #ProvisionerService: {
-	// Container image (e.g., "alpine/curl:latest", "node:22-alpine")
+	// Container image (e.g., "alpine/curl:latest", "node:22.23.4-alpine")
 	image: string
 
 	// Shell command(s) to run — use $var (double-dollar) in Docker Compose YAML

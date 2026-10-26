@@ -116,7 +116,11 @@ func beginArchitectureV2ApplicationLifecyclesMatching(
 		if workloadRef != "" && contract.WorkloadRef != workloadRef || include != nil && !include(contract.WorkloadRef) {
 			continue
 		}
-		if !applicationLifecycleStageSupportedByDelivery(contract, stage) {
+		groupSource, sourceErr := nativeRuntipiLifecycleSource(plan, contract, stage)
+		if sourceErr != nil {
+			return nil, sourceErr
+		}
+		if !applicationLifecycleStageSupportedByDelivery(contract, stage) && !groupSource {
 			if workloadRef != "" {
 				return nil, fmt.Errorf(
 					"application workload %q adapter %q does not support the %s lifecycle",
@@ -350,7 +354,11 @@ func completeExistingApplicationLifecycles(
 		if workloadRef != "" && contract.WorkloadRef != workloadRef {
 			continue
 		}
-		if !applicationLifecycleStageSupportedByDelivery(contract, "restore") {
+		groupSource, sourceErr := nativeRuntipiLifecycleSource(plan, contract, "restore")
+		if sourceErr != nil {
+			return sourceErr
+		}
+		if !applicationLifecycleStageSupportedByDelivery(contract, "restore") && !groupSource {
 			continue
 		}
 		state, loadErr := store.Load(contract)
@@ -369,6 +377,14 @@ func completeExistingApplicationLifecycles(
 		if operation.Status == applicationlifecycle.StatusSucceeded || operation.Status == applicationlifecycle.StatusRecovered {
 			result = errors.Join(result, fmt.Errorf("application lifecycle for workload %q is terminal with a different result", contract.WorkloadRef))
 			continue
+		}
+		if operation.Status == applicationlifecycle.StatusRunning {
+			// Finalize as the operation's owner, so a concurrent Begin cannot
+			// record it as interrupted while this process completes it.
+			if claimErr := store.ClaimRunningOperation(contract, operationID); claimErr != nil {
+				result = errors.Join(result, claimErr)
+				continue
+			}
 		}
 		if terminalStatus == applicationlifecycle.StatusRecovered && (operation.Status == applicationlifecycle.StatusRunning || operation.Status == applicationlifecycle.StatusFailed) {
 			if _, transitionErr := store.Transition(contract, applicationlifecycle.TransitionRequest{

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/dataprofilev1"
 	"github.com/kombifyio/stackkits/internal/rollout"
 )
 
@@ -283,6 +284,17 @@ func (e Engine) runUpdateUnit(ctx context.Context, result *Result, planDigest st
 // with apt and systemd. forReboot distinguishes an appliance without apt
 // (Home Assistant OS), which cannot be rebooted unattended by this contract.
 func (e Engine) admitPackageHost(result *Result, forReboot bool) error {
+	if !forReboot {
+		profile, err := dataprofile.FromBootEnv()
+		if err != nil {
+			return refuse(result, dataprofile.ReasonUnresolvable, err.Error())
+		}
+		if profile.Loc == dataprofile.LocalityLocal {
+			return refuse(result, dataprofile.ReasonFullLocal,
+				"Full Local does not start host package-index or update downloads",
+				"Provide the required host packages before the closed installation phase; existing operator-owned update timers are unchanged.")
+		}
+	}
 	raw, err := e.Host.ReadFile(osReleasePath)
 	if err != nil {
 		return refuse(result, CodeUnsupportedOS,

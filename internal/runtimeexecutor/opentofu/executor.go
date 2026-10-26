@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/tofu"
@@ -31,6 +32,9 @@ type Authority struct {
 // Execute so a missing package fails only an OpenTofu rollout, never a
 // Compose one.
 type Runtime struct {
+	// Borrowed only by an already admitted Komodo operation; never acquired by
+	// a deep helper. The process owner retains the same OS lock description.
+	komodoLease   *confinedfs.OutputLockLease
 	WorkspaceRoot string
 	Native        nativehost.NativeComposeRuntime
 	Binary        string
@@ -41,6 +45,11 @@ type Runtime struct {
 	providerLoader func(string) (providerClosure, error)
 	// Timeout bounds each tofu command; zero keeps the wrapper default.
 	Timeout time.Duration
+	// PlanAdmission is an owner-supplied restriction on the encrypted saved
+	// plan, evaluated before any apply. Platform import/update-only paths use
+	// it to refuse creation or replacement after a remote ID disappears.
+	// It must discard provider output and return only secret-free diagnostics.
+	PlanAdmission func(context.Context, *tofu.Executor, string) error
 }
 
 // Executor realizes exactly one module's OpenTofu root.
@@ -66,7 +75,7 @@ func (e *Executor) Identity() runtimeexecutor.ExecutorIdentity { return e.identi
 
 // Execute writes the root, runs init, plan, and apply offline, and verifies
 // the module. It never refreshes only, never replaces, and never destroys.
-func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.ExecutionRequest) (runtimeexecutor.ExecutionOutcome, error) {
+func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.ExecutionRequest) (_ runtimeexecutor.ExecutionOutcome, returnErr error) {
 	if ctx == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("OpenTofu executor requires a context")
 	}
@@ -100,7 +109,18 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
+	ctx, release, err := AdmitSelectedGenericOperation(ctx, workspace, []string{relative})
+	if err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, release()) }()
 	if err := e.runtime.requireStateCustody(ctx, relative, binary, providers.Directory()); err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
+	marker := RootMarker{SchemaVersion: RootMarkerSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
+		RuntimeDir: e.module.RuntimeDir, ComposeProject: e.module.ComposeProject}
+	admission := ctx.Value(genericAdmissionContextKey{}).(*GenericRestoreAdmission)
+	if err := admission.handoffPreparedExecutor(relative, marker, artifact.Digest); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	native := nativehost.NativeComposeRequest{
@@ -126,10 +146,7 @@ func (e *Executor) Execute(ctx context.Context, request runtimeexecutor.Executio
 		// runtime root the stack graph names for this stack.
 		files = append(files, rootFile{StackFile, stack.Content, 0o640})
 	}
-	if err := writeRoot(root, RootMarker{
-		SchemaVersion: RootMarkerSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
-		RuntimeDir: e.module.RuntimeDir, ComposeProject: e.module.ComposeProject,
-	}, providers.Directory(), lock, files...); err != nil {
+	if err := writeRoot(root, marker, providers.Directory(), lock, files...); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	environment, err := e.runtime.Native.ComposeEnvironment(e.module.ModuleRef)

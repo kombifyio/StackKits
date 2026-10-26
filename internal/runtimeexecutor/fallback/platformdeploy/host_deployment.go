@@ -18,18 +18,24 @@ import (
 // HostDeployment is the node's custody of the platform identity for the same
 // generated Compose project. It contains no credential or application data.
 type HostDeployment struct {
-	APIVersion     string                                   `json:"apiVersion"`
-	WorkloadRef    string                                   `json:"workloadRef"`
-	InstanceRef    string                                   `json:"instanceRef"`
-	ArtifactDigest string                                   `json:"artifactDigest"`
-	SiteRef        string                                   `json:"siteRef"`
-	NodeRef        string                                   `json:"nodeRef"`
-	ServerID       string                                   `json:"serverId"`
-	Deployment     DeploymentRef                            `json:"deployment"`
-	Manager        string                                   `json:"manager,omitempty"`
-	Handover       *HostManagerHandover                     `json:"handover,omitempty"`
-	PlanBinding    *HostManagerPlanBinding                  `json:"planBinding,omitempty"`
-	Signature      *localevidence.OwnerPolicyStateSignature `json:"signature,omitempty"`
+	APIVersion     string `json:"apiVersion"`
+	WorkloadRef    string `json:"workloadRef"`
+	InstanceRef    string `json:"instanceRef"`
+	ArtifactDigest string `json:"artifactDigest"`
+	SiteRef        string `json:"siteRef"`
+	NodeRef        string `json:"nodeRef"`
+	ServerID       string `json:"serverId"`
+	EnvironmentID  string `json:"environmentId,omitempty"`
+	RuntimeProject string `json:"runtimeProject,omitempty"`
+	RecipeDigest   string `json:"recipeDigest,omitempty"`
+	// ActivationSourceIDs witnesses the runtime before an asynchronous restart.
+	// It is present only while that exact Coolify activation is unsettled.
+	ActivationSourceIDs map[string]string                        `json:"activationSourceIds,omitempty"`
+	Deployment          DeploymentRef                            `json:"deployment"`
+	Manager             string                                   `json:"manager,omitempty"`
+	Handover            *HostManagerHandover                     `json:"handover,omitempty"`
+	PlanBinding         *HostManagerPlanBinding                  `json:"planBinding,omitempty"`
+	Signature           *localevidence.OwnerPolicyStateSignature `json:"signature,omitempty"`
 }
 
 // HostManagerPlanBinding authorizes control of the same applied workload after
@@ -95,19 +101,34 @@ func validateHostDeployment(project string, state HostDeployment) error {
 		state.WorkloadRef == "" || state.InstanceRef == "" || state.SiteRef == "" || state.NodeRef == "" ||
 		project != "stackkit-"+state.WorkloadRef+"-"+state.NodeRef ||
 		!hostArtifactDigestPattern.MatchString(state.ArtifactDigest) ||
-		(state.Deployment.Platform != "komodo" && state.Deployment.Platform != "coolify" && state.Deployment.Platform != "runtipi" && state.Deployment.Platform != "standalone-compose") ||
-		(state.Deployment.Platform != "standalone-compose" && state.ServerID == "") || state.Deployment.AppName != project ||
+		(state.Deployment.Platform != "komodo" && state.Deployment.Platform != "coolify" && state.Deployment.Platform != "runtipi" && state.Deployment.Platform != "dokploy" && state.Deployment.Platform != "standalone-compose") ||
+		(state.Deployment.Platform != "standalone-compose" && state.Deployment.Platform != "dokploy" && state.ServerID == "") || state.Deployment.AppName != project ||
 		state.Deployment.ExternalID == "" || strings.TrimSpace(state.Deployment.ExternalID) != state.Deployment.ExternalID {
 		return errors.New("platform deployment custody does not bind the exact node project")
 	}
 	if state.APIVersion == hostManagerAPIVersion && state.Manager == "" {
 		return errors.New("v2 workload manager custody requires its explicit manager")
 	}
-	if state.Manager != "" && state.Manager != "komodo" && state.Manager != "coolify" && state.Manager != "runtipi" && state.Manager != "standalone-compose" {
+	if state.Manager != "" && state.Manager != "komodo" && state.Manager != "coolify" && state.Manager != "runtipi" && state.Manager != "dokploy" && state.Manager != "standalone-compose" {
 		return errors.New("workload manager custody names an unsupported manager")
 	}
 	if state.Deployment.Platform == "coolify" && state.Manager != "coolify" {
 		return errors.New("Coolify requires explicit signed workload manager custody")
+	}
+	if len(state.ActivationSourceIDs) != 0 {
+		if state.Deployment.Platform != "coolify" || (state.Deployment.ObservedStatus != "pending-provider-activation" && state.Deployment.ObservedStatus != "uncertain-provider-activation") {
+			return errors.New("activation runtime witness requires unsettled Coolify custody")
+		}
+		for component, id := range state.ActivationSourceIDs {
+			if !regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`).MatchString(component) || (id != "" && !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(id)) {
+				return errors.New("activation runtime witness has an invalid component or container identity")
+			}
+		}
+	}
+	if state.Deployment.Platform == "dokploy" && (state.Manager != "dokploy" || !dokployIDPattern.MatchString(state.Deployment.ExternalID) ||
+		!dokployIDPattern.MatchString(state.EnvironmentID) || !regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,125}$`).MatchString(state.RuntimeProject) ||
+		!hostArtifactDigestPattern.MatchString(state.RecipeDigest)) {
+		return errors.New("Dokploy requires explicit signed manager, environment, physical project and recipe custody")
 	}
 	if state.Deployment.Platform == "runtipi" && (state.Manager != "runtipi" || state.Deployment.ExternalID != project+":_user" || !runtipiAppName.MatchString(project)) {
 		return errors.New("Runtipi requires its exact custom-app identity and explicit signed workload manager custody")

@@ -275,6 +275,16 @@ func validateProductAppliedRuntimeCustodyBinding(
 }
 
 func validateHistoricalAppliedRuntimeCustodyBinding(planBinding generationartifact.PlanBinding, outputRoot string, envelope verifiedApplyResultEnvelope, capsule productApplyRecoveryCapsule) error {
+	// The shared executor request intentionally omits artifact-only outputs.
+	// Authenticate the complete retained snapshot set against the original
+	// signed envelope, including every byte and artifact identity field.
+	artifactSetHash, err := hashApplyArtifactSet(capsule.Request.Artifacts)
+	if err != nil {
+		return fmt.Errorf("verify original applied artifact snapshot bytes: %w", err)
+	}
+	if artifactSetHash != envelope.ArtifactSetHash {
+		return errors.New("Product Apply recovery artifact snapshot set differs from the original signed result")
+	}
 	if capsule.Request.Binding != planBinding || envelope.Binding != planBinding {
 		return errors.New("Product Apply recovery capsule is bound to a foreign plan")
 	}

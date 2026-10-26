@@ -2954,6 +2954,197 @@
         }
       },
       "metadata": {
+        "description": "Vector store add-on of the Private AI use case.",
+        "id": "ai-vectors",
+        "version": "1.0.0"
+      },
+      "packageRef": "ai",
+      "useCaseRef": "ai",
+      "workloadRef": "ai-vectors"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "Public share-link add-on of the photos use case.",
         "id": "photos-share",
         "version": "1.0.0"
@@ -9174,6 +9365,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-qdrant-runtime"
+        ],
+        "matches": [
+          "stackkits-qdrant"
+        ],
+        "module": "stackkits-qdrant-runtime",
+        "provider": "stackkits-qdrant"
+      },
+      {
+        "governanceMatches": [
           "stackkits-gitea-runtime"
         ],
         "matches": [
@@ -9561,6 +9762,16 @@
         ],
         "module": "stackkits-ha-modern-quorum-runtime",
         "provider": "stackkits-ha-modern-quorum"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-marketplace-runtipi-runtime"
+        ],
+        "matches": [
+          "stackkits-marketplace"
+        ],
+        "module": "stackkits-marketplace-runtipi-runtime",
+        "provider": "stackkits-marketplace"
       },
       {
         "governanceMatches": [
@@ -9963,6 +10174,13 @@
         "matches": [
           "stackkits-core-host-bootstrap"
         ],
+        "module": "stackkits-marketplace-runtipi-runtime",
+        "requires": "stackkits-core-host-bootstrap"
+      },
+      {
+        "matches": [
+          "stackkits-core-host-bootstrap"
+        ],
         "module": "stackkits-marketplace-coolify-runtime",
         "requires": "stackkits-core-host-bootstrap"
       },
@@ -10328,6 +10546,12 @@
             "ai-gateway"
           ],
           "providerID": "stackkits-litellm"
+        },
+        {
+          "contracts": [
+            "ai-vectors"
+          ],
+          "providerID": "stackkits-qdrant"
         },
         {
           "contracts": [
@@ -11428,6 +11652,13 @@
       },
       {
         "matches": [
+          "stackkits-qdrant-runtime"
+        ],
+        "module": "stackkits-qdrant-runtime",
+        "provider": "stackkits-qdrant"
+      },
+      {
+        "matches": [
           "stackkits-gitea-runtime"
         ],
         "module": "stackkits-gitea-runtime",
@@ -11711,6 +11942,13 @@
           "stackkits-marketplace-coolify-runtime"
         ],
         "module": "stackkits-marketplace-coolify-runtime",
+        "provider": "stackkits-marketplace"
+      },
+      {
+        "matches": [
+          "stackkits-marketplace-runtipi-runtime"
+        ],
+        "module": "stackkits-marketplace-runtipi-runtime",
         "provider": "stackkits-marketplace"
       },
       {
@@ -12701,6 +12939,34 @@
           "service-catalog"
         ],
         "provider": "stackkits-litellm"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
+        "provider": "stackkits-qdrant"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-qdrant"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-qdrant"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-qdrant"
       },
       {
         "capability": "runtime-paas",
@@ -14077,6 +14343,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-litellm"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-qdrant"
         },
         {
           "capabilityBindings": [],
@@ -16343,6 +16615,100 @@
           "workloadID": "ai-gateway"
         },
         {
+          "alternativeID": "qdrant",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-qdrant-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "qdrant"
+                  ],
+                  "ref": "api-key"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "ai-vectors",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "qdrant",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-qdrant",
+              "workloadOwnership": [
+                "ai-vectors"
+              ]
+            }
+          ],
+          "workloadID": "ai-vectors"
+        },
+        {
           "alternativeID": "gitea",
           "moduleMatches": [
             {
@@ -18496,6 +18862,106 @@
             {
               "capabilityProvides": [],
               "moduleID": "stackkits-marketplace-coolify-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "stackkit"
+              ],
+              "runtimeKind": [
+                "host"
+              ],
+              "secretRefs": [],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "marketplace",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal",
+                      "secret"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    },
+                    {
+                      "class": "secret",
+                      "matches": [
+                        "secret"
+                      ]
+                    }
+                  ],
+                  "unitID": "marketplace",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    },
+                    {
+                      "class": "secret",
+                      "matches": [
+                        "secret"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-marketplace",
+              "workloadOwnership": [
+                "marketplace"
+              ]
+            }
+          ],
+          "workloadID": "marketplace"
+        },
+        {
+          "alternativeID": "runtipi",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-marketplace-runtipi-runtime",
               "moduleSiteKinds": [
                 {
                   "kind": "home",
@@ -21708,7 +22174,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:7fe72e9c09b410551da1c43397324794f39b9f4083ddcedd775ebdef3bf74fbd",
+          "contractHash": "sha256:2952cea3d818e2e2cf55663c4f13cb164e19faad76608370408046ad564359df",
           "id": "executor-contract",
           "inputBindings": [],
           "kind": "native-config",
@@ -25822,7 +26288,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:c6d278731cf79352de5a919a2399da4c09fd3a982f07a690005c7bbee8809fc2",
+          "contractHash": "sha256:2d3044f3d0774f5a3fc12402645e3070c485037ed7ca154ee3c5da37713fe9a0",
           "id": "compose",
           "inputBindings": [
             {
@@ -26064,7 +26530,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:b899557ef57e0631b26019e7ea53f6a78108fb7daf4d72fe5d8fbf4a0f22d97e",
+          "contractHash": "sha256:5b77ac2f49e4420f47d7d9b2f86b8e414c19f9e20ac2aae21327e24edf15c61e",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -26306,7 +26772,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:6fe3aacb585e3ddb57a577ddcd1513ed56c6858779d0fe249538861df4f2307d",
+          "contractHash": "sha256:c6c4d3612d8a921501d6e331a9263f0b8bc469d123c72b0c652057cf1aa55451",
           "id": "terramate",
           "inputBindings": [
             {
@@ -27550,7 +28016,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:3ef64cac9f0c31ba7470c09daa5a3038f072d36b09d5d7425516a9bad0ee7baf",
+          "contractHash": "sha256:cb8467cbb985e3a7026dd784c357eb3020099a5d9656a1be4ba4a2433c8f05a5",
           "id": "compose",
           "inputBindings": [
             {
@@ -27764,7 +28230,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:fa514dcc07d33a6f168753eea208ee9ea9cb0609e2280d04e82bae243e66c424",
+          "contractHash": "sha256:49a900ce0b30ccda2370b9c2070771d5f557711b32dc37416aba4b2202be5e57",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -27978,7 +28444,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:c235e620b92af4c2f37f77fbb4210016ffe37c7a955e6fcb4b0ed88ba55a48d5",
+          "contractHash": "sha256:9ad9e0d127a1150845b062e2d1d839bf146d6a56b54ff06f599f4cc6076792fb",
           "id": "terramate",
           "inputBindings": [
             {
@@ -32240,7 +32706,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:45638079b68210738ef3a82711d7183ab23dd9041857594d9c23096e692976f3",
+          "contractHash": "sha256:4080f37c76ff7495451e2461088164ec99cc5bd88bf460b722a2208e950e7777",
           "id": "private-ai",
           "inputBindings": [
             {
@@ -32499,6 +32965,16 @@
                 "workloadRef": "ai-gateway"
               },
               {
+                "alternativeRef": "qdrant",
+                "environment": {
+                  "QDRANT_URI": "http://qdrant:6333",
+                  "RAG_EMBEDDING_ENGINE": "ollama",
+                  "RAG_EMBEDDING_MODEL": "bge-m3",
+                  "VECTOR_DB": "qdrant"
+                },
+                "workloadRef": "ai-vectors"
+              },
+              {
                 "alternativeRef": "speechkit",
                 "environment": {
                   "AUDIO_STT_ENGINE": "openai",
@@ -32520,6 +32996,13 @@
                   "AUDIO_TTS_OPENAI_API_KEY": "server-token"
                 },
                 "workloadRef": "ai-speech"
+              },
+              {
+                "alternativeRef": "qdrant",
+                "secretEnvironment": {
+                  "QDRANT_API_KEY": "api-key"
+                },
+                "workloadRef": "ai-vectors"
               }
             ],
             "dependsOn": [
@@ -33218,6 +33701,15 @@
                 "workloadRef": "ai-gateway"
               },
               {
+                "alternativeRef": "qdrant",
+                "environment": {
+                  "EMBEDDING_MODEL_PREF": "bge-m3",
+                  "QDRANT_ENDPOINT": "http://qdrant:6333",
+                  "VECTOR_DB": "qdrant"
+                },
+                "workloadRef": "ai-vectors"
+              },
+              {
                 "alternativeRef": "speechkit",
                 "environment": {
                   "STT_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:8080/v1",
@@ -33243,6 +33735,13 @@
                   "WHISPER_GENERIC_OPEN_AI_API_KEY": "server-token"
                 },
                 "workloadRef": "ai-speech"
+              },
+              {
+                "alternativeRef": "qdrant",
+                "secretEnvironment": {
+                  "QDRANT_API_KEY": "api-key"
+                },
+                "workloadRef": "ai-vectors"
               }
             ],
             "dependsOn": [
@@ -33260,8 +33759,7 @@
               "LLM_PROVIDER": "ollama",
               "OLLAMA_BASE_PATH": "http://ollama:11434",
               "SERVER_PORT": "3001",
-              "STORAGE_DIR": "/app/server/storage",
-              "VECTOR_DB": "lancedb"
+              "STORAGE_DIR": "/app/server/storage"
             },
             "health": {
               "kind": "http",
@@ -36944,6 +37442,382 @@
         "image": {
           "digest": "sha256:60947db020b57e204823d3fbc8bb295c85be890d7c9adcc77fb4f5fc2fe410b2",
           "ref": "ghcr.io/berriai/litellm:v1.105.0"
+        },
+        "kind": "container"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
+            "qdrant"
+          ],
+          "description": "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.25
+          }
+        },
+        "standard": {
+          "components": [
+            "qdrant"
+          ],
+          "description": "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.25
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "qdrant-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "qdrant-http",
+          "kind": "http",
+          "path": "/healthz",
+          "phase": "continuous",
+          "port": 6333,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Qdrant vector store for the chat module's knowledge base on the node's private AI network. The REST API needs the API key from owner custody; telemetry is off, there is no egress and no published port.",
+        "id": "stackkits-qdrant-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-qdrant",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "qdrant-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/qdrant/bundle.json",
+              "required": true,
+              "unitRef": "qdrant"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "qdrant-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/qdrant/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "qdrant-workload-bundle",
+              "outputRef": "workloads/qdrant/bundle.json",
+              "unitRef": "qdrant"
+            },
+            {
+              "artifactRef": "qdrant-terramate-stack",
+              "outputRef": "platform/applications/qdrant/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "qdrant-workload-bundle",
+            "qdrant-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "qdrant-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "api-key"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:a49014638e4528a7673e0c2268c8653b417ef0af29ecdadba92c9dcd758c5898",
+          "id": "qdrant",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/qdrant/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "api-key"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "ai-vectors",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "qdrant-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "ai-vectors",
+              "targetPort": 6333,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/qdrant/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/qdrant/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "qdrant-workload-bundle"
+          ],
+          "contractHash": "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "api-key"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "qdrant"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "qdrant-workload-bundle"
+          ],
+          "contractHash": "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "api-key"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "qdrant"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "qdrant-workload-bundle",
+            "qdrant-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "api-key"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "qdrant",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "environment": {
+              "QDRANT__TELEMETRY_DISABLED": "true"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/healthz",
+              "port": 6333
+            },
+            "id": "qdrant",
+            "image": {
+              "digest": "sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2",
+              "ref": "docker.io/qdrant/qdrant:v1.20.0"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "qdrant-internal"
+            ],
+            "peerNetworks": [
+              {
+                "networkRef": "private-ai-internal",
+                "workloadRef": "ai"
+              }
+            ],
+            "resources": {
+              "memoryLimit": "2g",
+              "memoryReservation": "256m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "QDRANT__SERVICE__API_KEY": "api-key"
+            },
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "storage",
+                "target": "/qdrant/storage"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "qdrant",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2",
+          "ref": "docker.io/qdrant/qdrant:v1.20.0"
         },
         "kind": "container"
       },
@@ -48911,6 +49785,321 @@
       "computeProfiles": {
         "high": {
           "components": [
+            "runtipi",
+            "postgres",
+            "queue"
+          ],
+          "description": "Unqualified pinned Runtipi backend, database and queue policy envelope; no measured capacity claim.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 2,
+            "ramGB": 4
+          },
+          "reservation": {
+            "cpuCores": 0.5,
+            "ramGB": 2.25
+          }
+        },
+        "standard": {
+          "components": [
+            "runtipi",
+            "postgres",
+            "queue"
+          ],
+          "description": "Unqualified pinned Runtipi backend, database and queue policy envelope; no measured capacity claim.",
+          "executable": true,
+          "hostFloor": {
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "beta",
+          "platformManagement": "standalone",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "recommended": {
+              "ref": "Kombify recommended sizing policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "recommended": {
+            "cpuCores": 2,
+            "ramGB": 4
+          },
+          "reservation": {
+            "cpuCores": 0.5,
+            "ramGB": 2.25
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "runtipi-current-pin-lifecycle"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "runtipi-bootstrap-ready",
+          "kind": "http",
+          "path": "/api/health",
+          "phase": "continuous",
+          "port": 3000,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Prepared, unqualified node-owned Runtipi installation with encrypted operator custody and the existing Kit router.",
+        "id": "stackkits-marketplace-runtipi-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-marketplace",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "marketplace-runtipi-installation",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "workloads/marketplace/runtipi-installation.json",
+              "required": true,
+              "unitRef": "marketplace"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "marketplace-runtipi-installation",
+              "outputRef": "workloads/marketplace/runtipi-installation.json",
+              "unitRef": "marketplace"
+            }
+          ],
+          "requiredRefs": [
+            "marketplace-runtipi-installation"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "runtipi-current-pin-lifecycle"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "kit"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:f6ff4df74dede73dd1a571154680c5636ad7c5be5c3fca3cb8db3b97cc5652c9",
+          "id": "marketplace",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/marketplace/runtipi-installation.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "kit"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private",
+                "public"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "marketplace",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal",
+                  "secret"
+                ]
+              },
+              "healthRef": "runtipi-bootstrap-ready",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "marketplace",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/marketplace/runtipi-installation/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap"
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [
+              "postgres",
+              "queue"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/api/health",
+              "port": 3000
+            },
+            "id": "runtipi",
+            "image": {
+              "digest": "sha256:9cdb7297d8f3d3f3d74425b56caecb3d452a4916146136503d9163b477ace6f0",
+              "ref": "ghcr.io/runtipi/runtipi:v4.10.2"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "marketplace",
+              "kit-core"
+            ],
+            "resources": {
+              "memoryLimit": "1536m"
+            },
+            "role": "application"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "postgres",
+            "image": {
+              "digest": "sha256:14bfab572eec6abf65892e1db7c3ba8d41b2a2855c1b143664907d6e146eb6e1",
+              "ref": "postgres:14"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "marketplace"
+            ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
+            "role": "database"
+          },
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "queue",
+            "image": {
+              "digest": "sha256:8668a6ed4a878a6619213d9d5721dd4983ecb662312fe233816e1d1ff8a96753",
+              "ref": "rabbitmq:4-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "marketplace"
+            ],
+            "resources": {
+              "memoryLimit": "256m"
+            },
+            "role": "application"
+          }
+        ],
+        "delivery": "stackkit",
+        "entryComponentRef": "runtipi",
+        "execution": "executable",
+        "kind": "host"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
+        "high": {
+          "components": [
             "coolify",
             "postgres",
             "redis"
@@ -49327,7 +50516,8 @@
           "contracts": [
             {
               "compatibleTargets": [
-                "compose"
+                "compose",
+                "opentofu"
               ],
               "format": "json",
               "id": "komodo-bootstrap",
@@ -49375,7 +50565,8 @@
         {
           "applyMode": "runtime",
           "compatibleTargets": [
-            "compose"
+            "compose",
+            "opentofu"
           ],
           "contractHash": "sha256:fb498163b0aae017eb15961d0096cab5b7b2ef20edc61dfeb995d44f53e849c6",
           "id": "bootstrap",
@@ -54126,6 +55317,54 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "qdrant-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-qdrant",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-qdrant-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "ai-vectors"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "gitea-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -56095,7 +57334,8 @@
         "kind": "modules",
         "moduleRefs": {
           "optional": [
-            "stackkits-marketplace-coolify-runtime"
+            "stackkits-marketplace-coolify-runtime",
+            "stackkits-marketplace-runtipi-runtime"
           ],
           "required": []
         }
@@ -57029,6 +58269,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57063,6 +58304,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57097,6 +58339,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57154,6 +58397,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57188,6 +58432,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57323,6 +58568,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57467,6 +58713,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57603,6 +58850,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57747,6 +58995,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -57877,6 +59126,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -58015,6 +59265,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -58180,6 +59431,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -58341,6 +59593,38 @@
                 "model-size",
                 "external-provider"
               ],
+              "descriptors": [
+                {
+                  "key": "kombify-connector",
+                  "label": "kombify connector",
+                  "type": "boolean"
+                },
+                {
+                  "key": "model-pack-general",
+                  "label": "General model pack",
+                  "type": "boolean"
+                },
+                {
+                  "key": "model-pack-coding",
+                  "label": "Coding model pack",
+                  "type": "boolean"
+                },
+                {
+                  "key": "model-pack-vision",
+                  "label": "Vision model pack",
+                  "type": "boolean"
+                },
+                {
+                  "key": "model-size",
+                  "label": "Model size",
+                  "options": [
+                    "small",
+                    "medium",
+                    "large"
+                  ],
+                  "type": "string"
+                }
+              ],
               "requiredRefs": []
             }
           },
@@ -58460,6 +59744,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -58646,6 +59931,13 @@
               "allowedRefs": [
                 "comfyui-api-nodes"
               ],
+              "descriptors": [
+                {
+                  "key": "comfyui-api-nodes",
+                  "label": "ComfyUI API nodes",
+                  "type": "boolean"
+                }
+              ],
               "requiredRefs": []
             }
           },
@@ -58782,6 +60074,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -58920,6 +60213,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59064,6 +60358,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59203,6 +60498,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59279,6 +60575,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59348,6 +60645,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59397,6 +60695,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59470,6 +60769,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59520,6 +60820,130 @@
       "metadata": {
         "description": "LiteLLM model router that gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models, selected with the Private AI model-router module. Every request needs the master key from owner custody; the route is local or remote-private, never public.",
         "id": "ai-gateway",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "ai"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "qdrant",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "backupDataClass": "user-content",
+                  "componentRef": "qdrant",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "storage"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "ai-vectors",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "qdrant",
+                  "dataBindingRef": "ai-vectors",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/qdrant/storage",
+                  "volumeRef": "storage"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "api-key"
+              ],
+              "requiredRefs": [
+                "api-key"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "descriptors": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-qdrant-runtime",
+          "providerRef": "stackkits-qdrant",
+          "route": {
+            "healthRef": "qdrant-http",
+            "serviceRef": "ai-vectors"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "qdrant",
+      "functionalCapabilities": [
+        "vector-store"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Qdrant vector store that holds the chat module's knowledge-base vectors (embeddings from bge-m3 on the node's Ollama), selected with the Private AI vector-store module. It joins the node's private AI network, needs the API key from owner custody on every request and is local or remote-private, never public.",
+        "id": "ai-vectors",
         "version": "1.0.0"
       },
       "supportedSiteKinds": [
@@ -59610,6 +61034,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59713,6 +61138,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -59934,6 +61360,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -60178,6 +61605,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -60338,6 +61766,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -60531,6 +61960,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -60706,6 +62136,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -60855,6 +62286,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -61012,6 +62444,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -61144,6 +62577,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -61289,6 +62723,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -61440,6 +62875,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -61562,6 +62998,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -61696,6 +63133,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -61821,6 +63259,13 @@
               "allowedRefs": [
                 "lan-listener",
                 "home-assistant-link"
+              ],
+              "descriptors": [
+                {
+                  "key": "home-assistant-link",
+                  "label": "Home Assistant link",
+                  "type": "boolean"
+                }
               ],
               "requiredRefs": []
             }
@@ -61949,6 +63394,7 @@
                 "mqtt-server",
                 "zigbee-adapter"
               ],
+              "descriptors": [],
               "requiredRefs": [
                 "usb-device",
                 "mqtt-server"
@@ -62023,6 +63469,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -62144,6 +63591,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -62271,6 +63719,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -62394,6 +63843,7 @@
               "allowedRefs": [
                 "kombify-notify"
               ],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -62467,6 +63917,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -62501,6 +63952,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -62535,6 +63987,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -62804,6 +64257,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -62828,6 +64282,45 @@
           "setup": {
             "actionRefs": [
               "marketplace-owner-bootstrap"
+            ],
+            "mode": "automatic",
+            "owner": "module"
+          }
+        },
+        {
+          "id": "runtipi",
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [],
+              "requiredRefs": []
+            },
+            "settings": {
+              "allowedRefs": [],
+              "descriptors": [],
+              "requiredRefs": []
+            }
+          },
+          "minimumTLSVersion": "TLS1.3",
+          "moduleRef": "stackkits-marketplace-runtipi-runtime",
+          "providerRef": "stackkits-marketplace",
+          "providesRuntimeAdapterRef": "runtipi",
+          "route": {
+            "healthRef": "runtipi-bootstrap-ready",
+            "serviceRef": "marketplace"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [],
+            "allowedDeliveries": [
+              "stackkit"
+            ],
+            "allowedKinds": [
+              "host"
+            ],
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [
+              "runtipi-owner-bootstrap"
             ],
             "mode": "automatic",
             "owner": "module"
@@ -62885,6 +64378,7 @@
               "allowedRefs": [
                 "remote-connection"
               ],
+              "descriptors": [],
               "requiredRefs": [
                 "remote-connection"
               ]
@@ -62975,6 +64469,7 @@
             },
             "settings": {
               "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },
@@ -63126,6 +64621,7 @@
                 "dns-policy",
                 "lan-listener"
               ],
+              "descriptors": [],
               "requiredRefs": [
                 "dns-policy"
               ]

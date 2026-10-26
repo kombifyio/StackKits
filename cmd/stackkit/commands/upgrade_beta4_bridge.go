@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
@@ -28,12 +29,21 @@ const (
 )
 
 type publicUpgradeBridge struct {
-	Enabled       bool
-	Current       generationartifact.PlanInspection
-	Verify        architectureV2VerifyReport
-	LiveVerify    architectureV2VerifyReport
-	Receipt       releaseindex.Receipt
-	SourceContext *historicalCloudSourceContext
+	SourceCandidate *releaseindex.PreviewSourceCacheProof
+	SourceProgram   *architecturev2.ApplyProgramIdentity
+	Enabled         bool
+	Current         generationartifact.PlanInspection
+	Verify          architectureV2VerifyReport
+	LiveVerify      architectureV2VerifyReport
+	Receipt         releaseindex.Receipt
+	SourceContext   *historicalCloudSourceContext
+}
+
+func (bridge publicUpgradeBridge) sourceVersion() string {
+	if bridge.SourceCandidate != nil {
+		return "v" + bridge.SourceCandidate.Version
+	}
+	return bridge.Receipt.Version
 }
 
 func inspectExactBeta4UpgradeBridge(

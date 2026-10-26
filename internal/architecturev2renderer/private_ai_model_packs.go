@@ -2,6 +2,7 @@ package architecturev2renderer
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sort"
 )
@@ -42,6 +43,46 @@ var privateAIModelTags = map[string]map[string]string{
 	"ollama-model-general": {"small": "qwen3.5:4b", "medium": "qwen3.5:9b", "large": "qwen3.5:27b"},
 	"ollama-model-coding":  {"small": "qwen2.5-coder:1.5b", "medium": "qwen2.5-coder:7b", "large": "qwen3-coder:30b"},
 	"ollama-model-vision":  {"small": "qwen3-vl:4b", "medium": "qwen3-vl:8b", "large": "qwen3-vl:32b"},
+}
+
+// OfflineModelPin binds an existing reviewed model selection to the complete
+// upstream manifest (weights, configuration, template, system and license).
+// Full Local never resolves a mutable model tag at installation or runtime.
+type OfflineModelPin struct {
+	Component             string `json:"component"`
+	Size                  string `json:"size"`
+	Tag                   string `json:"tag"`
+	ManifestSHA256        string `json:"manifestSha256"`
+	WeightsSHA256         string `json:"weightsSha256"`
+	ImportedWeightsSHA256 string `json:"importedWeightsSha256"`
+	ImporterImageDigest   string `json:"importerImageDigest"`
+}
+
+// Captured from registry.ollama.ai/v2/library/qwen2.5-coder/manifests/1.5b on
+// 2026-10-24; all referenced blobs were independently hashed from a real pull.
+// The manifest includes the Apache-2.0 license. Other existing model packs
+// remain online-only until their own immutable closure is reviewed.
+var privateAIOfflineManifestDigests = map[string]struct{ Manifest, Weights, ImportedWeights, ImporterImage string }{
+	"qwen2.5-coder:1.5b": {
+		Manifest: "d7372fd828518a4d38b1eb196c673c31a85f2ed302b3d1e406c4c2d1b64a0668",
+		Weights:  "29d8c98fa6b098e200069bfb88b9508dc3e85586d20cba59f8dda9a808165104",
+		// Native create in pinned Ollama normalizes the GGUF. Two empty
+		// daemons reproduced these bytes; raw source remains pinned too.
+		ImportedWeights: "7628c5cfd1a3f958ebcd9d96293acc725acbe5e74c9cba2c2d4b421cfde7e0d6",
+		ImporterImage:   "sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba",
+	},
+}
+
+func OfflinePrivateAIModel(component, size string) (OfflineModelPin, error) {
+	tag := privateAIModelTags[component][size]
+	digest := privateAIOfflineManifestDigests[tag]
+	if tag == "" || digest.Manifest == "" || digest.ImporterImage != ollamaImageDigest {
+		return OfflineModelPin{}, fmt.Errorf("model pack %s/%s has no reviewed offline manifest", component, size)
+	}
+	if digest.ImporterImage != ollamaModelPullImageDigest {
+		return OfflineModelPin{}, fmt.Errorf("model pack %s/%s has no reviewed offline manifest", component, size)
+	}
+	return OfflineModelPin{Component: component, Size: size, Tag: tag, ManifestSHA256: digest.Manifest, WeightsSHA256: digest.Weights, ImportedWeightsSHA256: digest.ImportedWeights, ImporterImageDigest: digest.ImporterImage}, nil
 }
 
 // privateAIModelSelection maps each selected pack component to its tag.

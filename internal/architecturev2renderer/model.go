@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
@@ -28,6 +29,9 @@ const dockerSocketPathSourceDaemonBinding = "daemon-binding"
 const maxDockerSocketPathBytes = 107
 
 type renderPlan struct {
+	localNetwork           *runtimeprofile.LocalNetwork
+	dataProfile            runtimeprofile.DataProfile
+	offlineBundle          *runtimeprofile.OfflineBundleRef
 	listenerAddresses      map[string]string
 	outputRoot             string
 	networkDomainBase      string
@@ -572,6 +576,14 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 	if err != nil {
 		return renderPlan{}, err
 	}
+	dataProfile, offlineBundle, err := parseDataProfile(top)
+	if err != nil {
+		return renderPlan{}, err
+	}
+	localNetwork, err := parseLocalNetwork(top, dataProfile)
+	if err != nil {
+		return renderPlan{}, err
+	}
 	generation, err := requiredRawObject(top, "generation", "resolvedPlan.generation")
 	if err != nil {
 		return renderPlan{}, err
@@ -626,6 +638,8 @@ func parsePlanCanonical(canonical []byte) (renderPlan, error) {
 		addresses[listener.ID] = listener.BindAddress
 	}
 	result := renderPlan{
+		localNetwork: localNetwork,
+		dataProfile:  dataProfile, offlineBundle: offlineBundle,
 		listenerAddresses: addresses,
 		outputRoot:        outputRoot, networkDomainBase: networkDomainBase, networkSubdomainPrefix: networkSubdomainPrefix,
 		artifacts: artifacts,

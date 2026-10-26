@@ -302,6 +302,7 @@ func init() {
 	backupRestoreRecoverCmd.Flags().String("original-release-cache", "", "Absolute retained node release cache, used offline only when the workspace original cache is absent")
 	backupRestoreCmd.AddCommand(backupRestoreAbandonCmd, backupRestoreActivateCmd, backupRestoreRecoverCmd)
 	configureEmergencyBackupCommands()
+	configureApplicationTransferCommands()
 	backupMigrateResticCmd.Flags().BoolVar(&backupMigrateDryRun, "dry-run", false,
 		"Print the plan without importing")
 	// Wire subcommands.

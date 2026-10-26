@@ -17,16 +17,30 @@ const (
 // Architecture v2 plan and its exact generated artifact closure. It is not an
 // infrastructure diff and never claims that an executor was invoked.
 type PlanInspection struct {
-	APIVersion         string                  `json:"apiVersion"`
-	Kind               string                  `json:"kind"`
-	VerifiedPhase      ExecutionPhase          `json:"verifiedPhase"`
-	Binding            PlanBinding             `json:"binding"`
-	Renderer           RendererIdentity        `json:"renderer"`
-	OutputRoot         string                  `json:"outputRoot"`
-	Readiness          PlanInspectionReadiness `json:"readiness"`
-	Manifest           PlanInspectionManifest  `json:"manifest"`
-	InfrastructureDiff string                  `json:"infrastructureDiff"`
-	ExecutorInvoked    bool                    `json:"executorInvoked"`
+	APIVersion         string                    `json:"apiVersion"`
+	Kind               string                    `json:"kind"`
+	VerifiedPhase      ExecutionPhase            `json:"verifiedPhase"`
+	Binding            PlanBinding               `json:"binding"`
+	Renderer           RendererIdentity          `json:"renderer"`
+	OutputRoot         string                    `json:"outputRoot"`
+	Readiness          PlanInspectionReadiness   `json:"readiness"`
+	Manifest           PlanInspectionManifest    `json:"manifest"`
+	InfrastructureDiff string                    `json:"infrastructureDiff"`
+	ExecutorInvoked    bool                      `json:"executorInvoked"`
+	LocalOwner         *PlanInspectionLocalOwner `json:"localOwner,omitempty"`
+}
+
+// PlanInspectionLocalOwner is the CLI's secret-free projection of verified
+// local Owner custody. It identifies who can mutate this exact inspected host;
+// it grants no operation and contains no custody document or signing key.
+type PlanInspectionLocalOwner struct {
+	State      string                      `json:"state"`
+	ReasonCode string                      `json:"reasonCode,omitempty"`
+	OwnerRef   string                      `json:"ownerRef,omitempty"`
+	KeyID      string                      `json:"keyId,omitempty"`
+	StackID    string                      `json:"stackId"`
+	PlanHash   string                      `json:"planHash"`
+	Binding    *ApplyExecutionScopeBinding `json:"binding,omitempty"`
 }
 
 type PlanInspectionReadiness struct {
@@ -116,8 +130,8 @@ func inspectReadinessPhase(plan VerifiedPlan, phase ExecutionPhase) (PlanInspect
 	return PlanInspectionPhase{Status: decision.status, Blockers: blockers}, nil
 }
 
-// MarshalCanonical returns stable bytes without adding timestamps, host facts,
-// or any other environment-dependent value.
+// MarshalCanonical serializes the inspection and any explicitly attached read
+// projection canonically without adding timestamps or observing host state.
 func (inspection PlanInspection) MarshalCanonical() ([]byte, error) {
 	return resolvedplan.CanonicalJSON(inspection)
 }

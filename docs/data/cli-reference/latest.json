@@ -26,6 +26,12 @@
       "required": false
     },
     {
+      "name": "original-release-cache",
+      "type": "string",
+      "description": "Absolute retained source cache locator for offline original-program inspection",
+      "required": false
+    },
+    {
       "name": "progress-jsonl",
       "type": "string",
       "description": "Write redacted machine-readable rollout progress JSONL to a path, or '-' for stdout",
@@ -1527,6 +1533,14 @@
         "stackkit backup schedule",
         "stackkit backup status",
         "stackkit backup target",
+        "stackkit backup transfer-abort",
+        "stackkit backup transfer-export",
+        "stackkit backup transfer-finish",
+        "stackkit backup transfer-import",
+        "stackkit backup transfer-prepare",
+        "stackkit backup transfer-recover",
+        "stackkit backup transfer-resume",
+        "stackkit backup transfer-target",
         "stackkit backup verify"
       ]
     },
@@ -2282,6 +2296,526 @@
       "subcommands": []
     },
     {
+      "path": "stackkit backup transfer-abort",
+      "name": "transfer-abort",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-abort [flags]",
+      "short": "Hold the receiving application stopped and issue signed abort evidence",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "archive-sha256",
+          "type": "string",
+          "description": "Exact admitted transfer/target authority",
+          "required": false
+        },
+        {
+          "name": "candidate-output",
+          "type": "string",
+          "description": "New candidate path for Advanced target abort retirement",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Techstack capability for the exact Advanced held target retirement",
+          "required": false
+        },
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Exact admitted transfer/target authority",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Existing local inventory for selected target intent retirement",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Stop and hold only the receiving application closure",
+          "required": false
+        },
+        {
+          "name": "source-fingerprint",
+          "type": "string",
+          "description": "Exact admitted transfer/target authority",
+          "required": false
+        },
+        {
+          "name": "source-owner",
+          "type": "string",
+          "description": "Exact admitted transfer/target authority",
+          "required": false
+        },
+        {
+          "name": "source-receipt",
+          "type": "string",
+          "description": "Exact admitted transfer/target authority",
+          "required": false
+        },
+        {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "Exact admitted transfer/target authority",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-export",
+      "name": "transfer-export",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-export [flags]",
+      "short": "Export selected native applications to one receiving node",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "destination",
+          "type": "string",
+          "description": "Receiving node admission JSON",
+          "required": false
+        },
+        {
+          "name": "destination-fingerprint",
+          "type": "string",
+          "description": "Independently pinned full receiving signing-key SHA-256",
+          "required": false
+        },
+        {
+          "name": "destination-owner",
+          "type": "string",
+          "description": "Independently admitted receiving Owner",
+          "required": false
+        },
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Exact source Plan hash",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output transfer receipt",
+          "required": false
+        },
+        {
+          "name": "mode",
+          "type": "string",
+          "default": "copy",
+          "description": "copy resumes source; migrate holds selected source until authenticated destination outcome",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Resumable source snapshot operation",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "New encrypted export directory",
+          "required": false
+        },
+        {
+          "name": "use-case",
+          "type": "string",
+          "description": "Transfer every currently selected member of this catalog use case",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "stringArray",
+          "description": "Exact workload closure to transfer; repeat for a use case",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-finish",
+      "name": "transfer-finish",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-finish [flags]",
+      "short": "Retire selected source intent after signed destination activation and retain all source data",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "candidate-output",
+          "type": "string",
+          "description": "Exact existing transfer/source retirement input",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Techstack capability for the exact Advanced held transfer retirement",
+          "required": false
+        },
+        {
+          "name": "inventory",
+          "type": "string",
+          "description": "Exact existing transfer/source retirement input",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve source intent retirement while preserving data",
+          "required": false
+        },
+        {
+          "name": "source-receipt",
+          "type": "string",
+          "description": "Exact existing transfer/source retirement input",
+          "required": false
+        },
+        {
+          "name": "target-fingerprint",
+          "type": "string",
+          "description": "Exact existing transfer/source retirement input",
+          "required": false
+        },
+        {
+          "name": "target-outcome",
+          "type": "string",
+          "description": "Exact existing transfer/source retirement input",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-import",
+      "name": "transfer-import",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-import [flags]",
+      "short": "Import an authenticated selected application transfer using destination authority",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "archive",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "archive-sha256",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "identity-file",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output destination activation receipt",
+          "required": false
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "549755813888",
+          "description": "Maximum decompressed bytes",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve selected destination application replacement",
+          "required": false
+        },
+        {
+          "name": "recover",
+          "type": "bool",
+          "description": "Recover the original signed transfer activation journal",
+          "required": false
+        },
+        {
+          "name": "source-fingerprint",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "source-owner",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "source-receipt",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-prepare",
+      "name": "transfer-prepare",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-prepare [flags]",
+      "short": "Adopt transferred application credentials before the receiving application's first Apply",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "archive",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "archive-sha256",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "identity-file",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "549755813888",
+          "description": "Maximum decompressed bytes",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve selected new application credential adoption",
+          "required": false
+        },
+        {
+          "name": "source-fingerprint",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "source-owner",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "source-receipt",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "Required exact transfer admission value",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-recover",
+      "name": "transfer-recover",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-recover [flags]",
+      "short": "Recover the original typed transfer activation through its existing journal",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "archive",
+          "type": "string",
+          "description": "Exact original transfer admission",
+          "required": false
+        },
+        {
+          "name": "archive-sha256",
+          "type": "string",
+          "description": "Exact original transfer admission",
+          "required": false
+        },
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Exact original transfer admission",
+          "required": false
+        },
+        {
+          "name": "identity-file",
+          "type": "string",
+          "description": "Exact original transfer admission",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Output recovery outcome",
+          "required": false
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "549755813888",
+          "description": "Maximum decompressed archive bytes",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize original selected activation recovery",
+          "required": false
+        },
+        {
+          "name": "source-fingerprint",
+          "type": "string",
+          "description": "Exact original transfer admission",
+          "required": false
+        },
+        {
+          "name": "source-owner",
+          "type": "string",
+          "description": "Exact original transfer admission",
+          "required": false
+        },
+        {
+          "name": "source-receipt",
+          "type": "string",
+          "description": "Exact original transfer admission",
+          "required": false
+        },
+        {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "Exact original transfer admission",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-resume",
+      "name": "transfer-resume",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-resume [flags]",
+      "short": "Resume held source only after independently verified stopped-destination evidence",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Resume the retained original application after verified target stop",
+          "required": false
+        },
+        {
+          "name": "source-receipt",
+          "type": "string",
+          "description": "Exact original transfer and stopped-target proof",
+          "required": false
+        },
+        {
+          "name": "target-fingerprint",
+          "type": "string",
+          "description": "Exact original transfer and stopped-target proof",
+          "required": false
+        },
+        {
+          "name": "target-outcome",
+          "type": "string",
+          "description": "Exact original transfer and stopped-target proof",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-target",
+      "name": "transfer-target",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-target [flags]",
+      "short": "Issue a signed receiving-node admission for an existing private age identity",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Exact receiving candidate Plan hash",
+          "required": false
+        },
+        {
+          "name": "identity-file",
+          "type": "string",
+          "description": "Existing private receiving age identity",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit backup verify",
       "name": "verify",
       "parent": "stackkit backup",
@@ -2375,6 +2909,296 @@
           "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
           "required": false,
           "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit bundle",
+      "name": "bundle",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit bundle [flags]",
+      "short": "Prepare and import a verified Full Local artifact bundle",
+      "description": "Prepare owner-neutral release tools, provider packages, container images and a pinned local model. Install imports only the verified cache. Continue through the existing native init, generate and apply commands to create this host's own Owner and runtime custody.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit bundle create",
+        "stackkit bundle install",
+        "stackkit bundle verify"
+      ]
+    },
+    {
+      "path": "stackkit bundle create",
+      "name": "create",
+      "parent": "stackkit bundle",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit bundle create [flags]",
+      "short": "Prepare the complete neutral closure while online",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "model-cache",
+          "type": "string",
+          "description": "Optional existing Ollama models directory; only manifest-pinned blobs are copied",
+          "required": false
+        },
+        {
+          "name": "profile",
+          "type": "string",
+          "default": "basement-full-local-compose",
+          "description": "Catalog Full Local profile",
+          "required": false
+        },
+        {
+          "name": "source-archive-sha256",
+          "type": "string",
+          "description": "Independent exact selected candidate archive SHA256",
+          "required": false
+        },
+        {
+          "name": "source-candidate-dir",
+          "type": "string",
+          "description": "Selected candidate archive and complete offline trust material (preparation only)",
+          "required": false
+        },
+        {
+          "name": "source-cli-sha256",
+          "type": "string",
+          "description": "Independent exact candidate CLI SHA256; must equal this process",
+          "required": false
+        },
+        {
+          "name": "source-index-sha256",
+          "type": "string",
+          "description": "Independent exact private candidate index SHA256",
+          "required": false
+        },
+        {
+          "name": "source-kind",
+          "type": "string",
+          "default": "public-release",
+          "description": "Authenticated source: public-release or preview-candidate",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Future native workspace, separate from the bundle (default current directory)",
+          "required": false
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "description": "New owner-neutral bundle directory",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit bundle install",
+      "name": "install",
+      "parent": "stackkit bundle",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit bundle install [flags]",
+      "short": "Import the complete verified closure without network access",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "from",
+          "type": "string",
+          "description": "Complete verified bundle directory",
+          "required": true
+        },
+        {
+          "name": "offline",
+          "type": "bool",
+          "description": "Require the complete local closure; never resolve a registry",
+          "required": false
+        },
+        {
+          "name": "source-archive-sha256",
+          "type": "string",
+          "description": "Independent exact selected candidate archive SHA256",
+          "required": false
+        },
+        {
+          "name": "source-candidate-dir",
+          "type": "string",
+          "description": "Selected candidate archive and complete offline trust material (preparation only)",
+          "required": false
+        },
+        {
+          "name": "source-cli-sha256",
+          "type": "string",
+          "description": "Independent exact candidate CLI SHA256; must equal this process",
+          "required": false
+        },
+        {
+          "name": "source-index-sha256",
+          "type": "string",
+          "description": "Independent exact private candidate index SHA256",
+          "required": false
+        },
+        {
+          "name": "source-kind",
+          "type": "string",
+          "default": "public-release",
+          "description": "Authenticated source: public-release or preview-candidate",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Future native workspace, separate from the bundle (default current directory)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit bundle verify",
+      "name": "verify",
+      "parent": "stackkit bundle",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit bundle verify [flags]",
+      "short": "Authenticate every bundle input without importing it",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "from",
+          "type": "string",
+          "description": "Complete verified bundle directory",
+          "required": true
+        },
+        {
+          "name": "offline",
+          "type": "bool",
+          "description": "Require the complete local closure; never resolve a registry",
+          "required": false
+        },
+        {
+          "name": "source-archive-sha256",
+          "type": "string",
+          "description": "Independent exact selected candidate archive SHA256",
+          "required": false
+        },
+        {
+          "name": "source-candidate-dir",
+          "type": "string",
+          "description": "Selected candidate archive and complete offline trust material (preparation only)",
+          "required": false
+        },
+        {
+          "name": "source-cli-sha256",
+          "type": "string",
+          "description": "Independent exact candidate CLI SHA256; must equal this process",
+          "required": false
+        },
+        {
+          "name": "source-index-sha256",
+          "type": "string",
+          "description": "Independent exact private candidate index SHA256",
+          "required": false
+        },
+        {
+          "name": "source-kind",
+          "type": "string",
+          "default": "public-release",
+          "description": "Authenticated source: public-release or preview-candidate",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Future native workspace, separate from the bundle (default current directory)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit capabilities",
+      "name": "capabilities",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit capabilities [flags]",
+      "short": "Supplement the retained Foundation through its capability contracts",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit capabilities configure"
+      ]
+    },
+    {
+      "path": "stackkit capabilities configure",
+      "name": "configure",
+      "parent": "stackkit capabilities",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit capabilities configure <id> [flags]",
+      "short": "Enable or configure one declared Foundation capability",
+      "description": "Merge public settings, a provider and secret references into one capability.\n--enable explicitly adds an optional capability. Review the normal plan before\napply. Advanced intent requires --output and capability-gated change-set dispatch.\nNo runtime change occurs; existing applications and storage remain selected.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "enable",
+          "type": "bool",
+          "description": "Explicitly enable this kit-declared capability",
+          "required": false
+        },
+        {
+          "name": "expected-spec-hash",
+          "type": "string",
+          "description": "Require the current canonical spec hash",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit versioned authoring result; execution remains pending",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Write a new candidate file, retaining the active baseline; required for Advanced/multi-node intent",
+          "required": false
+        },
+        {
+          "name": "provider",
+          "type": "string",
+          "description": "Explicit CUE provider; omission retains selection",
+          "required": false
+        },
+        {
+          "name": "secret-ref",
+          "type": "stringArray",
+          "description": "Input key=secret://reference; never supply secret material",
+          "required": false
+        },
+        {
+          "name": "setting",
+          "type": "stringArray",
+          "description": "Public setting key=JSON; repeat to merge named settings",
+          "required": false
         }
       ],
       "subcommands": []
@@ -2763,6 +3587,7 @@
       "subcommands": [
         "stackkit docs emit-advanced-operations",
         "stackkit docs emit-cli-reference",
+        "stackkit docs emit-preview-candidate-catalog",
         "stackkit docs emit-release-manifests",
         "stackkit docs emit-troubleshooting",
         "stackkit docs emit-use-case-overview"
@@ -2837,6 +3662,99 @@
           "type": "string",
           "default": "docs/data/cli-reference/latest.json",
           "description": "Reference JSON path, relative to --chdir",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit docs emit-preview-candidate-catalog",
+      "name": "emit-preview-candidate-catalog",
+      "parent": "stackkit docs",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit docs emit-preview-candidate-catalog [flags]",
+      "short": "Project canonical CUE facts for an internal source-bound candidate",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "catalog-root",
+          "type": "string",
+          "description": "Actual clean exported CUE tree used by the candidate builder",
+          "required": false
+        },
+        {
+          "name": "declared-version",
+          "type": "string",
+          "description": "Descriptive compiler version, never a new public release",
+          "required": false
+        },
+        {
+          "name": "export-tree",
+          "type": "string",
+          "description": "Exact exported build Git tree",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Candidate catalog output file",
+          "required": false
+        },
+        {
+          "name": "producer-event",
+          "type": "string",
+          "description": "Exact producer trigger",
+          "required": false
+        },
+        {
+          "name": "producer-run-attempt",
+          "type": "string",
+          "description": "Exact producer attempt",
+          "required": false
+        },
+        {
+          "name": "producer-run-id",
+          "type": "string",
+          "description": "Exact producer run",
+          "required": false
+        },
+        {
+          "name": "producer-workflow",
+          "type": "string",
+          "description": "Exact producer workflow path",
+          "required": false
+        },
+        {
+          "name": "producer-workflow-ref",
+          "type": "string",
+          "description": "Exact main workflow reference",
+          "required": false
+        },
+        {
+          "name": "producer-workflow-sha",
+          "type": "string",
+          "description": "Exact producer signer commit",
+          "required": false
+        },
+        {
+          "name": "source-repository",
+          "type": "string",
+          "description": "Exact producer source repository",
+          "required": false
+        },
+        {
+          "name": "source-sha",
+          "type": "string",
+          "description": "Exact source and signer commit",
+          "required": false
+        },
+        {
+          "name": "source-tree",
+          "type": "string",
+          "description": "Exact source Git tree",
           "required": false
         }
       ],
@@ -2980,6 +3898,71 @@
           "type": "string",
           "description": "public-filtered truth table Markdown output path",
           "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit dokploy-runtime",
+      "name": "dokploy-runtime",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit dokploy-runtime [flags]",
+      "short": "Inspect the optional Dokploy OpenTofu provider integration",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit dokploy-runtime bind-bootstrap",
+        "stackkit dokploy-runtime prepare"
+      ]
+    },
+    {
+      "path": "stackkit dokploy-runtime bind-bootstrap",
+      "name": "bind-bootstrap",
+      "parent": "stackkit dokploy-runtime",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit dokploy-runtime bind-bootstrap [flags]",
+      "short": "Authenticate and encrypt the existing node-owned Dokploy bootstrap identity",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "local-endpoint",
+          "type": "string",
+          "description": "Literal loopback URL for the existing Dokploy API when bootstrap stores its public UI URL",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit dokploy-runtime prepare",
+      "name": "prepare",
+      "parent": "stackkit dokploy-runtime",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit dokploy-runtime prepare [flags]",
+      "short": "Prepare an exact existing service's import-bound root without applying it",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "compose-id",
+          "type": "string",
+          "description": "Held Dokploy composeId; never a display-name lookup",
+          "required": true
+        },
+        {
+          "name": "project",
+          "type": "string",
+          "description": "Exact generated node workload project",
+          "required": true
         }
       ],
       "subcommands": []
@@ -4221,10 +5204,44 @@
       "examples": [],
       "flags": [],
       "subcommands": [
+        "stackkit host security network",
         "stackkit host security repair",
         "stackkit host security status",
         "stackkit host security verify"
       ]
+    },
+    {
+      "path": "stackkit host security network",
+      "name": "network",
+      "parent": "stackkit host security",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit host security network [flags]",
+      "short": "Admit the verified Full Local cohort's container destinations",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "apply",
+          "type": "bool",
+          "description": "Install and independently read back the scoped destination policy",
+          "required": false
+        },
+        {
+          "name": "local-node",
+          "type": "string",
+          "description": "Exact local node in that plan",
+          "required": true
+        },
+        {
+          "name": "resolved-plan",
+          "type": "string",
+          "description": "Verified canonical Full Local ResolvedPlan",
+          "required": true
+        }
+      ],
+      "subcommands": []
     },
     {
       "path": "stackkit host security repair",
@@ -5144,6 +6161,37 @@
           "required": false
         },
         {
+          "name": "source-archive-sha256",
+          "type": "string",
+          "description": "Independent exact selected candidate archive SHA256",
+          "required": false
+        },
+        {
+          "name": "source-candidate-dir",
+          "type": "string",
+          "description": "Selected candidate archive and complete offline trust material (preparation only)",
+          "required": false
+        },
+        {
+          "name": "source-cli-sha256",
+          "type": "string",
+          "description": "Independent exact candidate CLI SHA256; must equal this process",
+          "required": false
+        },
+        {
+          "name": "source-index-sha256",
+          "type": "string",
+          "description": "Independent exact private candidate index SHA256",
+          "required": false
+        },
+        {
+          "name": "source-kind",
+          "type": "string",
+          "default": "public-release",
+          "description": "Authenticated source: public-release or preview-candidate",
+          "required": false
+        },
+        {
           "name": "target",
           "type": "string",
           "description": "Empty future deployment directory; never an initialized stack",
@@ -5169,6 +6217,37 @@
           "type": "string",
           "description": "Separate neutral release/cache metadata directory",
           "required": true
+        },
+        {
+          "name": "source-archive-sha256",
+          "type": "string",
+          "description": "Independent exact selected candidate archive SHA256",
+          "required": false
+        },
+        {
+          "name": "source-candidate-dir",
+          "type": "string",
+          "description": "Selected candidate archive and complete offline trust material (preparation only)",
+          "required": false
+        },
+        {
+          "name": "source-cli-sha256",
+          "type": "string",
+          "description": "Independent exact candidate CLI SHA256; must equal this process",
+          "required": false
+        },
+        {
+          "name": "source-index-sha256",
+          "type": "string",
+          "description": "Independent exact private candidate index SHA256",
+          "required": false
+        },
+        {
+          "name": "source-kind",
+          "type": "string",
+          "default": "public-release",
+          "description": "Authenticated source: public-release or preview-candidate",
+          "required": false
         },
         {
           "name": "target",
@@ -5563,6 +6642,12 @@
           "required": false
         },
         {
+          "name": "source-candidate-dir",
+          "type": "string",
+          "description": "Absolute root-admitted retained candidate source directory.",
+          "required": false
+        },
+        {
           "name": "source-cli-sha256",
           "type": "string",
           "description": "Require the installed source CLI digest to match the verified archive executable.",
@@ -5572,6 +6657,13 @@
           "name": "source-index-sha256",
           "type": "string",
           "description": "Require the exact signed source release-index digest.",
+          "required": false
+        },
+        {
+          "name": "source-kind",
+          "type": "string",
+          "default": "public-release",
+          "description": "Distribution proof kind for exact retained source custody.",
           "required": false
         },
         {
@@ -7073,12 +8165,66 @@
       "examples": [],
       "flags": [],
       "subcommands": [
+        "stackkit relocate abort",
         "stackkit relocate check",
         "stackkit relocate drain",
         "stackkit relocate plan",
         "stackkit relocate receive",
-        "stackkit relocate send"
+        "stackkit relocate send",
+        "stackkit relocate status"
       ]
+    },
+    {
+      "path": "stackkit relocate abort",
+      "name": "abort",
+      "parent": "stackkit relocate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit relocate abort [flags]",
+      "short": "Permanently reject a transfer only when no destination restore effects could have begun",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "engine",
+          "type": "string",
+          "description": "Path to the pinned relocation engine (default: /usr/local/lib/stackkit/coolify-mirror, $STACKKIT_COOLIFY_MIRROR or PATH)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON (engine progress goes to stderr)",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Confirm Owner-approved destination abort",
+          "required": false
+        },
+        {
+          "name": "plan",
+          "type": "string",
+          "description": "Exact source plan, or -",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "default": "coolify",
+          "description": "PaaS platform to relocate (coolify)",
+          "required": false
+        },
+        {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "Semantic move identity",
+          "required": false
+        }
+      ],
+      "subcommands": []
     },
     {
       "path": "stackkit relocate check",
@@ -7145,6 +8291,12 @@
           "required": false
         },
         {
+          "name": "managed-resume",
+          "type": "string",
+          "description": "Managed current destination-abort observation envelope, or - for stdin",
+          "required": false
+        },
+        {
           "name": "owner-approve",
           "type": "bool",
           "description": "Confirm the owner approved stopping these workloads",
@@ -7161,6 +8313,12 @@
           "type": "string",
           "default": "coolify",
           "description": "PaaS platform to relocate (coolify)",
+          "required": false
+        },
+        {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "Semantic move identity bound to the source drain",
           "required": false
         },
         {
@@ -7263,7 +8421,7 @@
       "group": "reference",
       "usage": "stackkit relocate receive [flags]",
       "short": "Download the shared backup from the source server and restore it here",
-      "description": "Runs on the destination server while `stackkit relocate send` shares. Downloads over pinned HTTPS,\nverifies, and restores into this Coolify; a failed restore is rolled back by the engine.\nRun `stackkit relocate check` with the plan first.",
+      "description": "Runs on the destination server while `stackkit relocate send` shares. Downloads over pinned HTTPS,\nverifies, and restores into this Coolify. A failure after the import commits retains an uncertain\ndestination outcome; use relocation status before choosing recovery.\nRun `stackkit relocate check` with the plan first.",
       "runnable": true,
       "examples": [],
       "flags": [
@@ -7305,6 +8463,12 @@
           "required": false
         },
         {
+          "name": "plan",
+          "type": "string",
+          "description": "Checked source relocation plan, or - for stdin; binds the archive and emits verified resource observations",
+          "required": false
+        },
+        {
           "name": "platform",
           "type": "string",
           "default": "coolify",
@@ -7327,6 +8491,12 @@
           "name": "tenant-ref",
           "type": "string",
           "description": "Wallet tenant of the transfer secret",
+          "required": false
+        },
+        {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "One semantic move identity; isolates transfer keys even when a Wallet item is reused",
           "required": false
         },
         {
@@ -7425,6 +8595,12 @@
           "required": false
         },
         {
+          "name": "plan",
+          "type": "string",
+          "description": "Checked source plan, or - for stdin",
+          "required": false
+        },
+        {
           "name": "platform",
           "type": "string",
           "default": "coolify",
@@ -7457,6 +8633,12 @@
           "required": false
         },
         {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "One semantic move identity; isolates transfer keys even when a Wallet item is reused",
+          "required": false
+        },
+        {
           "name": "ttl",
           "type": "string",
           "default": "2h",
@@ -7473,6 +8655,52 @@
       "subcommands": []
     },
     {
+      "path": "stackkit relocate status",
+      "name": "status",
+      "parent": "stackkit relocate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit relocate status [flags]",
+      "short": "Read one signed move receipt and verify its current local runtime without restoring again",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "engine",
+          "type": "string",
+          "description": "Path to the pinned relocation engine (default: /usr/local/lib/stackkit/coolify-mirror, $STACKKIT_COOLIFY_MIRROR or PATH)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON (engine progress goes to stderr)",
+          "required": false
+        },
+        {
+          "name": "plan",
+          "type": "string",
+          "description": "Exact checked source plan, or - for stdin",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "default": "coolify",
+          "description": "PaaS platform to relocate (coolify)",
+          "required": false
+        },
+        {
+          "name": "transfer-id",
+          "type": "string",
+          "description": "Semantic move identity",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit remove",
       "name": "remove",
       "parent": "stackkit",
@@ -7480,7 +8708,7 @@
       "group": "care",
       "usage": "stackkit remove [flags]",
       "short": "Uninstall the local StackKits deployment",
-      "description": "Uninstall the StackKits runtime on this machine.\n\nWith no --workload, this is the product uninstall: it stops and deletes every\nCompose project named stackkit-* (Basement core, Cloud core, and selected use\ncases), including their networks, while retaining named data volumes. Add\n--delete-data to delete those volumes intentionally. --purge also deletes\nthe selected workspace's state, deploy directory and cached images.\nIt looks in the current\ndirectory, then ~/my-homelab or ~/my-cloud-homelab.\n\n--workload removes one exact Architecture v2 workload through its applied\nruntime owner. That path keeps application volumes unless --delete-data is set.",
+      "description": "Uninstall the StackKits runtime on this machine.\n\nWith no --workload, this is the product uninstall: it stops and deletes every\nCompose project named stackkit-* (Basement core, Cloud core, and selected use\ncases), including their networks, while retaining named data volumes. Add\n--delete-data to delete those volumes intentionally. --purge also deletes\nthe selected workspace's state, deploy directory and cached images.\nIt looks in the current\ndirectory, then ~/my-homelab or ~/my-cloud-homelab.\n\n--workload removes one exact Architecture v2 workload through its applied\nruntime owner. That path keeps application volumes unless --delete-data is set.\nFor an optional Standard application, verified removal also retires its desired\nselection by the current spec hash, so a later Apply does not reinstall it.\nRun generate and apply after retirement before another runtime lifecycle\ncommand, or remove a complete composition together with --use-case.\n--candidate-output writes an optional-workload deletion candidate only, retaining\nthe active baseline for Advanced change-set dispatch; it changes no runtime.",
       "runnable": true,
       "examples": [
         {
@@ -7518,9 +8746,21 @@
           "required": false
         },
         {
+          "name": "candidate-output",
+          "type": "string",
+          "description": "Author an optional-workload deletion candidate only; no runtime mutation",
+          "required": false
+        },
+        {
           "name": "delete-data",
           "type": "bool",
           "description": "Delete named volumes in the selected removal scope (default keeps application data)",
+          "required": false
+        },
+        {
+          "name": "expected-spec-hash",
+          "type": "string",
+          "description": "Require the current native spec hash when authoring a retained-data candidate",
           "required": false
         },
         {
@@ -7581,6 +8821,12 @@
           "name": "terminal-evidence-json",
           "type": "bool",
           "description": "Emit bounded canonical Architecture v2 terminal evidence as JSON",
+          "required": false
+        },
+        {
+          "name": "use-case",
+          "type": "string",
+          "description": "Remove all currently selected catalog workloads of one product use case",
           "required": false
         },
         {
@@ -8350,6 +9596,7 @@
       "flags": [],
       "subcommands": [
         "stackkit use-cases add",
+        "stackkit use-cases configure",
         "stackkit use-cases pick"
       ]
     },
@@ -8360,19 +9607,158 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit use-cases add <slug> [flags]",
-      "short": "Add a catalog use case to an existing standalone installation",
-      "description": "Add a use case using the installed kit's CUE-owned alternative and module\nprofile defaults. Preserve existing workloads, routes, placement and storage.\nPersist the candidate by the current spec hash and materialize only the selected\nuse case's local secret slots. Existing custody is reused. No services are\ndeployed; generate and apply the updated intent through the normal lifecycle.\nNative stackkit/v2alpha2 and a single standalone node/site are required.",
+      "short": "Add one catalog use case while retaining the Foundation and applications",
+      "description": "Add one use case using CUE-owned defaults or explicit alternatives and profiles.\nExisting workloads, routes, placement, storage and custody are retained.\nStandard Mode persists by current spec hash and prepares only this workload's\nlocal secret slots. Advanced intent requires --output: submit that candidate\nthrough the existing capability-gated Advanced change-set lifecycle.\nNo services are deployed; use the normal plan/apply lifecycle.",
       "runnable": true,
-      "examples": [
-        {
-          "command": "stackkit use-cases add mail\nstackkit use-cases add mail --expected-spec-hash sha256:<current-hash>"
-        }
-      ],
+      "examples": [],
       "flags": [
+        {
+          "name": "accelerator-profile",
+          "type": "string",
+          "description": "Catalog module accelerator profile; omission retains selection",
+          "required": false
+        },
+        {
+          "name": "alternative",
+          "type": "string",
+          "description": "Catalog alternative for a new use case; existing alternatives require migration",
+          "required": false
+        },
+        {
+          "name": "compute-profile",
+          "type": "string",
+          "description": "Module-local low, standard or high; omission retains selection",
+          "required": false
+        },
         {
           "name": "expected-spec-hash",
           "type": "string",
-          "description": "Require this canonical current spec hash; omitted uses the hash read before authoring",
+          "description": "Require the current canonical spec hash",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit versioned authoring result; execution remains pending",
+          "required": false
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "description": "Existing enabled node; required for additions when multiple nodes exist",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Write a new candidate file, retaining the active baseline; required for Advanced/multi-node intent",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "description": "Runtime adapter for a new use case; existing delivery identity is retained",
+          "required": false
+        },
+        {
+          "name": "secret-ref",
+          "type": "stringArray",
+          "description": "Input key=secret://reference; never supply secret material",
+          "required": false
+        },
+        {
+          "name": "setting",
+          "type": "stringArray",
+          "description": "Public setting key=JSON; repeat to merge named settings",
+          "required": false
+        },
+        {
+          "name": "storage-profile",
+          "type": "string",
+          "description": "Catalog module storage profile; omission retains selection",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit use-cases configure",
+      "name": "configure",
+      "parent": "stackkit use-cases",
+      "aliases": [
+        "update"
+      ],
+      "group": "reference",
+      "usage": "stackkit use-cases configure <slug> [flags]",
+      "short": "Update one selected application's settings and module profiles",
+      "description": "Merge named public settings, secret references and module profiles into one\nselected application. Omitted settings, data, routes, placement, adapter and\nunrelated applications are retained. Application swaps and relocation require\nexplicit migration. Use normal generate/plan/apply, or --output and Advanced\nchange-set dispatch. This command authors intent only.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "accelerator-profile",
+          "type": "string",
+          "description": "Catalog module accelerator profile; omission retains selection",
+          "required": false
+        },
+        {
+          "name": "alternative",
+          "type": "string",
+          "description": "Catalog alternative for a new use case; existing alternatives require migration",
+          "required": false
+        },
+        {
+          "name": "compute-profile",
+          "type": "string",
+          "description": "Module-local low, standard or high; omission retains selection",
+          "required": false
+        },
+        {
+          "name": "expected-spec-hash",
+          "type": "string",
+          "description": "Require the current canonical spec hash",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit versioned authoring result; execution remains pending",
+          "required": false
+        },
+        {
+          "name": "node",
+          "type": "string",
+          "description": "Existing enabled node; required for additions when multiple nodes exist",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Write a new candidate file, retaining the active baseline; required for Advanced/multi-node intent",
+          "required": false
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "description": "Runtime adapter for a new use case; existing delivery identity is retained",
+          "required": false
+        },
+        {
+          "name": "secret-ref",
+          "type": "stringArray",
+          "description": "Input key=secret://reference; never supply secret material",
+          "required": false
+        },
+        {
+          "name": "setting",
+          "type": "stringArray",
+          "description": "Public setting key=JSON; repeat to merge named settings",
+          "required": false
+        },
+        {
+          "name": "storage-profile",
+          "type": "string",
+          "description": "Catalog module storage profile; omission retains selection",
           "required": false
         }
       ],
@@ -8474,6 +9860,7 @@
         "stackkit user files",
         "stackkit user list",
         "stackkit user owner",
+        "stackkit user project",
         "stackkit user remove"
       ]
     },
@@ -8863,6 +10250,82 @@
       "runnable": true,
       "examples": [],
       "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user project",
+      "name": "project",
+      "parent": "stackkit user",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user project <username> [flags]",
+      "short": "Apply a revision-bound household identity projection",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "action",
+          "type": "string",
+          "description": "Desired identity action: add or remove",
+          "required": false
+        },
+        {
+          "name": "all",
+          "type": "bool",
+          "description": "Allow every app",
+          "required": false
+        },
+        {
+          "name": "app",
+          "type": "stringArray",
+          "description": "App this member may sign into (repeatable)",
+          "required": false
+        },
+        {
+          "name": "display-name",
+          "type": "string",
+          "description": "Household member display name",
+          "required": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "description": "Household member email",
+          "required": false
+        },
+        {
+          "name": "none",
+          "type": "bool",
+          "description": "Allow no app",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve the exact household identity projection",
+          "required": false
+        },
+        {
+          "name": "projection-key",
+          "type": "string",
+          "description": "Owner/person projection digest",
+          "required": false
+        },
+        {
+          "name": "revision",
+          "type": "uint",
+          "description": "Monotonic Cloud generation",
+          "required": false
+        },
         {
           "name": "json",
           "type": "bool",

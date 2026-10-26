@@ -25,6 +25,9 @@ var (
 	removeTerminalEvidenceJSON bool
 	removeDeleteData           bool
 	removeWorkloadRef          string
+	removeUseCaseRef           string
+	removeCandidateOutput      string
+	removeExpectedSpecHash     string
 	removeV2ExecutionOptions   architectureV2ExecutionCLIOptions
 	newRemoveDockerClient      = docker.NewLocalClient
 )
@@ -45,7 +48,13 @@ It looks in the current
 directory, then ~/my-homelab or ~/my-cloud-homelab.
 
 --workload removes one exact Architecture v2 workload through its applied
-runtime owner. That path keeps application volumes unless --delete-data is set.`,
+runtime owner. That path keeps application volumes unless --delete-data is set.
+For an optional Standard application, verified removal also retires its desired
+selection by the current spec hash, so a later Apply does not reinstall it.
+Run generate and apply after retirement before another runtime lifecycle
+command, or remove a complete composition together with --use-case.
+--candidate-output writes an optional-workload deletion candidate only, retaining
+the active baseline for Advanced change-set dispatch; it changes no runtime.`,
 	Example: `  # Uninstall the whole local deployment after typing yes
   stackkit remove
 
@@ -71,6 +80,9 @@ func init() {
 	removeCmd.Flags().BoolVar(&removeTerminalEvidenceJSON, "terminal-evidence-json", false, "Emit bounded canonical Architecture v2 terminal evidence as JSON")
 	removeCmd.Flags().BoolVar(&removeDeleteData, "delete-data", false, "Delete named volumes in the selected removal scope (default keeps application data)")
 	removeCmd.Flags().StringVar(&removeWorkloadRef, "workload", "", "Exact Architecture v2 ResolvedPlan workload ref to remove")
+	removeCmd.Flags().StringVar(&removeUseCaseRef, "use-case", "", "Remove all currently selected catalog workloads of one product use case")
+	removeCmd.Flags().StringVar(&removeCandidateOutput, "candidate-output", "", "Author an optional-workload deletion candidate only; no runtime mutation")
+	removeCmd.Flags().StringVar(&removeExpectedSpecHash, "expected-spec-hash", "", "Require the current native spec hash when authoring a retained-data candidate")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.localSiteRef, "local-site", "", "Exact applied Site placement owned by this removal process")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.localNodeRef, "local-node", "", "Exact applied node placement owned by this removal process")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.localChannelRef, "local-execution-channel", "", "Exact applied execution channel owned by this removal process")
@@ -81,6 +93,21 @@ func init() {
 }
 
 func runRemove(cmd *cobra.Command, args []string) error {
+	if removeExpectedSpecHash != "" && removeCandidateOutput == "" {
+		return errors.New("--expected-spec-hash requires --candidate-output; it never authorizes runtime deletion")
+	}
+	if removeUseCaseRef != "" {
+		if removeWorkloadRef != "" || removePurge || removeForce || removeTerminalEvidenceJSON {
+			return errors.New("--use-case is exclusive with --workload, --purge, --force and --terminal-evidence-json")
+		}
+		return runUseCaseGroupRemoval(cmd, removeUseCaseRef)
+	}
+	if removeCandidateOutput != "" {
+		if removeWorkloadRef == "" || removeDeleteData || removePurge || removeForce || removeTerminalEvidenceJSON {
+			return errors.New("--candidate-output requires --workload and retains data; it cannot emit terminal runtime evidence")
+		}
+		return authorRemovalCandidate(cmd, removeWorkloadRef, removeCandidateOutput)
+	}
 	if commandRequestsMachineOutput(cmd) && !removeAutoApprove {
 		return machineAwareCommandError(cmd, errors.New("removal approval required for machine output"),
 			"Review the removal scope and data retention options, then re-run with --auto-approve to explicitly approve removal.")
@@ -168,10 +195,52 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	if classified && sourceVersion.IsV2() && (removePurge || removeForce) {
 		return errors.New("canonical Architecture v2 workload removal does not accept legacy --purge or --force authority")
 	}
+	retirement, err := prepareRemovedUseCaseIntent(wd, removeWorkloadRef, removeV2ExecutionOptions.inventoryPath)
+	if err != nil {
+		return err
+	}
+	var terminal *workloadremoval.Evidence
+	if retirement != nil {
+		// Terminal success is emitted only after intent CAS also completed.
+		removeV2ExecutionOptions.removalEvidenceSink = func(evidence workloadremoval.Evidence) error {
+			terminal = &evidence
+			return nil
+		}
+	}
 	if handled, err := newArchitectureV2ExecutionGate().preflight(
 		wd, specFile, architectureV2Remove, removeV2ExecutionOptions,
 	); handled {
-		return err
+		if err != nil || retirement == nil {
+			return err
+		}
+		if terminal == nil || terminal.Authority.WorkloadRef != strings.TrimSpace(removeWorkloadRef) {
+			return errors.New("runtime removal has no matching terminal evidence; desired intent was retained")
+		}
+		if err := retirement.persist(); err != nil {
+			return fmt.Errorf("runtime workload is removed and terminal evidence is retained, but desired-intent CAS is pending: %w", err)
+		}
+		if removeJSON || removeTerminalEvidenceJSON {
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Next: run stackkit generate, then stackkit apply before another runtime lifecycle operation.")
+		}
+		if removeTerminalEvidenceJSON {
+			canonical, err := terminal.Canonical()
+			if err != nil {
+				return err
+			}
+			_, err = cmd.OutOrStdout().Write(canonical)
+			return err
+		}
+		if removeJSON {
+			canonical, err := terminal.Result.Canonical()
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(canonical))
+			return err
+		}
+		printSuccess("Removed workload %s and retired its desired selection; data disposition: %s", terminal.Authority.WorkloadRef, terminal.Authority.DataDisposition)
+		printInfo("Run stackkit generate, then stackkit apply before another runtime lifecycle operation. Use --use-case to remove a complete composition in one transaction.")
+		return nil
 	}
 	return errors.New("--workload, --json, and --terminal-evidence-json require canonical Architecture v2 removal")
 }

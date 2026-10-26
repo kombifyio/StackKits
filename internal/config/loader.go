@@ -10,6 +10,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
@@ -77,6 +78,11 @@ func (l *Loader) ReadStackSpecDocument(path string) (StackSpecDocument, error) {
 	document, err := stackspecmigration.Read(data)
 	if err != nil {
 		return StackSpecDocument{}, fmt.Errorf("failed to classify %s: %w", displayPath, err)
+	}
+	if document.V2 != nil {
+		if err := runtimeprofile.AdmitSpec(document.V2.DataProfile); err != nil {
+			return StackSpecDocument{}, fmt.Errorf("admit %s: %w", displayPath, err)
+		}
 	}
 	return StackSpecDocument{
 		Path:        fullPath,

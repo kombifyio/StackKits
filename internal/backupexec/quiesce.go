@@ -3,6 +3,8 @@ package backupexec
 import (
 	"context"
 	"fmt"
+	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -26,6 +28,7 @@ type QuiesceMount struct {
 // QuiesceContainer is the Docker identity needed to stop and restore one
 // container without falling back to a mutable name lookup.
 type QuiesceContainer struct {
+	RestartPolicy        string         `json:"restartPolicy,omitempty"`
 	MarketplaceService   string         `json:"marketplaceService,omitempty"`
 	MarketplaceComponent string         `json:"marketplaceComponent,omitempty"`
 	ID                   string         `json:"id"`
@@ -78,15 +81,16 @@ type dockerQuiesceClientFactory func(time.Duration) dockerQuiesceClient
 type ApplicationContainerCustodyVerifier func(context.Context, localbackuppolicy.ApplicationRuntime) (map[string]string, error)
 
 type dockerV2Quiescer struct {
-	storeSelections    []localbackuppolicy.MarketplaceService
-	storeObserve       func(context.Context, localbackuppolicy.MarketplaceService) (QuiesceContainer, error)
-	newClient          dockerQuiesceClientFactory
-	managed            map[string]struct{}
-	applicationVolumes map[string]struct{}
-	applicationGraphs  map[string]dockerApplicationGraph
-	applicationCustody ApplicationContainerCustodyVerifier
-	applicationControl func(context.Context, localbackuppolicy.ApplicationRuntime, string, string) (bool, error)
-	initErr            error
+	storeSelections        []localbackuppolicy.MarketplaceService
+	storeObserve           func(context.Context, localbackuppolicy.MarketplaceService) (QuiesceContainer, error)
+	newClient              dockerQuiesceClientFactory
+	managed                map[string]struct{}
+	applicationVolumes     map[string]struct{}
+	applicationVolumePaths []string
+	applicationGraphs      map[string]dockerApplicationGraph
+	applicationCustody     ApplicationContainerCustodyVerifier
+	applicationControl     func(context.Context, localbackuppolicy.ApplicationRuntime, string, string) (bool, error)
+	initErr                error
 }
 
 type dockerApplicationGraph struct {
@@ -122,6 +126,10 @@ func dockerV2QuiescerForSource(newClient dockerQuiesceClientFactory, source loca
 }
 
 func dockerV2QuiescerForSourceWithApplicationCustody(newClient dockerQuiesceClientFactory, source localbackuppolicy.Source, verifier ApplicationContainerCustodyVerifier) ContainerQuiescer {
+	return dockerV2QuiescerForSelectedRuntimeGraphs(newClient, source, verifier, nil)
+}
+
+func dockerV2QuiescerForSelectedRuntimeGraphs(newClient dockerQuiesceClientFactory, source localbackuppolicy.Source, verifier ApplicationContainerCustodyVerifier, selected []localbackuppolicy.ApplicationRuntime) ContainerQuiescer {
 	managed := make(map[string]struct{}, len(source.ManagedVolumeNames))
 	for _, name := range source.ManagedVolumeNames {
 		managed[name] = struct{}{}
@@ -132,6 +140,15 @@ func dockerV2QuiescerForSourceWithApplicationCustody(newClient dockerQuiesceClie
 	}
 	if err := localbackuppolicy.ValidateSourceProjection(source); err != nil {
 		return &dockerV2Quiescer{newClient: newClient, managed: managed, applicationVolumes: applicationVolumes, initErr: err}
+	}
+	if selected != nil {
+		source.ApplicationRuntimes = selected
+	}
+	for _, graph := range source.ApplicationRuntimes {
+		if graph.RuntimeAdapterRef == "runtipi" {
+			return &dockerV2Quiescer{newClient: newClient, managed: managed, applicationVolumes: applicationVolumes,
+				initErr: fmt.Errorf("Runtipi app-group source cannot use Docker container power control")}
+		}
 	}
 	if len(source.ApplicationRuntimes) > 0 && verifier == nil {
 		return &dockerV2Quiescer{
@@ -542,7 +559,8 @@ func ObserveQuiesceContainer(value docker.ContainerInfo) (QuiesceContainer, erro
 		image = strings.TrimSpace(info.Image)
 	}
 	return QuiesceContainer{
-		ID: info.ID, Name: name, Status: info.State.Status,
+		RestartPolicy: info.HostConfig.RestartPolicy.Name,
+		ID:            info.ID, Name: name, Status: info.State.Status,
 		Running: info.State.Running, Paused: info.State.Paused,
 		Restarting: info.State.Restarting, ExitCode: info.State.ExitCode,
 		OOMKilled: info.State.OOMKilled, Error: info.State.Error,
@@ -707,6 +725,21 @@ func (q *dockerV2Quiescer) hasWritableManagedMount(mounts []QuiesceMount) bool {
 
 func (q *dockerV2Quiescer) hasApplicationVolumeMount(mounts []QuiesceMount) bool {
 	for _, mount := range mounts {
+		if mount.Type == "bind" && mount.RW && len(q.applicationVolumePaths) > 0 {
+			bind, err := filepath.EvalSymlinks(mount.Source)
+			if err != nil || !filepath.IsAbs(bind) {
+				return true
+			}
+			bind = path.Clean(filepath.ToSlash(bind))
+			for _, selected := range q.applicationVolumePaths {
+				within := func(child, parent string) bool {
+					return child == parent || strings.HasPrefix(child, strings.TrimSuffix(parent, "/")+"/")
+				}
+				if within(bind, selected) || within(selected, bind) {
+					return true
+				}
+			}
+		}
 		if mount.Type == "volume" {
 			if _, ok := q.applicationVolumes[mount.Name]; ok {
 				return true
@@ -714,4 +747,43 @@ func (q *dockerV2Quiescer) hasApplicationVolumeMount(mounts []QuiesceMount) bool
 		}
 	}
 	return false
+}
+
+// NewDockerV2TransferQuiescer retains the valid persistent source projection
+// while quiescing the separately verified complete selected native graph.
+func NewDockerV2TransferQuiescer(source localbackuppolicy.Source, selected []localbackuppolicy.ApplicationRuntime, verifier ApplicationContainerCustodyVerifier) (ContainerQuiescer, error) {
+	canonical, err := localbackuppolicy.CanonicalApplicationTransferRuntimes(selected)
+	if err != nil || len(canonical) == 0 || verifier == nil {
+		return nil, fmt.Errorf("transfer quiescence requires validated selected runtime custody: %w", err)
+	}
+	for _, runtime := range canonical {
+		if runtime.RuntimeAdapterRef != "" && runtime.RuntimeAdapterRef != "standalone-compose" {
+			return nil, fmt.Errorf("transfer quiescence requires native runtime")
+		}
+	}
+	q := dockerV2QuiescerForSelectedRuntimeGraphs(func(timeout time.Duration) dockerQuiesceClient {
+		return docker.NewLocalClient(docker.WithTimeout(timeout))
+	}, source, verifier, canonical)
+	concrete := q.(*dockerV2Quiescer)
+	if concrete.initErr != nil {
+		return nil, concrete.initErr
+	}
+	concrete.managed = map[string]struct{}{}
+	concrete.applicationVolumes = map[string]struct{}{}
+	concrete.applicationVolumePaths = nil
+	concrete.storeSelections = nil
+	for _, v := range source.ApplicationVolumes {
+		if slices.ContainsFunc(canonical, func(g localbackuppolicy.ApplicationRuntime) bool {
+			return g.WorkloadRef == v.WorkloadRef && g.ComposeProject == v.ComposeProject
+		}) {
+			concrete.managed[v.VolumeName] = struct{}{}
+			concrete.applicationVolumes[v.VolumeName] = struct{}{}
+			hostPath, err := filepath.EvalSymlinks(filepath.FromSlash(path.Join(source.HostPath, v.VolumeName, "_data")))
+			if err != nil {
+				return nil, fmt.Errorf("selected application volume host path cannot be authenticated: %w", err)
+			}
+			concrete.applicationVolumePaths = append(concrete.applicationVolumePaths, path.Clean(filepath.ToSlash(hostPath)))
+		}
+	}
+	return q, nil
 }

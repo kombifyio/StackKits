@@ -6,6 +6,7 @@ package coolify
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,7 +25,7 @@ var Pinned = workloadrelocation.Engine{
 	Name:           "coolify-mirror",
 	Version:        "1.9.3",
 	UpstreamCommit: "f46fa093644268759fc0802e7d098e9e45dee984",
-	ForkRevision:   "kombify.4",
+	ForkRevision:   "kombify.5",
 }
 
 // Engine document formats the adapter accepts.
@@ -205,7 +206,10 @@ func (r *Runner) Check(ctx context.Context, plan []byte) (*workloadrelocation.Ch
 		return nil, errors.New("coolify-mirror check returned an inconsistent verdict")
 	}
 	return &workloadrelocation.Check{Format: workloadrelocation.CheckFormat, Platform: workloadrelocation.PlatformCoolify,
-		Engine: doc.Tool, Ready: doc.Ready, Blockers: nonNil(doc.Blockers), Warnings: nonNil(doc.Warnings), Detail: json.RawMessage(out)}, nil
+		RestoreReceiptFormat: "kombify.io/coolify-relocation-restore/v1",
+		RecoveryFormat:       "stackkit.relocation-recovery/v1",
+		PlanSHA256:           fmt.Sprintf("sha256:%x", sha256.Sum256(plan)),
+		Engine:               doc.Tool, Ready: doc.Ready, Blockers: nonNil(doc.Blockers), Warnings: nonNil(doc.Warnings), Detail: json.RawMessage(out)}, nil
 }
 
 func (r *Runner) run(ctx context.Context, stdin []byte, args ...string) (stdout []byte, stderr string, code int, err error) {

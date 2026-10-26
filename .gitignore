@@ -132,6 +132,9 @@ coverage.out
 .tmp-*
 *.test
 
+# Session scratch directory (migration probes, render drafts): never tracked
+/.tmp/
+
 # architecturev2 bundle generator staging dirs: os.MkdirTemp creates these
 # beside the real output dir and renames them into place on success, removing
 # them on failure. A leftover staging dir from an interrupted run must never

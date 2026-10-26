@@ -1,7 +1,6 @@
 package nativehost
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -96,7 +95,23 @@ func (e *HomeHostSecurityExecutor) Execute(ctx context.Context, request runtimee
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	startedAt := e.clock().UTC()
-	observation, err := e.operations.Enforce(ctx)
+	artifact, _ := exactOwnedArtifactWithPlanMetadata(request.Artifacts, target.ArtifactRefs[0])
+	network, err := architecturev2renderer.ParseHomeHostSecurityNetwork(artifact.Content)
+	if err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
+	var observation HomeHostSecurityObservation
+	if network != nil {
+		owner, ok := e.operations.(interface {
+			EnforceContainerNetwork(context.Context, hostsecurity.ContainerDestinationPolicy) (HomeHostSecurityObservation, error)
+		})
+		if !ok {
+			return runtimeexecutor.ExecutionOutcome{}, errors.New("Full Local requires the Home container destination owner")
+		}
+		observation, err = owner.EnforceContainerNetwork(ctx, hostsecurity.CoreContainerDestinations(network.StackID))
+	} else {
+		observation, err = e.operations.Enforce(ctx)
+	}
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("enforce the Home host security baseline: %w", err)
 	}
@@ -200,7 +215,7 @@ func validateHomeHostSecurityRequest(request runtimeexecutor.ExecutionRequest, b
 	if artifact.Digest != "sha256:"+hex.EncodeToString(digest[:]) {
 		return emptyTarget, emptyHealth, errors.New("Home host-security artifact digest does not match its immutable content")
 	}
-	if !bytes.Equal(artifact.Content, architecturev2renderer.HomeHostSecurityPolicyBytes()) {
+	if _, err := architecturev2renderer.ParseHomeHostSecurityNetwork(artifact.Content); err != nil {
 		return emptyTarget, emptyHealth, errors.New("artifact is not the exact governed Home host-security policy")
 	}
 	return target, health, nil

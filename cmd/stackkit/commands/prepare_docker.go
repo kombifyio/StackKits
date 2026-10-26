@@ -412,7 +412,7 @@ func baseKitImages(tier string) []string {
 			"ghcr.io/moghtech/komodo-periphery:2.3.0",
 			"smallstep/step-ca:0.30.2",
 			"dokploy/dokploy:latest",
-			"public.ecr.aws/docker/library/node:22-alpine",
+			"public.ecr.aws/docker/library/node:22.23.4-alpine",
 			"ghcr.io/louislam/uptime-kuma:2.0.2",
 			"public.ecr.aws/docker/library/python:3.11-alpine",
 			"ghcr.io/dani-garcia/vaultwarden:latest",
@@ -519,7 +519,7 @@ func platformPrePullImages(platform string) []string {
 			"public.ecr.aws/docker/library/postgres:16-alpine",
 			"public.ecr.aws/docker/library/redis:7-alpine",
 			"dokploy/dokploy:latest",
-			"public.ecr.aws/docker/library/node:22-alpine",
+			"public.ecr.aws/docker/library/node:22.23.4-alpine",
 		}
 	case "none":
 		return nil

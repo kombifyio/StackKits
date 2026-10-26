@@ -31,6 +31,7 @@ var errResultNotFound = errors.New("restoreactivation: persisted result is unava
 type LiveVerification = backuplifecycle.RestoreVerification
 
 type ActivateInput struct {
+	Transfer           *TransferAdmission
 	MarketplaceService string
 	WorkloadRef        string
 	WorkspaceRoot      string
@@ -46,10 +47,11 @@ type ActivateInput struct {
 	RevalidateCurrentAuthority func(context.Context) (generationartifact.VerifiedPlan, backuplifecycle.AuthorityLineage, error)
 	// PrepareMutation acquires existing application-specific quiescence only
 	// after admission. Its release runs before the lifecycle lock is closed.
-	PrepareMutation      func(context.Context) (func() error, error)
-	CreateSafetySnapshot func(context.Context, string) (backuplifecycle.SnapshotAnchor, error)
-	VerifyLive           func(context.Context) (LiveVerification, error)
-	FinalizeResult       func(context.Context, Result, error) error
+	PrepareMutation           func(context.Context) (func() error, error)
+	SafetySnapshotOperationID string
+	CreateSafetySnapshot      func(context.Context, string) (backuplifecycle.SnapshotAnchor, error)
+	VerifyLive                func(context.Context) (LiveVerification, error)
+	FinalizeResult            func(context.Context, Result, error) error
 }
 
 type RecoverInput struct {
@@ -193,11 +195,13 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 	if input.CreateSafetySnapshot == nil || input.VerifyLive == nil || input.FinalizeResult == nil {
 		return Result{}, errors.New("restoreactivation: safety snapshot, live verification, and result finalizer are required")
 	}
-	if input.CurrentLineage != input.RestoreResult.AuthorizationLineage {
+	if input.Transfer == nil && input.CurrentLineage != input.RestoreResult.AuthorizationLineage {
 		return Result{}, errors.New("restoreactivation: current authority differs from the staged restore")
 	}
-	if err := backuplifecycle.VerifyRestoreResult(input.WorkspaceRoot, input.RestoreResult); err != nil {
-		return Result{}, stageFailure(StageStagedResult, fmt.Errorf("restoreactivation: verify staged restore result: %w", err))
+	if input.Transfer == nil {
+		if err := backuplifecycle.VerifyRestoreResult(input.WorkspaceRoot, input.RestoreResult); err != nil {
+			return Result{}, stageFailure(StageStagedResult, fmt.Errorf("restoreactivation: verify staged restore result: %w", err))
+		}
 	}
 	authority, err := DeriveAuthority(
 		input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID,
@@ -207,6 +211,15 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 	}
 	if input.MarketplaceService != "" {
 		authority, err = DeriveMarketplaceServiceAuthority(input.WorkspaceRoot, input.Plan, input.Manifest, input.RestoreResult, input.OperationID, input.MarketplaceService)
+	}
+	if input.Transfer != nil {
+		if input.RevalidateCurrentAuthority == nil || input.ExpectedPlanHash == "" {
+			return Result{}, errors.New("transfer requires exact current Plan/Apply readback under the existing lifecycle lock")
+		}
+		if input.WorkloadRef != "" || input.MarketplaceService != "" {
+			return Result{}, errors.New("transfer scope comes only from authenticated source provenance")
+		}
+		authority, err = DeriveTransferAuthority(input.WorkspaceRoot, input.Plan, input.Manifest, input.CurrentLineage, input.OperationID, *input.Transfer)
 	}
 	if err != nil {
 		return Result{}, &ActivationNotStartedError{Cause: stageFailure(StageStagedResult, err)}
@@ -224,9 +237,9 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 		resumeMutation = nil
 		return resume()
 	}
-	session, err := lifecyclemutation.BeginRestoreActivationPrepared(
-		input.WorkspaceRoot,
-		func() (lifecyclemutation.RestoreActivationBeginRequest, error) {
+	session, err := lifecyclemutation.BeginRestoreActivationPreparedContext(
+		bounded, input.WorkspaceRoot, input.OperationID,
+		func(preparation context.Context) (lifecyclemutation.RestoreActivationBeginRequest, error) {
 			// The shared lifecycle lock fences the admitted Plan before even a
 			// safety snapshot can stop writers or persist repository state.
 			if err := input.Plan.RequireExpectedPlanHash(input.ExpectedPlanHash); err != nil {
@@ -259,9 +272,15 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 			if err := service.runtime.ValidateStaging(bounded, authority); err != nil {
 				return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageStagingValidate, err)
 			}
-			safety, err = input.CreateSafetySnapshot(
-				bounded, input.OperationID+"-safety",
-			)
+			child := input.SafetySnapshotOperationID
+			if child == "" {
+				child = input.OperationID + "-safety"
+			}
+			snapshotContext, scopeErr := lifecyclemutation.BindAppGroupSnapshotChild(preparation, input.WorkspaceRoot, input.OperationID, child)
+			if scopeErr != nil {
+				return lifecyclemutation.RestoreActivationBeginRequest{}, scopeErr
+			}
+			safety, err = input.CreateSafetySnapshot(snapshotContext, child)
 			if err != nil {
 				return lifecyclemutation.RestoreActivationBeginRequest{}, stageFailure(StageSafetySnapshot, fmt.Errorf("restoreactivation: create safety snapshot: %w", err))
 			}
@@ -347,6 +366,9 @@ func (service *Service) Activate(ctx context.Context, input ActivateInput) (resu
 	if err := session.Complete(lifecyclemutation.StatusSucceeded); err != nil {
 		return Result{}, err
 	}
+	if err := service.closeOriginalAppGroups(bounded, session); err != nil {
+		return Result{}, err
+	}
 	return result, nil
 }
 
@@ -399,6 +421,9 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 		if err := bindResultAuthority(result, authority, record.RestoreActivation.Authority.SafetySnapshotID, expectedStatus); err != nil {
 			return Result{}, err
 		}
+		if err := service.closeOriginalAppGroups(bounded, session); err != nil {
+			return Result{}, err
+		}
 		return result, nil
 	}
 	if record.Phase == lifecyclemutation.PhaseCommitSucceeded {
@@ -430,6 +455,9 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 		if err := session.Complete(lifecyclemutation.StatusSucceeded); err != nil {
 			return Result{}, err
 		}
+		if err := service.closeOriginalAppGroups(bounded, session); err != nil {
+			return Result{}, err
+		}
 		return result, nil
 	}
 	verification, err := service.rollbackLocked(
@@ -456,6 +484,9 @@ func (service *Service) Recover(ctx context.Context, input RecoverInput) (Result
 		return Result{}, fmt.Errorf("restoreactivation: finalize recovered result: %w", err)
 	}
 	if err := session.Complete(lifecyclemutation.StatusRecovered); err != nil {
+		return Result{}, err
+	}
+	if err := service.closeOriginalAppGroups(bounded, session); err != nil {
 		return Result{}, err
 	}
 	return result, nil
@@ -735,6 +766,9 @@ func (service *Service) recoverAfterFailure(parent context.Context, session *lif
 		return Result{}, fmt.Errorf("restoreactivation: finalize automatic recovery result: %w", err)
 	}
 	if err := session.Complete(lifecyclemutation.StatusRecovered); err != nil {
+		return Result{}, err
+	}
+	if err := service.closeOriginalAppGroups(ctx, session); err != nil {
 		return Result{}, err
 	}
 	return result, nil
@@ -1037,4 +1071,24 @@ func boundedContext(parent context.Context) (context.Context, context.CancelFunc
 		return context.WithCancel(parent)
 	}
 	return context.WithTimeout(parent, operationTimeout)
+}
+
+// The data/power outcome may be terminal while its native close remains pending.
+// Admission reads the same signed history and fences until every original ACK.
+func (service *Service) closeOriginalAppGroups(ctx context.Context, session *lifecyclemutation.Session) error {
+	if session == nil {
+		return errors.New("native close requires original restore Session")
+	}
+	state := session.Record().RestoreActivation
+	if state == nil || len(state.AppGroups) == 0 {
+		return nil
+	}
+	closer, ok := service.runtime.(interface{ CloseAppGroupHolds(context.Context) error })
+	if !ok {
+		return fmt.Errorf("restore %s retains native close obligations: original close adapter unavailable; recover this operation", session.Record().OperationID)
+	}
+	if err := closer.CloseAppGroupHolds(ctx); err != nil {
+		return fmt.Errorf("restore %s retains native close obligations: %w", session.Record().OperationID, err)
+	}
+	return session.RequireRestoreAppGroupClosures()
 }

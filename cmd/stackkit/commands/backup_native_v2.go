@@ -148,7 +148,7 @@ func runNativeV2BackupRequest(
 		return fmt.Errorf("backup %s authority: %w", operation, err)
 	}
 	var result any
-	execute := func() error {
+	execute := func(ctx context.Context) error {
 		observe := func(_ *confinedfs.Transaction, _ *confinedfs.OutputLock) error {
 			current, inspectErr := inspectNativeV2BackupAuthorityForRequest(ctx, workspace, specFile)
 			if inspectErr != nil {
@@ -172,6 +172,10 @@ func runNativeV2BackupRequest(
 					return errors.New("scheduled backup has no admitted pending operation")
 				}
 				request.OperationID = scheduleAuthorization.Execution.OperationID
+				ctx, inspectErr = lifecyclemutation.BindAppGroupScheduledSnapshotContext(ctx, workspace, request.OperationID)
+				if inspectErr != nil {
+					return inspectErr
+				}
 			}
 			var (
 				lifecycleRuns  []architectureV2ApplicationLifecycleRun
@@ -229,16 +233,16 @@ func runNativeV2BackupRequest(
 		return withArchitectureV2OutputLock(workspace, initial.OutputRoot, observe)
 	}
 	if operation == nativeV2BackupStatus {
-		err = execute()
+		err = execute(ctx)
 	} else {
 		if operation == nativeV2BackupRun {
 			join, joinErr := currentLifecycleMutationJoin("backup " + string(operation))
 			if joinErr != nil {
 				return joinErr
 			}
-			err = lifecyclemutation.WithSnapshotMutation(workspace, join, request.OperationID, execute)
+			err = lifecyclemutation.WithSnapshotMutationContext(ctx, workspace, join, request.OperationID, execute)
 		} else {
-			err = withLifecycleMutation(workspace, "backup "+string(operation), execute)
+			err = withLifecycleMutation(workspace, "backup "+string(operation), func() error { return execute(ctx) })
 		}
 	}
 	if err != nil {
@@ -346,6 +350,7 @@ func verifyNativeV2BackupRestore(
 	expected nativeV2BackupAuthority,
 	request backuplifecycle.RestoreVerificationRequest,
 	requireApplicationObservation bool,
+	activationScope ...nativeRestoreActivationScope,
 ) (backuplifecycle.RestoreVerification, error) {
 	if expected.LegacyBeta4 != nil {
 		return verifyExactBeta4BackupRestore(ctx, expected, request)
@@ -365,7 +370,7 @@ func verifyNativeV2BackupRestore(
 		request.StagingPath != backuplifecycle.RestoreStagingPath(request.OperationID) {
 		return backuplifecycle.RestoreVerification{}, errors.New("native v2 restore target authority changed before live post-verification")
 	}
-	return verifyNativeV2CurrentRuntime(ctx, current, requireApplicationObservation)
+	return verifyNativeV2CurrentRuntime(ctx, current, requireApplicationObservation, activationScope...)
 }
 
 // verifyNativeV2CurrentRuntime proves, read-only, that the exact current
@@ -375,6 +380,7 @@ func verifyNativeV2CurrentRuntime(
 	ctx context.Context,
 	current nativeV2BackupAuthority,
 	requireApplicationObservation bool,
+	activationScope ...nativeRestoreActivationScope,
 ) (backuplifecycle.RestoreVerification, error) {
 	gate := newArchitectureV2ExecutionGate()
 	reader, err := gate.newAuthority()
@@ -425,7 +431,7 @@ func verifyNativeV2CurrentRuntime(
 		return backuplifecycle.RestoreVerification{}, errors.New("native v2 restore post-verifier did not prove the current local service and Owner closure")
 	}
 	if requireApplicationObservation {
-		if err := verifyNativeV2BackupApplications(ctx, current); err != nil {
+		if err := verifyNativeV2BackupApplications(ctx, current, activationScope...); err != nil {
 			return backuplifecycle.RestoreVerification{}, err
 		}
 	}

@@ -16,6 +16,14 @@
       "additionalProperties": false,
       "required": ["useCases"],
       "properties": {
+        "authoring": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["retainedRemovalCandidates"],
+          "properties": {
+            "retainedRemovalCandidates": { "type": "boolean", "description": "This exact release authors retained-data removal candidates with native expected-spec-hash admission." }
+          }
+        },
         "useCases": {
           "type": "array",
           "items": { "$ref": "#/$defs/useCase" }
@@ -197,6 +205,7 @@
         "capabilities": { "type": "array", "items": { "$ref": "#/$defs/useCaseCapability" } },
         "bundles": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/useCaseBundle" } },
         "docs": { "type": "string", "pattern": "^/[a-z0-9/-]+$" },
+        "workloadRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "defaultAlternative": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "alternatives": { "type": "array", "items": { "$ref": "#/$defs/authoringAlternative" } },
         "addOns": { "type": "array", "items": { "$ref": "#/$defs/authoringWorkload" } }
@@ -208,6 +217,8 @@
       "required": ["id", "computeProfiles"],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "storageProfiles": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }, "uniqueItems": true },
+        "acceleratorProfiles": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" }, "uniqueItems": true },
         "computeProfiles": {
           "type": "array",
           "minItems": 1,
@@ -278,6 +289,16 @@
         "reservation": { "$ref": "#/$defs/resourceBudget" }
       }
     },
+    "configurationSetting": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "type", "label"],
+      "properties": {
+        "key": { "type": "string" },
+        "type": { "enum": ["string", "number", "boolean"] },
+        "label": { "type": "string", "minLength": 1 },
+        "options": { "type": "array", "minItems": 1, "items": { "type": ["string", "number", "boolean"] } }
+      }
+    },
     "authoringAlternative": {
       "type": "object",
       "additionalProperties": false,
@@ -286,6 +307,13 @@
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "name": { "type": "string", "minLength": 1 },
         "providesRuntimeAdapterRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
+        "configuration": {
+          "type": "object", "additionalProperties": false, "required": ["settings", "secretRefs"],
+          "properties": {
+            "settings": { "type": "array", "items": { "$ref": "#/$defs/configurationSetting" } },
+            "secretRefs": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          }
+        },
         "modules": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/authoringModule" } }
       }
     },

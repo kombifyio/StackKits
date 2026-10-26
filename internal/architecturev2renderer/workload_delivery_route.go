@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 )
 
 const (
@@ -229,6 +231,9 @@ type ApplicationDeliveryVolumeDescriptor struct {
 // ApplicationDeliveryBundleDescriptor is the validated provider-neutral
 // workload graph used by the StackKits-owned standalone adapter.
 type ApplicationDeliveryBundleDescriptor struct {
+	LocalNetwork  *runtimeprofile.LocalNetwork
+	DataProfile   runtimeprofile.DataProfile
+	OfflineBundle *runtimeprofile.OfflineBundleRef
 	// RequiredPrivilege is the verified catalog service endpoint admission.
 	RequiredPrivilege string
 	WorkloadRef       string
@@ -279,6 +284,13 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		bundle.Ownership.Credentials != "opaque-references-only" {
 		return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path, "common workload delivery identity differs from v2")
 	}
+	if bundle.Workload.ModuleRef == privateAIWorkloadModuleID {
+		if _, err := ParsePrivateAIWorkloadBundle(data); err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
+	} else if bundle.DataProfile != "" || bundle.OfflineBundle != nil || bundle.LocalNetwork != nil {
+		return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path, "this workload does not admit an offline model projection")
+	}
 	if bundle.DeliveryRoute != nil {
 		if err := validateParsedApplicationDeliveryRoute(
 			*bundle.DeliveryRoute, bundle.Workload.ModuleRef, bundle.Workload.Ref,
@@ -322,7 +334,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		}
 		volumes := make([]ApplicationDeliveryVolumeDescriptor, len(component.Volumes))
 		for volumeIndex, volume := range component.Volumes {
-			if volume.HostPath != "" && (!GovernedMediaLibraryMount(bundle.Workload.ModuleRef, component.ID, volume.ID, volume.Target) || volume.Class != "persistent" || !volume.ReadOnly || volume.Backup || !safeCoreHostBootstrapStoragePath(volume.HostPath)) {
+			media := GovernedMediaLibraryMount(bundle.Workload.ModuleRef, component.ID, volume.ID, volume.Target) && volume.Class == "persistent"
+			offline := GovernedOfflineModelMount(bundle.Workload.ModuleRef, component.ID, volume.ID, volume.Target, volume.HostPath, bundle.OfflineBundle) && volume.Class == "cache"
+			if volume.HostPath != "" && ((!media && !offline) || !volume.ReadOnly || volume.Backup || !safeCoreHostBootstrapStoragePath(volume.HostPath)) {
 				return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, componentPath+".volumes", "host source requires the governed read-only media library")
 			}
 			if !strings.HasPrefix(volume.Target, "/") {
@@ -447,6 +461,8 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		return ApplicationDeliveryBundleDescriptor{}, err
 	}
 	descriptor := ApplicationDeliveryBundleDescriptor{
+		LocalNetwork: bundle.LocalNetwork,
+		DataProfile:  bundle.DataProfile, OfflineBundle: bundle.OfflineBundle,
 		WorkloadRef: bundle.Workload.Ref, ModuleRef: bundle.Workload.ModuleRef,
 		Release: bundle.Workload.Release, EntryComponent: bundle.Workload.EntryComponent,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,

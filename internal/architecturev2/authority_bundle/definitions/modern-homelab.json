@@ -1240,7 +1240,8 @@
       "ai-speech",
       "ai-harness",
       "ai-control-plane",
-      "ai-gateway"
+      "ai-gateway",
+      "ai-vectors"
     ],
     "required": [
       "basement-core"

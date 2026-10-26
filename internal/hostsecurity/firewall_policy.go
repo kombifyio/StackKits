@@ -57,6 +57,10 @@ var (
 // renders the nftables ruleset and answers Admits, so the text the host loads
 // and the decision a test asks about cannot drift apart.
 type FirewallPolicy struct {
+	// ContainerOnly leaves the host input policy untouched when only the
+	// plan-owned cohort's destination policy has been installed.
+	ContainerOnly bool                         `json:"container_only,omitempty"`
+	Containers    []ContainerDestinationPolicy `json:"container_destinations,omitempty"`
 	// SSHPorts are the ports sshd listens on. They are never closed to the
 	// management path.
 	SSHPorts []int
@@ -117,6 +121,16 @@ func sortedUniquePorts(ports []int) []int {
 
 // Validate refuses a policy that could lock the host away from its owner.
 func (p FirewallPolicy) Validate() error {
+	stacks := map[string]bool{}
+	for _, scope := range p.Containers {
+		if err := scope.Validate(); err != nil {
+			return err
+		}
+		if stacks[scope.StackID] {
+			return fmt.Errorf("duplicate container policy for %s", scope.StackID)
+		}
+		stacks[scope.StackID] = true
+	}
 	for _, source := range p.ManagementSources {
 		if !source.IsValid() || source.Bits() == 0 {
 			return fmt.Errorf("management source %q would admit every address", source)
@@ -310,15 +324,21 @@ func (p FirewallPolicy) rules() []firewallRule {
 // chain whose policy is drop: anything no rule names is refused.
 func (p FirewallPolicy) Render() string {
 	p = p.normalized()
-	lines := []string{
-		"table inet " + HomeFirewallTable + " {",
-		"\tchain " + HomeFirewallChain + " {",
-		"\t\ttype filter hook input priority filter; policy drop;",
+	lines := []string{"table inet " + HomeFirewallTable + " {"}
+	if !p.ContainerOnly {
+		lines = append(lines,
+			"\tchain "+HomeFirewallChain+" {",
+			"\t\ttype filter hook input priority filter; policy drop;",
+		)
+		for _, rule := range p.rules() {
+			lines = append(lines, "\t\t"+rule.text)
+		}
+		lines = append(lines, "\t}")
 	}
-	for _, rule := range p.rules() {
-		lines = append(lines, "\t\t"+rule.text)
+	for _, scope := range p.Containers {
+		lines = append(lines, scope.renderChain())
 	}
-	lines = append(lines, "\t}", "}")
+	lines = append(lines, "}")
 	return strings.Join(lines, "\n") + "\n"
 }
 

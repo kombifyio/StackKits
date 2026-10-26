@@ -47,7 +47,7 @@ func (e *ContractRootExecutor) Identity() runtimeexecutor.ExecutorIdentity {
 
 // Execute runs the native owner and, under an OpenTofu target, records its
 // applied contract in the owner's contract root.
-func (e *ContractRootExecutor) Execute(ctx context.Context, request runtimeexecutor.ExecutionRequest) (runtimeexecutor.ExecutionOutcome, error) {
+func (e *ContractRootExecutor) Execute(ctx context.Context, request runtimeexecutor.ExecutionRequest) (_ runtimeexecutor.ExecutionOutcome, returnErr error) {
 	if e == nil || e.native == nil {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("OpenTofu contract root executor is not initialized")
 	}
@@ -86,9 +86,20 @@ func (e *ContractRootExecutor) Execute(ctx context.Context, request runtimeexecu
 	if err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("resolve workspace: %w", err)
 	}
+	ctx, release, err := AdmitSelectedGenericOperation(ctx, workspace, []string{relative})
+	if err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, release()) }()
+	marker := RootMarker{SchemaVersion: RootMarkerSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
+		RuntimeDir: target.ModuleRef, Kind: RootKindModule}
+	admission := ctx.Value(genericAdmissionContextKey{}).(*GenericRestoreAdmission)
 	var outcome runtimeexecutor.ExecutionOutcome
 	err = e.runtime.withStateCustody(relative, func(key []byte) error {
 		if err := e.runtime.preflightStateCustody(ctx, filepath.Join(workspace, filepath.FromSlash(relative)), binary, providers.Directory(), key); err != nil {
+			return err
+		}
+		if err := admission.handoffPreparedExecutor(relative, marker, contract.Digest); err != nil {
 			return err
 		}
 		var runErr error
@@ -100,10 +111,7 @@ func (e *ContractRootExecutor) Execute(ctx context.Context, request runtimeexecu
 		if runErr != nil {
 			return runErr
 		}
-		if runErr := writeRoot(root, RootMarker{
-			SchemaVersion: RootMarkerSchemaVersion, ModuleRef: target.ModuleRef, InstanceRef: target.InstanceRef,
-			RuntimeDir: target.ModuleRef, Kind: RootKindModule,
-		}, providers.Directory(), lock, rootFile{ConfigFile, config, 0o640}); runErr != nil {
+		if runErr := writeRoot(root, marker, providers.Directory(), lock, rootFile{ConfigFile, config, 0o640}); runErr != nil {
 			return runErr
 		}
 		record := contractObservation{

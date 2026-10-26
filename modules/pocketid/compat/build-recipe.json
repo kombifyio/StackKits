@@ -1,0 +1,72 @@
+{
+  "schema": "stackkits.pocketid-cas-build.v1",
+  "upstream_version": "2.16.0",
+  "derivative_version": "2.16.0-kombify-cas.1",
+  "contract": "pocketid-membership-cas-v1",
+  "upstream_commit": "bb05e6922444c33eec87466919f1bcf105967825",
+  "archive_sha256": "6b92b6e02b89bcb557c5b66fbd6d2ecdede479b4133111f237fba279434c60d6",
+  "patch_sha256": "339b3aba9b1d6bdd990cf5cb0e2e61e339f44a731d574f989e8b64cc1cacd698",
+  "license": "BSD-2-Clause",
+  "license_sha256": "c4822dc23fddabd9aef6cd1b1e5dfe307cbc36dc0f1d662e82d58ebc886d9d0f",
+  "dockerfile_sha256": "096d7b2a0a3031d5c28376e3701f33535a0c8ea165e9465450ecdd11b6c63b0b",
+  "build_tags": "",
+  "platforms": {
+    "linux/amd64": {
+      "bases": {
+        "node": {
+          "reference": "node:24-alpine@sha256:1200d815de24f8dcca745fbf7651d166034a35adbcad8860a8538ffff44f1420",
+          "source_index_sha256": "06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53"
+        },
+        "go": {
+          "reference": "golang:1.27.1-alpine@sha256:cd9a32216aee5667f957a62d13a10032a63fd58e14b3f3d9cc8c2122f501e95e",
+          "source_index_sha256": "8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414"
+        },
+        "runtime": {
+          "reference": "alpine:3.24.1@sha256:79ff19e9084a00eece421b2523fb93e22d730e2c0e525905de047e848e56d95f",
+          "source_index_sha256": "28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
+        },
+        "postgres": {
+          "reference": "postgres:18@sha256:9770878138a2e83abcb10856d30cc3f24dae0d317bb956db6ab9159de6c3c80d",
+          "source_index_sha256": "edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6"
+        },
+        "buildkit": {
+          "reference": "moby/buildkit:buildx-stable-1@sha256:98cc6a3fc46220d00f8224ae483f3274fc874e9be8d7dd1e2e2c5481209228b5",
+          "source_index_sha256": "cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
+        }
+      },
+      "qualification": "prior-actual-http-postgres-9-of-9"
+    },
+    "linux/arm64": {
+      "bases": {
+        "node": {
+          "reference": "node:24-alpine@sha256:398bcf38afb035ae76feb9ad3c7493a93feff4751351c65310811761e37bbfc7",
+          "source_index_sha256": "06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53"
+        },
+        "go": {
+          "reference": "golang:1.27.1-alpine@sha256:092dd976c2202d32342b9517d6ff22c2dfd89f66c914aed205fed0643ee4a240",
+          "source_index_sha256": "8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414"
+        },
+        "runtime": {
+          "reference": "alpine:3.24.1@sha256:e7a1a92a5bfeee40966aea60f0796b0e7917cc35591542701834f03a68fa3d18",
+          "source_index_sha256": "28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b"
+        },
+        "postgres": {
+          "reference": "postgres:18@sha256:a8be76d23699a6c366437e9f80ead007975f24c35e01c9ee0533c6930ab57ac1",
+          "source_index_sha256": "edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6"
+        },
+        "buildkit": {
+          "reference": "moby/buildkit:buildx-stable-1@sha256:3ad6bb9bc8c78c0069d03247adb9a59b3b43d68e55353e876e558b888c6c1768",
+          "source_index_sha256": "cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
+        }
+      },
+      "qualification": "native-build-and-http-postgres-pending"
+    }
+  },
+  "registry": "ghcr.io/kombifyio/stackkits",
+  "image_tag_prefix": "pocketid-cas-",
+  "build_mode": "native-platform-source-build",
+  "public_workflow": ".github/workflows/publish-image.yml",
+  "artifact": "pocketid-cas-image",
+  "qualified_manifest_sha256": "ea4be1fb5acaa11d75cd75bc824234cbef0fa77e6763cb627aef041d3c28175d",
+  "global_module_pin_change_admitted": false
+}

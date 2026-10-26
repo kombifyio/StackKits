@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 // StackTofuRequest runs one OpenTofu command in one local stack root through
@@ -43,7 +44,7 @@ type StackTofuResult struct {
 // RunStackTofu runs `terramate run --no-recursive --tags stackkit -- tofu
 // <args>` in request.RuntimeRoot. A non-zero OpenTofu exit code is returned in
 // the result, not as an error; an error means Terramate could not run it.
-func RunStackTofu(ctx context.Context, request StackTofuRequest, args ...string) (StackTofuResult, error) {
+func RunStackTofu(ctx context.Context, request StackTofuRequest, args ...string) (_ StackTofuResult, returnErr error) {
 	if request.Tools.Terramate == "" || request.Tools.Tofu == "" {
 		return StackTofuResult{}, &Error{Code: ErrToolMissing, Detail: "Terramate and OpenTofu binaries are required"}
 	}
@@ -51,6 +52,11 @@ func RunStackTofu(ctx context.Context, request StackTofuRequest, args ...string)
 	if err != nil {
 		return StackTofuResult{}, fmt.Errorf("resolve workspace: %w", err)
 	}
+	ctx, releaseAdmission, err := opentofu.AdmitGenericOperation(ctx, workspace, []string{request.RuntimeRoot})
+	if err != nil {
+		return StackTofuResult{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, releaseAdmission()) }()
 	clean := path.Clean(request.RuntimeRoot)
 	if clean != request.RuntimeRoot || !strings.HasPrefix(clean, ".stackkit/runtime/") {
 		return StackTofuResult{}, fmt.Errorf("stack runtime root %q is outside the runtime tree", request.RuntimeRoot)

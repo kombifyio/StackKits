@@ -27,6 +27,8 @@ const (
 	PinnedLocalProviderVersion    = "2.5.3"
 	PinnedKomodoProviderVersion   = "0.12.0"
 	PinnedDockerProviderVersion   = "4.6.0"
+	PinnedCoolifyProviderVersion  = "0.1.27"
+	PinnedDokployProviderVersion  = "1.10.0"
 	ProviderManifestFile          = "stackkit-provider-manifest.json"
 	ProviderLockFile              = "stackkit-provider-lock.hcl"
 	providerManifestSchemaVersion = 1
@@ -297,7 +299,7 @@ func decodeProviderManifest(data []byte) (providerManifest, error) {
 	for _, provider := range manifest.Providers {
 		seenProviders[provider.Source] = struct{}{}
 	}
-	for _, source := range []string{ProviderRegistryHost + "/hashicorp/local", ProviderRegistryHost + "/sebastianfs82/komodo", ProviderRegistryHost + "/kreuzwerker/docker"} {
+	for _, source := range []string{ProviderRegistryHost + "/hashicorp/local", ProviderRegistryHost + "/sebastianfs82/komodo", ProviderRegistryHost + "/kreuzwerker/docker", ProviderRegistryHost + "/coolify-terraform/coolify", ProviderRegistryHost + "/vanillauys/dokploy"} {
 		if _, ok := seenProviders[source]; !ok {
 			return providerManifest{}, fmt.Errorf("%w: %s is absent", ErrProviderClosureInvalid, source)
 		}
@@ -311,6 +313,12 @@ func decodeProviderManifest(data []byte) (providerManifest, error) {
 		}
 		if provider.Source == ProviderRegistryHost+"/kreuzwerker/docker" && provider.Version != PinnedDockerProviderVersion {
 			return providerManifest{}, fmt.Errorf("%w: kreuzwerker/docker pin differs from %s", ErrProviderClosureInvalid, PinnedDockerProviderVersion)
+		}
+		if provider.Source == ProviderRegistryHost+"/coolify-terraform/coolify" && provider.Version != PinnedCoolifyProviderVersion {
+			return providerManifest{}, fmt.Errorf("%w: coolify-terraform/coolify pin differs from %s", ErrProviderClosureInvalid, PinnedCoolifyProviderVersion)
+		}
+		if provider.Source == ProviderRegistryHost+"/vanillauys/dokploy" && provider.Version != PinnedDokployProviderVersion {
+			return providerManifest{}, fmt.Errorf("%w: vanillauys/dokploy pin differs from %s", ErrProviderClosureInvalid, PinnedDokployProviderVersion)
 		}
 	}
 	return manifest, nil

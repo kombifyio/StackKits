@@ -297,7 +297,9 @@ func beginNativeSetupWithIntent(store applicationlifecycle.Store, contract appli
 				return "", errors.New("setup operation intent changed")
 			}
 			if operation.Status == applicationlifecycle.StatusRunning {
-				return operation.ID, nil
+				// Continue the interrupted setup as its owner; refuses while
+				// another live process still runs it.
+				return operation.ID, store.ClaimRunningOperation(contract, operation.ID)
 			}
 			if operation.Status == applicationlifecycle.StatusFailed {
 				_, err := store.Transition(contract, applicationlifecycle.TransitionRequest{ID: operation.ID, Status: applicationlifecycle.StatusRunning, Now: time.Now().UTC()})

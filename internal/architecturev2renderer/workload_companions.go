@@ -94,6 +94,14 @@ var governedCompanionEnvironments = map[string]struct {
 		{WorkloadRef: "ai-control-plane", AlternativeRef: "paperclip", Environment: map[string]string{}},
 		// The model router reaches Ollama on this network for apps and devices and needs no variable.
 		{WorkloadRef: "ai-gateway", AlternativeRef: "litellm", Environment: map[string]string{}},
+		// Open WebUI v0.11.3 (backend/open_webui/config.py VECTOR_DB,
+		// QDRANT_URI, RAG_EMBEDDING_*): knowledge vectors in Qdrant, embedded
+		// with bge-m3 on the node's Ollama. The API key is a custody secret of
+		// the ai-vectors workload, bound through governedCompanionSecretEnvironments.
+		{WorkloadRef: "ai-vectors", AlternativeRef: "qdrant", Environment: map[string]string{
+			"VECTOR_DB": "qdrant", "QDRANT_URI": "http://qdrant:6333",
+			"RAG_EMBEDDING_ENGINE": "ollama", "RAG_EMBEDDING_MODEL": "bge-m3",
+		}},
 		// Open WebUI v0.11.3 speech through SpeechKit's OpenAI-compatible audio
 		// routes (backend/open_webui/config.py AUDIO_*). The bearer token is a
 		// custody secret of the ai-speech workload; companion wiring carries
@@ -129,6 +137,12 @@ var governedCompanionEnvironments = map[string]struct {
 		{WorkloadRef: "ai-control-plane", AlternativeRef: "paperclip", Environment: map[string]string{}},
 		// The model router reaches Ollama on this network for apps and devices and needs no variable.
 		{WorkloadRef: "ai-gateway", AlternativeRef: "litellm", Environment: map[string]string{}},
+		// AnythingLLM 1.16.2 (server/.env.example VECTOR_DB, QDRANT_ENDPOINT,
+		// EMBEDDING_MODEL_PREF): workspace vectors in Qdrant, embedded with bge-m3
+		// on Ollama (EMBEDDING_ENGINE stays ollama). The API key is bound as a secret.
+		{WorkloadRef: "ai-vectors", AlternativeRef: "qdrant", Environment: map[string]string{
+			"VECTOR_DB": "qdrant", "QDRANT_ENDPOINT": "http://qdrant:6333", "EMBEDDING_MODEL_PREF": "bge-m3",
+		}},
 		// AnythingLLM 1.16.2 speech through SpeechKit's OpenAI-compatible audio
 		// routes: server/utils/SpeechToText/openAiGeneric (STT_*),
 		// TextToSpeech/openAiGeneric (TTS_*) and the collector's
@@ -158,12 +172,18 @@ var governedCompanionSecretEnvironments = map[string]struct {
 		{WorkloadRef: "ai-speech", AlternativeRef: "speechkit", SecretEnvironment: map[string]string{
 			"AUDIO_STT_OPENAI_API_KEY": "server-token", "AUDIO_TTS_OPENAI_API_KEY": "server-token",
 		}},
+		{WorkloadRef: "ai-vectors", AlternativeRef: "qdrant", SecretEnvironment: map[string]string{
+			"QDRANT_API_KEY": "api-key",
+		}},
 	}},
 	// AnythingLLM 1.16.2 (server/.env.example) generic-openai providers read
 	// *_OPEN_AI_COMPATIBLE_KEY and WHISPER_GENERIC_OPEN_AI_API_KEY.
 	anythingLLMWorkloadModuleID: {component: "anythingllm", entries: []selectedPaaSCompanionSecretEnvironment{
 		{WorkloadRef: "ai-speech", AlternativeRef: "speechkit", SecretEnvironment: map[string]string{
 			"STT_OPEN_AI_COMPATIBLE_KEY": "server-token", "TTS_OPEN_AI_COMPATIBLE_KEY": "server-token", "WHISPER_GENERIC_OPEN_AI_API_KEY": "server-token",
+		}},
+		{WorkloadRef: "ai-vectors", AlternativeRef: "qdrant", SecretEnvironment: map[string]string{
+			"QDRANT_API_KEY": "api-key",
 		}},
 	}},
 }

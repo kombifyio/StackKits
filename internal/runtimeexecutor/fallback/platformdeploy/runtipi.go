@@ -1,13 +1,16 @@
 package platformdeploy
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,6 +22,21 @@ import (
 // Creating the adapter does not install Runtipi or claim runtime compatibility.
 type RuntipiAdapter struct {
 	client apiClient
+}
+
+type runtipiAPIError struct {
+	method string
+	path   string
+	status int
+}
+
+func (e *runtipiAPIError) Error() string {
+	return fmt.Sprintf("Runtipi API %s %s failed (HTTP %d)", e.method, e.path, e.status)
+}
+
+func runtipiAppNotFound(err error) bool {
+	var apiErr *runtipiAPIError
+	return errors.As(err, &apiErr) && apiErr.status == http.StatusNotFound
 }
 
 type runtipiOriginTransport struct{ base http.RoundTripper }
@@ -60,7 +78,7 @@ func (a *RuntipiAdapter) request(ctx context.Context, method, path string, paylo
 	if ctx.Err() != nil {
 		return fmt.Errorf("Runtipi API %s %s: %w", method, path, ctx.Err())
 	}
-	return fmt.Errorf("Runtipi API %s %s failed (HTTP %d)", method, path, status)
+	return &runtipiAPIError{method: method, path: path, status: status}
 }
 
 // Register creates the upstream's sole operator. A registration failure is not
@@ -104,6 +122,66 @@ type RuntipiAppObservation struct {
 	App *struct {
 		Status string `json:"status"`
 	} `json:"app"`
+	Metadata struct {
+		HasCustomConfig *bool `json:"hasCustomConfig"`
+	} `json:"metadata"`
+}
+
+// Status uses only this API readback. Catalog info without an installed app
+// row must never inherit a retained DeploymentRef's earlier running status.
+func (o RuntipiAppObservation) Status() string {
+	if o.App == nil {
+		return "missing"
+	}
+	switch status := o.App.Status; status {
+	case "running", "stopped", "missing", "installing", "uninstalling", "stopping", "starting", "updating", "resetting", "restarting", "backing_up", "restoring":
+		return status
+	default:
+		return "unexpected"
+	}
+}
+
+// WaitForAppStatus observes the asynchronous v4 lifecycle without resubmitting
+// commands. A terminal status establishes no application health, image, data or
+// update-success claim; those remain the node workload observer's responsibility.
+func (a *RuntipiAdapter) WaitForAppStatus(ctx context.Context, ref DeploymentRef, expected ...string) (RuntipiAppObservation, error) {
+	if ctx == nil || len(expected) == 0 {
+		return RuntipiAppObservation{}, errors.New("Runtipi lifecycle wait requires its context and terminal statuses")
+	}
+	for _, status := range expected {
+		if status != "running" && status != "stopped" && status != "missing" {
+			return RuntipiAppObservation{}, errors.New("Runtipi lifecycle wait requires known terminal statuses")
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		app, err := a.App(ctx, ref)
+		if err != nil {
+			// Custom-app uninstall deletes its source metadata as well as the
+			// installed row, so /apps/:urn returns 404 instead of app:null.
+			if slices.Contains(expected, "missing") && runtipiAppNotFound(err) {
+				return RuntipiAppObservation{}, nil
+			}
+			return RuntipiAppObservation{}, err
+		}
+		status := app.Status()
+		if slices.Contains(expected, status) {
+			return app, nil
+		}
+		switch status {
+		case "installing", "uninstalling", "stopping", "starting", "updating", "resetting", "restarting", "backing_up", "restoring":
+		default:
+			return app, fmt.Errorf("Runtipi lifecycle reached %q instead of %s; inspect the retained app before retrying", status, strings.Join(expected, "/"))
+		}
+		select {
+		case <-ctx.Done():
+			return app, fmt.Errorf("Runtipi lifecycle did not reach %s: %w", strings.Join(expected, "/"), ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 type RuntipiUserContext struct {
@@ -189,19 +267,158 @@ func (a *RuntipiAdapter) UpdateCompose(ctx context.Context, ref DeploymentRef, m
 	if manifest.Name != ref.AppName {
 		return errors.New("Runtipi update cannot change its retained app identity")
 	}
-	if _, err := a.App(ctx, ref); err != nil {
+	app, err := a.App(ctx, ref)
+	if err != nil {
 		return err
+	}
+	if app.Status() != "stopped" && app.Status() != "missing" {
+		return errors.New("Runtipi custom-app editing requires its stopped or missing state")
 	}
 	config, err := runtipiCompose(manifest)
 	if err != nil {
 		return err
 	}
-	return a.request(ctx, http.MethodPatch, "/api/custom-apps/"+url.PathEscape(ref.ExternalID), map[string]any{"config": config}, nil)
+	// The v4.10.2 edit UI writes the installed recipe through this endpoint.
+	// Start's ensureAppDir reads it; the repository update command does not.
+	raw, err := yaml.Marshal(config)
+	if err != nil {
+		return errors.New("encode Runtipi custom-app recipe failed")
+	}
+	var result struct {
+		Success bool `json:"success"`
+	}
+	if err := a.request(ctx, http.MethodPost, "/api/apps/"+url.PathEscape(ref.ExternalID)+"/config", map[string]string{"config": string(raw)}, &result); err != nil {
+		return err
+	}
+	if !result.Success {
+		return errors.New("Runtipi custom-app edit did not confirm its installed recipe")
+	}
+	return nil
+}
+
+// ComposeMatches reads the installed editable recipe, not an app-store source
+// and not DeploymentRef.ComposeYAML, which is deliberately absent from custody
+// JSON. This also detects recipe-format changes at an unchanged artifact pin.
+func (a *RuntipiAdapter) ComposeMatches(ctx context.Context, ref DeploymentRef, manifest AppManifest) (bool, error) {
+	if manifest.Name != ref.AppName {
+		return false, errors.New("Runtipi recipe readback cannot change its retained app identity")
+	}
+	if _, err := a.App(ctx, ref); err != nil {
+		return false, err
+	}
+	expected, err := runtipiCompose(manifest)
+	if err != nil {
+		return false, err
+	}
+	var result struct {
+		Config *string `json:"config"`
+	}
+	if err := a.request(ctx, http.MethodGet, "/api/apps/"+url.PathEscape(ref.ExternalID)+"/config", nil, &result); err != nil {
+		return false, err
+	}
+	if result.Config == nil {
+		return false, nil
+	}
+	var actual map[string]any
+	if json.Unmarshal([]byte(*result.Config), &actual) != nil || actual == nil {
+		return false, errors.New("Runtipi installed recipe readback is malformed")
+	}
+	wanted, err := json.Marshal(expected)
+	if err != nil {
+		return false, errors.New("encode expected Runtipi recipe failed")
+	}
+	observed, err := json.Marshal(actual)
+	if err != nil {
+		return false, errors.New("encode observed Runtipi recipe failed")
+	}
+	return bytes.Equal(wanted, observed), nil
+}
+
+type RuntipiBackupObservation struct {
+	ID   string `json:"id"`
+	Size int64  `json:"size"`
+}
+
+func (a *RuntipiAdapter) backups(ctx context.Context, ref DeploymentRef) ([]RuntipiBackupObservation, error) {
+	var result struct {
+		Data []RuntipiBackupObservation `json:"data"`
+	}
+	err := a.request(ctx, http.MethodGet, "/api/backups/"+url.PathEscape(ref.ExternalID)+"?page=1&pageSize=100", nil, &result)
+	return result.Data, err
+}
+
+// ActivateCompose follows the retained pin's custom-app edit/start path, never
+// its app-store update command. The caller retains pending intent until its own
+// running-image/configuration/data observations pass. The upstream archive
+// covers Runtipi's app directories, not node-owned external Docker volumes;
+// those keep the existing Kopia custody and restore obligations.
+func (a *RuntipiAdapter) ActivateCompose(ctx context.Context, ref DeploymentRef, manifest AppManifest) (RuntipiBackupObservation, error) {
+	if manifest.Name != ref.AppName {
+		return RuntipiBackupObservation{}, errors.New("Runtipi activation cannot change its retained app identity")
+	}
+	if _, err := runtipiCompose(manifest); err != nil {
+		return RuntipiBackupObservation{}, err
+	}
+	app, err := a.WaitForAppStatus(ctx, ref, "running", "stopped", "missing")
+	if err != nil {
+		return RuntipiBackupObservation{}, err
+	}
+	missing := app.Status() == "missing"
+	var backup RuntipiBackupObservation
+	if !missing {
+		if app.Status() == "running" {
+			if err := a.Control(ctx, ref, "stop"); err != nil {
+				return backup, err
+			}
+			if _, err := a.WaitForAppStatus(ctx, ref, "stopped"); err != nil {
+				return backup, err
+			}
+		}
+		before, err := a.backups(ctx, ref)
+		if err != nil {
+			return backup, err
+		}
+		if err := a.request(ctx, http.MethodPost, "/api/backups/"+url.PathEscape(ref.ExternalID)+"/backup", nil, nil); err != nil {
+			return backup, err
+		}
+		if _, err := a.WaitForAppStatus(ctx, ref, "stopped"); err != nil {
+			return backup, err
+		}
+		after, err := a.backups(ctx, ref)
+		if err != nil {
+			return backup, err
+		}
+		for _, candidate := range after {
+			if candidate.ID != "" && candidate.Size > 0 && !slices.ContainsFunc(before, func(old RuntipiBackupObservation) bool { return old.ID == candidate.ID }) {
+				backup = candidate
+				break
+			}
+		}
+		if backup.ID == "" {
+			return backup, errors.New("Runtipi pre-edit backup did not produce a new archive; retain pending reconciliation")
+		}
+	}
+	if err := a.UpdateCompose(ctx, ref, manifest); err != nil {
+		return backup, err
+	}
+	if missing {
+		err = a.Install(ctx, ref, "")
+	} else {
+		err = a.Control(ctx, ref, "start")
+	}
+	if err != nil {
+		return backup, err
+	}
+	_, err = a.WaitForAppStatus(ctx, ref, "running")
+	return backup, err
 }
 
 // Control submits one upstream lifecycle operation. The caller must persist
 // app identity before install; a successful queue submission is not readiness.
 func (a *RuntipiAdapter) Control(ctx context.Context, ref DeploymentRef, action string) error {
+	if action == "update" {
+		return errors.New("Runtipi custom apps require stopped recipe editing and start; the app-store update command cannot activate their revisions")
+	}
 	if _, err := a.App(ctx, ref); err != nil {
 		return err
 	}
@@ -211,9 +428,6 @@ func (a *RuntipiAdapter) Control(ctx context.Context, ref DeploymentRef, action 
 	case "install":
 		return a.Install(ctx, ref, "")
 	case "start", "stop", "restart":
-	case "update":
-		method = http.MethodPatch
-		payload = map[string]bool{"performBackup": true}
 	default:
 		return fmt.Errorf("unsupported Runtipi lifecycle action %q", action)
 	}
@@ -240,18 +454,16 @@ func (a *RuntipiAdapter) Install(ctx context.Context, ref DeploymentRef, localSu
 func (a *RuntipiAdapter) ObserveDeployment(ctx context.Context, ref DeploymentRef) (DeploymentRef, error) {
 	result, err := a.App(ctx, ref)
 	if err != nil {
+		ref.ObservedStatus = "unexpected"
+		if runtipiAppNotFound(err) {
+			ref.ObservedStatus = "missing"
+			ref.ObservedAt = time.Now().UTC()
+		}
 		return ref, err
 	}
 	ref.ObservedAt = time.Now().UTC()
-	if result.App != nil {
-		ref.ObservedStatus = strings.ToLower(result.App.Status)
-	}
+	ref.ObservedStatus = result.Status()
 	if ref.ObservedStatus != "running" {
-		switch ref.ObservedStatus {
-		case "stopped", "starting", "stopping", "installing", "updating", "missing", "error":
-		default:
-			ref.ObservedStatus = "unexpected"
-		}
 		return ref, fmt.Errorf("Runtipi app is %q; platform queue acceptance is not runtime readiness", ref.ObservedStatus)
 	}
 	return ref, nil

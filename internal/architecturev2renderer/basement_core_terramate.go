@@ -43,6 +43,10 @@ func (r basementCoreTerramateRenderer) RenderUnit(ctx context.Context, unit Rend
 	if err != nil {
 		return nil, err
 	}
+	compose, err = renderStackKitServerDataProfile(unit, compose)
+	if err != nil {
+		return nil, err
+	}
 	root, err := RenderComposePayloadOpenTofu(ComposePayloadSpec{
 		ResourcePrefix: basementCoreOpenTofuResourcePrefix, ProjectName: basementCoreComposeProjectName,
 		Compose: compose,

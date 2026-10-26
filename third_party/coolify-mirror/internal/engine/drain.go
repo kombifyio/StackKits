@@ -20,6 +20,7 @@ import (
 
 	"github.com/mtalavi/coolify-mirror/internal/coolify"
 	"github.com/mtalavi/coolify-mirror/internal/dbx"
+	"github.com/mtalavi/coolify-mirror/internal/docker"
 )
 
 // DrainFormat names the drain record document.
@@ -27,10 +28,11 @@ const DrainFormat = "kombify.io/coolify-relocation-drain/v1"
 
 // DrainedResource is one resource a drain stopped or found stopped.
 type DrainedResource struct {
-	UUID  string `json:"uuid"`
-	Table string `json:"table"`
-	Kind  string `json:"kind"`
-	Name  string `json:"name"`
+	RestartPolicies []ContainerRestartPolicy `json:"restart_policies"`
+	UUID            string                   `json:"uuid"`
+	Table           string                   `json:"table"`
+	Kind            string                   `json:"kind"`
+	Name            string                   `json:"name"`
 	// WasRunning: it ran before the drain; undrain restarts only these.
 	WasRunning bool `json:"was_running"`
 	// Services are the compose services that were up before the drain.
@@ -39,13 +41,21 @@ type DrainedResource struct {
 	Error    string   `json:"error,omitempty"`
 }
 
+type ContainerRestartPolicy struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	MaximumRetryCount int    `json:"maximum_retry_count"`
+}
+
 // DrainRecord is the source side's state between drain and cutover.
 type DrainRecord struct {
-	Format    string            `json:"format"`
-	Tool      ToolInfo          `json:"tool"`
-	DrainedAt time.Time         `json:"drained_at"`
-	Server    string            `json:"server"`
-	Resources []DrainedResource `json:"resources"`
+	PlanSHA256 string            `json:"plan_sha256,omitempty"`
+	TransferID string            `json:"transfer_id,omitempty"`
+	Format     string            `json:"format"`
+	Tool       ToolInfo          `json:"tool"`
+	DrainedAt  time.Time         `json:"drained_at"`
+	Server     string            `json:"server"`
+	Resources  []DrainedResource `json:"resources"`
 }
 
 // Complete reports whether every resource that ran was stopped.
@@ -71,7 +81,15 @@ func (r *DrainRecord) Running() map[string][]string {
 }
 
 // Drain stops the applications and services of plan p on this server.
-func Drain(ctx context.Context, in *coolify.Instance, p *RelocationPlan) (*DrainRecord, error) {
+func Drain(ctx context.Context, in *coolify.Instance, p *RelocationPlan, persist func(*DrainRecord) error) (*DrainRecord, error) {
+	unlock, err := Lock()
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	if persist == nil {
+		return nil, errors.New("drain requires durable source recovery intent")
+	}
 	if p == nil || p.Format != PlanFormat {
 		return nil, errors.New("not a coolify relocation plan (format " + PlanFormat + ")")
 	}
@@ -81,6 +99,11 @@ func Drain(ctx context.Context, in *coolify.Instance, p *RelocationPlan) (*Drain
 	here, err := in.ListResources(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not list the resources of this Coolify: %w", err)
+	}
+	if blockers, err := relocationAutomationBlockers(ctx, in, p.Manifest.Resources); err != nil {
+		return nil, err
+	} else if len(blockers) > 0 {
+		return nil, errors.New(strings.Join(blockers, "; "))
 	}
 	byUUID := map[string]coolify.Resource{}
 	for _, r := range here {
@@ -101,12 +124,34 @@ func Drain(ctx context.Context, in *coolify.Instance, p *RelocationPlan) (*Drain
 			return nil, err
 		}
 		d := DrainedResource{UUID: r.UUID, Table: r.Table, Kind: r.Label(), Name: r.Name, WasRunning: r.Running() || running, Services: up}
+		containers, err := resourceContainers(ctx, r.UUID)
+		if err != nil {
+			return nil, err
+		}
+		for _, container := range containers {
+			d.RestartPolicies = append(d.RestartPolicies, ContainerRestartPolicy{ID: container.ID, Name: container.HostConfig.RestartPolicy.Name, MaximumRetryCount: container.HostConfig.RestartPolicy.MaximumRetryCount})
+		}
 		if !d.WasRunning {
 			d.Stopped = true
 		} else {
 			stop = append(stop, map[string]string{"uuid": r.UUID, "table": r.Table})
 		}
 		rec.Resources = append(rec.Resources, d)
+	}
+	// Persist original policies for every selected resource before changing
+	// even one container. A killed command can always recover this intent.
+	if err := persist(rec); err != nil {
+		return nil, err
+	}
+	for _, resource := range rec.Resources {
+		for _, policy := range resource.RestartPolicies {
+			if err := docker.SetRestartPolicy(ctx, policy.ID, "no", 0); err != nil {
+				return rec, err
+			}
+		}
+	}
+	if err := verifyDrainRestartFence(ctx, rec); err != nil {
+		return rec, err
 	}
 	if len(stop) == 0 {
 		return rec, nil
@@ -166,6 +211,25 @@ func Undrain(ctx context.Context, in *coolify.Instance, rec *DrainRecord, pr *Pr
 	if rec.Server != "" && in.Hostname != "" && rec.Server != in.Hostname {
 		return nil, fmt.Errorf("the drain record is from %s, not from this server (%s)", rec.Server, in.Hostname)
 	}
+	// Undo is used only before destination execution has begun, or by the
+	// explicit local Owner. Restore the exact policies recorded before drain.
+	for _, resource := range rec.Resources {
+		containers, err := resourceContainers(ctx, resource.UUID)
+		if err != nil {
+			return nil, err
+		}
+		present := map[string]bool{}
+		for _, container := range containers {
+			present[container.ID] = true
+		}
+		for _, policy := range resource.RestartPolicies {
+			if present[policy.ID] {
+				if err := docker.SetRestartPolicy(ctx, policy.ID, policy.Name, policy.MaximumRetryCount); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
 	here, err := in.ListResources(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not list the resources of this Coolify: %w", err)
@@ -196,6 +260,47 @@ func Undrain(ctx context.Context, in *coolify.Instance, rec *DrainRecord, pr *Pr
 		return nil, nil
 	}
 	return StartResources(ctx, in, todo, pr)
+}
+
+func verifyDrainRestartFence(ctx context.Context, rec *DrainRecord) error {
+	for _, resource := range rec.Resources {
+		expected := map[string]bool{}
+		for _, policy := range resource.RestartPolicies {
+			expected[policy.ID] = true
+		}
+		containers, err := resourceContainers(ctx, resource.UUID)
+		if err != nil {
+			return err
+		}
+		for _, container := range containers {
+			if !expected[container.ID] || container.HostConfig.RestartPolicy.Name != "no" {
+				return fmt.Errorf("source resource %s has an unfenced or replacement container", resource.UUID)
+			}
+			delete(expected, container.ID)
+		}
+		// Coolify may remove stopped service containers. Their restart policy
+		// cannot start a removed container; the original manager config remains.
+	}
+	return nil
+}
+
+func VerifySourceDrain(ctx context.Context, rec *DrainRecord) error {
+	if rec == nil || !rec.Complete() {
+		return errors.New("source drain is incomplete")
+	}
+	if err := verifyDrainRestartFence(ctx, rec); err != nil {
+		return err
+	}
+	for _, resource := range rec.Resources {
+		_, running, err := upServices(ctx, resource.UUID)
+		if err != nil {
+			return err
+		}
+		if running {
+			return fmt.Errorf("source resource %s is running again", resource.UUID)
+		}
+	}
+	return nil
 }
 
 // upServices lists the compose services of a resource as a backup records

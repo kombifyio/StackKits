@@ -42,20 +42,21 @@ type OwnerRuntimeObservation struct {
 // PocketID's immutable user subject with the stable local ownerRef and the
 // exact step-ca certificates established by init.
 type OwnerRuntimeBinding struct {
-	APIVersion                  string    `json:"apiVersion"`
-	Kind                        string    `json:"kind"`
-	OwnerRef                    string    `json:"ownerRef"`
-	KeyID                       string    `json:"keyId"`
-	PocketIDSubject             string    `json:"pocketIdSubject"`
-	PocketIDUsername            string    `json:"pocketIdUsername"`
-	PocketIDEmail               string    `json:"pocketIdEmail"`
-	PocketIDDisplayName         string    `json:"pocketIdDisplayName"`
-	PocketIDGroups              []string  `json:"pocketIdGroups"`
-	OwnerCertificateSHA256      string    `json:"ownerCertificateSha256"`
-	OwnerCertificateSerial      string    `json:"ownerCertificateSerial"`
-	StepCARootCertificateSHA256 string    `json:"stepCaRootCertificateSha256"`
-	BoundAt                     time.Time `json:"boundAt"`
-	Signature                   string    `json:"signature"`
+	APIVersion                  string                  `json:"apiVersion"`
+	Kind                        string                  `json:"kind"`
+	OwnerRef                    string                  `json:"ownerRef"`
+	KeyID                       string                  `json:"keyId"`
+	PocketIDSubject             string                  `json:"pocketIdSubject"`
+	PocketIDUsername            string                  `json:"pocketIdUsername"`
+	PocketIDEmail               string                  `json:"pocketIdEmail"`
+	PocketIDDisplayName         string                  `json:"pocketIdDisplayName"`
+	PocketIDGroups              []string                `json:"pocketIdGroups"`
+	OwnerCertificateSHA256      string                  `json:"ownerCertificateSha256"`
+	OwnerCertificateSerial      string                  `json:"ownerCertificateSerial"`
+	StepCARootCertificateSHA256 string                  `json:"stepCaRootCertificateSha256"`
+	BoundAt                     time.Time               `json:"boundAt"`
+	PocketIDRuntime             *PocketIDRuntimeBinding `json:"pocketIdRuntime,omitempty"`
+	Signature                   string                  `json:"signature"`
 }
 
 type PocketIDOwnerEnrollment struct {
@@ -229,6 +230,9 @@ func LoadOwnerRuntimeBinding(workspaceRoot string) (OwnerRuntimeBinding, error) 
 		return OwnerRuntimeBinding{}, errors.New("localevidence: owner runtime binding certificate identity differs from step-ca custody")
 	}
 	if err := verifyOwnerRuntimeBindingSignature(workspaceRoot, record); err != nil {
+		return OwnerRuntimeBinding{}, err
+	}
+	if err := validatePocketIDRuntimeBinding(record.PocketIDRuntime); err != nil {
 		return OwnerRuntimeBinding{}, err
 	}
 	return record, nil

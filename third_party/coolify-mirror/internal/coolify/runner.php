@@ -48,6 +48,28 @@ $result = ['ok' => true];
 
 try {
     switch ($action) {
+        case 'relocation_automation':
+            // Read only the selected resources' automatic writers. Relocation
+            // cannot promise a stable source while these remain configured.
+            $result['blockers'] = [];
+            foreach (($input ?? []) as $item) {
+                if ($item['table'] === 'applications') {
+                    $application = Application::where('uuid', $item['uuid'])->firstOrFail();
+                    $settings = $application->settings?->getAttributes() ?? [];
+                    if (!array_key_exists('is_auto_deploy_enabled', $settings)) {
+                        throw new RuntimeException('Selected application auto-deploy state is unavailable');
+                    }
+                    if ($settings['is_auto_deploy_enabled']) {
+                        $result['blockers'][] = 'application '.$item['uuid'].' has automatic deployments enabled';
+                    }
+                    if (!array_key_exists('is_preview_deployments_enabled', $settings)) { throw new RuntimeException('Selected application preview deployment state is unavailable'); }
+                    if ($settings['is_preview_deployments_enabled']) { $result['blockers'][] = 'application '.$item['uuid'].' has preview deployments enabled'; }
+                    if (ApplicationDeploymentQueue::where('application_id', (string) $application->id)->whereIn('status', ['queued', 'in_progress'])->exists()) {
+                        $result['blockers'][] = 'application '.$item['uuid'].' has an active deployment';
+                    }
+                }
+            }
+            break;
         case 'version':
             $result['version'] = (string) config('constants.coolify.version');
             break;

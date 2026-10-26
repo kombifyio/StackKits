@@ -402,6 +402,31 @@ func (store Store) Begin(contract Contract, request BeginRequest) (State, error)
 			return State{}, errors.New("application_binding_preserved: fresh lifecycle mutation cannot replace an adopted runtime; release its binding first")
 		}
 	}
+	// The lease is held before the operation is recorded, so a recorded
+	// running operation always has a live lock while its owner runs.
+	if !operationIDPattern.MatchString(request.ID) {
+		return State{}, errors.New("application lifecycle operation ID is invalid")
+	}
+	if err := store.ensureOperationLease(request.ID); err != nil {
+		return State{}, err
+	}
+	state, err := store.beginRecorded(contract, request)
+	if err != nil {
+		store.releaseOperationLease(request.ID)
+	}
+	return state, err
+}
+
+func (store Store) beginRecorded(contract Contract, request BeginRequest) (State, error) {
+	children := ""
+	var releases []func()
+	defer func() {
+		// Dead owners' locks are released only after the interruption is
+		// committed (or the Begin failed), never in between.
+		for _, release := range releases {
+			release()
+		}
+	}()
 	return store.mutate(contract, func(state *State) error {
 		if !operationIDPattern.MatchString(request.ID) {
 			return errors.New("application lifecycle operation ID is invalid")
@@ -422,13 +447,20 @@ func (store Store) Begin(contract Contract, request BeginRequest) (State, error)
 		if current := currentOperation(*state); current != nil &&
 			(current.Status == StatusRunning || current.Status == StatusRecoveryRequired) &&
 			!applyRetrySupersedes(*current, request) {
-			if !abandonedApplySupersedes(*current, request) {
+			switch {
+			case abandonedApplySupersedes(*current, request):
+				abandonOperation(&state.Operations[len(state.Operations)-1], request.ID, now)
+			case current.Status == StatusRunning && ownerEnded(store, current.ID, &children, &releases):
+				// The owner's kernel lease is free: its process is gone. Record
+				// the interruption, its uncertainty and its children, then admit
+				// this operation.
+				interruptOperation(&state.Operations[len(state.Operations)-1], request.ID, children, now)
+			default:
 				return fmt.Errorf(
 					"application lifecycle operation %s (%s, %s) requires completion or recovery by the command that started it; it is not safe to take over automatically",
 					current.ID, current.OperationRef, current.Status,
 				)
 			}
-			abandonOperation(&state.Operations[len(state.Operations)-1], request.ID, now)
 		}
 		previous := ""
 		if len(state.Operations) > 0 {
@@ -488,6 +520,27 @@ func abandonOperation(operation *Operation, supersededBy string, now time.Time) 
 }
 
 func (store Store) Transition(contract Contract, request TransitionRequest) (State, error) {
+	if request.Status == StatusRunning {
+		// Resuming an operation makes this process its owner: hold the lease
+		// before it is running again, and fail closed while another live
+		// process holds it.
+		if err := store.ensureOperationLease(request.ID); err != nil {
+			return State{}, err
+		}
+	}
+	state, err := store.transitionRecorded(contract, request)
+	if err != nil && request.Status == StatusRunning {
+		store.releaseOperationLease(request.ID)
+	}
+	if err == nil && request.Status != StatusRunning {
+		// An outcome is recorded: this process no longer owns a running
+		// operation for this workload.
+		store.releaseOperationLease(request.ID)
+	}
+	return state, err
+}
+
+func (store Store) transitionRecorded(contract Contract, request TransitionRequest) (State, error) {
 	return store.mutate(contract, func(state *State) error {
 		index := operationIndex(*state, request.ID)
 		if index < 0 {
@@ -913,4 +966,11 @@ func operationUpdatedAt(state State) time.Time {
 		return time.Now().UTC()
 	}
 	return state.Operations[len(state.Operations)-1].UpdatedAt
+}
+
+func ownerEnded(store Store, id string, children *string, releases *[]func()) bool {
+	ended, note, release := store.operationOwnerEnded(id)
+	*children = note
+	*releases = append(*releases, release)
+	return ended
 }

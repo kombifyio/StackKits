@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
@@ -120,6 +121,9 @@ func (r *Registry) HasExact(contract RendererContract) bool {
 // RenderUnit is the immutable logical-unit plus exact-instance projection
 // handed to a renderer. JSON and list accessors return defensive copies.
 type RenderUnit struct {
+	localNetwork               *runtimeprofile.LocalNetwork
+	dataProfile                runtimeprofile.DataProfile
+	offlineBundle              *runtimeprofile.OfflineBundleRef
 	moduleID                   string
 	id                         string
 	instanceID                 string
@@ -165,7 +169,33 @@ type RenderUnit struct {
 	accelerator                *ModuleAccelerator
 }
 
-func (u RenderUnit) ModuleID() string        { return u.moduleID }
+func (u RenderUnit) ModuleID() string { return u.moduleID }
+
+// DataProfile comes only from the hash-verified plan, never process settings.
+func (u RenderUnit) DataProfile() runtimeprofile.DataProfile {
+	if u.dataProfile == "" {
+		return runtimeprofile.StandardProfile
+	}
+	return u.dataProfile
+}
+
+func (u RenderUnit) LocalNetwork() *runtimeprofile.LocalNetwork {
+	if u.localNetwork == nil {
+		return nil
+	}
+	copy := *u.localNetwork
+	copy.Upstream = append([]string(nil), copy.Upstream...)
+	return &copy
+}
+
+// OfflineBundle returns a value copy of the canonical installation reference.
+func (u RenderUnit) OfflineBundle() (runtimeprofile.OfflineBundleRef, bool) {
+	if u.offlineBundle == nil {
+		return runtimeprofile.OfflineBundleRef{}, false
+	}
+	return *u.offlineBundle, true
+}
+
 func (u RenderUnit) ID() string              { return u.id }
 func (u RenderUnit) InstanceID() string      { return u.instanceID }
 func (u RenderUnit) InstanceScope() string   { return u.instanceScope }
@@ -369,6 +399,9 @@ func renderProjection(ctx context.Context, projection renderPlan, canonical []by
 			}
 			for _, instance := range contract.instances {
 				unit := newRenderUnit(module.id, contract, instance, projection.networkDomainBase, projection.networkSubdomainPrefix)
+				unit.dataProfile = projection.dataProfile
+				unit.localNetwork = projection.localNetwork
+				unit.offlineBundle = projection.offlineBundle
 				if err := unit.bindSiteListeners(projection.listenerAddresses); err != nil {
 					return RenderResult{}, err
 				}

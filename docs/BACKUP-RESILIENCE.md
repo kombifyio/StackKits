@@ -339,3 +339,50 @@ application recovery supplies separate duration and client evidence.
 Managed/provider-native backups remain Techstack-owned. Configuration and
 receipts may be projected into StackKits, but must not become an account
 requirement for owner-held local recovery.
+
+## Retained recovery points under source-node compromise
+
+> Measured 2026-10-26 with Kopia 0.18.2 (the pinned `kopia-agent` image) against a
+> local S3-compatible server (MinIO, built from source, no TLS). This is a
+> design measurement for Guard G (`kombify-StackKits-yihy.1`). It is not
+> implemented in the CLI, not supported, and not evidence for any real target:
+> no `stackkit` command, custody record or Plan changes with it.
+
+The question is whether the exact credentials a source node holds can destroy
+the retained recovery point that its own backups produce. The node holds one
+S3 credential today (`S3TargetMaterial`); every result below used a
+disposable canary repository under its own prefix, never real recovery points.
+
+| Configuration of the node's credential | Backup | Deleting the recovery point | Restore |
+| --- | --- | --- | --- |
+| Put/Get/List, every delete denied | Fails: Kopia deletes its own `s…` session-marker blob when a snapshot commits | Not reached | Not reached |
+| Put/Get/List, delete allowed only on the `s*` session markers | Succeeds | `kopia snapshot delete` still succeeds (the tombstone is a write), after which the node can no longer restore that snapshot; raw `blob delete` of the data blobs is denied | Fails from the node's own view |
+| Versioned bucket with Object Lock, Kopia `--retention-mode GOVERNANCE --retention-period 24h`; node denied `DeleteObjectVersion`, `BypassGovernanceRetention`, versioning and lock changes | Succeeds | Snapshot delete, full maintenance and a raw delete of every object succeed only as delete markers; the node then lists an empty repository | Succeeds for a separate read-only identity (below) |
+
+Findings:
+
+- A delete-deny policy alone does not give "deletion fails, restore succeeds".
+  It breaks backups unless session markers stay deletable, and it leaves
+  logical deletion open because Kopia records a snapshot deletion as a write.
+- Versioning plus Object Lock keeps every physical version. Without a bypass
+  permission, even an administrator's version delete fails with `WORM
+  protected`; the bypass is the maintenance authority and must not be held by
+  the node.
+- Recovery needs a second identity and a time. A read-only identity with
+  `GetObject`, `GetObjectVersion`, `ListBucket` and `ListBucketVersions`
+  connected with `kopia repository connect s3 --point-in-time <instant before
+  the attack>` and restored the snapshot byte-identically (`diff -r` clean). A
+  `--point-in-time` taken at the same second as the snapshot finished listed
+  nothing; the signed snapshot anchor's completion time plus a margin is the
+  usable bound.
+- Locks expire. A retention period only protects until it ends, so a retained
+  point needs its lock renewed before then; who may renew it was not measured
+  (the node's policy in the third row included `PutObjectRetention`). The
+  backup-admin identity remains the limit of this protection: whoever holds the
+  bypass permission can delete.
+
+Not measured and not claimed: quota or capacity alerts, pruning by a separate
+maintenance identity, lock extension, a TLS endpoint, a managed provider, or
+bucket creation with Object Lock. Provisioning that bucket and its scoped
+credentials is Techstack's provider lifecycle, so the producer side of this
+slice spans both repositories.

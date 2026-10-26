@@ -32,3 +32,6 @@ Dockerfile text eol=lf
 *.woff2 binary
 *.ttf binary
 
+
+# Immutable unified-diff context is data; retain its upstream whitespace exactly.
+modules/pocketid/compat/membership-cas.patch -whitespace

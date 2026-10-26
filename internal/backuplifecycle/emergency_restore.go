@@ -25,9 +25,11 @@ type EmergencyRestoreInput struct {
 	Identities []age.Identity
 	Target     string
 	MaxBytes   int64
+	MemoryFile string
 }
 
 type EmergencyRestoreResult struct {
+	PrivateFiles         map[string][]byte `json:"-"`
 	APIVersion           string            `json:"apiVersion"`
 	Target               string            `json:"target"`
 	ContentVerified      bool              `json:"contentVerified"`
@@ -73,6 +75,15 @@ func RestoreEmergency(ctx context.Context, input EmergencyRestoreInput) (Emergen
 	if err != nil {
 		return EmergencyRestoreResult{}, err
 	}
+	privateFiles := map[string][]byte{}
+	success := false
+	defer func() {
+		if !success {
+			for _, data := range privateFiles {
+				clear(data)
+			}
+		}
+	}()
 	var manifest EmergencyManifest
 	err = withEmergencyTarget(target, func(tx *confinedfs.Transaction, staging string) error {
 		// Bound all decompressed bytes, including headers and padding, not just
@@ -110,6 +121,7 @@ func RestoreEmergency(ctx context.Context, input EmergencyRestoreInput) (Emergen
 				return errors.New("invalid emergency archive metadata")
 			}
 			item := EmergencyEntry{Path: name, Directory: header.Typeflag == tar.TypeDir, Bytes: header.Size, Mode: uint32(header.Mode) & 0o777}
+			item.UID, item.GID = header.Uid, header.Gid
 			if item.Directory && item.Bytes != 0 {
 				return errors.New("emergency directory contains file data")
 			}
@@ -134,6 +146,21 @@ func RestoreEmergency(ctx context.Context, input EmergencyRestoreInput) (Emergen
 					if err := tx.WriteFileExclusive(path.Join(staging, name), data, 0o600); err != nil {
 						return err
 					}
+				} else if input.MemoryFile != "" && name == input.MemoryFile {
+					if header.Size > 4<<20 {
+						return errors.New("transfer credential payload exceeds memory limit")
+					}
+					data, err := io.ReadAll(reader)
+					if err != nil {
+						return err
+					}
+					if int64(len(data)) != header.Size {
+						clear(data)
+						return errors.New("truncated transfer credential payload")
+					}
+					sum := sha256.Sum256(data)
+					item.SHA256 = hex.EncodeToString(sum[:])
+					privateFiles[name] = data
 				} else {
 					err := tx.WriteFileExclusiveStream(path.Join(staging, name), 0o600, func(writer io.Writer) error {
 						written, err := io.Copy(io.MultiWriter(writer, digest), reader)
@@ -190,7 +217,8 @@ func RestoreEmergency(ctx context.Context, input EmergencyRestoreInput) (Emergen
 	if err != nil {
 		return EmergencyRestoreResult{}, fmt.Errorf("emergency restore: %w", err)
 	}
-	return EmergencyRestoreResult{APIVersion: EmergencyExportAPI, Target: target, ContentVerified: true, Manifest: manifest}, nil
+	success = true
+	return EmergencyRestoreResult{APIVersion: EmergencyExportAPI, Target: target, ContentVerified: true, Manifest: manifest, PrivateFiles: privateFiles}, nil
 }
 
 func verifyEmergencyManifest(manifest EmergencyManifest, actual map[string]EmergencyEntry) error {

@@ -1,7 +1,10 @@
 package nativehost
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -13,6 +16,8 @@ import (
 )
 
 const runtipiInstallationSecretRef = "secret://platform/runtipi/installation"
+const runtipiArtifactLabel = "io.stackkit.runtipi-artifact-digest"
+const runtipiRecipeLabel = "io.stackkit.runtipi-recipe-digest"
 
 // A bootstrap must retain this record through encrypted local Owner custody.
 // An API URL or an unrelated Runtipi account alone grants no node authority.
@@ -75,6 +80,11 @@ func (o *osRuntipiWorkloadOperations) configuration(ctx context.Context, deploym
 }
 
 func (o *osRuntipiWorkloadOperations) ApplyWorkload(ctx context.Context, deployment SelectedPaaSWorkloadDeployment) (SelectedPaaSApplyReceipt, error) {
+	if ctx == nil {
+		return SelectedPaaSApplyReceipt{}, errors.New("Runtipi workload apply requires its operation context")
+	}
+	ctx, cancel := context.WithTimeout(ctx, standaloneComposeApplyBudget)
+	defer cancel()
 	project := "stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef
 	if len(project) > 50 {
 		return SelectedPaaSApplyReceipt{}, errors.New("Runtipi requires a node workload identity within its upstream 50-character app-name limit")
@@ -111,11 +121,20 @@ func (o *osRuntipiWorkloadOperations) ApplyWorkload(ctx context.Context, deploym
 	if present && prior.ServerID != installationID {
 		return SelectedPaaSApplyReceipt{}, errors.New("Runtipi instance differs from the retained workload manager")
 	}
+	// Join the current operation without changing signed reconciliation intent.
+	// Cancellation/failure leaves the prior pending update available to retry.
+	var app platformdeploy.RuntipiAppObservation
+	if present {
+		app, err = adapter.WaitForAppStatus(ctx, prior.Deployment, "running", "stopped", "missing")
+		if err != nil {
+			return SelectedPaaSApplyReceipt{}, err
+		}
+	}
 	prepared, err := o.prepared.PrepareWorkloadCompose(ctx, deployment)
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
-	compose, err := platformNodeCompose(prepared)
+	compose, recipeDigest, err := runtipiNodeCompose(prepared, deployment.ArtifactDigest)
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
@@ -136,46 +155,83 @@ func (o *osRuntipiWorkloadOperations) ApplyWorkload(ctx context.Context, deploym
 		}
 	}
 	manifest := platformdeploy.AppManifest{Name: project, ServiceKey: prepared.project.entry.ID, Port: prepared.project.entry.HealthPort, Platform: "runtipi", ManagedBy: "runtipi", ComposeYAML: string(compose)}
-	ref, action := prior.Deployment, "start"
-	if prior.Deployment.ObservedStatus == "pending-update" {
-		action = "update"
+	ref := prior.Deployment
+	needsRecipe := present && (prior.ArtifactDigest != deployment.ArtifactDigest || app.Status() == "missing")
+	if present {
+		matches, err := adapter.ComposeMatches(ctx, ref, manifest)
+		if err != nil {
+			return SelectedPaaSApplyReceipt{}, err
+		}
+		needsRecipe = needsRecipe || !matches
+	}
+	if present && app.Status() != "missing" {
+		project := prepared.project
+		project.runtimeProject = ref.AppName + "__user"
+		if err := o.verifyRuntimeRevision(ctx, project, deployment.ArtifactDigest, recipeDigest); err != nil {
+			var mismatch *runtipiRevisionMismatchError
+			if !errors.As(err, &mismatch) {
+				return SelectedPaaSApplyReceipt{}, err
+			}
+			// Covers both changed artifacts and unchanged legacy installs whose
+			// containers lack the current recipe/revision labels.
+			needsRecipe = true
+		}
 	}
 	if !present {
 		ref, err = adapter.ApplyCompose(ctx, manifest)
-		action = "install"
-	} else if prior.ArtifactDigest != deployment.ArtifactDigest {
-		err = adapter.UpdateCompose(ctx, ref, manifest)
-		action = "update"
-	}
-	if err != nil {
-		return SelectedPaaSApplyReceipt{}, err
-	}
-	ref.ObservedStatus = "pending-" + action
-	state := platformdeploy.HostDeployment{WorkloadRef: deployment.WorkloadRef, InstanceRef: deployment.InstanceRef, ArtifactDigest: deployment.ArtifactDigest, SiteRef: deployment.SiteRef, NodeRef: deployment.NodeRef, ServerID: installationID, Manager: "runtipi", Deployment: ref, Handover: prior.Handover}
-	// Persist platform identity before queueing installation. A failed operation
-	// can be reconciled without creating a second upstream app or taking custody.
-	if err := platformdeploy.SaveOwnerHostDeployment(o.workspace, project, state); err != nil {
-		return SelectedPaaSApplyReceipt{}, err
-	}
-	app, err := adapter.App(ctx, ref)
-	if err != nil {
-		return SelectedPaaSApplyReceipt{}, err
-	}
-	if app.App == nil || app.App.Status == "missing" {
-		action = "install"
-	}
-	if app.App == nil || app.App.Status != "running" || action == "update" {
-		if action == "install" {
-			err = adapter.Install(ctx, ref, "")
-		} else {
-			err = adapter.Control(ctx, ref, action)
-		}
 		if err != nil {
 			return SelectedPaaSApplyReceipt{}, err
 		}
 	}
+	intent := "pending-start"
+	if !present || app.Status() == "missing" {
+		intent = "pending-install"
+	}
+	if needsRecipe || prior.Deployment.ObservedStatus == "pending-update" {
+		intent = "pending-update"
+	}
+	// Keep the exact manager, node and data custody. The existing signed record
+	// is desired intent until the independent runtime and application checks
+	// pass; joining, backup, editing or a queue acknowledgment never clears it.
+	state := prior
+	state.WorkloadRef, state.InstanceRef = deployment.WorkloadRef, deployment.InstanceRef
+	state.ArtifactDigest, state.SiteRef, state.NodeRef = deployment.ArtifactDigest, deployment.SiteRef, deployment.NodeRef
+	state.ServerID, state.Manager, state.Deployment = installationID, "runtipi", ref
+	state.Deployment.ObservedStatus = intent
+	if err := platformdeploy.SaveOwnerHostDeployment(o.workspace, project, state); err != nil {
+		return SelectedPaaSApplyReceipt{}, err
+	}
+	if needsRecipe {
+		_, err = adapter.ActivateCompose(ctx, ref, manifest)
+	} else if app.Status() == "missing" {
+		err = adapter.Install(ctx, ref, "")
+	} else if app.Status() == "stopped" {
+		err = adapter.Control(ctx, ref, "start")
+	}
+	if err != nil {
+		return SelectedPaaSApplyReceipt{}, err
+	}
+	if _, err := adapter.WaitForAppStatus(ctx, ref, "running"); err != nil {
+		return SelectedPaaSApplyReceipt{}, err
+	}
 	prepared.project.runtimeProject = ref.AppName + "__user"
 	if err := o.prepared.CompleteWorkloadCompose(ctx, prepared); err != nil {
+		return SelectedPaaSApplyReceipt{}, err
+	}
+	if err := o.verifyRuntimeRevision(ctx, prepared.project, deployment.ArtifactDigest, recipeDigest); err != nil {
+		return SelectedPaaSApplyReceipt{}, err
+	}
+	if matches, err := adapter.ComposeMatches(ctx, ref, manifest); err != nil || !matches {
+		if err == nil {
+			err = &runtipiRevisionMismatchError{}
+		}
+		return SelectedPaaSApplyReceipt{}, err
+	}
+	observation, err := o.prepared.observePreparedWorkload(ctx, deployment, prepared.project)
+	if err != nil {
+		return SelectedPaaSApplyReceipt{}, err
+	}
+	if err := o.prepared.ValidateWorkloadObservation(deployment, observation); err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	observed, err := adapter.ObserveDeployment(ctx, ref)
@@ -219,7 +275,88 @@ func (o *osRuntipiWorkloadOperations) ObserveWorkload(ctx context.Context, deplo
 		return SelectedPaaSWorkloadObservation{}, err
 	}
 	prepared.runtimeProject = state.Deployment.AppName + "__user"
+	compose, recipeDigest, err := runtipiNodeCompose(preparedWorkloadCompose(prepared), deployment.ArtifactDigest)
+	if err != nil {
+		return SelectedPaaSWorkloadObservation{}, err
+	}
+	if err := o.verifyRuntimeRevision(ctx, prepared, deployment.ArtifactDigest, recipeDigest); err != nil {
+		return SelectedPaaSWorkloadObservation{}, err
+	}
+	manifest := platformdeploy.AppManifest{Name: project, ServiceKey: prepared.entry.ID, Port: prepared.entry.HealthPort, ComposeYAML: string(compose)}
+	if matches, err := adapter.ComposeMatches(ctx, state.Deployment, manifest); err != nil || !matches {
+		if err == nil {
+			err = &runtipiRevisionMismatchError{}
+		}
+		return SelectedPaaSWorkloadObservation{}, err
+	}
 	return o.prepared.observePreparedWorkload(ctx, deployment, prepared)
+}
+
+// A failed upstream update can roll back to running with the same image but an
+// older configuration. Bind its generated services to the authorized bundle;
+// status and image readback alone cannot distinguish that rollback.
+func runtipiNodeCompose(prepared NativeWorkloadCompose, artifactDigest string) ([]byte, string, error) {
+	raw, err := platformNodeCompose(prepared)
+	if err != nil {
+		return nil, "", err
+	}
+	var graph map[string]any
+	if err := yaml.Unmarshal(raw, &graph); err != nil {
+		return nil, "", err
+	}
+	services := graph["services"].(map[string]any)
+	for _, value := range services {
+		service := value.(map[string]any)
+		labels, _ := service["labels"].(map[string]any)
+		if labels == nil {
+			labels = map[string]any{}
+		}
+		labels[runtipiArtifactLabel] = artifactDigest
+		delete(labels, runtipiRecipeLabel)
+		service["labels"] = labels
+	}
+	raw, err = yaml.Marshal(graph)
+	if err != nil {
+		return nil, "", err
+	}
+	// Hash the entire node recipe, including the artifact label, before adding
+	// the non-recursive recipe marker. Renderer/format changes at the same
+	// workload digest therefore converge instead of failing forever.
+	hash := sha256.Sum256(append([]byte("stackkit.runtipi-node-recipe/v1\x00"), raw...))
+	recipeDigest := "sha256:" + hex.EncodeToString(hash[:])
+	for _, value := range services {
+		value.(map[string]any)["labels"].(map[string]any)[runtipiRecipeLabel] = recipeDigest
+	}
+	raw, err = yaml.Marshal(graph)
+	return raw, recipeDigest, err
+}
+
+type runtipiRevisionMismatchError struct{}
+
+func (*runtipiRevisionMismatchError) Error() string {
+	return "Runtipi runtime recipe differs from the authorized workload; retain pending reconciliation"
+}
+
+func (o *osRuntipiWorkloadOperations) verifyRuntimeRevision(ctx context.Context, project standaloneComposeProject, artifactDigest, recipeDigest string) error {
+	raw, err := o.prepared.runner.Run(ctx, standaloneComposeArgs(project, "ps"), project.directory)
+	if err != nil {
+		return err
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return &runtipiRevisionMismatchError{}
+	}
+	statuses, err := parseStandaloneComposeStatuses(raw)
+	if err != nil {
+		return err
+	}
+	for _, component := range project.bundle.Components {
+		status, present := statuses[component.ID]
+		labels := standaloneComposeCSVMap(status.Labels)
+		if !present || labels[runtipiArtifactLabel] != artifactDigest || labels[runtipiRecipeLabel] != recipeDigest {
+			return &runtipiRevisionMismatchError{}
+		}
+	}
+	return nil
 }
 
 func (o *osRuntipiWorkloadOperations) ValidateWorkloadObservation(d SelectedPaaSWorkloadDeployment, v SelectedPaaSWorkloadObservation) error {

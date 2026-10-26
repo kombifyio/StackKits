@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -34,6 +35,13 @@ func IsPublicServer(env models.NetworkEnvironment) bool {
 // Detect determines the network environment by checking network interfaces
 // and comparing the local IP to the external IP.
 func Detect(ctx context.Context) *Result {
+	if runtimeprofile.FullLocal() {
+		result := &Result{Environment: models.NetEnvUnknown, PrivateIP: getPrivateIP()}
+		if result.PrivateIP != "" {
+			result.Environment, result.IsNAT = models.NetEnvHome, true
+		}
+		return result
+	}
 	if override := detectOverride(); override != nil {
 		return override
 	}

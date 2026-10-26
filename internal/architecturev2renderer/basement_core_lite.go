@@ -125,6 +125,10 @@ func (r basementCoreLiteTerramateRenderer) RenderUnit(ctx context.Context, unit 
 	if err != nil {
 		return nil, err
 	}
+	compose, err = renderStackKitServerDataProfile(unit, compose)
+	if err != nil {
+		return nil, err
+	}
 	root, err := RenderComposePayloadOpenTofu(ComposePayloadSpec{
 		ResourcePrefix: basementCoreOpenTofuResourcePrefix, ProjectName: basementCoreComposeProjectName,
 		Compose: compose,
@@ -150,6 +154,10 @@ func (r basementCoreRenderer) renderLiteUnit(ctx context.Context, unit RenderUni
 		return nil, err
 	}
 	compose, err := renderTinyAuthRouteACLs(unit, renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, r.render(unit))))
+	if err != nil {
+		return nil, err
+	}
+	compose, err = renderStackKitServerDataProfile(unit, compose)
 	if err != nil {
 		return nil, err
 	}

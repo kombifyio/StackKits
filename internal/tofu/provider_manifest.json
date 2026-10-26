@@ -2,6 +2,53 @@
   "schemaVersion": 1,
   "providers": [
     {
+      "source": "registry.opentofu.org/coolify-terraform/coolify",
+      "version": "0.1.27",
+      "constraints": "0.1.27",
+      "platforms": [
+        {
+          "os": "darwin",
+          "arch": "amd64",
+          "archive": "terraform-provider-coolify_0.1.27_darwin_amd64.zip",
+          "filename": "terraform-provider-coolify",
+          "h1": "h1:9+g6zoXM0FqIjszFWjA+bMgfJZISPYNEkQKrK/hTHTI=",
+          "zh": "zh:241f26810f8304c1f2c0db542161240607a2be906e9143a7f6edca8c73267f55"
+        },
+        {
+          "os": "darwin",
+          "arch": "arm64",
+          "archive": "terraform-provider-coolify_0.1.27_darwin_arm64.zip",
+          "filename": "terraform-provider-coolify",
+          "h1": "h1:JADkacByEuOrWCtowYaCJWLcHozfxdCTmMabwaU87VY=",
+          "zh": "zh:743ef87ab9efbefbce4db88e94ba39acb1820b3d5d1c23841b10364aa7be1eec"
+        },
+        {
+          "os": "linux",
+          "arch": "amd64",
+          "archive": "terraform-provider-coolify_0.1.27_linux_amd64.zip",
+          "filename": "terraform-provider-coolify",
+          "h1": "h1:/JarDD9PtGIQB+pIMI/wNQxo1E55Wj1ktcndImJzjbI=",
+          "zh": "zh:53cd054dd952e74b0e274b311ab19c21d0cf99fa41b9acec8d22f7aa770d846b"
+        },
+        {
+          "os": "linux",
+          "arch": "arm64",
+          "archive": "terraform-provider-coolify_0.1.27_linux_arm64.zip",
+          "filename": "terraform-provider-coolify",
+          "h1": "h1:Yy8n/aPkyi4P0hPGgNpRL+JDZAZpUe8ctE3rU2CKp8o=",
+          "zh": "zh:1c9787054125b82d9772ec068395f6f469349bf78b7b38941418d385679a4347"
+        },
+        {
+          "os": "windows",
+          "arch": "amd64",
+          "archive": "terraform-provider-coolify_0.1.27_windows_amd64.zip",
+          "filename": "terraform-provider-coolify.exe",
+          "h1": "h1:wXiEkoju6x8VtX9swD3vXwlUrdkA8D8ggepx6bS9KCU=",
+          "zh": "zh:3405f7b5946f63ad1d94f096a872e62552abcbd802e4e17c931ceaa16f6c7e11"
+        }
+      ]
+    },
+    {
       "source": "registry.opentofu.org/hashicorp/local",
       "version": "2.5.3",
       "constraints": "2.5.3",
@@ -139,6 +186,53 @@
           "filename": "terraform-provider-komodo_v0.12.0.exe",
           "h1": "h1:/rAgktUxuhQ2qaj3wpnLhaGHC7FxLY6aQYm1tNYAUIA=",
           "zh": "zh:e2763bfd73d66bb605345abf8aed6c431a16a9e16071cb8cdecee9440ceafffb"
+        }
+      ]
+    },
+    {
+      "source": "registry.opentofu.org/vanillauys/dokploy",
+      "version": "1.10.0",
+      "constraints": "1.10.0",
+      "platforms": [
+        {
+          "os": "darwin",
+          "arch": "amd64",
+          "archive": "terraform-provider-dokploy_1.10.0_darwin_amd64.zip",
+          "filename": "terraform-provider-dokploy_v1.10.0",
+          "h1": "h1:CKrcP+I96apEqM/NSpcjJoHaMGtTo4XCgL4b1ahpcGE=",
+          "zh": "zh:7b62ce353b73b310d8e64574a01e5828bed8a413cacf85bd1ea00b4c92280b68"
+        },
+        {
+          "os": "darwin",
+          "arch": "arm64",
+          "archive": "terraform-provider-dokploy_1.10.0_darwin_arm64.zip",
+          "filename": "terraform-provider-dokploy_v1.10.0",
+          "h1": "h1:xM73pehbqpUfKyjzCLzlEW4gq1WjkjRWtzJyydWp4N8=",
+          "zh": "zh:7dd4b739ceeb9632243c9a595dfddd467d3bb6b06a606c54748aff55e8103b21"
+        },
+        {
+          "os": "linux",
+          "arch": "amd64",
+          "archive": "terraform-provider-dokploy_1.10.0_linux_amd64.zip",
+          "filename": "terraform-provider-dokploy_v1.10.0",
+          "h1": "h1:+HmZF2C64/fwDeHIlkV0uBAxFTqJML7LBsmSwCVPQBY=",
+          "zh": "zh:a798c66d5711584b09f47ecadcb6cfbba482590e20d07cc7e1ccdfc0a8b2eaf9"
+        },
+        {
+          "os": "linux",
+          "arch": "arm64",
+          "archive": "terraform-provider-dokploy_1.10.0_linux_arm64.zip",
+          "filename": "terraform-provider-dokploy_v1.10.0",
+          "h1": "h1:Cz/gWO2DX6i1R49atNIvoGAZCcqCklDCPb50MIQFC3E=",
+          "zh": "zh:418deff53dd919a10202d73257248bc8b0d1a04266ebe62972306106eab528d0"
+        },
+        {
+          "os": "windows",
+          "arch": "amd64",
+          "archive": "terraform-provider-dokploy_1.10.0_windows_amd64.zip",
+          "filename": "terraform-provider-dokploy_v1.10.0.exe",
+          "h1": "h1:iWn1n21tzmCDJhx5PcNFpHzKDX8knOTPOIuCBHNX8Nc=",
+          "zh": "zh:bd1a7232d91111cf1f2145b47bdfb8ce1e18de31cd5fde1301f5489bb5a09ef9"
         }
       ]
     }

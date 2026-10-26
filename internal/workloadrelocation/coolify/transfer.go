@@ -6,15 +6,19 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/workloadrelocation"
 )
 
 // Engine environment for caller-held secrets (never argv, never printed).
@@ -45,12 +49,22 @@ var b32 = base32.StdEncoding.WithPadding(base32.NoPadding)
 
 // DeriveTransferSecrets derives both secrets from a Wallet item value.
 func DeriveTransferSecrets(value []byte) (TransferSecrets, error) {
+	return DeriveTransferSecretsForOperation(value, "")
+}
+
+func DeriveTransferSecretsForOperation(value []byte, operationID string) (TransferSecrets, error) {
+	if operationID != "" && !regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`).MatchString(operationID) {
+		return TransferSecrets{}, errors.New("invalid relocation transfer identity")
+	}
 	if len(bytes.TrimSpace(value)) < minTransferSecret {
 		return TransferSecrets{}, fmt.Errorf("the relocation Wallet item holds less than %d bytes; Techstack must deliver a random transfer secret", minTransferSecret)
 	}
 	derive := func(label string) string {
 		m := hmac.New(sha256.New, bytes.TrimSpace(value))
 		m.Write([]byte("kombify.io/stackkit-relocation/" + label))
+		if operationID != "" {
+			m.Write([]byte("\x00" + operationID))
+		}
 		return strings.ToLower(b32.EncodeToString(m.Sum(nil)[:16]))
 	}
 	return TransferSecrets{archiveKey: derive("archive-key"), shareSecret: derive("share-secret")}, nil
@@ -66,6 +80,8 @@ func (s TransferSecrets) shareCode(hostPort string) string {
 
 // SendOptions control the source side of a move.
 type SendOptions struct {
+	ExpectedPlan []byte
+	TransferID   string
 	Selection    Selection
 	File         string // reuse an existing backup made with the same secrets
 	OutputDir    string // where a new backup is written
@@ -75,39 +91,79 @@ type SendOptions struct {
 	TTL          string
 	// Drained is the active drain record, if any: drained resources restore
 	// running on the destination although they are stopped here.
-	Drained string
+	Prepared func(json.RawMessage) error
+	Drained  string
 }
 
 // Send backs up the selection with the derived archive key and shares the
 // file until the destination has downloaded it once.
-func (r *Runner) Send(ctx context.Context, secrets TransferSecrets, opt SendOptions, out io.Writer) error {
+func (r *Runner) Send(ctx context.Context, secrets TransferSecrets, opt SendOptions, out io.Writer) (json.RawMessage, error) {
+	var planPath string
+	if len(opt.ExpectedPlan) > 0 {
+		f, err := os.CreateTemp("", "stackkit-relocation-plan-*.json")
+		if err != nil {
+			return nil, err
+		}
+		planPath = f.Name()
+		defer os.Remove(planPath)
+		if _, err = f.Write(opt.ExpectedPlan); err != nil {
+			f.Close()
+			return nil, err
+		}
+		if err = f.Close(); err != nil {
+			return nil, err
+		}
+	}
 	file := opt.File
 	if file == "" {
 		args, err := opt.Selection.args()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if opt.OutputDir == "" {
-			return errors.New("a backup needs an output directory")
+			return nil, errors.New("a backup needs an output directory")
 		}
 		if err := os.MkdirAll(opt.OutputDir, 0o700); err != nil {
-			return err
+			return nil, err
 		}
 		before, _ := filepath.Glob(filepath.Join(opt.OutputDir, "*.cmb"))
 		backup := []string{"backup", "--output", opt.OutputDir}
+		if planPath != "" {
+			backup = append(backup, "--expected-plan", planPath, "--transfer-id", opt.TransferID)
+		}
 		if opt.Drained != "" {
 			backup = append(backup, "--drained", opt.Drained)
 		}
 		code, err := r.stream(ctx, secrets, []string{envArchiveKey + "=" + secrets.archiveKey}, out,
 			append(backup, args...)...)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if code != 0 {
-			return fmt.Errorf("coolify-mirror backup failed (exit %d)", code)
+			return nil, fmt.Errorf("coolify-mirror backup failed (exit %d)", code)
 		}
 		if file, err = newFile(before, opt.OutputDir); err != nil {
-			return err
+			return nil, err
+		}
+	}
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	h := sha256.New()
+	_, hashErr := io.Copy(h, f)
+	closeErr := f.Close()
+	if hashErr != nil {
+		return nil, hashErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	data := map[string]any{"delivered": false, "archive_name": filepath.Base(file), "transfer_id": opt.TransferID, "plan_sha256": fmt.Sprintf("sha256:%x", sha256.Sum256(opt.ExpectedPlan)), "archive_sha256": fmt.Sprintf("sha256:%x", h.Sum(nil))}
+	prepared, _ := json.Marshal(data)
+	if opt.Prepared != nil {
+		if err := opt.Prepared(prepared); err != nil {
+			return nil, err
 		}
 	}
 	port := opt.Port
@@ -126,37 +182,42 @@ func (r *Runner) Send(ctx context.Context, secrets TransferSecrets, opt SendOpti
 	}
 	code, err := r.stream(ctx, secrets, []string{envArchiveKey + "=" + secrets.archiveKey, envShareSecret + "=" + secrets.shareSecret}, out, args...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if code != 0 {
-		return fmt.Errorf("coolify-mirror serve ended without a complete download (exit %d)", code)
+		return nil, fmt.Errorf("coolify-mirror serve ended without a complete download (exit %d)", code)
 	}
-	return nil
+	data["delivered"] = true
+	raw, err := json.Marshal(data)
+	return raw, err
 }
 
 // ReceiveOptions control the destination side of a move.
 type ReceiveOptions struct {
-	From       string // source HOST[:PORT]
-	OnConflict string // copy or skip
-	NoStart    bool
-	SetDomains []string
+	ReceiptPath  string // node-owned durable engine result, never caller supplied
+	TransferID   string
+	ExpectedPlan []byte // checked secret-free source closure, never credentials
+	From         string // source HOST[:PORT]
+	OnConflict   string // copy or skip
+	NoStart      bool
+	SetDomains   []string
 	// Wait is how long to wait for the source's share to accept connections,
 	// so both sides of a move can start together; 0 tries once.
 	Wait time.Duration
 }
 
 // Receive downloads the shared backup from the source and restores it here.
-func (r *Runner) Receive(ctx context.Context, secrets TransferSecrets, opt ReceiveOptions, out io.Writer) error {
+func (r *Runner) Receive(ctx context.Context, secrets TransferSecrets, opt ReceiveOptions, out io.Writer) (json.RawMessage, error) {
 	hostPort, err := sourceAddress(opt.From)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Flag values are joined with "=": the engine takes the first bare
 	// argument as the restore source, which here comes from the environment.
 	args := []string{"restore", "--yes"}
 	if opt.OnConflict != "" {
 		if opt.OnConflict != "copy" && opt.OnConflict != "skip" {
-			return errors.New("--on-conflict is copy or skip")
+			return nil, errors.New("--on-conflict is copy or skip")
 		}
 		args = append(args, "--on-conflict="+opt.OnConflict)
 	}
@@ -166,18 +227,59 @@ func (r *Runner) Receive(ctx context.Context, secrets TransferSecrets, opt Recei
 	for _, d := range opt.SetDomains {
 		args = append(args, "--set-domain="+d)
 	}
+	var receiptPath string
+	if len(opt.ExpectedPlan) != 0 {
+		if opt.NoStart {
+			return nil, errors.New("a checked relocation requires verified start")
+		}
+		dir, err := os.MkdirTemp("", "stackkit-relocation-")
+		if err != nil {
+			return nil, err
+		}
+		defer os.RemoveAll(dir)
+		planPath := filepath.Join(dir, "expected-plan.json")
+		receiptPath = opt.ReceiptPath
+		if receiptPath == "" {
+			receiptPath = filepath.Join(dir, "restore-receipt.json")
+		} else if err := os.MkdirAll(filepath.Dir(receiptPath), 0o700); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(planPath, opt.ExpectedPlan, 0o600); err != nil {
+			return nil, err
+		}
+		args = append(args, "--expected-plan="+planPath, "--receipt-file="+receiptPath)
+		if opt.TransferID == "" {
+			return nil, errors.New("a checked relocation requires the semantic transfer identity")
+		}
+		args = append(args, "--transfer-id="+opt.TransferID)
+	}
 	if err := waitForShare(ctx, hostPort, opt.Wait); err != nil {
-		return err
+		return nil, err
 	}
 	env := []string{envArchiveKey + "=" + secrets.archiveKey, envSource + "=" + secrets.shareCode(hostPort)}
 	code, err := r.stream(ctx, secrets, env, out, args...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if code != 0 {
-		return fmt.Errorf("coolify-mirror restore failed (exit %d); a restore that had started is rolled back by the engine, details are in its log", code)
+		return nil, fmt.Errorf("coolify-mirror restore failed (exit %d); inspect retained destination state before a retry", code)
 	}
-	return nil
+	if receiptPath == "" {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(receiptPath)
+	if err != nil {
+		return nil, fmt.Errorf("verified restore receipt unavailable: %w", err)
+	}
+	var receipt struct {
+		Format    string                    `json:"format"`
+		Tool      workloadrelocation.Engine `json:"tool"`
+		Resources []json.RawMessage         `json:"resources"`
+	}
+	if len(raw) > 1<<20 || json.Unmarshal(raw, &receipt) != nil || receipt.Format != "kombify.io/coolify-relocation-restore/v1" || receipt.Tool != Pinned || len(receipt.Resources) == 0 {
+		return nil, errors.New("verified restore receipt differs from pinned relocation engine")
+	}
+	return json.RawMessage(raw), nil
 }
 
 // waitForShare waits until the source's share accepts TCP connections: the

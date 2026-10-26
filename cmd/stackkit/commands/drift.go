@@ -208,6 +208,11 @@ func runDriftDetect(cmd *cobra.Command, _ []string) (retErr error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx, releaseAdmission, err := admitCurrentDrift(ctx, getWorkDir(), specFile)
+	if err != nil {
+		return err
+	}
+	defer func() { retErr = errors.Join(retErr, releaseAdmission()) }()
 	observation, err := observeArchitectureV2Drift(ctx, getWorkDir(), specFile)
 	if err != nil {
 		return fmt.Errorf("detect Architecture v2 drift: %w", err)
@@ -266,7 +271,12 @@ func observeCurrentArchitectureV2Drift(
 	ctx context.Context,
 	workspaceRoot string,
 	specPath string,
-) (architectureV2DriftObservation, error) {
+) (_ architectureV2DriftObservation, returnErr error) {
+	ctx, releaseAdmission, err := admitCurrentDrift(ctx, workspaceRoot, specPath)
+	if err != nil {
+		return architectureV2DriftObservation{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, releaseAdmission()) }()
 	options := architectureV2ExecutionCLIOptions{context: ctx, driftObservation: true}
 	var report architectureV2VerifyReport
 	var plan generationartifact.VerifiedPlan

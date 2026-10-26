@@ -36,7 +36,16 @@ var newNativeV2BackupService = func(authority nativeV2BackupAuthority) (nativeV2
 	if err != nil {
 		return nil, err
 	}
-	runtime, err := localbackupruntime.New(authority.WorkspaceRoot, authority.Policy, custody, bindings...)
+	groups, selected, err := nativeRuntipiSnapshotBinding(authority)
+	if err != nil {
+		return nil, err
+	}
+	var runtime *localbackupruntime.Runtime
+	if selected {
+		runtime, err = localbackupruntime.NewWithAppGroupSnapshots(authority.WorkspaceRoot, authority.Policy, custody, groups, bindings...)
+	} else {
+		runtime, err = localbackupruntime.New(authority.WorkspaceRoot, authority.Policy, custody, bindings...)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("initialize native v2 backup runtime: %w", err)
 	}

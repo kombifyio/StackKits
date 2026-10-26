@@ -10,6 +10,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/pocketidruntime"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -124,6 +125,10 @@ func (r *osNativeComposeRuntime) PrepareCompose(ctx context.Context, request Nat
 		return NativeComposePreparation{}, err
 	}
 	moduleRef := request.Target.ModuleRef
+	_, project, ok := NativeComposeProject(moduleRef)
+	if !ok {
+		return NativeComposePreparation{}, errors.New("PocketID transition has no native Core project")
+	}
 	switch {
 	case isBasementCoreModule(moduleRef):
 		if _, err := r.basementProject(request); err != nil {
@@ -136,17 +141,23 @@ func (r *osNativeComposeRuntime) PrepareCompose(ctx context.Context, request Nat
 		if err != nil {
 			return NativeComposePreparation{}, err
 		}
+		if err := pocketidruntime.Prepare(ctx, r.workspaceRoot, project, request.Definition); err != nil {
+			return NativeComposePreparation{}, err
+		}
 		return NativeComposePreparation{moduleRef: moduleRef, originReload: preparation.originReload, browserCAReload: preparation.browserCAReload, recreateServer: preparation.recreateServer}, nil
 	case isCloudCoreModule(moduleRef):
-		operations, project, err := r.cloudProject(request)
+		operations, cloudProject, err := r.cloudProject(request)
 		if err != nil {
 			return NativeComposePreparation{}, err
 		}
 		if err := operations.ready(ctx); err != nil {
 			return NativeComposePreparation{}, err
 		}
-		recreateServer, err := operations.prepareApply(project.Definition)
+		recreateServer, err := operations.prepareApply(cloudProject.Definition)
 		if err != nil {
+			return NativeComposePreparation{}, err
+		}
+		if err := pocketidruntime.Prepare(ctx, r.workspaceRoot, project, request.Definition); err != nil {
 			return NativeComposePreparation{}, err
 		}
 		return NativeComposePreparation{moduleRef: moduleRef, recreateServer: recreateServer}, nil

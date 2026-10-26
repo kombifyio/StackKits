@@ -18,6 +18,7 @@ import (
 	"github.com/kombifyio/stackkits/cmd/stackkit/user"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/rollout"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 	"github.com/spf13/cobra"
 )
@@ -156,6 +157,10 @@ Use stackkit <command> --help for examples and detailed options.`,
 
 // Execute runs the root command
 func Execute() error {
+	if err := runtimeprofile.Boot(); err != nil {
+		fmt.Fprintln(rootCmd.ErrOrStderr(), err)
+		return err
+	}
 	configureCommandGroups()
 	defer func() {
 		closeRolloutRecorder(rollout.Summary{Status: "success"})
@@ -210,6 +215,7 @@ func init() {
 	// Add subcommands
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(newImageCommand())
+	rootCmd.AddCommand(newBundleCommand())
 	rootCmd.AddCommand(prepareCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(planCmd)
@@ -386,8 +392,9 @@ func initRolloutTelemetry(runID string) {
 		NodeID:         firstEnv("STACKKIT_NODE_ID", "STACKKIT_TARGET_NODE_ID"),
 	})
 	if err != nil {
-		printVerbose("otel telemetry disabled: %v", err)
-		return
+		// Only the exporter failed: local tracing is installed and shutdown stays
+		// owned here, so keep both and report that export is unavailable.
+		printVerbose("otel export unavailable, local tracing stays on: %s", telemetry.RedactTelemetryValue(err.Error()))
 	}
 	rolloutOTelRuntime = runtime
 	rolloutOTelShutdown = shutdown
@@ -551,7 +558,7 @@ func closeRolloutRecorder(summary rollout.Summary) {
 }
 
 func recordRolloutSpanEvent(phase, status, message string, attrs map[string]string, err error) {
-	if !rolloutOTelRuntime.Enabled {
+	if rolloutOTelShutdown == nil {
 		return
 	}
 	phase = strings.TrimSpace(phase)
@@ -570,6 +577,8 @@ func recordRolloutSpanEvent(phase, status, message string, attrs map[string]stri
 		if !terminal {
 			rolloutPhaseSpans[phase] = span
 		}
+		// Content-free local-tracing diagnostic from the span that was created.
+		printVerbose("otel rollout span recording=%t export=%t", span.IsRecording(), rolloutOTelRuntime.Enabled)
 	} else {
 		span.AddEvent("rollout."+status, spanAttrs)
 		span.SetAttributes(spanAttrs)
@@ -585,7 +594,7 @@ func recordRolloutSpanEvent(phase, status, message string, attrs map[string]stri
 }
 
 func closeRolloutTelemetry(summary rollout.Summary) {
-	if rolloutOTelRuntime.Enabled {
+	if rolloutOTelShutdown != nil {
 		for phase, span := range rolloutPhaseSpans {
 			spanAttrs := rolloutSpanAttributes(phase, summary.Status, summary.Message, map[string]string{
 				"failure_class": summary.FailureClass,

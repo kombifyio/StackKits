@@ -97,6 +97,7 @@ type RepositoryStatus struct {
 }
 
 type RepositorySnapshotRequest struct {
+	Workloads            []string                           `json:"workloads,omitempty"`
 	OwnerRef             string                             `json:"ownerRef"`
 	AuthorityRef         string                             `json:"authorityRef"`
 	Lineage              AuthorityLineage                   `json:"lineage"`
@@ -127,15 +128,25 @@ type RepositorySnapshotReceipt struct {
 // time. CaptureStartedAt, when present, precedes the first writer stop and
 // provides a conservative age boundary, not application-consistency evidence.
 type SnapshotQuiescence struct {
-	ControlVersion   int                         `json:"controlVersion,omitempty"`
-	Controls         []RuntimeControl            `json:"controls,omitempty"`
-	Phase            string                      `json:"phase"`
-	GraphDigest      string                      `json:"graphDigest,omitempty"`
-	CaptureStartedAt *time.Time                  `json:"captureStartedAt,omitempty"`
-	Containers       []SnapshotQuiescedContainer `json:"containers"`
+	TransferRetirementRequiresCapability bool                        `json:"transferRetirementRequiresCapability,omitempty"`
+	TransferRetirementCapability         []byte                      `json:"transferRetirementCapability,omitempty"`
+	TransferWorkloads                    []string                    `json:"transferWorkloads,omitempty"`
+	TransferHoldID                       string                      `json:"transferHoldId,omitempty"`
+	TransferOutcomeDigest                string                      `json:"transferOutcomeDigest,omitempty"`
+	TransferOutcomeState                 string                      `json:"transferOutcomeState,omitempty"`
+	TransferRetiredSpecHash              string                      `json:"transferRetiredSpecHash,omitempty"`
+	TransferRetirementCandidateHash      string                      `json:"transferRetirementCandidateHash,omitempty"`
+	ControlVersion                       int                         `json:"controlVersion,omitempty"`
+	AppGroups                            []AppGroupControl           `json:"appGroups,omitempty"`
+	Controls                             []RuntimeControl            `json:"controls,omitempty"`
+	Phase                                string                      `json:"phase"`
+	GraphDigest                          string                      `json:"graphDigest,omitempty"`
+	CaptureStartedAt                     *time.Time                  `json:"captureStartedAt,omitempty"`
+	Containers                           []SnapshotQuiescedContainer `json:"containers"`
 }
 
 type SnapshotQuiescedContainer struct {
+	RestartPolicy        string                 `json:"restartPolicy,omitempty"`
 	MarketplaceService   string                 `json:"marketplaceService,omitempty"`
 	MarketplaceComponent string                 `json:"marketplaceComponent,omitempty"`
 	ID                   string                 `json:"id"`
@@ -236,6 +247,7 @@ type StatusInput struct {
 }
 
 type RunInput struct {
+	Workloads       []string         `json:"workloads,omitempty"`
 	OwnerRef        string           `json:"ownerRef"`
 	AuthorityRef    string           `json:"authorityRef"`
 	Lineage         AuthorityLineage `json:"lineage"`
@@ -276,10 +288,11 @@ type DataReadback struct {
 }
 
 type VolumeReadback struct {
-	LiveName string `json:"liveName"`
-	Files    int64  `json:"files"`
-	Bytes    int64  `json:"bytes"`
-	Digest   string `json:"digest"`
+	MetadataDigest string `json:"metadataDigest,omitempty"`
+	LiveName       string `json:"liveName"`
+	Files          int64  `json:"files"`
+	Bytes          int64  `json:"bytes"`
+	Digest         string `json:"digest"`
 }
 
 type RestorePostVerifier func(context.Context, RestoreVerificationRequest) (RestoreVerification, error)
@@ -296,6 +309,7 @@ type RestoreInput struct {
 }
 
 type operationInput struct {
+	Workloads            []string         `json:"workloads,omitempty"`
 	OwnerRef             string           `json:"ownerRef"`
 	AuthorityRef         string           `json:"authorityRef"`
 	Lineage              AuthorityLineage `json:"lineage"`
@@ -306,6 +320,7 @@ type operationInput struct {
 }
 
 type SnapshotAnchor struct {
+	Workloads            []string                                   `json:"workloads,omitempty"`
 	APIVersion           string                                     `json:"apiVersion"`
 	ID                   string                                     `json:"id"`
 	OwnerRef             string                                     `json:"ownerRef"`
@@ -364,12 +379,14 @@ type configurationIntent struct {
 }
 
 type snapshotOperation struct {
-	APIVersion string                                         `json:"apiVersion"`
-	State      string                                         `json:"state"`
-	Input      operationInput                                 `json:"input"`
-	Quiescence *SnapshotQuiescence                            `json:"quiescence,omitempty"`
-	Anchor     *SnapshotAnchor                                `json:"anchor,omitempty"`
-	Signature  *localevidence.OwnerLifecycleMutationSignature `json:"signature,omitempty"`
+	Failure          string                                         `json:"failure,omitempty"`
+	AppGroupClosures []string                                       `json:"appGroupClosures,omitempty"`
+	APIVersion       string                                         `json:"apiVersion"`
+	State            string                                         `json:"state"`
+	Input            operationInput                                 `json:"input"`
+	Quiescence       *SnapshotQuiescence                            `json:"quiescence,omitempty"`
+	Anchor           *SnapshotAnchor                                `json:"anchor,omitempty"`
+	Signature        *localevidence.OwnerLifecycleMutationSignature `json:"signature,omitempty"`
 }
 
 type restoreOperation struct {
@@ -581,7 +598,7 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 	boundInput := operationInput{
 		OwnerRef: configuration.OwnerRef, AuthorityRef: configuration.AuthorityRef,
 		Lineage: configuration.Lineage, PolicyArtifactDigest: configuration.PolicyArtifactDigest,
-		OperationID: input.OperationID, Policy: clonePolicy(configuration.Policy), ProtectRecovery: input.ProtectRecovery,
+		OperationID: input.OperationID, Policy: clonePolicy(configuration.Policy), ProtectRecovery: input.ProtectRecovery, Workloads: append([]string(nil), input.Workloads...),
 	}
 	operationPath := operationDirectory + "/" + operationKey(input.OperationID) + ".json"
 	pending := false
@@ -605,7 +622,15 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 			if !reflect.DeepEqual(stored, *operation.Anchor) {
 				return SnapshotAnchor{}, errors.New("backuplifecycle: completed operation journal differs from its content-addressed snapshot anchor")
 			}
+			if err := s.closeCompletedSnapshotGroups(ctx, operationPath, operation); err != nil {
+				return SnapshotAnchor{}, err
+			}
 			return stored, nil
+		case operation.State == "failed" && operation.Anchor == nil:
+			if err := s.closeFailedSnapshotGroups(ctx, operationPath, operation); err != nil {
+				return SnapshotAnchor{}, err
+			}
+			return SnapshotAnchor{}, ErrAppGroupFailed
 		case operation.State == "pending" && operation.Anchor == nil:
 			pending, pendingOperation = true, operation
 		default:
@@ -618,7 +643,7 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 		return SnapshotAnchor{}, err
 	}
 
-	request, err := snapshotRequest(configuration, input.OperationID)
+	request, err := snapshotRequest(configuration, input.OperationID, input.Workloads...)
 	if err != nil {
 		return SnapshotAnchor{}, err
 	}
@@ -646,12 +671,12 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 		}
 		snapshot, quiesceErr := quiescedRuntime.CreateSnapshotWithQuiescence(ctx, request, quiescence, persistQuiescence)
 		if quiesceErr != nil {
-			return SnapshotAnchor{}, fmt.Errorf("backuplifecycle: create repository snapshot: %w", quiesceErr)
+			return SnapshotAnchor{}, errors.Join(fmt.Errorf("backuplifecycle: create repository snapshot: %w", quiesceErr), s.settleFailedSnapshot(ctx, operationPath, boundInput))
 		}
 		if err := validateSnapshotReceipt(snapshot, request); err != nil {
 			return SnapshotAnchor{}, err
 		}
-		return s.completeSnapshot(operationPath, boundInput, configuration.Repository, snapshot, true)
+		return s.completeSnapshot(ctx, operationPath, boundInput, configuration.Repository, snapshot, true)
 	}
 	if pending {
 		snapshot, found, lookupErr := s.runtime.LookupSnapshot(ctx, request)
@@ -662,7 +687,7 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 			if err := validateSnapshotReceipt(snapshot, request); err != nil {
 				return SnapshotAnchor{}, err
 			}
-			return s.completeSnapshot(operationPath, boundInput, configuration.Repository, snapshot, false)
+			return s.completeSnapshot(ctx, operationPath, boundInput, configuration.Repository, snapshot, false)
 		}
 	}
 
@@ -687,12 +712,12 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 		snapshot, err = s.runtime.CreateSnapshot(ctx, request)
 	}
 	if err != nil {
-		return SnapshotAnchor{}, fmt.Errorf("backuplifecycle: create repository snapshot: %w", err)
+		return SnapshotAnchor{}, errors.Join(fmt.Errorf("backuplifecycle: create repository snapshot: %w", err), s.settleFailedSnapshot(ctx, operationPath, boundInput))
 	}
 	if err := validateSnapshotReceipt(snapshot, request); err != nil {
 		return SnapshotAnchor{}, err
 	}
-	return s.completeSnapshot(operationPath, boundInput, configuration.Repository, snapshot, supportsQuiescence)
+	return s.completeSnapshot(ctx, operationPath, boundInput, configuration.Repository, snapshot, supportsQuiescence)
 }
 
 // Restore verifies one owner-signed snapshot anchor, stages its complete
@@ -1016,6 +1041,7 @@ func (s *Service) completeRestore(
 }
 
 func (s *Service) completeSnapshot(
+	ctx context.Context,
 	operationPath string,
 	input operationInput,
 	repository RepositoryReceipt,
@@ -1043,7 +1069,7 @@ func (s *Service) completeSnapshot(
 		APIVersion: snapshotAnchorAPIVersion,
 		OwnerRef:   input.OwnerRef, AuthorityRef: input.AuthorityRef,
 		Lineage: input.Lineage, PolicyArtifactDigest: input.PolicyArtifactDigest,
-		OperationID: input.OperationID, Policy: clonePolicy(input.Policy), ProtectRecovery: input.ProtectRecovery,
+		OperationID: input.OperationID, Policy: clonePolicy(input.Policy), ProtectRecovery: input.ProtectRecovery, Workloads: append([]string(nil), input.Workloads...),
 		Quiescence: quiescence,
 		Repository: repository, Snapshot: snapshot,
 	}
@@ -1086,6 +1112,13 @@ func (s *Service) completeSnapshot(
 		APIVersion: snapshotOperationAPI, State: "completed",
 		Input: cloneOperationInput(input), Quiescence: quiescence, Anchor: &anchor,
 	}); err != nil {
+		return SnapshotAnchor{}, err
+	}
+	completed, err := s.loadOperation(operationPath)
+	if err != nil {
+		return SnapshotAnchor{}, err
+	}
+	if err = s.closeCompletedSnapshotGroups(ctx, operationPath, completed); err != nil {
 		return SnapshotAnchor{}, err
 	}
 	return anchor, nil
@@ -1534,6 +1567,15 @@ func (s *Service) loadOperation(relative string) (snapshotOperation, error) {
 			return snapshotOperation{}, err
 		}
 	}
+	if operation.State == "failed" && (operation.Failure != "SNAPSHOT_FAILED_AFTER_SETTLEMENT" || operation.Anchor != nil || operation.Quiescence == nil || operation.Quiescence.ControlVersion != 2 || validateRestoredSnapshotQuiescence(*operation.Quiescence) != nil) {
+		return snapshotOperation{}, errors.New("negative snapshot completion invalid")
+	}
+	if operation.State != "failed" && operation.Failure != "" {
+		return snapshotOperation{}, errors.New("snapshot failure marker differs from phase")
+	}
+	if err := validateSnapshotGroupClosures(operation); err != nil {
+		return snapshotOperation{}, err
+	}
 	if err := verifySnapshotOperation(s.workspaceRoot, operation); err != nil {
 		return snapshotOperation{}, err
 	}
@@ -1654,6 +1696,32 @@ func (s *Service) persistSnapshotQuiescence(
 	if err := validateSnapshotQuiescence(quiescence); err != nil {
 		return err
 	}
+	if quiescence.ControlVersion == 2 {
+		for _, g := range quiescence.AppGroups {
+			if g.Binding.OwnerRef != input.OwnerRef || g.Binding.JournalOperationID != input.OperationID {
+				return errors.New("snapshot group differs from owning operation")
+			}
+		}
+		old, err := s.loadOperation(operationPath)
+		if err != nil {
+			return err
+		}
+		if old.State != "pending" || old.Anchor != nil || !operationInputsEqual(old.Input, input) {
+			return errors.New("snapshot group journal is terminal or intent changed")
+		}
+		source, err := localbackuppolicy.SourceDigest(input.Policy.SourceProjection())
+		if err != nil {
+			return err
+		}
+		for _, g := range quiescence.AppGroups {
+			if g.Binding.PolicySourceDigest != source || !reflect.DeepEqual(g.Binding.AuthorityLineage, input.Lineage) {
+				return errors.New("group policy source/lineage differs from owning signed input")
+			}
+		}
+		if old.Quiescence != nil && len(old.Quiescence.AppGroups) > 0 && !reflect.DeepEqual(old.Quiescence.AppGroups, quiescence.AppGroups) && !ValidAppGroupTransition(old.Quiescence.AppGroups, quiescence.AppGroups) {
+			return errors.New("snapshot group lineage/handle changed outside one journal phase")
+		}
+	}
 	cloned := cloneSnapshotQuiescence(quiescence)
 	return s.writeSnapshotOperation(operationPath, snapshotOperation{
 		APIVersion: snapshotOperationAPI,
@@ -1707,8 +1775,19 @@ func canonicalSnapshotOperation(operation snapshotOperation) ([]byte, error) {
 }
 
 func validateSnapshotQuiescence(quiescence SnapshotQuiescence) error {
-	if quiescence.ControlVersion != 0 && quiescence.ControlVersion != 1 {
+	if err := validateApplicationTransferRetirementRecordShape(quiescence); err != nil {
+		return err
+	}
+	if quiescence.ControlVersion != 0 && quiescence.ControlVersion != 1 && quiescence.ControlVersion != 2 {
 		return errors.New("backuplifecycle: unsupported runtime control protocol")
+	}
+	if quiescence.ControlVersion != 2 && len(quiescence.AppGroups) != 0 {
+		return errors.New("app groups require explicit v2 snapshot control")
+	}
+	if quiescence.ControlVersion == 2 {
+		if err := validateSnapshotAppGroups(quiescence); err != nil {
+			return err
+		}
 	}
 	if quiescence.ControlVersion == 0 && len(quiescence.Controls) != 0 {
 		return errors.New("backuplifecycle: runtime controls require their explicit protocol")
@@ -1717,6 +1796,18 @@ func validateSnapshotQuiescence(quiescence SnapshotQuiescence) error {
 		return err
 	}
 	switch quiescence.Phase {
+	case "resuming":
+		if quiescence.ControlVersion != 2 {
+			return errors.New("resuming requires v2 app-group control")
+		}
+	case "transfer-aborted":
+		if !validDigest(quiescence.TransferHoldID) || !validDigest(quiescence.TransferOutcomeDigest) || quiescence.TransferOutcomeState != "stopped" || !validDigest(quiescence.TransferRetiredSpecHash) {
+			return errors.New("target abort retirement lacks exact stopped outcome and retained-data intent CAS")
+		}
+	case "transfer-retired":
+		if !validDigest(quiescence.TransferHoldID) || !validDigest(quiescence.TransferOutcomeDigest) || quiescence.TransferOutcomeState != "activated" || !validDigest(quiescence.TransferRetiredSpecHash) {
+			return errors.New("transfer retirement lacks authenticated destination outcome and retained-data intent CAS")
+		}
 	case "prepared", "stopped", "snapshot-created", "restored":
 	default:
 		return errors.New("backuplifecycle: snapshot quiescence phase is invalid")
@@ -1737,7 +1828,7 @@ func validateSnapshotQuiescence(quiescence SnapshotQuiescence) error {
 		}
 		seen[container.ID] = struct{}{}
 		if container.MarketplaceService != "" || container.MarketplaceComponent != "" {
-			if container.MarketplaceService == "" || container.MarketplaceComponent == "" || container.ComposeProject != "" || quiescence.ControlVersion != 1 || quiescence.GraphDigest == "" {
+			if container.MarketplaceService == "" || container.MarketplaceComponent == "" || container.ComposeProject != "" || (quiescence.ControlVersion != 1 && quiescence.ControlVersion != 2) || quiescence.GraphDigest == "" {
 				return errors.New("backuplifecycle: upstream Store control has no exact source identity")
 			}
 		}
@@ -1755,8 +1846,8 @@ func validateSnapshotQuiescence(quiescence SnapshotQuiescence) error {
 			return fmt.Errorf("backuplifecycle: snapshot quiescence container %q has no mount identity", container.ID)
 		}
 	}
-	if quiescence.ControlVersion == 1 {
-		if len(quiescence.Controls) != len(quiescence.Containers) {
+	if quiescence.ControlVersion == 1 || quiescence.ControlVersion == 2 {
+		if quiescence.ControlVersion == 1 && len(quiescence.Controls) != len(quiescence.Containers) {
 			return errors.New("backuplifecycle: initial power/control identity set is incomplete")
 		}
 		for _, control := range quiescence.Controls {
@@ -1794,11 +1885,18 @@ func validateRestoredSnapshotQuiescence(quiescence SnapshotQuiescence) error {
 
 func cloneSnapshotQuiescence(quiescence SnapshotQuiescence) SnapshotQuiescence {
 	cloned := SnapshotQuiescence{
-		ControlVersion: quiescence.ControlVersion,
-		Controls:       append([]RuntimeControl(nil), quiescence.Controls...),
-		Phase:          quiescence.Phase,
-		GraphDigest:    quiescence.GraphDigest,
-		Containers:     make([]SnapshotQuiescedContainer, len(quiescence.Containers)),
+		TransferRetirementRequiresCapability: quiescence.TransferRetirementRequiresCapability,
+		TransferRetirementCapability:         append([]byte(nil), quiescence.TransferRetirementCapability...),
+		TransferWorkloads:                    append([]string(nil), quiescence.TransferWorkloads...),
+		TransferHoldID:                       quiescence.TransferHoldID, TransferOutcomeDigest: quiescence.TransferOutcomeDigest, TransferOutcomeState: quiescence.TransferOutcomeState,
+		TransferRetiredSpecHash:         quiescence.TransferRetiredSpecHash,
+		TransferRetirementCandidateHash: quiescence.TransferRetirementCandidateHash,
+		ControlVersion:                  quiescence.ControlVersion,
+		AppGroups:                       CloneAppGroups(quiescence.AppGroups),
+		Controls:                        append([]RuntimeControl(nil), quiescence.Controls...),
+		Phase:                           quiescence.Phase,
+		GraphDigest:                     quiescence.GraphDigest,
+		Containers:                      make([]SnapshotQuiescedContainer, len(quiescence.Containers)),
 	}
 	if quiescence.CaptureStartedAt != nil {
 		startedAt := *quiescence.CaptureStartedAt
@@ -1806,6 +1904,7 @@ func cloneSnapshotQuiescence(quiescence SnapshotQuiescence) SnapshotQuiescence {
 	}
 	for index, container := range quiescence.Containers {
 		cloned.Containers[index] = SnapshotQuiescedContainer{
+			RestartPolicy:      container.RestartPolicy,
 			MarketplaceService: container.MarketplaceService, MarketplaceComponent: container.MarketplaceComponent,
 			ID: container.ID, Name: container.Name, WasRunning: container.WasRunning,
 			WorkloadRef: container.WorkloadRef, SiteRef: container.SiteRef, NodeRef: container.NodeRef,
@@ -1838,6 +1937,9 @@ func configurationIntentPath(operationID string) string {
 	return configurationIntentDirectory + "/" + strings.TrimPrefix(operationID, "sha256:") + ".json"
 }
 
+// ValidateSnapshotOperationID preserves the public snapshot/recovery identity
+// domain. Native group UUIDs and restore activation IDs have separate owners.
+func ValidateSnapshotOperationID(value string) bool { return validOperationID(value) }
 func validOperationID(value string) bool {
 	if len(value) == 0 || len(value) > 128 || !isOperationAlphaNumeric(value[0]) {
 		return false
@@ -1917,6 +2019,9 @@ func validateSnapshotReceipt(receipt RepositorySnapshotReceipt, request Reposito
 }
 
 func validateRestoreSource(configuration Configuration, anchor SnapshotAnchor) error {
+	if len(anchor.Workloads) > 0 {
+		return errors.New("application-scoped safety snapshot requires its selected activation recovery; whole-node restore is denied")
+	}
 	if anchor.OwnerRef != configuration.OwnerRef ||
 		anchor.Repository.RepositoryID != configuration.Repository.RepositoryID ||
 		anchor.Policy.StackID != configuration.Policy.StackID ||
@@ -2038,7 +2143,7 @@ func repositoryRestoreRequestFromRecovery(
 }
 
 func snapshotRequestFromAnchor(anchor SnapshotAnchor) (RepositorySnapshotRequest, error) {
-	sources, err := anchor.Policy.SnapshotSources()
+	sources, err := anchor.Policy.ApplicationSnapshotSources(anchor.Workloads)
 	if err != nil {
 		return RepositorySnapshotRequest{}, err
 	}
@@ -2047,11 +2152,11 @@ func snapshotRequestFromAnchor(anchor SnapshotAnchor) (RepositorySnapshotRequest
 		Lineage: anchor.Lineage, PolicyArtifactDigest: anchor.PolicyArtifactDigest,
 		RepositoryID:    anchor.Repository.RepositoryID,
 		OperationID:     anchor.OperationID,
-		ProtectRecovery: anchor.ProtectRecovery,
-		Source:          anchor.Policy.Source.ContainerPath,
-		Excludes:        append([]string(nil), anchor.Policy.Source.ExcludePaths...),
-		Consistency:     ConsistencyCrashConsistent,
-		Sources:         sources,
+		ProtectRecovery: anchor.ProtectRecovery, Workloads: append([]string(nil), anchor.Workloads...),
+		Source:      anchor.Policy.Source.ContainerPath,
+		Excludes:    append([]string(nil), anchor.Policy.Source.ExcludePaths...),
+		Consistency: ConsistencyCrashConsistent,
+		Sources:     sources,
 	}, nil
 }
 
@@ -2167,12 +2272,13 @@ func operationInputsEqual(left, right operationInput) bool {
 		left.AuthorityRef == right.AuthorityRef &&
 		lineagesEqual(left.Lineage, right.Lineage) &&
 		left.PolicyArtifactDigest == right.PolicyArtifactDigest &&
-		left.OperationID == right.OperationID && left.ProtectRecovery == right.ProtectRecovery &&
+		left.OperationID == right.OperationID && left.ProtectRecovery == right.ProtectRecovery && reflect.DeepEqual(left.Workloads, right.Workloads) &&
 		policiesEqual(left.Policy, right.Policy)
 }
 
 func cloneOperationInput(input operationInput) operationInput {
 	input.Policy = clonePolicy(input.Policy)
+	input.Workloads = append([]string(nil), input.Workloads...)
 	return input
 }
 
@@ -2182,7 +2288,7 @@ func anchorMatchesOperation(anchor SnapshotAnchor, operation snapshotOperation) 
 		anchor.AuthorityRef == input.AuthorityRef &&
 		lineagesEqual(anchor.Lineage, input.Lineage) &&
 		anchor.PolicyArtifactDigest == input.PolicyArtifactDigest &&
-		anchor.OperationID == input.OperationID && anchor.ProtectRecovery == input.ProtectRecovery &&
+		anchor.OperationID == input.OperationID && anchor.ProtectRecovery == input.ProtectRecovery && reflect.DeepEqual(anchor.Workloads, input.Workloads) &&
 		policiesEqual(anchor.Policy, input.Policy) &&
 		snapshotQuiescencePointersEqual(anchor.Quiescence, operation.Quiescence)
 }
@@ -2199,8 +2305,8 @@ func configurationOperationID(configuration RepositoryConfiguration) string {
 	return digestJSON(configuration)
 }
 
-func snapshotRequest(configuration Configuration, operationID string) (RepositorySnapshotRequest, error) {
-	sources, err := configuration.Policy.SnapshotSources()
+func snapshotRequest(configuration Configuration, operationID string, workloads ...string) (RepositorySnapshotRequest, error) {
+	sources, err := configuration.Policy.ApplicationSnapshotSources(workloads)
 	if err != nil {
 		return RepositorySnapshotRequest{}, err
 	}
@@ -2211,7 +2317,7 @@ func snapshotRequest(configuration Configuration, operationID string) (Repositor
 		Source:      configuration.Policy.Source.ContainerPath,
 		Excludes:    append([]string(nil), configuration.Policy.Source.ExcludePaths...),
 		Consistency: ConsistencyCrashConsistent,
-		Sources:     sources,
+		Sources:     sources, Workloads: append([]string(nil), workloads...),
 	}, nil
 }
 

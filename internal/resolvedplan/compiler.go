@@ -533,6 +533,13 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if notifications != nil {
 		plan["notifications"] = notifications
 	}
+	// Preserve the canonical profile record without adding defaults to older
+	// Standard specs. These fields participate in the resolved plan hash.
+	for _, key := range []string{"dataProfile", "edition", "loc", "offlineBundle"} {
+		if value, exists := spec.originalSpec[key]; exists {
+			plan[key] = value
+		}
+	}
 	return c.finalizePlan(plan, spec, resolved, resolvedBridge)
 }
 

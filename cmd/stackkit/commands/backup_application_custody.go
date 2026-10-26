@@ -17,12 +17,15 @@ import (
 // nativeBackupApplicationCustody uses the same signed-Apply bundle selector as
 // application setup, then the existing runtime adapter's persisted Compose
 // observation. The backup engine receives no artifact path or daemon choice.
-func nativeBackupApplicationCustody(authority nativeV2BackupAuthority) (backupexec.ApplicationContainerCustodyVerifier, error) {
-	deployments, err := nativeBackupApplicationDeployments(authority)
+func nativeBackupApplicationCustody(authority nativeV2BackupAuthority, selected ...[]localbackuppolicy.ApplicationRuntime) (backupexec.ApplicationContainerCustodyVerifier, error) {
+	deployments, err := nativeBackupApplicationDeployments(authority, selected...)
 	if err != nil {
 		return nil, err
 	}
 	runtimes := authority.Policy.SourceProjection().ApplicationRuntimes
+	if len(selected) > 0 {
+		runtimes = selected[0]
+	}
 	if len(runtimes) == 0 {
 		return nil, nil
 	}
@@ -41,6 +44,9 @@ func nativeBackupApplicationCustody(authority nativeV2BackupAuthority) (backupex
 			return nativehost.ObserveMarketplaceContainerCustody(ctx, authority.WorkspaceRoot, d)
 		}
 		deployment := deployments[requested.ComposeProject]
+		if deployment.RuntimeAdapter.ID == "runtipi" {
+			return nil, errors.New("Runtipi container generations require the signed app-group controller")
+		}
 		if deployment.RuntimeAdapter.ID == "coolify" {
 			return nativehost.ObserveCoolifyContainerCustody(ctx, authority.WorkspaceRoot, deployment)
 		}
@@ -54,8 +60,11 @@ func nativeBackupApplicationCustody(authority nativeV2BackupAuthority) (backupex
 // nativeBackupApplicationDeployments selects each application bundle from the
 // signed Apply authority and checks it against the held source graph. Restore
 // verification and source custody therefore use one exact deployment map.
-func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[string]nativehost.SelectedPaaSWorkloadDeployment, error) {
+func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority, selected ...[]localbackuppolicy.ApplicationRuntime) (map[string]nativehost.SelectedPaaSWorkloadDeployment, error) {
 	runtimes := authority.Policy.SourceProjection().ApplicationRuntimes
+	if len(selected) > 0 {
+		runtimes = selected[0]
+	}
 	if len(runtimes) == 0 {
 		return nil, nil
 	}
@@ -87,6 +96,13 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 		}
 		if err != nil {
 			return nil, err
+		}
+		adapter := graph.RuntimeAdapterRef
+		if adapter == "" {
+			adapter = "standalone-compose"
+		}
+		if deployment.RuntimeAdapter.ID != adapter {
+			return nil, errors.New("backup graph adapter differs from the signed Apply workload")
 		}
 		bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(deployment.Bundle)
 		if err != nil {
@@ -121,12 +137,26 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority) (map[
 	return deployments, nil
 }
 
-func verifyNativeV2BackupApplications(ctx context.Context, authority nativeV2BackupAuthority) error {
+func verifyNativeV2BackupApplications(ctx context.Context, authority nativeV2BackupAuthority, activationScope ...nativeRestoreActivationScope) error {
+	return verifyNativeV2SelectedApplications(ctx, authority, nil, activationScope...)
+}
+
+func verifyNativeV2SelectedApplications(ctx context.Context, authority nativeV2BackupAuthority, selected []localbackuppolicy.ApplicationRuntime, activationScope ...nativeRestoreActivationScope) error {
+	if len(activationScope) > 1 {
+		return errors.New("application verification has ambiguous activation scope")
+	}
+	var scope nativeRestoreActivationScope
+	if len(activationScope) == 1 {
+		scope = activationScope[0]
+	}
 	runtimes := authority.Policy.SourceProjection().ApplicationRuntimes
+	if selected != nil {
+		runtimes = selected
+	}
 	if len(runtimes) == 0 {
 		return nil
 	}
-	deployments, err := nativeBackupApplicationDeployments(authority)
+	deployments, err := nativeBackupApplicationDeployments(authority, runtimes)
 	if err != nil {
 		return err
 	}
@@ -159,6 +189,21 @@ func verifyNativeV2BackupApplications(ctx context.Context, authority nativeV2Bac
 		deployment, exists := deployments[graph.ComposeProject]
 		if !exists {
 			return errors.New("selected application restore verifier has no exact signed deployment")
+		}
+		if deployment.RuntimeAdapter.ID == "runtipi" {
+			var err error
+			if scope.WorkloadRef == graph.WorkloadRef && scope.MarketplaceService == "" {
+				if scope.OperationID == "" {
+					return errors.New("Runtipi restore verification requires its exact signed activation operation")
+				}
+				err = nativeRuntipiRestoreReadback(ctx, authority, deployment, graph, scope.OperationID)
+			} else {
+				err = nativeRuntipiCurrentReadback(ctx, authority, deployment)
+			}
+			if err != nil {
+				return err
+			}
+			continue
 		}
 		var selectedOperations interface {
 			ObserveWorkload(context.Context, nativehost.SelectedPaaSWorkloadDeployment) (nativehost.SelectedPaaSWorkloadObservation, error)

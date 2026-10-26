@@ -130,6 +130,12 @@ Package: foundation.#UseCasePackage & {
 			rationale:  "Model-router capability module: LiteLLM without a database gives the owner's apps and devices one OpenAI-compatible endpoint for the node's Ollama models; every model route needs the master key from owner custody, the admin UI is off, and the route is local or remote-private, never public."
 			capabilities: ["model-routing"]
 		}
+		qdrant: {
+			moduleSlug: "qdrant"
+			role:       "supporting"
+			rationale:  "Vector-store capability module: Qdrant (Apache-2.0) on the private AI network as the chat module's knowledge-base store instead of its built-in one, guarded by an API key from owner custody; collections live in a backed-up volume, no egress, never public."
+			capabilities: ["vector-store"]
+		}
 	}
 	setup: {
 		defaultPolicy: "on_demand"

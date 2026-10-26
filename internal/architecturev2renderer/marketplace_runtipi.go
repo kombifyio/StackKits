@@ -16,9 +16,9 @@ const RuntipiRelease = "v4.10.2"
 const RuntipiCLIArchiveSHA256 = "77c618daaa4e65eb5dd4f9bb6ee192a345afc4b52a3e5d2e50d30d7e00c3ad64"
 const marketplaceRuntipiSchema = "stackkit.marketplace-runtipi/v1|runtipi4.10.2|node-local|cli:release-sha256|images:catalog-bound|proxy:kit-router|api:loopback|custody:encrypted-local-owner|readiness:operator,closed-registration|provider-lifecycle:not-owned"
 
-// MarketplaceRuntipiDocument prepares a node-owned upstream installation. Its
-// renderer and factory are intentionally absent from the active product registry
-// until the real application lifecycle has been qualified.
+// MarketplaceRuntipiDocument describes a node-owned upstream installation. Its
+// renderer and owner are registered for the explicit, non-default Marketplace
+// alternative; qualification still requires a current-pin test-window receipt.
 type MarketplaceRuntipiDocument struct {
 	APIVersion      string                             `json:"apiVersion"`
 	Kind            string                             `json:"kind"`
@@ -44,8 +44,8 @@ func MarketplaceRuntipiRendererContract() RendererContract {
 	return RendererContract{Kind: "native-config", RendererRef: "stackkit", TemplateRef: "builtin://workloads/marketplace/runtipi-installation/v1.json", Version: "1.0.0", ContractHash: "sha256:" + hex.EncodeToString(hash[:])}
 }
 
-// RegisterPreparedRuntipiRenderers is an explicit preparation hook, not called
-// by the default registry. Merely compiling these renderers admits no selection.
+// RegisterPreparedRuntipiRenderers registers the Marketplace renderer and the
+// still-prepared adapter renderer for explicit opt-in callers; the product registry registers only the Marketplace renderer.
 func RegisterPreparedRuntipiRenderers(registry *Registry) error {
 	if registry == nil {
 		return errors.New("Runtipi preparation requires a renderer registry")

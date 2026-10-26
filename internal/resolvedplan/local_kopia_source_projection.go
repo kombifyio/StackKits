@@ -28,7 +28,7 @@ func localKopiaRenderInputTarget(unit map[string]any, path string) (moduleRender
 }
 
 // localKopiaBackupSourceProjection is the compiler-owned public projection of
-// all backup-enabled Standalone-Compose application allocations. Placement and
+// all backup-enabled application allocations admitted to a lifecycle owner. Placement and
 // volume identity are retained in every record; the renderer later narrows the
 // aggregate logical value to its exact node-local instance. Runtime graphs are
 // copied from the already-resolved module contracts; they are never inferred
@@ -173,7 +173,7 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 				return nil, nil, fmt.Errorf("native Marketplace backup cannot acquire a workload adapter")
 			}
 			adapterRef = adapterID
-			if adapterID != "standalone-compose" && adapterID != "coolify" && adapterID != "komodo" {
+			if adapterID != "standalone-compose" && adapterID != "coolify" && adapterID != "komodo" && adapterID != "runtipi" {
 				continue
 			}
 		}
@@ -193,6 +193,9 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 				continue
 			}
 		}
+		// Runtipi source selection reaches its separate native group factory.
+		// The catalog's support row stays unchanged; effect admission requires
+		// exact retained source/image/helper qualification and signed custody.
 		siteRefs, err := stringListField(workload, path, "siteRefs", true)
 		if err != nil {
 			return nil, nil, err
@@ -233,7 +236,7 @@ func localKopiaApplicationProjection(nodeSites map[string]string, workloads, mod
 			}
 			runtimes = append(runtimes, localbackuppolicy.ApplicationRuntime{
 				RuntimeAdapterRef: func() string {
-					if adapterRef == "coolify" || adapterRef == "komodo" {
+					if adapterRef == "coolify" || adapterRef == "komodo" || adapterRef == "runtipi" {
 						return adapterRef
 					}
 					return ""

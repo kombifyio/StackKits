@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -155,7 +156,7 @@ func writeJSON(path string, v any) error {
 		_, err = os.Stdout.Write(out)
 		return err
 	}
-	return os.WriteFile(path, out, 0o600)
+	return writeDrainRecord(path, v, false)
 }
 
 func printList(label string, items []string) {
@@ -178,6 +179,7 @@ func selectResourcesQuiet(rs []coolify.Resource, all bool, projects, domains, uu
 
 func cmdDrain(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("drain", flag.ContinueOnError)
+	transferID := fs.String("transfer-id", "", "")
 	planPath := fs.String("plan", "", "")
 	output := fs.String("output", "", "")
 	asJSON := fs.Bool("json", false, "")
@@ -186,6 +188,9 @@ func cmdDrain(ctx context.Context, args []string) error {
 	}
 	if *planPath == "" {
 		return errors.New("drain needs --plan FILE, made by `coolify-mirror plan --json` on this server")
+	}
+	if *output == "" {
+		return errors.New("drain requires --output for durable recovery intent")
 	}
 	p, err := readPlan(*planPath)
 	if err != nil {
@@ -198,10 +203,31 @@ func cmdDrain(ctx context.Context, args []string) error {
 	if compat := engine.CheckCompat(ctx, in); len(compat.Blockers) > 0 {
 		return errors.New(strings.Join(compat.Blockers, "; "))
 	}
-	rec, err := engine.Drain(ctx, in, p)
+	planRaw, err := os.ReadFile(*planPath)
+	if err != nil {
+		return err
+	}
+	initial := true
+	persist := func(rec *engine.DrainRecord) error {
+		rec.PlanSHA256, rec.TransferID = fmt.Sprintf("sha256:%x", sha256.Sum256(planRaw)), *transferID
+		if initial {
+			if _, err := os.Stat(*output + ".resumed"); err == nil {
+				return errors.New("this transfer was permanently resumed; late source drains are refused")
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			if err := writeDrainIntent(*output, rec); err != nil {
+				return err
+			}
+			initial = false
+			return nil
+		}
+		return writeDrainRecord(*output, rec, false)
+	}
+	rec, err := engine.Drain(ctx, in, p, persist)
 	if rec != nil && *output != "" {
 		// The record is written even for a partial drain: undrain needs it.
-		if werr := writeJSON(*output, rec); werr != nil && err == nil {
+		if werr := persist(rec); werr != nil && err == nil {
 			err = werr
 		}
 	}

@@ -240,12 +240,20 @@ const (
 	publicTLSContractModuleRef   = "stackkits-public-tls-contract"
 )
 
-// ownerExecutionRank keeps owner execution deterministic while ordering the
-// certificate verification after the workload owners it observes. Both leaf
-// contracts sort before Vault's workload requirement, so lexical order alone
-// probes a route that its owner has not yet published.
+// ownerExecutionRank keeps owner execution deterministic while ordering
+// dependent owners after the owners they need:
+//   - workloads executed through a Marketplace platform adapter (Coolify)
+//     run after the Marketplace installation that holds the platform recipe;
+//     "stackkits-immich-runtime" sorts before the Marketplace module, so
+//     lexical order alone deployed Photos before Coolify existed;
+//   - certificate verification runs after the workload owners it observes.
+//     Both leaf contracts sort before Vault's workload requirement, so lexical
+//     order alone probes a route that its owner has not yet published.
 func ownerExecutionRank(target runtimeexecutor.RuntimeTarget) int {
 	if target.ModuleRef == internalPKIContractModuleRef || target.ModuleRef == publicTLSContractModuleRef {
+		return 2
+	}
+	if target.RuntimeAdapter != nil && target.RuntimeAdapter.ID == "coolify" {
 		return 1
 	}
 	return 0

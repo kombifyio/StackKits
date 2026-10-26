@@ -25,3 +25,9 @@ func NewProductDoclingSelectedPaaSRegistration(runtimeVersion, runtimeAdapterRef
 func NewProductLitellmSelectedPaaSRegistration(runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string, operations nativehost.SelectedPaaSWorkloadOperations) (ProductRuntimeOwnerRegistration, error) {
 	return newProductApplicationSelectedPaaSRegistration(nativehost.SelectedPaaSApplicationLitellm, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations)
 }
+
+// NewProductQdrantSelectedPaaSRegistration binds the Qdrant alternative of the
+// ai-vectors workload to the shared selected application executor.
+func NewProductQdrantSelectedPaaSRegistration(runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef string, operations nativehost.SelectedPaaSWorkloadOperations) (ProductRuntimeOwnerRegistration, error) {
+	return newProductApplicationSelectedPaaSRegistration(nativehost.SelectedPaaSApplicationQdrant, runtimeVersion, runtimeAdapterRef, runtimeAdapterModuleRef, operations)
+}

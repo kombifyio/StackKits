@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-10-22T18:38:56Z",
+  "generated_at": "2026-10-26T13:20:41Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1802,6 +1802,19 @@
       "layer": "L3-application",
       "description": "Pterodactyl Panel and Wings upstream catalog. The native-v2 game workload owns executable configuration, owner bootstrap and the governed Wings lifecycle-owner approval (ADR-0043).",
       "contract_hash": "6f89d7a3d91adb48cb834a4c06b6b40eea299983919dd8a7f09a6f8b04d70017",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
+      "slug": "qdrant",
+      "display_name": "Qdrant",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Qdrant vector store for the chat module's knowledge base on the private AI network: collections persist in a backed-up volume, every request needs the API key from owner custody, no egress and no route.",
+      "contract_hash": "b6a111ef2a52f2573c39dc19f91a4f5896729881d759324067aa5f25cec9dda8",
       "supported_contexts": [
         "local",
         "cloud",

@@ -146,6 +146,7 @@ type standaloneComposeVolumeCustody struct {
 	Project              string                                `json:"project"`
 	WorkingDir           string                                `json:"workingDir"`
 	EntryContainerID     string                                `json:"entryContainerId"`
+	AppGroupLineage      *runtipiVolumeCustodyLineage          `json:"appGroupLineage,omitempty"`
 	Volumes              []standaloneComposeVolumeCustodyEntry `json:"volumes"`
 }
 
@@ -565,8 +566,20 @@ func (r standaloneComposeRemover) admitOwnedVolumes(
 		return nil, err
 	}
 	if err == nil {
+		if existing.AppGroupLineage != nil {
+			current := currentRuntipiCustody(existing)
+			allowed := map[string]string{}
+			for _, c := range current.Containers {
+				allowed[c.ComponentRef] = c.ID
+			}
+			for _, c := range present {
+				if allowed[c.Service] != c.ID {
+					return nil, errors.New("removal sees unauthorized app-group successor")
+				}
+			}
+		}
 		for _, container := range present {
-			if container.Service == project.bundle.EntryComponent && container.ID != existing.EntryContainerID {
+			if container.Service == project.bundle.EntryComponent && container.ID != runtipiCustodyEntry(existing, false) {
 				return nil, errors.New("entry container differs from the original removal custody")
 			}
 		}
@@ -719,7 +732,7 @@ func mountedMatchesCustody(mounted map[string]dockerVolumeInspect, custody stand
 	}
 	for key, inspected := range mounted {
 		entry, ok := byKey[key]
-		if !ok || !volumeObservationMatchesCustody(inspected, entry) {
+		if !ok || (custody.AppGroupLineage == nil && !volumeObservationMatchesCustody(inspected, entry)) || (custody.AppGroupLineage != nil && !runtipiVolumeMatchesCustody(inspected, entry, custody)) {
 			return errors.New("surviving container mounts differ from admitted volume custody")
 		}
 	}
@@ -829,7 +842,7 @@ func (r standaloneComposeRemover) loadVolumeCustody(
 	}
 	defer func() { _ = tx.Close() }()
 	rel := volumeCustodyPath(request.AppliedRequestDigest, request.WorkloadRef)
-	raw, info, err := tx.ReadStableBounded(rel, 256<<10)
+	raw, info, err := tx.ReadStableBounded(rel, 1<<20)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return standaloneComposeVolumeCustody{}, errVolumeCustodyAbsent
@@ -859,6 +872,9 @@ func (r standaloneComposeRemover) loadVolumeCustody(
 		record.Custody.Project != project.name ||
 		filepath.Clean(record.Custody.WorkingDir) != filepath.Clean(project.directory) {
 		return standaloneComposeVolumeCustody{}, fmt.Errorf("%w: record does not bind this applied workload", errVolumeCustodyInvalid)
+	}
+	if err := validateRuntipiVolumeCustody(record.Custody); err != nil {
+		return standaloneComposeVolumeCustody{}, err
 	}
 	return record.Custody, nil
 }
@@ -897,10 +913,14 @@ func (r standaloneComposeRemover) inspectCustodyIdentities(
 			}
 			return nil, fmt.Errorf("inspect admitted standalone Compose volume %q: %w", entry.Key, err)
 		}
-		if err := verifyAdmittedLocalVolume(project, entry.Key, inspected); err != nil {
-			return nil, err
+		if custody.AppGroupLineage == nil {
+			if err := verifyAdmittedLocalVolume(project, entry.Key, inspected); err != nil {
+				return nil, err
+			}
+		} else if !runtipiVolumeMatchesCustody(inspected, entry, custody) {
+			return nil, errors.New("external app-group volume identity changed")
 		}
-		if !volumeObservationMatchesCustody(inspected, entry) {
+		if custody.AppGroupLineage == nil && !volumeObservationMatchesCustody(inspected, entry) {
 			return nil, errors.New("standalone Compose volume identity differs from admitted custody")
 		}
 		found[entry.Key] = inspected
@@ -1122,7 +1142,7 @@ func (r standaloneComposeRemover) withdrawOrigin(request workloadremoval.Request
 	}
 	return localorigin.WithdrawBackend(r.ops.workspaceRoot, localorigin.Backend{
 		ModuleRef: project.bundle.ModuleRef, UnitRef: project.unitRef, InstanceRef: project.bundle.InstanceRef,
-		NodeRef: project.bundle.NodeRef, ServiceRef: project.bundle.Route.ServiceRef, ContainerID: custody.EntryContainerID,
+		NodeRef: project.bundle.NodeRef, ServiceRef: project.bundle.Route.ServiceRef, ContainerID: runtipiCustodyEntry(custody, true),
 	})
 }
 

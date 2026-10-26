@@ -45,6 +45,7 @@ import (
 // one-use join authority, exactly as the upgrade rollback does.
 type coordinatedRollback struct {
 	workspace   string
+	admission   *opentofu.GenericRestoreAdmission
 	session     publicUpgradeLifecycleSession
 	release     *lifecycleReleaseAuthority
 	custody     upgradelifecycle.ExecutorStateRollbackCustody
@@ -80,11 +81,6 @@ func (rollback *coordinatedRollback) run(ctx context.Context) error {
 		// A joined child's one-use admission may already be consumed.
 		return fmt.Errorf("operation %s stopped inside the joined %s child; finish it with explicit upgrade recovery", record.OperationID, record.Phase)
 	}
-	if !strings.HasPrefix(record.Phase, "rollback-") {
-		if err := rollback.session.Transition(record.Phase, lifecyclemutation.PhaseRollbackStarted); err != nil {
-			return fmt.Errorf("start durable coordinated rollback: %w", err)
-		}
-	}
 
 	request := advancedrollback.Request{
 		WorkspaceRoot: rollback.workspace, RollbackID: rollback.rollbackID,
@@ -100,6 +96,23 @@ func (rollback *coordinatedRollback) run(ctx context.Context) error {
 	if rollback.current != nil {
 		request.Current = advancedRollbackStacks(*rollback.current)
 	}
+	// Reuse standalone admission acquired before lifecycle Begin; automatic
+	// rollback acquires here before its first rollback transition.
+	if rollback.admission == nil {
+		var err error
+		rollback.admission, err = advancedrollback.AcquireAdmission(request)
+		if err != nil {
+			return err
+		}
+	}
+	defer rollback.admission.Close()
+	request.Admission = rollback.admission
+	if !strings.HasPrefix(record.Phase, "rollback-") {
+		if err := rollback.session.Transition(record.Phase, lifecyclemutation.PhaseRollbackStarted); err != nil {
+			return fmt.Errorf("start durable coordinated rollback: %w", err)
+		}
+	}
+
 	advancedRollbackEvent("plan", "started", map[string]string{"targetSnapshotId": snapshot.ID})
 	journal, resumed, err := advancedrollback.Prepare(request)
 	if err != nil {
@@ -118,23 +131,20 @@ func (rollback *coordinatedRollback) run(ctx context.Context) error {
 	advancedRollbackEvent("plan", "succeeded", map[string]string{
 		"rollbackId": journal.RollbackID, "stacks": fmt.Sprint(len(journal.Steps)), "resumed": fmt.Sprint(resumed),
 	})
-	// Stack files of every stack either graph names must exist before
-	// `terramate run` enters its root: the current layout for destroyed
-	// stacks, the checkpoint layout for restored and recreated ones.
-	if rollback.current != nil {
-		if _, err := terramatehost.Materialize(rollback.workspace, *rollback.current); err != nil {
-			return err
-		}
-	}
-	if _, err := terramatehost.Materialize(rollback.workspace, rollback.target); err != nil {
+	if err := advancedrollback.Materialize(request, journal, rollback.current, rollback.target); err != nil {
 		return err
 	}
+
+	// Transfer the preparation lease through authority restoration. RecoverWith
+	// closes it immediately before its governed child callback; later Execute
+	// reacquires the complete batch, and the child admits its own executor.
+	request.Admission = nil
 
 	advancedRollbackEvent("restore-authority", "started", map[string]string{"targetSnapshotId": snapshot.ID})
 	_, err = (upgradelifecycle.ExecutorStateStore{}).RecoverWith(
 		ctx, rollback.workspace, snapshot.ID,
 		upgradelifecycle.RecoveryOptions{
-			ReplaceAuthority: true, SkipOpenTofuRoots: true,
+			ReplaceAuthority: true, SkipOpenTofuRoots: true, Admission: rollback.admission,
 			Attestations: newPublicAttestationVerifier(),
 		},
 		func(recoveryContext context.Context, priorBinary string, recovered upgradelifecycle.ExecutorStateSnapshot) error {
@@ -228,6 +238,9 @@ func (rollback *coordinatedRollback) phases(
 		// generation exists and before the joined apply, so an interrupted
 		// run resumes it here and skips the stacks that already converged.
 		// The release being restored stages its own stackkit-server.
+		request.RecreateRoots = func(ctx context.Context, admission *opentofu.GenericRestoreAdmission, roots []string) error {
+			return (upgradelifecycle.ExecutorStateStore{}).PrepareRollbackRecreatedRoots(ctx, rollback.workspace, snapshot.ID, roots, admission)
+		}
 		request.Native = advancedRollbackNativeSteps{
 			workspace: rollback.workspace, executable: binary, artifacts: rollback.custody.Artifacts,
 		}
@@ -374,6 +387,26 @@ func executeAdvancedRollback(
 	if err != nil {
 		return report, err
 	}
+	if !found || !journal.InProgress() {
+		current, layoutErr := currentAdvancedRollbackLayout(workspace, owner.Binding.SiteRef, owner.Binding.NodeRef)
+		if layoutErr != nil {
+			return report, layoutErr
+		}
+		rollback.current = &current
+	}
+	var currentStacks []advancedrollback.Stack
+	if rollback.current != nil {
+		currentStacks = advancedRollbackStacks(*rollback.current)
+	}
+	// Discovery includes every current root even on the journal resume path.
+	rollback.admission, err = advancedrollback.AcquireAdmission(advancedrollback.Request{
+		WorkspaceRoot: workspace, TargetSnapshotID: snapshotID, Current: currentStacks,
+		Target: advancedRollbackStacks(target), TargetRoots: advancedRollbackTargetRoots(custody),
+	})
+	if err != nil {
+		return report, err
+	}
+	defer rollback.admission.Close()
 	var session publicUpgradeLifecycleSession
 	if found && journal.InProgress() {
 		recovered, _, openErr := lifecyclemutation.OpenUpgradeRecovery(workspace, journal.LifecycleOperationID)
@@ -389,11 +422,7 @@ func executeAdvancedRollback(
 			return report, fmt.Errorf("coordinated rollback %s has no active lifecycle mutation to resume", journal.RollbackID)
 		}
 	} else {
-		current, layoutErr := currentAdvancedRollbackLayout(workspace, owner.Binding.SiteRef, owner.Binding.NodeRef)
-		if layoutErr != nil {
-			return report, layoutErr
-		}
-		rollback.current = &current
+		current := *rollback.current
 		// The plan is computed once without writing before the lifecycle
 		// mutation begins, so an unplannable workspace fails before it can
 		// leave an active mutation behind.
@@ -661,34 +690,7 @@ func advancedRollbackTargetLayout(
 // currentAdvancedRollbackLayout derives the host layout of the current
 // generation from the verified artifact manifest of the current plan.
 func currentAdvancedRollbackLayout(workspace, siteRef, nodeRef string) (terramatehost.Layout, error) {
-	specRaw, sourceVersion, handled, err := classifyArchitectureV2ExecutionSpec(workspace, specFile)
-	if err != nil {
-		return terramatehost.Layout{}, err
-	}
-	if !handled || !sourceVersion.IsV2() {
-		return terramatehost.Layout{}, errors.New("advanced rollback requires a canonical Architecture v2 StackSpec")
-	}
-	inventory, err := readArchitectureV2Inventory(workspace, "")
-	if err != nil {
-		return terramatehost.Layout{}, err
-	}
-	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
-	if err != nil {
-		return terramatehost.Layout{}, err
-	}
-	inventory, err = inventoryForPersistedGeneration(service, workspace, specRaw, inventory)
-	if err != nil {
-		return terramatehost.Layout{}, err
-	}
-	current, err := service.ResolveCurrent(architecturev2.ResolveInput{StackSpec: specRaw, Inventory: inventory})
-	if err != nil {
-		return terramatehost.Layout{}, err
-	}
-	result, err := current.Result()
-	if err != nil {
-		return terramatehost.Layout{}, err
-	}
-	plan, err := service.VerifyCanonicalPlan(result.CanonicalPlan)
+	plan, err := currentGenericRuntimePlan(workspace, specFile)
 	if err != nil {
 		return terramatehost.Layout{}, err
 	}
@@ -869,4 +871,41 @@ func readAdvancedRollbackJSON(name string, target any) error {
 		return err
 	}
 	return json.Unmarshal(raw, target)
+}
+
+// currentGenericRuntimePlan resolves only verified source authority; it never
+// materializes a root or invokes a live runtime observation.
+func currentGenericRuntimePlan(workspace, specPath string) (generationartifact.VerifiedPlan, error) {
+	specRaw, sourceVersion, handled, err := classifyArchitectureV2ExecutionSpec(workspace, specPath)
+	if err != nil {
+		return generationartifact.VerifiedPlan{}, err
+	}
+	if !handled || !sourceVersion.IsV2() {
+		return generationartifact.VerifiedPlan{}, errors.New("generic runtime admission requires a canonical Architecture v2 StackSpec")
+	}
+	inventory, err := readArchitectureV2Inventory(workspace, "")
+	if err != nil {
+		return generationartifact.VerifiedPlan{}, err
+	}
+	service, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
+	if err != nil {
+		return generationartifact.VerifiedPlan{}, err
+	}
+	inventory, err = inventoryForPersistedGeneration(service, workspace, specRaw, inventory)
+	if err != nil {
+		return generationartifact.VerifiedPlan{}, err
+	}
+	current, err := service.ResolveCurrent(architecturev2.ResolveInput{StackSpec: specRaw, Inventory: inventory})
+	if err != nil {
+		return generationartifact.VerifiedPlan{}, err
+	}
+	result, err := current.Result()
+	if err != nil {
+		return generationartifact.VerifiedPlan{}, err
+	}
+	plan, err := service.VerifyCanonicalPlan(result.CanonicalPlan)
+	if err != nil {
+		return generationartifact.VerifiedPlan{}, err
+	}
+	return plan, nil
 }

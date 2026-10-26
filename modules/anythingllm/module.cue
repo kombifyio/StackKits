@@ -77,7 +77,6 @@ Contract: foundation.#ModuleContract & {
 			OLLAMA_BASE_PATH:    "http://ollama:11434"
 			SERVER_PORT:         "3001"
 			STORAGE_DIR:         "/app/server/storage"
-			VECTOR_DB:           "lancedb"
 		}
 
 		healthCheck: {

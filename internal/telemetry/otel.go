@@ -1,4 +1,3 @@
-// Package telemetry contains opt-in runtime telemetry setup helpers.
 package telemetry
 
 import (
@@ -8,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -20,35 +21,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-type OTelConfig struct {
-	ServiceName        string
-	ServiceVersion     string
-	Environment        string
-	RunID              string
-	TenantDeploymentID string
-	StackKit           string
-	Provider           string
-	NodeID             string
-}
-
-type OTelRuntime struct {
-	Enabled            bool
-	Endpoint           string
-	Protocol           string
-	Headers            map[string]string
-	ServiceName        string
-	ServiceVersion     string
-	Environment        string
-	RunID              string
-	TenantDeploymentID string
-	StackKit           string
-	Provider           string
-	NodeID             string
-	ResourceAttributes map[string]string
-}
-
-type EnvLookup func(string) (string, bool)
-
 type SpanHandle struct {
 	span oteltrace.Span
 }
@@ -57,26 +29,33 @@ func SetupOTel(ctx context.Context, cfg OTelConfig) (OTelRuntime, func(context.C
 	return SetupOTelWithLookup(ctx, cfg, os.LookupEnv)
 }
 
+// SetupOTelWithLookup always installs the local resource, tracer provider and
+// W3C trace-context plus baggage propagation, and returns the shutdown that
+// removes them. The returned error reports only that the configured exporter
+// could not be created (for example an endpoint the profile denies). It is not
+// a setup failure: the runtime and shutdown stay valid, runtime.Enabled is
+// false because nothing is exported, and no other destination is substituted.
 func SetupOTelWithLookup(ctx context.Context, cfg OTelConfig, lookup EnvLookup) (OTelRuntime, func(context.Context) error, error) {
 	runtime := ResolveOTelRuntime(cfg, lookup)
-	if !runtime.Enabled {
-		return runtime, func(context.Context) error { return nil }, nil
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	exporter, err := newTraceExporter(ctx, runtime)
-	if err != nil {
-		return runtime, func(context.Context) error { return nil }, err
-	}
-	provider := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(
-			exporter,
-			sdktrace.WithBatchTimeout(time.Second),
-			sdktrace.WithExportTimeout(5*time.Second),
-		),
+	options := []sdktrace.TracerProviderOption{
 		sdktrace.WithResource(resource.NewWithAttributes("", attrsToKeyValues(runtime.ResourceAttributes)...)),
-	)
+	}
+	var exportErr error
+	if runtime.Enabled {
+		exporter, err := newTraceExporter(ctx, runtime)
+		if err != nil {
+			exportErr = err
+			runtime.Enabled = false
+		} else {
+			options = append(options, sdktrace.WithBatcher(exporter,
+				sdktrace.WithBatchTimeout(time.Second), sdktrace.WithExportTimeout(5*time.Second)))
+		}
+	}
+	// The provider and propagation remain local without an exporter.
+	provider := sdktrace.NewTracerProvider(options...)
 	previousProvider := otel.GetTracerProvider()
 	previousPropagator := otel.GetTextMapPropagator()
 	otel.SetTracerProvider(provider)
@@ -91,7 +70,7 @@ func SetupOTelWithLookup(ctx context.Context, cfg OTelConfig, lookup EnvLookup) 
 		defer otel.SetTracerProvider(previousProvider)
 		defer otel.SetTextMapPropagator(previousPropagator)
 		return provider.Shutdown(ctx)
-	}, nil
+	}, exportErr
 }
 
 func ResolveOTelRuntime(cfg OTelConfig, lookup EnvLookup) OTelRuntime {
@@ -208,23 +187,6 @@ func (h SpanHandle) IsRecording() bool {
 	return h.span != nil && h.span.IsRecording()
 }
 
-func lookupTrimmed(lookup EnvLookup, key string) string {
-	value, ok := lookup(key)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(value)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
-}
-
 func addAttr(attrs map[string]string, key, value string) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -234,6 +196,9 @@ func addAttr(attrs map[string]string, key, value string) {
 }
 
 func newTraceExporter(ctx context.Context, runtime OTelRuntime) (sdktrace.SpanExporter, error) {
+	if fullLocalOTelBuild || runtimeprofile.FullLocal() {
+		return newLocalTraceExporter(ctx, runtime)
+	}
 	switch strings.ToLower(strings.TrimSpace(runtime.Protocol)) {
 	case "", "grpc":
 		return otlptracegrpc.New(ctx,

@@ -12,6 +12,30 @@ import (
 	"github.com/kombifyio/stackkits/internal/tofu"
 )
 
+// Installation must not write into its admitted inputs or contain those inputs.
+func separateDirectories(input, target string) error {
+	for _, name := range []string{input, target} {
+		if err := SafePath(name); err != nil {
+			return err
+		}
+	}
+	inputRoot, err := filepath.Abs(input)
+	if err != nil {
+		return err
+	}
+	targetRoot, err := filepath.Abs(target)
+	if err != nil {
+		return err
+	}
+	for _, pair := range [][2]string{{inputRoot, targetRoot}, {targetRoot, inputRoot}} {
+		relative, err := filepath.Rel(pair[0], pair[1])
+		if err != nil || relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))) {
+			return errors.New("artifact cache and deployment target must be separate directories")
+		}
+	}
+	return nil
+}
+
 // Only the selected release cache and the neutral manifest may be in the bake
 // metadata root. Foreign or old release trees are not silently image inputs.
 func neutralCacheRoot(root, releaseDir string) error {

@@ -47,6 +47,17 @@ func requireNativeBackupDelivery(workspace string, plan generationartifact.Verif
 		if applicationLifecycleStageSupportedByDelivery(contract, "backup") {
 			continue
 		}
+		if contract.Delivery.AdapterRef == "runtipi" {
+			selected, err := restoreactivation.RuntipiAppGroupSourceSelected(plan.Canonical(), contract.WorkloadRef)
+			if err != nil {
+				return err
+			}
+			if selected {
+				// Admission reaches the native group factory; retained terminal
+				// qualification remains mandatory before control or data effects.
+				continue
+			}
+		}
 		// A standalone Compose workload without backup-enabled storage holds
 		// nothing for the backup, as restore already skips it (Remote, ntfy).
 		stateless, err := restoreactivation.StandaloneComposeWorkloadHoldsNoBackupData(plan.Canonical(), contract.WorkloadRef)

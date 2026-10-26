@@ -21,6 +21,7 @@ type SnapshotOperationInspection struct {
 	Lineage                 AuthorityLineage
 	PolicyArtifactDigest    string
 	QuiescencePhase         string
+	NativeHoldPending       bool
 	QuiescenceAuthenticated bool
 	SnapshotAnchorID        string
 	SnapshotAnchorVerified  bool
@@ -78,8 +79,13 @@ func InspectSnapshotOperation(workspaceRoot, operationID string) (SnapshotOperat
 	if operation.Quiescence != nil {
 		inspection.QuiescencePhase = operation.Quiescence.Phase
 		inspection.QuiescenceAuthenticated = true
+		inspection.NativeHoldPending = operation.Quiescence.ControlVersion == 2 && len(operation.AppGroupClosures) != len(operation.Quiescence.AppGroups)
 	}
 	switch operation.State {
+	case "failed":
+		if operation.Failure != "SNAPSHOT_FAILED_AFTER_SETTLEMENT" || operation.Anchor != nil || operation.Quiescence == nil || operation.Quiescence.ControlVersion != 2 || validateRestoredSnapshotQuiescence(*operation.Quiescence) != nil {
+			return SnapshotOperationInspection{}, errors.New("backuplifecycle: negative snapshot settlement is not authenticated/restored")
+		}
 	case "pending":
 		if operation.Anchor != nil {
 			return SnapshotOperationInspection{}, errors.New("backuplifecycle: pending snapshot operation contains a completed anchor")
@@ -114,6 +120,9 @@ func InspectSnapshotOperation(workspaceRoot, operationID string) (SnapshotOperat
 // safe for replacement decisions because no durable journal is present; it is
 // not proof that no transient runtime effect occurred before it disappeared.
 func (inspection SnapshotOperationInspection) SafeForAuthorityReplacement() bool {
+	if inspection.NativeHoldPending {
+		return false
+	}
 	if !inspection.Found {
 		return true
 	}

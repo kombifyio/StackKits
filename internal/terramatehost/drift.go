@@ -2,9 +2,11 @@ package terramatehost
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
@@ -38,11 +40,16 @@ func MissingCoreRoots(workspaceRoot string, layout Layout) ([]string, error) {
 // plan -detailed-exitcode -input=false -no-color` in one stack root of the
 // layout's host, with the same process environment as Converge. It never
 // applies. The host project must already be materialized.
-func PlanLocalStack(ctx context.Context, workspaceRoot string, layout Layout, tools Tools, timeout time.Duration, stack terramatestackgraph.Stack) (StackPlan, error) {
+func PlanLocalStack(ctx context.Context, workspaceRoot string, layout Layout, tools Tools, timeout time.Duration, stack terramatestackgraph.Stack) (_ StackPlan, returnErr error) {
 	workspace, err := filepath.Abs(workspaceRoot)
 	if err != nil {
 		return StackPlan{}, err
 	}
+	ctx, releaseAdmission, err := opentofu.AdmitGenericOperation(ctx, workspace, LayoutRuntimeRoots(layout))
+	if err != nil {
+		return StackPlan{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, releaseAdmission()) }()
 	request := ConvergeRequest{WorkspaceRoot: workspace, Layout: layout, Tools: tools, Timeout: timeout}
 	result := StackResult{
 		StackID: stack.ID, Role: string(stack.Role), SiteRef: stack.SiteRef, NodeRef: stack.NodeRef,

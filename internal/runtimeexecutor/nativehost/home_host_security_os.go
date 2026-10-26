@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/hostsecurity"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 )
 
 // osHomeHostSecurityOperations enforces the Home baseline on the local host
@@ -46,6 +47,9 @@ func NewOSHomeHostSecurityOperations(workspaceRoot string, mode hostsecurity.Mod
 // refusal (for example no authorized key to keep ssh reachable) or a control
 // that is still not compliant fails the apply with the reason.
 func (o *osHomeHostSecurityOperations) Enforce(ctx context.Context) (HomeHostSecurityObservation, error) {
+	if runtimeprofile.FullLocal() {
+		return HomeHostSecurityObservation{}, errors.New("Full Local Home security requires its plan-bound container policy; offline prerequisites are observed without host repair")
+	}
 	if ctx == nil {
 		return HomeHostSecurityObservation{}, errors.New("local Home host security requires a context")
 	}
@@ -65,7 +69,22 @@ func (o *osHomeHostSecurityOperations) Enforce(ctx context.Context) (HomeHostSec
 	if report.After == nil {
 		return HomeHostSecurityObservation{}, errors.New("the repair did not read the host back")
 	}
-	evidence := *report.After
+	return o.recordObservation(*report.After)
+}
+
+func (o *osHomeHostSecurityOperations) EnforceContainerNetwork(ctx context.Context, policy hostsecurity.ContainerDestinationPolicy) (HomeHostSecurityObservation, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if err := o.engine.EnforceContainerDestinations(ctx, policy); err != nil {
+		return HomeHostSecurityObservation{}, err
+	}
+	// Full Local observes the existing host baseline. It never installs a
+	// missing package, starts public update work or changes foreign timers.
+	evidence := o.engine.Verify(ctx, hostsecurity.Options{Mode: o.mode, SiteKind: hostsecurity.SiteHome, ExceptionsPath: hostsecurity.DefaultExceptionsPath, WorkspaceRoot: o.workspaceRoot})
+	return o.recordObservation(evidence)
+}
+
+func (o *osHomeHostSecurityOperations) recordObservation(evidence hostsecurity.Evidence) (HomeHostSecurityObservation, error) {
 	if _, err := o.engine.SaveEvidence(o.workspaceRoot, evidence); err != nil {
 		return HomeHostSecurityObservation{}, fmt.Errorf("commit Home host-security evidence: %w", err)
 	}

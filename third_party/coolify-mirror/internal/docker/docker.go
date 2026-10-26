@@ -339,7 +339,8 @@ type Details struct {
 	} `json:"State"`
 	HostConfig struct {
 		RestartPolicy struct {
-			Name string `json:"Name"`
+			Name              string `json:"Name"`
+			MaximumRetryCount int    `json:"MaximumRetryCount"`
 		} `json:"RestartPolicy"`
 	} `json:"HostConfig"`
 	Config struct {
@@ -348,6 +349,24 @@ type Details struct {
 	NetworkSettings struct {
 		Networks map[string]json.RawMessage `json:"Networks"`
 	} `json:"NetworkSettings"`
+}
+
+// SetRestartPolicy changes only the exact discovered container's daemon
+// restart policy. The relocation drain records the prior policy first.
+func SetRestartPolicy(ctx context.Context, id, policy string, retries int) error {
+	switch policy {
+	case "", "no":
+		policy = "no"
+	case "always", "unless-stopped":
+	case "on-failure":
+		if retries > 0 {
+			policy = fmt.Sprintf("on-failure:%d", retries)
+		}
+	default:
+		return fmt.Errorf("unsupported container restart policy %q", policy)
+	}
+	_, err := run.Output(ctx, "docker", "update", "--restart="+policy, id)
+	return err
 }
 
 // HealthStatus returns the healthcheck state ("" without a healthcheck).

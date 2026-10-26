@@ -174,9 +174,10 @@ func runNativeV2RestoreActivationCommand(
 				}
 				return prepareGameServersHeld(prepareContext, workspace, true)
 			},
+			SafetySnapshotOperationID: safetySnapshotOperationID(operationID),
 			CreateSafetySnapshot: func(
 				snapshotContext context.Context,
-				_ string,
+				childOperationID string,
 			) (backuplifecycle.SnapshotAnchor, error) {
 				return backupService.Run(snapshotContext, backuplifecycle.RunInput{
 					OwnerRef: authority.OwnerRef, AuthorityRef: authority.AuthorityRef,
@@ -184,12 +185,12 @@ func runNativeV2RestoreActivationCommand(
 					PolicyArtifact: append(
 						[]byte(nil), authority.PolicyArtifact...,
 					),
-					OperationID:     safetySnapshotOperationID(operationID),
+					OperationID:     childOperationID,
 					ProtectRecovery: true,
 				})
 			},
 			VerifyLive: nativeV2RestoreActivationVerifier(
-				workspace, restoreResult,
+				workspace, restoreResult, nativeRestoreActivationScope{OperationID: operationID, WorkloadRef: workload, MarketplaceService: storeService},
 			),
 			FinalizeResult: func(_ context.Context, finalized restoreactivation.Result, _ error) error {
 				if storeService != "" {
@@ -367,7 +368,7 @@ func runNativeV2RestoreRecoveryCommand(
 					errors.New("restore recovery authority was not resolved")
 			}
 			return nativeV2RestoreActivationVerifier(
-				workspace, recoveryRestoreResult,
+				workspace, recoveryRestoreResult, nativeRestoreActivationScope{OperationID: operationID, WorkloadRef: recoveryWorkload, MarketplaceService: recoveryStoreService},
 			)(verifyContext)
 		},
 		FinalizeResult: func(_ context.Context, finalized restoreactivation.Result, _ error) error {
@@ -637,11 +638,23 @@ func nativeV2RestoreRecoveryResolver(
 	}
 }
 
+// The operation owns only this activation selection. Other policy graphs still
+// require current native custody verification, not membership in this journal.
+type nativeRestoreActivationScope struct {
+	OperationID        string
+	WorkloadRef        string
+	MarketplaceService string
+}
+
 func nativeV2RestoreActivationVerifier(
 	workspace string,
 	restoreResult backuplifecycle.RestoreResult,
+	scope nativeRestoreActivationScope,
 ) func(context.Context) (restoreactivation.LiveVerification, error) {
 	return func(ctx context.Context) (restoreactivation.LiveVerification, error) {
+		if !backuplifecycle.ValidateSnapshotOperationID(scope.OperationID) || scope.WorkloadRef != "" && scope.MarketplaceService != "" {
+			return restoreactivation.LiveVerification{}, errors.New("restore verification requires the exact activation operation and selection")
+		}
 		current, err := inspectNativeV2BackupAuthorityForRequest(
 			ctx, workspace, specFile,
 		)
@@ -662,6 +675,7 @@ func nativeV2RestoreActivationVerifier(
 				StagingPath:          restoreResult.Request.StagingPath,
 			},
 			true,
+			scope,
 		)
 	}
 }

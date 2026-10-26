@@ -25,6 +25,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/ownernotify"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
@@ -238,6 +239,17 @@ func verifyArchitectureV2AppliedWorkloads(
 	if err != nil {
 		return err
 	}
+	// Coolify API workloads have no OpenTofu root; the Coolify owner observes
+	// their containers, images and route the same way.
+	coolifyOperations, err := nativehost.NewOSCoolifyWorkloadOperations(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	coolifyObservations, err := nativehost.VerifyAppliedCoolifyWorkloads(ctx, appliedRequest, binding, coolifyOperations)
+	if err != nil {
+		return err
+	}
+	observations = append(observations, coolifyObservations...)
 	for _, observation := range observations {
 		runtime.Workloads = append(runtime.Workloads, architectureV2WorkloadVerifySummary{
 			WorkloadRef: observation.WorkloadRef, ProjectRef: observation.ProjectRef, Status: observation.Status,
@@ -267,7 +279,7 @@ func verifyArchitectureV2OpenTofuState(
 	if target != opentofu.UnitRef && target != opentofu.TerramateUnitRef {
 		return nil, nil
 	}
-	expected, err := expectedArchitectureV2OpenTofuStateRoots(plan, target)
+	expected, err := expectedArchitectureV2OpenTofuStateRoots(workspaceRoot, plan, target)
 	if err != nil {
 		return nil, fmt.Errorf("bind live OpenTofu state roots: %w", err)
 	}
@@ -278,7 +290,26 @@ func verifyArchitectureV2OpenTofuState(
 	return states, nil
 }
 
-func expectedArchitectureV2OpenTofuStateRoots(plan generationartifact.VerifiedPlan, target string) ([]opentofu.ExpectedStateRoot, error) {
+// coolifyAPIManagedWorkload reports a Coolify workload that the Coolify API
+// owns without an OpenTofu root, proven by its owner-signed node deployment
+// record (manager coolify, no provider recipe). Owner observation verifies its
+// runtime. A missing or unreadable record keeps the OpenTofu root expectation.
+func coolifyAPIManagedWorkload(workspaceRoot string, adapter *generationartifact.ApplyRuntimeAdapterRequirement, project string) bool {
+	if workspaceRoot == "" || adapter == nil || adapter.ID != "coolify" {
+		return false
+	}
+	state, err := platformdeploy.LoadOwnerHostDeployment(workspaceRoot, project)
+	return err == nil && state.Manager == "coolify" && state.RecipeDigest == ""
+}
+
+// nativeMarketplaceRequirement names the natively executed Marketplace unit,
+// which the native owner installs without an OpenTofu state root.
+func nativeMarketplaceRequirement(moduleRef, unitRef string) bool {
+	return (moduleRef == architecturev2renderer.MarketplaceCoolifyModuleRef && unitRef == architecturev2renderer.MarketplaceCoolifyUnitRef) ||
+		(moduleRef == architecturev2renderer.MarketplaceRuntipiModuleRef && unitRef == architecturev2renderer.MarketplaceRuntipiUnitRef)
+}
+
+func expectedArchitectureV2OpenTofuStateRoots(workspaceRoot string, plan generationartifact.VerifiedPlan, target string) ([]opentofu.ExpectedStateRoot, error) {
 	coreRuntimeDirs := make(map[string]string)
 	for _, binding := range opentofu.DefaultModuleBindings() {
 		coreRuntimeDirs[binding.ModuleRef] = binding.RuntimeDir
@@ -320,12 +351,19 @@ func expectedArchitectureV2OpenTofuStateRoots(plan generationartifact.VerifiedPl
 			}
 			continue
 		}
-		if requirement.WorkloadRef != "" {
+		// Only the natively executed Marketplace installation owns no OpenTofu
+		// root; its owner observation verifies it. Every other workload unit
+		// keeps its stackkit-<workload>-<node> state-root verification.
+		if requirement.WorkloadRef != "" && !nativeMarketplaceRequirement(requirement.ModuleRef, requirement.UnitRef) {
 			if len(requirement.NodeRefs) == 0 {
 				return nil, fmt.Errorf("workload %s has no planned node root", requirement.WorkloadRef)
 			}
 			for _, nodeRef := range requirement.NodeRefs {
-				root, err := opentofu.WorkloadRootRelativePath("stackkit-" + requirement.WorkloadRef + "-" + nodeRef)
+				project := "stackkit-" + requirement.WorkloadRef + "-" + nodeRef
+				if coolifyAPIManagedWorkload(workspaceRoot, requirement.RuntimeAdapter, project) {
+					continue
+				}
+				root, err := opentofu.WorkloadRootRelativePath(project)
 				if err != nil {
 					return nil, err
 				}
@@ -983,56 +1021,87 @@ func readCurrentArchitectureV2ApplyResult(
 	workspaceRoot string,
 	binding generationartifact.PlanBinding,
 	verify func([]byte) (architecturev2.VerifiedApplyResult, error),
-) (result architecturev2.VerifiedApplyResult, returnErr error) {
+) (architecturev2.VerifiedApplyResult, error) {
 	if verify == nil {
 		return architecturev2.VerifiedApplyResult{}, errors.New("Architecture v2 Apply result verifier is required")
 	}
+	return readCurrentArchitectureV2ApplyEvidence(workspaceRoot, binding, func(raw []byte) (architecturev2.VerifiedApplyResult, currentApplyEvidenceIdentity, error) {
+		verified, err := verify(raw)
+		if err != nil {
+			return architecturev2.VerifiedApplyResult{}, currentApplyEvidenceIdentity{}, err
+		}
+		summary := verified.Summary()
+		return verified, currentApplyEvidenceIdentity{ResultHash: verified.ResultHash(), AppliedAt: summary.AppliedAt}, nil
+	})
+}
+
+type currentApplyEvidenceIdentity struct {
+	ResultHash string
+	AppliedAt  time.Time
+}
+
+var errApplyEvidenceOtherGeneration = errors.New("Apply evidence belongs to another generation")
+
+// Both current execution verification and original-program history use the
+// same content-addressed store, Owner/member receipt gate and latest-time rule.
+// The visitor's result cannot escape this function before receipt verification.
+func readCurrentArchitectureV2ApplyEvidence[T any](
+	workspaceRoot string,
+	binding generationartifact.PlanBinding,
+	inspect func([]byte) (T, currentApplyEvidenceIdentity, error),
+) (result T, returnErr error) {
+	var zero T
+
+	if inspect == nil {
+		return zero, errors.New("Architecture v2 Apply result verifier is required")
+	}
 	root, err := confinedfs.Open(workspaceRoot)
 	if err != nil {
-		return architecturev2.VerifiedApplyResult{}, fmt.Errorf("open workspace for Apply result verification: %w", err)
+		return zero, fmt.Errorf("open workspace for Apply result verification: %w", err)
 	}
 	defer func() { returnErr = errors.Join(returnErr, root.Close()) }()
 	transaction, err := root.BeginTransaction()
 	if err != nil {
-		return architecturev2.VerifiedApplyResult{}, fmt.Errorf("begin Apply result verification transaction: %w", err)
+		return zero, fmt.Errorf("begin Apply result verification transaction: %w", err)
 	}
 	defer func() { returnErr = errors.Join(returnErr, transaction.Close()) }()
 
 	directory := path.Join(architectureV2ApplyEvidenceRoot, "results")
 	entries, err := transaction.Walk(directory)
 	if err != nil {
-		return architecturev2.VerifiedApplyResult{}, fmt.Errorf("read Architecture v2 Apply results: %w", err)
+		return zero, fmt.Errorf("read Architecture v2 Apply results: %w", err)
 	}
 	if len(entries) < 2 {
-		return architecturev2.VerifiedApplyResult{}, errors.New("Architecture v2 verification requires at least one persisted Apply result")
+		return zero, errors.New("Architecture v2 verification requires at least one persisted Apply result")
 	}
 	// Retained results are authoritative lifecycle/checkpoint evidence. Selection
 	// scans that history linearly rather than rejecting a long-lived workspace.
 	var (
-		selected   architecturev2.VerifiedApplyResult
-		selectedAt time.Time
-		found      int
+		selected     T
+		selectedAt   time.Time
+		selectedHash string
+		found        int
 	)
 	for _, entry := range entries[1:] {
 		if !entry.Info.Mode().IsRegular() || path.Dir(entry.Path) != directory ||
 			!strings.HasSuffix(path.Base(entry.Path), ".json") {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("Architecture v2 Apply result directory contains an unsupported entry %q", entry.Path)
+			return zero, fmt.Errorf("Architecture v2 Apply result directory contains an unsupported entry %q", entry.Path)
 		}
 		raw, _, err := transaction.ReadStable(entry.Path)
 		if err != nil {
-			return architecturev2.VerifiedApplyResult{}, err
+			return zero, err
 		}
 		var probe struct {
 			Binding generationartifact.PlanBinding `json:"binding"`
 		}
 		if err := json.Unmarshal(raw, &probe); err != nil {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("decode Apply result binding %q: %w", entry.Path, err)
+			return zero, fmt.Errorf("decode Apply result binding %q: %w", entry.Path, err)
 		}
 		if probe.Binding != binding {
 			continue
 		}
-		verified, err := verify(raw)
-		if architecturev2.IsOtherGenerationApplyResult(err) {
+		verified, metadata, err := inspect(raw)
+		if architecturev2.IsOtherGenerationApplyResult(err) || errors.Is(err, errApplyEvidenceOtherGeneration) {
 			// Recorded for an earlier generation of this plan: regenerating
 			// it (a coordinated rollback to a checkpoint regenerates the
 			// checkpoint plan) wrote a new receipt, and the Apply that
@@ -1040,36 +1109,35 @@ func readCurrentArchitectureV2ApplyResult(
 			continue
 		}
 		if err != nil {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("verify current Apply result %q: %w", entry.Path, err)
+			return zero, fmt.Errorf("verify current Apply result %q: %w", entry.Path, err)
 		}
-		wantName := strings.TrimPrefix(verified.ResultHash(), "sha256:") + ".json"
+		wantName := strings.TrimPrefix(metadata.ResultHash, "sha256:") + ".json"
 		if path.Base(entry.Path) != wantName {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("Apply result %q is not stored at its content address", entry.Path)
+			return zero, fmt.Errorf("Apply result %q is not stored at its content address", entry.Path)
 		}
 		receiptPath := path.Join(architectureV2ApplyEvidenceRoot, "receipts", wantName)
 		canonicalReceipt, receiptInfo, err := transaction.ReadStable(receiptPath)
 		if err != nil {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("read owner-signed Apply result receipt %q: %w", receiptPath, err)
+			return zero, fmt.Errorf("read owner-signed Apply result receipt %q: %w", receiptPath, err)
 		}
 		if !receiptInfo.Mode().IsRegular() {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("owner-signed Apply result receipt %q is not a regular file", receiptPath)
+			return zero, fmt.Errorf("owner-signed Apply result receipt %q is not a regular file", receiptPath)
 		}
-		if err := verifyOwnerApplyResultReceipt(workspaceRoot, raw, canonicalReceipt, verified.ResultHash()); err != nil {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("verify Apply result receipt %q: %w", receiptPath, err)
+		if err := verifyOwnerApplyResultReceipt(workspaceRoot, raw, canonicalReceipt, metadata.ResultHash); err != nil {
+			return zero, fmt.Errorf("verify Apply result receipt %q: %w", receiptPath, err)
 		}
-		summary := verified.Summary()
-		if summary.AppliedAt.IsZero() {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("Apply result %q has no verified Apply time", entry.Path)
+		if metadata.AppliedAt.IsZero() {
+			return zero, fmt.Errorf("Apply result %q has no verified Apply time", entry.Path)
 		}
 		found++
-		if selectedAt.IsZero() || summary.AppliedAt.After(selectedAt) {
-			selected, selectedAt = verified, summary.AppliedAt
-		} else if summary.AppliedAt.Equal(selectedAt) && verified.ResultHash() != selected.ResultHash() {
-			return architecturev2.VerifiedApplyResult{}, fmt.Errorf("multiple current Apply results share the latest Apply time")
+		if selectedAt.IsZero() || metadata.AppliedAt.After(selectedAt) {
+			selected, selectedAt, selectedHash = verified, metadata.AppliedAt, metadata.ResultHash
+		} else if metadata.AppliedAt.Equal(selectedAt) && metadata.ResultHash != selectedHash {
+			return zero, fmt.Errorf("multiple current Apply results share the latest Apply time")
 		}
 	}
 	if found == 0 {
-		return architecturev2.VerifiedApplyResult{}, errors.New("no persisted Apply result matches the current ResolvedPlan and generation; run `stackkit apply` first")
+		return zero, errors.New("no persisted Apply result matches the current ResolvedPlan and generation; run `stackkit apply` first")
 	}
 	return selected, nil
 }

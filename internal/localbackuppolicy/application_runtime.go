@@ -10,7 +10,7 @@ import (
 )
 
 // ApplicationRuntime is the compiler-owned component graph for one exact
-// Standalone-Compose workload placement. The graph is retained in the source
+// workload placement. The graph is retained in the source
 // policy so lifecycle consumers cannot infer stop order from Docker names or
 // mutable container labels.
 type ApplicationRuntime struct {
@@ -96,7 +96,7 @@ func canonicalApplicationRuntimes(runtimes []ApplicationRuntime) ([]ApplicationR
 }
 
 func validateApplicationRuntime(runtime ApplicationRuntime) error {
-	if runtime.RuntimeAdapterRef != "" && runtime.RuntimeAdapterRef != "standalone-compose" && runtime.RuntimeAdapterRef != "coolify" && runtime.RuntimeAdapterRef != "komodo" {
+	if runtime.RuntimeAdapterRef != "" && runtime.RuntimeAdapterRef != "standalone-compose" && runtime.RuntimeAdapterRef != "coolify" && runtime.RuntimeAdapterRef != "komodo" && runtime.RuntimeAdapterRef != "runtipi" {
 		return fmt.Errorf("unsupported application runtime adapter")
 	}
 	for _, field := range []struct {
@@ -122,6 +122,9 @@ func validateApplicationRuntime(runtime ApplicationRuntime) error {
 	}
 	seen := make(map[string]struct{}, len(runtime.Components))
 	for index, component := range runtime.Components {
+		if runtime.RuntimeAdapterRef == "runtipi" && component.Lifecycle != "daemon" {
+			return fmt.Errorf("Runtipi app-group source requires daemon components; one-shot backup remains unqualified")
+		}
 		if !contractIDPattern.MatchString(component.ComponentRef) ||
 			!validApplicationRuntimeRole(component.Role) ||
 			!validApplicationRuntimeLifecycle(component.Lifecycle) ||
@@ -267,4 +270,10 @@ func ApplicationGraphDigest(source Source) (string, error) {
 	}
 	sum := sha256.Sum256(encoded)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+// CanonicalApplicationTransferRuntimes validates the selected runtime closure
+// independently from persistent backup-source membership.
+func CanonicalApplicationTransferRuntimes(runtimes []ApplicationRuntime) ([]ApplicationRuntime, error) {
+	return canonicalApplicationRuntimes(runtimes)
 }

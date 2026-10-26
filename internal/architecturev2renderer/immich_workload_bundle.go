@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 )
 
 const (
@@ -213,9 +215,12 @@ type selectedPaaSServiceEndpoint struct {
 }
 
 type selectedPaaSWorkloadBundle struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Workload   struct {
+	LocalNetwork  *runtimeprofile.LocalNetwork     `json:"localNetwork,omitempty"`
+	APIVersion    string                           `json:"apiVersion"`
+	Kind          string                           `json:"kind"`
+	DataProfile   runtimeprofile.DataProfile       `json:"dataProfile,omitempty"`
+	OfflineBundle *runtimeprofile.OfflineBundleRef `json:"offlineBundle,omitempty"`
+	Workload      struct {
 		Ref            string `json:"ref"`
 		AlternativeRef string `json:"alternativeRef"`
 		ModuleRef      string `json:"moduleRef"`

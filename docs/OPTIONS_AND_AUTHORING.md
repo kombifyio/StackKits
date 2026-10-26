@@ -101,6 +101,72 @@ Changes to the retained v2alpha1 graph instead start in
 `#WorkloadContractV2.computeTiers`. Label derived legacy YAML and documentation
 accordingly. Cloud YAML `low` is kitio roundtrip only and has no legacy graph.
 
+## Incremental installation intent
+
+Native `stackkit/v2alpha2` keeps the installed Foundation and each application's
+recorded selection. Initializing with `--catalog-defaults` and no `--use-case`
+selects only the kit's required Core. Add or configure applications afterward:
+
+```bash
+stackkit use-cases add mail
+stackkit use-cases configure mail --compute-profile high
+stackkit capabilities configure telemetry-collection --enable
+stackkit generate
+stackkit plan
+stackkit apply
+```
+
+`add` accepts `--alternative`, `--platform`, and independent `--compute-profile`,
+`--storage-profile` and `--accelerator-profile` choices. Omitted new selections
+come from CUE; a compatible selected platform is reused for a new application.
+`configure` (alias `update`) merges only named settings, secret references and
+profiles. Use repeated `--setting 'key="value"'` for public JSON values and
+`--secret-ref key=secret://reference` for references already in local custody.
+Omitted settings, unrelated applications, data placement, routes and storage
+remain intact. An existing alternative, adapter or node change requires explicit
+migration and is refused by this configuration operation.
+
+Foundation supplements use the existing capability contract:
+`capabilities configure <id> [--enable] [--provider <id>]`, with the same public
+settings and secret-reference flags. These commands author desired intent;
+the normal resolver, plan and runtime owners determine execution admission.
+They do not deploy an application or claim that it is running.
+
+Standard Mode persists through the canonical intent store with the current
+spec hash; `--expected-spec-hash` can pin the caller's reviewed baseline.
+Advanced or multi-node authoring requires `--output <new-candidate.json>` and
+retains the active baseline for Techstack's capability-gated change-set
+lifecycle. Use `--node <existing-enabled-node>` when an addition has several
+possible nodes. No node is provisioned by these authoring commands.
+`--json` returns `stackkit.intent-change/v1` with the previous and candidate
+spec hashes, outcome, path and `runtimeApplied: false`.
+
+Remove one optional application with `stackkit remove --workload mail`, or its
+complete selected product composition with `stackkit remove --use-case ai`.
+Use-case membership comes from the CUE catalog and includes only currently
+selected companions. The complete remaining dependency graph must resolve
+before removal; a platform used by another application cannot be retired.
+Standard removal retains data by default, records each terminal runtime result,
+then retires the desired selection with one spec-hash CAS. A concurrent intent
+change is retained and reported as pending reconciliation. Required Core
+removal keeps its documented reinstall source.
+After a successful Standard intent retirement, run `stackkit generate` and
+`stackkit apply` before another runtime lifecycle command. The old generation
+and Apply proof deliberately cannot authorize the new spec. Use `--use-case`
+to remove a complete selected composition together, with one final intent CAS.
+Access policies, data bindings and secret custody remain available for reuse.
+
+For managed removal, author a separate candidate with
+`stackkit remove --use-case ai --candidate-output without-ai.json` (or
+`--workload <id>`). This changes no runtime and retains the active baseline.
+The existing capability-gated Advanced change set removes baseline-only local
+workloads through their applied runtime owners, retaining data, before adopting
+the candidate. Its mandatory rollback checkpoint precedes removal, and the
+mutation result includes terminal `removedWorkloads` evidence. Candidate
+omission alone is never reported as runtime removal.
+Multi-node or multi-site Standard intent also requires a separate candidate;
+local runtime removal cannot silently retire another node's desired selection.
+
 ## Authoring Flow
 
 The public CLI includes the local module authoring path. From a checkout with

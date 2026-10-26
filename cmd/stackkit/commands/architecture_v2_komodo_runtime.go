@@ -3,6 +3,7 @@ package commands
 import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 func architectureV2LocalKomodoRegistrations(workspace, version string) ([]architecturev2.ProductRuntimeOwnerRegistration, error) {
@@ -14,7 +15,7 @@ func architectureV2LocalKomodoRegistrations(workspace, version string) ([]archit
 	if err != nil {
 		return nil, err
 	}
-	operations, err := nativehost.NewOSKomodoWorkloadOperations(workspace)
+	operations, err := opentofu.NewKomodoWorkloadOperations(opentofu.Runtime{WorkspaceRoot: workspace})
 	if err != nil {
 		return nil, err
 	}

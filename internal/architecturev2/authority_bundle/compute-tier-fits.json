@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:a4bd901323cdd0f6a945617d50b1297c6167e4645619af568a21f4309cd8ae74",
+  "contentDigest": "sha256:6da2c7093f848fee2fe85d5aa1a95afa165858ef80eaa0ae17ecd9cc701f2cd1",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -457,6 +457,9 @@
                       "vendor": "nvidia"
                     }
                   },
+                  "acceleratorProfiles": [
+                    "nvidia"
+                  ],
                   "computeProfileFacts": {
                     "high": {
                       "executable": true,
@@ -669,6 +672,73 @@
           ],
           "defaultAlternative": "speechkit",
           "id": "ai-speech"
+        },
+        {
+          "alternatives": [
+            {
+              "id": "qdrant",
+              "modules": [
+                {
+                  "computeProfileFacts": {
+                    "high": {
+                      "executable": true,
+                      "hostFloor": {
+                        "minCpuCores": 2,
+                        "minRamGB": 4,
+                        "minStorageGB": 20
+                      },
+                      "maturity": "beta",
+                      "provenance": {
+                        "hostFloor": {
+                          "ref": "Kombify host floor support policy",
+                          "source": "policy"
+                        },
+                        "reservation": {
+                          "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+                          "source": "policy"
+                        }
+                      },
+                      "realization": "apply-ready",
+                      "reservation": {
+                        "ramGB": 0.25
+                      }
+                    },
+                    "standard": {
+                      "executable": true,
+                      "hostFloor": {
+                        "minCpuCores": 2,
+                        "minRamGB": 4,
+                        "minStorageGB": 20
+                      },
+                      "maturity": "beta",
+                      "provenance": {
+                        "hostFloor": {
+                          "ref": "Kombify host floor support policy",
+                          "source": "policy"
+                        },
+                        "reservation": {
+                          "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue",
+                          "source": "policy"
+                        }
+                      },
+                      "realization": "apply-ready",
+                      "reservation": {
+                        "ramGB": 0.25
+                      }
+                    }
+                  },
+                  "computeProfiles": [
+                    "high",
+                    "standard"
+                  ],
+                  "id": "stackkits-qdrant-runtime"
+                }
+              ],
+              "name": "qdrant"
+            }
+          ],
+          "defaultAlternative": "qdrant",
+          "id": "ai-vectors"
         }
       ],
       "alternatives": [
@@ -699,6 +769,10 @@
                   "vendor": "nvidia"
                 }
               },
+              "acceleratorProfiles": [
+                "amd",
+                "nvidia"
+              ],
               "computeProfileFacts": {
                 "high": {
                   "executable": true,
@@ -801,6 +875,10 @@
                   "vendor": "nvidia"
                 }
               },
+              "acceleratorProfiles": [
+                "amd",
+                "nvidia"
+              ],
               "computeProfileFacts": {
                 "high": {
                   "executable": true,
@@ -1208,6 +1286,26 @@
             "inference"
           ],
           "requiresAccelerator": false
+        },
+        {
+          "default": {
+            "alternativeRef": "qdrant",
+            "id": "qdrant",
+            "name": "Qdrant",
+            "note": "Open source from Berlin with its own MCP server; the API key comes from owner custody",
+            "realization": "install",
+            "workloadRef": "ai-vectors"
+          },
+          "enabledByDefault": false,
+          "help": "Keeps the knowledge-base vectors of your chat module in Qdrant instead of its built-in store (Chroma in Open WebUI, LanceDB in AnythingLLM). Off by default.",
+          "id": "vectors",
+          "name": "Vector store",
+          "required": false,
+          "requires": [
+            "inference",
+            "chat"
+          ],
+          "requiresAccelerator": false
         }
       ],
       "components": [
@@ -1246,6 +1344,12 @@
           "id": "open-webui",
           "kind": "application",
           "name": "Open WebUI",
+          "role": "supporting"
+        },
+        {
+          "id": "qdrant",
+          "kind": "application",
+          "name": "Qdrant",
           "role": "supporting"
         },
         {
@@ -1439,7 +1543,8 @@
           "realization": "install"
         }
       ],
-      "title": "Private AI"
+      "title": "Private AI",
+      "workloadRef": "ai"
     },
     {
       "addOns": [
@@ -1729,7 +1834,8 @@
           "realization": "recorded"
         }
       ],
-      "title": "Developer Platform"
+      "title": "Developer Platform",
+      "workloadRef": "dev"
     },
     {
       "alternatives": [
@@ -1853,7 +1959,8 @@
         "id": "documents-files",
         "title": "Documents \u0026 Files"
       },
-      "title": "Documents"
+      "title": "Documents",
+      "workloadRef": "documents"
     },
     {
       "addOns": [
@@ -2309,7 +2416,8 @@
           "realization": "recorded"
         }
       ],
-      "title": "File Storage and Documents"
+      "title": "File Storage and Documents",
+      "workloadRef": "files"
     },
     {
       "alternatives": [
@@ -2589,7 +2697,8 @@
           "realization": "recorded"
         }
       ],
-      "title": "Game Server"
+      "title": "Game Server",
+      "workloadRef": "game"
     },
     {
       "alternatives": [
@@ -2795,7 +2904,8 @@
           "realization": "recorded"
         }
       ],
-      "title": "Private Mail"
+      "title": "Private Mail",
+      "workloadRef": "mail"
     },
     {
       "alternatives": [
@@ -2964,7 +3074,8 @@
         "id": "mail",
         "title": "Mail"
       },
-      "title": "Own Mail Server"
+      "title": "Own Mail Server",
+      "workloadRef": "mail-server"
     },
     {
       "alternatives": [
@@ -3047,6 +3158,86 @@
           ],
           "name": "coolify",
           "providesRuntimeAdapterRef": "coolify"
+        },
+        {
+          "id": "runtipi",
+          "modules": [
+            {
+              "computeProfileFacts": {
+                "high": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "beta",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "recommended": {
+                      "ref": "Kombify recommended sizing policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 2,
+                    "ramGB": 4
+                  },
+                  "reservation": {
+                    "cpuCores": 0.5,
+                    "ramGB": 2.25
+                  }
+                },
+                "standard": {
+                  "executable": true,
+                  "hostFloor": {
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "beta",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "recommended": {
+                      "ref": "Kombify recommended sizing policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "recommended": {
+                    "cpuCores": 2,
+                    "ramGB": 4
+                  },
+                  "reservation": {
+                    "cpuCores": 0.5,
+                    "ramGB": 2.25
+                  }
+                }
+              },
+              "computeProfiles": [
+                "high",
+                "standard"
+              ],
+              "id": "stackkits-marketplace-runtipi-runtime"
+            }
+          ],
+          "name": "runtipi",
+          "providesRuntimeAdapterRef": "runtipi"
         }
       ],
       "components": [
@@ -3060,7 +3251,7 @@
           "id": "runtipi",
           "kind": "application",
           "name": "Runtipi",
-          "realization": "recorded",
+          "realization": "install",
           "role": "alternative"
         }
       ],
@@ -3086,7 +3277,8 @@
         "id": "marketplace",
         "title": "Marketplace"
       },
-      "title": "Marketplace"
+      "title": "Marketplace",
+      "workloadRef": "marketplace"
     },
     {
       "addOns": [
@@ -3513,7 +3705,8 @@
           "workloadRef": "media-audiobooks"
         }
       ],
-      "title": "Media Library"
+      "title": "Media Library",
+      "workloadRef": "media"
     },
     {
       "alternatives": [
@@ -3720,7 +3913,8 @@
         "id": "network",
         "title": "Network"
       },
-      "title": "Network"
+      "title": "Network",
+      "workloadRef": "network"
     },
     {
       "addOns": [
@@ -4225,7 +4419,8 @@
           "workloadRef": "photos-tools"
         }
       ],
-      "title": "Photos and Memories"
+      "title": "Photos and Memories",
+      "workloadRef": "photos"
     },
     {
       "alternatives": [
@@ -4432,7 +4627,8 @@
         "id": "dev",
         "title": "Dev"
       },
-      "title": "Remote Desktop"
+      "title": "Remote Desktop",
+      "workloadRef": "remote"
     },
     {
       "addOns": [
@@ -5043,7 +5239,8 @@
           "workloadRef": "smart-home-esphome"
         }
       ],
-      "title": "Smart Home"
+      "title": "Smart Home",
+      "workloadRef": "smart-home"
     },
     {
       "alternatives": [
@@ -5306,7 +5503,8 @@
           "realization": "recorded"
         }
       ],
-      "title": "Password Vault"
+      "title": "Password Vault",
+      "workloadRef": "vault"
     }
   ]
 }

@@ -10,8 +10,7 @@ import (
 )
 
 // fileRenameInformation is the variable-length FILE_RENAME_INFORMATION
-// payload used by NtSetInformationFile. ReplaceIfExists remains false so the
-// kernel performs an atomic no-replace rename relative to RootDirectory.
+// payload used by NtSetInformationFile for a held-parent rename.
 type fileRenameInformation struct {
 	ReplaceIfExists bool
 	RootDirectory   windows.Handle
@@ -19,7 +18,11 @@ type fileRenameInformation struct {
 	FileName        uint16
 }
 
-func renameNoReplace(oldParent, newParent *os.File, oldName, newName string) error {
+func renameDomainForDirectory(directory *os.File) (Identity, error) {
+	return identityForOpenFile(directory)
+}
+
+func renameEntry(oldParent, newParent *os.File, oldName, newName string, replace bool) error {
 	source, err := openRenameSource(oldParent, oldName)
 	if err != nil {
 		return err
@@ -35,6 +38,7 @@ func renameNoReplace(oldParent, newParent *os.File, oldName, newName string) err
 	fileNameOffset := unsafe.Offsetof(fileRenameInformation{}.FileName)
 	buffer := make([]byte, int(fileNameOffset)+int(fileNameLength))
 	info := (*fileRenameInformation)(unsafe.Pointer(&buffer[0]))
+	info.ReplaceIfExists = replace
 	info.RootDirectory = windows.Handle(newParent.Fd())
 	info.FileNameLength = fileNameLength
 	copy(unsafe.Slice(&info.FileName, len(name)), name)

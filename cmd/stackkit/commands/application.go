@@ -325,6 +325,12 @@ func executeApplication(ctx context.Context, workspace, workload, verb string, o
 					if err != nil {
 						return err
 					}
+				} else if op.Status == applicationlifecycle.StatusRunning {
+					// Resume as the operation's owner; refuses while another live
+					// process still runs it.
+					if err = store.ClaimRunningOperation(contract, id); err != nil {
+						return err
+					}
 				}
 				if op.Status != applicationlifecycle.StatusRunning && op.Status != applicationlifecycle.StatusFailed {
 					return errors.New("operation_conflict: operation requires reconciliation")

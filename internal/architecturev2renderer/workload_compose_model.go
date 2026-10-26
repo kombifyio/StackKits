@@ -37,8 +37,9 @@ type WorkloadComposeServiceSecret struct {
 
 // WorkloadComposeService is one container of a workload project.
 type WorkloadComposeService struct {
-	Image   string `yaml:"image"`
-	Restart string `yaml:"restart,omitempty"`
+	DNS     []string `yaml:"dns,omitempty"`
+	Image   string   `yaml:"image"`
+	Restart string   `yaml:"restart,omitempty"`
 	// Runtime names a registered OCI runtime other than the daemon default
 	// (gVisor's runsc for the governed agent harness).
 	Runtime     string                               `yaml:"runtime,omitempty"`
@@ -109,9 +110,11 @@ type WorkloadComposeLogging struct {
 
 // WorkloadComposeNetwork is a project network or an external reference.
 type WorkloadComposeNetwork struct {
-	Name     string `yaml:"name,omitempty"`
-	External bool   `yaml:"external,omitempty"`
-	Internal bool   `yaml:"internal,omitempty"`
+	DriverOpts map[string]string `yaml:"driver_opts,omitempty"`
+	Labels     map[string]string `yaml:"labels,omitempty"`
+	Name       string            `yaml:"name,omitempty"`
+	External   bool              `yaml:"external,omitempty"`
+	Internal   bool              `yaml:"internal,omitempty"`
 }
 
 // WorkloadComposeHealthcheck is a container health command.

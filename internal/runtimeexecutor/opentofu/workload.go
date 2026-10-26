@@ -3,13 +3,16 @@ package opentofu
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
@@ -51,9 +54,28 @@ func NewWorkloadOperations(native nativehost.NativeWorkloadComposeOperations, ru
 }
 
 // ApplyWorkload applies one workload bundle.
-func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativehost.SelectedPaaSWorkloadDeployment) (nativehost.SelectedPaaSApplyReceipt, error) {
+func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativehost.SelectedPaaSWorkloadDeployment) (_ nativehost.SelectedPaaSApplyReceipt, returnErr error) {
 	if o == nil || o.native == nil {
 		return nativehost.SelectedPaaSApplyReceipt{}, errors.New("OpenTofu workload operations are not initialized")
+	}
+	// This check also precedes the direct Compose generation target, whose
+	// native Apply would otherwise rewrite files before seeing any Tofu root.
+	project := "stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef
+	guardRelative, err := WorkloadRootRelativePath(project)
+	if err != nil {
+		return nativehost.SelectedPaaSApplyReceipt{}, err
+	}
+	// Direct Apply owns this project only. In a workspace operation, borrow
+	// its complete fixed batch and recheck every member before any mutation.
+	ctx, release, err := admitGenericOperation(ctx, o.runtime.WorkspaceRoot, []string{guardRelative}, false)
+	if err != nil {
+		return nativehost.SelectedPaaSApplyReceipt{}, fmt.Errorf("workload ownership requires an explicit governed manager transition or authenticated root preparation: %w", err)
+	}
+	defer func() { returnErr = errors.Join(returnErr, release()) }()
+	admission := ctx.Value(genericAdmissionContextKey{}).(*GenericRestoreAdmission)
+	fs, tx := admission.fs, admission.transaction
+	if err := refusePlatformProviderTransition(o.runtime.WorkspaceRoot, guardRelative); err != nil {
+		return nativehost.SelectedPaaSApplyReceipt{}, err
 	}
 	nativeDocker, err := nativeDockerOptIn(deployment.ModuleRef)
 	if err != nil {
@@ -62,6 +84,9 @@ func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativ
 	if !nativehost.GenerationTargetExecutesOpenTofu(deployment.GenerationTarget) {
 		if nativeDocker {
 			return nativehost.SelectedPaaSApplyReceipt{}, fmt.Errorf("%s selects %s, which needs the opentofu or terramate generation target", NativeModulesEnv, deployment.ModuleRef)
+		}
+		if err := handoffPreparedWorkload(fs, tx, guardRelative, deployment); err != nil {
+			return nativehost.SelectedPaaSApplyReceipt{}, err
 		}
 		return o.native.ApplyWorkload(ctx, deployment)
 	}
@@ -87,6 +112,9 @@ func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativ
 	execution := ""
 	if nativeDocker {
 		execution = RootExecutionNativeDocker
+	}
+	if err := handoffPreparedWorkload(fs, tx, relative, deployment); err != nil {
+		return nativehost.SelectedPaaSApplyReceipt{}, err
 	}
 	// The native preparation passes only a fixed locale to Docker Compose;
 	// the wrapper's local-exec adds the native project name.
@@ -156,11 +184,98 @@ func (o *WorkloadOperations) ApplyWorkload(ctx context.Context, deployment nativ
 	}, nil
 }
 
+// handoffPreparedWorkload moves authenticated preparation into the current
+// ordinary executor's ownership before any project mutation or old-engine
+// Destroy. The incoming deployment is checked against its actual bundle; the
+// marker describes the existing configuration until writeRoot installs the new
+// execution. A failed Apply therefore retries as an owned executor, without
+// relaxing prepared-file digests or manufacturing a historical checkpoint marker.
+func handoffPreparedWorkload(fs *confinedfs.Root, tx *confinedfs.Transaction, root string, d nativehost.SelectedPaaSWorkloadDeployment) error {
+	exists, _, err := tx.Exists(root)
+	if err != nil {
+		return err
+	}
+	if !exists && !nativehost.GenerationTargetExecutesOpenTofu(d.GenerationTarget) {
+		return nil
+	}
+	marked, _, err := tx.Exists(path.Join(root, MarkerFile))
+	if err != nil {
+		return err
+	}
+	if marked {
+		prepared, _, err := tx.Exists(path.Join(root, RootPreparationFile))
+		if err != nil {
+			return err
+		}
+		// A previous publication can report an installed marker and a failed
+		// flush. Retry must prove durability before using that handoff, too.
+		if prepared {
+			return tx.CheckSiblingStaging(root, true)
+		}
+		return nil
+	}
+	if exists {
+		if _, err := readRootPreparation(tx, root); err != nil {
+			return err
+		}
+	}
+	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(d.Bundle)
+	if err != nil {
+		return fmt.Errorf("authenticate executor ownership handoff: %w", err)
+	}
+	if bundle.WorkloadRef != d.WorkloadRef || bundle.ModuleRef != d.ModuleRef || bundle.Release != d.Release ||
+		bundle.SiteRef != d.SiteRef || bundle.NodeRef != d.NodeRef || bundle.InstanceRef != d.InstanceRef ||
+		d.ArtifactRef == "" || d.UnitRef == "" || digestBytes(d.Bundle) != d.ArtifactDigest {
+		return errors.New("executor ownership handoff differs from the exact authorized workload deployment")
+	}
+	if err := tx.CheckSiblingStaging(root, true); err != nil {
+		return err
+	}
+	execution := ""
+	config, _, err := tx.ReadStableBounded(path.Join(root, ConfigFile), maxOpenTofuStateBytes)
+	if err == nil {
+		native, err := architecturev2renderer.NativeDockerRootConfig(config)
+		clear(config)
+		if err != nil {
+			return err
+		}
+		if native {
+			execution = RootExecutionNativeDocker
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	project := "stackkit-" + d.WorkloadRef + "-" + d.NodeRef
+	marker := RootMarker{SchemaVersion: RootMarkerSchemaVersion, ModuleRef: d.ModuleRef, InstanceRef: d.InstanceRef,
+		RuntimeDir: project, ComposeProject: project, Kind: RootKindWorkload, Execution: execution}
+	if !exists {
+		return publishOrdinaryRoot(fs, tx, root, marker, d.ArtifactDigest)
+	}
+	encoded, err := json.Marshal(marker)
+	if err != nil {
+		return err
+	}
+	view, err := fs.View(".")
+	if err != nil {
+		return err
+	}
+	return writePreparedRootFile(tx, view, path.Dir(root), path.Join(root, MarkerFile), append(encoded, '\n'), true)
+}
+
 // ObserveWorkload is the native readback under every target.
-func (o *WorkloadOperations) ObserveWorkload(ctx context.Context, deployment nativehost.SelectedPaaSWorkloadDeployment) (nativehost.SelectedPaaSWorkloadObservation, error) {
+func (o *WorkloadOperations) ObserveWorkload(ctx context.Context, deployment nativehost.SelectedPaaSWorkloadDeployment) (_ nativehost.SelectedPaaSWorkloadObservation, returnErr error) {
 	if o == nil || o.native == nil {
 		return nativehost.SelectedPaaSWorkloadObservation{}, errors.New("OpenTofu workload operations are not initialized")
 	}
+	root, err := WorkloadRootRelativePath("stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef)
+	if err != nil {
+		return nativehost.SelectedPaaSWorkloadObservation{}, err
+	}
+	ctx, release, err := admitGenericOperation(ctx, o.runtime.WorkspaceRoot, []string{root}, false)
+	if err != nil {
+		return nativehost.SelectedPaaSWorkloadObservation{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, release()) }()
 	return o.native.ObserveWorkload(ctx, deployment)
 }
 
@@ -247,14 +362,32 @@ func nativeDockerOptIn(moduleRef string) (bool, error) {
 // (Stage 1 wrapper or native) before the new one is written, so the two
 // never own the same containers at once. Destroying the wrapper runs
 // `docker compose down`; destroying a native root forgets its volumes.
-// Either way the data volumes stay.
+// Either way the data volumes stay. ApplyWorkload holds the project lock
+// across this check and any Destroy, so provider adoption cannot race it.
 func (o *WorkloadOperations) leaveOtherExecution(ctx context.Context, workspace, relative, binary, execution string, environment []string) error {
 	root := filepath.Join(workspace, filepath.FromSlash(relative))
-	if _, err := os.Lstat(filepath.Join(root, MarkerFile)); errors.Is(err, os.ErrNotExist) {
-		return nil
+	if err := refusePlatformProviderTransition(workspace, relative); err != nil {
+		return err
 	}
 	marker, err := ReadRootMarker(root)
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
+		// A signed scaffold owns no running engine. A recovered root owns its
+		// authenticated generic configuration, not an invented runtime marker.
+		config, readErr := os.ReadFile(filepath.Join(root, ConfigFile))
+		if errors.Is(readErr, os.ErrNotExist) {
+			return nil
+		}
+		if readErr != nil {
+			return readErr
+		}
+		native, parseErr := architecturev2renderer.NativeDockerRootConfig(config)
+		if parseErr != nil {
+			return parseErr
+		}
+		if native {
+			marker.Execution = RootExecutionNativeDocker
+		}
+	} else if err != nil {
 		return err
 	}
 	if marker.Execution == execution {
@@ -265,6 +398,13 @@ func (o *WorkloadOperations) leaveOtherExecution(ctx context.Context, workspace,
 	}
 	if _, err := o.runtime.runRootDestroy(ctx, relative, root, binary, environment); err != nil {
 		return fmt.Errorf("leave the previous %q execution of %s: %w", marker.Execution, relative, err)
+	}
+	return nil
+}
+
+func refusePlatformProviderTransition(workspace, relative string) error {
+	if err := RequireGenericRestoreAdmission(workspace, []string{relative}); err != nil {
+		return fmt.Errorf("workload ownership requires an explicit governed manager transition or authenticated root preparation: %w", err)
 	}
 	return nil
 }

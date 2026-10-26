@@ -4412,7 +4412,7 @@ resource "null_resource" "dokploy_platform_config_dir" {
 
 resource "docker_image" "dokploy_bootstrap" {
   count = var.enable_dokploy ? 1 : 0
-  name  = "public.ecr.aws/docker/library/node:22-alpine"
+  name  = "public.ecr.aws/docker/library/node:22.23.4-alpine"
 }
 
 resource "local_sensitive_file" "dokploy_bootstrap_env" {

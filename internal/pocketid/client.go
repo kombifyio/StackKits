@@ -92,6 +92,9 @@ func NewClient(baseURL, adminToken string) *Client {
 // when set must be a valid address. FirstName is recommended (PocketID
 // stores it as a non-nullable column). IsAdmin grants admin scope.
 type CreateUserRequest struct {
+	// Pocket ID v2.16.0 accepts a caller-chosen UUID. Projection custody
+	// persists it before creation so an uncertain response can be read by ID.
+	ID            string   `json:"id,omitempty"`
 	Username      string   `json:"username"`
 	Email         string   `json:"email,omitempty"`
 	FirstName     string   `json:"firstName,omitempty"`
@@ -354,6 +357,15 @@ func (c *Client) ListUsers(ctx context.Context) ([]User, error) {
 // DeleteUser removes one PocketID subject. Callers must refuse owner and
 // break-glass identities before invoking this.
 func (c *Client) DeleteUser(ctx context.Context, userID string) error {
+	if err := c.RequireMembershipCAS(ctx); err == nil {
+		snapshot, e := c.GetMembership(ctx, userID)
+		if e != nil {
+			return e
+		}
+		return c.DeleteMembership(ctx, *snapshot)
+	} else if !errors.Is(err, ErrNotFound) {
+		return err
+	}
 	userID = strings.TrimSpace(userID)
 	if userID == "" || strings.ContainsAny(userID, "/?#") {
 		return errors.New("delete user: subject is invalid")
@@ -380,6 +392,19 @@ func (c *Client) GetUser(ctx context.Context, userID string) (*User, error) {
 // UpdateUserGroups replaces PocketID's group-ID set in one request and
 // returns the server readback. Callers must pass the complete desired set.
 func (c *Client) UpdateUserGroups(ctx context.Context, userID string, groupIDs []string) (*User, error) {
+	if err := c.RequireMembershipCAS(ctx); err == nil {
+		snapshot, e := c.GetMembership(ctx, userID)
+		if e != nil {
+			return nil, e
+		}
+		updated, e := c.UpdateMembership(ctx, *snapshot, groupIDs)
+		if e != nil {
+			return nil, e
+		}
+		return &updated.User, nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return nil, err
+	}
 	userID = strings.TrimSpace(userID)
 	if userID == "" || strings.ContainsAny(userID, "/?#") || len(groupIDs) == 0 {
 		return nil, errors.New("update user groups: subject and group IDs are required")
@@ -467,7 +492,7 @@ type UserGroup struct {
 
 // CreateUserGroup creates a new user group in PocketID and returns the
 // created object. A 409 Conflict (group already exists) maps to
-// ErrAlreadyExists so callers can treat re-runs as idempotent — chain it with
+// ErrAlreadyExists so callers can treat re-runs as idempotent â€” chain it with
 // errors.Is(err, pocketid.ErrAlreadyExists) at the call site.
 //
 // Wire format empirically verified against PocketID v2.6.x by Task 14's
@@ -717,7 +742,7 @@ func (c *Client) UpdateOIDCClientAllowedUserGroups(
 // RegisterOIDCClient creates an OIDC client (e.g. TinyAuth) and immediately
 // generates a secret only for a confidential client. Public PKCE clients never
 // create or expose a shared secret. The returned OIDCClient.Secret is the
-// raw value — record it; PocketID will not return it again.
+// raw value â€” record it; PocketID will not return it again.
 func (c *Client) RegisterOIDCClient(ctx context.Context, req RegisterClientRequest) (*OIDCClient, error) {
 	var client OIDCClient
 	if err := c.do(ctx, http.MethodPost, "/api/oidc/clients", req, &client); err != nil {
@@ -786,7 +811,7 @@ func (c *Client) healthzOnce(ctx context.Context) error {
 // admin. This method exercises that path and reports success or failure.
 //
 // The email/username/password parameters are accepted for API symmetry with
-// the original Phase-1 plan but are ignored — they have no equivalent in the
+// the original Phase-1 plan but are ignored â€” they have no equivalent in the
 // PocketID v2 setup flow. Callers should instead invoke CreateUser to
 // provision the human owner account after this returns.
 //
@@ -796,7 +821,7 @@ func (c *Client) healthzOnce(ctx context.Context) error {
 //   - A wrapped HTTP/network error otherwise.
 //
 // The plan-spec signature returned (adminToken string, err error). The
-// returned token is always c.AdminToken on success — callers that need to
+// returned token is always c.AdminToken on success â€” callers that need to
 // persist a token should use the value they passed into NewClient.
 func (c *Client) BootstrapInitialAdmin(ctx context.Context, _, _, _ string) (string, error) {
 	if c.AdminToken == "" {
@@ -912,4 +937,151 @@ func (c *Client) OIDCIssuer(ctx context.Context) (string, error) {
 		return "", errors.New("pocketid: discovery issuer is absent")
 	}
 	return discovery.Issuer, nil
+}
+
+// MembershipContract is an effect-level capability, not a version-string guess.
+const MembershipContract = "pocketid-membership-cas-v1"
+
+var ErrMembershipConflict = errors.New("pocketid: membership precondition changed")
+
+type MembershipSnapshot struct {
+	User                User
+	ETag                string
+	ConditionalRequired bool
+}
+
+func (c *Client) RequireMembershipCAS(ctx context.Context) error {
+	var result struct {
+		Contract string `json:"contract"`
+	}
+	bounded := *c
+	transport := *c.HTTP
+	transport.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	bounded.HTTP = &transport
+	if err := bounded.do(ctx, http.MethodGet, "/api/membership-capabilities", nil, &result); err != nil {
+		return err
+	}
+	if result.Contract != MembershipContract {
+		return errors.New("pocketid: conditional membership contract unavailable")
+	}
+	return nil
+}
+func validMembershipSubject(id string) bool {
+	return id != "" && strings.TrimSpace(id) == id && !strings.ContainsAny(id, "/?#\r\n")
+}
+func membershipTag(id, tag string) bool {
+	prefix := "\"pid-membership-v1:user:" + id + ":"
+	if !strings.HasPrefix(tag, prefix) || !strings.HasSuffix(tag, "\"") {
+		return false
+	}
+	n := strings.TrimSuffix(strings.TrimPrefix(tag, prefix), "\"")
+	v, e := strconv.ParseUint(n, 10, 63)
+	return e == nil && strconv.FormatUint(v, 10) == n
+}
+
+// membershipRequest never follows redirects or logs provider response bodies.
+func (c *Client) membershipRequest(ctx context.Context, method, id, tag string, groups []string) (*MembershipSnapshot, error) {
+	if !validMembershipSubject(id) || (method != http.MethodGet && !membershipTag(id, tag)) {
+		return nil, errors.New("pocketid: invalid membership binding")
+	}
+	path := "/api/users/" + id + "/membership"
+	var reader io.Reader
+	if method == http.MethodPut {
+		path = "/api/users/" + id + "/user-groups"
+		ids := slices.Clone(groups)
+		slices.Sort(ids)
+		ids = slices.Compact(ids)
+		for _, v := range ids {
+			if !validMembershipSubject(v) {
+				return nil, errors.New("pocketid: invalid group ID")
+			}
+		}
+		body, e := json.Marshal(struct {
+			Groups []string `json:"userGroupIds"`
+		}{ids})
+		if e != nil {
+			return nil, e
+		}
+		reader = bytes.NewReader(body)
+	}
+	if method == http.MethodDelete {
+		path = "/api/users/" + id
+	}
+	req, e := http.NewRequestWithContext(ctx, method, c.BaseURL+path, reader)
+	if e != nil {
+		return nil, e
+	}
+	req.Header.Set(apiKeyHeader, c.AdminToken)
+	req.Header.Set("Accept", "application/json")
+	if method == http.MethodPut {
+		req.Header.Set("X-PocketID-Membership-Mode", "required")
+	}
+	if tag != "" {
+		req.Header.Set("If-Match", tag)
+	}
+	if reader != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	transport := *c.HTTP
+	transport.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	resp, e := transport.Do(req)
+	if e != nil {
+		return nil, e
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 412 || resp.StatusCode == 428 {
+		return nil, ErrMembershipConflict
+	}
+	if resp.StatusCode == 404 {
+		return nil, ErrNotFound
+	}
+	if resp.StatusCode/100 != 2 {
+		return nil, fmt.Errorf("pocketid: membership operation refused (%d)", resp.StatusCode)
+	}
+	if method == http.MethodDelete {
+		return nil, nil
+	}
+	if resp.Header.Get("X-PocketID-Membership-Contract") != MembershipContract || len(resp.Header.Values("ETag")) != 1 {
+		return nil, errors.New("pocketid: missing membership proof")
+	}
+	required := resp.Header.Get("X-PocketID-Membership-Required")
+	if method == http.MethodGet && required != "true" && required != "false" {
+		return nil, errors.New("pocketid: missing managed membership state")
+	}
+	next := resp.Header.Get("ETag")
+	if !membershipTag(id, next) || (method == http.MethodPut && next == tag) {
+		return nil, errors.New("pocketid: invalid membership version")
+	}
+	body, e := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
+	if e != nil || len(body) > maxResponseSize {
+		return nil, errors.New("pocketid: membership response unavailable")
+	}
+	result := &MembershipSnapshot{ETag: next, ConditionalRequired: method == http.MethodPut || resp.Header.Get("X-PocketID-Membership-Required") == "true"}
+	if e = json.Unmarshal(body, &result.User); e != nil || result.User.ID != id {
+		return nil, errors.New("pocketid: membership subject mismatch")
+	}
+	if method == http.MethodPut {
+		got := make([]string, 0, len(result.User.UserGroups))
+		for _, g := range result.User.UserGroups {
+			got = append(got, g.ID)
+		}
+		expected := slices.Clone(groups)
+		slices.Sort(expected)
+		expected = slices.Compact(expected)
+		slices.Sort(got)
+		if !slices.Equal(got, expected) {
+			return nil, errors.New("pocketid: membership effect mismatch")
+		}
+	}
+	return result, nil
+}
+func (c *Client) GetMembership(ctx context.Context, id string) (*MembershipSnapshot, error) {
+	return c.membershipRequest(ctx, http.MethodGet, id, "", nil)
+}
+func (c *Client) UpdateMembership(ctx context.Context, snapshot MembershipSnapshot, groups []string) (*MembershipSnapshot, error) {
+	return c.membershipRequest(ctx, http.MethodPut, snapshot.User.ID, snapshot.ETag, groups)
+}
+func (c *Client) DeleteMembership(ctx context.Context, snapshot MembershipSnapshot) error {
+	_, e := c.membershipRequest(ctx, http.MethodDelete, snapshot.User.ID, snapshot.ETag, nil)
+	return e
 }

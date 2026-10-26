@@ -110,7 +110,7 @@ type RootMarker struct {
 	// Kind is empty for a Core root, else RootKindWorkload or RootKindModule.
 	Kind string `json:"kind,omitempty"`
 	// Execution is empty for the Stage 1 Compose wrapper, else
-	// RootExecutionNativeDocker for a Stage 2 pilot root.
+	// the native Docker or selected platform-manager execution.
 	Execution string `json:"execution,omitempty"`
 }
 
@@ -124,14 +124,28 @@ func ReadRootMarker(rootDir string) (RootMarker, error) {
 	if err := json.Unmarshal(raw, &marker); err != nil {
 		return RootMarker{}, fmt.Errorf("decode OpenTofu root marker: %w", err)
 	}
+	if err := validateRootMarker(rootDir, marker); err != nil {
+		return RootMarker{}, err
+	}
+	return marker, nil
+}
+
+func validateRootMarker(rootDir string, marker RootMarker) error {
 	parent := filepath.Base(filepath.Dir(filepath.Dir(rootDir)))
 	layout := marker.Kind == "" && parent == "runtime" ||
 		marker.Kind == RootKindWorkload && parent == ApplicationsDir ||
 		marker.Kind == RootKindModule && parent == ModulesDir
-	execution := marker.Execution == "" || marker.Execution == RootExecutionNativeDocker && marker.Kind == RootKindWorkload
+	execution := marker.Execution == "" || (marker.Execution == RootExecutionNativeDocker || IsPlatformProviderExecution(marker.Execution)) && marker.Kind == RootKindWorkload
 	if marker.SchemaVersion != RootMarkerSchemaVersion || marker.ModuleRef == "" || marker.InstanceRef == "" || !layout || !execution ||
 		!runtimeDirPattern.MatchString(marker.RuntimeDir) || filepath.Base(filepath.Dir(rootDir)) != marker.RuntimeDir {
-		return RootMarker{}, errors.New("OpenTofu root marker does not identify this root")
+		return errors.New("OpenTofu root marker does not identify this root")
 	}
-	return marker, nil
+	return nil
+}
+
+// IsPlatformProviderExecution identifies platform-manager ownership that must
+// survive generic capture, restore and transitions. The name stays compatible
+// with existing callers; an API manager need not be an OpenTofu provider.
+func IsPlatformProviderExecution(execution string) bool {
+	return execution == "komodo-provider" || execution == "coolify-provider" || execution == "dokploy-provider" || execution == "runtipi-api"
 }

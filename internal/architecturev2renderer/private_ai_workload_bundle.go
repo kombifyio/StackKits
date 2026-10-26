@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
+
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 )
 
 const (
@@ -17,7 +19,7 @@ const (
 	privateAIWorkloadOutputRef   = "workloads/private-ai/bundle.json"
 )
 
-const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-control-plane,ai-speech,ai-gateway|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file|optional:ollama-model-packs:model-pack-settings:reviewed-tags:one-shot-pull|optional:external-provider:open-webui-openai-api:wallet-bound-key`
+const privateAIWorkloadRendererSchema = `stackkit.workload-bundle/v2|PrivateAIWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:privateAI|release:` + privateAIRelease + `|secret-material:not-included|companions:ai-search,ai-documents,ai-image-video,ai-assistant,ai-harness,ai-control-plane,ai-speech,ai-gateway|optional:kombify-ai-connector:kombify-connector-setting:issued-token-file|optional:ollama-model-packs:model-pack-settings:reviewed-tags:one-shot-pull|optional:external-provider:open-webui-openai-api:wallet-bound-key|full-local:canonical-profile-and-bundle:reviewed-offline-model:create:no-egress`
 
 // The optional kombify AI connector (decision record 2026-09-27 §4). Its
 // token is issued by the owner's kombify AI, never minted: `stackkit setup
@@ -56,7 +58,7 @@ type PrivateAIWorkloadBundleDescriptor struct {
 }
 
 func PrivateAIWorkloadBundleRendererContract() RendererContract {
-	sum := sha256.Sum256([]byte(privateAIWorkloadRendererSchema))
+	sum := sha256.Sum256([]byte(privateAIWorkloadRendererSchema + fullLocalNetworkContractSalt))
 	return RendererContract{
 		Kind: "native-config", RendererRef: "stackkit",
 		TemplateRef: privateAIWorkloadTemplateRef, Version: privateAIWorkloadVersion,
@@ -108,7 +110,19 @@ func ParsePrivateAIWorkloadBundle(data []byte) (PrivateAIWorkloadBundleDescripto
 	if len(bundle.ConfigFiles) != 0 {
 		return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".configFiles", "AI runtime accepts no startup configuration overrides")
 	}
-	components, err := validatePrivateAIRuntimeComponents(bundle.Components, path+".components")
+	offline, err := privateAIBundleProfile(bundle.DataProfile, bundle.OfflineBundle, path+".dataProfile")
+	if bundle.DataProfile.FullLocal() {
+		if bundle.LocalNetwork == nil {
+			return PrivateAIWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "Full Local requires its plan-bound network")
+		}
+		if err := bundle.LocalNetwork.Validate(); err != nil {
+			return PrivateAIWorkloadBundleDescriptor{}, err
+		}
+	}
+	if err != nil {
+		return PrivateAIWorkloadBundleDescriptor{}, err
+	}
+	components, err := validatePrivateAIRuntimeComponents(bundle.Components, path+".components", offline)
 	if err != nil {
 		return PrivateAIWorkloadBundleDescriptor{}, err
 	}
@@ -228,7 +242,19 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 			return selectedPaaSWorkloadBundle{}, err
 		}
 	}
-	components, err = validatePrivateAIRuntimeComponents(components, path+".runtime.components")
+	var offline *runtimeprofile.OfflineBundleRef
+	if unit.DataProfile().FullLocal() {
+		ref, present := unit.OfflineBundle()
+		if !present || ref.Validate() != nil {
+			return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path, "Full Local requires its canonical bundle reference")
+		}
+		offline = &ref
+		components, err = materializePrivateAIOffline(components, ref, path+".runtime.components")
+		if err != nil {
+			return selectedPaaSWorkloadBundle{}, err
+		}
+	}
+	components, err = validatePrivateAIRuntimeComponents(components, path+".runtime.components", offline)
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
@@ -237,7 +263,10 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 		if err != nil {
 			return selectedPaaSWorkloadBundle{}, err
 		}
-		if _, err := validatePrivateAIRuntimeComponents(components, path+".runtime.components"); err != nil {
+		if offline != nil {
+			return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path, "offline bundle profile admits the CPU Ollama image only")
+		}
+		if _, err := validatePrivateAIRuntimeComponents(components, path+".runtime.components", nil); err != nil {
 			return selectedPaaSWorkloadBundle{}, err
 		}
 	}
@@ -252,6 +281,10 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 		APIVersion: "stackkit.workload-bundle/v2", Kind: "PrivateAIWorkloadBundle",
 		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
 	}
+	if offline != nil {
+		bundle.DataProfile, bundle.OfflineBundle = runtimeprofile.FullLocalProfile, offline
+		bundle.LocalNetwork = unit.LocalNetwork()
+	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "ai", "private-ai"
 	bundle.Workload.ModuleRef, bundle.Workload.Release = privateAIWorkloadModuleID, privateAIRelease
 	bundle.Workload.Delivery, bundle.Workload.EntryComponent = "application-adapter", entry
@@ -262,11 +295,18 @@ func validatePrivateAIWorkloadUnit(unit RenderUnit, contract RendererContract) (
 	return bundle, nil
 }
 
-func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) ([]selectedPaaSRuntimeComponent, error) {
+func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponent, path string, offline *runtimeprofile.OfflineBundleRef) ([]selectedPaaSRuntimeComponent, error) {
 	seen := map[string]bool{}
 	for _, c := range components {
+		if offline != nil && (c.Egress || c.ID == PrivateAIConnectorComponent || c.Accelerator != nil) {
+			return nil, fail(ErrInvalidPlan, path, "Full Local AI components have no external egress or accelerator")
+		}
 		if privateAIModelPackComponent(c.ID) {
-			if seen[c.ID] || !validPrivateAIModelPull(c) {
+			valid := validPrivateAIModelPull(c)
+			if offline != nil {
+				valid = validPrivateAIOfflineModel(c, *offline)
+			}
+			if seen[c.ID] || !valid {
 				return nil, fail(ErrInvalidPlan, path, "a model pack must stay the governed one-shot pull of one reviewed model tag")
 			}
 			seen[c.ID] = true
@@ -309,7 +349,7 @@ func validatePrivateAIRuntimeComponents(components []selectedPaaSRuntimeComponen
 				return nil, fail(ErrInvalidPlan, path, "chat and owner data must persist")
 			}
 		case "ollama":
-			if !c.Egress || len(c.CompanionEnvironment) != 0 || len(c.CompanionSecretEnvironment) != 0 {
+			if c.Egress != (offline == nil) || len(c.CompanionEnvironment) != 0 || len(c.CompanionSecretEnvironment) != 0 {
 				return nil, fail(ErrInvalidPlan, path, "explicit model downloads require Ollama egress")
 			}
 			if len(c.DependsOn) != 0 || len(c.SecretEnvironment) != 0 || len(c.OwnerEnvironment) != 0 || c.Health.Kind != "command" || !exactStringList(c.Health.Command, []string{"ollama", "list"}) || len(c.Environment) != 2 || c.Environment["OLLAMA_KEEP_ALIVE"] != "5m" || c.Environment["OLLAMA_CONTEXT_LENGTH"] != "8192" {

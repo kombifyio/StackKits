@@ -103,7 +103,7 @@ func prepareBasementLANRebind(root string, tx *confinedfs.Transaction, view conf
 	if previous == address {
 		return journal, previous, false, nil
 	}
-	after, err := buildLANDNSRecords(custody.Domain, address)
+	after, err := buildLANDNSRecords(custody.Domain, address, lanDNSOptions(before))
 	if err != nil {
 		return journal, previous, false, err
 	}

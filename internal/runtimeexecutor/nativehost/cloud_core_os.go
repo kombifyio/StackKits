@@ -17,6 +17,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
+	"github.com/kombifyio/stackkits/internal/pocketidruntime"
 )
 
 type osCloudCoreOperations struct {
@@ -82,6 +83,9 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 	}
 	recreateServer, err := o.prepareApply(project.Definition)
 	if err != nil {
+		return CloudCoreApplyObservation{}, err
+	}
+	if err := pocketidruntime.Prepare(ctx, o.workspaceRoot, "stackkit-"+o.name(), project.Definition); err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
 	composePath, err := o.persistCompose(project)
@@ -175,7 +179,7 @@ func (o *osCloudCoreOperations) completeApplyWithIdentity(
 	if err := o.waitUntilReady(ctx, composePath, project); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, err
 	}
-	return binding, nil
+	return pocketidruntime.Complete(ctx, o.workspaceRoot, "stackkit-"+o.name(), project.Definition, binding)
 }
 
 // requireCloudIdentityAddress keeps PocketID and TinyAuth on the hosts the

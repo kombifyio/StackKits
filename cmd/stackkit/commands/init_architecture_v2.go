@@ -15,6 +15,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/spf13/cobra"
@@ -23,10 +24,18 @@ import (
 const architectureV2DomainOverride = "network.domain.base"
 
 func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
+	dataProfile, err := runtimeprofile.FromBootEnv()
+	if err != nil {
+		return err
+	}
 	if err := validateArchitectureV2InitFlags(cmd); err != nil {
 		return err
 	}
 	stackkitName, prompt, err := selectArchitectureV2InitKit(args)
+	if err != nil {
+		return err
+	}
+	offlineBundle, err := admittedOfflineBundleForInit(cmd.Context(), dataProfile, wd)
 	if err != nil {
 		return err
 	}
@@ -128,6 +137,8 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			return err
 		}
 		validation, err = service.MaterializeInitialStackSpec(profile, architecturev2.AuthoringOverrides{
+			DataProfile:         dataProfile,
+			OfflineBundle:       offlineBundle,
 			CatalogDefaults:     initCatalogDefaults,
 			APIVersion:          architectureV2InitAPIVersion(),
 			Name:                name,
@@ -147,6 +158,22 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		if err != nil {
 			return fmt.Errorf("materialize %s initial StackSpec from CUE authority: %w", stackkitName, err)
 		}
+	}
+	// Candidate specs and newly authored intent share the same admission. A
+	// candidate never silently acquires or loses Full Local from the environment.
+	document, err := stackspecmigration.Read(validation.CanonicalStackSpec)
+	if err != nil {
+		return err
+	}
+	if document.V2 == nil {
+		return fmt.Errorf("initial StackSpec has no native identity")
+	}
+	if err := runtimeprofile.AdmitSpec(document.V2.DataProfile); err != nil {
+		return err
+	}
+	if (document.V2.OfflineBundle == nil) != (offlineBundle == nil) ||
+		(document.V2.OfflineBundle != nil && offlineBundle != nil && *document.V2.OfflineBundle != *offlineBundle) {
+		return fmt.Errorf("initial StackSpec offlineBundle does not match the verified preinstalled bundle; author a matching candidate instead of replacing its intent")
 	}
 	var ownerBinding localevidence.LocalBinding
 	var ownerEmail, ownerUsername, ownerDisplayName string
@@ -247,7 +274,18 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			} else {
 				// 0 selects the kit human-issuer default from the CUE authority
 				// (basement-kit/stackfile.cue sessionTTLSeconds, currently 900).
-				runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeAddress.Domain, 0)
+				var network struct {
+					Network struct {
+						DNS struct {
+							Servers []string `json:"servers"`
+						} `json:"dns"`
+					} `json:"network"`
+				}
+				if err := json.Unmarshal(validation.CanonicalStackSpec, &network); err != nil {
+					return err
+				}
+				dnsOptions := localevidence.LANDNSOptions{FullLocal: dataProfile.FullLocal(), Upstream: network.Network.DNS.Servers}
+				runtimeCustody, err := localevidence.EstablishBasementRuntimeCustody(wd, runtimeAddress.Domain, 0, dnsOptions)
 				if err != nil {
 					return fmt.Errorf("establish Basement runtime custody: %w", err)
 				}

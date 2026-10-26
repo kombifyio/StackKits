@@ -1,0 +1,948 @@
+diff --git a/backend/internal/controller/membership.go b/backend/internal/controller/membership.go
+--- a/backend/internal/controller/membership.go
++++ b/backend/internal/controller/membership.go
+@@ -0,0 +1,63 @@
++package controller
++
++import (
++	"github.com/gin-gonic/gin"
++	"github.com/pocket-id/pocket-id/backend/internal/dto"
++	"github.com/pocket-id/pocket-id/backend/internal/membership"
++	"net/http"
++	"strconv"
++)
++
++func membershipCondition(c *gin.Context, target string) (*membership.Condition, error) {
++	if err := membership.ValidateHeader(c.Request.Header); err != nil {
++		return nil, err
++	}
++	mode := c.Request.Header.Values("X-PocketID-Membership-Mode")
++	if len(mode) > 1 || (len(mode) == 1 && mode[0] != "required") {
++		return nil, membership.Fail(400)
++	}
++	ctx, condition := membership.WithCondition(c.Request.Context(), target, c.GetHeader("If-Match"))
++	condition.Require = len(mode) == 1
++	if condition.Require && condition.ETag == "" {
++		return nil, membership.Fail(428)
++	}
++	c.Request = c.Request.WithContext(ctx)
++	return condition, nil
++}
++func membershipHeaders(c *gin.Context, tag string) {
++	c.Header(membership.Header, membership.Contract)
++	c.Header("ETag", tag)
++	c.Header("Cache-Control", "no-store")
++}
++func (uc *UserController) membershipSnapshot(c *gin.Context) error {
++	u, tag, required, err := uc.userService.MembershipSnapshot(c.Request.Context(), c.Param("id"))
++	if err != nil {
++		return err
++	}
++	var out dto.UserDto
++	if err = dto.MapStruct(u, &out); err != nil {
++		return err
++	}
++	membershipHeaders(c, tag)
++	c.Header("X-PocketID-Membership-Required", strconv.FormatBool(required))
++	c.JSON(http.StatusOK, out)
++	return nil
++}
++func (uc *UserController) membershipCapability(c *gin.Context) error {
++	c.Header("Cache-Control", "no-store")
++	c.JSON(http.StatusOK, gin.H{"contract": membership.Contract})
++	return nil
++}
++func (gc *UserGroupController) membershipSnapshot(c *gin.Context) error {
++	g, tag, err := gc.UserGroupService.MembershipSnapshot(c.Request.Context(), c.Param("id"))
++	if err != nil {
++		return err
++	}
++	var out dto.UserGroupDto
++	if err = dto.MapStruct(g, &out); err != nil {
++		return err
++	}
++	membershipHeaders(c, tag)
++	c.JSON(http.StatusOK, out)
++	return nil
++}
+diff --git a/backend/internal/controller/user_controller.go b/backend/internal/controller/user_controller.go
+--- a/backend/internal/controller/user_controller.go
++++ b/backend/internal/controller/user_controller.go
+@@ -27,6 +27,8 @@
+ 		webAuthnService:  webAuthnService,
+ 	}
+ 
++	group.GET("/membership-capabilities", authMiddleware.Add(), httpserver.Handle(uc.membershipCapability))
++	group.GET("/users/:id/membership", authMiddleware.Add(), httpserver.Handle(uc.membershipSnapshot))
+ 	group.GET("/users", authMiddleware.Add(), httpserver.Handle(uc.listUsersHandler))
+ 	group.GET("/users/me", authMiddleware.WithAdminNotRequired().Add(), httpserver.Handle(uc.getCurrentUserHandler))
+ 	group.GET("/users/:id", authMiddleware.Add(), httpserver.Handle(uc.getUserHandler))
+@@ -195,6 +197,9 @@
+ // @Failure default {object} dto.ErrorDto "Error"
+ // @Router /api/users/{id} [delete]
+ func (uc *UserController) deleteUserHandler(c *gin.Context) error {
++	if _, err := membershipCondition(c, "user:"+c.Param("id")); err != nil {
++		return err
++	}
+ 	dbConfig, err := uc.appConfigService.GetConfig(c.Request.Context())
+ 	if err != nil {
+ 		return fmt.Errorf("error loading app configuration: %w", err)
+@@ -389,6 +394,10 @@
+ // @Failure default {object} dto.ErrorDto "Error"
+ // @Router /api/users/{id}/user-groups [put]
+ func (uc *UserController) updateUserGroups(c *gin.Context) error {
++	cond, err := membershipCondition(c, "user:"+c.Param("id"))
++	if err != nil {
++		return err
++	}
+ 	var input dto.UserUpdateUserGroupDto
+ 	if err := httpserver.BindJSON(c, &input); err != nil {
+ 		return err
+@@ -404,6 +413,7 @@
+ 		return err
+ 	}
+ 
++	membershipHeaders(c, cond.Result)
+ 	c.JSON(http.StatusOK, userDto)
+ 	return nil
+ }
+diff --git a/backend/internal/controller/user_group_controller.go b/backend/internal/controller/user_group_controller.go
+--- a/backend/internal/controller/user_group_controller.go
++++ b/backend/internal/controller/user_group_controller.go
+@@ -27,6 +27,7 @@
+ 	userGroupsGroup.Use(authMiddleware.Add())
+ 	{
+ 		userGroupsGroup.GET("", httpserver.Handle(ugc.list))
++		userGroupsGroup.GET("/:id/membership", httpserver.Handle(ugc.membershipSnapshot))
+ 		userGroupsGroup.GET("/:id", httpserver.Handle(ugc.get))
+ 		userGroupsGroup.POST("", httpserver.Handle(ugc.create))
+ 		userGroupsGroup.PUT("/:id", httpserver.Handle(ugc.update))
+@@ -185,6 +186,9 @@
+ // @Failure default {object} dto.ErrorDto "Error"
+ // @Router /api/user-groups/{id} [delete]
+ func (ugc *UserGroupController) delete(c *gin.Context) error {
++	if _, err := membershipCondition(c, "group:"+c.Param("id")); err != nil {
++		return err
++	}
+ 	dbConfig, err := ugc.appConfigService.GetConfig(c.Request.Context())
+ 	if err != nil {
+ 		return fmt.Errorf("error loading app configuration: %w", err)
+@@ -210,6 +214,10 @@
+ // @Failure default {object} dto.ErrorDto "Error"
+ // @Router /api/user-groups/{id}/users [put]
+ func (ugc *UserGroupController) updateUsers(c *gin.Context) error {
++	cond, err := membershipCondition(c, "group:"+c.Param("id"))
++	if err != nil {
++		return err
++	}
+ 	var input dto.UserGroupUpdateUsersDto
+ 	if err := httpserver.BindJSON(c, &input); err != nil {
+ 		return err
+@@ -225,6 +233,7 @@
+ 		return err
+ 	}
+ 
++	membershipHeaders(c, cond.Result)
+ 	c.JSON(http.StatusOK, groupDto)
+ 	return nil
+ }
+diff --git a/backend/internal/ldapsync/service.go b/backend/internal/ldapsync/service.go
+--- a/backend/internal/ldapsync/service.go
++++ b/backend/internal/ldapsync/service.go
+@@ -6,6 +6,7 @@
+ 	"crypto/tls"
+ 	"encoding/base64"
+ 	"fmt"
++	"github.com/pocket-id/pocket-id/backend/internal/membership"
+ 	"io"
+ 	"log/slog"
+ 	"net/http"
+@@ -127,6 +128,9 @@
+ 		return fmt.Errorf("failed to begin database transaction: %w", tx.Error)
+ 	}
+ 	defer tx.Rollback()
++	if err := membership.Lock(ctx, tx); err != nil {
++		return err
++	}
+ 
+ 	// Reconcile users
+ 	savePictures, deleteFiles, err := s.reconcileUsers(ctx, tx, desiredState.users, desiredState.userIDs, dbConfig)
+@@ -483,6 +487,9 @@
+ 			continue
+ 		}
+ 
++		if err = membership.DeleteGroup(ctx, tx, group.ID); err != nil {
++			return err
++		}
+ 		err = tx.
+ 			WithContext(ctx).
+ 			Delete(&model.UserGroup{}, "ldap_id = ?", *group.LdapID).
+diff --git a/backend/internal/membership/fence.go b/backend/internal/membership/fence.go
+--- a/backend/internal/membership/fence.go
++++ b/backend/internal/membership/fence.go
+@@ -0,0 +1,171 @@
++// Package membership implements the downstream pocketid-membership-cas-v1 contract.
++// All callers use the provider's existing transaction and admin authorization.
++package membership
++
++import (
++	"context"
++	"fmt"
++	"github.com/pocket-id/pocket-id/backend/internal/apperror"
++	"github.com/pocket-id/pocket-id/backend/internal/common"
++	"gorm.io/gorm"
++	"math"
++	"net/http"
++	"slices"
++)
++
++const Contract = "pocketid-membership-cas-v1"
++const Header = "X-PocketID-Membership-Contract"
++
++type requestKey struct{}
++type Condition struct {
++	Target, ETag, Result string
++	Require              bool
++}
++
++func WithCondition(ctx context.Context, target, etag string) (context.Context, *Condition) {
++	c := &Condition{Target: target, ETag: etag}
++	return context.WithValue(ctx, requestKey{}, c), c
++}
++func Fail(status int) error {
++	return apperror.New("membership_precondition", status, "Membership changed or requires a conditional write; reload and retry")
++}
++
++// Lock serializes membership effects across processes, on PostgreSQL AND SQLite.
++// It is also used for coherent multi-query snapshots. No process-local mutex is relied on.
++func Lock(ctx context.Context, tx *gorm.DB) error {
++	q := tx.WithContext(ctx).Exec("UPDATE membership_clock SET revision = revision WHERE id = 1")
++	if q.Error != nil {
++		return q.Error
++	}
++	if q.RowsAffected != 1 {
++		return Fail(503)
++	}
++	return nil
++}
++func epoch(ctx context.Context, tx *gorm.DB) (int64, error) {
++	var n int64
++	err := tx.WithContext(ctx).Raw("SELECT revision FROM membership_clock WHERE id = 1").Scan(&n).Error
++	return n, err
++}
++func Tag(target string, n int64) string { return fmt.Sprintf("\"pid-membership-v1:%s:%d\"", target, n) }
++
++type State struct {
++	Revision            int64
++	ConditionalRequired bool
++}
++
++func Read(ctx context.Context, tx *gorm.DB, id string) (State, error) {
++	var n int64
++	if err := tx.WithContext(ctx).Table("users").Where("id = ?", id).Count(&n).Error; err != nil {
++		return State{}, err
++	}
++	if n != 1 {
++		return State{}, apperror.UserNotFound()
++	}
++	var s State
++	err := tx.WithContext(ctx).Table("membership_versions").Where("user_id = ?", id).Scan(&s).Error
++	return s, err
++}
++func GroupTag(ctx context.Context, tx *gorm.DB, id string) (string, error) {
++	n, e := epoch(ctx, tx)
++	return Tag("group:"+id, n), e
++}
++
++// Change must run after Lock and BEFORE associations/deletion. The parent
++// transaction rolls back the versions together with every failed effect.
++func Change(ctx context.Context, tx *gorm.DB, ids []string, group string) error {
++	ids = slices.Clone(ids)
++	slices.Sort(ids)
++	ids = slices.Compact(ids)
++	n, err := epoch(ctx, tx)
++	if err != nil {
++		return err
++	}
++	if n == math.MaxInt64 {
++		return Fail(503)
++	}
++	c, _ := ctx.Value(requestKey{}).(*Condition)
++	matched := false
++	if group != "" && c != nil && c.ETag != "" {
++		if c.Target != "group:"+group || c.ETag != Tag(c.Target, n) {
++			return Fail(412)
++		}
++		matched = true
++	}
++	for _, id := range ids {
++		s, e := Read(ctx, tx, id)
++		if e != nil {
++			return e
++		}
++		conditional := matched
++		if group == "" && c != nil && c.ETag != "" {
++			if len(ids) != 1 || c.Target != "user:"+id || c.ETag != Tag(c.Target, s.Revision) {
++				return Fail(412)
++			}
++			conditional = true
++		}
++		if s.ConditionalRequired && !conditional {
++			return Fail(428)
++		}
++		if s.Revision == math.MaxInt64 {
++			return Fail(503)
++		}
++		// A managed user must remain local. LDAP is not a second writer authority.
++		activate := conditional && group == "" && c != nil && c.Require
++		if activate {
++			if id == common.StaticApiKeyUserID {
++				return Fail(409)
++			}
++			var ldap int64
++			if e = tx.WithContext(ctx).Table("users").Where("id = ? AND ldap_id IS NOT NULL", id).Count(&ldap).Error; e != nil {
++				return e
++			}
++			if ldap != 0 {
++				return Fail(409)
++			}
++		}
++		e = tx.WithContext(ctx).Exec(`INSERT INTO membership_versions (user_id, revision, conditional_required) VALUES (?, ?, ?)
++    ON CONFLICT (user_id) DO UPDATE SET revision = excluded.revision, conditional_required = excluded.conditional_required`, id, s.Revision+1, s.ConditionalRequired || activate).Error
++		if e != nil {
++			return e
++		}
++		if c != nil && group == "" {
++			c.Result = Tag("user:"+id, s.Revision+1)
++		}
++	}
++	if err = tx.WithContext(ctx).Exec("UPDATE membership_clock SET revision = revision + 1 WHERE id = 1").Error; err != nil {
++		return err
++	}
++	if c != nil && group != "" {
++		c.Result = Tag("group:"+group, n+1)
++	}
++	return nil
++}
++func GroupMembers(ctx context.Context, tx *gorm.DB, group string) ([]string, error) {
++	var ids []string
++	err := tx.WithContext(ctx).Table("user_groups_users").Where("user_group_id = ?", group).Pluck("user_id", &ids).Error
++	return ids, err
++}
++func DeleteGroup(ctx context.Context, tx *gorm.DB, group string) error {
++	if err := Lock(ctx, tx); err != nil {
++		return err
++	}
++	ids, e := GroupMembers(ctx, tx, group)
++	if e != nil {
++		return e
++	}
++	return Change(ctx, tx, ids, group)
++}
++
++// ValidateHeader refuses duplicate, weak and wildcard conditions. Equality to
++// the exact target/version is checked under the database lock, not here.
++func ValidateHeader(h http.Header) error {
++	v := h.Values("If-Match")
++	if len(v) > 1 {
++		return Fail(400)
++	}
++	if len(v) == 1 && (len(v[0]) > 180 || len(v[0]) < 2 || v[0][0] != '"' || v[0][len(v[0])-1] != '"') {
++		return Fail(400)
++	}
++	return nil
++}
+diff --git a/backend/internal/service/membership_protocol_test.go b/backend/internal/service/membership_protocol_test.go
+--- a/backend/internal/service/membership_protocol_test.go
++++ b/backend/internal/service/membership_protocol_test.go
+@@ -0,0 +1,188 @@
++//go:build unit
++
++package service
++
++import (
++	"context"
++	"errors"
++	sqlitekit "github.com/italypaleale/go-sql-utils/sqlite"
++	"github.com/libtnb/sqlite"
++	"github.com/pocket-id/pocket-id/backend/internal/appconfig"
++	"github.com/pocket-id/pocket-id/backend/internal/apperror"
++	"github.com/pocket-id/pocket-id/backend/internal/dto"
++	"github.com/pocket-id/pocket-id/backend/internal/membership"
++	"github.com/pocket-id/pocket-id/backend/internal/model"
++	"github.com/pocket-id/pocket-id/backend/internal/utils"
++	"gorm.io/gorm"
++	"log/slog"
++	"path/filepath"
++	"testing"
++)
++
++// Sensitive authorization/migration protocol boundary. Uses PocketID's real
++// file-backed SQLite configuration and embedded production migrations. No HTTP
++// provider mock, in-memory DB, business-flow unit suite or standing server.
++func TestMembershipCASProtocol(t *testing.T) {
++	ctx := context.Background()
++	dsn, _, _, _, err := sqlitekit.ParseConnectionString(filepath.Join(t.TempDir(), "pocketid.db"), slog.Default())
++	must := func(e error) {
++		t.Helper()
++		if e != nil {
++			t.Fatal(e)
++		}
++	}
++	must(err)
++	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
++	must(err)
++	sqlDB, err := db.DB()
++	must(err)
++	defer sqlDB.Close()
++	must(utils.MigrateDatabase(ctx, sqlDB))
++	// A second independent connection pool exercises the database fence.
++	db2, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
++	must(err)
++	sql2, err := db2.DB()
++	must(err)
++	defer sql2.Close()
++	u := model.User{Username: "cas-protocol", FirstName: "CAS"}
++	must(db.Create(&u).Error)
++	group := model.UserGroup{Name: "cas-group", FriendlyName: "CAS group"}
++	must(db.Create(&group).Error)
++	us := &UserService{db: db}
++	other := &UserService{db: db2}
++	gs := &UserGroupService{db: db}
++	status := func(e error, n int) {
++		t.Helper()
++		var app *apperror.Error
++		if !errors.As(e, &app) || app.HTTPStatus() != n {
++			t.Fatalf("wanted %d, got %v", n, e)
++		}
++	}
++	put := func(s *UserService, tag string, groups []string) error {
++		c, condition := membership.WithCondition(ctx, "user:"+u.ID, tag)
++		condition.Require = true
++		_, e := s.UpdateUserGroups(c, u.ID, groups)
++		return e
++	}
++	_, old, _, err := us.MembershipSnapshot(ctx, u.ID)
++	must(err)
++	// Newer no-op revoke must still fence the delayed old grant.
++	must(put(other, old, []string{}))
++	status(put(us, old, []string{group.ID}), 412)
++	current, tag, required, err := us.MembershipSnapshot(ctx, u.ID)
++	must(err)
++	if len(current.UserGroups) != 0 || !required || tag == old {
++		t.Fatal("no-op did not establish sticky fence")
++	}
++	_, err = us.UpdateUserGroups(ctx, u.ID, []string{group.ID})
++	status(err, 428)
++	// Lost successful grant response, new service instance, then latest revoke.
++	must(put(us, tag, []string{group.ID}))
++	_, next, _, err := other.MembershipSnapshot(ctx, u.ID)
++	must(err)
++	must(put(other, next, []string{}))
++	status(put(us, tag, []string{group.ID}), 412)
++	// Inverse path cannot bypass a managed user's fence. Existing owner operation
++	// remains available with a coherent group snapshot and the same admin authority.
++	_, err = gs.UpdateUsers(ctx, group.ID, []string{u.ID})
++	status(err, 428)
++	_, groupTag, err := gs.MembershipSnapshot(ctx, group.ID)
++	must(err)
++	c, _ := membership.WithCondition(ctx, "group:"+group.ID, groupTag)
++	_, err = gs.UpdateUsers(c, group.ID, []string{u.ID})
++	must(err)
++	status(put(us, next, []string{}), 412)
++	status(gs.Delete(ctx, &appconfig.AppConfigModel{}, group.ID), 428)
++	_, groupTag, err = gs.MembershipSnapshot(ctx, group.ID)
++	must(err)
++	c, _ = membership.WithCondition(ctx, "group:"+group.ID, groupTag)
++	must(gs.Delete(c, &appconfig.AppConfigModel{}, group.ID))
++	current, tag, _, err = us.MembershipSnapshot(ctx, u.ID)
++	must(err)
++	if len(current.UserGroups) != 0 {
++		t.Fatal("group delete did not remove membership")
++	}
++	// Delete shares the fence; old user Save cannot resurrect this incarnation.
++	c, _ = membership.WithCondition(ctx, "user:"+u.ID, tag)
++	must(db.Transaction(func(tx *gorm.DB) error { return us.DeleteUserInternal(c, &appconfig.AppConfigModel{}, tx, u.ID, false) }))
++	status(put(other, tag, []string{}), 404)
++	var n int64
++	must(db.Model(&model.User{}).Where("id = ?", u.ID).Count(&n).Error)
++	if n != 0 {
++		t.Fatal("deleted UUID resurrected")
++	}
++	// Unmanaged compatibility still accepts legacy writes.
++	legacy := model.User{Username: "cas-legacy", FirstName: "Legacy"}
++	must(db.Create(&legacy).Error)
++	_, err = us.UpdateUserGroups(ctx, legacy.ID, []string{})
++	must(err)
++	_, _, required, err = us.MembershipSnapshot(ctx, legacy.ID)
++	must(err)
++	if required {
++		t.Fatal("legacy call activated managed mode")
++	}
++	// Both owner form directions retain their original snapshot condition.
++	// A newer revoke must reject the old full-set selection, including no-op saves.
++	_, userFormTag, _, err := us.MembershipSnapshot(ctx, legacy.ID)
++	must(err)
++	formGroup := model.UserGroup{Name: "form-group", FriendlyName: "Form"}
++	must(db.Create(&formGroup).Error)
++	_, groupFormTag, err := gs.MembershipSnapshot(ctx, formGroup.ID)
++	must(err)
++	uc, _ := membership.WithCondition(ctx, "user:"+legacy.ID, userFormTag)
++	_, err = us.UpdateUserGroups(uc, legacy.ID, []string{})
++	must(err)
++	uc, _ = membership.WithCondition(ctx, "user:"+legacy.ID, userFormTag)
++	_, err = us.UpdateUserGroups(uc, legacy.ID, []string{formGroup.ID})
++	status(err, 412)
++	gc, _ := membership.WithCondition(ctx, "group:"+formGroup.ID, groupFormTag)
++	_, err = gs.UpdateUsers(gc, formGroup.ID, []string{legacy.ID})
++	status(err, 412)
++	_, groupFormTag, err = gs.MembershipSnapshot(ctx, formGroup.ID)
++	must(err)
++	gc, accepted := membership.WithCondition(ctx, "group:"+formGroup.ID, groupFormTag)
++	_, err = gs.UpdateUsers(gc, formGroup.ID, []string{legacy.ID})
++	must(err)
++	if accepted.Result == "" || accepted.Result == groupFormTag {
++		t.Fatal("accepted group write did not yield the next form condition")
++	}
++	gc, _ = membership.WithCondition(ctx, "group:"+formGroup.ID, accepted.Result)
++	_, err = gs.UpdateUsers(gc, formGroup.ID, []string{})
++	must(err)
++
++	// Exercise the real GORM zero-row UPDATE seam deterministically. This local
++	// DB callback removes the row after the service read, immediately before SQL
++	// UPDATE. Old Save resurrects it; update-only must return 404 and never INSERT.
++	profile := model.UserGroup{Name: "profile-delete-race", FriendlyName: "Original"}
++	must(db.Create(&profile).Error)
++	armed := true
++	must(db.Callback().Update().Before("gorm:update").Register("protocol:remove-before-profile-write", func(tx *gorm.DB) {
++		if armed && tx.Statement.Table == "user_groups" {
++			armed = false
++			tx.AddError(tx.Session(&gorm.Session{NewDB: true}).Exec("DELETE FROM user_groups WHERE id = ?", profile.ID).Error)
++		}
++	}))
++	_, err = gs.Update(ctx, &appconfig.AppConfigModel{}, profile.ID, dto.UserGroupCreateDto{Name: profile.Name, FriendlyName: "Delayed"})
++	status(err, 404)
++	if armed {
++		t.Fatal("profile zero-row update seam was not exercised")
++	}
++	must(db.Callback().Update().Remove("protocol:remove-before-profile-write"))
++	// The failed transaction rolled back; a normal profile edit remains usable.
++	updatedProfile, err := gs.Update(ctx, &appconfig.AppConfigModel{}, profile.ID, dto.UserGroupCreateDto{Name: profile.Name, FriendlyName: "Accepted"})
++	must(err)
++	if updatedProfile.FriendlyName != "Accepted" {
++		t.Fatal("profile edit lost")
++	}
++	_, profileTag, err := gs.MembershipSnapshot(ctx, profile.ID)
++	must(err)
++	gc, _ = membership.WithCondition(ctx, "group:"+profile.ID, profileTag)
++	must(gs.Delete(gc, &appconfig.AppConfigModel{}, profile.ID))
++	_, err = gs.Update(ctx, &appconfig.AppConfigModel{}, profile.ID, dto.UserGroupCreateDto{Name: profile.Name, FriendlyName: "Late"})
++	status(err, 404)
++	must(db.Model(&model.UserGroup{}).Where("id = ?", profile.ID).Count(&n).Error)
++	if n != 0 {
++		t.Fatal("profile writer resurrected deleted group UUID")
++	}
++
++}
+diff --git a/backend/internal/service/membership_snapshot.go b/backend/internal/service/membership_snapshot.go
+--- a/backend/internal/service/membership_snapshot.go
++++ b/backend/internal/service/membership_snapshot.go
+@@ -0,0 +1,40 @@
++package service
++
++import (
++	"context"
++	"github.com/pocket-id/pocket-id/backend/internal/membership"
++	"github.com/pocket-id/pocket-id/backend/internal/model"
++	"gorm.io/gorm"
++)
++
++func (s *UserService) MembershipSnapshot(ctx context.Context, id string) (u model.User, tag string, required bool, err error) {
++	err = s.db.Transaction(func(tx *gorm.DB) error {
++		if e := membership.Lock(ctx, tx); e != nil {
++			return e
++		}
++		st, e := membership.Read(ctx, tx, id)
++		if e != nil {
++			return e
++		}
++		u, e = s.getUserInternal(ctx, id, tx)
++		tag = membership.Tag("user:"+id, st.Revision)
++		required = st.ConditionalRequired
++		return e
++	})
++	return
++}
++func (s *UserGroupService) MembershipSnapshot(ctx context.Context, id string) (g model.UserGroup, tag string, err error) {
++	err = s.db.Transaction(func(tx *gorm.DB) error {
++		if e := membership.Lock(ctx, tx); e != nil {
++			return e
++		}
++		var e error
++		g, e = s.getInternal(ctx, id, tx)
++		if e != nil {
++			return e
++		}
++		tag, e = membership.GroupTag(ctx, tx, id)
++		return e
++	})
++	return
++}
+diff --git a/backend/internal/service/user_group_service.go b/backend/internal/service/user_group_service.go
+--- a/backend/internal/service/user_group_service.go
++++ b/backend/internal/service/user_group_service.go
+@@ -3,6 +3,7 @@
+ import (
+ 	"context"
+ 	"errors"
++	"github.com/pocket-id/pocket-id/backend/internal/membership"
+ 	"time"
+ 
+ 	"github.com/pocket-id/pocket-id/backend/internal/appconfig"
+@@ -71,6 +72,9 @@
+ 		tx.Rollback()
+ 	}()
+ 
++	if err := membership.DeleteGroup(ctx, tx, id); err != nil {
++		return err
++	}
+ 	var group model.UserGroup
+ 	err := tx.
+ 		WithContext(ctx).
+@@ -176,6 +180,9 @@
+ }
+ 
+ func (s *UserGroupService) updateInternal(ctx context.Context, id string, input dto.UserGroupCreateDto, isLdapSync bool, tx *gorm.DB, cfg *appconfig.AppConfigModel) (group model.UserGroup, err error) {
++	if err = membership.Lock(ctx, tx); err != nil {
++		return model.UserGroup{}, err
++	}
+ 	group, err = s.getInternal(ctx, id, tx)
+ 	if err != nil {
+ 		return model.UserGroup{}, err
+@@ -192,11 +199,13 @@
+ 	group.FriendlyName = input.FriendlyName
+ 	group.UpdatedAt = new(datatype.DateTime(time.Now()))
+ 
+-	err = tx.
+-		WithContext(ctx).
+-		Preload("Users").
+-		Save(&group).
+-		Error
++	// UPDATE only: a deleted UUID must never be recreated by GORM Save.
++	result := tx.WithContext(ctx).Model(&model.UserGroup{}).Where("id = ?", id).
++		Updates(map[string]any{"name": group.Name, "friendly_name": group.FriendlyName, "updated_at": group.UpdatedAt})
++	err = result.Error
++	if err == nil && result.RowsAffected != 1 {
++		return model.UserGroup{}, apperror.NotFound("User group")
++	}
+ 	if errors.Is(err, gorm.ErrDuplicatedKey) {
+ 		return model.UserGroup{}, apperror.AlreadyInUse("name")
+ 	} else if err != nil {
+@@ -231,6 +240,16 @@
+ // UpdateUsersInternal replaces the members of a user group within an existing transaction
+ // It's exported for the LDAP sync, which reconciles users and groups in a single transaction of its own
+ func (s *UserGroupService) UpdateUsersInternal(ctx context.Context, id string, userIds []string, tx *gorm.DB) (model.UserGroup, error) {
++	if err := membership.Lock(ctx, tx); err != nil {
++		return model.UserGroup{}, err
++	}
++	old, err := membership.GroupMembers(ctx, tx, id)
++	if err != nil {
++		return model.UserGroup{}, err
++	}
++	if err = membership.Change(ctx, tx, append(old, userIds...), id); err != nil {
++		return model.UserGroup{}, err
++	}
+ 	group, err := s.getInternal(ctx, id, tx)
+ 	if err != nil {
+ 		return model.UserGroup{}, err
+@@ -264,7 +283,7 @@
+ 
+ 	err = tx.
+ 		WithContext(ctx).
+-		Save(&group).
++		Omit("Users").Save(&group).
+ 		Error
+ 	if err != nil {
+ 		return model.UserGroup{}, err
+@@ -338,7 +357,7 @@
+ 	// Save the updated group
+ 	err = tx.
+ 		WithContext(ctx).
+-		Save(&group).
++		Omit("Users").Save(&group).
+ 		Error
+ 	if err != nil {
+ 		return model.UserGroup{}, err
+diff --git a/backend/internal/service/user_service.go b/backend/internal/service/user_service.go
+--- a/backend/internal/service/user_service.go
++++ b/backend/internal/service/user_service.go
+@@ -6,10 +6,12 @@
+ 	"encoding/json"
+ 	"errors"
+ 	"fmt"
++	"github.com/pocket-id/pocket-id/backend/internal/membership"
+ 	"io"
+ 	"io/fs"
+ 	"log/slog"
+ 	"path"
++	"slices"
+ 	"time"
+ 	"uuid"
+ 
+@@ -220,6 +222,12 @@
+ // It's exported for the LDAP sync, which deletes users that are no longer in the directory
+ // Note that the caller is responsible for removing the user's profile picture from the storage layer, which must happen outside of the transaction
+ func (s *UserService) DeleteUserInternal(ctx context.Context, cfg *appconfig.AppConfigModel, tx *gorm.DB, userID string, allowLdapDelete bool) error {
++	if err := membership.Lock(ctx, tx); err != nil {
++		return err
++	}
++	if err := membership.Change(ctx, tx, []string{userID}, ""); err != nil {
++		return err
++	}
+ 	var user model.User
+ 	err := tx.
+ 		WithContext(ctx).
+@@ -276,6 +284,12 @@
+ }
+ 
+ func (s *UserService) createUserInternal(ctx context.Context, input dto.UserCreateDto, isLdapSync bool, tx *gorm.DB, cfg *appconfig.AppConfigModel) (model.User, error) {
++	if err := membership.Lock(ctx, tx); err != nil {
++		return model.User{}, err
++	}
++	if err := membership.Change(ctx, tx, nil, ""); err != nil {
++		return model.User{}, err
++	}
+ 	if cfg.RequireUserEmail.IsTrue() && input.Email == nil {
+ 		return model.User{}, apperror.MissingField("email")
+ 	}
+@@ -524,7 +538,7 @@
+ 
+ 	err = tx.
+ 		WithContext(ctx).
+-		Save(&user).
++		Omit("UserGroups").Save(&user).
+ 		Error
+ 	if errors.Is(err, gorm.ErrDuplicatedKey) {
+ 		// Do not follow this path if we're using LDAP, as we don't want to roll-back the transaction here
+@@ -550,6 +564,12 @@
+ 		tx.Rollback()
+ 	}()
+ 
++	if err = membership.Lock(ctx, tx); err != nil {
++		return model.User{}, err
++	}
++	if err = membership.Change(ctx, tx, []string{id}, ""); err != nil {
++		return model.User{}, err
++	}
+ 	user, err = s.getUserInternal(ctx, id, tx)
+ 	if err != nil {
+ 		return model.User{}, err
+@@ -568,6 +588,9 @@
+ 		}
+ 	}
+ 
++	if len(groups) != len(slices.Compact(slices.Sorted(slices.Values(userGroupIds)))) {
++		return model.User{}, membership.Fail(400)
++	}
+ 	// Replace the current groups with the new set of groups
+ 	err = tx.
+ 		WithContext(ctx).
+@@ -579,7 +602,7 @@
+ 	}
+ 
+ 	// Save the updated user
+-	err = tx.WithContext(ctx).Save(&user).Error
++	err = tx.WithContext(ctx).Omit("UserGroups").Save(&user).Error
+ 	if err != nil {
+ 		return model.User{}, err
+ 	}
+diff --git a/backend/internal/usersignup/service.go b/backend/internal/usersignup/service.go
+--- a/backend/internal/usersignup/service.go
++++ b/backend/internal/usersignup/service.go
+@@ -3,6 +3,7 @@
+ import (
+ 	"context"
+ 	"fmt"
++	"github.com/pocket-id/pocket-id/backend/internal/membership"
+ 	"log/slog"
+ 	"sort"
+ 	"strings"
+@@ -154,6 +155,9 @@
+ 		tx.Rollback()
+ 	}()
+ 
++	if err := membership.Lock(ctx, tx); err != nil {
++		return model.User{}, "", err
++	}
+ 	// We lock the users table to prevent concurrent initial admin setups from racing to create the first user
+ 	// This is only necessary for Postgres, since SQLite serializes all writes anyway
+ 	if err := lockInitialAdminSetup(ctx, tx); err != nil {
+diff --git a/backend/resources/migrations/postgres/20261025060000_membership_cas.up.sql b/backend/resources/migrations/postgres/20261025060000_membership_cas.up.sql
+--- a/backend/resources/migrations/postgres/20261025060000_membership_cas.up.sql
++++ b/backend/resources/migrations/postgres/20261025060000_membership_cas.up.sql
+@@ -0,0 +1,7 @@
++CREATE TABLE membership_clock (id INTEGER PRIMARY KEY CHECK (id = 1), revision BIGINT NOT NULL CHECK (revision >= 0));
++INSERT INTO membership_clock (id, revision) VALUES (1, 0);
++CREATE TABLE membership_versions (
++ user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
++ revision BIGINT NOT NULL CHECK (revision >= 0),
++ conditional_required BOOLEAN NOT NULL DEFAULT FALSE
++);
+diff --git a/backend/resources/migrations/sqlite/20261025060000_membership_cas.up.sql b/backend/resources/migrations/sqlite/20261025060000_membership_cas.up.sql
+--- a/backend/resources/migrations/sqlite/20261025060000_membership_cas.up.sql
++++ b/backend/resources/migrations/sqlite/20261025060000_membership_cas.up.sql
+@@ -0,0 +1,7 @@
++CREATE TABLE membership_clock (id INTEGER PRIMARY KEY CHECK (id = 1), revision BIGINT NOT NULL CHECK (revision >= 0));
++INSERT INTO membership_clock (id, revision) VALUES (1, 0);
++CREATE TABLE membership_versions (
++ user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
++ revision BIGINT NOT NULL CHECK (revision >= 0),
++ conditional_required BOOLEAN NOT NULL DEFAULT FALSE
++);
+diff --git a/frontend/src/lib/services/user-group-service.ts b/frontend/src/lib/services/user-group-service.ts
+--- a/frontend/src/lib/services/user-group-service.ts
++++ b/frontend/src/lib/services/user-group-service.ts
+@@ -24,12 +24,23 @@
+ 	};
+ 
+ 	remove = async (id: string) => {
+-		await this.api.delete(`/user-groups/${id}`);
++		const snapshot = await this.api.get(`/user-groups/${id}/membership`);
++		await this.api.delete(`/user-groups/${id}`, { headers: { "If-Match": snapshot.headers.etag } });
+ 	};
+ 
+-	updateUsers = async (id: string, userIds: string[]) => {
+-		const res = await this.api.put(`/user-groups/${id}/users`, { userIds });
+-		return res.data as UserGroup;
++	getMembership = async (id: string) => {
++		const res = await this.api.get(`/user-groups/${id}/membership`);
++		const etag: unknown = res.headers.etag;
++		if (typeof etag !== 'string' || !etag) throw new Error('Missing membership condition');
++		return { value: res.data as UserGroup, etag };
++	};
++
++	updateUsers = async (id: string, userIds: string[], etag: string) => {
++		if (!etag) throw new Error('Missing membership condition');
++		const res = await this.api.put(`/user-groups/${id}/users`, { userIds }, { headers: { 'If-Match': etag } });
++		const committedETag: unknown = res.headers.etag;
++		if (typeof committedETag !== 'string' || !committedETag) throw new Error('Missing committed membership condition');
++		return committedETag;
+ 	};
+ 
+ 	updateAllowedOidcClients = async (id: string, oidcClientIds: string[]) => {
+diff --git a/frontend/src/lib/services/user-service.ts b/frontend/src/lib/services/user-service.ts
+--- a/frontend/src/lib/services/user-service.ts
++++ b/frontend/src/lib/services/user-service.ts
+@@ -50,7 +50,8 @@
+ 	};
+ 
+ 	remove = async (id: string) => {
+-		await this.api.delete(`/users/${id}`);
++		const snapshot = await this.api.get(`/users/${id}/membership`);
++		await this.api.delete(`/users/${id}`, { headers: { "If-Match": snapshot.headers.etag } });
+ 	};
+ 
+ 	removeUserPasskey = async (userId: string, passkeyId: string) => {
+@@ -108,9 +109,19 @@
+ 		await this.api.post(`/users/${userId}/one-time-access-email`, { ttl });
+ 	};
+ 
+-	updateUserGroups = async (id: string, userGroupIds: string[]) => {
+-		const res = await this.api.put(`/users/${id}/user-groups`, { userGroupIds });
+-		return res.data as User;
++	getMembership = async (id: string) => {
++		const res = await this.api.get(`/users/${id}/membership`);
++		const etag: unknown = res.headers.etag;
++		if (typeof etag !== 'string' || !etag) throw new Error('Missing membership condition');
++		return { value: res.data as User, etag };
++	};
++
++	updateUserGroups = async (id: string, userGroupIds: string[], etag: string) => {
++		if (!etag) throw new Error('Missing membership condition');
++		const res = await this.api.put(`/users/${id}/user-groups`, { userGroupIds }, { headers: { 'If-Match': etag } });
++		const committedETag: unknown = res.headers.etag;
++		if (typeof committedETag !== 'string' || !committedETag) throw new Error('Missing committed membership condition');
++		return committedETag;
+ 	};
+ 
+ 	signup = async (data: UserSignUp) => {
+diff --git a/frontend/src/routes/settings/admin/user-groups/[id]/+page.svelte b/frontend/src/routes/settings/admin/user-groups/[id]/+page.svelte
+--- a/frontend/src/routes/settings/admin/user-groups/[id]/+page.svelte
++++ b/frontend/src/routes/settings/admin/user-groups/[id]/+page.svelte
+@@ -16,6 +16,7 @@
+ 	import OidcClientSelection from './oidc-client-selection.svelte';
+ 
+ 	let { data } = $props();
++	let membershipETag = $state(data.membershipETag);
+ 	let userGroup = $state({
+ 		...data.userGroup,
+ 		userIds: data.userGroup.users.map((u) => u.id),
+@@ -36,7 +37,10 @@
+ 		(userIds) => {
+ 			userGroup.userIds = userIds;
+ 		},
+-		(userIds) => userGroupService.updateUsers(userGroup.id, userIds)
++		async (userIds) => {
++			// A 412 leaves this form stale; never rebase its selection implicitly.
++			membershipETag = await userGroupService.updateUsers(userGroup.id, userIds, membershipETag);
++		}
+ 	);
+ 
+ 	trackUnsavedValue(
+diff --git a/frontend/src/routes/settings/admin/user-groups/[id]/+page.ts b/frontend/src/routes/settings/admin/user-groups/[id]/+page.ts
+--- a/frontend/src/routes/settings/admin/user-groups/[id]/+page.ts
++++ b/frontend/src/routes/settings/admin/user-groups/[id]/+page.ts
+@@ -3,7 +3,7 @@
+ 
+ export const load: PageLoad = async ({ params }) => {
+ 	const userGroupService = new UserGroupService();
+-	const userGroup = await userGroupService.get(params.id);
++	const membership = await userGroupService.getMembership(params.id);
+ 
+-	return { userGroup };
++	return { userGroup: membership.value, membershipETag: membership.etag };
+ };
+diff --git a/frontend/src/routes/settings/admin/users/[id]/+page.svelte b/frontend/src/routes/settings/admin/users/[id]/+page.svelte
+--- a/frontend/src/routes/settings/admin/users/[id]/+page.svelte
++++ b/frontend/src/routes/settings/admin/users/[id]/+page.svelte
+@@ -21,6 +21,7 @@
+ 	import AdminPasskeyList from './admin-passkey-list.svelte';
+ 
+ 	let { data } = $props();
++	let membershipETag = $state(data.membershipETag);
+ 	let user = $state({
+ 		...data.user,
+ 		userGroupIds: data.user.userGroups.map((g) => g.id)
+@@ -40,7 +41,10 @@
+ 		(userGroupIds) => {
+ 			user.userGroupIds = userGroupIds;
+ 		},
+-		(userGroupIds) => userService.updateUserGroups(user.id, userGroupIds)
++		async (userGroupIds) => {
++			// A 412 leaves this form stale; never rebase its selection implicitly.
++			membershipETag = await userService.updateUserGroups(user.id, userGroupIds, membershipETag);
++		}
+ 	);
+ 
+ 	trackUnsavedValue(
+diff --git a/frontend/src/routes/settings/admin/users/[id]/+page.ts b/frontend/src/routes/settings/admin/users/[id]/+page.ts
+--- a/frontend/src/routes/settings/admin/users/[id]/+page.ts
++++ b/frontend/src/routes/settings/admin/users/[id]/+page.ts
+@@ -3,13 +3,14 @@
+ 
+ export const load: PageLoad = async ({ params }) => {
+ 	const userService = new UserService();
+-	const [user, passkeys] = await Promise.all([
+-		userService.get(params.id),
++	const [membership, passkeys] = await Promise.all([
++		userService.getMembership(params.id),
+ 		userService.listUserPasskeys(params.id)
+ 	]);
+ 
+ 	return {
+-		user,
++		user: membership.value,
++		membershipETag: membership.etag,
+ 		passkeys
+ 	};
+ };

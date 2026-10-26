@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"math"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/capacityfit"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
@@ -244,33 +244,46 @@ func (p VerifiedPlan) RequireReady(phase ExecutionPhase) error {
 	}
 }
 
-// capacityDetail names the memory the selected services reserve per node, so a
-// capacity refusal says how large the host must be and how to reduce the demand
-// instead of only repeating the blocker code.
+// capacityDetail describes only the attested axes below the compiler's minimum.
+// Host-root storage and free space at a workload data root are separate facts.
 func (p VerifiedPlan) capacityDetail() string {
 	var plan struct {
-		ResourceDemand []struct {
-			NodeRef     string             `json:"nodeRef"`
-			ModuleRefs  []string           `json:"moduleRefs"`
-			HostFloor   map[string]float64 `json:"hostFloor"`
-			Reservation map[string]float64 `json:"reservation"`
-		} `json:"resourceDemand"`
+		ResourceDemand []capacityfit.Demand `json:"resourceDemand"`
+		Source         struct {
+			Inventory struct {
+				Document struct {
+					Nodes map[string]capacityfit.Vector `json:"nodes"`
+				} `json:"document"`
+			} `json:"inventory"`
+		} `json:"source"`
 	}
 	if err := json.Unmarshal(p.canonical, &plan); err != nil {
 		return ""
 	}
 	var lines []string
 	for _, demand := range plan.ResourceDemand {
-		ram := math.Max(demand.HostFloor["ramGB"], demand.Reservation["ramGB"])
-		if ram <= 0 {
-			continue
+		minimum := capacityfit.InventoryMinimum(capacityfit.Max(demand.HostFloor, demand.Reservation))
+		observed := plan.Source.Inventory.Document.Nodes[demand.NodeRef]
+		for _, axis := range []struct {
+			id          capacityfit.Axis
+			label, unit string
+			remedy      string
+		}{
+			{capacityfit.CPU, "CPU capacity", "cores", "Use a host with more CPU cores or reduce selected profile demand"},
+			{capacityfit.RAM, "RAM", "GiB", "Use a host with more RAM or reduce selected profile demand"},
+			{capacityfit.Storage, "host-root storage", "GiB", "Use a host with a larger root filesystem; free space at an external data root does not replace this requirement"},
+		} {
+			wanted, actual := minimum.Value(axis.id), observed.Value(axis.id)
+			if wanted == nil || actual == nil || *actual >= *wanted {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("node %s: %s is %g %s; requires at least %g %s. %s", demand.NodeRef, axis.label, *actual, axis.unit, *wanted, axis.unit, axis.remedy))
 		}
-		lines = append(lines, fmt.Sprintf("node %s: the %d selected services reserve %.1f GB RAM", demand.NodeRef, len(demand.ModuleRefs), ram))
 	}
 	if len(lines) == 0 {
 		return ""
 	}
-	return strings.Join(lines, "; ") + ". Use a host with at least that much memory, or select fewer services in stack-spec.yaml and run `stackkit generate` again"
+	return strings.Join(lines, "; ") + ". Run `stackkit generate` again after changing host capacity or selected profiles"
 }
 
 func cloneReadinessBlockers(blockers []ReadinessBlocker) []ReadinessBlocker {

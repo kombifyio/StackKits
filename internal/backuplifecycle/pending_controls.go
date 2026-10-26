@@ -45,10 +45,16 @@ func RequireSettledRuntimeControls(workspace, resumeOperation string) error {
 		if err != nil {
 			return err
 		}
-		if op.Quiescence == nil || op.Quiescence.ControlVersion != 1 || op.Quiescence.Phase == "restored" {
+		if op.State == "transferred" && op.Quiescence != nil && (op.Quiescence.Phase == "transfer-retired" || op.Quiescence.Phase == "transfer-aborted") {
 			continue
 		}
-		pending := false
+		if op.Quiescence != nil && op.Quiescence.TransferHoldID != "" && op.Input.OperationID != resumeOperation {
+			return fmt.Errorf("application transfer %s retains an exclusive source/target hold; ordinary lifecycle mutation is denied", op.Quiescence.TransferHoldID)
+		}
+		if op.Quiescence == nil || (op.Quiescence.ControlVersion != 1 && op.Quiescence.ControlVersion != 2) || op.Quiescence.Phase == "restored" && (op.Quiescence.ControlVersion != 2 || len(op.AppGroupClosures) == len(op.Quiescence.AppGroups)) {
+			continue
+		}
+		pending := len(op.Quiescence.AppGroups) > 0
 		for _, control := range op.Quiescence.Controls {
 			if control.Stop.State != "" || control.Start.State != "" {
 				pending = true

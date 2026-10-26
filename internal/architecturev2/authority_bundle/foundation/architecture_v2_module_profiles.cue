@@ -586,6 +586,21 @@ _architectureV2LitellmComputeProfile: #ModuleComputeProfileV2 & {
 }
 _architectureV2LitellmComputeProfiles: {standard: _architectureV2LitellmComputeProfile, high: _architectureV2LitellmComputeProfile}
 
+// The vector store keeps the knowledge-base collections on disk and holds the
+// hot index in memory; the reservation covers a small personal corpus.
+_architectureV2QdrantComputeProfile: #ModuleComputeProfileV2 & {
+	description: "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
+	reservation: ramGB: 0.25
+	components: ["qdrant"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+	}
+}
+_architectureV2QdrantComputeProfiles: {standard: _architectureV2QdrantComputeProfile, high: _architectureV2QdrantComputeProfile}
+
 // Private AI image and video (ComfyUI), a core AI component (owner decision
 // 2026-09-27). Without an accelerator profile it runs on the CPU: upscaling
 // works on the floor below, text-to-image needs about 32 GB of RAM because

@@ -1,0 +1,41 @@
+{
+  "schema": "stackkits.pocketid-qualified-amd64.v1",
+  "qualification_manifest_sha256": "ea4be1fb5acaa11d75cd75bc824234cbef0fa77e6763cb627aef041d3c28175d",
+  "protocol_receipt_sha256": "d79a6f1521513ede1855d2b095ed6c5053db4feb705e238ddbd60b6cf4049336",
+  "passed_cases": 9,
+  "patch_sha256": "339b3aba9b1d6bdd990cf5cb0e2e61e339f44a731d574f989e8b64cc1cacd698",
+  "image_config": "sha256:63e8eeebd3a6ad51bcf07bf6a6d0fab239a77fe92b06ef5c341bbcf43056c0a4",
+  "binary_sha256": "f43e32a7d4f2d87a9547013a97cfd1f88859ebe9af07400d5b968b9d40708214",
+  "license_sha256": "c4822dc23fddabd9aef6cd1b1e5dfe307cbc36dc0f1d662e82d58ebc886d9d0f",
+  "runtime_config": {
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "APP_ENV=production"
+    ],
+    "Entrypoint": [
+      "sh",
+      "/app/docker/entrypoint.sh"
+    ],
+    "Cmd": [
+      "/app/pocket-id"
+    ],
+    "WorkingDir": "/app",
+    "User": null,
+    "ExposedPorts": {
+      "1411/tcp": {}
+    },
+    "Healthcheck": {
+      "Test": [
+        "CMD",
+        "/app/pocket-id",
+        "healthcheck"
+      ],
+      "Interval": 90000000000,
+      "Timeout": 5000000000,
+      "StartPeriod": 10000000000,
+      "Retries": 3
+    }
+  },
+  "archive_sha256": "6b92b6e02b89bcb557c5b66fbd6d2ecdede479b4133111f237fba279434c60d6",
+  "runtime_base": "alpine:3.24.1@sha256:79ff19e9084a00eece421b2523fb93e22d730e2c0e525905de047e848e56d95f"
+}

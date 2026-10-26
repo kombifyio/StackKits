@@ -94,7 +94,7 @@ func (o *osCoolifyWorkloadOperations) ApplyWorkload(ctx context.Context, deploym
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}
-	compose, err := platformNodeCompose(prepared)
+	compose, err := coolifyNodeCompose(prepared)
 	if err != nil {
 		return SelectedPaaSApplyReceipt{}, err
 	}

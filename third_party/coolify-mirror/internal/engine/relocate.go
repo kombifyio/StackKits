@@ -121,6 +121,11 @@ func Plan(ctx context.Context, in *coolify.Instance, req BackupRequest) (*Reloca
 		return nil, err
 	}
 	b.recordRuntime(ctx, local)
+	if blockers, err := relocationAutomationBlockers(ctx, in, local); err != nil {
+		return nil, err
+	} else {
+		p.Blockers = append(p.Blockers, blockers...)
+	}
 	if err = b.measure(ctx, pr.Add("Measure data", 0)); err != nil {
 		return nil, err
 	}

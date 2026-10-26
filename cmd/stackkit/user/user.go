@@ -197,7 +197,7 @@ Owner and admin identities cannot be created or removed here.`,
 	ownerActivate.Flags().Bool("owner-approve", false, "Explicitly approve reissuing the owner activation link")
 	owner.AddCommand(ownerStatus, ownerActivate, newOwnerReconcileCommand(api), newDomainMigrationCommand(api))
 
-	command.AddCommand(add, list, apps, remove, owner, newHouseholdActivateCommand(api), newFilesCommand(api, provisioner))
+	command.AddCommand(add, list, apps, remove, newProjectionCommand(api), owner, newHouseholdActivateCommand(api), newFilesCommand(api, provisioner))
 	return command
 }
 

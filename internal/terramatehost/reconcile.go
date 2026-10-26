@@ -2,6 +2,7 @@ package terramatehost
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
@@ -43,7 +45,7 @@ type ReconcileRequest struct {
 // instead (ForcedApplyArgs). The apply also applies any other planned change
 // of the root, such as a rewritten payload file. The host project is
 // materialized first; the first failed stack stops the run.
-func ForceConverge(ctx context.Context, request ReconcileRequest) ([]StackResult, error) {
+func ForceConverge(ctx context.Context, request ReconcileRequest) (_ []StackResult, returnErr error) {
 	emit := request.Event
 	if emit == nil {
 		emit = func(string, string, map[string]string) {}
@@ -59,8 +61,13 @@ func ForceConverge(ctx context.Context, request ReconcileRequest) ([]StackResult
 	if err != nil {
 		return results, err
 	}
+	ctx, releaseAdmission, err := opentofu.AdmitGenericOperation(ctx, workspace, LayoutRuntimeRoots(request.Layout))
+	if err != nil {
+		return results, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, releaseAdmission()) }()
 	layout := request.Layout
-	if _, err := Materialize(workspace, layout); err != nil {
+	if _, err := MaterializeContext(ctx, workspace, layout); err != nil {
 		return results, err
 	}
 	for _, id := range layout.Host.RunOrder {

@@ -36,7 +36,7 @@ func PreparedRuntipiRuntimeOwners(version, workspace string) ([]ProductRuntimeOw
 	return []ProductRuntimeOwnerRegistration{marketplace, files}, nil
 }
 
-// NewProductRuntipiMarketplaceRegistration prepares an opt-in source contract. It is not installed in the active product registry until real lifecycle qualification.
+// NewProductRuntipiMarketplaceRegistration builds the owner of the explicit, non-default Runtipi Marketplace alternative. Selection never defaults to it; support still needs a current-pin receipt.
 func NewProductRuntipiMarketplaceRegistration(version string, operations nativehost.RuntipiMarketplaceOperations) (ProductRuntimeOwnerRegistration, error) {
 	if version == "" || version != strings.TrimSpace(version) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Marketplace requires its installed node owner and runtime version")

@@ -2,6 +2,7 @@ package architecturev2
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -13,6 +14,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
 
@@ -77,6 +79,8 @@ type Service struct {
 	productRuntimeOwners          *ProductRuntimeOwnerRegistry
 	productApplyVerifyExecutor    generationartifact.ApplyExecutorIdentity
 	productExecutionScope         *generationartifact.ApplyExecutionScope
+	productApplyProcessRole       string
+	productApplyProgramSource     ProductApplyProgramSourceVerifier
 	rendererRegistry              *architecturev2renderer.Registry
 }
 
@@ -530,6 +534,23 @@ func (s *Service) ValidateStackSpec(raw []byte) (StackSpecValidation, error) {
 		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, err.Error(), err)
 	}
 	canonical, err := resolvedplan.CanonicalJSON(normalized)
+	if err == nil && normalized["dataProfile"] == "full-local" {
+		var network struct {
+			DNS struct {
+				Servers []string `json:"servers"`
+			} `json:"dns"`
+		}
+		rawNetwork, marshalErr := resolvedplan.CanonicalJSON(normalized["network"])
+		if marshalErr != nil {
+			return StackSpecValidation{}, marshalErr
+		}
+		if decodeErr := json.Unmarshal(rawNetwork, &network); decodeErr != nil {
+			return StackSpecValidation{}, decodeErr
+		}
+		if dnsErr := runtimeprofile.ValidateLocalDNS(network.DNS.Servers); dnsErr != nil {
+			return StackSpecValidation{}, dnsErr
+		}
+	}
 	if err != nil {
 		return StackSpecValidation{}, resolveError(ErrResolveFailed, "marshal canonical StackSpec: "+err.Error(), err)
 	}
@@ -589,6 +610,9 @@ func (s *Service) Resolve(input ResolveInput) (Result, error) {
 		return Result{}, resolveError(ErrInvalidInventory, err.Error(), err)
 	}
 
+	if err := runtimeprofile.AdmitSpec(document.V2.DataProfile); err != nil {
+		return Result{}, resolveError(ErrInvalidStackSpec, err.Error(), err)
+	}
 	plan, err := s.compiler.Compile(resolvedplan.Input{
 		Definition: definition,
 		Spec:       resolvedplan.StackSpecV2(specDocument),

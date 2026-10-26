@@ -43,13 +43,19 @@ type engineFactory func() engineAPI
 // Runtime is the production RepositoryRuntime for the CUE-owned local Kopia
 // service. It retains only a confined workspace name and an engine factory.
 type Runtime struct {
-	workspaceRoot    string
-	newEngine        engineFactory
-	policy           *localbackuppolicy.Policy
-	quiescer         backupexec.ContainerQuiescer
-	snapshotSettler  func(context.Context) error
-	componentControl func(backuplifecycle.SnapshotQuiescedContainer, string) (backuplifecycle.RuntimeControlDriver, error)
-	storeControl     func(localbackuppolicy.MarketplaceService, string) (backuplifecycle.RuntimeControlDriver, error)
+	snapshotWorkloads      []string
+	transferRuntimes       []localbackuppolicy.ApplicationRuntime
+	quiescedSnapshotExport func(context.Context) error
+	transferHoldID         func() string
+	transferResumeID       string
+	appGroups              *AppGroupSnapshotBinding
+	workspaceRoot          string
+	newEngine              engineFactory
+	policy                 *localbackuppolicy.Policy
+	quiescer               backupexec.ContainerQuiescer
+	snapshotSettler        func(context.Context) error
+	componentControl       func(backuplifecycle.SnapshotQuiescedContainer, string) (backuplifecycle.RuntimeControlDriver, error)
+	storeControl           func(localbackuppolicy.MarketplaceService, string) (backuplifecycle.RuntimeControlDriver, error)
 }
 
 // New binds all current repository operations to the exact policy
@@ -295,6 +301,12 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 	journal backuplifecycle.SnapshotQuiescence,
 	persist func(backuplifecycle.SnapshotQuiescence) error,
 ) (receipt backuplifecycle.RepositorySnapshotReceipt, resultErr error) {
+	if r != nil && (r.appGroups != nil || journal.ControlVersion == 2) {
+		if r.appGroups == nil {
+			return receipt, errors.New("retained v2 snapshot requires original app-group adapter")
+		}
+		return r.createAppGroupSnapshot(ctx, request, journal, persist)
+	}
 	hasJournal := journal.Phase != "" || len(journal.Containers) > 0
 	if hasJournal && persist == nil {
 		return backuplifecycle.RepositorySnapshotReceipt{}, errors.New("localbackupruntime: snapshot quiescence journal callback is required for recovery")
@@ -309,6 +321,9 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 	settlementComplete := false
 	snapshotAttempted := false
 	defer func() {
+		if journal.TransferHoldID != "" {
+			return
+		}
 		if !cleanupNeeded || r == nil || r.quiescer == nil || persist == nil {
 			return
 		}
@@ -348,6 +363,13 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 			resultErr = cleanupErr
 		}
 	}()
+	if journal.TransferHoldID != "" {
+		if r.transferResumeID == journal.TransferHoldID && journal.TransferOutcomeState == "stopped" {
+			journal.TransferHoldID = ""
+		} else {
+			return backuplifecycle.RepositorySnapshotReceipt{}, backuplifecycle.ErrApplicationTransferHeld
+		}
+	}
 	if err := r.ready(ctx); err != nil {
 		return backuplifecycle.RepositorySnapshotReceipt{}, err
 	}
@@ -448,6 +470,35 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 	if err := persist(journal); err != nil {
 		return backuplifecycle.RepositorySnapshotReceipt{}, err
 	}
+	if r.quiescedSnapshotExport != nil {
+		if err := r.quiescedSnapshotExport(ctx); err != nil {
+			return backuplifecycle.RepositorySnapshotReceipt{}, err
+		}
+	}
+	if r.transferHoldID != nil {
+		for _, expected := range journal.Containers {
+			current, err := r.quiescer.InspectContainer(ctx, expected.ID)
+			if err != nil {
+				return backuplifecycle.RepositorySnapshotReceipt{}, err
+			}
+			if err = exactQuiescedContainer(expected, current); err != nil {
+				return backuplifecycle.RepositorySnapshotReceipt{}, err
+			}
+			if current.Running || current.Paused || current.Restarting {
+				return backuplifecycle.RepositorySnapshotReceipt{}, errors.New("migration source did not remain stopped through final export")
+			}
+		}
+		id := r.transferHoldID()
+		if id == "" {
+			return backuplifecycle.RepositorySnapshotReceipt{}, errors.New("transfer hold has no authenticated transfer identity")
+		}
+		journal.TransferHoldID = id
+		if err := persist(journal); err != nil {
+			journal.TransferHoldID = ""
+			return backuplifecycle.RepositorySnapshotReceipt{}, err
+		}
+		return backuplifecycle.RepositorySnapshotReceipt{}, backuplifecycle.ErrApplicationTransferHeld
+	}
 	return snapshotReceipt(request, engineRequest, snapshot)
 }
 
@@ -478,7 +529,7 @@ func (r *Runtime) prepareQuiescence(ctx context.Context) (backuplifecycle.Snapsh
 	if err != nil {
 		return backuplifecycle.SnapshotQuiescence{}, err
 	}
-	graphDigest, err := localbackuppolicy.ApplicationGraphDigest(r.sourceProjection())
+	graphDigest, err := r.quiescenceGraphDigest()
 	if err != nil {
 		return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: bind application graph to quiescence journal: %w", err)
 	}
@@ -486,10 +537,16 @@ func (r *Runtime) prepareQuiescence(ctx context.Context) (backuplifecycle.Snapsh
 	// original value, including nil in legacy journals; they cannot refresh age.
 	startedAt := time.Now().UTC()
 	journal := backuplifecycle.SnapshotQuiescence{Phase: "prepared", GraphDigest: graphDigest, CaptureStartedAt: &startedAt}
+	for _, runtime := range r.transferRuntimes {
+		journal.TransferWorkloads = append(journal.TransferWorkloads, runtime.WorkloadRef)
+	}
 	if len(r.sourceProjection().MarketplaceServices) != 0 {
 		journal.ControlVersion = 1
 	}
 	for _, container := range observed {
+		if r.transferHoldID != nil && container.RestartPolicy != "no" && container.RestartPolicy != "unless-stopped" {
+			return backuplifecycle.SnapshotQuiescence{}, errors.New("migration hold requires observed restart policy no or unless-stopped; unsupported restart behavior was not stopped")
+		}
 		if container.Paused || container.Restarting {
 			return backuplifecycle.SnapshotQuiescence{}, fmt.Errorf("localbackupruntime: managed Docker container %q is paused or restarting", container.ID)
 		}
@@ -510,6 +567,9 @@ func (r *Runtime) prepareQuiescence(ctx context.Context) (backuplifecycle.Snapsh
 			ComponentRef: container.ComponentRef, Image: container.Image, StopOrder: container.StopOrder,
 			Mounts: snapshotQuiesceMounts(container.Mounts),
 		})
+		if r.transferHoldID != nil {
+			journal.Containers[len(journal.Containers)-1].RestartPolicy = container.RestartPolicy
+		}
 		if journal.ControlVersion == 1 {
 			journal.Controls = append(journal.Controls, backuplifecycle.RuntimeControl{ComponentRef: container.Name, ContainerID: container.ID, WasRunning: container.Running})
 		}
@@ -742,6 +802,9 @@ func (r *Runtime) settleQuiescenceStop(ctx context.Context, expected backuplifec
 }
 
 func exactQuiescedContainer(expected backuplifecycle.SnapshotQuiescedContainer, current backupexec.QuiesceContainer) error {
+	if expected.RestartPolicy != "" && expected.RestartPolicy != current.RestartPolicy {
+		return errors.New("migration source restart policy changed from signed hold")
+	}
 	if current.ID != expected.ID || current.Name != expected.Name ||
 		current.MarketplaceService != expected.MarketplaceService || current.MarketplaceComponent != expected.MarketplaceComponent ||
 		!reflect.DeepEqual(snapshotQuiesceMounts(current.Mounts), expected.Mounts) {
@@ -758,7 +821,7 @@ func exactQuiescedContainer(expected backuplifecycle.SnapshotQuiescedContainer, 
 }
 
 func (r *Runtime) validateQuiescenceGraph(journal backuplifecycle.SnapshotQuiescence) error {
-	graphDigest, err := localbackuppolicy.ApplicationGraphDigest(r.sourceProjection())
+	graphDigest, err := r.quiescenceGraphDigest()
 	if err != nil {
 		return fmt.Errorf("localbackupruntime: validate held application graph for quiescence: %w", err)
 	}
@@ -956,6 +1019,9 @@ func (r *Runtime) RestoreSnapshot(
 }
 
 func (r *Runtime) snapshotRequest(request backuplifecycle.RepositorySnapshotRequest) (backupexec.SnapshotRequest, error) {
+	if !reflect.DeepEqual(request.Workloads, r.snapshotWorkloads) {
+		return backupexec.SnapshotRequest{}, errors.New("application snapshot scope differs from held runtime")
+	}
 	if request.RepositoryID != r.repositoryID() {
 		return backupexec.SnapshotRequest{}, errors.New("backup repository differs from the held runtime profile")
 	}
@@ -969,7 +1035,7 @@ func (r *Runtime) snapshotRequest(request backuplifecycle.RepositorySnapshotRequ
 	var sources []localbackuppolicy.SnapshotSource
 	if r.policy != nil {
 		var err error
-		sources, err = r.policy.SnapshotSources()
+		sources, err = r.policy.ApplicationSnapshotSources(r.snapshotWorkloads)
 		if err != nil {
 			return backupexec.SnapshotRequest{}, err
 		}
@@ -1128,3 +1194,15 @@ func snapshotReceipt(
 
 var _ backuplifecycle.RepositoryRuntime = (*Runtime)(nil)
 var _ backuplifecycle.SnapshotQuiesceRuntime = (*Runtime)(nil)
+
+func (r *Runtime) quiescenceGraphDigest() (string, error) {
+	if len(r.transferRuntimes) == 0 {
+		return localbackuppolicy.ApplicationGraphDigest(r.sourceProjection())
+	}
+	encoded, err := json.Marshal(r.transferRuntimes)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}

@@ -91,10 +91,26 @@ BANNER
 fi
 
 REPO="${STACKKIT_RELEASE_REPO:-kombifyio/stackKits}"
-RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
+# Releases download from the Cloudflare R2 mirror on assets.kombify.io
+# (scripts/release/mirror-releases-r2.mjs); its index.json and latest.json
+# keep the GitHub release-list shape. Another STACKKIT_RELEASE_REPO reads
+# GitHub directly unless it names its own STACKKIT_RELEASE_MIRROR_URL.
+RELEASE_MIRROR_URL="${STACKKIT_RELEASE_MIRROR_URL:-}"
+if [ -z "$RELEASE_MIRROR_URL" ] && [ "$REPO" = kombifyio/stackKits ]; then
+  RELEASE_MIRROR_URL="https://assets.kombify.io/stackkits/releases"
+fi
+RELEASE_MIRROR_URL="${RELEASE_MIRROR_URL%/}"
 # Early Access and the internal Nightly read the release list (prereleases are
-# never "latest").
-PREVIEW_RELEASES_API_URL="${STACKKIT_PREVIEW_RELEASES_API_URL:-https://api.github.com/repos/$REPO/releases?per_page=100}"
+# never "latest"). An unreachable or empty mirror index falls back to GitHub.
+RELEASE_API_FALLBACK_URL="${STACKKIT_RELEASE_API_URL:-https://api.github.com/repos/$REPO/releases/latest}"
+PREVIEW_RELEASES_FALLBACK_URL="${STACKKIT_PREVIEW_RELEASES_API_URL:-https://api.github.com/repos/$REPO/releases?per_page=100}"
+if [ -n "$RELEASE_MIRROR_URL" ]; then
+  RELEASE_API_URL="${STACKKIT_RELEASE_API_URL:-$RELEASE_MIRROR_URL/latest.json}"
+  PREVIEW_RELEASES_API_URL="${STACKKIT_PREVIEW_RELEASES_API_URL:-$RELEASE_MIRROR_URL/index.json}"
+else
+  RELEASE_API_URL=$RELEASE_API_FALLBACK_URL
+  PREVIEW_RELEASES_API_URL=$PREVIEW_RELEASES_FALLBACK_URL
+fi
 RELEASES_PAGE_URL="${STACKKIT_RELEASES_PAGE_URL:-https://github.com/$REPO/releases/latest}"
 # STACKKIT_INSTALL_DIR relocates the binaries (default /usr/local/bin); the
 # provider mirror goes to ../lib/stackkit/providers beside that directory.
@@ -165,12 +181,32 @@ if [ -n "${STACKKIT_GITHUB_TOKEN:-}" ]; then
   GITHUB_AUTH_HEADER="Authorization: Bearer ${STACKKIT_GITHUB_TOKEN}"
 fi
 
+# The GitHub token goes to GitHub only, never to the download mirror.
 curl_release() {
   if [ -n "$GITHUB_AUTH_HEADER" ]; then
-    curl -H "$GITHUB_AUTH_HEADER" "$@"
-  else
-    curl "$@"
+    for _curl_arg in "$@"; do
+      case "$_curl_arg" in
+        https://api.github.com/*|https://github.com/*)
+          curl -H "$GITHUB_AUTH_HEADER" "$@"
+          return
+          ;;
+      esac
+    done
   fi
+  curl "$@"
+}
+
+# release_lookup <url> <fallback-url> prints release JSON from the mirror index,
+# or from GitHub when the mirror is unreachable or names no release.
+release_lookup() {
+  if [ "$1" != "$2" ]; then
+    _release_body=$(curl_release -fsSL "$1" 2>/dev/null || true)
+    case "$_release_body" in
+      *'"tag_name"'*) printf '%s' "$_release_body"; return 0 ;;
+    esac
+    echo "  -> $1 names no release; reading $2" >&2
+  fi
+  curl_release -sSL "$2" 2>/dev/null || true
 }
 
 extract_release_version() {
@@ -185,12 +221,16 @@ resolve_release_from_redirect() {
 download_release_asset() {
   src="$1"
   dst="$2"
-  if [ -n "$GITHUB_AUTH_HEADER" ]; then
-    if curl_release -fsSL "$src" -o "$dst"; then
-      return 0
-    fi
-    echo "  -> Authenticated download failed; retrying without GitHub token"
-  fi
+  case "$src" in
+    https://github.com/*)
+      if [ -n "$GITHUB_AUTH_HEADER" ]; then
+        if curl_release -fsSL "$src" -o "$dst"; then
+          return 0
+        fi
+        echo "  -> Authenticated download failed; retrying without GitHub token"
+      fi
+      ;;
+  esac
   curl -fsSL "$src" -o "$dst"
 }
 
@@ -218,7 +258,7 @@ if [ -n "${STACKKIT_RELEASE_VERSION:-}" ]; then
   echo "  -> pinned to v${LATEST} via STACKKIT_RELEASE_VERSION (existence verified at download)"
 elif [ "$CHANNEL" = preview ]; then
   echo "  -> channel: preview (internal Nightly, unsigned prerelease built from main)"
-  RELEASE_JSON=$(curl_release -sSL "$PREVIEW_RELEASES_API_URL" 2>/dev/null || true)
+  RELEASE_JSON=$(release_lookup "$PREVIEW_RELEASES_API_URL" "$PREVIEW_RELEASES_FALLBACK_URL")
   PREVIEW_TAG=$(installer_newest_preview_tag "$RELEASE_JSON")
   # The release list is not one release; asset lookups fetch the tag's own JSON.
   RELEASE_JSON=""
@@ -234,10 +274,10 @@ elif [ "$CHANNEL" = early-access ]; then
   # newest stable release when that is newer (a stable release supersedes the
   # Early Access build of the same version).
   echo "  -> channel: Early Access (unsigned prerelease the StackKits team switched live)"
-  RELEASES_LIST_JSON=$(curl_release -sSL "$PREVIEW_RELEASES_API_URL" 2>/dev/null || true)
+  RELEASES_LIST_JSON=$(release_lookup "$PREVIEW_RELEASES_API_URL" "$PREVIEW_RELEASES_FALLBACK_URL")
   EARLY_ACCESS_TAGS=$(installer_channel_tags "$RELEASES_LIST_JSON" early-access)
   EARLY_ACCESS_TAG=$(printf '%s\n' "$EARLY_ACCESS_TAGS" | head -n 1)
-  STABLE_JSON=$(curl_release -sSL "$RELEASE_API_URL" 2>/dev/null || true)
+  STABLE_JSON=$(release_lookup "$RELEASE_API_URL" "$RELEASE_API_FALLBACK_URL")
   STABLE_LATEST=$(extract_release_version "$STABLE_JSON")
   if [ -n "$EARLY_ACCESS_TAG" ] && { [ -z "$STABLE_LATEST" ] || [ "$(installer_semver_compare "${EARLY_ACCESS_TAG#v}" "$STABLE_LATEST")" = 1 ]; }; then
     LATEST=${EARLY_ACCESS_TAG#v}
@@ -253,15 +293,15 @@ elif [ "$CHANNEL" = early-access ]; then
     LATEST=""
   fi
 else
-  RELEASE_JSON=$(curl_release -sSL "$RELEASE_API_URL" 2>/dev/null || true)
+  RELEASE_JSON=$(release_lookup "$RELEASE_API_URL" "$RELEASE_API_FALLBACK_URL")
   LATEST=$(extract_release_version "$RELEASE_JSON")
   if [ -z "$LATEST" ] && [ -n "$GITHUB_AUTH_HEADER" ]; then
     echo "  -> Authenticated latest-release lookup did not return a tag; retrying public API"
-    RELEASE_JSON=$(curl -sSL "$RELEASE_API_URL" 2>/dev/null || true)
+    RELEASE_JSON=$(curl -sSL "$RELEASE_API_FALLBACK_URL" 2>/dev/null || true)
     LATEST=$(extract_release_version "$RELEASE_JSON")
   fi
   if [ -z "$LATEST" ]; then
-    echo "  -> GitHub API latest-release lookup did not return a tag; checking release redirect"
+    echo "  -> Latest-release lookup did not return a tag; checking the GitHub release redirect"
     LATEST=$(resolve_release_from_redirect)
   fi
 fi
@@ -272,8 +312,12 @@ if [ -z "$LATEST" ]; then
   # 403 = unauthenticated rate limit (set STACKKIT_GITHUB_TOKEN); 404 =
   # releases/latest has no non-prerelease (repo may carry only prereleases —
   # pin STACKKIT_RELEASE_VERSION=<tag>).
-  DIAG_STATUS=$(curl_release -sSL -o /dev/null -w '%{http_code}' "$RELEASE_API_URL" 2>/dev/null || echo "000")
-  echo "  diagnostics: GitHub API $RELEASE_API_URL -> HTTP ${DIAG_STATUS}" >&2
+  if [ "$RELEASE_API_URL" != "$RELEASE_API_FALLBACK_URL" ]; then
+    DIAG_STATUS=$(curl -sSL -o /dev/null -w '%{http_code}' "$RELEASE_API_URL" 2>/dev/null || echo "000")
+    echo "  diagnostics: download mirror $RELEASE_API_URL -> HTTP ${DIAG_STATUS}" >&2
+  fi
+  DIAG_STATUS=$(curl_release -sSL -o /dev/null -w '%{http_code}' "$RELEASE_API_FALLBACK_URL" 2>/dev/null || echo "000")
+  echo "  diagnostics: GitHub API $RELEASE_API_FALLBACK_URL -> HTTP ${DIAG_STATUS}" >&2
   case "$DIAG_STATUS" in
     403) echo "  hint: HTTP 403 usually means an unauthenticated rate limit — set STACKKIT_GITHUB_TOKEN and retry." >&2 ;;
     404) echo "  hint: HTTP 404 means no non-prerelease 'latest' exists — pin STACKKIT_RELEASE_VERSION=<tag> (see releases page)." >&2 ;;
@@ -354,7 +398,14 @@ esac
 # --- Download & install binary ------------------------------------------------
 
 DOWNLOAD_BASE_OVERRIDE="${STACKKIT_RELEASE_DOWNLOAD_BASE_URL:-}"
-DOWNLOAD_BASE="${DOWNLOAD_BASE_OVERRIDE:-https://github.com/$REPO/releases/download/v${LATEST}}"
+GITHUB_DOWNLOAD_BASE="https://github.com/$REPO/releases/download/v${LATEST}"
+if [ -n "$DOWNLOAD_BASE_OVERRIDE" ]; then
+  DOWNLOAD_BASE=$DOWNLOAD_BASE_OVERRIDE
+elif [ -n "$RELEASE_MIRROR_URL" ]; then
+  DOWNLOAD_BASE="$RELEASE_MIRROR_URL/v${LATEST}"
+else
+  DOWNLOAD_BASE=$GITHUB_DOWNLOAD_BASE
+fi
 URL="${DOWNLOAD_BASE%/}/${ARCHIVE}"
 installer_journal_write release "$LATEST"
 installer_phase download
@@ -403,7 +454,17 @@ if [ -n "$ASSET_API_URL" ]; then
   curl_release -H "Accept: application/octet-stream" -fsSL "$ASSET_API_URL" -o "$TMP/$ARCHIVE"
 else
   echo "Downloading ${URL}..."
-  download_release_asset "$URL" "$TMP/$ARCHIVE"
+  if ! download_release_asset "$URL" "$TMP/$ARCHIVE"; then
+    # The mirror keeps recent releases; an older pinned release (or one still
+    # being mirrored) comes from GitHub Releases, never from a Render origin.
+    if [ -n "$DOWNLOAD_BASE_OVERRIDE" ] || [ "$DOWNLOAD_BASE" = "$GITHUB_DOWNLOAD_BASE" ]; then
+      exit 1
+    fi
+    DOWNLOAD_BASE=$GITHUB_DOWNLOAD_BASE
+    URL="${DOWNLOAD_BASE}/${ARCHIVE}"
+    echo "  -> v${LATEST} is not on the download mirror; downloading ${URL}..."
+    download_release_asset "$URL" "$TMP/$ARCHIVE"
+  fi
 fi
 
 # --- Verify the archive against the release checksums ------------------------
@@ -432,7 +493,10 @@ if [ "${STACKKIT_SKIP_CHECKSUM_VERIFY:-0}" != "1" ]; then
       curl_release -H "Accept: application/octet-stream" -fsSL "$CHECKSUMS_API_URL" -o "$TMP/$CHECKSUMS_FILE" || true
     fi
   else
-    download_release_asset "${DOWNLOAD_BASE%/}/${CHECKSUMS_FILE}" "$TMP/$CHECKSUMS_FILE" || true
+    download_release_asset "${DOWNLOAD_BASE%/}/${CHECKSUMS_FILE}" "$TMP/$CHECKSUMS_FILE" ||
+      # A release pruned from the mirror after its archive download.
+      { [ -z "$DOWNLOAD_BASE_OVERRIDE" ] && [ "$DOWNLOAD_BASE" != "$GITHUB_DOWNLOAD_BASE" ] &&
+        download_release_asset "${GITHUB_DOWNLOAD_BASE}/${CHECKSUMS_FILE}" "$TMP/$CHECKSUMS_FILE"; } || true
   fi
   if [ ! -s "$TMP/$CHECKSUMS_FILE" ]; then
     echo "Error: could not download ${CHECKSUMS_FILE} for release v${LATEST}; refusing to install an unverified archive." >&2

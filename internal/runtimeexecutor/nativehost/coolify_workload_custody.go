@@ -95,7 +95,7 @@ func ControlCoolifyWorkloadComponent(ctx context.Context, workspace string, depl
 		return errors.New("Coolify component control server differs from node custody")
 	}
 	adapter := platformdeploy.NewCoolifyAdapter(cfg)
-	components, err := adapter.ApplicationComponents(ctx, state.Deployment)
+	components, err := adapter.ServiceComponents(ctx, state.Deployment)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func ControlCoolifyWorkloadComponent(ctx context.Context, workspace string, depl
 	if err != nil {
 		return err
 	}
-	if err := adapter.ControlApplication(ctx, state.Deployment, uuid, action); err != nil {
+	if err := adapter.ControlServiceComponent(ctx, state.Deployment, uuid, action); err != nil {
 		return err
 	}
 	return o.prepared.waitForComponentReadiness(ctx, project, func(statuses map[string]standaloneComposePS) (bool, error) {

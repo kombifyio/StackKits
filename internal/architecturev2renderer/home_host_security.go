@@ -1,10 +1,13 @@
 package architecturev2renderer
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 )
 
 const (
@@ -28,11 +31,49 @@ const homeHostSecurityTemplate = `{"apiVersion":"stackkit.home-host-security-pol
 // security owner accepts.
 func HomeHostSecurityPolicyBytes() []byte { return []byte(homeHostSecurityTemplate) }
 
+func HomeHostSecurityPolicyWithNetwork(network *runtimeprofile.LocalNetwork) ([]byte, error) {
+	if network == nil {
+		return HomeHostSecurityPolicyBytes(), nil
+	}
+	if err := network.Validate(); err != nil {
+		return nil, err
+	}
+	var document map[string]any
+	if err := json.Unmarshal(HomeHostSecurityPolicyBytes(), &document); err != nil {
+		return nil, err
+	}
+	document["localNetwork"] = network
+	return json.Marshal(document)
+}
+
+func ParseHomeHostSecurityNetwork(raw []byte) (*runtimeprofile.LocalNetwork, error) {
+	if bytes.Equal(raw, HomeHostSecurityPolicyBytes()) {
+		return nil, nil
+	}
+	var document struct {
+		LocalNetwork *runtimeprofile.LocalNetwork `json:"localNetwork"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		return nil, err
+	}
+	if document.LocalNetwork == nil {
+		return nil, fail(ErrInvalidPlan, "homeHostSecurity", "unrecognized policy")
+	}
+	want, err := HomeHostSecurityPolicyWithNetwork(document.LocalNetwork)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(raw, want) {
+		return nil, fail(ErrInvalidPlan, "homeHostSecurity", "policy differs from governed profile")
+	}
+	return document.LocalNetwork, nil
+}
+
 // HomeHostSecurityRendererContract returns the exact built-in identity of the
 // Home host security policy. The hash binds the catalog contract to the
 // rendered bytes.
 func HomeHostSecurityRendererContract() RendererContract {
-	sum := sha256.Sum256([]byte(homeHostSecurityTemplate))
+	sum := sha256.Sum256([]byte(homeHostSecurityTemplate + fullLocalNetworkContractSalt))
 	return RendererContract{
 		Kind: "native-config", RendererRef: homeHostSecurityRendererRef,
 		TemplateRef: homeHostSecurityTemplateRef, Version: homeHostSecurityVersion,
@@ -56,11 +97,15 @@ func (r homeHostSecurityRenderer) RenderUnit(ctx context.Context, unit RenderUni
 	if err := validateHomeHostSecurityUnit(unit, r.contract); err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256(r.policy)
+	sum := sha256.Sum256(append(append([]byte(nil), r.policy...), []byte(fullLocalNetworkContractSalt)...))
 	if "sha256:"+hex.EncodeToString(sum[:]) != r.contract.ContractHash || !json.Valid(r.policy) {
 		return nil, fail(ErrOutputChanged, "renderer.home-host-security.policy", "embedded policy does not match its registered contract hash")
 	}
-	return []UnitOutput{{Ref: homeHostSecurityOutputRef, Bytes: append([]byte(nil), r.policy...)}}, nil
+	policy, err := HomeHostSecurityPolicyWithNetwork(unit.LocalNetwork())
+	if err != nil {
+		return nil, err
+	}
+	return []UnitOutput{{Ref: homeHostSecurityOutputRef, Bytes: policy}}, nil
 }
 
 //nolint:gocyclo // Keep the exact fail-closed authority checks linear and auditable at this renderer boundary.

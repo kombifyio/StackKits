@@ -405,6 +405,11 @@ func (r Runtime) preflightStateCustody(ctx context.Context, root, binary, provid
 // saved plan. Resources kept by `lifecycle { destroy = false }` (native data
 // volumes) are forgotten, not deleted.
 func (r Runtime) runRootDestroy(ctx context.Context, portableRoot, root, binary string, environment []string) (tofuRun, error) {
+	// Marker classification is not authority: the Komodo branch acquires its
+	// root-derived project lock before rereading marker and custody.
+	if marker, err := ReadRootMarker(root); err == nil && marker.Execution == komodoProviderExecution {
+		return r.runKomodoRootDestroy(ctx, portableRoot, root, binary, environment)
+	}
 	var run tofuRun
 	err := r.withStateCustody(portableRoot, func(key []byte) error {
 		var err error
@@ -419,6 +424,22 @@ func (r Runtime) runRootWithKey(ctx context.Context, root, binary string, enviro
 }
 
 func (r Runtime) runRootWithKeyMode(ctx context.Context, root, binary string, environment []string, key []byte, destroy bool) (tofuRun, error) {
+	owner, err := r.komodoProcessOwner(root)
+	if err != nil {
+		return tofuRun{}, err
+	}
+	previousAdmission := r.PlanAdmission
+	if destroy && owner != nil {
+		admit := KomodoDestroyPlanAdmission(r.WorkspaceRoot, root)
+		r.PlanAdmission = func(ctx context.Context, runner *tofu.Executor, plan string) error {
+			if previousAdmission != nil {
+				if err := previousAdmission(ctx, runner, plan); err != nil {
+					return err
+				}
+			}
+			return admit(ctx, runner, plan)
+		}
+	}
 	environment = withoutEnvironment(environment, "TF_ENCRYPTION")
 	commonEnvironment := append(append([]string(nil), environment...),
 		"TF_CLI_CONFIG_FILE="+filepath.Join(root, CLIConfigFile),
@@ -429,6 +450,9 @@ func (r Runtime) runRootWithKeyMode(ctx context.Context, root, binary string, en
 		result := []tofu.ExecutorOption{
 			tofu.WithWorkDir(workDir), tofu.WithBinary(binary),
 			tofu.WithoutInheritedEnv(tofu.OfflineInheritedEnv...), tofu.WithoutEnvPrefix("TF_LOG", "TF_CLI_ARGS_"), tofu.WithEnv(values...),
+		}
+		if owner != nil && workDir == root {
+			result = append(result, tofu.WithProcessCustody(owner))
 		}
 		if r.Timeout > 0 {
 			result = append(result, tofu.WithTimeout(r.Timeout))
@@ -459,6 +483,12 @@ func (r Runtime) runRootWithKeyMode(ctx context.Context, root, binary string, en
 	}
 	if err := requireEncryptedFile(planPath, "OpenTofu plan"); err != nil {
 		return tofuRun{}, err
+	}
+	if r.PlanAdmission != nil {
+		if err := r.PlanAdmission(ctx, runner, PlanFile); err != nil {
+			discardTofuOutput(planResult)
+			return tofuRun{}, fmt.Errorf("OpenTofu plan admission: %w", err)
+		}
 	}
 	changes := tofu.ParsePlanOutput(planResult.Stdout)
 	run.Plan = planRecord{ExitCode: planResult.ExitCode, Add: changes.Add, Change: changes.Change, Destroy: changes.Destroy}

@@ -35,6 +35,7 @@ const (
 
 // BackupRequest describes what to back up.
 type BackupRequest struct {
+	ExpectedPlan   []byte
 	Mode           string
 	Resources      []coolify.Resource // selective mode: final list incl. dependencies
 	OutputDir      string
@@ -147,6 +148,11 @@ func Backup(ctx context.Context, in *coolify.Instance, req BackupRequest, pr *Pr
 		return nil, err
 	}
 	b.recordRuntime(ctx, local)
+	if len(req.ExpectedPlan) > 0 {
+		if err := MatchRelocationManifest(req.ExpectedPlan, b.man); err != nil {
+			return nil, err
+		}
+	}
 	// Coolify's own Server Transfer bundle of the same resources, so the backup
 	// also carries the official export format.
 	stRead.SetDetail("Coolify transfer bundle")

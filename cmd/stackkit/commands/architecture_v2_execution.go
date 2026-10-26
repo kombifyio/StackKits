@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeobservation"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/servicecontrol"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -87,6 +89,7 @@ type architectureV2ExecutionCLIOptions struct {
 	driftObservation    bool
 	legacyPlanFile      string
 	workloadRef         string
+	workloadRefs        []string
 	dataDisposition     string
 	removalJSON         bool
 	removalSink         func(workloadremoval.Result) error
@@ -357,6 +360,9 @@ func classifyArchitectureV2ExecutionSpec(wd, requestedSpecPath string) ([]byte, 
 	}
 	if !document.Version.IsV2() || document.V2 == nil {
 		return nil, "", true, fmt.Errorf("architecture v2 execution classification returned no canonical v2 identity")
+	}
+	if err := runtimeprofile.AdmitSpec(document.V2.DataProfile); err != nil {
+		return nil, "", true, err
 	}
 	return rawSpec, document.Version, true, nil
 }
@@ -791,7 +797,7 @@ func validateArchitectureV2GenerateOptions(wd string, options architectureV2Exec
 	return nil
 }
 
-func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions, authority architectureV2ExecutionAuthority, current architecturev2.CurrentResolution, persisted generationartifact.VerifiedPlan, currentCanonical []byte, defaultManifestPath, defaultReceiptPath string, transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) error {
+func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions, authority architectureV2ExecutionAuthority, current architecturev2.CurrentResolution, persisted generationartifact.VerifiedPlan, currentCanonical []byte, defaultManifestPath, defaultReceiptPath string, transaction *confinedfs.Transaction, outputLock *confinedfs.OutputLock) (returnErr error) {
 	if options.verifiedPlanSink != nil {
 		if err := options.verifiedPlanSink(persisted); err != nil {
 			return err
@@ -998,6 +1004,18 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if err != nil {
 		return err
 	}
+	// Admit the complete selected local ordinary batch before manager custody,
+	// lifecycle Begin or dispatch. Children borrow this exact lease. Platform
+	// owners retain their own admission, and unrelated roots are not discovered.
+	roots, err := architectureV2SelectedLocalGenericApplyRoots(scopedPersisted, local.binding)
+	if err != nil {
+		return err
+	}
+	executionContext, releaseAdmission, err := opentofu.AdmitSelectedGenericOperation(executionContext, wd, roots)
+	if err != nil {
+		return err
+	}
+	defer func() { returnErr = errors.Join(returnErr, releaseAdmission()) }()
 	if err := requireAppliedWorkloadManagers(wd, scopedPersisted, local.binding); err != nil {
 		return err
 	}
@@ -1222,6 +1240,27 @@ func (g architectureV2ExecutionGate) removeV2Workload(
 		}
 		return removeLabeledDockerResources(wd, options.context, err)
 	}
+	if len(options.workloadRefs) > 0 {
+		prepared := make([]preparedArchitectureV2WorkloadRemoval, 0, len(options.workloadRefs))
+		for _, ref := range options.workloadRefs {
+			one := options
+			one.workloadRef, one.workloadRefs = ref, nil
+			ready, err := g.prepareAppliedV2WorkloadRemoval(wd, one, authority, plan, applied)
+			if err != nil {
+				return fmt.Errorf("preflight selected use-case workload %s before any removal: %w", ref, err)
+			}
+			prepared = append(prepared, ready)
+		}
+		for index, ref := range options.workloadRefs {
+			one := options
+			one.workloadRef, one.workloadRefs = ref, nil
+			ready := prepared[index]
+			if err := g.executeNativeWorkloadRemoval(wd, one, plan, transaction, ready.rootRequest, ready.placement, ready.configured); err != nil {
+				return fmt.Errorf("remove selected use-case workload %s: %w", ref, err)
+			}
+		}
+		return nil
+	}
 	if workloadRef == "" {
 		if options.removalJSON || options.removalEvidenceJSON {
 			return errors.New("architecture v2 whole-deployment remove cannot emit --json or --terminal-evidence-json; pass --workload for one result")
@@ -1279,20 +1318,35 @@ func (g architectureV2ExecutionGate) removeOneAppliedV2Workload(
 	transaction *confinedfs.Transaction,
 	applied architecturev2.VerifiedApplyResult,
 ) error {
-	workloadRef := strings.TrimSpace(options.workloadRef)
-	if workloadRef == "" {
-		return errors.New("architecture v2 remove requires one exact ResolvedPlan workload ref")
-	}
-	sharedRequestDigest, err := architectureV2SharedRequestDigest(applied)
+	ready, err := g.prepareAppliedV2WorkloadRemoval(wd, options, authority, plan, applied)
 	if err != nil {
 		return err
 	}
+	return g.executeNativeWorkloadRemoval(wd, options, plan, transaction, ready.rootRequest, ready.placement, ready.configured)
+}
+
+type preparedArchitectureV2WorkloadRemoval struct {
+	rootRequest runtimeexecutor.ExecutionRequest
+	placement   workloadremoval.AppliedPlacement
+	configured  *architectureV2ConfiguredStandardRuntime
+}
+
+func (g architectureV2ExecutionGate) prepareAppliedV2WorkloadRemoval(wd string, options architectureV2ExecutionCLIOptions, authority architectureV2ExecutionAuthority, plan generationartifact.VerifiedPlan, applied architecturev2.VerifiedApplyResult) (preparedArchitectureV2WorkloadRemoval, error) {
+	var ready preparedArchitectureV2WorkloadRemoval
+	workloadRef := strings.TrimSpace(options.workloadRef)
+	if workloadRef == "" {
+		return ready, errors.New("architecture v2 remove requires one exact ResolvedPlan workload ref")
+	}
+	sharedRequestDigest, err := architectureV2SharedRequestDigest(applied)
+	if err != nil {
+		return ready, err
+	}
 	if sharedRequestDigest == "" {
-		return errors.New("current Product Apply result has no sealed runtime request custody")
+		return ready, errors.New("current Product Apply result has no sealed runtime request custody")
 	}
 	custody, ok := authority.(architectureV2AppliedRuntimeCustody)
 	if !ok {
-		return errors.New("architecture v2 workload removal requires applied runtime request custody")
+		return ready, errors.New("architecture v2 workload removal requires applied runtime request custody")
 	}
 	ctx := options.context
 	if ctx == nil {
@@ -1300,11 +1354,11 @@ func (g architectureV2ExecutionGate) removeOneAppliedV2Workload(
 	}
 	rootRequest, err := custody.LoadAppliedRuntimeRequest(ctx, sharedRequestDigest)
 	if err != nil {
-		return err
+		return ready, err
 	}
 	configured, _, err := architectureV2ConfiguredStandardRuntimeFromInventory(options)
 	if err != nil {
-		return err
+		return ready, err
 	}
 	var placement workloadremoval.AppliedPlacement
 	if workloadRef == "marketplace" {
@@ -1313,9 +1367,12 @@ func (g architectureV2ExecutionGate) removeOneAppliedV2Workload(
 		placement, err = appliedWorkloadRemovalPlacement(applied, rootRequest.RequestDigest, workloadRef, options)
 	}
 	if err != nil {
-		return err
+		return ready, err
 	}
-	return g.executeNativeWorkloadRemoval(wd, options, plan, transaction, rootRequest, placement, configured)
+	if _, err := validateNativeWorkloadRemovalTarget(wd, options, plan, rootRequest, placement, configured); err != nil {
+		return ready, err
+	}
+	return preparedArchitectureV2WorkloadRemoval{rootRequest: rootRequest, placement: placement, configured: configured}, nil
 }
 
 type architectureV2WorkloadRemovalKind string
@@ -1335,31 +1392,43 @@ func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
 	placement workloadremoval.AppliedPlacement,
 	configured *architectureV2ConfiguredStandardRuntime,
 ) error {
-	selected, err := workloadremoval.SelectAppliedWorkloadPlacement(rootRequest, placement)
+	removalKind, err := validateNativeWorkloadRemovalTarget(wd, options, plan, rootRequest, placement, configured)
 	if err != nil {
 		return err
 	}
+	return g.executeValidatedNativeWorkloadRemoval(wd, options, plan, transaction, rootRequest, placement, removalKind)
+}
+
+func validateNativeWorkloadRemovalTarget(wd string, options architectureV2ExecutionCLIOptions, plan generationartifact.VerifiedPlan, rootRequest runtimeexecutor.ExecutionRequest, placement workloadremoval.AppliedPlacement, configured *architectureV2ConfiguredStandardRuntime) (architectureV2WorkloadRemovalKind, error) {
+	selected, err := workloadremoval.SelectAppliedWorkloadPlacement(rootRequest, placement)
+	if err != nil {
+		return "", err
+	}
 	target := selected.RuntimeTargets[0]
 	if err := requireArchitectureV2RemovalCapability(plan, target); err != nil {
-		return err
+		return "", err
 	}
 	processChannel := architectureV2TargetUsesProcessChannel(target, configured)
 	removalKind, err := architectureV2WorkloadRemovalDispatch(target, processChannel)
 	if err != nil {
 		if options.dataDisposition == workloadremoval.DataDispositionDelete {
-			return fmt.Errorf("--delete-data requires canonical native workload removal: %w", err)
+			return "", fmt.Errorf("--delete-data requires canonical native workload removal: %w", err)
 		}
-		return err
+		return "", err
 	}
 	owner, err := localevidence.LoadOwnerCustody(wd)
 	if err != nil {
-		return fmt.Errorf("load native removal owner placement: %w", err)
+		return "", fmt.Errorf("load native removal owner placement: %w", err)
 	}
 	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
 		target.SiteRefs[0] != owner.Binding.SiteRef || target.NodeRefs[0] != owner.Binding.NodeRef ||
 		target.ExecutionChannelRef != owner.Binding.ChannelRef {
-		return errors.New("native removal target differs from this workspace's local owner placement")
+		return "", errors.New("native removal target differs from this workspace's local owner placement")
 	}
+	return removalKind, nil
+}
+
+func (g architectureV2ExecutionGate) executeValidatedNativeWorkloadRemoval(wd string, options architectureV2ExecutionCLIOptions, plan generationartifact.VerifiedPlan, transaction *confinedfs.Transaction, rootRequest runtimeexecutor.ExecutionRequest, placement workloadremoval.AppliedPlacement, removalKind architectureV2WorkloadRemovalKind) error {
 	disposition := strings.TrimSpace(options.dataDisposition)
 	if disposition == "" {
 		disposition = workloadremoval.DataDispositionRetain
@@ -2008,4 +2077,70 @@ func printApplyLedger(ledger applyledger.Ledger) {
 	if ledger.Next != nil && ledger.Next.Command != "" {
 		printInfo("  Continue with: %s", ledger.Next.Command)
 	}
+}
+
+// Resolve destinations from the verified local runtime requirements and the
+// same owner metadata used by production registration. Generated filenames and
+// ambient root discovery cannot select owners for an ordinary Product Apply.
+func architectureV2SelectedLocalGenericApplyRoots(plan generationartifact.VerifiedPlan, local localevidence.LocalBinding) ([]string, error) {
+	generationTarget, err := upgradelifecycle.GenerationTargetForPlan(plan)
+	if err != nil {
+		return nil, err
+	}
+	roots := map[string]bool{}
+	for _, target := range plan.ApplyRequirements().RuntimeInstances {
+		if !slices.Contains(target.SiteRefs, local.SiteRef) || !slices.Contains(target.NodeRefs, local.NodeRef) {
+			continue
+		}
+		add := func(root string, pathErr error) error {
+			if pathErr != nil {
+				return pathErr
+			}
+			if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 {
+				return fmt.Errorf("Apply runtime %s has ambiguous local destination authority", target.ID)
+			}
+			roots[root] = true
+			return nil
+		}
+		if target.RuntimeAdapter != nil {
+			// This is the existing ordinary operations owner registration, not
+			// an adapter capability that platform owners may also implement.
+			if target.RuntimeAdapter.ID == architectureV2StandaloneApplicationAdapterRef && target.RuntimeAdapter.ModuleRef == architectureV2StandaloneApplicationAdapterModuleRef && target.WorkloadRef != "" {
+				if err := add(opentofu.WorkloadRootRelativePath("stackkit-" + target.WorkloadRef + "-" + local.NodeRef)); err != nil {
+					return nil, err
+				}
+			}
+			continue
+		}
+		for _, binding := range opentofu.DefaultModuleBindings() {
+			if target.OwnerKind == "module" && target.OwnerRef == binding.ModuleRef && target.ModuleRef == binding.ModuleRef && target.ProviderRef == binding.ProviderRef && target.WorkloadRef == binding.WorkloadRef && target.RuntimeKind == "container" && target.RuntimeDelivery == "stackkit" && target.RuntimeEngine == "docker" && (target.UnitRef == "compose" || target.UnitRef == opentofu.UnitRef || target.UnitRef == opentofu.TerramateUnitRef) {
+				if err := add(opentofu.RootRelativePath(binding.RuntimeDir)); err != nil {
+					return nil, err
+				}
+			}
+		}
+		if !nativehost.GenerationTargetExecutesOpenTofu(generationTarget) {
+			continue
+		}
+		selector := architecturev2.ProductRuntimeOwnerSelector{OwnerKind: target.OwnerKind, OwnerRef: target.OwnerRef, ProviderRef: target.ProviderRef, ModuleRef: target.ModuleRef, UnitRef: target.UnitRef, RuntimeKind: target.RuntimeKind, RuntimeDelivery: target.RuntimeDelivery, RuntimeEngine: target.RuntimeEngine, WorkloadRef: target.WorkloadRef}
+		for _, owner := range architecturev2.ProductStaticRuntimeOwnerCatalog() {
+			if owner.Selector != selector {
+				continue
+			}
+			// These production registrations wrap their native operations in
+			// WithProductOpenTofuContractRoot under OpenTofu/Terramate.
+			switch owner.ID {
+			case architecturev2.ProductRuntimeOwnerCloudPublicEdge, architecturev2.ProductRuntimeOwnerBridgeOriginMTLS, architecturev2.ProductRuntimeOwnerFederationLink, architecturev2.ProductRuntimeOwnerBridgePublication, architecturev2.ProductRuntimeOwnerFederationControlAgent:
+				if err := add(opentofu.ModuleRootRelativePath(target.ModuleRef)); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	result := make([]string, 0, len(roots))
+	for root := range roots {
+		result = append(result, root)
+	}
+	slices.Sort(result)
+	return result, nil
 }

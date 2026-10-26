@@ -171,7 +171,95 @@ func (t *Transaction) MkdirAll(relative string, mode os.FileMode) error {
 // CreatePrivateDirectory creates a unique 0700 directory directly beneath
 // the held root. Prefix must be one portable path segment.
 func (t *Transaction) CreatePrivateDirectory(prefix string) (string, error) {
-	release, err := t.begin("transaction-create-private-directory")
+	return t.CreatePrivateDirectoryAt(".", prefix)
+}
+
+// CheckSiblingStaging proves that a root and its outside staging parent share
+// a rename domain. It reads held directories only; absent chains inherit their
+// closest existing parent's domain. Durability is required for authenticated
+// preparation transitions, not for ordinary already-identified file repairs.
+func (t *Transaction) CheckSiblingStaging(relative string, durable bool) (returnErr error) {
+	parent := path.Dir(relative)
+	for {
+		exists, info, err := t.Exists(parent)
+		if err != nil {
+			return err
+		}
+		if exists {
+			if !info.IsDir() {
+				return fail(ErrUnsafeEntry, "staging-admission", parent, "staging parent is not a directory")
+			}
+			break
+		}
+		if parent == "." {
+			return fail(ErrUnsafeEntry, "staging-admission", parent, "staging parent is absent")
+		}
+		parent = path.Dir(parent)
+	}
+	exists, _, err := t.Exists(relative)
+	if err != nil {
+		return err
+	}
+	release, err := t.begin("staging-admission")
+	if err != nil {
+		return err
+	}
+	defer release()
+	view := View{root: t.root}
+	parentRoot, parentHandle, parentInfo, err := view.openAtomicParent(parent)
+	if err != nil {
+		return err
+	}
+	defer func() { returnErr = errors.Join(returnErr, closeAtomicParent(parentRoot, parentHandle)) }()
+	domain, err := renameDomainForDirectory(parentHandle)
+	if err != nil {
+		return err
+	}
+	if exists {
+		root, handle, info, err := view.openAtomicParent(relative)
+		if err != nil {
+			return err
+		}
+		defer func() { returnErr = errors.Join(returnErr, closeAtomicParent(root, handle)) }()
+		other, err := renameDomainForDirectory(handle)
+		if err != nil {
+			return err
+		}
+		if domain.Scheme != other.Scheme || domain.Volume != other.Volume {
+			return wrap(ErrIO, "staging-admission", relative, "root and outside staging parent cross a mount boundary", errors.ErrUnsupported)
+		}
+		if durable {
+			supported, err := syncDirectoryHandle(handle)
+			if err != nil {
+				return err
+			}
+			if !supported {
+				return wrap(ErrIO, "staging-admission", relative, "directory durability is unavailable", errors.ErrUnsupported)
+			}
+		}
+		if err := view.verifyAtomicParent(relative, root, handle, info); err != nil {
+			return err
+		}
+	}
+	if durable {
+		supported, err := syncDirectoryHandle(parentHandle)
+		if err != nil {
+			return err
+		}
+		if !supported {
+			return wrap(ErrIO, "staging-admission", parent, "directory durability is unavailable", errors.ErrUnsupported)
+		}
+	}
+	if err := view.verifyAtomicParent(parent, parentRoot, parentHandle, parentInfo); err != nil {
+		return err
+	}
+	return t.root.verifyPathIdentityLocked()
+}
+
+// CreatePrivateDirectoryAt allocates an exclusive private staging directory on
+// its existing parent's filesystem, relative to a held plain parent handle.
+func (t *Transaction) CreatePrivateDirectoryAt(parent, prefix string) (string, error) {
+	full, release, err := t.beginPath("transaction-create-private-directory", parent, true)
 	if err != nil {
 		return "", err
 	}
@@ -182,26 +270,38 @@ func (t *Transaction) CreatePrivateDirectory(prefix string) (string, error) {
 	if _, err := validatePortablePath(prefix+"x", false); err != nil {
 		return "", err
 	}
+	view := View{root: t.root}
+	if err := view.prepareAtomicParent(path.Join(full, "stage"), full); err != nil {
+		return "", err
+	}
+	parentRoot, parentHandle, parentInfo, err := view.openAtomicParent(full)
+	if err != nil {
+		return "", err
+	}
+	defer closeAtomicParent(parentRoot, parentHandle)
 	for attempt := 0; attempt < privateDirectoryNameAttempts; attempt++ {
 		var random [16]byte
 		if _, err := rand.Read(random[:]); err != nil {
 			return "", wrap(ErrIO, "transaction-create-private-directory", prefix, "generate private directory identity", err)
 		}
 		name := prefix + hex.EncodeToString(random[:])
-		if err := t.root.fs.Mkdir(nativePath(name), 0o700); err != nil {
+		if err := parentRoot.Mkdir(nativePath(name), 0o700); err != nil {
 			if os.IsExist(err) {
 				continue
 			}
 			return "", wrap(ErrIO, "transaction-create-private-directory", name, "create private root-relative directory", err)
 		}
-		info, err := t.root.fs.Lstat(nativePath(name))
+		info, err := parentRoot.Lstat(nativePath(name))
 		if err != nil {
 			return "", wrap(ErrIO, "transaction-create-private-directory", name, "inspect created private directory", err)
 		}
 		if !isPlainDirectory(info) {
 			return "", fail(ErrUnsafeEntry, "transaction-create-private-directory", name, "created entry is not a plain directory")
 		}
-		return name, nil
+		if err := view.verifyAtomicParent(full, parentRoot, parentHandle, parentInfo); err != nil {
+			return "", err
+		}
+		return path.Join(full, name), t.root.verifyPathIdentityLocked()
 	}
 	return "", fail(ErrIO, "transaction-create-private-directory", prefix, "could not allocate a unique private directory")
 }
@@ -361,7 +461,7 @@ func (t *Transaction) readStable(relative string, maxBytes int64) ([]byte, os.Fi
 // re-proves that the original root pathname still names the held directory,
 // so a caller that publishes with this rename observes a replaced root.
 func (t *Transaction) Rename(oldRelative, newRelative string) (installed bool, returnErr error) {
-	return t.rename(oldRelative, newRelative, true)
+	return t.rename(oldRelative, newRelative, true, false, nil)
 }
 
 // RenameHeld applies Rename's handle-relative, no-replace and entry identity
@@ -370,10 +470,18 @@ func (t *Transaction) Rename(oldRelative, newRelative string) (installed bool, r
 // directory after its pathname was replaced; such callers must perform their
 // own explicit VerifyPathIdentity at the commit point.
 func (t *Transaction) RenameHeld(oldRelative, newRelative string) (installed bool, returnErr error) {
-	return t.rename(oldRelative, newRelative, false)
+	return t.rename(oldRelative, newRelative, false, false, nil)
 }
 
-func (t *Transaction) rename(oldRelative, newRelative string, requireNamedRoot bool) (installed bool, returnErr error) {
+// ReplaceRegularFile publishes a staged plain file over an absent or plain file.
+// Both parents are held across the kernel-relative rename and synced afterwards.
+// Callers own serialization and must stage outside any authenticated closure.
+func (t *Transaction) ReplaceRegularFile(oldRelative, newRelative string) (result AtomicWriteResult, returnErr error) {
+	result.Installed, returnErr = t.rename(oldRelative, newRelative, true, true, &result.DirectorySynced)
+	return result, returnErr
+}
+
+func (t *Transaction) rename(oldRelative, newRelative string, requireNamedRoot, replaceRegular bool, directorySynced *bool) (installed bool, returnErr error) {
 	oldFull, release, err := t.beginPath("transaction-rename", oldRelative, false)
 	if err != nil {
 		return false, err
@@ -419,19 +527,23 @@ func (t *Transaction) rename(oldRelative, newRelative string, requireNamedRoot b
 	if err != nil {
 		return false, wrap(ErrIO, "transaction-rename", oldFull, "inspect rename source", err)
 	}
-	if !isPlainDirectory(source) && !isPlainRegular(source) {
+	if (!isPlainDirectory(source) && !isPlainRegular(source)) || (replaceRegular && !isPlainRegular(source)) {
 		return false, fail(ErrUnsafeEntry, "transaction-rename", oldFull, "rename source must be a plain directory or regular file")
 	}
-	if _, err := newParentRoot.Lstat(nativePath(newName)); err == nil {
+	if replaceRegular {
+		if err := requirePlainAtomicTarget(newParentRoot, newName, newFull); err != nil {
+			return false, err
+		}
+	} else if _, err := newParentRoot.Lstat(nativePath(newName)); err == nil {
 		return false, fail(ErrUnsafeEntry, "transaction-rename", newFull, "rename destination already exists")
 	} else if !os.IsNotExist(err) {
 		return false, wrap(ErrIO, "transaction-rename", newFull, "inspect rename destination", err)
 	}
-	if err := renameNoReplace(oldParentHandle, newParentHandle, nativePath(oldName), nativePath(newName)); err != nil {
-		if os.IsExist(err) {
+	if err := renameEntry(oldParentHandle, newParentHandle, nativePath(oldName), nativePath(newName), replaceRegular); err != nil {
+		if !replaceRegular && os.IsExist(err) {
 			return false, fail(ErrUnsafeEntry, "transaction-rename", newFull, "rename destination appeared concurrently")
 		}
-		return false, wrap(ErrIO, "transaction-rename", oldFull, "rename root-relative entry without replacement", err)
+		return false, wrap(ErrIO, "transaction-rename", oldFull, "rename held-parent entry", err)
 	}
 	installed = true
 	destination, err := newParentRoot.Lstat(nativePath(newName))
@@ -446,6 +558,16 @@ func (t *Transaction) rename(oldRelative, newRelative string, requireNamedRoot b
 			return true, fail(ErrRootChanged, "transaction-rename", oldFull, "source name still exists after rename")
 		}
 		return true, wrap(ErrIO, "transaction-rename", oldFull, "reinspect rename source", err)
+	}
+	if replaceRegular {
+		*directorySynced = true
+		for _, handle := range []*os.File{newParentHandle, oldParentHandle} {
+			supported, err := syncDirectoryHandle(handle)
+			*directorySynced = *directorySynced && supported
+			if err != nil {
+				return true, wrap(ErrIO, "transaction-rename", newFull, "sync renamed file parents", err)
+			}
+		}
 	}
 	if err := view.verifyAtomicParent(oldParent, oldParentRoot, oldParentHandle, oldParentInfo); err != nil {
 		return true, err

@@ -163,8 +163,10 @@ type MainUseCase struct {
 }
 
 type AuthoringModule struct {
-	ID              string   `json:"id"`
-	ComputeProfiles []string `json:"computeProfiles"`
+	ID                  string   `json:"id"`
+	ComputeProfiles     []string `json:"computeProfiles"`
+	StorageProfiles     []string `json:"storageProfiles,omitempty"`
+	AcceleratorProfiles []string `json:"acceleratorProfiles,omitempty"`
 	// ComputeProfileFacts carries the declared numeric footprint of each
 	// profile in ComputeProfiles, keyed by profile ID, so Techstack can size a
 	// selection without evaluating CUE. Recommendation stays with Techstack.
@@ -216,11 +218,24 @@ type AcceleratorProfileFacts struct {
 	Reservation    *ResourceBudget `json:"reservation,omitempty"`
 }
 
+type ConfigurationSetting struct {
+	Key     string `json:"key"`
+	Type    string `json:"type"`
+	Label   string `json:"label"`
+	Options []any  `json:"options,omitempty"`
+}
+
+type ConfigurationInputs struct {
+	Settings   []ConfigurationSetting `json:"settings"`
+	SecretRefs []string               `json:"secretRefs"`
+}
+
 type AuthoringAlternative struct {
-	ID                        string            `json:"id"`
-	Name                      string            `json:"name"`
-	Modules                   []AuthoringModule `json:"modules"`
-	ProvidesRuntimeAdapterRef string            `json:"providesRuntimeAdapterRef,omitempty"`
+	Configuration             *ConfigurationInputs `json:"configuration,omitempty"`
+	ID                        string               `json:"id"`
+	Name                      string               `json:"name"`
+	Modules                   []AuthoringModule    `json:"modules"`
+	ProvidesRuntimeAdapterRef string               `json:"providesRuntimeAdapterRef,omitempty"`
 }
 
 type AuthoringWorkload struct {
@@ -230,6 +245,7 @@ type AuthoringWorkload struct {
 }
 
 type UseCase struct {
+	WorkloadRef  string                           `json:"workloadRef,omitempty"`
 	ID           string                           `json:"id"`
 	Title        string                           `json:"title"`
 	Description  string                           `json:"description"`
@@ -258,16 +274,21 @@ type ReleaseIdentity struct {
 	ReleaseURL      string `json:"releaseUrl"`
 }
 
+type CatalogContent struct {
+	Authoring struct {
+		RetainedRemovalCandidates bool `json:"retainedRemovalCandidates"`
+	} `json:"authoring"`
+	UseCases []UseCase           `json:"useCases"`
+	KitCores []AuthoringWorkload `json:"kitCores,omitempty"`
+}
+
 type UseCaseManifest struct {
 	SchemaVersion    string          `json:"schemaVersion"`
 	Release          ReleaseIdentity `json:"release"`
 	GeneratedAt      string          `json:"generatedAt"`
 	GeneratorVersion string          `json:"generatorVersion"`
-	Catalog          struct {
-		UseCases []UseCase           `json:"useCases"`
-		KitCores []AuthoringWorkload `json:"kitCores,omitempty"`
-	} `json:"catalog"`
-	ContentDigest string `json:"contentDigest"`
+	Catalog          CatalogContent  `json:"catalog"`
+	ContentDigest    string          `json:"contentDigest"`
 }
 
 type OSCompatibility struct {
@@ -382,6 +403,18 @@ func LoadUseCaseComputeTiers(repoRoot string) ([]UseCase, error) {
 	if err := attachAuthoringVocabulary(&source, source.catalogWorkloads, source.catalogModules); err != nil {
 		return nil, err
 	}
+	// Compute-tier consumers carry portable fit facts only. Configuration
+	// input metadata belongs to the released native authoring catalog.
+	for i := range source.UseCases {
+		for j := range source.UseCases[i].Alternatives {
+			source.UseCases[i].Alternatives[j].Configuration = nil
+		}
+		for j := range source.UseCases[i].AddOns {
+			for k := range source.UseCases[i].AddOns[j].Alternatives {
+				source.UseCases[i].AddOns[j].Alternatives[k].Configuration = nil
+			}
+		}
+	}
 	return source.UseCases, nil
 }
 
@@ -424,8 +457,7 @@ func generate(repoRoot string, release ReleaseIdentity, generatorVersion string,
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
 	}
 	useCases := UseCaseManifest{SchemaVersion: UseCaseSchema, Release: release, GeneratedAt: generatedAt, GeneratorVersion: generatorVersion}
-	useCases.Catalog.UseCases = source.UseCases
-	useCases.Catalog.KitCores = source.KitCores
+	useCases.Catalog = catalogContent(source)
 	useCases.ContentDigest, err = contentDigest(useCases)
 	if err != nil {
 		return UseCaseManifest{}, CompatibilityManifest{}, nil, err
@@ -1488,6 +1520,7 @@ func attachAuthoringVocabulary(source *sourceCatalog, workloads, modules []map[s
 			return err
 		}
 		annotateAlternativeRealization(&source.UseCases[index], authoring)
+		source.UseCases[index].WorkloadRef = authoring.ID
 		source.UseCases[index].DefaultAlternative = authoring.DefaultAlternative
 		source.UseCases[index].Alternatives = authoring.Alternatives
 	}
@@ -1576,6 +1609,7 @@ func authoringWorkloadFromCatalog(workload map[string]any, modules map[string]Au
 		module.ComputeProfiles = append([]string(nil), module.ComputeProfiles...)
 		authoring.Alternatives = append(authoring.Alternatives, AuthoringAlternative{
 			ID: alternativeID, Name: alternativeID,
+			Configuration:             configurationInputsFromAlternative(alternative),
 			Modules:                   []AuthoringModule{module},
 			ProvidesRuntimeAdapterRef: stringField(alternative, "providesRuntimeAdapterRef"),
 		})
@@ -1591,7 +1625,7 @@ func authoringWorkloadFromCatalog(workload map[string]any, modules map[string]Au
 // accelerator profile facts. It copies declared values only; an axis the
 // module does not declare stays absent.
 func authoringModuleFromCatalog(id string, keys []string, module map[string]any) (AuthoringModule, error) {
-	projected := AuthoringModule{ID: id, ComputeProfiles: keys}
+	projected := AuthoringModule{ID: id, ComputeProfiles: keys, StorageProfiles: configurationProfileIDs(module, "storageProfiles"), AcceleratorProfiles: configurationProfileIDs(module, "acceleratorProfiles")}
 	var declared struct {
 		ComputeProfiles     map[string]ComputeProfileFacts `json:"computeProfiles"`
 		AcceleratorProfiles map[string]struct {
@@ -1871,4 +1905,13 @@ func validateBundles(useCase string, capabilities []Capability, bundles []Bundle
 		}
 	}
 	return nil
+}
+
+// Both release and candidate envelopes project the same compiled CUE facts.
+// The capability belongs to this exact compiler, never a version comparison.
+func catalogContent(source sourceCatalog) CatalogContent {
+	var content CatalogContent
+	content.UseCases, content.KitCores = source.UseCases, source.KitCores
+	content.Authoring.RetainedRemovalCandidates = true
+	return content
 }

@@ -24,10 +24,12 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/imagepreparation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/originca"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"gopkg.in/yaml.v3"
 )
 
@@ -539,6 +541,25 @@ func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
 	if err != nil {
 		return standaloneComposeProject{}, fmt.Errorf("validate standalone workload bundle: %w", err)
 	}
+	if bundle.ModuleRef == "stackkits-private-ai-runtime" {
+		if err := runtimeprofile.AdmitSpec(string(bundle.DataProfile)); err != nil {
+			return standaloneComposeProject{}, err
+		}
+		if bundle.DataProfile.FullLocal() {
+			if bundle.OfflineBundle == nil {
+				return standaloneComposeProject{}, errors.New("Full Local model source is unavailable")
+			}
+			for _, component := range bundle.Components {
+				for _, volume := range component.Volumes {
+					if architecturev2renderer.GovernedOfflineModelMount(bundle.ModuleRef, component.ID, volume.ID, volume.Target, volume.HostPath, bundle.OfflineBundle) {
+						if _, err := imagepreparation.VerifyOfflineModelRef(ctx, *bundle.OfflineBundle, component.ID); err != nil {
+							return standaloneComposeProject{}, fmt.Errorf("offline model admission: %w", err)
+						}
+					}
+				}
+			}
+		}
+	}
 	if bundle.WorkloadRef != deployment.WorkloadRef || bundle.ModuleRef != deployment.ModuleRef ||
 		bundle.Release != deployment.Release || bundle.SiteRef != deployment.SiteRef ||
 		bundle.NodeRef != deployment.NodeRef || bundle.InstanceRef != deployment.InstanceRef ||
@@ -972,7 +993,9 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 		}
 		for _, volume := range component.Volumes {
 			if volume.HostPath != "" {
-				if !architecturev2renderer.GovernedMediaLibraryMount(bundle.ModuleRef, component.ID, volume.ID, volume.Target) || !volume.ReadOnly || volume.Backup {
+				media := architecturev2renderer.GovernedMediaLibraryMount(bundle.ModuleRef, component.ID, volume.ID, volume.Target)
+				offline := architecturev2renderer.GovernedOfflineModelMount(bundle.ModuleRef, component.ID, volume.ID, volume.Target, volume.HostPath, bundle.OfflineBundle)
+				if (!media && !offline) || !volume.ReadOnly || volume.Backup {
 					return nil, nil, nil, errors.New("host source is only permitted for the read-only owner-custodied media library")
 				}
 				service.Volumes = append(service.Volumes, map[string]any{
@@ -1135,6 +1158,32 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 	}
 	if len(assignedConfig) != len(bundle.ConfigFiles) {
 		return nil, nil, nil, errors.New("standalone config file is not bound to a workload volume")
+	}
+	if bundle.DataProfile.FullLocal() {
+		if bundle.LocalNetwork == nil {
+			return nil, nil, nil, errors.New("Full Local requires its plan-bound network")
+		}
+		if err := bundle.LocalNetwork.Validate(); err != nil {
+			return nil, nil, nil, err
+		}
+		for key, network := range document.Networks {
+			if network.External {
+				continue
+			}
+			name := network.Name
+			if name == "" {
+				name = document.Name + "_" + key
+				network.Name = name
+			}
+			network.DriverOpts, network.Labels = architecturev2renderer.FullLocalNetworkOptions(bundle.LocalNetwork.StackID, name)
+			network.Labels[architecturev2renderer.FullLocalResolverLabel] = bundle.LocalNetwork.Resolver
+			document.Networks[key] = network
+		}
+		for key, service := range document.Services {
+			service.DNS = []string{bundle.LocalNetwork.Resolver}
+			service.Restart = "no"
+			document.Services[key] = service
+		}
 	}
 	compose, err := yaml.Marshal(document)
 	if err != nil {
@@ -1399,6 +1448,16 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 // runner admits: the daemon's data root for the game node's self-path volume.
 var standaloneComposeDockerRootArgs = []string{"info", "--format", "{{.DockerRootDir}}"}
 
+// fullLocalComposeUpArgs adds the fixed offline policy after the native runner
+// has admitted its process contract. It covers initial starts and individual
+// service recreations without widening either runner's accepted commands.
+func fullLocalComposeUpArgs(args []string, operationIndex int) []string {
+	if !runtimeprofile.FullLocal() || len(args) <= operationIndex || args[0] != "compose" || args[operationIndex] != "up" {
+		return args
+	}
+	return slices.Insert(slices.Clone(args), operationIndex+1, "--pull", "never")
+}
+
 type osStandaloneComposeProcessRunner struct{}
 
 func (r osStandaloneComposeProcessRunner) Run(
@@ -1433,7 +1492,14 @@ func (osStandaloneComposeProcessRunner) RunStreaming(
 	if err != nil {
 		return nil, &standaloneComposeProcessError{output: "docker-not-found", cause: err}
 	}
-	command := exec.CommandContext(ctx, executable, args...)
+	var admission *fullLocalComposeDocument
+	if !dockerRootQuery && !majorHoldDiscoveryQuery && len(args) > 7 && args[7] == "up" {
+		admission, err = admitFullLocalCompose(ctx, args[6], args[2])
+		if err != nil {
+			return nil, err
+		}
+	}
+	command := exec.CommandContext(ctx, executable, fullLocalComposeUpArgs(args, 7)...)
 	command.Dir = directory
 	command.Env = []string{"LANG=C", "LC_ALL=C"}
 	// Docker discovers system-wide Windows plugins below ProgramFiles. Keep
@@ -1448,21 +1514,28 @@ func (osStandaloneComposeProcessRunner) RunStreaming(
 		tail := &standaloneComposeTailBuffer{limit: 16 << 10}
 		command.Stdout = io.MultiWriter(tail, live)
 		command.Stderr = command.Stdout
+		var runErr error
 		if err := command.Run(); err != nil {
-			return nil, &standaloneComposeProcessError{output: boundedBasementCoreProcessDiagnostic(tail.Bytes()), cause: err}
+			runErr = &standaloneComposeProcessError{output: boundedBasementCoreProcessDiagnostic(tail.Bytes()), cause: err}
+		}
+		if err := finishFullLocalCompose(ctx, admission, runErr); err != nil {
+			return nil, err
 		}
 		return append([]byte(nil), tail.Bytes()...), nil
 	}
 	command.Stdout, command.Stderr = output, output
+	var runErr error
 	if err := command.Run(); err != nil {
-		return nil, &standaloneComposeProcessError{
+		runErr = &standaloneComposeProcessError{
 			output: boundedBasementCoreProcessDiagnostic(output.Bytes()), cause: err,
 		}
-	}
-	if output.exceeded {
-		return nil, &standaloneComposeProcessError{
+	} else if output.exceeded {
+		runErr = &standaloneComposeProcessError{
 			output: "output-exceeded", cause: errors.New("bounded process output exceeded"),
 		}
+	}
+	if err := finishFullLocalCompose(ctx, admission, runErr); err != nil {
+		return nil, err
 	}
 	return append([]byte(nil), output.Bytes()...), nil
 }

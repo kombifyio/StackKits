@@ -1,0 +1,51 @@
+{
+  "facts_schema_version": "1.0.0",
+  "layer": "L3-application",
+  "slug": "qdrant",
+  "displayName": "Qdrant",
+  "description": "Qdrant vector store for the chat module's knowledge base on the private AI network: collections persist in a backed-up volume, every request needs the API key from owner custody, no egress and no route.",
+  "rationale": "Private AI vector-store capability module (default).",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "256m"
+    }
+  },
+  "services": [
+    {
+      "name": "qdrant",
+      "type": "application",
+      "required": false,
+      "networks": [
+        "private-ai-internal"
+      ],
+      "volumes": [
+        {
+          "source": "qdrant-storage",
+          "target": "/qdrant/storage",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/healthz",
+        "port": 6333
+      },
+      "resources": {
+        "memory": "256m",
+        "memoryMax": "2g"
+      },
+      "upstream": {
+        "github": "qdrant/qdrant",
+        "registryImage": "docker.io/qdrant/qdrant"
+      },
+      "routed": false,
+      "imageSource": {
+        "moduleRef": "stackkits-qdrant-runtime",
+        "componentRef": "qdrant"
+      }
+    }
+  ]
+}

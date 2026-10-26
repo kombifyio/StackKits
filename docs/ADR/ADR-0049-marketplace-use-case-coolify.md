@@ -78,8 +78,9 @@ check. Without PocketID login it cannot meet the identity promise.
    and use-case workload execution as a platform** (workspace
    [D-2026-10-20-09](https://github.com/kombify/kombify-workspace/blob/main/internal/records/DECISIONS.md)).
    The product-intent catalog records Runtipi as a Marketplace alternative.
-   There is no admitted Runtipi module, bootstrap, workload adapter or
-   current-pin lifecycle receipt. Implementation must use the existing CUE,
+   CUE contracts, native bootstrap and an API workload adapter are prepared;
+   executable selection and current-pin lifecycle admission remain pending.
+   Implementation must use the existing CUE,
    OpenTofu, application-adapter and node-custody seams; no Runtipi OpenTofu
    provider or API compatibility is presumed. Marketplace installation and
    workload execution need separate current-pin install, login, routing,

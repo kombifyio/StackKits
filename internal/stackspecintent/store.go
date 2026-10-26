@@ -4,6 +4,7 @@ package stackspecintent
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
 
@@ -95,6 +97,18 @@ func Persist(request Request) (result Result, returnErr error) {
 	return result, err
 }
 
+// PersistWithSnapshotLease reuses the canonical CAS writer beneath the exact
+// existing snapshot/transfer lease. The caller must already have verified the
+// terminal outcome authorizing the intent change; no new lease is acquired.
+func PersistWithSnapshotLease(ctx context.Context, operation string, request Request) (result Result, returnErr error) {
+	err := lifecyclemutation.WithAppGroupCustodyTransaction(ctx, request.WorkspaceRoot, operation, func(*confinedfs.Transaction, confinedfs.View) error {
+		var persistErr error
+		result, persistErr = persist(request)
+		return persistErr
+	})
+	return result, err
+}
+
 func persist(request Request) (result Result, returnErr error) {
 	absoluteRoot, err := filepath.Abs(request.WorkspaceRoot)
 	if err != nil {
@@ -149,6 +163,9 @@ func persist(request Request) (result Result, returnErr error) {
 	candidate, err := authority.ValidateStackSpec(request.Candidate)
 	if err != nil {
 		return result, &Error{Code: ErrInvalidCandidate, Cause: fmt.Errorf("validate candidate StackSpec v2: %w", err)}
+	}
+	if err := admitPersistedDataProfile(candidate.CanonicalStackSpec); err != nil {
+		return result, &Error{Code: ErrInvalidCandidate, Cause: err}
 	}
 	result.KitProfile = candidate.KitProfile
 	result.SpecHash = candidate.SpecHash
@@ -224,6 +241,9 @@ func persist(request Request) (result Result, returnErr error) {
 				Cause: fmt.Errorf("existing intent is not CUE-valid StackSpec v2; migrate or repair it explicitly: %w", err),
 			}
 		}
+		if err := admitPersistedDataProfile(current.CanonicalStackSpec); err != nil {
+			return result, &Error{Code: ErrInvalidCurrent, CurrentSpecHash: current.SpecHash, CandidateSpecHash: result.SpecHash, Cause: err}
+		}
 		result.PreviousSpecHash = current.SpecHash
 		switch {
 		case current.SpecHash == result.SpecHash:
@@ -263,6 +283,17 @@ func persist(request Request) (result Result, returnErr error) {
 	}
 	lockClosed = true
 	return result, nil
+}
+
+func admitPersistedDataProfile(canonical []byte) error {
+	document, err := stackspecmigration.Read(canonical)
+	if err != nil {
+		return err
+	}
+	if document.V2 == nil {
+		return fmt.Errorf("canonical StackSpec v2 identity is required for data profile admission")
+	}
+	return runtimeprofile.AdmitSpec(document.V2.DataProfile)
 }
 
 func IsCanonicalSHA256(value string) bool {

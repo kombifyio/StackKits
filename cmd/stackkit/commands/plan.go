@@ -66,13 +66,16 @@ func runPlan(cmd *cobra.Command, args []string) error {
 	options.planOut = planOut
 	options.planDestroy = planDestroy
 	var verifiedPlan generationartifact.VerifiedPlan
-	if !planJSON {
-		options.verifiedPlanSink = func(plan generationartifact.VerifiedPlan) error {
-			verifiedPlan = plan
-			return nil
-		}
+	options.verifiedPlanSink = func(plan generationartifact.VerifiedPlan) error {
+		verifiedPlan = plan
+		return nil
 	}
 	options.inspectionSink = func(inspection generationartifact.PlanInspection) error {
+		if planJSON {
+			if err := attachPlanLocalOwner(wd, verifiedPlan, &inspection); err != nil {
+				return err
+			}
+		}
 		if err := writeArchitectureV2PlanInspection(cmd.OutOrStdout(), inspection, planJSON); err != nil {
 			return err
 		}

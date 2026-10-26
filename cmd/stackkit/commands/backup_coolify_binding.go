@@ -31,7 +31,7 @@ func nativeBackupApplicationBindings(ctx context.Context, authority nativeV2Back
 	}
 	var bindings []backupexec.ApplicationRuntimeBinding
 	for _, graph := range source.ApplicationRuntimes {
-		if graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo" {
+		if graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo" && graph.RuntimeAdapterRef != "runtipi" {
 			continue
 		}
 		deployment := deployments[graph.ComposeProject]
@@ -40,6 +40,29 @@ func nativeBackupApplicationBindings(ctx context.Context, authority nativeV2Back
 			if volume.ComposeProject == graph.ComposeProject {
 				volumes = append(volumes, volume)
 			}
+		}
+		if graph.RuntimeAdapterRef == "runtipi" {
+			if _, err := nativehost.LoadRuntipiTerminalQualification(authority.WorkspaceRoot, deployment, nativeRuntipiTerminalSourceDigest); err != nil {
+				return nil, err
+			}
+			state, err := platformdeploy.LoadOwnerHostDeployment(authority.WorkspaceRoot, graph.ComposeProject)
+			if err != nil {
+				return nil, err
+			}
+			if err = platformdeploy.RequireHostDeploymentManager(state, "runtipi"); err != nil {
+				return nil, err
+			}
+			if state.ArtifactDigest != deployment.ArtifactDigest || state.InstanceRef != deployment.InstanceRef || state.SiteRef != graph.SiteRef || state.NodeRef != graph.NodeRef || state.Deployment.AppName != graph.ComposeProject || state.Deployment.ExternalID != graph.ComposeProject+":_user" {
+				return nil, errors.New("Runtipi data source differs from retained signed node deployment")
+			}
+			names := map[string]string{}
+			for _, volume := range volumes {
+				names[volume.VolumeName] = volume.VolumeName
+			}
+			// External volumes keep their compiler-owned names. Power belongs to
+			// the separate signed group driver, never a component callback.
+			bindings = append(bindings, backupexec.ApplicationRuntimeBinding{Runtime: graph, PhysicalProject: graph.ComposeProject + "__user", VolumeNames: names})
+			continue
 		}
 		if graph.RuntimeAdapterRef == "komodo" {
 			binding, err := nativehost.BindKomodoBackupRuntime(ctx, authority.WorkspaceRoot, deployment, graph, volumes)

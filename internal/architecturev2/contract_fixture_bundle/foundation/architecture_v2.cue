@@ -1260,7 +1260,7 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 		ipv6:     bool | *false
 	}
 	dns: {
-		servers: [...#NetworkAddressV2] & list.MinItems(1) | *["1.1.1.1", "8.8.8.8"]
+		servers: [...#NetworkAddressV2]
 		searchDomains: [...#DNSNameV2] | *[]
 	}
 	tls: {
@@ -1348,11 +1348,59 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	}
 }
 
+// A bundle reference pins local installation input, not its authenticity. The
+// offline bundle verifier still admits the published release and every asset.
+#OfflineBundleRefV1: close({
+	path:           string & =~"^/[A-Za-z0-9._/-]+$" & !~"(^|/)\\.\\.?(/|$)" & !~"//|/$"
+	manifestSha256: string & =~"^[a-f0-9]{64}$"
+})
+
+// Full Local is an edition boot profile, independent of kit and install.mode.
+// Optional fields preserve existing Standard intent and its canonical hash.
+#DataProfileRecordV1: {
+	dataProfile?:   "standard" | "full-local"
+	edition?:       "selfhost-oss" | "saas-standalone" | "saas-embedded" | "preview"
+	loc?:           "hosted" | "local"
+	offlineBundle?: #OfflineBundleRefV1
+	if loc != _|_ if loc == "local" {dataProfile: "full-local"}
+	if offlineBundle != _|_ {dataProfile: "full-local"}
+	if dataProfile != _|_ {
+		if dataProfile == "full-local" {
+			edition: "selfhost-oss"
+			loc:     "local"
+		}
+		if dataProfile == "standard" {loc?: "hosted"}
+	}
+}
+
+#FullLocalAISettingsV1: {
+	"kombify-connector"?: false
+	"external-provider"?: _|_
+	...
+}
+
+// The admitted offline profile carries one CPU coding model. Apply these
+// concrete defaults only to the selected Private AI workload; unrelated
+// workloads and module overrides never acquire model settings.
+#FullLocalPrivateAISettingsV1: {
+	#FullLocalAISettingsV1
+	"model-pack-coding":   true
+	"model-size":          "small"
+	"model-pack-general"?: false
+	"model-pack-vision"?:  false
+	...
+}
+
 // #StackSpecV2 is desired intent. It contains no discovered host facts and no
 // plaintext secret material.
 #StackSpecV2: {
-	apiVersion: #ArchitectureAPIVersionAny
-	kind:       "StackSpec"
+	#DataProfileRecordV1
+
+	// A lexical declaration makes the embedded record visible to guards
+	// below; its allowed values and edition rules remain in the one record.
+	dataProfile?: string
+	apiVersion:   #ArchitectureAPIVersionAny
+	kind:         "StackSpec"
 
 	metadata: {
 		name:      #ContractID
@@ -1411,7 +1459,35 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	workloads?: [#WorkloadID]: #WorkloadSelectionV2
 	modules?: [string]:        #ModuleIntentV2
 	routes?: [string]:         #ServiceRouteIntentV2
-	data?: #DataPlacementIntent
+	data?:      #DataPlacementIntent
+	placement?: #PlacementIntent
+	if dataProfile == _|_ {network: dns: servers: [...#NetworkAddressV2] & list.MinItems(1) | *["1.1.1.1", "8.8.8.8"]}
+	if dataProfile != _|_ if dataProfile == "standard" {network: dns: servers: [...#NetworkAddressV2] & list.MinItems(1) | *["1.1.1.1", "8.8.8.8"]}
+	if dataProfile != _|_ if dataProfile == "full-local" {
+		network: dns: servers: [...#NetworkAddressV2] | *[]
+		placement: #PlacementIntent & {mode: "local-only"}
+		sites: [...(#SiteSpec & {kind: "home"})]
+		bridge?: _|_
+		network: tls: defaultMode: "internal" | "off"
+		routes?: [string]: {exposure: !="public"}
+		access?: [string]: {exposure: "private" | "lan"}
+		if data != _|_ {
+			data: {
+				defaultAuthority: "home" | "per-workload"
+				bindings?: [string]: {cloudCopyAllowed: false}
+			}
+		}
+		workloads?: [string]: {settings?: #FullLocalAISettingsV1}
+		modules?: [string]: {settings?: #FullLocalAISettingsV1}
+		capabilities: config?: [string]: {settings?: #FullLocalAISettingsV1}
+		workloads?: ai?: {
+			alternative: #ContractID
+			if alternative == "private-ai" {
+				settings: #FullLocalPrivateAISettingsV1
+			}
+		}
+		modules?: "stackkits-private-ai-runtime"?: {acceleratorProfile?: _|_}
+	}
 
 	if install.runtime == "docker" {
 		container: #ContainerRuntimeIntentV2
@@ -4599,11 +4675,11 @@ _servicePublicationShape: {
 	// copied from the selected module runtime; dependency order must never be
 	// inferred from Docker names or mutable labels.
 	applicationRuntimes?: [...close({
-		runtimeAdapterRef?: "standalone-compose" | "coolify" | "komodo"
-		workloadRef:    #ContractID
-		siteRef:        #SiteID
-		nodeRef:        #NodeID
-		composeProject: "stackkit-\(workloadRef)-\(nodeRef)"
+		runtimeAdapterRef?: "standalone-compose" | "coolify" | "komodo" | "runtipi"
+		workloadRef:        #ContractID
+		siteRef:            #SiteID
+		nodeRef:            #NodeID
+		composeProject:     "stackkit-\(workloadRef)-\(nodeRef)"
 		components: [...close({
 			componentRef:   #ContractID
 			role:           #ModuleRuntimeComponentV2.role
@@ -6925,7 +7001,7 @@ _otlpTransportPostureV1: {
 	capabilityContractHash: #ContentHash
 	requirementsHash:       #ContentHash
 	targetNodeRefs: [...#NodeID] & list.MinItems(1)
-	overlay:               #HomeWireGuardOverlayContractV1 & {capabilityRef: capabilityRef}
+	overlay: #HomeWireGuardOverlayContractV1 & {capabilityRef: capabilityRef}
 	specHash:              #ContentHash
 	realizationHash:       #ContentHash
 	_targetNodeRefsUnique: list.UniqueItems(targetNodeRefs) & true
@@ -7280,7 +7356,7 @@ _otlpTransportPostureV1: {
 	certificateIssuers: [...#CertificateIssuerV2] | *[]
 	overlayContracts: [...#OverlayProviderContractV2] | *[]
 	remoteActionContracts: [...#RemoteActionContractV2] | *[]
-	homeAccessOverlay?: #HomeWireGuardOverlayContractV1
+	homeAccessOverlay?:        #HomeWireGuardOverlayContractV1
 	_providesUnique:           list.UniqueItems(provides) & true
 	_workloadRefsUnique:       list.UniqueItems(workloadRefs) & true
 	_runtimeAdapterRefsUnique: list.UniqueItems(runtimeAdapterRefs) & true
@@ -8020,6 +8096,8 @@ _otlpTransportPostureV1: {
 		settings: {
 			allowedRefs: [...#ContractID] | *[]
 			requiredRefs: [...#ContractID] | *[]
+			// Optional Configure UI metadata; only declared public scalar inputs.
+			descriptors: [...#PublicConfigurationSettingV1] | *[]
 		}
 		secretInputs: {
 			allowedRefs: [...#ContractID] | *[]
@@ -8055,6 +8133,10 @@ _otlpTransportPostureV1: {
 	if setup.mode == "automatic" || setup.mode == "on-demand" {
 		setup: {owner: "module", actionRefs: list.MinItems(1)}
 	}
+	_configurationKeysUnique: list.UniqueItems([for descriptor in inputs.settings.descriptors {descriptor.key}]) & true
+	_configurationKeysAllowed: [for descriptor in inputs.settings.descriptors {
+		[for ref in inputs.settings.allowedRefs if ref == descriptor.key {ref}] & list.MinItems(1) & list.MaxItems(1)
+	}]
 	_settingsAllowedUnique:  list.UniqueItems(inputs.settings.allowedRefs) & true
 	_settingsRequiredUnique: list.UniqueItems(inputs.settings.requiredRefs) & true
 	_secretsAllowedUnique:   list.UniqueItems(inputs.secretInputs.allowedRefs) & true
@@ -8773,6 +8855,32 @@ _otlpTransportPostureV1: {
 }
 
 #ResolvedPlan: {
+	#DataProfileRecordV1
+	dataProfile?: string
+	if dataProfile != _|_ if dataProfile == "full-local" {
+		sites: [...(#SiteSpec & {kind: "home"})]
+		bridge?: _|_
+		data: {
+			defaultAuthority: "home" | "per-workload"
+			bindings?: [string]: {cloudCopyAllowed: false}
+		}
+		workloads: [...{
+			id: #WorkloadID
+			alternative: {id: #ContractID, moduleRef: #ContractID}
+			settings: #FullLocalAISettingsV1
+			if id == "ai" && alternative.id == "private-ai" {
+				settings: #FullLocalPrivateAISettingsV1
+			}
+		}]
+		modules: [...{
+			id: #ContractID
+			if id == "stackkits-private-ai-runtime" {
+				acceleratorProfile?:        _|_
+				acceleratorProfileHash?:    _|_
+				acceleratorProfileBinding?: _|_
+			}
+		}]
+	}
 	apiVersion: "stackkit.resolved-plan/v1"
 	kind:       "ResolvedPlan"
 
@@ -11750,4 +11858,12 @@ _otlpTransportPostureV1: {
 			] & list.MinItems(1)
 		}]
 	}
+}
+
+// Public Configure descriptors never declare secrets or arbitrary spec paths.
+#PublicConfigurationSettingV1: {
+	key:   #ContractID
+	type:  "string" | "number" | "boolean"
+	label: string & !=""
+	options?: [...(string | number | bool)] & list.MinItems(1)
 }

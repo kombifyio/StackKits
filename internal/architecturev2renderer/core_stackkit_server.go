@@ -1,5 +1,100 @@
 package architecturev2renderer
 
+import (
+	"bytes"
+	"fmt"
+
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
+	"gopkg.in/yaml.v3"
+)
+
+const coreDataProfileContractSalt = "|data-profile:hash-bound-full-local,selfhost-oss,optional-readonly-offline-bundle-v1" + fullLocalNetworkContractSalt
+
+const (
+	coreProfileAnchor = "      STACKKITS_RUNTIME_PROFILE: production\n"
+	coreBundleAnchor  = "        target: /run/stackkit-server\n        read_only: true\n"
+)
+
+// renderStackKitServerDataProfile receives only the verified plan selection.
+// Standard output remains byte-identical. Apply verifies the source bundle
+// before a generated readonly mount can be used.
+func renderStackKitServerDataProfile(unit RenderUnit, compose []byte) ([]byte, error) {
+	if !unit.DataProfile().FullLocal() {
+		return compose, nil
+	}
+	bundle, hasBundle := unit.OfflineBundle()
+	if hasBundle {
+		if err := bundle.Validate(); err != nil {
+			return nil, err
+		}
+	}
+	environment, volume := stackKitServerDataProfileFragments(bundle, hasBundle)
+	if bytes.Count(compose, []byte(coreProfileAnchor)) != 1 ||
+		(hasBundle && bytes.Count(compose, []byte(coreBundleAnchor)) != 1) {
+		return nil, fail(ErrOutputChanged, "renderer.stackkit-server.dataProfile", "missing unique governed server insertion point")
+	}
+	compose = bytes.Replace(compose, []byte(coreProfileAnchor), []byte(coreProfileAnchor+environment), 1)
+	if hasBundle {
+		compose = bytes.Replace(compose, []byte(coreBundleAnchor), []byte(coreBundleAnchor+volume), 1)
+	}
+	return renderFullLocalCoreNetwork(unit, compose)
+}
+
+func stackKitServerDataProfileFragments(bundle runtimeprofile.OfflineBundleRef, hasBundle bool) (string, string) {
+	environment := "      KOMBIFY_DATA_PROFILE: full-local\n      KOMBIFY_EDITION: selfhost-oss\n"
+	if !hasBundle {
+		return environment, ""
+	}
+	environment += fmt.Sprintf("      STACKKIT_OFFLINE_BUNDLE_PATH: %q\n      STACKKIT_OFFLINE_BUNDLE_MANIFEST_SHA256: %q\n", bundle.Path, bundle.ManifestSHA256)
+	volume := fmt.Sprintf("      - type: bind\n        source: %q\n        target: %q\n        read_only: true\n        bind:\n          create_host_path: false\n", bundle.Path, bundle.Path)
+	return environment, volume
+}
+
+// Strip only the exact governed projection for closed artifact comparison.
+// This validates rendering shape; it does not authenticate a bundle's bytes.
+func stripStackKitServerDataProfile(content []byte) ([]byte, bool) {
+	var networkOK bool
+	content, networkOK = stripFullLocalCoreNetwork(content)
+	if !networkOK {
+		return nil, false
+	}
+	var document struct {
+		Services map[string]struct {
+			Environment map[string]string `yaml:"environment"`
+		} `yaml:"services"`
+	}
+	if yaml.Unmarshal(content, &document) != nil {
+		return nil, false
+	}
+	env := document.Services[StackKitServerComponentRef].Environment
+	profile, hasProfile := env["KOMBIFY_DATA_PROFILE"]
+	_, hasEdition := env["KOMBIFY_EDITION"]
+	refPath, hasPath := env["STACKKIT_OFFLINE_BUNDLE_PATH"]
+	hash, hasHash := env["STACKKIT_OFFLINE_BUNDLE_MANIFEST_SHA256"]
+	if !hasProfile && !hasEdition && !hasPath && !hasHash {
+		return content, true
+	}
+	if profile != "full-local" || env["KOMBIFY_EDITION"] != "selfhost-oss" || hasPath != hasHash {
+		return nil, false
+	}
+	bundle := runtimeprofile.OfflineBundleRef{Path: refPath, ManifestSHA256: hash}
+	if hasPath && bundle.Validate() != nil {
+		return nil, false
+	}
+	environment, volume := stackKitServerDataProfileFragments(bundle, hasPath)
+	if bytes.Count(content, []byte(coreProfileAnchor+environment)) != 1 {
+		return nil, false
+	}
+	content = bytes.Replace(content, []byte(coreProfileAnchor+environment), []byte(coreProfileAnchor), 1)
+	if hasPath {
+		if bytes.Count(content, []byte(coreBundleAnchor+volume)) != 1 {
+			return nil, false
+		}
+		content = bytes.Replace(content, []byte(coreBundleAnchor+volume), []byte(coreBundleAnchor), 1)
+	}
+	return content, true
+}
+
 // Every v2 Core runs stackkit-server so the installation's existing router can
 // publish the StackKits MCP on the base host (ADR-0044). The pinned image is
 // only a runtime base: the executable is the stackkit-server binary of the

@@ -32,7 +32,8 @@ are required: the Compose default and the Layer-2 PaaS platforms Coolify,
 Komodo and Dokploy, each executed through OpenTofu; the 1.0 compatibility
 tuples cover Compose and each PaaS platform. Coolify additionally runs the
 Marketplace use case (ADR-0049). Runtipi is accepted for both Marketplace and
-use-case workload execution and is recorded and unimplemented; Dockhand is a
+use-case workload execution, with prepared bootstrap and API integration but
+no executable selection or current-pin qualification; Dockhand is a
 prospective platform option subject to its BSL/license profile (workspace
 D-2026-10-20-09). k3s is a later runtime target. These platform lists are not
 exhaustive. No executable selection, default, adapter or support promotion

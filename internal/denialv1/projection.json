@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "stackkits.denial-projection/v1",
+  "source": "kombify-go-common/denial",
+  "sourceVersion": "v0.8.8",
+  "sourceCommit": "f5f50f4d5bab0892ce3bcba575d5a43c1f723a37",
+  "sourceSum": "h1:hc4C4Cl1bneoJq+Z7wK2puZCvnqXJb8iMtxER8E9r38=",
+  "sourceFiles": [
+    "envelope.go",
+    "envelope_test.go"
+  ],
+  "projectedFiles": [
+    "envelope.go"
+  ]
+}

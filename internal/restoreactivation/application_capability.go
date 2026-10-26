@@ -103,6 +103,15 @@ func requireApplicationRestoreCapability(plan map[string]any, workload string) e
 			return errors.New("restoreactivation: selected Application lifecycle has no delivery")
 		}
 		adapterRef := text(delivery, "adapterRef")
+		if adapterRef == "runtipi" {
+			selected, err := runtipiAppGroupSourceSelected(plan, workload)
+			if err != nil {
+				return err
+			}
+			if selected {
+				return nil
+			}
+		}
 		capabilities, err := object(delivery, "capabilities")
 		if err != nil || capabilities["backupRestore"] != true {
 			return &ApplicationRestoreUnsupportedError{WorkloadRef: workload, AdapterRef: adapterRef, Reason: ReasonApplicationRestoreAdapterUnsupported}

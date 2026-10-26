@@ -250,6 +250,13 @@ func newArchitectureV2ProductRuntimeAuthorityWithCollectorAndTrust(
 	if err != nil {
 		return nil, errors.Join(err, journal.Close())
 	}
+	programSource, err := newCurrentApplyProgramSourceVerifier(workspaceRoot)
+	if err != nil {
+		return nil, errors.Join(err, journal.Close())
+	}
+	if err := service.BindProductApplyProgram("stackkit-cli", programSource); err != nil {
+		return nil, errors.Join(err, journal.Close())
+	}
 	return &architectureV2ProductRuntimeAuthority{Service: service, journal: journal}, nil
 }
 
@@ -535,6 +542,9 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return architecturev2.NewProductLitellmSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductQdrantSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductGiteaSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
@@ -672,6 +682,15 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		return nil, err
 	}
 	registrations = append(registrations, marketplaceRegistration)
+	runtipiOperations, err := nativehost.NewOSRuntipiMarketplaceOperations(workspaceRoot)
+	if err != nil {
+		return nil, err
+	}
+	runtipiRegistration, err := architecturev2.NewProductRuntipiMarketplaceRegistration(runtimeVersion, runtipiOperations)
+	if err != nil {
+		return nil, err
+	}
+	registrations = append(registrations, runtipiRegistration)
 	return registrations, nil
 }
 

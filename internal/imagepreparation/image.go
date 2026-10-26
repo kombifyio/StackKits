@@ -20,7 +20,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/tofu"
 )
@@ -36,17 +35,25 @@ type Image struct {
 	Digest    string `json:"digest"`
 }
 type Profile struct {
-	ID              string   `json:"id"`
-	Kit             string   `json:"kit"`
-	Module          string   `json:"module"`
-	DefaultOS       string   `json:"defaultOS"`
-	CompatibleOS    []string `json:"compatibleOS"`
-	Architectures   []string `json:"architectures"`
-	Runtime         string   `json:"runtime"`
-	ManagedTarget   string   `json:"managedTarget"`
-	CacheScope      string   `json:"cacheScope"`
-	NetworkRequired bool     `json:"networkRequired"`
-	Images          []Image  `json:"images"`
+	ID              string      `json:"id"`
+	Kit             string      `json:"kit"`
+	Module          string      `json:"module"`
+	DefaultOS       string      `json:"defaultOS"`
+	CompatibleOS    []string    `json:"compatibleOS"`
+	Architectures   []string    `json:"architectures"`
+	Runtime         string      `json:"runtime"`
+	ManagedTarget   string      `json:"managedTarget"`
+	CacheScope      string      `json:"cacheScope"`
+	NetworkRequired bool        `json:"networkRequired"`
+	Images          []Image     `json:"images"`
+	DataProfile     string      `json:"dataProfile,omitempty"`
+	Modules         []string    `json:"modules,omitempty"`
+	ModelPacks      []ModelPack `json:"modelPacks,omitempty"`
+}
+
+type ModelPack struct {
+	Component string `json:"component"`
+	Size      string `json:"size"`
 }
 type Platform struct {
 	OS           string `json:"os"`
@@ -64,13 +71,26 @@ type Manifest struct {
 	SchemaVersion string            `json:"schemaVersion"`
 	Profile       Profile           `json:"profile"`
 	Platform      Platform          `json:"platform"`
-	Release       Release           `json:"release"`
+	Release       Release           `json:"release,omitzero"`
+	SourceKind    SourceKind        `json:"sourceKind,omitempty"`
+	Candidate     *CandidateSource  `json:"candidate,omitempty"`
 	Binaries      map[string]string `json:"binaries"`
 	ProviderFiles map[string]string `json:"providerFiles"`
 }
 
-func Plan(id string) (Profile, error) {
-	raw, err := architecturev2.NeutralImageProfile(id)
+// Authority is implemented by the existing embedded CUE owner. Keeping the
+// artifact transport independent lets native runtime owners reuse model
+// verification without importing the service that constructs those owners.
+type Authority interface {
+	NeutralImageProfile(string) ([]byte, error)
+	ValidateNeutralImageManifest([]byte) error
+}
+
+func Plan(id string, authority Authority) (Profile, error) {
+	if authority == nil {
+		return Profile{}, errors.New("embedded neutral image authority is required")
+	}
+	raw, err := authority.NeutralImageProfile(id)
 	if err != nil {
 		return Profile{}, err
 	}
@@ -87,7 +107,16 @@ func Plan(id string) (Profile, error) {
 type LocalDocker struct{ Config string }
 
 func (docker LocalDocker) Run(ctx context.Context, args ...string) ([]byte, error) {
+	return docker.RunInput(ctx, nil, args...)
+}
+
+// RunInput passes an already-open file directly to Docker's stdin. Import never
+// gives Docker a transport or temporary pathname to reopen after verification.
+func (docker LocalDocker) RunInput(ctx context.Context, input *os.File, args ...string) ([]byte, error) {
 	command := exec.CommandContext(ctx, "docker", append([]string{"--host", "unix:///var/run/docker.sock", "--config", docker.Config}, args...)...)
+	if input != nil {
+		command.Stdin = input
+	}
 	for _, item := range os.Environ() {
 		if !strings.HasPrefix(item, "DOCKER_") {
 			command.Env = append(command.Env, item)
@@ -104,7 +133,14 @@ type ContainerCache interface {
 	Run(context.Context, ...string) ([]byte, error)
 }
 
+type containerInputCache interface {
+	RunInput(context.Context, *os.File, ...string) ([]byte, error)
+}
+
 type Options struct {
+	SourceKind SourceKind
+	Candidate  *CandidateSelection
+	Authority  Authority
 	CacheRoot  string
 	Target     string
 	Executable string
@@ -186,44 +222,42 @@ func validateOptions(options Options) (Platform, error) {
 }
 
 func validateCacheOptions(options Options) (Platform, error) {
-	if options.ObserveHost == nil || options.Docker == nil || options.Installer.Attestations == nil {
+	if options.Authority == nil || options.ObserveHost == nil || options.Docker == nil || options.Installer.Attestations == nil {
 		return Platform{}, errors.New("trusted host observation, local container cache and release verifier are required")
 	}
 	if options.Version == "" || options.Version == "dev" || strings.ContainsAny(options.Version, "/\\") {
 		return Platform{}, errors.New("an exact published running release is required")
 	}
-	if exact, err := releaseindex.ExactTagForBuildVersion(options.Version); err != nil || exact != options.Version {
+	if options.SourceKind != "" && options.SourceKind != PublicReleaseSource && options.SourceKind != PreviewCandidateSource {
+		return Platform{}, errors.New("unknown neutral source kind")
+	}
+	if options.candidateSource() {
+		if _, err := candidateDirectory(options); err != nil {
+			return Platform{}, err
+		}
+	} else if options.Candidate != nil {
+		return Platform{}, errors.New("candidate selection requires explicit preview-candidate source kind")
+	} else if exact, err := releaseindex.ExactTagForBuildVersion(options.Version); err != nil || exact != options.Version {
 		return Platform{}, errors.New("neutral image requires an exact published release tag")
 	}
-	if err := SafePath(options.CacheRoot); err != nil {
+	if err := separateDirectories(options.CacheRoot, options.Target); err != nil {
 		return Platform{}, err
-	}
-	if err := SafePath(options.Target); err != nil {
-		return Platform{}, err
-	}
-	cacheRoot, err := filepath.Abs(options.CacheRoot)
-	if err != nil {
-		return Platform{}, err
-	}
-	target, err := filepath.Abs(options.Target)
-	if err != nil {
-		return Platform{}, err
-	}
-	// The deployment cannot contain the neutral release cache or vice versa.
-	for _, pair := range [][2]string{{cacheRoot, target}, {target, cacheRoot}} {
-		relative, err := filepath.Rel(pair[0], pair[1])
-		if err != nil || relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))) {
-			return Platform{}, errors.New("image cache and deployment target must be separate directories")
-		}
 	}
 	return options.ObserveHost()
 }
 
 func releaseDirectory(options Options, profile Profile, platform Platform) string {
+	if options.candidateSource() {
+		directory, _ := candidateDirectory(options) // validateCacheOptions admits the selector first.
+		return directory
+	}
 	return filepath.Join(options.CacheRoot, ".stackkit", "releases", profile.Kit, options.Version, platform.OS+"-"+platform.Arch)
 }
 
 func trustedManifest(ctx context.Context, options Options, profile Profile, platform Platform) (Manifest, error) {
+	if options.candidateSource() {
+		return trustedCandidateManifest(ctx, options, profile, platform)
+	}
 	manifest := Manifest{SchemaVersion: "stackkit.neutral-image/v1", Profile: profile, Platform: platform}
 	installDir := releaseDirectory(options, profile, platform)
 	if err := SafePath(installDir); err != nil {
@@ -244,34 +278,10 @@ func trustedManifest(ctx context.Context, options Options, profile Profile, plat
 			if err != nil {
 				return err
 			}
-			for binary, digest := range digests {
-				file := filepath.Join(filepath.Dir(options.Executable), binary)
-				if binary == "stackkit" {
-					file = options.Executable
-				}
-				actual, err := FileDigest(file)
-				if err != nil {
-					return err
-				}
-				if actual != digest {
-					return fmt.Errorf("%w: packaged %s bytes do not match verified release archive", ErrAdmissionMismatch, binary)
-				}
+			if err := verifyPackagedClosure(options, digests, providers); err != nil {
+				return err
 			}
 			manifest.Binaries = digests
-			providerRoot, err := installedProviderRoot(options.Executable)
-			if err != nil {
-				return err
-			}
-			if _, err := tofu.LoadProviderClosure(providerRoot); err != nil {
-				return err
-			}
-			actualProviders, err := digestTree(providerRoot)
-			if err != nil {
-				return err
-			}
-			if !reflect.DeepEqual(providers, actualProviders) {
-				return errors.New("packaged provider mirror bytes differ from verified release archive")
-			}
 			manifest.ProviderFiles = providers
 			manifest.Release = Release{Kit: receipt.Kit, Version: receipt.Version, ArchiveSHA256: receipt.ArchiveSHA256, IndexSHA256: receipt.IndexSHA256}
 			return nil
@@ -282,7 +292,7 @@ func trustedManifest(ctx context.Context, options Options, profile Profile, plat
 
 var requiredBinaries = []string{"stackkit", "stackkit-server", "stackkit-mcp", "tofu", "terramate"}
 
-func archiveBinaryDigests(reader io.Reader) (map[string]string, map[string]string, error) {
+func archiveBinaryDigests(reader io.Reader, buildProfile ...releaseindex.CandidateBuildProfile) (map[string]string, map[string]string, error) {
 	zipped, err := gzip.NewReader(reader)
 	if err != nil {
 		return nil, nil, err
@@ -291,6 +301,13 @@ func archiveBinaryDigests(reader io.Reader) (map[string]string, map[string]strin
 	archive := tar.NewReader(zipped)
 	digests := map[string]string{}
 	providers := map[string]string{}
+	seenPaths := map[string]bool{}
+	candidateArchive := len(buildProfile) == 1
+	fullLocal := candidateArchive && buildProfile[0] == releaseindex.CandidateFullLocal
+	binaries := requiredBinaries
+	if fullLocal {
+		binaries = append(append([]string(nil), requiredBinaries...), "stackkit-content-bridge")
+	}
 	for {
 		header, err := archive.Next()
 		if err == io.EOF {
@@ -302,6 +319,12 @@ func archiveBinaryDigests(reader io.Reader) (map[string]string, map[string]strin
 		clean := path.Clean(header.Name)
 		if path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") || strings.Contains(clean, "\\") {
 			return nil, nil, errors.New("verified archive contains escaping path")
+		}
+		if candidateArchive {
+			if clean != strings.TrimSuffix(header.Name, "/") || strings.ContainsAny(clean, "\x00:") || seenPaths[clean] || (header.Typeflag != tar.TypeReg && header.Typeflag != tar.TypeDir) {
+				return nil, nil, errors.New("candidate archive has a noncanonical, repeated or unsafe entry")
+			}
+			seenPaths[clean] = true
 		}
 		if strings.HasPrefix(clean, "providers/") && header.Typeflag != tar.TypeDir {
 			if header.Typeflag != tar.TypeReg || header.Size <= 0 || header.Size > 256<<20 {
@@ -318,7 +341,7 @@ func archiveBinaryDigests(reader io.Reader) (map[string]string, map[string]strin
 			providers[name] = hex.EncodeToString(hash.Sum(nil))
 			continue
 		}
-		for _, binary := range requiredBinaries {
+		for _, binary := range binaries {
 			if path.Base(clean) != binary {
 				continue
 			}
@@ -328,14 +351,23 @@ func archiveBinaryDigests(reader io.Reader) (map[string]string, map[string]strin
 			if _, exists := digests[binary]; exists {
 				return nil, nil, fmt.Errorf("archive repeats %s", binary)
 			}
-			hash := sha256.New()
-			if _, err := io.Copy(hash, archive); err != nil {
-				return nil, nil, err
+			if candidateArchive && clean != binary {
+				return nil, nil, fmt.Errorf("archive %s must be at its canonical root path", binary)
 			}
-			digests[binary] = hex.EncodeToString(hash.Sum(nil))
+			raw, err := io.ReadAll(io.LimitReader(archive, header.Size+1))
+			if err != nil || int64(len(raw)) != header.Size {
+				return nil, nil, errors.New("archive executable is incomplete")
+			}
+			if fullLocal && binary != "tofu" && binary != "terramate" {
+				if err := verifyArchiveBuildProfile(raw, buildProfile[0]); err != nil {
+					return nil, nil, fmt.Errorf("%s: %w", binary, err)
+				}
+			}
+			sum := sha256.Sum256(raw)
+			digests[binary] = hex.EncodeToString(sum[:])
 		}
 	}
-	for _, binary := range requiredBinaries {
+	for _, binary := range binaries {
 		if digests[binary] == "" {
 			return nil, nil, fmt.Errorf("verified release does not package %s", binary)
 		}
@@ -510,7 +542,7 @@ func neutralContainerCache(ctx context.Context, docker ContainerCache, profile P
 // Prepare downloads the current exact attested release into the neutral cache,
 // verifies the actual packaged tools, and only pulls immutable container images.
 func Prepare(ctx context.Context, options Options, id string) (Manifest, error) {
-	profile, err := Plan(id)
+	profile, err := Plan(id, options.Authority)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -531,6 +563,14 @@ func Prepare(ctx context.Context, options Options, id string) (Manifest, error) 
 	if err := neutralCacheRoot(options.CacheRoot, releaseDirectory(options, profile, platform)); err != nil {
 		return Manifest{}, err
 	}
+	if options.candidateSource() {
+		if err := retainCandidate(ctx, options, profile, platform); err != nil {
+			return Manifest{}, err
+		}
+		if _, err := trustedManifest(ctx, options, profile, platform); err != nil {
+			return Manifest{}, err
+		}
+	}
 	if err := emptyRuntime(ctx, options.Docker, platform); err != nil {
 		return Manifest{}, err
 	}
@@ -540,15 +580,17 @@ func Prepare(ctx context.Context, options Options, id string) (Manifest, error) 
 	if err := os.MkdirAll(options.CacheRoot, 0755); err != nil {
 		return Manifest{}, err
 	}
-	if options.Installer.Source == nil {
-		return Manifest{}, errors.New("release source is required for neutral installation")
-	}
-	resolution, err := (releaseindex.Resolver{Source: options.Installer.Source, Attestations: options.Installer.Attestations}).Resolve(ctx, releaseindex.ResolveRequest{Kit: profile.Kit, Target: options.Version, OS: platform.OS, Arch: platform.Arch})
-	if err != nil {
-		return Manifest{}, err
-	}
-	if _, err = options.Installer.Install(ctx, resolution, options.CacheRoot); err != nil {
-		return Manifest{}, err
+	if !options.candidateSource() {
+		if options.Installer.Source == nil {
+			return Manifest{}, errors.New("release source is required for neutral installation")
+		}
+		resolution, err := (releaseindex.Resolver{Source: options.Installer.Source, Attestations: options.Installer.Attestations}).Resolve(ctx, releaseindex.ResolveRequest{Kit: profile.Kit, Target: options.Version, OS: platform.OS, Arch: platform.Arch})
+		if err != nil {
+			return Manifest{}, err
+		}
+		if _, err = options.Installer.Install(ctx, resolution, options.CacheRoot); err != nil {
+			return Manifest{}, err
+		}
 	}
 	manifest, err := trustedManifest(ctx, options, profile, platform)
 	if err != nil {
@@ -575,7 +617,7 @@ func Prepare(ctx context.Context, options Options, id string) (Manifest, error) 
 	if err != nil {
 		return Manifest{}, err
 	}
-	if err := architecturev2.ValidateNeutralImageManifest(raw); err != nil {
+	if err := options.Authority.ValidateNeutralImageManifest(raw); err != nil {
 		return Manifest{}, err
 	}
 	file, err := os.OpenFile(manifestPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
@@ -593,7 +635,10 @@ func Prepare(ctx context.Context, options Options, id string) (Manifest, error) 
 	return Verify(ctx, options, manifestPath)
 }
 
-func ReadManifest(name string) (Manifest, error) {
+func ReadManifest(name string, authority Authority) (Manifest, error) {
+	if authority == nil {
+		return Manifest{}, errors.New("embedded neutral image authority is required")
+	}
 	if err := SafePath(name); err != nil {
 		return Manifest{}, err
 	}
@@ -608,7 +653,7 @@ func ReadManifest(name string) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	if err := architecturev2.ValidateNeutralImageManifest(raw); err != nil {
+	if err := authority.ValidateNeutralImageManifest(raw); err != nil {
 		return Manifest{}, fmt.Errorf("neutral manifest schema: %w", err)
 	}
 	var manifest Manifest
@@ -620,6 +665,9 @@ func ReadManifest(name string) (Manifest, error) {
 	var trailing any
 	if decoder.Decode(&trailing) != io.EOF {
 		return Manifest{}, errors.New("neutral manifest has trailing data")
+	}
+	if err := validateManifestSource(manifest); err != nil {
+		return Manifest{}, err
 	}
 	return manifest, nil
 }
@@ -656,15 +704,15 @@ func VerifyCache(ctx context.Context, options Options, manifestPath string) (Man
 	if err != nil || actualPath != wantPath {
 		return Manifest{}, errors.New("manifest must be the neutral cache root's neutral-image.json")
 	}
-	manifest, err := ReadManifest(manifestPath)
+	manifest, err := ReadManifest(manifestPath, options.Authority)
 	if err != nil {
 		return Manifest{}, err
 	}
-	profile, err := Plan(manifest.Profile.ID)
+	profile, err := Plan(manifest.Profile.ID, options.Authority)
 	if err != nil {
 		return Manifest{}, err
 	}
-	if !reflect.DeepEqual(manifest.Profile, profile) || manifest.Platform != platform || manifest.Release.Version != options.Version || manifest.Release.Kit != profile.Kit {
+	if !reflect.DeepEqual(manifest.Profile, profile) || manifest.Platform != platform || (!options.candidateSource() && (manifest.Release.Version != options.Version || manifest.Release.Kit != profile.Kit)) {
 		return Manifest{}, fmt.Errorf("%w: profile, observed host or running release differs", ErrAdmissionMismatch)
 	}
 	expected, err := trustedManifest(ctx, options, profile, platform)

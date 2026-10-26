@@ -5,6 +5,7 @@ package lifecyclemutation
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -140,11 +141,13 @@ type RestoreActivationProgress struct {
 }
 
 type RestoreActivationState struct {
-	Controls         []backuplifecycle.RuntimeControl `json:"controls,omitempty"`
-	Authority        RestoreActivationAuthority       `json:"authority"`
-	RollbackPrepared []string                         `json:"rollbackPrepared"`
-	Activated        []string                         `json:"activated"`
-	InFlight         *RestoreActivationStep           `json:"inFlight,omitempty"`
+	AppGroupClosures []RestoreAppGroupClosure          `json:"appGroupClosures,omitempty"`
+	AppGroups        []backuplifecycle.AppGroupControl `json:"appGroups,omitempty"`
+	Controls         []backuplifecycle.RuntimeControl  `json:"controls,omitempty"`
+	Authority        RestoreActivationAuthority        `json:"authority"`
+	RollbackPrepared []string                          `json:"rollbackPrepared"`
+	Activated        []string                          `json:"activated"`
+	InFlight         *RestoreActivationStep            `json:"inFlight,omitempty"`
 }
 
 type Record struct {
@@ -241,7 +244,7 @@ func BeginUpgradePrepared(
 	if err != nil {
 		return fail(err)
 	}
-	if exists && current.Status == StatusActive {
+	if exists && recordBlocksMutation(current) {
 		return fail(fmt.Errorf(
 			"lifecycle mutation %s is active at phase %s; recover it explicitly",
 			current.OperationID, current.Phase,
@@ -303,6 +306,15 @@ func BeginRestoreActivationPrepared(
 	if prepare == nil {
 		return nil, errors.New("restore activation preparation callback is required")
 	}
+	return beginRestoreActivationPreparedContext(context.Background(), workspace, "", func(context.Context) (RestoreActivationBeginRequest, error) { return prepare() }, onAbort...)
+}
+func BeginRestoreActivationPreparedContext(ctx context.Context, workspace, operation string, prepare func(context.Context) (RestoreActivationBeginRequest, error), onAbort ...func() error) (*Session, error) {
+	return beginRestoreActivationPreparedContext(ctx, workspace, operation, prepare, onAbort...)
+}
+func beginRestoreActivationPreparedContext(ctx context.Context, workspace, operation string, prepare func(context.Context) (RestoreActivationBeginRequest, error), onAbort ...func() error) (*Session, error) {
+	if prepare == nil {
+		return nil, errors.New("restore activation preparation callback is required")
+	}
 	if len(onAbort) > 1 {
 		return nil, errors.New("restore activation preparation accepts one abort cleanup")
 	}
@@ -323,7 +335,7 @@ func BeginRestoreActivationPrepared(
 	if err != nil {
 		return fail(err)
 	}
-	if exists && current.Status == StatusActive {
+	if exists && recordBlocksMutation(current) {
 		return fail(fmt.Errorf(
 			"lifecycle mutation %s is active at phase %s; recover it explicitly",
 			current.OperationID, current.Phase,
@@ -332,7 +344,14 @@ func BeginRestoreActivationPrepared(
 	if err := backuplifecycle.RequireSettledRuntimeControls(workspace, ""); err != nil {
 		return fail(err)
 	}
-	request, err := prepare()
+	preparation := ctx
+	if operation != "" {
+		if !operationPattern.MatchString(operation) {
+			return fail(errors.New("invalid parent preparation operation"))
+		}
+		preparation = context.WithValue(ctx, appGroupLeaseKey{}, &appGroupLease{session: session, operation: operation})
+	}
+	request, err := prepare(preparation)
 	if err != nil {
 		return fail(err)
 	}
@@ -460,7 +479,8 @@ func RequireIdle(workspace string) error {
 }
 
 // ActiveRecord returns the verified record of the active lifecycle mutation
-// without taking the lifecycle lock. It only inspects: acting on the mutation
+// or terminal restore with pending native closes, without taking the lock.
+// It only inspects: acting on the mutation
 // still needs OpenRecovery, which revalidates the record under the lock.
 func ActiveRecord(workspace string) (Record, bool, error) {
 	if _, err := os.Lstat(
@@ -484,7 +504,7 @@ func ActiveRecord(workspace string) (Record, bool, error) {
 	if err != nil {
 		return Record{}, false, err
 	}
-	if !exists || record.Status != StatusActive {
+	if !exists || !recordBlocksMutation(record) {
 		return Record{}, false, nil
 	}
 	return record, true, nil
@@ -531,7 +551,7 @@ func withIdleMutation(workspace string, join JoinRequest, snapshot string, execu
 	if err != nil {
 		return err
 	}
-	if exists && record.Status == StatusActive {
+	if exists && recordBlocksMutation(record) {
 		return fmt.Errorf(
 			"lifecycle mutation %s is active at phase %s; ordinary mutation is denied",
 			record.OperationID, record.Phase,
@@ -782,21 +802,7 @@ func digestNonce(nonce string) string {
 
 // CurrentExecutableSHA256 hashes the bytes of the currently executing binary;
 // hidden flags cannot supply or substitute this authority.
-func CurrentExecutableSHA256() (string, error) {
-	path, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("resolve current lifecycle executable: %w", err)
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("read current lifecycle executable: %w", err)
-	}
-	if len(raw) == 0 || len(raw) > 512<<20 {
-		return "", errors.New("current lifecycle executable bytes are invalid")
-	}
-	sum := sha256.Sum256(raw)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
-}
+func CurrentExecutableSHA256() (string, error) { return localevidence.CurrentExecutableSHA256() }
 
 func joinPhase(phase string) bool {
 	switch phase {
@@ -817,6 +823,8 @@ func (session *Session) Record() Record {
 	if session.record.RestoreActivation != nil {
 		state := *session.record.RestoreActivation
 		state.Controls = append([]backuplifecycle.RuntimeControl(nil), state.Controls...)
+		state.AppGroups = backuplifecycle.CloneAppGroups(state.AppGroups)
+		state.AppGroupClosures = append([]RestoreAppGroupClosure(nil), state.AppGroupClosures...)
 		state.Authority.Volumes = append(
 			[]string{}, session.record.RestoreActivation.Authority.Volumes...,
 		)
@@ -876,7 +884,9 @@ func (session *Session) TransitionRestoreActivation(
 		return err
 	}
 	nextState := &RestoreActivationState{
+		AppGroupClosures: append([]RestoreAppGroupClosure(nil), session.record.RestoreActivation.AppGroupClosures...),
 		Controls:         append([]backuplifecycle.RuntimeControl(nil), session.record.RestoreActivation.Controls...),
+		AppGroups:        backuplifecycle.CloneAppGroups(session.record.RestoreActivation.AppGroups),
 		Authority:        session.record.RestoreActivation.Authority,
 		RollbackPrepared: progress.RollbackPrepared,
 		Activated:        progress.Activated, InFlight: progress.InFlight,
@@ -957,7 +967,7 @@ func (session *Session) transitionWithUpgradeData(
 	if session == nil || session.transaction == nil ||
 		session.record.Status != StatusActive ||
 		session.record.Phase != expected ||
-		!(allowedTransition(session.record.Kind, expected, next) || validRestoreControlTransition(session.record, expected, next, restoreActivation)) {
+		!(allowedTransition(session.record.Kind, expected, next) || (validRestoreControlTransition(session.record, expected, next, restoreActivation) || validRestoreAppGroupTransition(session.record, expected, next, restoreActivation))) {
 		return errors.New("lifecycle mutation transition is not authorized")
 	}
 	if session.record.Kind == KindRestoreActivation {
@@ -1216,12 +1226,12 @@ func loadRecord(
 		return Record{}, "", false, err
 	}
 	switch {
-	case record.Status == StatusActive &&
+	case recordBlocksMutation(record) &&
 		(len(active) != 1 || active[record.OperationID] != digest):
 		return Record{}, "", false, errors.New(
 			"lifecycle mutation has divergent active operation histories",
 		)
-	case record.Status != StatusActive && len(active) != 0:
+	case !recordBlocksMutation(record) && len(active) != 0:
 		return Record{}, "", false, errors.New(
 			"lifecycle mutation terminal pointer hides an active orphan history",
 		)
@@ -1400,7 +1410,7 @@ func recoverLatestRecord(
 	if err != nil {
 		return Record{}, "", err
 	}
-	if latest.Status == StatusActive {
+	if recordBlocksMutation(latest) {
 		if len(activeHeads) != 1 ||
 			activeHeads[operationID] != latestDigest {
 			return Record{}, "", errors.New(
@@ -1437,7 +1447,7 @@ func recoverLatestRecord(
 				"explicit lifecycle recovery refuses a tampered active pointer",
 			)
 		}
-		if active.Status == StatusActive &&
+		if recordBlocksMutation(active) &&
 			active.OperationID != operationID {
 			return Record{}, "", errors.New(
 				"explicit lifecycle recovery cannot replace another active operation",
@@ -1498,7 +1508,7 @@ func activeHistoryHeads(
 		if err != nil {
 			return nil, err
 		}
-		if record.Status == StatusActive {
+		if recordBlocksMutation(record) {
 			active[operationID] = digest
 		}
 	}
@@ -1856,6 +1866,9 @@ func allowedRestoreActivationTransition(current, next string) bool {
 }
 
 func validateRestoreActivationState(record Record) error {
+	if err := validateRestoreAppGroupClosures(record); err != nil {
+		return err
+	}
 	state := record.RestoreActivation
 	if state == nil ||
 		record.UpgradeDataActivation != nil ||
@@ -1903,6 +1916,9 @@ func validateRestoreActivationPhaseProgress(
 	phase string,
 	state RestoreActivationState,
 ) error {
+	if err := validateRestoreAppGroupsForPhase(phase, state.AppGroups); err != nil {
+		return err
+	}
 	if err := validateRestoreControlsForPhase(phase, state.Controls); err != nil {
 		return err
 	}

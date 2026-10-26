@@ -39,17 +39,21 @@ const (
 	// BackupRenewalMaxMeasurementAgeSeconds bounds how long before issuedAt the
 	// renewal usage may have been measured.
 	BackupRenewalMaxMeasurementAgeSeconds = 300
+	// TransferRetirementMaxLifetimeSeconds bounds a capability for one held
+	// transfer retirement (15 minutes).
+	TransferRetirementMaxLifetimeSeconds = 900
 )
 
 // Advanced operation identifiers. A capability authorizes a sorted subset.
 const (
-	OperationDriftReconcileAdvanced   = "drift.reconcile.advanced"
-	OperationOriginCertificateInstall = "public-tls.origin-certificate.install"
-	OperationOriginCertificateRequest = "public-tls.origin-certificate.request"
-	OperationRestoreDrill             = "restore.drill"
-	OperationRollbackCoordinated      = "rollback.coordinated"
-	OperationTerramateChangeSetApply  = "terramate.change-set.apply"
-	OperationTerramateChangeSetCreate = "terramate.change-set.create"
+	OperationApplicationTransferRetire = "application-transfer.retire"
+	OperationDriftReconcileAdvanced    = "drift.reconcile.advanced"
+	OperationOriginCertificateInstall  = "public-tls.origin-certificate.install"
+	OperationOriginCertificateRequest  = "public-tls.origin-certificate.request"
+	OperationRestoreDrill              = "restore.drill"
+	OperationRollbackCoordinated       = "rollback.coordinated"
+	OperationTerramateChangeSetApply   = "terramate.change-set.apply"
+	OperationTerramateChangeSetCreate  = "terramate.change-set.create"
 )
 
 // BackupRenewalOperation is the only operation a backup renewal capability
@@ -59,6 +63,7 @@ const BackupRenewalOperation = OperationRestoreDrill
 // Operations returns every Advanced operation in canonical (sorted) order.
 func Operations() []string {
 	return []string{
+		OperationApplicationTransferRetire,
 		OperationDriftReconcileAdvanced,
 		OperationOriginCertificateInstall,
 		OperationOriginCertificateRequest,
@@ -72,24 +77,26 @@ func Operations() []string {
 // IsOperation reports whether value is an Advanced operation identifier.
 func IsOperation(value string) bool {
 	switch value {
-	case OperationDriftReconcileAdvanced, OperationOriginCertificateInstall, OperationOriginCertificateRequest, OperationRestoreDrill, OperationRollbackCoordinated, OperationTerramateChangeSetApply, OperationTerramateChangeSetCreate:
+	case OperationApplicationTransferRetire, OperationDriftReconcileAdvanced, OperationOriginCertificateInstall, OperationOriginCertificateRequest, OperationRestoreDrill, OperationRollbackCoordinated, OperationTerramateChangeSetApply, OperationTerramateChangeSetCreate:
 		return true
 	}
 	return false
 }
 
 var (
-	issuerIdPattern              = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
-	stackIdPattern               = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
-	ownerRefPattern              = regexp.MustCompile(`^owner/local/[0-9a-f]{32}$`)
-	keyIdPattern                 = regexp.MustCompile(`^ed25519://sha256/[0-9a-f]{64}$`)
-	capabilityIdPattern          = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
-	renewalIdentityPattern       = regexp.MustCompile(`^[A-Za-z0-9_:@|.-]{1,180}$`)
-	renewalJobIdPattern          = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{7,99}$`)
-	sha256DigestPattern          = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	backupTargetRefPattern       = regexp.MustCompile(`^backup-target://sha256/[0-9a-f]{64}$`)
-	custodyAttestationRefPattern = regexp.MustCompile(`^backup-custody-attestation://sha256/[0-9a-f]{64}$`)
-	decimalInt64Pattern          = regexp.MustCompile(`^(0|[1-9][0-9]{0,18})$`)
+	issuerIdPattern               = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	stackIdPattern                = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	ownerRefPattern               = regexp.MustCompile(`^owner/local/[0-9a-f]{32}$`)
+	keyIdPattern                  = regexp.MustCompile(`^ed25519://sha256/[0-9a-f]{64}$`)
+	capabilityIdPattern           = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	renewalIdentityPattern        = regexp.MustCompile(`^[A-Za-z0-9_:@|.-]{1,180}$`)
+	renewalJobIdPattern           = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{7,99}$`)
+	sha256DigestPattern           = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	backupTargetRefPattern        = regexp.MustCompile(`^backup-target://sha256/[0-9a-f]{64}$`)
+	custodyAttestationRefPattern  = regexp.MustCompile(`^backup-custody-attestation://sha256/[0-9a-f]{64}$`)
+	decimalInt64Pattern           = regexp.MustCompile(`^(0|[1-9][0-9]{0,18})$`)
+	transferOperationIdPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	transferRetirementRolePattern = regexp.MustCompile(`^(source|destination)$`)
 )
 
 // Capability is one stackkit.advanced-capability/v1 document. Its canonical
@@ -115,9 +122,13 @@ type Capability struct {
 	SchemaVersion string `json:"schemaVersion"`
 	// Signature is the unpadded standard-Base64 Ed25519 signature over
 	// SigningDigest of the unsigned canonical bytes.
-	Signature    string `json:"signature"`
-	StackID      string `json:"stackId"`
-	UIManagerRef string `json:"uiManagerRef"`
+	Signature string `json:"signature"`
+	StackID   string `json:"stackId"`
+	// TransferRetirement binds a short-lived retirement to the exact existing
+	// held snapshot, signed peer outcome and canonical desired-intent
+	// transition.
+	TransferRetirement *TransferRetirement `json:"transferRetirement,omitempty"`
+	UIManagerRef       string              `json:"uiManagerRef"`
 }
 
 // BackupRenewal authorizes one local staged drill against unchanged applied
@@ -137,6 +148,20 @@ type BackupRenewal struct {
 	TargetRef             string `json:"targetRef"`
 	TenantID              string `json:"tenantId"`
 	UsedBytes             string `json:"usedBytes"`
+}
+
+// TransferRetirement authorizes only selected intent retirement within its
+// original held snapshot after the signed peer outcome is verified. It grants
+// no runtime activation, source restart, data deletion, server or provider
+// authority. The consumer must reconstruct and compare every field from its
+// authenticated journal and canonical candidate.
+type TransferRetirement struct {
+	BaselineSpecHash  string `json:"baselineSpecHash"`
+	CandidateSpecHash string `json:"candidateSpecHash"`
+	OperationID       string `json:"operationId"`
+	OutcomeDigest     string `json:"outcomeDigest"`
+	Role              string `json:"role"`
+	TransferID        string `json:"transferId"`
 }
 
 // TrustBundle is one stackkit.advanced-trust-bundle/v1 document. It holds
@@ -194,6 +219,10 @@ func (c Capability) appendCanonical(out []byte, signed bool) []byte {
 	}
 	out = append(out, ",\"stackId\":"...)
 	out = strconv.AppendQuote(out, c.StackID)
+	if c.TransferRetirement != nil {
+		out = append(out, ",\"transferRetirement\":"...)
+		out = c.TransferRetirement.appendCanonical(out)
+	}
 	out = append(out, ",\"uiManagerRef\":"...)
 	out = strconv.AppendQuote(out, c.UIManagerRef)
 	return append(out, '}')
@@ -293,6 +322,46 @@ func (b BackupRenewal) checkFormats() error {
 	}
 	if !decimalInt64Pattern.MatchString(b.UsedBytes) {
 		return invalid("usedBytes", "is not canonical")
+	}
+	return nil
+}
+
+// appendCanonical appends the RFC 8785 bytes of TransferRetirement.
+func (t TransferRetirement) appendCanonical(out []byte) []byte {
+	out = append(out, "{\"baselineSpecHash\":"...)
+	out = strconv.AppendQuote(out, t.BaselineSpecHash)
+	out = append(out, ",\"candidateSpecHash\":"...)
+	out = strconv.AppendQuote(out, t.CandidateSpecHash)
+	out = append(out, ",\"operationId\":"...)
+	out = strconv.AppendQuote(out, t.OperationID)
+	out = append(out, ",\"outcomeDigest\":"...)
+	out = strconv.AppendQuote(out, t.OutcomeDigest)
+	out = append(out, ",\"role\":"...)
+	out = strconv.AppendQuote(out, t.Role)
+	out = append(out, ",\"transferId\":"...)
+	out = strconv.AppendQuote(out, t.TransferID)
+	return append(out, '}')
+}
+
+// checkFormats checks the constant and pattern members of TransferRetirement.
+func (t TransferRetirement) checkFormats() error {
+	if !sha256DigestPattern.MatchString(t.BaselineSpecHash) {
+		return invalid("baselineSpecHash", "is not canonical")
+	}
+	if !sha256DigestPattern.MatchString(t.CandidateSpecHash) {
+		return invalid("candidateSpecHash", "is not canonical")
+	}
+	if !transferOperationIdPattern.MatchString(t.OperationID) {
+		return invalid("operationId", "is not canonical")
+	}
+	if !sha256DigestPattern.MatchString(t.OutcomeDigest) {
+		return invalid("outcomeDigest", "is not canonical")
+	}
+	if !transferRetirementRolePattern.MatchString(t.Role) {
+		return invalid("role", "is not canonical")
+	}
+	if !sha256DigestPattern.MatchString(t.TransferID) {
+		return invalid("transferId", "is not canonical")
 	}
 	return nil
 }

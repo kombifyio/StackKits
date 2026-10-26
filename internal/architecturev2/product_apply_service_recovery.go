@@ -60,6 +60,10 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 		return VerifiedApplyResult{}, err
 	}
 	current.plan = scopedPlan
+	program, err := s.observeApplyProgram(ctx)
+	if err != nil {
+		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "observe the current Apply recovery program before execution", err)
+	}
 	if !s.generation.beginApplyAuthorization(current.key, current.epoch, current.plan.Binding()) {
 		return VerifiedApplyResult{}, resolveError(ErrApplyAuthorization, "current resolution is stale, superseded, or already consumed", nil)
 	}
@@ -143,11 +147,15 @@ func (s *Service) reconcileProductApplyWithClock(ctx context.Context, input Prod
 	if err := ctx.Err(); err != nil {
 		return VerifiedApplyResult{}, applyExecutorError(generationartifact.ErrExecutorFailed, "apply.executor.context", "execution context was cancelled during Product Apply recovery", err)
 	}
-	return verifyApplyRuntimeExecutionResult(
+	verifiedResult, err := verifyApplyRuntimeExecutionResult(
 		executionRequest,
 		stackKitsExecutionResult(sharedResult),
 		&sharedRuntimeExecutorBridge{executor: s.productRuntimeOwners},
 	)
+	if err != nil {
+		return VerifiedApplyResult{}, err
+	}
+	return withObservedApplyProgram(verifiedResult, program)
 }
 
 func (s *Service) loadProductApplyRecoveryCapsule(ctx context.Context, requestDigest string) (productApplyRecoveryCapsule, error) {

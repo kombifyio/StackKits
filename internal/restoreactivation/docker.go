@@ -480,6 +480,10 @@ func (runtime *dockerRuntime) DigestVolume(
 		}
 		source, root = authority.StagingVolume, "/source/"+relative
 	}
+	script := digestScript
+	if strings.HasPrefix(authority.OperationID, "transfer-import.") {
+		script = transferDigestScript
+	}
 	output, err := runtime.docker(ctx,
 		"run", "--name", helperName(authority, "digest-"+volume.LiveName),
 		"--label", "io.stackkit.restore.operation="+authority.OperationID,
@@ -491,10 +495,22 @@ func (runtime *dockerRuntime) DigestVolume(
 		"--mount", "type=volume,src="+source+",dst=/source,readonly",
 		"--entrypoint", "/bin/sh",
 		authority.KopiaHelperImage,
-		"-ceu", digestScript, "--", root,
+		"-ceu", script, "--", root,
 	)
 	if err != nil {
 		return backuplifecycle.VolumeReadback{}, wrapDocker("read back governed volume", err)
+	}
+	if strings.HasPrefix(authority.OperationID, "transfer-import.") {
+		fields := strings.Fields(string(output))
+		if len(fields) != 4 || len(fields[3]) != 64 {
+			return backuplifecycle.VolumeReadback{}, errors.New("transfer metadata digest output invalid")
+		}
+		if _, err := hex.DecodeString(fields[3]); err != nil {
+			return backuplifecycle.VolumeReadback{}, err
+		}
+		result, err := parseVolumeDigest([]byte(strings.Join(fields[:3], " ")))
+		result.MetadataDigest = fields[3]
+		return result, err
 	}
 	return parseVolumeDigest(output)
 }
@@ -859,3 +875,15 @@ func wrapDocker(operation string, err error) error {
 	}
 	return fmt.Errorf("restoreactivation: %s: %w", operation, err)
 }
+
+// The transfer boundary includes ownership, permissions and empty directories.
+// Ordinary snapshot digests retain their established format.
+const transferDigestScript = `root=$1
+test -d "$root"
+cd "$root"
+list=$(find . -type f -exec sha256sum {} + | LC_ALL=C sort -k 2)
+files=$(printf '%s\n' "$list" | grep -c . || true)
+bytes=$(find . -type f -exec stat -c %s {} + | awk '{s+=$1} END {print s+0}')
+digest=$(printf '%s\n' "$list" | sha256sum | cut -d' ' -f1)
+metadata=$(find . -exec stat -c '%F|%a|%u|%g|%n' {} \; | LC_ALL=C sort | sha256sum | cut -d' ' -f1)
+echo "$files $bytes $digest $metadata"`

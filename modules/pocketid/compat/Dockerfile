@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1.7@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720
+
+# This file uses multi-stage builds to build the application from source, including the front-end
+
+# Tags passed to "go build"
+ARG BUILD_TAGS=""
+
+# Stage 1: Build Frontend
+ARG NODE_IMAGE
+ARG GO_IMAGE
+ARG RUNTIME_IMAGE
+FROM ${NODE_IMAGE} AS frontend-builder
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+RUN corepack enable && node --version
+
+WORKDIR /build
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY frontend/package.json ./frontend/
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+  pnpm --filter pocket-id-frontend install --frozen-lockfile
+
+COPY ./frontend ./frontend/
+
+RUN --mount=type=cache,target=/build/frontend/node_modules/.vite \
+  --mount=type=cache,target=/build/frontend/.svelte-kit \
+  BUILD_OUTPUT_PATH=dist pnpm --filter pocket-id-frontend run build
+
+# Stage 2: Build Backend
+FROM ${GO_IMAGE} AS backend-builder
+ARG BUILD_TAGS
+ENV GOMAXPROCS=2 GOMEMLIMIT=1536MiB GOFLAGS="-p=2"
+WORKDIR /build
+COPY ./backend/go.mod ./backend/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
+
+COPY ./backend ./
+COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
+COPY .version .version
+
+WORKDIR /build/cmd
+RUN --mount=type=cache,target=/go/pkg/mod \
+  --mount=type=cache,target=/root/.cache/go-build \
+  VERSION=$(cat /build/.version) && \
+  CGO_ENABLED=0 \
+  GOOS=linux \
+  go build \
+    -tags "${BUILD_TAGS}" \
+    -ldflags="-X github.com/pocket-id/pocket-id/backend/internal/common.Version=${VERSION} -buildid=${VERSION}" \
+    -trimpath \
+    -o /build/pocket-id \
+    .
+
+# Stage 3: Production Image
+FROM ${RUNTIME_IMAGE}
+ARG SOURCE_SHA
+LABEL org.opencontainers.image.title="PocketID membership CAS compatibility derivative" \
+      org.opencontainers.image.version="2.16.0-kombify-cas.1" \
+      org.opencontainers.image.source="https://github.com/kombifyio/stackKits" \
+      org.opencontainers.image.revision="${SOURCE_SHA}" \
+      org.opencontainers.image.licenses="BSD-2-Clause" \
+      io.kombify.pocketid.upstream="bb05e6922444c33eec87466919f1bcf105967825" \
+      io.kombify.pocketid.patch="339b3aba9b1d6bdd990cf5cb0e2e61e339f44a731d574f989e8b64cc1cacd698"
+WORKDIR /app
+
+RUN apk add --no-cache su-exec=0.3-r0
+
+COPY --from=backend-builder /build/pocket-id /app/pocket-id
+COPY ./scripts/docker /app/docker
+COPY LICENSE /usr/share/licenses/pocket-id/LICENSE
+
+RUN chmod +x /app/pocket-id && \
+  find /app/docker -name "*.sh" -exec chmod +x {} \;
+
+EXPOSE 1411
+ENV APP_ENV=production
+
+HEALTHCHECK --interval=90s --timeout=5s --start-period=10s --retries=3 CMD [ "/app/pocket-id", "healthcheck" ]
+
+ENTRYPOINT ["sh", "/app/docker/entrypoint.sh"]
+CMD ["/app/pocket-id"]

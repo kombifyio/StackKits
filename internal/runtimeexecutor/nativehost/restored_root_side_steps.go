@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/pocketidruntime"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
@@ -101,6 +102,13 @@ func prepareNativeComposeRoot(ctx context.Context, runtime *osNativeComposeRunti
 			return nil, err
 		}
 		steps.preparation = NativeComposePreparation{moduleRef: moduleRef, recreateServer: recreateServer}
+	}
+	_, project, ok := NativeComposeProject(moduleRef)
+	if !ok {
+		return nil, errors.New("PocketID restore transition has no native Core project")
+	}
+	if err := pocketidruntime.Prepare(ctx, runtime.workspaceRoot, project, steps.definition); err != nil {
+		return nil, err
 	}
 	return steps, nil
 }

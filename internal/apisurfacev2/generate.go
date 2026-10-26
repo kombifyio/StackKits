@@ -499,6 +499,14 @@ func (g *generator) mcp(id string, raw map[string]any, op *Operation) (*MCP, boo
 	if rb, present := ext["resourceBinding"]; present {
 		if b, ok := rb.(map[string]any); ok {
 			m.ResourceBinding = &ResourceBinding{Argument: str(b, "argument"), Dimension: str(b, "dimension")}
+			if required, present := b["required"]; present {
+				value, ok := required.(bool)
+				if !ok {
+					g.add(id, "mcp", "x-kombify-mcp.resourceBinding.required must be a boolean")
+				} else {
+					m.ResourceBinding.Required = &value
+				}
+			}
 		} else {
 			g.add(id, "mcp", "x-kombify-mcp.resourceBinding must be an object with argument and dimension")
 		}

@@ -230,7 +230,7 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(immichPowerToolsWorkload.contract, immichPowerToolsWorkload); err != nil {
 		return nil, err
 	}
-	for _, workload := range []aiAddOnWorkload{searxngWorkload(), tikaWorkload(), doclingWorkload(), litellmWorkload()} {
+	for _, workload := range []aiAddOnWorkload{searxngWorkload(), tikaWorkload(), doclingWorkload(), litellmWorkload(), qdrantWorkload()} {
 		renderer := newAIAddOnWorkloadBundleRenderer(workload)
 		if err := registry.Register(renderer.contract, renderer); err != nil {
 			return nil, err
@@ -346,6 +346,10 @@ func NewProductRegistry() (*Registry, error) {
 	komodoCore := newKomodoCoreRenderer()
 	komodoBootstrap := newKomodoBootstrapRenderer()
 	if err := registry.Register(MarketplaceCoolifyRendererContract(), marketplaceCoolifyRenderer{}); err != nil {
+		return nil, err
+	}
+	// Runtipi is an explicit, non-default Marketplace alternative.
+	if err := registry.Register(MarketplaceRuntipiRendererContract(), marketplaceRuntipiRenderer{}); err != nil {
 		return nil, err
 	}
 	if err := registry.Register(KomodoBootstrapRendererContract(), komodoBootstrap); err != nil {

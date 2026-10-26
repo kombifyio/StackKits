@@ -560,6 +560,21 @@ _architectureV2SpeechKitInfrastructure: #WorkloadInfrastructureV1 & {
 	recovery: moduleRef: "stackkits-recovery"
 }
 
+// Private AI vector store (Qdrant): the collections the chat module's
+// knowledge base writes are owner data and the backup source. Embeddings can
+// be recomputed, but only from documents the chat module still holds, so the
+// storage volume is backed up and restored with the node.
+_architectureV2QdrantInfrastructure: #WorkloadInfrastructureV1 & {
+	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai-vectors", classes: ["personal"], locality: "primary-site"}
+	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
+		{componentRef: "qdrant", volumeRef: "storage", target: "/qdrant/storage", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-vectors"},
+	]}
+	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
 _architectureV2MediaInfrastructure: #WorkloadInfrastructureV1 & {
 	storageAllocation: {
 		moduleRef: "stackkits-storage-allocation"
@@ -1264,7 +1279,13 @@ _architectureV2WorkloadContracts: [
 				// OpenAI-compatible provider for Open WebUI; `stackkit setup
 				// ai-provider` sets it only after binding the provider key to a
 				// Wallet item delivered to this node.
-				settings: {allowedRefs: ["kombify-connector", "model-pack-general", "model-pack-coding", "model-pack-vision", "model-size", "external-provider"], requiredRefs: []}
+				settings: {allowedRefs: ["kombify-connector", "model-pack-general", "model-pack-coding", "model-pack-vision", "model-size", "external-provider"], requiredRefs: [], descriptors: [
+					{key: "kombify-connector", type: "boolean", label: "kombify connector"},
+					{key: "model-pack-general", type: "boolean", label: "General model pack"},
+					{key: "model-pack-coding", type: "boolean", label: "Coding model pack"},
+					{key: "model-pack-vision", type: "boolean", label: "Vision model pack"},
+					{key: "model-size", type: "string", label: "Model size", options: ["small", "medium", "large"]},
+				]}
 				secretInputs: {
 					allowedRefs: ["owner-password", "session-key"]
 					requiredRefs: ["owner-password", "session-key"]
@@ -1333,7 +1354,7 @@ _architectureV2WorkloadContracts: [
 			// after accepting its license.
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["comfyui-model-download"]}
 			inputs: {
-				settings: {allowedRefs: ["comfyui-api-nodes"], requiredRefs: []}
+				settings: {allowedRefs: ["comfyui-api-nodes"], requiredRefs: [], descriptors: [{key: "comfyui-api-nodes", type: "boolean", label: "ComfyUI API nodes"}]}
 				secretInputs: {allowedRefs: [], requiredRefs: []}
 			}
 			infrastructure: _architectureV2ComfyUIInfrastructure
@@ -1635,6 +1656,45 @@ _architectureV2WorkloadContracts: [
 				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {allowedRefs: ["master-key"], requiredRefs: ["master-key"]}
 			}
+		}]
+	},
+	// The vector store: Qdrant on the private AI network for the chat module's
+	// knowledge base. Unlike the other add-ons it keeps owner data (the
+	// collections), so it declares storage, backup and restore. The API key from
+	// custody guards every request; the endpoint is never public.
+	#WorkloadContractV2 & {
+		metadata: {
+			id:          "ai-vectors"
+			version:     "1.0.0"
+			description: "Qdrant vector store that holds the chat module's knowledge-base vectors (embeddings from bge-m3 on the node's Ollama), selected with the Private AI vector-store module. It joins the node's private AI network, needs the API key from owner custody on every request and is local or remote-private, never public."
+		}
+		kind:       "application"
+		useCaseRef: "ai"
+		functionalCapabilities: ["vector-store"]
+		supportedSiteKinds: ["home", "cloud"]
+		dataClasses: ["personal"]
+		defaultAlternative: "qdrant"
+		alternatives: [{
+			id:          "qdrant"
+			providerRef: "stackkits-qdrant"
+			moduleRef:   "stackkits-qdrant-runtime"
+			route: {serviceRef: "ai-vectors", healthRef: "qdrant-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {allowedRefs: ["api-key"], requiredRefs: ["api-key"]}
+			}
+			infrastructure: _architectureV2QdrantInfrastructure
 		}]
 	},
 	#WorkloadContractV2 & {
@@ -2104,7 +2164,7 @@ _architectureV2WorkloadContracts: [
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
-                    {adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
@@ -2180,7 +2240,7 @@ _architectureV2WorkloadContracts: [
 			}
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
 			inputs: {
-				settings: {allowedRefs: ["lan-listener", "home-assistant-link"], requiredRefs: []}
+				settings: {allowedRefs: ["lan-listener", "home-assistant-link"], requiredRefs: [], descriptors: [{key: "home-assistant-link", type: "boolean", label: "Home Assistant link"}]}
 				secretInputs: {allowedRefs: ["mqtt-password"], requiredRefs: ["mqtt-password"]}
 			}
 			infrastructure: _architectureV2MosquittoInfrastructure
@@ -2386,6 +2446,7 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-search", version: "1.0.0", description: "Web search add-on of the Private AI use case."}, workloadRef: "ai-search", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-documents", version: "1.0.0", description: "Document parsing add-on of the Private AI use case."}, workloadRef: "ai-documents", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-gateway", version: "1.0.0", description: "Model router add-on of the Private AI use case."}, workloadRef: "ai-gateway", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
+	#ApplicationLifecycleContractV1 & {metadata: {id: "ai-vectors", version: "1.0.0", description: "Vector store add-on of the Private AI use case."}, workloadRef: "ai-vectors", useCaseRef: "ai", packageRef: "ai", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-share", version: "1.0.0", description: "Public share-link add-on of the photos use case."}, workloadRef: "photos-share", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-kiosk", version: "1.0.0", description: "Slideshow add-on of the photos use case."}, workloadRef: "photos-kiosk", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
 	#ApplicationLifecycleContractV1 & {metadata: {id: "photos-tools", version: "1.0.0", description: "Library maintenance add-on of the photos use case."}, workloadRef: "photos-tools", useCaseRef: "photos", packageRef: "photos", lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}},
@@ -2409,7 +2470,7 @@ _architectureV2ApplicationLifecycleContracts: [
 	#ApplicationLifecycleContractV1 & {
 		metadata: {id: "ai", version: "1.0.0", description: "Owner-controlled Private AI lifecycle; model download is an explicit owner operation."}
 		workloadRef: "ai", useCaseRef: "ai", packageRef: "ai"
-		lifecycle:   #StandardUseCaseLifecycle & {stages: setup: {}}
+		lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 	},
 	#ApplicationLifecycleContractV1 & {
 		metadata: {
@@ -3454,6 +3515,26 @@ _architectureV2Providers: list.Concat([[
 			}
 		}
 		evidence: ["litellm-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {id: "stackkits-qdrant", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["ai-vectors"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-qdrant-runtime"]
+			}
+		}
+		evidence: ["qdrant-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {id: "stackkits-gitea", version: "1.0.0"}
@@ -4645,6 +4726,7 @@ _architectureV2SearxngTerramateStack: _architectureV2WorkloadTerramateStack & {_
 _architectureV2TikaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "tika", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2DoclingTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "docling", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2LitellmTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "litellm", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2QdrantTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "qdrant", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2GiteaTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "gitea", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2ForgejoTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "forgejo", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2PaperlessTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "paperless-ngx", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -5031,6 +5113,33 @@ _architectureV2LitellmSupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2LitellmTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["litellm-selected-paas-runtime-contract"]
+}
+
+_architectureV2QdrantSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {contractComplete: true, requiredRefs: ["api-key"]}
+	artifacts: {
+		requiredRefs: ["qdrant-workload-bundle", _architectureV2QdrantTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "qdrant-workload-bundle"
+			unitRef:     "qdrant"
+			outputRef:   "workloads/qdrant/bundle.json"
+		}, _architectureV2QdrantTerramateStack.binding]
+		contracts: [{
+			id:       "qdrant-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "qdrant"
+			outputRef: "workloads/qdrant/bundle.json"
+		}, _architectureV2QdrantTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["qdrant-selected-paas-runtime-contract"]
 }
 
 // Jellyfin is the Media Library vertical. Config is a StackKits backup source;
@@ -6854,7 +6963,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:           "executor-contract", kind:                                         "native-config", rendererRef: "stackkit"
 			templateRef:  "builtin://home/host-security/executor-contract/v1.json", version: "1.0.0"
-			contractHash: "sha256:7fe72e9c09b410551da1c43397324794f39b9f4083ddcedd775ebdef3bf74fbd"
+			contractHash: "sha256:2952cea3d818e2e2cf55663c4f13cb164e19faad76608370408046ad564359df"
 			publicInputRefs: [], secretInputRefs: []
 			outputs: ["home/host-security/executor-contract.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}
@@ -7591,7 +7700,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:c6d278731cf79352de5a919a2399da4c09fd3a982f07a690005c7bbee8809fc2"
+				contractHash:    "sha256:2d3044f3d0774f5a3fc12402645e3070c485037ed7ca154ee3c5da37713fe9a0"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7604,7 +7713,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:b899557ef57e0631b26019e7ea53f6a78108fb7daf4d72fe5d8fbf4a0f22d97e"
+				contractHash:    "sha256:5b77ac2f49e4420f47d7d9b2f86b8e414c19f9e20ac2aae21327e24edf15c61e"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7617,7 +7726,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:6fe3aacb585e3ddb57a577ddcd1513ed56c6858779d0fe249538861df4f2307d"
+				contractHash:    "sha256:c6c4d3612d8a921501d6e331a9263f0b8bc469d123c72b0c652057cf1aa55451"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7873,7 +7982,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:3ef64cac9f0c31ba7470c09daa5a3038f072d36b09d5d7425516a9bad0ee7baf"
+				contractHash:    "sha256:cb8467cbb985e3a7026dd784c357eb3020099a5d9656a1be4ba4a2433c8f05a5"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7886,7 +7995,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:fa514dcc07d33a6f168753eea208ee9ea9cb0609e2280d04e82bae243e66c424"
+				contractHash:    "sha256:49a900ce0b30ccda2370b9c2070771d5f557711b32dc37416aba4b2202be5e57"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7899,7 +8008,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:c235e620b92af4c2f37f77fbb4210016ffe37c7a955e6fcb4b0ed88ba55a48d5"
+				contractHash:    "sha256:9ad9e0d127a1150845b062e2d1d839bf146d6a56b54ff06f599f4cc6076792fb"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -8985,6 +9094,17 @@ _architectureV2Modules: list.Concat([[
 					// The model router reaches Ollama on this network for the
 					// owner's apps and devices; the chat module needs nothing from it.
 					{workloadRef: "ai-gateway", alternativeRef: "litellm", environment: {}},
+					// Knowledge vectors in Qdrant, embedded with bge-m3 on the node's
+					// Ollama (Open WebUI v0.11.3 config.py VECTOR_DB, QDRANT_URI,
+					// RAG_EMBEDDING_ENGINE, RAG_EMBEDDING_MODEL). The API key is the
+					// ai-vectors workload's api-key custody secret, bound below
+					// through companionSecretEnvironment.
+					{workloadRef: "ai-vectors", alternativeRef: "qdrant", environment: {
+						VECTOR_DB:            "qdrant"
+						QDRANT_URI:           "http://qdrant:6333"
+						RAG_EMBEDDING_ENGINE: "ollama"
+						RAG_EMBEDDING_MODEL:  "bge-m3"
+					}},
 					// Speech through SpeechKit's OpenAI-compatible audio routes (Open
 					// WebUI v0.11.3 sends model and language for STT; model, input and
 					// voice for TTS). The bearer token (AUDIO_*_OPENAI_API_KEY) is the
@@ -9007,6 +9127,7 @@ _architectureV2Modules: list.Concat([[
 				// value only in the executor's private secret environment.
 				companionSecretEnvironment: [
 					{workloadRef: "ai-speech", alternativeRef: "speechkit", secretEnvironment: {AUDIO_STT_OPENAI_API_KEY: "server-token", AUDIO_TTS_OPENAI_API_KEY: "server-token"}},
+					{workloadRef: "ai-vectors", alternativeRef: "qdrant", secretEnvironment: {QDRANT_API_KEY: "api-key"}},
 				]
 				volumes: [{id: "data", target: "/app/backend/data", class: "persistent", backup: true}]
 				health: {kind: "http", path: "/health", port: 8080}
@@ -9064,7 +9185,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/private-ai/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:45638079b68210738ef3a82711d7183ab23dd9041857594d9c23096e692976f3"
+			contractHash: "sha256:4080f37c76ff7495451e2461088164ec99cc5bd88bf460b722a2208e950e7777"
 			publicInputRefs: ["delivery-route", "companions", "kombify-connector", "model-pack-general", "model-pack-coding", "model-pack-vision", "model-size", "external-provider"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -9165,7 +9286,7 @@ _architectureV2Modules: list.Concat([[
 				// over the file (dotenv never overrides), so the variables
 				// below stay pinned: local Ollama only, LanceDB, no telemetry.
 				entrypoint: ["/bin/bash", "-ec", "touch /app/server/storage/.env && ln -sfn /app/server/storage/.env /app/server/.env && exec /usr/local/bin/docker-entrypoint.sh"]
-				environment: {SERVER_PORT: "3001", STORAGE_DIR: "/app/server/storage", LLM_PROVIDER: "ollama", OLLAMA_BASE_PATH: "http://ollama:11434", EMBEDDING_ENGINE: "ollama", EMBEDDING_BASE_PATH: "http://ollama:11434", VECTOR_DB: "lancedb", DISABLE_TELEMETRY: "true"}
+				environment: {SERVER_PORT: "3001", STORAGE_DIR: "/app/server/storage", LLM_PROVIDER: "ollama", OLLAMA_BASE_PATH: "http://ollama:11434", EMBEDDING_ENGINE: "ollama", EMBEDDING_BASE_PATH: "http://ollama:11434", DISABLE_TELEMETRY: "true"}
 				// Single-user password mode: the owner password from custody is
 				// the instance password (AUTH_TOKEN); JWT_SECRET signs sessions.
 				// Multi-user mode is enabled by the owner after first sign-in.
@@ -9190,6 +9311,15 @@ _architectureV2Modules: list.Concat([[
 					// The model router reaches Ollama on this network for the
 					// owner's apps and devices; the chat module needs nothing from it.
 					{workloadRef: "ai-gateway", alternativeRef: "litellm", environment: {}},
+					// Workspace vectors in Qdrant, embedded with bge-m3 on Ollama
+					// (AnythingLLM 1.16.2 server/.env.example VECTOR_DB,
+					// QDRANT_ENDPOINT, EMBEDDING_MODEL_PREF). The API key is the
+					// ai-vectors workload's api-key custody secret, bound below.
+					{workloadRef: "ai-vectors", alternativeRef: "qdrant", environment: {
+						VECTOR_DB:            "qdrant"
+						QDRANT_ENDPOINT:      "http://qdrant:6333"
+						EMBEDDING_MODEL_PREF: "bge-m3"
+					}},
 					// Speech through SpeechKit's OpenAI-compatible audio routes
 					// (AnythingLLM 1.16.2 server/utils/SpeechToText/openAiGeneric,
 					// TextToSpeech/openAiGeneric and the collector's
@@ -9216,6 +9346,7 @@ _architectureV2Modules: list.Concat([[
 				// ai-speech is selected on this node.
 				companionSecretEnvironment: [
 					{workloadRef: "ai-speech", alternativeRef: "speechkit", secretEnvironment: {STT_OPEN_AI_COMPATIBLE_KEY: "server-token", TTS_OPEN_AI_COMPATIBLE_KEY: "server-token", WHISPER_GENERIC_OPEN_AI_API_KEY: "server-token"}},
+					{workloadRef: "ai-vectors", alternativeRef: "qdrant", secretEnvironment: {QDRANT_API_KEY: "api-key"}},
 				]
 				volumes: [{id: "storage", target: "/app/server/storage", class: "persistent", backup: true}]
 				health: {kind: "http", path: "/api/ping", port: 3001}
@@ -10378,6 +10509,116 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["litellm-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-qdrant-runtime"
+			version:     "1.0.0"
+			description: "Qdrant vector store for the chat module's knowledge base on the node's private AI network. The REST API needs the API key from owner custody; telemetry is off, there is no egress and no published port."
+		}
+		role:        "workload"
+		providerRef: "stackkits-qdrant"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2QdrantComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:     "container"
+			delivery: "application-adapter"
+			engine:   "docker"
+			image: [for component in components if component.id == entryComponentRef {component.image}][0]
+			entryComponentRef: "qdrant"
+			components: [{
+				id: "qdrant", role: "application", lifecycle: "daemon"
+				image: {
+					ref:    "docker.io/qdrant/qdrant:v1.20.0"
+					digest: "sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2"
+				}
+				dependsOn: []
+				networkRefs: ["qdrant-internal"]
+				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				environment: {QDRANT__TELEMETRY_DISABLED: "true"}
+				secretEnvironment: {QDRANT__SERVICE__API_KEY: "api-key"}
+				volumes: [for allocation in _architectureV2QdrantInfrastructure.storageAllocation.allocations {
+					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+				}]
+				health: {kind: "http", path: "/healthz", port: 6333}
+				resources: {memoryLimit: "2g", memoryReservation: "256m"}
+			}]
+		}
+		renderUnits: [{
+			id:          "qdrant"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/qdrant/bundle/v2.json"
+			version:      "2.0.0"
+			contractHash: "sha256:a49014638e4528a7673e0c2268c8653b417ef0af29ecdadba92c9dcd758c5898"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["api-key"]
+			outputs: ["workloads/qdrant/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			// Reached by the chat module only; an owner route may be local or
+			// remote-private, never public. Qdrant's own API key guards it.
+			serviceEndpoints: [{
+				serviceRef:        "ai-vectors"
+				upstreamProtocol:  "http"
+				targetPort:        6333
+				requiredPrivilege: "user"
+				ingressAuth:       "forward-auth"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private"]
+				originSelector: "control-authority-site"
+				healthRef:      "qdrant-http"
+				data: {
+					bindingRef:      _architectureV2QdrantInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2QdrantInfrastructure.dataBinding.classes
+					locality:        _architectureV2QdrantInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2QdrantTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
+				unitRefs: ["qdrant"], artifactRefs: ["qdrant-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["api-key"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
+				unitRefs: ["qdrant"], artifactRefs: ["qdrant-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["api-key"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["qdrant", "terramate-stack"], artifactRefs: ["qdrant-workload-bundle", _architectureV2QdrantTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["api-key"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2QdrantSupport
+		health: [{
+			id:             "qdrant-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/healthz"
+			port:           6333
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["qdrant-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {
@@ -13283,7 +13524,7 @@ _architectureV2InternalHomeWorkloadRefs: *[] | [...string]
 // ArchitectureV2RoutelessAddOnWorkloadRefs are optional add-on workloads that
 // only their primary application reaches over its internal network; kits give
 // them no initial route.
-ArchitectureV2RoutelessAddOnWorkloadRefs: ["ai-search", "ai-documents", "ai-speech"]
+ArchitectureV2RoutelessAddOnWorkloadRefs: ["ai-search", "ai-documents", "ai-speech", "ai-vectors"]
 
 // ArchitectureV2InternalHomeWorkloadRefs lets the home kits offer the optional
 // internal-only workloads without naming them in public sources.

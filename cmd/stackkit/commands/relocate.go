@@ -2,9 +2,12 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -29,6 +32,7 @@ type relocateOptions struct {
 
 	tenantRef    string
 	secretRef    string
+	transferID   string
 	ownerApprove bool
 	file         string
 	host         string
@@ -39,6 +43,7 @@ type relocateOptions struct {
 	onConflict   string
 	noStart      bool
 	setDomains   []string
+	resumePath   string
 	undo         bool
 	wait         time.Duration
 }
@@ -52,7 +57,7 @@ func newRelocateCommand() *cobra.Command {
 		Short:       "Move PaaS workloads to another server: plan, check, drain, send, receive",
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	}
-	command.AddCommand(newRelocatePlanCommand(), newRelocateCheckCommand(), newRelocateDrainCommand(), newRelocateSendCommand(), newRelocateReceiveCommand())
+	command.AddCommand(newRelocatePlanCommand(), newRelocateCheckCommand(), newRelocateDrainCommand(), newRelocateSendCommand(), newRelocateReceiveCommand(), newRelocateStatusCommand(), newRelocateAbortCommand())
 	return command
 }
 
@@ -165,6 +170,7 @@ func (o *relocateOptions) selection() relocatecoolify.Selection {
 }
 
 func addRelocateTransferFlags(command *cobra.Command, options *relocateOptions) {
+	command.Flags().StringVar(&options.transferID, "transfer-id", "", "One semantic move identity; isolates transfer keys even when a Wallet item is reused")
 	command.Flags().StringVar(&options.tenantRef, "tenant-ref", "", "Wallet tenant of the transfer secret")
 	command.Flags().StringVar(&options.secretRef, "secret-ref", "", "Wallet item holding this move's transfer secret (delivered to both servers)")
 	command.Flags().BoolVar(&options.ownerApprove, "owner-approve", false, "Confirm the owner approved this move")
@@ -181,7 +187,7 @@ func relocationSecrets(options *relocateOptions) (relocatecoolify.TransferSecret
 		return relocatecoolify.TransferSecrets{}, err
 	}
 	defer workloadrelocation.Clear(value)
-	return relocatecoolify.DeriveTransferSecrets(value)
+	return relocatecoolify.DeriveTransferSecretsForOperation(value, options.transferID)
 }
 
 func newRelocateDrainCommand() *cobra.Command {
@@ -203,7 +209,7 @@ func newRelocateDrainCommand() *cobra.Command {
 			if !options.ownerApprove {
 				return fmt.Errorf("draining stops workloads on this server; pass --owner-approve")
 			}
-			record := relocatecoolify.DrainRecordPath(getWorkDir())
+			record := relocatecoolify.DrainRecordPath(getWorkDir(), options.transferID)
 			var plan []byte
 			if !options.undo {
 				if strings.TrimSpace(options.planPath) == "" {
@@ -219,10 +225,13 @@ func newRelocateDrainCommand() *cobra.Command {
 				return err
 			}
 			var result json.RawMessage
+			if options.undo && options.resumePath != "" {
+				return runManagedRelocationResume(cmd, options, runner)
+			}
 			if options.undo {
-				result, err = runner.Undrain(cmd.Context(), record)
+				result, err = runner.Undrain(cmd.Context(), record, options.transferID)
 			} else {
-				result, err = runner.Drain(cmd.Context(), plan, record)
+				result, err = runner.Drain(cmd.Context(), plan, record, options.transferID)
 			}
 			if err != nil {
 				return err
@@ -237,16 +246,18 @@ func newRelocateDrainCommand() *cobra.Command {
 	addRelocateCommonFlags(command, options)
 	flags := command.Flags()
 	flags.StringVar(&options.planPath, "plan", "", "Relocation plan made on this server, or - for stdin")
+	flags.StringVar(&options.resumePath, "managed-resume", "", "Managed current destination-abort observation envelope, or - for stdin")
 	flags.BoolVar(&options.undo, "undo", false, "Start again what the active drain stopped")
 	flags.BoolVar(&options.ownerApprove, "owner-approve", false, "Confirm the owner approved stopping these workloads")
+	flags.StringVar(&options.transferID, "transfer-id", "", "Semantic move identity bound to the source drain")
 	addRelocateJSONFlag(command, options)
 	return command
 }
 
 // activeDrainRecord returns this workspace's drain record when a drain is
 // active, so the backup restores drained resources as running.
-func activeDrainRecord() string {
-	record := relocatecoolify.DrainRecordPath(getWorkDir())
+func activeDrainRecord(transferID string) string {
+	record := relocatecoolify.DrainRecordPath(getWorkDir(), transferID)
 	if _, err := os.Stat(record); err != nil {
 		return ""
 	}
@@ -276,19 +287,72 @@ func newRelocateSendCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			drained := activeDrainRecord()
-			if err := runner.Send(cmd.Context(), secrets, relocatecoolify.SendOptions{
+			drained := activeDrainRecord(options.transferID)
+			var plan []byte
+			if options.planPath != "" {
+				plan, err = readRelocationPlan(cmd.InOrStdin(), options.planPath)
+				if err != nil {
+					return err
+				}
+			}
+			if options.transferID != "" {
+				prior, err := workloadrelocation.LoadReceipt(getWorkDir(), options.transferID, "sent", plan)
+				if err == nil {
+					if _, err := runner.Observe(cmd.Context(), prior.Data, "sent", getWorkDir()); err != nil {
+						return err
+					}
+					return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{"platform": options.platform, "delivered": true, "drained": true, "receipt": prior})
+				}
+				if !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+			}
+			if options.transferID != "" {
+				if prepared, err := workloadrelocation.LoadReceipt(getWorkDir(), options.transferID, "prepared", plan); err == nil {
+					if _, err := runner.Observe(cmd.Context(), prepared.Data, "prepared", getWorkDir()); err != nil {
+						return err
+					}
+					var v struct {
+						ArchiveName string `json:"archive_name"`
+					}
+					if json.Unmarshal(prepared.Data, &v) != nil || filepath.Base(v.ArchiveName) != v.ArchiveName {
+						return errors.New("invalid retained prepared archive")
+					}
+					options.file = filepath.Join(relocatecoolify.DefaultBackupDir, v.ArchiveName)
+				} else if !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+			}
+			data, err := runner.Send(cmd.Context(), secrets, relocatecoolify.SendOptions{
+				ExpectedPlan: plan, TransferID: options.transferID,
+				Prepared: func(raw json.RawMessage) error {
+					if options.transferID == "" {
+						return nil
+					}
+					_, err := workloadrelocation.StoreReceipt(getWorkDir(), options.transferID, "prepared", plan, raw)
+					return err
+				},
 				Selection: options.selection(), File: options.file, OutputDir: options.outputPath,
 				Host: options.host, Port: options.port, OpenFirewall: options.openFirewall, TTL: options.ttl,
 				Drained: drained,
-			}, options.progress(cmd)); err != nil {
+			}, options.progress(cmd))
+			if err != nil {
 				return err
+			}
+			var signed any
+			if options.transferID != "" {
+				receipt, err := workloadrelocation.StoreReceipt(getWorkDir(), options.transferID, "sent", plan, data)
+				if err != nil {
+					return err
+				}
+				signed = receipt
 			}
 			if !options.json {
 				return nil
 			}
 			return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{
 				"platform": options.platform, "delivered": true, "drained": drained != "",
+				"receipt": signed,
 			})
 		},
 	}
@@ -297,6 +361,7 @@ func newRelocateSendCommand() *cobra.Command {
 	addRelocateTransferFlags(command, options)
 	flags := command.Flags()
 	flags.StringVar(&options.file, "file", "", "Share an existing backup made with the same Wallet item instead of a new one")
+	flags.StringVar(&options.planPath, "plan", "", "Checked source plan, or - for stdin")
 	flags.StringVarP(&options.outputPath, "output", "o", relocatecoolify.DefaultBackupDir, "Directory for the new backup")
 	flags.StringVar(&options.host, "host", "", "Address the destination reaches this server on (default: detected)")
 	flags.IntVar(&options.port, "port", relocatecoolify.DefaultSharePort, "HTTPS port of the share")
@@ -312,7 +377,8 @@ func newRelocateReceiveCommand() *cobra.Command {
 		Use:   "receive",
 		Short: "Download the shared backup from the source server and restore it here",
 		Long: "Runs on the destination server while `stackkit relocate send` shares. Downloads over pinned HTTPS,\n" +
-			"verifies, and restores into this Coolify; a failed restore is rolled back by the engine.\n" +
+			"verifies, and restores into this Coolify. A failure after the import commits retains an uncertain\n" +
+			"destination outcome; use relocation status before choosing recovery.\n" +
 			"Run `stackkit relocate check` with the plan first.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -329,11 +395,42 @@ func newRelocateReceiveCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := runner.Receive(cmd.Context(), secrets, relocatecoolify.ReceiveOptions{
-				From: options.from, OnConflict: options.onConflict, NoStart: options.noStart, SetDomains: options.setDomains,
+			var plan []byte
+			if options.planPath != "" {
+				plan, err = readRelocationPlan(cmd.InOrStdin(), options.planPath)
+				if err != nil {
+					return err
+				}
+			}
+			if options.transferID != "" {
+				prior, err := workloadrelocation.LoadReceipt(getWorkDir(), options.transferID, "received", plan)
+				if err == nil {
+					if _, err := runner.Observe(cmd.Context(), prior.Data, "received", getWorkDir()); err != nil {
+						return err
+					}
+					return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{"platform": options.platform, "restored": true, "started": true, "verification": prior.Data, "receipt": prior})
+				}
+				if !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+			}
+			receipt, err := runner.Receive(cmd.Context(), secrets, relocatecoolify.ReceiveOptions{
+				ReceiptPath:  relocationEngineReceiptPath(options.transferID),
+				ExpectedPlan: plan,
+				TransferID:   options.transferID,
+				From:         options.from, OnConflict: options.onConflict, NoStart: options.noStart, SetDomains: options.setDomains,
 				Wait: options.wait,
-			}, options.progress(cmd)); err != nil {
+			}, options.progress(cmd))
+			if err != nil {
 				return err
+			}
+			var signed any
+			if options.transferID != "" {
+				stored, err := workloadrelocation.StoreReceipt(getWorkDir(), options.transferID, "received", plan, receipt)
+				if err != nil {
+					return err
+				}
+				signed = stored
 			}
 			if !options.json {
 				return nil
@@ -341,12 +438,15 @@ func newRelocateReceiveCommand() *cobra.Command {
 			return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{
 				"platform": options.platform, "restored": true, "started": !options.noStart,
 				"onConflict": options.onConflict, "setDomains": nonNilStrings(options.setDomains),
+				"verification": receipt,
+				"receipt":      signed,
 			})
 		},
 	}
 	addRelocateCommonFlags(command, options)
 	addRelocateTransferFlags(command, options)
 	flags := command.Flags()
+	flags.StringVar(&options.planPath, "plan", "", "Checked source relocation plan, or - for stdin; binds the archive and emits verified resource observations")
 	flags.StringVar(&options.from, "from", "", "Source server HOST[:PORT] as `relocate send` reports it")
 	flags.StringVar(&options.onConflict, "on-conflict", "copy", "A resource that already exists here: copy or skip")
 	flags.BoolVar(&options.noStart, "no-start", false, "Restore without starting the resources")
@@ -356,7 +456,20 @@ func newRelocateReceiveCommand() *cobra.Command {
 	return command
 }
 
+func relocationEngineReceiptPath(transferID string) string {
+	if transferID == "" {
+		return ""
+	}
+	return filepath.Join(getWorkDir(), ".stackkit", "relocation", "engine-receipts", transferID+".json")
+}
+
 func addRelocateCommonFlags(command *cobra.Command, options *relocateOptions) {
+	command.PreRunE = func(_ *cobra.Command, _ []string) error {
+		if options.transferID != "" && !regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`).MatchString(options.transferID) {
+			return errors.New("invalid relocation transfer identity")
+		}
+		return nil
+	}
 	command.Flags().StringVar(&options.platform, "platform", string(workloadrelocation.PlatformCoolify), "PaaS platform to relocate (coolify)")
 	command.Flags().StringVar(&options.engine, "engine", "", "Path to the pinned relocation engine (default: "+relocatecoolify.DefaultEnginePath+", $"+relocatecoolify.EngineEnv+" or PATH)")
 }

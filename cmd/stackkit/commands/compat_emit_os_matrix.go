@@ -42,13 +42,109 @@ func init() {
 }
 
 type osMatrixDoc struct {
-	SchemaVersion    int               `json:"schemaVersion"`
-	StackKitsVersion string            `json:"stackkitsVersion"`
-	GeneratedAt      string            `json:"generatedAt"`
-	Results          []osMatrixDocRow  `json:"results"`
-	Virtualization   []osMatrixVirtRow `json:"virtualization,omitempty"`
-	Applications     []osMatrixAppRow  `json:"applications,omitempty"`
-	Environments     []osMatrixEnvRow  `json:"environments,omitempty"`
+	SchemaVersion             int                          `json:"schemaVersion"`
+	StackKitsVersion          string                       `json:"stackkitsVersion"`
+	GeneratedAt               string                       `json:"generatedAt"`
+	Results                   []osMatrixDocRow             `json:"results"`
+	Virtualization            []osMatrixVirtRow            `json:"virtualization,omitempty"`
+	Applications              []osMatrixAppRow             `json:"applications,omitempty"`
+	Environments              []osMatrixEnvRow             `json:"environments,omitempty"`
+	RequestedStackKitsVersion string                       `json:"requestedStackkitsVersion,omitempty"`
+	TestedStackKitsVersion    json.RawMessage              `json:"testedStackkitsVersion,omitempty"`
+	ReferenceBinding          *osMatrixReferenceBinding    `json:"referenceBinding,omitempty"`
+	CurrentResult             string                       `json:"currentResult,omitempty"`
+	CurrentPassCount          *int                         `json:"currentPassCount,omitempty"`
+	RuntimeObservations       []osMatrixRuntimeObservation `json:"runtimeObservations,omitempty"`
+	WindowCoverage            *osMatrixWindowCoverage      `json:"windowCoverage,omitempty"`
+}
+
+// Advisory runtime observations have their own exact release/artifact binding.
+// They never participate in the OS, hypervisor, application or environment grade.
+type osMatrixRuntimeBindings struct {
+	SourceCommit              string `json:"sourceCommit,omitempty"`
+	ProducerCommit            string `json:"producerCommit,omitempty"`
+	ConsumerSHA               string `json:"consumerSha,omitempty"`
+	ArtifactSHA256            string `json:"artifactSha256,omitempty"`
+	IndexSHA256               string `json:"indexSha256,omitempty"`
+	CatalogSHA256             string `json:"catalogSha256,omitempty"`
+	ScenarioDefinitionsDigest string `json:"scenarioDefinitionsDigest,omitempty"`
+	CandidateDigest           string `json:"candidateDigest,omitempty"`
+}
+
+type osMatrixRuntimeIdentity struct {
+	Family       string `json:"family"`
+	Distribution string `json:"distribution"`
+	Version      string `json:"version"`
+	Arch         string `json:"arch"`
+	Environment  string `json:"environment"`
+}
+
+type osMatrixReferenceBinding struct {
+	Scope            string `json:"scope,omitempty"`
+	RequestedRelease string `json:"requestedRelease"`
+	OperationScope   string `json:"operationScope,omitempty"`
+	osMatrixRuntimeBindings
+	RuntimeIdentity *osMatrixRuntimeIdentity `json:"runtimeIdentity,omitempty"`
+	RequiredPhases  []string                 `json:"requiredPhases,omitempty"`
+}
+
+type osMatrixRuntimeOperation struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+}
+
+type osMatrixRuntimeObservation struct {
+	SchemaVersion string `json:"schemaVersion"`
+	ID            string `json:"id"`
+	Subject       struct {
+		Kind    string `json:"kind"`
+		Product string `json:"product"`
+		UseCase string `json:"useCase,omitempty"`
+	} `json:"subject"`
+	OriginalOutcome string `json:"originalOutcome"`
+	OperationScope  string `json:"operationScope,omitempty"`
+	ReceiptSHA256   string `json:"receiptSha256"`
+	TestedRelease   string `json:"testedRelease,omitempty"`
+	osMatrixRuntimeBindings
+	ControllerSourceCommit    string                   `json:"controllerSourceCommit,omitempty"`
+	EvidenceIndexSHA256       string                   `json:"evidenceIndexSha256,omitempty"`
+	SuiteBindingSHA256        string                   `json:"suiteBindingSha256,omitempty"`
+	SuiteCandidateDigest      string                   `json:"suiteCandidateDigest,omitempty"`
+	GitHubNativeArchiveSHA256 string                   `json:"githubNativeArchiveSha256,omitempty"`
+	GitHubSuiteArchiveSHA256  string                   `json:"githubSuiteArchiveSha256,omitempty"`
+	GitHubMetadataSHA256      string                   `json:"githubMetadataSha256,omitempty"`
+	WindowReportSHA256        string                   `json:"windowReportSha256,omitempty"`
+	SuiteBindingState         string                   `json:"suiteBindingState,omitempty"`
+	ProducerArtifactSHA256    string                   `json:"producerArtifactSha256,omitempty"`
+	ObservedAt                string                   `json:"observedAt,omitempty"`
+	RuntimeIdentity           *osMatrixRuntimeIdentity `json:"runtimeIdentity,omitempty"`
+	Capacity                  *struct {
+		CPUs      int `json:"cpus"`
+		MemoryMiB int `json:"memoryMiB"`
+		DiskGiB   int `json:"diskGiB"`
+	} `json:"capacity,omitempty"`
+	Operations     []osMatrixRuntimeOperation `json:"operations"`
+	ExecutionState string                     `json:"executionState"`
+	Applicability  string                     `json:"applicability"`
+	CurrentResult  string                     `json:"currentResult"`
+	ReasonCodes    []string                   `json:"reasonCodes"`
+}
+
+type osMatrixWindowCoverage struct {
+	ReportSHA256    string `json:"reportSha256"`
+	CandidateDigest string `json:"candidateDigest"`
+	GeneratedAt     string `json:"generatedAt"`
+	Result          string `json:"result"`
+	Declared        int    `json:"declared"`
+	Passed          int    `json:"passed"`
+	Pending         int    `json:"pending"`
+	Failed          int    `json:"failed"`
+	Blocked         int    `json:"blocked"`
+	NotRun          int    `json:"notRun"`
+	Obligations     []struct {
+		Suite  string `json:"suite"`
+		Result string `json:"result"`
+	} `json:"obligations"`
 }
 
 type osMatrixEvidence struct {
@@ -167,9 +263,6 @@ func runCompatEmitOSMatrix(cmd *cobra.Command, args []string) error {
 }
 
 func decodeOSMatrix(raw []byte) (osMatrixDoc, error) {
-	if match := osMatrixForbiddenKeys.Find(raw); match != nil {
-		return osMatrixDoc{}, fmt.Errorf("matrix input carries forbidden diagnostic/infrastructure field %s", string(match))
-	}
 	if osMatrixRFC1918.Match(raw) {
 		return osMatrixDoc{}, fmt.Errorf("matrix input contains RFC1918 addresses")
 	}
@@ -184,6 +277,23 @@ func decodeOSMatrix(raw []byte) (osMatrixDoc, error) {
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return osMatrixDoc{}, fmt.Errorf("parse OS compatibility projection: trailing JSON data")
+	}
+	if err := validateOSMatrixRuntimeObservations(matrix); err != nil {
+		return osMatrixDoc{}, err
+	}
+	// New advisory keys such as producerCommit and runtimeIdentity.arch are
+	// permitted only inside the strict typed structure above. Legacy rows retain
+	// their existing diagnostic/infrastructure prohibition.
+	legacy := matrix
+	legacy.RequestedStackKitsVersion, legacy.TestedStackKitsVersion = "", nil
+	legacy.ReferenceBinding, legacy.CurrentResult, legacy.CurrentPassCount = nil, "", nil
+	legacy.RuntimeObservations, legacy.WindowCoverage = nil, nil
+	legacyRaw, err := json.Marshal(legacy)
+	if err != nil {
+		return osMatrixDoc{}, err
+	}
+	if match := osMatrixForbiddenKeys.Find(legacyRaw); match != nil {
+		return osMatrixDoc{}, fmt.Errorf("matrix input carries forbidden diagnostic/infrastructure field %s", string(match))
 	}
 	if _, err := time.Parse(time.RFC3339, matrix.GeneratedAt); err != nil {
 		return osMatrixDoc{}, fmt.Errorf("matrix generatedAt must be RFC3339: %w", err)
@@ -322,6 +432,250 @@ func validateOSMatrixEvidence(schemaVersion int, label string, evidence osMatrix
 	return nil
 }
 
+func osMatrixOneOf(value string, allowed ...string) bool {
+	for _, item := range allowed {
+		if value == item {
+			return true
+		}
+	}
+	return false
+}
+
+func osMatrixBindingValues(binding osMatrixRuntimeBindings) map[string]string {
+	return map[string]string{"sourceCommit": binding.SourceCommit, "producerCommit": binding.ProducerCommit, "consumerSha": binding.ConsumerSHA,
+		"artifactSha256": binding.ArtifactSHA256, "indexSha256": binding.IndexSHA256, "catalogSha256": binding.CatalogSHA256,
+		"scenarioDefinitionsDigest": binding.ScenarioDefinitionsDigest, "candidateDigest": binding.CandidateDigest}
+}
+
+func validateOSMatrixPublicDigests(value any) error {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		return err
+	}
+	for key, data := range fields {
+		length := 0
+		if strings.HasSuffix(key, "Commit") || key == "consumerSha" {
+			length = 40
+		}
+		if strings.HasSuffix(key, "Sha256") || strings.HasSuffix(key, "Digest") {
+			length = 64
+		}
+		if length == 0 {
+			continue
+		}
+		var text string
+		if json.Unmarshal(data, &text) != nil || len(text) != length || strings.Trim(text, "0123456789abcdef") != "" {
+			return fmt.Errorf("invalid public runtime digest binding")
+		}
+	}
+	return nil
+}
+
+func validOSMatrixRuntime(identity *osMatrixRuntimeIdentity) bool {
+	return identity == nil || identity.Family == "linux" && osMatrixOneOf(identity.Distribution, "ubuntu", "unknown") &&
+		osMatrixOneOf(identity.Version, "26.04", "24.04", "unknown") && osMatrixOneOf(identity.Arch, "amd64", "arm64", "unknown") &&
+		osMatrixOneOf(identity.Environment, "depot-vm", "disposable-vm", "retained-lxd-guest")
+}
+
+func validOSMatrixRuntimePhase(phase string) bool {
+	return osMatrixOneOf(phase, "install", "init", "generate", "apply", "verify", "backup", "restore", "setup-files", "setup-photos",
+		"files-restart", "photos-restart", "owner-setup", "enrollment", "connected", "independent-readback", "cleanup", "remove", "retain-data")
+}
+
+func validateOSMatrixWindowCoverage(coverage *osMatrixWindowCoverage) error {
+	if coverage == nil {
+		return nil
+	}
+	if err := validateOSMatrixPublicDigests(coverage); err != nil {
+		return err
+	}
+	if _, err := time.Parse(time.RFC3339, coverage.GeneratedAt); err != nil {
+		return fmt.Errorf("invalid runtime window timestamp")
+	}
+	if !osMatrixOneOf(coverage.Result, "passed", "pending", "failed", "blocked", "not-run") || len(coverage.Obligations) == 0 {
+		return fmt.Errorf("invalid public runtime window coverage")
+	}
+	counts, seen := map[string]int{}, map[string]bool{}
+	for _, row := range coverage.Obligations {
+		if !osMatrixOneOf(row.Suite, "stackkits-standalone-files-restore", "stackkits-standalone-photos-restore",
+			"stackkits-standalone-files-restore-ubuntu-24.04", "stackkits-standalone-photos-restore-ubuntu-24.04",
+			"stackkits-standalone-files-restore-debian-13", "stackkits-standalone-photos-restore-debian-13", "stackkits-retained-marketplace") ||
+			!osMatrixOneOf(row.Result, "passed", "pending", "failed", "blocked", "not-run") || seen[row.Suite] {
+			return fmt.Errorf("invalid or duplicate runtime window obligation")
+		}
+		seen[row.Suite] = true
+		counts[row.Result]++
+	}
+	if coverage.Declared != len(coverage.Obligations) || coverage.Passed != counts["passed"] || coverage.Pending != counts["pending"] ||
+		coverage.Failed != counts["failed"] || coverage.Blocked != counts["blocked"] || coverage.NotRun != counts["not-run"] {
+		return fmt.Errorf("runtime window coverage totals disagree with its obligations")
+	}
+	return nil
+}
+
+func validateOSMatrixRuntimeObservations(matrix osMatrixDoc) error {
+	advisory := matrix.ReferenceBinding != nil || matrix.RequestedStackKitsVersion != "" || len(matrix.TestedStackKitsVersion) > 0 ||
+		matrix.CurrentResult != "" || matrix.CurrentPassCount != nil || matrix.RuntimeObservations != nil || matrix.WindowCoverage != nil
+	if !advisory {
+		return nil
+	}
+	bad := func() error { return fmt.Errorf("invalid public runtime observation binding") }
+	binding := matrix.ReferenceBinding
+	if matrix.SchemaVersion != 3 || !osMatrixRelease.MatchString(matrix.RequestedStackKitsVersion) || binding == nil ||
+		binding.RequestedRelease != matrix.RequestedStackKitsVersion || !osMatrixOneOf(binding.Scope, "product-artifact", "test-window-candidate") ||
+		!validOSMatrixRuntime(binding.RuntimeIdentity) || binding.OperationScope != "" && binding.OperationScope != "retained-selective-files-removal" || matrix.CurrentPassCount == nil || *matrix.CurrentPassCount < 0 {
+		return bad()
+	}
+	if len(matrix.TestedStackKitsVersion) == 0 {
+		return bad()
+	}
+	if !bytes.Equal(matrix.TestedStackKitsVersion, []byte("null")) {
+		var tested string
+		if json.Unmarshal(matrix.TestedStackKitsVersion, &tested) != nil || !osMatrixRelease.MatchString(tested) {
+			return bad()
+		}
+	}
+	if err := validateOSMatrixPublicDigests(binding); err != nil {
+		return err
+	}
+	seenPhases := map[string]bool{}
+	for _, phase := range binding.RequiredPhases {
+		if !validOSMatrixRuntimePhase(phase) || seenPhases[phase] {
+			return bad()
+		}
+		seenPhases[phase] = true
+	}
+	seen, passed, results := map[string]bool{}, 0, map[string]int{}
+	for _, observation := range matrix.RuntimeObservations {
+		if observation.SchemaVersion != "stackkits.runtime-observation/v1" || len(observation.ID) != len("runtime_")+64 ||
+			!strings.HasPrefix(observation.ID, "runtime_") || strings.Trim(strings.TrimPrefix(observation.ID, "runtime_"), "0123456789abcdef") != "" || seen[observation.ID] ||
+			!osMatrixOneOf(observation.OriginalOutcome, "PASS", "FAIL", "PARTIAL", "NOT_RUN") || !validOSMatrixRuntime(observation.RuntimeIdentity) {
+			return bad()
+		}
+		seen[observation.ID] = true
+		if err := validateOSMatrixPublicDigests(observation); err != nil {
+			return err
+		}
+		if observation.TestedRelease != "" && !osMatrixRelease.MatchString(observation.TestedRelease) {
+			return bad()
+		}
+		if observation.ObservedAt != "" {
+			if _, err := time.Parse(time.RFC3339, observation.ObservedAt); err != nil {
+				return bad()
+			}
+		}
+		if observation.Capacity != nil && (observation.Capacity.CPUs < 1 || observation.Capacity.MemoryMiB < 1 || observation.Capacity.DiskGiB < 1) {
+			return bad()
+		}
+		if observation.SuiteBindingState != "" && !osMatrixOneOf(observation.SuiteBindingState, "source-only", "artifact-verified") {
+			return bad()
+		}
+		if observation.SuiteBindingState == "artifact-verified" && (observation.SuiteBindingSHA256 == "" || observation.GitHubNativeArchiveSHA256 == "" ||
+			observation.GitHubSuiteArchiveSHA256 == "" || observation.GitHubMetadataSHA256 == "" || observation.WindowReportSHA256 == "" ||
+			observation.CandidateDigest == "" || observation.CandidateDigest != observation.SuiteCandidateDigest || observation.ConsumerSHA != observation.ProducerCommit) {
+			return bad()
+		}
+		mandatory := []string{"owner-setup", "install", "enrollment", "connected", "independent-readback", "cleanup"}
+		if observation.Subject.Kind == "StackKitUseCase" && observation.Subject.Product == "stackkits" && osMatrixOneOf(observation.Subject.UseCase, "files", "photos") {
+			mandatory = []string{"install", "init", "generate", "apply", "setup-" + observation.Subject.UseCase, "verify", "backup", "restore", "cleanup"}
+		} else if observation.Subject.Kind != "Product" || observation.Subject.Product != "guard" || observation.Subject.UseCase != "" {
+			return bad()
+		}
+		if observation.OperationScope != "" {
+			if observation.OperationScope != "retained-selective-files-removal" || observation.Subject.Kind != "StackKitUseCase" || observation.Subject.Product != "stackkits" || observation.Subject.UseCase != "files" || observation.SuiteBindingState != "artifact-verified" || len(observation.Operations) != 4 ||
+				observation.RuntimeIdentity == nil || *observation.RuntimeIdentity != (osMatrixRuntimeIdentity{Family: "linux", Distribution: "ubuntu", Version: "24.04", Arch: "amd64", Environment: "retained-lxd-guest"}) {
+				return bad()
+			}
+			mandatory = []string{"verify", "remove", "retain-data", "cleanup"}
+		}
+		if observation.RuntimeIdentity != nil && observation.RuntimeIdentity.Environment == "retained-lxd-guest" && observation.OperationScope == "" {
+			return bad()
+		}
+		operations, failed := map[string]string{}, observation.OriginalOutcome == "FAIL"
+		for _, operation := range observation.Operations {
+			if !validOSMatrixRuntimePhase(operation.Name) || !osMatrixOneOf(operation.Status, "passed", "failed", "partial", "not-run") || operations[operation.Name] != "" {
+				return bad()
+			}
+			if observation.OperationScope != "" && !osMatrixOneOf(operation.Name, "verify", "remove", "retain-data", "cleanup") ||
+				observation.OperationScope == "" && osMatrixOneOf(operation.Name, "remove", "retain-data") {
+				return bad()
+			}
+			operations[operation.Name] = operation.Status
+			failed = failed || operation.Status == "failed"
+		}
+		allPassed := true
+		for _, phase := range append(mandatory, binding.RequiredPhases...) {
+			allPassed = allPassed && operations[phase] == "passed"
+		}
+		execution := "partial"
+		if observation.OriginalOutcome == "NOT_RUN" {
+			execution = "not-run"
+		} else if failed {
+			execution = "failed"
+		} else if allPassed && observation.OriginalOutcome == "PASS" {
+			execution = "passed"
+		}
+		if observation.ExecutionState != execution || !osMatrixOneOf(observation.Applicability, "current", "historical", "unbound", "stale") {
+			return bad()
+		}
+		if observation.Applicability == "current" {
+			if binding.OperationScope != observation.OperationScope || binding.RequestedRelease != observation.TestedRelease || binding.SourceCommit == "" || binding.ProducerCommit == "" || binding.ArtifactSHA256 == "" ||
+				binding.RuntimeIdentity == nil || observation.RuntimeIdentity == nil || *binding.RuntimeIdentity != *observation.RuntimeIdentity {
+				return bad()
+			}
+			actual := osMatrixBindingValues(observation.osMatrixRuntimeBindings)
+			for key, expected := range osMatrixBindingValues(binding.osMatrixRuntimeBindings) {
+				if expected != "" && actual[key] != expected {
+					return bad()
+				}
+			}
+			if observation.OperationScope == "retained-selective-files-removal" && (binding.CandidateDigest == "" || binding.IndexSHA256 == "" || binding.ConsumerSHA == "") {
+				return bad()
+			}
+			if observation.OperationScope == "" && binding.Scope == "test-window-candidate" && (binding.IndexSHA256 == "" || binding.CatalogSHA256 == "" || binding.ScenarioDefinitionsDigest == "" || binding.CandidateDigest == "" || binding.ConsumerSHA == "") {
+				return bad()
+			}
+			if observation.CurrentResult != map[string]string{"passed": "PASS", "failed": "FAIL", "partial": "PARTIAL", "not-run": "NOT_RUN"}[execution] {
+				return bad()
+			}
+			if execution == "passed" {
+				passed++
+			}
+		} else if observation.CurrentResult != "NOT_RUN" {
+			return bad()
+		}
+		reasons := map[string]bool{}
+		for _, code := range observation.ReasonCodes {
+			if !osMatrixOneOf(code, "release-mismatch", "exact-bindings-required", "required-phases-incomplete", "reference-binding-mismatch") || reasons[code] {
+				return bad()
+			}
+			reasons[code] = true
+		}
+		if observation.Applicability == "historical" && (!reasons["release-mismatch"] || observation.TestedRelease == "" || observation.TestedRelease == binding.RequestedRelease) ||
+			observation.Applicability == "unbound" && !reasons["exact-bindings-required"] || observation.Applicability == "stale" && !reasons["reference-binding-mismatch"] ||
+			!allPassed && !reasons["required-phases-incomplete"] {
+			return bad()
+		}
+		results[observation.CurrentResult]++
+	}
+	current := "NOT_RUN"
+	if results["FAIL"] > 0 {
+		current = "FAIL"
+	} else if len(matrix.RuntimeObservations) > 0 && results["PASS"] == len(matrix.RuntimeObservations) {
+		current = "PASS"
+	} else if results["PASS"]+results["PARTIAL"] > 0 {
+		current = "PARTIAL"
+	}
+	if matrix.CurrentResult != current || *matrix.CurrentPassCount != passed {
+		return bad()
+	}
+	return validateOSMatrixWindowCoverage(matrix.WindowCoverage)
+}
+
 func gradeGlyph(grade string) string {
 	switch grade {
 	case "supported":
@@ -428,6 +782,30 @@ func renderOSMatrixMarkdown(matrix osMatrixDoc, sourceHash string) string {
 		}
 	}
 
+	if matrix.ReferenceBinding != nil {
+		b.WriteString("\n## Runtime observations\n\n")
+		fmt.Fprintf(&b, "Requested release: `%s`. Current bound result: **%s**; current passing observations: %d.\n\n", matrix.RequestedStackKitsVersion, matrix.CurrentResult, *matrix.CurrentPassCount)
+		b.WriteString("Original runtime outcomes retain their tested release. A current result requires the exact artifact, source, producer and runtime binding. These observations do not change the OS grades above and do not establish bare-metal or modular lifecycle support.\n\n")
+		b.WriteString("| Subject | Tested release | Original outcome | Applicability | Current result |\n")
+		b.WriteString("| --- | --- | --- | --- | --- |\n")
+		for _, observation := range matrix.RuntimeObservations {
+			subject := observation.Subject.Product
+			if observation.Subject.UseCase != "" {
+				subject += "/" + observation.Subject.UseCase
+			}
+			if observation.OperationScope != "" {
+				subject += " (retained selective removal)"
+			}
+			tested := observation.TestedRelease
+			if tested == "" {
+				tested = "unbound"
+			}
+			fmt.Fprintf(&b, "| `%s` | `%s` | %s | %s | %s |\n", subject, tested, observation.OriginalOutcome, observation.Applicability, observation.CurrentResult)
+		}
+		if coverage := matrix.WindowCoverage; coverage != nil {
+			fmt.Fprintf(&b, "\nOriginal window coverage: %d declared, %d passed, %d pending, %d failed, %d blocked, %d not run. Window result: `%s`. This is the original window's coverage, not a new execution or a current-release admission.\n", coverage.Declared, coverage.Passed, coverage.Pending, coverage.Failed, coverage.Blocked, coverage.NotRun, coverage.Result)
+		}
+	}
 	b.WriteString("\n## Authority boundary\n\n")
 	b.WriteString("The only writer of this data is the receipt projector (`scripts/compat/project-os-compat.mjs`) through\n")
 	b.WriteString("an auto-PR. Rows never name a server provider, and host diagnostics never create a claim.\n\n")

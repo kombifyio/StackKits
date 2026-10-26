@@ -23,6 +23,18 @@ type Executor struct {
 	env              []string
 	unsetEnv         map[string]struct{}
 	unsetEnvPrefixes []string
+	processCustody   ProcessCustody
+}
+
+// ProcessCustody keeps an admitted host operation's existing OS lease alive
+// through the process tree started by this pinned executor. It is an internal
+// construction seam, not a command or arbitrary-exec product surface.
+type ProcessCustody interface {
+	OwnOpenTofuCommand(context.Context, *exec.Cmd) (*exec.Cmd, func(), error)
+}
+
+func WithProcessCustody(custody ProcessCustody) ExecutorOption {
+	return func(e *Executor) { e.processCustody = custody }
 }
 
 // ExecutorOption configures the Executor
@@ -316,6 +328,14 @@ func (e *Executor) runInput(ctx context.Context, input io.Reader, args ...string
 		}
 	}
 	cmd.Env = filtered
+	if e.processCustody != nil {
+		owned, release, err := e.processCustody.OwnOpenTofuCommand(ctx, cmd)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+		cmd = owned
+	}
 
 	err := cmd.Run()
 	duration := time.Since(start)

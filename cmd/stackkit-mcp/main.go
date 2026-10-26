@@ -10,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/kombifyio/stackkits/internal/mcpagents"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 )
 
@@ -22,6 +23,9 @@ var (
 )
 
 func main() {
+	if err := runtimeprofile.Boot(); err != nil {
+		log.Fatal(err)
+	}
 	modeFlag := flag.String("mode", "docs", "comma-separated modes: docs,local,server,actions")
 	serverURL := flag.String("server-url", stackkitmcp.FirstNonEmpty(os.Getenv("STACKKITS_SERVER_URL"), stackkitmcp.DefaultLocalServerURL), "stackkit-server URL")
 	apiKey := flag.String("api-key", "", "stackkit-server API key")

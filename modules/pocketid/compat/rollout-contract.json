@@ -1,0 +1,84 @@
+{
+  "schema": "stackkits.pocketid-cas-rollout-contract.v1",
+  "implementation_status": "source-integrated for existing single-host Core Docker/SQLite; actual publication and existing-node execution pending",
+  "contract": "pocketid-membership-cas-v1",
+  "scope": "one existing StackKit and its existing named local SQLite volume; no external/shared PostgreSQL transition or landscape creation",
+  "authority": {
+    "advanced": "Techstack dispatches the existing node-scoped StackKits lifecycle",
+    "standalone": "StackKits acts on its own node under its existing local Owner authority",
+    "credentials": "existing node custody and supported host-delivery paths only"
+  },
+  "required_bound_identity": [
+    "existing node/server ID",
+    "existing stack ID and accepted desired-state revision",
+    "authorized operation/change-set ID and plan digest",
+    "authenticated native publication run, attempt, public source SHA and attested image-index digest",
+    "selected linux/amd64 or linux/arm64 manifest digest with actual native qualification",
+    "existing provider storage/configuration identity and a verified recovery reference"
+  ],
+  "ordered_transition": [
+    {
+      "state": "admission-stopped",
+      "observations": [
+        "The product stops new membership/profile/delete/LDAP/signup writes to every old provider route.",
+        "Existing queued HTTP requests and background jobs are drained or cancelled without automatic replay."
+      ]
+    },
+    {
+      "state": "old-writers-absent",
+      "observations": [
+        "Every old provider container/process and background worker has exited; IDs and exit observations are retained.",
+        "Restart policies, supervisors, old jobs and stale replicas cannot relaunch the unfenced binary.",
+        "For supported local SQLite the old process and its queues are gone. External/shared PostgreSQL is refused by this implementation; prior PostgreSQL protocol proof does not admit that topology.",
+        "The node executor observes these facts through its real runtime and storage boundary. Caller-supplied booleans are insufficient."
+      ]
+    },
+    {
+      "state": "qualified-provider-started",
+      "observations": [
+        "The supported existing-node lifecycle preserves the same data volume/database, encryption key, clients, users, groups and app data.",
+        "Only the qualified digest starts, and its genuine embedded migration 20261025060000 completes without a dirty migration state.",
+        "All serving replicas report the admitted digest and authenticated membership capability. No old/new rolling overlap is allowed."
+      ]
+    },
+    {
+      "state": "conditional-writes-admitted",
+      "observations": [
+        "A synthetic exactly bound local UUID acquires sticky required-CAS mode; the executor observes no-op advancement, stale rejection and missing-condition denial.",
+        "This occurs only after old writers are absent and before membership writes reopen.",
+        "Old browser forms and delayed requests are rejected or reloaded for explicit review; their stale selections are not automatically rebased."
+      ]
+    },
+    {
+      "state": "product-acceptance-observed",
+      "observations": [
+        "Real installed Photos/Files journeys prove grant, revoke, restore, member leave and active-session behavior with synthetic test identities.",
+        "Final product readback proves the same node/stack/storage and preserves all existing apps/data."
+      ]
+    }
+  ],
+  "failure_policy": {
+    "missing_drain_or_executor_receipt": "deny CAS activation and retain stopped admission; do not assert rollout success",
+    "failed_new_start_or_migration": "halt and diagnose using the existing lifecycle; preserve storage and recovery evidence",
+    "managed_database_downgrade": "refuse old/unfenced binaries; use a corrected forward release",
+    "restore": "only the separately admitted existing recovery flow; no destructive or mixed-binary restoration is inferred"
+  },
+  "unproven_until_actual_execution": [
+    "native amd64/arm64 source builds, required native qualification and final attested Registry index",
+    "complete supported native Core/OpenTofu/restore lifecycle and signed drain/incarnation receipt on the authorized existing node",
+    "existing-node Photos/Files/Household grant, revoke, restore, member-leave and active-session acceptance"
+  ],
+  "implemented_by": {
+    "transition": "internal/pocketidruntime/local.go: Prepare, Complete and Require",
+    "receipt": "internal/localevidence/pocketid_runtime_binding.go inside the existing signed owner-runtime binding",
+    "callers": [
+      "native direct Core Apply",
+      "native Core OpenTofu prepare/complete",
+      "retained-identity restored-root prepare/complete"
+    ],
+    "receiver": "cmd/stackkit/user/live.go lifecycle lock → internal/localowner/household_projection.go signed subject and live-incarnation admission",
+    "supported_storage": "existing project-owned named local SQLite data volume; external DB, file overrides, network volume and additional container consumers refused",
+    "ordinary_initial_lifecycle": "official/manual initial provider preserves its process and byte-identical owner binding; it grants no managed CAS admission",
+    "unknown_outcome": "retained signed subject/attempt state; no blind CREATE/DELETE replay or unfenced rollback"
+  }
+}

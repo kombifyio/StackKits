@@ -132,7 +132,7 @@ func prepareBasementDomainMigration(root string, tx *confinedfs.Transaction) (ba
 			if parseErr != nil {
 				return journal, parseErr
 			}
-			after, err = buildLANDNSRecords(MigratedBasementDomain, address)
+			after, err = buildLANDNSRecords(MigratedBasementDomain, address, lanDNSOptions(before))
 		case originConfigPath:
 			var config map[string]json.RawMessage
 			if err = json.Unmarshal(before, &config); err == nil {

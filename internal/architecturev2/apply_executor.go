@@ -278,6 +278,7 @@ type applyRuntimeExecutionResult struct {
 }
 
 type verifiedApplyResultEnvelope struct {
+	Program               *ApplyProgramIdentity                    `json:"program,omitempty"`
 	APIVersion            string                                   `json:"apiVersion"`
 	Kind                  string                                   `json:"kind"`
 	Binding               generationartifact.PlanBinding           `json:"binding"`

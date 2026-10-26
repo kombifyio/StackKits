@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/sigstore/sigstore-go/pkg/bundle"
+	"github.com/sigstore/sigstore-go/pkg/fulcio/certificate"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/verify"
 )
@@ -25,9 +26,19 @@ const releaseTrustPolicySchemaVersion = "stackkit.release-trust-policy/v1"
 //go:embed release-trust-policy.json
 var embeddedReleaseTrustPolicy []byte
 
+type previewCandidateTrustPolicy struct {
+	SchemaVersion                       string   `json:"schemaVersion"`
+	SigstoreTrustedRootDocumentSHA256   []string `json:"sigstoreTrustedRootDocumentSha256"`
+	VerificationMode                    string   `json:"verificationMode"`
+	SourceRepositoryIdentifier          string   `json:"sourceRepositoryIdentifier"`
+	SourceRepositoryOwnerIdentifier     string   `json:"sourceRepositoryOwnerIdentifier"`
+	SourceRepositoryVisibilityAtSigning string   `json:"sourceRepositoryVisibilityAtSigning"`
+}
+
 type releaseTrustPolicy struct {
-	SchemaVersion                     string   `json:"schemaVersion"`
-	SigstoreTrustedRootDocumentSHA256 []string `json:"sigstoreTrustedRootDocumentSha256"`
+	PreviewCandidate                  *previewCandidateTrustPolicy `json:"previewCandidate,omitempty"`
+	SchemaVersion                     string                       `json:"schemaVersion"`
+	SigstoreTrustedRootDocumentSHA256 []string                     `json:"sigstoreTrustedRootDocumentSha256"`
 }
 
 var pinnedSigstoreTrustedRootDocumentSHA256 = slices.Clone(mustLoadReleaseTrustPolicy().SigstoreTrustedRootDocumentSHA256)
@@ -100,10 +111,18 @@ func (verifier SigstoreVerifier) VerifyIndex(ctx context.Context, input IndexAtt
 }
 
 func (verifier SigstoreVerifier) trustedRootForVerification(data []byte) ([]byte, error) {
+	return selectTrustedRootDocuments(data, verifier.releaseRootDigests())
+}
+
+func (verifier SigstoreVerifier) releaseRootDigests() []string {
 	expected := verifier.trustedRootDocumentSHA256
 	if len(expected) == 0 {
 		expected = pinnedSigstoreTrustedRootDocumentSHA256
 	}
+	return expected
+}
+
+func selectTrustedRootDocuments(data []byte, expected []string) ([]byte, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Buffer(make([]byte, 64<<10), 16<<20)
 	var selected bytes.Buffer
@@ -167,6 +186,18 @@ func decodeReleaseTrustPolicy(data []byte) (releaseTrustPolicy, error) {
 		}
 		seen[candidate] = struct{}{}
 	}
+	if candidate := policy.PreviewCandidate; candidate != nil {
+		if candidate.SchemaVersion != "stackkit.preview-candidate-trust/v1" || candidate.VerificationMode != "github-rfc3161" || candidate.SourceRepositoryIdentifier != "1129956899" || candidate.SourceRepositoryOwnerIdentifier != "249091777" || candidate.SourceRepositoryVisibilityAtSigning != "internal" || len(candidate.SigstoreTrustedRootDocumentSHA256) == 0 {
+			return releaseTrustPolicy{}, errors.New("candidate trust policy identity or verification mode is invalid")
+		}
+		seenCandidate := map[string]bool{}
+		for _, digest := range candidate.SigstoreTrustedRootDocumentSHA256 {
+			if !sha256Pattern.MatchString(digest) || seenCandidate[digest] || !slices.Contains(policy.SigstoreTrustedRootDocumentSHA256, digest) {
+				return releaseTrustPolicy{}, errors.New("candidate trust roots must be unique lowercase digests already reviewed in the release policy")
+			}
+			seenCandidate[digest] = true
+		}
+	}
 	return policy, nil
 }
 
@@ -176,6 +207,11 @@ func mustLoadReleaseTrustPolicy() releaseTrustPolicy {
 		panic(err)
 	}
 	return policy
+}
+
+type bundleVerificationPolicy struct {
+	mode       string
+	extensions certificate.Extensions
 }
 
 func verifyBundle(
@@ -189,17 +225,25 @@ func verifyBundle(
 	predicateType string,
 	digestHex string,
 	label string,
+	candidatePolicy ...bundleVerificationPolicy,
 ) error {
 	trustedMaterial, err := parseTrustedRootJSONL(trustedRootJSON)
 	if err != nil {
 		return fmt.Errorf("parse cached Sigstore trusted root: %w", err)
 	}
-	verifier, err := verify.NewVerifier(
-		trustedMaterial,
-		verify.WithSignedCertificateTimestamps(1),
-		verify.WithTransparencyLog(1),
-		verify.WithObserverTimestamps(1),
-	)
+	if len(candidatePolicy) > 1 {
+		return errors.New("one exact candidate certificate policy is permitted")
+	}
+	options := []verify.VerifierOption{verify.WithSignedCertificateTimestamps(1), verify.WithTransparencyLog(1), verify.WithObserverTimestamps(1)}
+	if len(candidatePolicy) == 1 {
+		if candidatePolicy[0].mode != "github-rfc3161" {
+			return errors.New("unsupported candidate verification mode")
+		}
+		// The internal GitHub instance authenticates signing time with RFC3161.
+		// This branch is only reached by the separately pinned candidate verifier.
+		options = []verify.VerifierOption{verify.WithSignedTimestamps(1)}
+	}
+	verifier, err := verify.NewVerifier(trustedMaterial, options...)
 	if err != nil {
 		return fmt.Errorf("construct Sigstore verifier: %w", err)
 	}
@@ -211,6 +255,9 @@ func verifyBundle(
 	)
 	if err != nil {
 		return fmt.Errorf("construct GitHub workflow identity policy: %w", err)
+	}
+	if len(candidatePolicy) == 1 {
+		certificateIdentity.Extensions = candidatePolicy[0].extensions
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(bundleJSONL))
 	scanner.Buffer(make([]byte, 64<<10), 16<<20)

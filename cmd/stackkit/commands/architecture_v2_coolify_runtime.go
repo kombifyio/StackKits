@@ -3,10 +3,11 @@ package commands
 import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 func architectureV2LocalCoolifyRegistrations(workspace, version string) ([]architecturev2.ProductRuntimeOwnerRegistration, error) {
-	operations, err := nativehost.NewOSCoolifyWorkloadOperations(workspace)
+	operations, err := opentofu.NewCoolifyWorkloadOperations(opentofu.Runtime{WorkspaceRoot: workspace})
 	if err != nil {
 		return nil, err
 	}

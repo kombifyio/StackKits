@@ -660,6 +660,7 @@ UseCaseCatalog: #UseCaseCatalog & {
 				comfyui: {id: "comfyui", name: "ComfyUI", role: "supporting", kind: "application"}
 				hermes: {id: "hermes", name: "Hermes Agent", role: "supporting", kind: "application"}
 				speechkit: {id: "speechkit", name: "kombify SpeechKit", role: "supporting", kind: "application"}
+				qdrant: {id: "qdrant", name: "Qdrant", role: "supporting", kind: "application"}
 			}
 			settings: [
 				{
@@ -922,6 +923,20 @@ UseCaseCatalog: #UseCaseCatalog & {
 					// own PostgreSQL and ClickHouse stack.
 					default: {id: "litellm", name: "LiteLLM", note: "Apps and devices use the master key from owner custody", realization: "install", workloadRef: "ai-gateway", alternativeRef: "litellm"}
 					alternative: {id: "langfuse", name: "Langfuse", note: "Traces and budgets", realization: "recorded", pending: "needs its own PostgreSQL and ClickHouse stack"}
+				},
+				{
+					id:   "vectors"
+					name: "Vector store"
+					help: "Keeps the knowledge-base vectors of your chat module in Qdrant instead of its built-in store (Chroma in Open WebUI, LanceDB in AnythingLLM). Off by default."
+					requires: ["inference", "chat"]
+					// Qdrant installs as the add-on workload ai-vectors on the
+					// private AI network. The chat module is wired to it and embeds
+					// with bge-m3 on the node's Ollama (the owner pulls the model).
+					// Vectors already in the built-in store are not moved: documents
+					// are indexed again after the switch. The fully local profile
+					// keeps its embedded sqlite-vec store inside the product that
+					// owns the knowledge base, so nothing is installed for it here.
+					default: {id: "qdrant", name: "Qdrant", note: "Open source from Berlin with its own MCP server; the API key comes from owner custody", realization: "install", workloadRef: "ai-vectors", alternativeRef: "qdrant"}
 				},
 			]
 		}

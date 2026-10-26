@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "26a64b6a293f934211b7218594193fa7a6cdc773",
-  "authority_bundle_sha256": "7c82e6371dddf19a94062d371085daf1b51be24a236a5dc8dc11c4c45efb06da",
+  "source_sha": "5dccd911e4849d7a3e46bd1e9e47bad53b8351d0",
+  "authority_bundle_sha256": "4c4a22922d34a74d85503d7046815981846dcdad8544fff300bb37229a9eda5b",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -2803,6 +2803,110 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-marketplace-runtipi-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "marketplace"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Unqualified pinned Runtipi backend, database and queue policy envelope; no measured capacity claim.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.5,
+                "ram_gb": 2.25
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 4
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "postgres",
+                "queue",
+                "runtipi"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "735e53f4c571dd7a58736faa3def2bf9d6e784d8bf506eadabe039adcbad2696"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Unqualified pinned Runtipi backend, database and queue policy envelope; no measured capacity claim.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.5,
+                "ram_gb": 2.25
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 4
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "postgres",
+                "queue",
+                "runtipi"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "0e8fbf6b15b602613ddd3b8b3270e69bb9e2d0aa06610ee43c7e63988aa6a879"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-mosquitto-runtime",
           "role": "workload",
           "required": false,
@@ -3964,6 +4068,88 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-qdrant-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-vectors"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "qdrant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "7b35ef1da4225c05d9614a57763c84b768d557839f430177ad6745fa85c9c01c"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "qdrant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "8a64623b157631f14ed29593e3d849ebb7129ff4b586429d7713e084fcf5268b"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-roundcube-runtime",
           "role": "workload",
           "required": false,
@@ -4794,6 +4980,29 @@
           ]
         },
         {
+          "use_case_id": "ai-vectors",
+          "title": "ai-vectors",
+          "description": "Qdrant vector store that holds the chat module's knowledge-base vectors (embeddings from bge-m3 on the node's Ollama), selected with the Private AI vector-store module. It joins the node's private AI network, needs the API key from owner custody on every request and is local or remote-private, never public.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "qdrant",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "qdrant",
+              "module_id": "stackkits-qdrant-runtime",
+              "functions": [
+                "vector-store"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "automation-notifications",
           "title": "automation-notifications",
           "description": "Explicit ntfy live-only notification add-on: forward to connected subscribers; no queued replay, native accounts, Web Push or attachments. Durable push and backup digest delivery remain separate prerequisites.",
@@ -5106,6 +5315,18 @@
             {
               "alternative_id": "coolify",
               "module_id": "stackkits-marketplace-coolify-runtime",
+              "functions": [
+                "self-hosted-app-store"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "runtipi",
+              "module_id": "stackkits-marketplace-runtipi-runtime",
               "functions": [
                 "self-hosted-app-store"
               ],
@@ -8137,6 +8358,110 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-marketplace-runtipi-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "marketplace"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Unqualified pinned Runtipi backend, database and queue policy envelope; no measured capacity claim.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.5,
+                "ram_gb": 2.25
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 4
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "postgres",
+                "queue",
+                "runtipi"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "735e53f4c571dd7a58736faa3def2bf9d6e784d8bf506eadabe039adcbad2696"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Unqualified pinned Runtipi backend, database and queue policy envelope; no measured capacity claim.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.5,
+                "ram_gb": 2.25
+              },
+              "recommended": {
+                "cpu_cores": 2,
+                "ram_gb": 4
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "postgres",
+                "queue",
+                "runtipi"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "0e8fbf6b15b602613ddd3b8b3270e69bb9e2d0aa06610ee43c7e63988aa6a879"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-mosquitto-runtime",
           "role": "workload",
           "required": false,
@@ -9310,6 +9635,88 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-qdrant-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-vectors"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "qdrant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "7b35ef1da4225c05d9614a57763c84b768d557839f430177ad6745fa85c9c01c"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "qdrant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "8a64623b157631f14ed29593e3d849ebb7129ff4b586429d7713e084fcf5268b"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-roundcube-runtime",
           "role": "workload",
           "required": false,
@@ -10256,6 +10663,29 @@
           ]
         },
         {
+          "use_case_id": "ai-vectors",
+          "title": "ai-vectors",
+          "description": "Qdrant vector store that holds the chat module's knowledge-base vectors (embeddings from bge-m3 on the node's Ollama), selected with the Private AI vector-store module. It joins the node's private AI network, needs the API key from owner custody on every request and is local or remote-private, never public.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "qdrant",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "qdrant",
+              "module_id": "stackkits-qdrant-runtime",
+              "functions": [
+                "vector-store"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
           "use_case_id": "automation-notifications",
           "title": "automation-notifications",
           "description": "Explicit ntfy live-only notification add-on: forward to connected subscribers; no queued replay, native accounts, Web Push or attachments. Durable push and backup digest delivery remain separate prerequisites.",
@@ -10575,6 +11005,18 @@
             {
               "alternative_id": "coolify",
               "module_id": "stackkits-marketplace-coolify-runtime",
+              "functions": [
+                "self-hosted-app-store"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            },
+            {
+              "alternative_id": "runtipi",
+              "module_id": "stackkits-marketplace-runtipi-runtime",
               "functions": [
                 "self-hosted-app-store"
               ],
@@ -14623,6 +15065,88 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-qdrant-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "ai-vectors"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "qdrant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "7b35ef1da4225c05d9614a57763c84b768d557839f430177ad6745fa85c9c01c"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Qdrant vector store for the chat module's knowledge base. Collections persist on the storage volume; memory grows with the number of indexed chunks.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.25
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "qdrant"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                }
+              },
+              "profile_sha256": "8a64623b157631f14ed29593e3d849ebb7129ff4b586429d7713e084fcf5268b"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-roundcube-runtime",
           "role": "workload",
           "required": false,
@@ -15443,6 +15967,29 @@
               "functions": [
                 "speech-to-text",
                 "text-to-speech"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "ai-vectors",
+          "title": "ai-vectors",
+          "description": "Qdrant vector store that holds the chat module's knowledge-base vectors (embeddings from bge-m3 on the node's Ollama), selected with the Private AI vector-store module. It joins the node's private AI network, needs the API key from owner custody on every request and is local or remote-private, never public.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "qdrant",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "qdrant",
+              "module_id": "stackkits-qdrant-runtime",
+              "functions": [
+                "vector-store"
               ],
               "load": {
                 "residency": "always-on",
@@ -17522,5 +18069,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "c4ebbc624ace842bca4fc100927b6a0efaf46f1a1a66a47fc4bd66e2322b95bc"
+  "catalog_sha256": "f951776c59467884890254913ff94fa365844310d78dc7430860ed2638535673"
 }

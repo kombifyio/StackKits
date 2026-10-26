@@ -61,6 +61,9 @@ func (s *Service) history(ctx context.Context, configuration Configuration, now 
 					result.Issue = "history-incomplete"
 					continue
 				}
+				if len(anchor.Workloads) > 0 {
+					continue
+				}
 				sourceDigest, err := localbackuppolicy.SourceDigest(anchor.Policy.SourceProjection())
 				if err != nil {
 					result.Issue = "history-incomplete"

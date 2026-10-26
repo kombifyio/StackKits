@@ -38,7 +38,7 @@ _architectureV2MarketplaceProviders: [{
 	provides: [], workloadRefs: ["marketplace"]
 	requires: [{id: "service-catalog"}, {id: "storage-data-policy"}, {id: "backup-core"}]
 	supportedSiteKinds: ["home", "cloud"]
-	realization: {kind: "modules", moduleRefs: {required: [], optional: ["stackkits-marketplace-coolify-runtime"]}}
+	realization: {kind: "modules", moduleRefs: {required: [], optional: ["stackkits-marketplace-coolify-runtime", "stackkits-marketplace-runtipi-runtime"]}}
 	evidence: ["marketplace-native-installation"]
 }]
 
@@ -62,6 +62,10 @@ _architectureV2MarketplaceWorkloads: [#WorkloadContractV2 & {
 		setup: {mode: "automatic", owner: "module", actionRefs: ["marketplace-owner-bootstrap"]}
 		inputs: {settings: {allowedRefs: [], requiredRefs: []}, secretInputs: {allowedRefs: [], requiredRefs: []}}
 		infrastructure: _architectureV2MarketplaceInfrastructure
+	}, #PreparedRuntipiMarketplaceAlternative & {
+		// Explicit, non-default alternative (D-2026-10-20-09): selectable only
+		// with --use-case-alternative marketplace=runtipi. No compute tier
+		// selects it and no support claim follows from this admission.
 	}]
 }]
 
@@ -71,7 +75,7 @@ _architectureV2MarketplaceLifecycles: [#ApplicationLifecycleContractV1 & {
 	lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 }]
 
-_architectureV2MarketplaceModules: [{
+_architectureV2MarketplaceModules: [#PreparedRuntipiMarketplaceModule, {
 	metadata: {id: "stackkits-marketplace-coolify-runtime", version: "1.0.0", description: "Node-custodied Marketplace installation with a pinned Coolify control application, private API, closed root bootstrap and PocketID. It does not acquire a workload execution adapter."}
 	role: "workload", providerRef: "stackkits-marketplace"
 	provides: [], requires: ["stackkits-core-host-bootstrap"]

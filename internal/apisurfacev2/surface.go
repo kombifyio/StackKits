@@ -141,6 +141,8 @@ type MCP struct {
 type ResourceBinding struct {
 	Argument  string `json:"argument"`
 	Dimension string `json:"dimension"`
+	// Required preserves omission separately from an explicit optional binding.
+	Required *bool `json:"required,omitempty"`
 }
 
 // Annotations are the MCP tool behavior hints.

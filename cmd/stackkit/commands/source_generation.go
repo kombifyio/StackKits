@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/productkits"
@@ -23,7 +24,12 @@ import (
 
 const maxSourceGenerationInspectionBytes = 2 << 20
 
+// This is a locator only. Signed original Program identity and opaque offline
+// verification select the exact cache entry; this flag grants no authority.
+var sourceGenerationReleaseCache string
+
 func init() {
+	rootCmd.PersistentFlags().StringVar(&sourceGenerationReleaseCache, "original-release-cache", "", "Absolute retained source cache locator for offline original-program inspection")
 	kitCmd.AddCommand(newSourceGenerationPrepareCmd())
 }
 
@@ -32,6 +38,7 @@ func init() {
 func newSourceGenerationPrepareCmd() *cobra.Command {
 	var asJSON bool
 	var cacheOnly bool
+	var sourceKind, candidateDirectory string
 	var cache sourceReleaseCacheRequest
 	command := &cobra.Command{
 		Use:         "prepare-source-generation",
@@ -39,6 +46,31 @@ func newSourceGenerationPrepareCmd() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if sourceKind != "public-release" && sourceKind != "preview-candidate" {
+				return errors.New("source kind must be public-release or preview-candidate")
+			}
+			if sourceKind == "preview-candidate" {
+				if !cacheOnly {
+					return errors.New("candidate source retention requires --cache-only")
+				}
+				proof, err := preparePreviewSourceCache(cmd.Context(), cache, candidateDirectory)
+				if err != nil {
+					return err
+				}
+				if asJSON {
+					return writeCommandResult(cmd, cmd.CommandPath(), struct {
+						Prepared        bool                                 `json:"prepared"`
+						SourceKind      string                               `json:"sourceKind"`
+						CLISHA256       string                               `json:"cliSha256"`
+						SourceCandidate releaseindex.PreviewSourceCacheProof `json:"sourceCandidate"`
+					}{true, sourceKind, proof.CLISHA256, proof})
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Verified retained Preview source %s\n", proof.IndexSHA256)
+				return err
+			}
+			if candidateDirectory != "" {
+				return errors.New("candidate source directory requires preview-candidate source kind")
+			}
 			if cacheOnly {
 				receipt, cliDigest, err := prepareSourceReleaseCache(cmd.Context(), cache)
 				if err != nil {
@@ -72,6 +104,16 @@ func newSourceGenerationPrepareCmd() *cobra.Command {
 			if semver.Compare(tag, current) > 0 {
 				return errors.New("source generation cannot follow the installed compiler")
 			}
+			if bridge, private, err := inspectPreviewSourceGeneration(cmd.Context(), workspace, specFile, tag); err != nil || private {
+				if err != nil {
+					return err
+				}
+				if asJSON {
+					return writeSourceGenerationInspection(cmd.OutOrStdout(), bridge)
+				}
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "Verified original Preview source %s\n", bridge.SourceCandidate.IndexSHA256)
+				return err
+			}
 			if tag == current {
 				if asJSON {
 					return writeCommandResult(cmd, cmd.CommandPath(), struct {
@@ -103,18 +145,20 @@ func newSourceGenerationPrepareCmd() *cobra.Command {
 				return err
 			}
 			verifiedOwner := sourceGenerationOwner(bridge)
-			if !historical || bridge.Receipt.Version != tag || verifiedOwner.OwnerRef != owner.OwnerRef || verifiedOwner.KeyID != owner.KeyID || verifiedOwner.OwnerBindingDigest != localevidence.OwnerRuntimeBindingDigest(binding) {
+			if !historical || bridge.sourceVersion() != tag || verifiedOwner.OwnerRef != owner.OwnerRef || verifiedOwner.KeyID != owner.KeyID || verifiedOwner.OwnerBindingDigest != localevidence.OwnerRuntimeBindingDigest(binding) {
 				return errors.New("source cache preparation changed its historical or current Owner authority")
 			}
 			if asJSON {
 				return writeSourceGenerationInspection(cmd.OutOrStdout(), bridge)
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Verified source release %s for the retained generation\n", bridge.Receipt.Version)
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Verified source release %s for the retained generation\n", bridge.sourceVersion())
 			return err
 		},
 	}
 	command.Flags().BoolVar(&asJSON, "json", false, "Emit bounded source-generation inspection proof after authenticated cache preparation.")
 	command.Flags().BoolVar(&cacheOnly, "cache-only", false, "Retain an exact attested public release independently of workspace lifecycle or Owner custody.")
+	command.Flags().StringVar(&sourceKind, "source-kind", "public-release", "Distribution proof kind for exact retained source custody.")
+	command.Flags().StringVar(&candidateDirectory, "source-candidate-dir", "", "Absolute root-admitted retained candidate source directory.")
 	command.Flags().StringVar(&cache.Directory, "release-cache", "", "Absolute persistent release cache directory for cache-only preparation.")
 	command.Flags().StringVar(&cache.Kit, "source-kit", "", "Exact public source kit for cache-only preparation.")
 	command.Flags().StringVar(&cache.Tag, "source-release", "", "Exact public source release tag, no newer than this CLI.")
@@ -236,6 +280,9 @@ func inspectSourceGeneration(ctx context.Context, workspace, requestedSpec strin
 	if tag == "" {
 		return publicUpgradeBridge{}, false, errors.New("source generation release is unavailable")
 	}
+	if bridge, private, err := inspectPreviewSourceGeneration(ctx, workspace, requestedSpec, tag); err != nil || private {
+		return bridge, private, err
+	}
 	current := "v" + architectureV2ComponentVersion(version)
 	if tag == current {
 		return publicUpgradeBridge{}, false, nil // Ordinary current CUE inspection.
@@ -284,20 +331,30 @@ func inspectSourceGeneration(ctx context.Context, workspace, requestedSpec strin
 func writeSourceGenerationInspection(writer io.Writer, bridge publicUpgradeBridge) error {
 	// Preserve the original compiler, Inventory and applied evidence. This is
 	// preparation provenance, never permission to execute an old plan now.
-	publicRelease := sourceGenerationProof(bridge.Receipt)
+	var publicRelease *sourceGenerationReleaseProof
+	if bridge.SourceCandidate == nil {
+		proof := sourceGenerationProof(bridge.Receipt)
+		publicRelease = &proof
+	}
 	apiVersion := "stackkit.source-generation-inspection/v1"
 	if bridge.SourceContext != nil {
 		apiVersion = "stackkit.source-generation-inspection/v2"
 	}
+	if bridge.SourceCandidate != nil {
+		apiVersion = "stackkit.source-generation-inspection/v3"
+	}
 	raw, err := json.Marshal(struct {
-		APIVersion         string                            `json:"apiVersion"`
-		Inspection         generationartifact.PlanInspection `json:"inspection"`
-		Release            sourceGenerationReleaseProof      `json:"sourceRelease"`
-		Owner              architectureV2OwnerVerifySummary  `json:"owner"`
-		ApplyResultHash    string                            `json:"applyResultHash"`
-		EvidenceBundleHash string                            `json:"evidenceBundleHash"`
-		Context            *historicalCloudSourceContext     `json:"historicalContext,omitempty"`
-	}{apiVersion, bridge.Current, publicRelease, bridge.Verify.Owner, bridge.Verify.Apply.ResultHash, bridge.Verify.Apply.EvidenceBundleHash, bridge.SourceContext})
+		APIVersion                string                                `json:"apiVersion"`
+		Inspection                generationartifact.PlanInspection     `json:"inspection"`
+		Release                   *sourceGenerationReleaseProof         `json:"sourceRelease,omitempty"`
+		SourceCandidate           *releaseindex.PreviewSourceCacheProof `json:"sourceCandidate,omitempty"`
+		SourceProgram             *architecturev2.ApplyProgramIdentity  `json:"sourceProgram,omitempty"`
+		OriginalExecutionIdentity string                                `json:"originalExecutionIdentity"`
+		Owner                     architectureV2OwnerVerifySummary      `json:"owner"`
+		ApplyResultHash           string                                `json:"applyResultHash"`
+		EvidenceBundleHash        string                                `json:"evidenceBundleHash"`
+		Context                   *historicalCloudSourceContext         `json:"historicalContext,omitempty"`
+	}{apiVersion, bridge.Current, publicRelease, bridge.SourceCandidate, bridge.SourceProgram, originalSourceExecutionIdentity(bridge), bridge.Verify.Owner, bridge.Verify.Apply.ResultHash, bridge.Verify.Apply.EvidenceBundleHash, bridge.SourceContext})
 	if err != nil {
 		return err
 	}
@@ -306,6 +363,13 @@ func writeSourceGenerationInspection(writer io.Writer, bridge publicUpgradeBridg
 	}
 	_, err = writer.Write(append(raw, '\n'))
 	return err
+}
+
+func originalSourceExecutionIdentity(bridge publicUpgradeBridge) string {
+	if bridge.SourceProgram != nil {
+		return "owner-signed-apply-program"
+	}
+	return "unproven"
 }
 
 func sourceGenerationProof(receipt releaseindex.Receipt) sourceGenerationReleaseProof {
@@ -322,7 +386,7 @@ func runSourceGenerationPlan(cmdContext context.Context, workspace, requestedSpe
 	if err != nil || !historical {
 		return historical, err
 	}
-	if bridge.Current.Binding.CompilerVersion != "stackkits-resolver/"+strings.TrimPrefix(bridge.Receipt.Version, "v") {
+	if bridge.Current.Binding.CompilerVersion != "stackkits-resolver/"+strings.TrimPrefix(bridge.sourceVersion(), "v") {
 		return true, errors.New("source generation compiler differs from its attested release")
 	}
 	return true, writeSourceGenerationInspection(writer, bridge)

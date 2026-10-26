@@ -83,7 +83,7 @@ type BasementRuntimeCustody struct {
 // basement-kit/stackfile.cue home-human-credential-issuer sessionTTLSeconds).
 // The 60..86400 range is owned by foundation/architecture_v2.cue
 // sessionTTLSeconds; this default must stay in sync with the CUE authority.
-func EstablishBasementRuntimeCustody(workspaceRoot, domain string, sessionTTLSeconds int) (BasementRuntimeCustody, error) {
+func EstablishBasementRuntimeCustody(workspaceRoot, domain string, sessionTTLSeconds int, dnsOptions ...LANDNSOptions) (BasementRuntimeCustody, error) {
 	if sessionTTLSeconds <= 0 {
 		sessionTTLSeconds = defaultBasementSessionTTLSeconds
 	}
@@ -102,6 +102,11 @@ func EstablishBasementRuntimeCustody(workspaceRoot, domain string, sessionTTLSec
 	if err == nil {
 		if existing.Domain != domain {
 			return BasementRuntimeCustody{}, errors.New("localevidence: Basement runtime custody domain differs from established custody")
+		}
+		if len(dnsOptions) > 0 {
+			if err := VerifyBasementLANDNSPolicy(workspaceRoot, dnsOptions[0]); err != nil {
+				return BasementRuntimeCustody{}, err
+			}
 		}
 		return existing, nil
 	}
@@ -136,7 +141,7 @@ func EstablishBasementRuntimeCustody(workspaceRoot, domain string, sessionTTLSec
 		return BasementRuntimeCustody{}, fmt.Errorf("localevidence: restrict Basement runtime custody transaction: %w", err)
 	}
 
-	files, err := buildBasementRuntimeFiles(workspaceRoot, owner, domain, sessionTTLSeconds)
+	files, err := buildBasementRuntimeFiles(workspaceRoot, owner, domain, sessionTTLSeconds, dnsOptions...)
 	if err != nil {
 		return BasementRuntimeCustody{}, err
 	}
@@ -300,7 +305,7 @@ func readBasementRuntimeFile(workspaceRoot, relative string) ([]byte, BasementRu
 	return raw, custody, nil
 }
 
-func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain string, sessionTTLSeconds int) (map[string][]byte, error) {
+func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain string, sessionTTLSeconds int, dnsOptions ...LANDNSOptions) (map[string][]byte, error) {
 	rootPrivate, err := loadStepCARootKey(workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("localevidence: load established step-ca root key for runtime intermediate: %w", err)
@@ -387,7 +392,7 @@ func buildBasementRuntimeFiles(workspaceRoot string, owner OwnerCustody, domain 
 	if err != nil {
 		return nil, err
 	}
-	lanDNSRecords, err := buildLANDNSRecords(domain, siteAddress)
+	lanDNSRecords, err := buildLANDNSRecords(domain, siteAddress, dnsOptions...)
 	if err != nil {
 		return nil, err
 	}

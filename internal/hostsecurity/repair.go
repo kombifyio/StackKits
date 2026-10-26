@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/dataprofilev1"
 )
 
 // StepStatus is what became of one control in a repair.
@@ -364,6 +366,13 @@ func (r *repairer) ensurePackages(ctx context.Context, packages ...string) error
 	if len(missing) == 0 {
 		return nil
 	}
+	profile, profileErr := dataprofile.FromBootEnv()
+	if profileErr != nil {
+		return profileErr
+	}
+	if profile.Loc == dataprofile.LocalityLocal {
+		return blocked("Full Local offline prerequisite missing: %s; no package download was started", strings.Join(missing, ", "))
+	}
 	if _, apt := r.engine.toolPath("apt-get"); !apt {
 		return blocked("%s is missing and this host has no apt to install it; install it with the host's package manager", strings.Join(missing, ", "))
 	}
@@ -414,6 +423,13 @@ func (r *repairer) repairSysctl(ctx context.Context) error {
 const unattendedDropIn = "/etc/apt/apt.conf.d/99-stackkits-host-security"
 
 func (r *repairer) repairUnattended(ctx context.Context) error {
+	profile, err := dataprofile.FromBootEnv()
+	if err != nil {
+		return err
+	}
+	if profile.Loc == dataprofile.LocalityLocal {
+		return blocked("Full Local does not enable host update downloads; existing operator-owned timers were left unchanged")
+	}
 	if _, apt := r.engine.toolPath("apt-get"); !apt {
 		return blocked("automatic security updates are restored on apt hosts only; this host has no apt")
 	}
@@ -526,6 +542,9 @@ func (r *repairer) firewallPolicyFor() FirewallPolicy {
 	policy := FirewallPolicy{
 		SSHPorts: r.path.SSHPorts, Peers: r.path.peers, ManagementSources: r.path.sources,
 	}
+	if record := r.obs.recordedFirewall(); record != nil {
+		policy.Containers = record.Policy.Containers
+	}
 	if r.options.DeclaredListeners != nil {
 		policy.DeclaredOnly = true
 		for _, listener := range r.options.DeclaredListeners {
@@ -563,6 +582,13 @@ func admitsManagementPath(policy FirewallPolicy, path ManagementPath) error {
 }
 
 func (r *repairer) repairFirewall(ctx context.Context) error {
+	if r.apply {
+		unlock, err := r.engine.lockFirewall()
+		if err != nil {
+			return err
+		}
+		defer unlock()
+	}
 	if r.options.SiteKind != SiteHome {
 		return blocked("the firewall is restored automatically for home sites only; a Cloud site is restored by the Cloud host-security owner")
 	}
@@ -580,6 +606,12 @@ func (r *repairer) repairFirewall(ctx context.Context) error {
 	if err := r.ensurePackages(ctx, "nftables"); err != nil {
 		return err
 	}
+	return r.installHomeFirewallPolicy(ctx, policy)
+}
+
+// installHomeFirewallPolicy is shared by baseline repair and scoped cohort
+// admission. Scoped admission never installs packages or changes host input.
+func (r *repairer) installHomeFirewallPolicy(ctx context.Context, policy FirewallPolicy) error {
 	staging := HomeFirewallRuleset + ".new"
 	prior, priorExisted := r.priorHomeTable(ctx)
 	if err := r.write(staging, []byte(policy.RenderRuleset()), 0o600); err != nil {
@@ -600,7 +632,7 @@ func (r *repairer) repairFirewall(ctx context.Context) error {
 	live, err := r.engine.run(ctx, "nft", "list", "table", "inet", HomeFirewallTable)
 	if err != nil || live.ExitCode != 0 || normalizeRuleset(live.Stdout) != normalizeRuleset(policy.Render()) {
 		r.rollbackFirewall(ctx, prior, priorExisted)
-		return errors.New("the live firewall table does not match the policy that was just installed; the previous firewall was restored")
+		return fmt.Errorf("the live firewall table does not match the policy that was just installed; the previous firewall was restored: %s", rulesetDifference(policy.Render(), live.Stdout))
 	}
 	record, marshalErr := json.MarshalIndent(recordedPolicy{SchemaVersion: recordedPolicySchema, Policy: policy}, "", "  ")
 	if marshalErr != nil {
@@ -653,6 +685,7 @@ func (r *repairer) persistFirewall(ctx context.Context) error {
 		"Description=StackKits host security inbound firewall",
 		"Wants=network-pre.target",
 		"Before=network-pre.target",
+		"Before=docker.service containerd.service",
 		"After=nftables.service",
 		"",
 		"[Service]",

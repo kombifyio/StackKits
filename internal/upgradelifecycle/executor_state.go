@@ -920,55 +920,11 @@ func inspectVerifiedReleaseExecutables(
 		if err := validateExecutorStateRelease(release); err != nil {
 			return err
 		}
-		tempRoot, err := os.MkdirTemp("", "stackkit-executor-state-release-")
+		archiveExecutable, server, err := inspectVerifiedArchiveExecutables(archiveReader, asset.Archive.Name, asset.Archive.SHA256, release.Platform, openTofuDir, func(extractRoot string) error {
+			return stageReleaseProviderMirror(extractRoot, openTofuDir, receipt)
+		})
 		if err != nil {
-			return fmt.Errorf("executor state: create release verification directory: %w", err)
-		}
-		defer os.RemoveAll(tempRoot)
-		archivePath := filepath.Join(tempRoot, filepath.Base(asset.Archive.Name))
-		archiveFile, err := os.OpenFile(archivePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err != nil {
-			return fmt.Errorf("executor state: stage retained verified archive: %w", err)
-		}
-		digest := sha256.New()
-		written, copyErr := io.Copy(io.MultiWriter(archiveFile, digest), archiveReader)
-		syncErr := archiveFile.Sync()
-		closeErr := archiveFile.Close()
-		if copyErr != nil || syncErr != nil || closeErr != nil {
-			return fmt.Errorf(
-				"executor state: stage retained verified archive: %w",
-				errors.Join(copyErr, syncErr, closeErr),
-			)
-		}
-		if written <= 0 || hex.EncodeToString(digest.Sum(nil)) != asset.Archive.SHA256 {
-			return errors.New("executor state: retained verified archive digest changed")
-		}
-		extractRoot := filepath.Join(tempRoot, "extract")
-		if err := os.Mkdir(extractRoot, 0o700); err != nil {
 			return err
-		}
-		if err := extractArchive(
-			archivePath, asset.Archive.Name, extractRoot, defaultMaxFiles, defaultMaxExtractBytes,
-		); err != nil {
-			return fmt.Errorf("executor state: extract verified installed release: %w", err)
-		}
-		archiveExecutable, err := os.ReadFile(filepath.Join(
-			extractRoot, executorStateExecutablePath(release.Platform),
-		))
-		if err != nil {
-			return fmt.Errorf("executor state: read exact executable from verified release: %w", err)
-		}
-		server, err := os.ReadFile(filepath.Join(extractRoot, executorStateServerExecutablePath(release.Platform)))
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("executor state: read stackkit-server from verified release: %w", err)
-		}
-		if openTofuDir != "" {
-			if err := stageVerifiedReleaseOpenTofu(extractRoot, openTofuDir, release.Platform); err != nil {
-				return err
-			}
-			if err := stageReleaseProviderMirror(extractRoot, openTofuDir, receipt); err != nil {
-				return err
-			}
 		}
 		verifiedRelease = release
 		verifiedExecutable = append([]byte(nil), archiveExecutable...)
@@ -1344,4 +1300,61 @@ func readExecutorStateOperation(
 
 func filepathToSlash(value string) string {
 	return strings.ReplaceAll(value, `\`, "/")
+}
+
+// inspectVerifiedArchiveExecutables is shared by both opaque proof kinds. It
+// parses the authenticated archive once and never constructs a public receipt
+// for a private candidate.
+func inspectVerifiedArchiveExecutables(archiveReader io.Reader, archiveName, archiveSHA256 string, platform releaseindex.Platform, openTofuDir string, stageMirror func(string) error) ([]byte, []byte, error) {
+	tempRoot, err := os.MkdirTemp("", "stackkit-executor-state-release-")
+	if err != nil {
+		return nil, nil, fmt.Errorf("executor state: create release verification directory: %w", err)
+	}
+	defer os.RemoveAll(tempRoot)
+	archivePath := filepath.Join(tempRoot, filepath.Base(archiveName))
+	archiveFile, err := os.OpenFile(archivePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, nil, fmt.Errorf("executor state: stage retained verified archive: %w", err)
+	}
+	digest := sha256.New()
+	written, copyErr := io.Copy(io.MultiWriter(archiveFile, digest), archiveReader)
+	syncErr := archiveFile.Sync()
+	closeErr := archiveFile.Close()
+	if copyErr != nil || syncErr != nil || closeErr != nil {
+		return nil, nil, fmt.Errorf(
+			"executor state: stage retained verified archive: %w",
+			errors.Join(copyErr, syncErr, closeErr),
+		)
+	}
+	if written <= 0 || hex.EncodeToString(digest.Sum(nil)) != archiveSHA256 {
+		return nil, nil, errors.New("executor state: retained verified archive digest changed")
+	}
+	extractRoot := filepath.Join(tempRoot, "extract")
+	if err := os.Mkdir(extractRoot, 0o700); err != nil {
+		return nil, nil, err
+	}
+	if err := extractArchive(
+		archivePath, archiveName, extractRoot, defaultMaxFiles, defaultMaxExtractBytes,
+	); err != nil {
+		return nil, nil, fmt.Errorf("executor state: extract verified installed release: %w", err)
+	}
+	archiveExecutable, err := os.ReadFile(filepath.Join(
+		extractRoot, executorStateExecutablePath(platform),
+	))
+	if err != nil {
+		return nil, nil, fmt.Errorf("executor state: read exact executable from verified release: %w", err)
+	}
+	server, err := os.ReadFile(filepath.Join(extractRoot, executorStateServerExecutablePath(platform)))
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, nil, fmt.Errorf("executor state: read stackkit-server from verified release: %w", err)
+	}
+	if openTofuDir != "" {
+		if err := stageVerifiedReleaseOpenTofu(extractRoot, openTofuDir, platform); err != nil {
+			return nil, nil, err
+		}
+		if err := stageMirror(extractRoot); err != nil {
+			return nil, nil, err
+		}
+	}
+	return append([]byte(nil), archiveExecutable...), server, nil
 }

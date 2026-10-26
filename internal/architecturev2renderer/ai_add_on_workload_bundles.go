@@ -18,6 +18,7 @@ const (
 	tikaWorkloadModuleID    = "stackkits-tika-runtime"
 	doclingWorkloadModuleID = "stackkits-docling-runtime"
 	litellmWorkloadModuleID = "stackkits-litellm-runtime"
+	qdrantWorkloadModuleID  = "stackkits-qdrant-runtime"
 )
 
 // aiAddOnWorkload is the closed contract of one Private AI add-on bundle.
@@ -34,6 +35,9 @@ type aiAddOnWorkload struct {
 	port           int
 	secretRefs     []string
 	component      selectedPaaSRuntimeComponent
+	// dataBinding names the owner-data binding of a stateful add-on; empty
+	// for the stateless ones, whose endpoint declares no data.
+	dataBinding string
 	// Optional recipe-owned boundaries retain existing AI defaults.
 	schemaBoundary    string
 	requiredPrivilege string
@@ -55,8 +59,12 @@ func (w aiAddOnWorkload) contract() RendererContract {
 	if boundary == "" {
 		boundary = "|peer:ai/private-ai-internal"
 	}
+	state := ""
+	if w.dataBinding != "" {
+		state = "|data:" + w.dataBinding
+	}
 	schema := "stackkit.workload-bundle/v2|" + w.kind + "|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:" +
-		w.unitID + "|release:" + w.release + "|secret-material:" + secretMaterial + boundary
+		w.unitID + state + "|release:" + w.release + "|secret-material:" + secretMaterial + boundary
 	sum := sha256.Sum256([]byte(schema))
 	return RendererContract{
 		Kind: "native-config", RendererRef: "stackkit",
@@ -148,10 +156,36 @@ func litellmWorkload() aiAddOnWorkload {
 	}
 }
 
+// qdrantWorkload is the vector store of the Private AI use case: Qdrant on the
+// node's private AI network, reached by the selected chat module over its REST
+// API (6333) with the API key from custody. It is the one add-on that keeps
+// owner data (the collections), so its storage volume is a backup source. It
+// has no egress, publishes no port and is never routed publicly.
+func qdrantWorkload() aiAddOnWorkload {
+	return aiAddOnWorkload{
+		kind: "QdrantWorkloadBundle", name: "Qdrant", moduleID: qdrantWorkloadModuleID, unitID: "qdrant",
+		workloadRef: "ai-vectors", alternativeRef: "qdrant", release: qdrantRelease,
+		imageRef: qdrantImageRef, imageDigest: qdrantImageDigest, port: 6333, secretRefs: []string{"api-key"},
+		dataBinding: "ai-vectors",
+		component: selectedPaaSRuntimeComponent{
+			ID: "qdrant", Role: "application", Lifecycle: "daemon",
+			Image:     selectedPaaSRuntimeImage{Ref: qdrantImageRef, Digest: qdrantImageDigest},
+			DependsOn: []string{}, NetworkRefs: []string{"qdrant-internal"},
+			Environment:       map[string]string{"QDRANT__TELEMETRY_DISABLED": "true"},
+			SecretEnvironment: map[string]string{"QDRANT__SERVICE__API_KEY": "api-key"},
+			Volumes:           []selectedPaaSRuntimeVolume{{ID: "storage", Target: "/qdrant/storage", Class: "persistent", Backup: true}},
+			Health:            selectedPaaSRuntimeHealth{Kind: "http", Path: "/healthz", Port: 6333},
+			Resources:         &selectedPaaSRuntimeLimits{MemoryLimit: "2g", MemoryReservation: "256m"},
+			PeerNetworks:      []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}},
+		},
+	}
+}
+
 func SearxngWorkloadBundleRendererContract() RendererContract { return searxngWorkload().contract() }
 func LitellmWorkloadBundleRendererContract() RendererContract { return litellmWorkload().contract() }
 func TikaWorkloadBundleRendererContract() RendererContract    { return tikaWorkload().contract() }
 func DoclingWorkloadBundleRendererContract() RendererContract { return doclingWorkload().contract() }
+func QdrantWorkloadBundleRendererContract() RendererContract  { return qdrantWorkload().contract() }
 
 // AIAddOnWorkloadBundleDescriptor is the closed runtime artifact of one
 // Private AI add-on accepted by the selected-PaaS executor.
@@ -180,6 +214,10 @@ func ParseDoclingWorkloadBundle(data []byte) (AIAddOnWorkloadBundleDescriptor, e
 
 func ParseLitellmWorkloadBundle(data []byte) (AIAddOnWorkloadBundleDescriptor, error) {
 	return litellmWorkload().parse(data)
+}
+
+func ParseQdrantWorkloadBundle(data []byte) (AIAddOnWorkloadBundleDescriptor, error) {
+	return qdrantWorkload().parse(data)
 }
 
 type aiAddOnWorkloadBundleRenderer struct {
@@ -352,8 +390,8 @@ func (w aiAddOnWorkload) validSecretRefs(refs map[string]string) bool {
 }
 
 // validateComponents admits exactly the governed component: the add-on image,
-// its private network, the peer join to the private AI network and nothing
-// else (no volumes, no published ports, no host rights).
+// its private network, the peer join to the private AI network and, for a
+// stateful add-on, its declared volumes (no published ports, no host rights).
 func (w aiAddOnWorkload) validateComponents(components []selectedPaaSRuntimeComponent, path string) error {
 	if len(components) != 1 {
 		return fail(ErrInvalidPlan, path, "%s", w.name+" runtime graph differs from the closed "+w.release+" contract")
@@ -384,12 +422,22 @@ func (w aiAddOnWorkload) validateServiceEndpoint(endpoint selectedPaaSServiceEnd
 	if endpoint.ServiceRef != w.workloadRef || endpoint.UpstreamProtocol != "http" || endpoint.TargetPort != w.port ||
 		endpoint.RequiredPrivilege != privilege || endpoint.OriginSelector != "control-authority-site" ||
 		endpoint.HealthRef != w.unitID+"-http" || !validBundleApplicationIngressAuth(endpoint.IngressAuth) ||
-		endpoint.Data.BindingRef != "" || len(endpoint.Data.RequiredClasses) != 0 ||
+		!w.validData(endpoint) ||
 		!exactStringList(endpoint.AllowedIngressProtocols, []string{"https"}) ||
 		!sameStringSet(endpoint.AllowedExposures, []string{"local", "remote-private"}) {
 		return fail(ErrInvalidPlan, path, "%s", "route authority differs from the governed private "+w.name+" endpoint")
 	}
 	return nil
+}
+
+// validData admits no data declaration on a stateless add-on and exactly the
+// personal-data binding on a stateful one.
+func (w aiAddOnWorkload) validData(endpoint selectedPaaSServiceEndpoint) bool {
+	if w.dataBinding == "" {
+		return endpoint.Data.BindingRef == "" && len(endpoint.Data.RequiredClasses) == 0
+	}
+	return endpoint.Data.BindingRef == w.dataBinding && endpoint.Data.Locality == "primary-site" &&
+		exactStringList(endpoint.Data.RequiredClasses, []string{"personal"})
 }
 
 func (w aiAddOnWorkload) validateRoute(route applicationDeliveryRoute, path string) error {

@@ -9,8 +9,10 @@ import (
 	"github.com/kombifyio/stackkits/internal/advanceddrift"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatehost"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
+	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 )
 
 // Per-stack drift (docs/ARCHITECTURE.md "Advanced drift per stack (Stage 1)"):
@@ -51,6 +53,12 @@ func attachAdvancedStackDrift(
 	ctx context.Context, workspace string,
 	observation architectureV2DriftObservation, report *driftReport,
 ) error {
+	return attachAdvancedStackDriftWithAdmission(ctx, workspace, observation, report, nil)
+}
+
+func attachAdvancedStackDriftWithAdmission(ctx context.Context, workspace string,
+	observation architectureV2DriftObservation, report *driftReport, admission *opentofu.GenericRestoreAdmission,
+) error {
 	if observation.GenerationTarget != terramatestackgraph.GenerationTarget {
 		return nil
 	}
@@ -60,7 +68,7 @@ func attachAdvancedStackDrift(
 	}
 	tools, toolsErr := terramatehost.PackagedTools()
 	stacks, err := advanceddrift.Detect(ctx, advanceddrift.Request{
-		WorkspaceRoot: workspace, Layout: layout, Tools: tools, ToolsErr: toolsErr,
+		WorkspaceRoot: workspace, Layout: layout, Tools: tools, ToolsErr: toolsErr, Admission: admission,
 		RemoteOwnedModules: architectureV2RemoteOwnedModules(workspace),
 		Event: func(stack advanceddrift.Stack) {
 			rolloutEvent(advanceddrift.EventPhase, stack.Status,
@@ -79,9 +87,36 @@ func attachAdvancedStackDrift(
 	return nil
 }
 
+// admitCurrentDrift resolves the whole destination set without a live read.
+// Current runtime roots are also discovered by the shared admission boundary.
+func admitCurrentDrift(ctx context.Context, workspace, specPath string) (context.Context, func() error, error) {
+	plan, err := currentGenericRuntimePlan(workspace, specPath)
+	if err != nil {
+		return ctx, nil, err
+	}
+	target, err := upgradelifecycle.GenerationTargetForPlan(plan)
+	if err != nil {
+		return ctx, nil, err
+	}
+	expected, err := expectedArchitectureV2OpenTofuStateRoots(workspace, plan, target)
+	if err != nil {
+		return ctx, nil, err
+	}
+	roots := make([]string, 0, len(expected))
+	for _, item := range expected {
+		roots = append(roots, item.Root)
+	}
+	return opentofu.AdmitGenericOperation(ctx, workspace, roots)
+}
+
 // detectCurrentDriftReport observes the current local state and builds the
 // complete drift report, including the per-stack section.
-func detectCurrentDriftReport(ctx context.Context, workspace string) (driftReport, error) {
+func detectCurrentDriftReport(ctx context.Context, workspace string) (_ driftReport, returnErr error) {
+	ctx, release, err := admitCurrentDrift(ctx, workspace, specFile)
+	if err != nil {
+		return driftReport{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, release()) }()
 	observation, err := observeArchitectureV2Drift(ctx, workspace, specFile)
 	if err != nil {
 		return driftReport{}, fmt.Errorf("detect Architecture v2 drift: %w", err)
@@ -99,8 +134,9 @@ func detectCurrentDriftReport(ctx context.Context, workspace string) (driftRepor
 // observeAdvancedReconcileDrift is the pre-reconcile drift report of an
 // Advanced reconcile. Its per-stack plans read OpenTofu state, so they run
 // under the exclusive lifecycle lock, as in `stackkit drift detect`.
-func observeAdvancedReconcileDrift(ctx context.Context) (driftReport, error) {
+func observeAdvancedReconcileDrift(ctx context.Context, admission *opentofu.GenericRestoreAdmission) (driftReport, error) {
 	workspace := getWorkDir()
+	ctx = admission.Context(ctx)
 	observation, err := observeArchitectureV2Drift(ctx, workspace, specFile)
 	if err != nil {
 		return driftReport{}, fmt.Errorf("detect Architecture v2 drift: %w", err)
@@ -110,7 +146,7 @@ func observeAdvancedReconcileDrift(ctx context.Context) (driftReport, error) {
 		return driftReport{}, err
 	}
 	err = withLifecycleMutation(workspace, "drift-reconcile", func() error {
-		return attachAdvancedStackDrift(ctx, workspace, observation, &report)
+		return attachAdvancedStackDriftWithAdmission(ctx, workspace, observation, &report, admission)
 	})
 	return report, err
 }

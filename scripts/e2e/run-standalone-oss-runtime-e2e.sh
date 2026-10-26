@@ -253,7 +253,72 @@ grep -q 'listening on' "$output_dir/tcpdump.stderr.log" || {
 
 runtime_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 runtime_started_epoch="$(date +%s)"
-timeout 600 stackkit apply >"$output_dir/apply.log" 2>&1
+# Observe progress at terminal-output delivery, not after process exit. This
+# catches the observed minutes-long post-hook gap; it is not a write-order clock.
+assert_apply_completion() {
+node - "$1" "$2" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+const binary = process.argv[2];
+const output = process.argv[3];
+fs.mkdirSync(output, { recursive: true });
+const progress = path.join(output, 'apply-progress.jsonl');
+fs.writeFileSync(progress, '', { mode: 0o600 });
+const log = fs.openSync(path.join(output, 'apply.log'), 'w', 0o600);
+let stdout = '';
+let firstOutputEvents;
+let progressReadFailure;
+const child = spawn('timeout', ['600', binary, 'apply', '--json', '--progress-jsonl', progress]);
+child.stdout.setEncoding('utf8');
+child.stdout.on('data', chunk => {
+  if (firstOutputEvents === undefined) {
+    firstOutputEvents = [];
+    try {
+      firstOutputEvents = fs.readFileSync(progress, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+    } catch (error) { progressReadFailure = error.message; }
+  }
+  stdout += chunk.toString();
+  fs.writeSync(log, chunk);
+});
+child.stderr.on('data', chunk => fs.writeSync(log, chunk));
+child.on('error', error => { console.error(error.message); process.exitCode = 1; });
+child.on('close', code => {
+  fs.closeSync(log);
+  fs.writeFileSync(path.join(output, 'apply.json'), stdout, { mode: 0o600 });
+  const expected = ['backup-rebind', 'owner-setup', 'network-watch'].flatMap(phase =>
+    ['started', 'succeeded'].map(status => `apply.${phase}:${status}`));
+  const observed = (firstOutputEvents || []).filter(event =>
+    ['apply.backup-rebind', 'apply.owner-setup', 'apply.network-watch'].includes(event.phase)
+  ).map(event => `${event.phase}:${event.status}`);
+  let failure;
+  try {
+    if (progressReadFailure) throw new Error(`Progress could not be observed at terminal output: ${progressReadFailure}`);
+    const result = JSON.parse(stdout); // Also rejects multiple terminal results.
+    if (code !== 0 || result.schemaVersion !== 'stackkit.command-result/v1' ||
+        result.command !== 'stackkit apply' || result.status !== 'success') {
+      throw new Error(`Apply did not complete successfully (exit ${code})`);
+    }
+    if (JSON.stringify(observed) !== JSON.stringify(expected)) {
+      throw new Error('Apply terminal output was delivered before all post-hook returns were observed in order');
+    }
+  } catch (error) { failure = error.message; }
+  fs.writeFileSync(path.join(output, 'apply-completion.json'), JSON.stringify({
+    status: failure ? 'failed' : 'passed', exitCode: code,
+    observation: 'Progress snapshot at first stdout delivery; not a physical write-order guarantee',
+    phasesObservedBeforeTerminalOutput: observed, failure: failure || null,
+  }, null, 2) + '\n', { mode: 0o600 });
+  if (failure) { console.error(failure); process.exitCode = 1; }
+});
+NODE
+}
+if [ "$stable_day2_proof" = "1" ]; then
+  # The previous release establishes the upgrade baseline and cannot be held to
+  # the candidate's new completion/progress contract.
+  timeout 600 stackkit apply >"$output_dir/apply.log" 2>&1
+else
+  assert_apply_completion "$lifecycle_stackkit" "$output_dir"
+fi
 
 runtime_compose="$project_dir/.stackkit/runtime/basement-core/compose.yaml"
 [ -s "$runtime_compose" ] || {
@@ -522,6 +587,10 @@ if [ "$stable_day2_proof" = "1" ]; then
     printf 'candidate final verification failed\n' >&2
     exit 1
   }
+
+  # Observe command completion only after the upgrade's independent drift and
+  # final verification checks: another Apply must not repair their evidence.
+  assert_apply_completion "$candidate_stackkit" "$stable_day2_dir/candidate-apply"
 
   stable_day2_evidence="$output_dir/stable-day2-live-evidence.json"
   upgrade_snapshot_anchor="$(

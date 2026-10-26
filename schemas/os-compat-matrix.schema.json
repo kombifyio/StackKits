@@ -12,6 +12,13 @@
       "pattern": "^v(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"
     },
     "generatedAt": { "type": "string", "format": "date-time" },
+    "requestedStackkitsVersion": { "$ref": "#/$defs/release" },
+    "testedStackkitsVersion": { "anyOf": [{ "$ref": "#/$defs/release" }, { "type": "null" }] },
+    "referenceBinding": { "$ref": "#/$defs/referenceBinding" },
+    "currentResult": { "enum": ["PASS", "FAIL", "PARTIAL", "NOT_RUN"] },
+    "currentPassCount": { "type": "integer", "minimum": 0 },
+    "windowCoverage": { "$ref": "#/$defs/windowCoverage" },
+    "runtimeObservations": { "type": "array", "items": { "$ref": "#/$defs/runtimeObservation" } },
     "results": {
       "type": "array",
       "minItems": 1,
@@ -32,6 +39,485 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "windowCoverage": {
+      "type": "object",
+      "required": [
+        "reportSha256",
+        "candidateDigest",
+        "generatedAt",
+        "result",
+        "declared",
+        "passed",
+        "pending",
+        "failed",
+        "blocked",
+        "notRun",
+        "obligations"
+      ],
+      "properties": {
+        "reportSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidateDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "generatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "result": {
+          "enum": [
+            "passed",
+            "pending",
+            "failed",
+            "blocked",
+            "not-run"
+          ]
+        },
+        "declared": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notRun": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "obligations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "suite",
+              "result"
+            ],
+            "properties": {
+              "suite": {
+                "enum": [
+                  "stackkits-standalone-files-restore",
+                  "stackkits-standalone-photos-restore",
+                  "stackkits-standalone-files-restore-ubuntu-24.04",
+                  "stackkits-standalone-photos-restore-ubuntu-24.04",
+                  "stackkits-standalone-files-restore-debian-13",
+                  "stackkits-standalone-photos-restore-debian-13",
+                  "stackkits-retained-marketplace"
+                ]
+              },
+              "result": {
+                "enum": [
+                  "passed",
+                  "pending",
+                  "failed",
+                  "blocked",
+                  "not-run"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "operationName": {
+      "enum": [
+        "install",
+        "init",
+        "generate",
+        "apply",
+        "verify",
+        "backup",
+        "restore",
+        "setup-files",
+        "setup-photos",
+        "files-restart",
+        "photos-restart",
+        "owner-setup",
+        "enrollment",
+        "connected",
+        "independent-readback",
+        "cleanup",
+        "remove",
+        "retain-data"
+      ]
+    },
+    "runtimeIdentity": {
+      "type": "object",
+      "required": [
+        "family",
+        "distribution",
+        "version",
+        "arch",
+        "environment"
+      ],
+      "properties": {
+        "family": {
+          "const": "linux"
+        },
+        "distribution": {
+          "enum": [
+            "ubuntu",
+            "unknown"
+          ]
+        },
+        "version": {
+          "enum": [
+            "26.04",
+            "24.04",
+            "unknown"
+          ]
+        },
+        "arch": {
+          "enum": [
+            "amd64",
+            "arm64",
+            "unknown"
+          ]
+        },
+        "environment": {
+          "enum": [
+            "depot-vm",
+            "disposable-vm",
+            "retained-lxd-guest"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "referenceBinding": {
+      "type": "object",
+      "required": [
+        "requestedRelease"
+      ],
+      "properties": {
+        "scope": { "enum": ["product-artifact", "test-window-candidate"] },
+        "operationScope": { "const": "retained-selective-files-removal" },
+        "requestedRelease": {
+          "$ref": "#/$defs/release"
+        },
+        "sourceCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "producerCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "artifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "runtimeIdentity": {
+          "$ref": "#/$defs/runtimeIdentity"
+        },
+        "indexSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "catalogSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scenarioDefinitionsDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidateDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "consumerSha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "requiredPhases": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/operationName"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtimeObservation": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "id",
+        "subject",
+        "originalOutcome",
+        "receiptSha256",
+        "operations",
+        "executionState",
+        "applicability",
+        "currentResult",
+        "reasonCodes"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "stackkits.runtime-observation/v1"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^runtime_[a-f0-9]{64}$"
+        },
+        "subject": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "product",
+                "useCase"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "StackKitUseCase"
+                },
+                "product": {
+                  "const": "stackkits"
+                },
+                "useCase": {
+                  "enum": [
+                    "files",
+                    "photos"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": [
+                "kind",
+                "product"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "Product"
+                },
+                "product": {
+                  "const": "guard"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "operationScope": { "const": "retained-selective-files-removal" },
+        "originalOutcome": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "PARTIAL",
+            "NOT_RUN"
+          ]
+        },
+        "receiptSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "testedRelease": {
+          "$ref": "#/$defs/release"
+        },
+        "sourceCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "producerCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "controllerSourceCommit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "artifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "indexSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "catalogSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scenarioDefinitionsDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "candidateDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "consumerSha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "evidenceIndexSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "suiteBindingSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "suiteCandidateDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "githubNativeArchiveSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "githubSuiteArchiveSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "githubMetadataSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "windowReportSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "suiteBindingState": {
+          "enum": ["source-only", "artifact-verified"]
+        },
+        "producerArtifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "runtimeIdentity": {
+          "$ref": "#/$defs/runtimeIdentity"
+        },
+        "capacity": {
+          "type": "object",
+          "required": [
+            "cpus",
+            "memoryMiB",
+            "diskGiB"
+          ],
+          "properties": {
+            "cpus": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "memoryMiB": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "diskGiB": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "status"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/operationName"
+              },
+              "status": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "partial",
+                  "not-run"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "executionState": {
+          "enum": [
+            "passed",
+            "failed",
+            "partial",
+            "not-run"
+          ]
+        },
+        "applicability": {
+          "enum": [
+            "current",
+            "historical",
+            "stale",
+            "unbound"
+          ]
+        },
+        "currentResult": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "PARTIAL",
+            "NOT_RUN"
+          ]
+        },
+        "reasonCodes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "release-mismatch",
+              "exact-bindings-required",
+              "reference-binding-mismatch",
+              "required-phases-incomplete"
+            ]
+          }
+        }
+      },
+      "allOf": [{
+        "if": { "required": ["operationScope"] },
+        "then": {
+          "required": ["runtimeIdentity", "suiteBindingState"],
+          "properties": {
+            "subject": { "const": { "kind": "StackKitUseCase", "product": "stackkits", "useCase": "files" } },
+            "runtimeIdentity": { "const": { "family": "linux", "distribution": "ubuntu", "version": "24.04", "arch": "amd64", "environment": "retained-lxd-guest" } },
+            "suiteBindingState": { "const": "artifact-verified" },
+            "operations": { "minItems": 4, "maxItems": 4, "items": { "properties": { "name": { "enum": ["verify", "remove", "retain-data", "cleanup"] } } } }
+          }
+        },
+        "else": { "properties": { "runtimeIdentity": { "properties": { "environment": { "not": { "const": "retained-lxd-guest" } } } }, "operations": { "items": { "properties": { "name": { "not": { "enum": ["remove", "retain-data"] } } } } } } }
+      }],
+      "additionalProperties": false
+    },
     "release": {
       "type": "string",
       "pattern": "^v(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)$"

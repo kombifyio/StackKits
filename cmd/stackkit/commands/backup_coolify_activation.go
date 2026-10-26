@@ -35,6 +35,9 @@ func nativeApplicationRestoreActivationRuntime(ctx context.Context, workspace st
 	if err != nil {
 		return nil, err
 	}
+	if binding.Runtime.RuntimeAdapterRef == "runtipi" {
+		return nativeRuntipiRestoreActivationRuntime(ctx, workspace, base, selected, binding, current, held)
+	}
 	bound, err := restoreactivation.WithApplicationBinding(base, selected, binding, current)
 	if err != nil {
 		return nil, err

@@ -11,15 +11,49 @@ package advanceddrift
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatehost"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
+
+// PrepareReconcile scopes observation and repair to one complete layout batch.
+func PrepareReconcile(ctx context.Context, workspace string, layouts []terramatehost.Layout, use func(context.Context, *opentofu.GenericRestoreAdmission) error) (returnErr error) {
+	var roots []string
+	for _, layout := range layouts {
+		selected, err := layoutRuntimeRoots(layout)
+		if err != nil {
+			return err
+		}
+		roots = append(roots, selected...)
+	}
+	admission, err := opentofu.AcquireGenericRestoreAdmission(workspace, roots)
+	if err != nil {
+		return err
+	}
+	defer func() { returnErr = errors.Join(returnErr, admission.Close()) }()
+	return use(admission.Context(ctx), admission)
+}
+
+func layoutRuntimeRoots(layout terramatehost.Layout) ([]string, error) {
+	var roots []string
+	for _, id := range layout.Host.RunOrder {
+		stack, found := layout.Stack(id)
+		if !found {
+			return nil, fmt.Errorf("host run order names unknown stack %s", id)
+		}
+		if stack.Role != terramatestackgraph.RoleHost {
+			roots = append(roots, stack.RuntimeRoot)
+		}
+	}
+	return roots, nil
+}
 
 // EventPhase is the rollout event phase emitted once per stack, so Techstack
 // can stream one drift subject per stack.
@@ -68,6 +102,9 @@ type Request struct {
 	WorkspaceRoot string
 	Layout        terramatehost.Layout
 	Tools         terramatehost.Tools
+	// Admission spans a surrounding reconcile's observation and repair. A
+	// standalone Detect acquires and releases its own complete layout lease.
+	Admission *opentofu.GenericRestoreAdmission
 	// ToolsErr reports that the packaged binaries are unavailable; every
 	// stack is then failed without any process run.
 	ToolsErr error
@@ -84,8 +121,28 @@ type Request struct {
 // A missing core root leaves the host project unmaterialized and reports
 // every local stack as pending_root. An error is returned only for an
 // invalid request; stack-level failures are entries with status failed.
-func Detect(ctx context.Context, request Request) ([]Stack, error) {
+func Detect(ctx context.Context, request Request) (_ []Stack, returnErr error) {
 	layout := request.Layout
+	roots, err := layoutRuntimeRoots(layout)
+	if err != nil {
+		return nil, err
+	}
+	admission := request.Admission
+	if admission == nil {
+		var release func() error
+		ctx, release, err = opentofu.AdmitGenericOperation(ctx, request.WorkspaceRoot, roots)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { returnErr = errors.Join(returnErr, release()) }()
+		// Materialization borrows the same context below, without another lock.
+
+	} else if err := admission.CheckRoots(request.WorkspaceRoot, roots); err != nil {
+		return nil, err
+	}
+	if admission != nil {
+		ctx = admission.Context(ctx)
+	}
 	emit := request.Event
 	if emit == nil {
 		emit = func(Stack) {}
@@ -126,7 +183,7 @@ func Detect(ctx context.Context, request Request) ([]Stack, error) {
 	if len(missing) > 0 {
 		return skipAll(StackPendingRoot, "core OpenTofu roots are not installed ("+strings.Join(missing, ", ")+"); the host project was not materialized"), nil
 	}
-	if _, err := terramatehost.Materialize(request.WorkspaceRoot, layout); err != nil {
+	if _, err := terramatehost.MaterializeContext(ctx, request.WorkspaceRoot, layout); err != nil {
 		return skipAll(StackFailed, "materialize host project: "+err.Error()), nil
 	}
 	for _, stack := range local {

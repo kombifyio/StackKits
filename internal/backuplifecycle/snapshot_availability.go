@@ -37,6 +37,10 @@ func (s *Service) snapshotAvailability(ctx context.Context, configuration Config
 		result.Reason = "snapshot-receipt-not-authenticated"
 		return result, nil
 	}
+	if len(anchor.Workloads) > 0 {
+		result.Reason = "application-scoped-snapshot-is-not-node-backup"
+		return result, nil
+	}
 	if anchor.OwnerRef != configuration.OwnerRef || anchor.AuthorityRef != configuration.AuthorityRef ||
 		anchor.PolicyArtifactDigest != configuration.PolicyArtifactDigest ||
 		anchor.Repository.RepositoryID != configuration.Repository.RepositoryID ||

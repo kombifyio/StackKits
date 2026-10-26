@@ -100,7 +100,7 @@ func (c Capability) ExpiresAtTime() time.Time {
 // ValidateClaims checks every time-independent wire rule of the unsigned
 // document: constants, patterns, a Techstack issuer, a non-empty sorted
 // operation set, logical references, exact-second UTC times, the 30-day
-// lifetime bound, and the backup renewal shape. It does not check the
+// lifetime bound, and the backup renewal and transfer retirement shapes. It does not check the
 // signature, trusted time, or the caller's local scope.
 func (c Capability) ValidateClaims() error {
 	if err := c.checkFormats(); err != nil {
@@ -140,6 +140,19 @@ func (c Capability) ValidateClaims() error {
 	}
 	if lifetime > MaxLifetimeSeconds*time.Second {
 		return invalid("expiresAt", "lifetime exceeds the maximum")
+	}
+	retirementOperation := slices.Contains(c.AllowedOperations, OperationApplicationTransferRetire)
+	if retirementOperation || c.TransferRetirement != nil {
+		if !retirementOperation || len(c.AllowedOperations) != 1 || c.TransferRetirement == nil || c.BackupRenewal != nil || lifetime > TransferRetirementMaxLifetimeSeconds*time.Second {
+			return invalid("transferRetirement", "requires one short-lived application-transfer.retire operation and its exact scope")
+		}
+		if err := c.TransferRetirement.checkFormats(); err != nil {
+			validation := err.(*ValidationError)
+			return invalid("transferRetirement."+validation.Field, validation.Detail)
+		}
+		if c.TransferRetirement.BaselineSpecHash == c.TransferRetirement.CandidateSpecHash {
+			return invalid("transferRetirement.candidateSpecHash", "must retire selected intent from a different baseline")
+		}
 	}
 	if c.BackupRenewal != nil {
 		if len(c.AllowedOperations) != 1 || c.AllowedOperations[0] != BackupRenewalOperation || lifetime > BackupRenewalMaxLifetimeSeconds*time.Second {

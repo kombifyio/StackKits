@@ -37,6 +37,13 @@ func beginOrResumeArchitectureV2Removal(workspace string, plan generationartifac
 			!slices.Contains(contract.Stages["remove"].Operations, "stackkit.remove") {
 			return nil, false, errors.New("unfinished lifecycle must be recovered under its original operation and plan authority")
 		}
+		if current.Status == applicationlifecycle.StatusRunning {
+			// Resume the removal as its owner; refuses while another live
+			// process still runs it.
+			if err := store.ClaimRunningOperation(contract, current.ID); err != nil {
+				return nil, false, err
+			}
+		}
 		return []architectureV2ApplicationLifecycleRun{{Contract: contract, OperationID: current.ID}}, true, nil
 	}
 	runs, err := beginArchitectureV2ApplicationLifecycles(workspace, plan, "remove", "stackkit.remove", workload, now)

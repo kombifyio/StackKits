@@ -33,6 +33,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/terramatehost"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
+	"github.com/kombifyio/stackkits/internal/workloadremoval"
 	"github.com/spf13/cobra"
 )
 
@@ -47,7 +48,7 @@ type advancedMutationRequest struct {
 	// ObserveDrift observes the pre-reconcile drift report of an Advanced
 	// drift reconcile after admission and before any side effect; its
 	// drifted stacks are forced to re-converge. Nil forces none.
-	ObserveDrift func(context.Context) (driftReport, error)
+	ObserveDrift func(context.Context, *opentofu.GenericRestoreAdmission) (driftReport, error)
 }
 
 type advancedMutationResult struct {
@@ -76,7 +77,8 @@ type advancedMutationResult struct {
 	// RestoredRuntimeFiles are the governed runtime files an Advanced drift
 	// reconcile rewrote to their authorized bytes before its rollback
 	// checkpoint, with the digest of the drifted bytes as evidence.
-	RestoredRuntimeFiles []restoredRuntimeFile `json:"restoredRuntimeFiles,omitempty"`
+	RestoredRuntimeFiles []restoredRuntimeFile      `json:"restoredRuntimeFiles,omitempty"`
+	RemovedWorkloads     []workloadremoval.Evidence `json:"removedWorkloads,omitempty"`
 }
 
 // restoredRuntimeFile is one governed runtime file of one stack an Advanced
@@ -95,6 +97,7 @@ type verifiedAdvancedMutation struct {
 	digest        string
 	candidate     architecturev2renderer.RenderResult
 	candidatePlan generationartifact.VerifiedPlan
+	baselinePlan  generationartifact.VerifiedPlan
 	// baselineLayout is the local host layout of the applied generation; an
 	// Advanced drift reconcile forces its drifted stacks through it before
 	// the target generate replaces that generation.
@@ -156,6 +159,7 @@ type advancedTerramateOrchestration struct {
 	// re-converge; reconciled records the outcome per forced stack.
 	reconcile  []string
 	reconciled []terramatehost.StackResult
+	removed    []workloadremoval.Evidence
 }
 
 // forceConverge re-converges the drifted stacks of an Advanced drift
@@ -205,7 +209,7 @@ func (orchestration *advancedTerramateOrchestration) forceConverge(
 // written; a stack whose drift is not in its files (a stopped container) has
 // nothing to restore and is forced as before.
 func restoreAdvancedReconcileRuntimeFiles(
-	ctx context.Context, workspace string, verified verifiedAdvancedMutation, stacks []string,
+	ctx context.Context, workspace string, verified verifiedAdvancedMutation, stacks []string, admission *opentofu.GenericRestoreAdmission,
 ) ([]restoredRuntimeFile, error) {
 	if len(stacks) == 0 {
 		return nil, nil
@@ -214,40 +218,62 @@ func restoreAdvancedReconcileRuntimeFiles(
 	if layout == nil {
 		return nil, errors.New("advanced drift reconcile requires the applied Terramate host layout")
 	}
-	restored := make([]restoredRuntimeFile, 0)
+	// Selection reads executor custody, so lock/admit every current root and
+	// every selected destination before inspecting markers or repairing files.
+	var destinations []string
 	for _, id := range layout.Host.RunOrder {
 		stack, found := layout.Stack(id)
-		if !slices.Contains(stacks, id) || !found ||
+		if found && slices.Contains(stacks, id) && stack.Role != "host" &&
+			stack.SiteRef == layout.Host.SiteRef && stack.NodeRef == layout.Host.NodeRef {
+			destinations = append(destinations, stack.RuntimeRoot)
+		}
+	}
+	if err := admission.CheckRoots(workspace, destinations); err != nil {
+		return nil, err
+	}
+	var repairs []opentofu.RuntimeRootRestore
+	stackIDs := make(map[string]string)
+	for _, id := range layout.Host.RunOrder {
+		stack, found := layout.Stack(id)
+		if !slices.Contains(stacks, id) || !found || stack.Role == "host" ||
 			stack.SiteRef != layout.Host.SiteRef || stack.NodeRef != layout.Host.NodeRef {
 			continue
 		}
 		marker, err := opentofu.ReadRootMarker(filepath.Join(workspace, filepath.FromSlash(stack.RuntimeRoot)))
-		if err != nil {
-			// No executor root: the forced convergence skips the stack too.
+		if os.IsNotExist(err) {
+			// No executor marker: leave an admitted absent/prepared root to
+			// its normal governed convergence, without manufacturing files.
 			continue
 		}
-		var files []nativehost.RuntimeFileRestore
+		if err != nil {
+			return nil, err
+		}
+		repair := opentofu.RuntimeRootRestore{RuntimeRoot: stack.RuntimeRoot}
 		switch marker.Kind {
 		case "":
 			config, governed := verified.baselineArtifacts[stack.Artifacts.OpenTofu]
 			if !governed {
-				return restored, fmt.Errorf("the applied generation has no governed OpenTofu root for stack %s", id)
+				return nil, fmt.Errorf("the applied generation has no governed OpenTofu root for stack %s", id)
 			}
-			files, err = opentofu.RestoreCoreRoot(workspace, stack.RuntimeRoot, config)
+			repair.CoreConfig = config
 		case opentofu.RootKindWorkload:
-			var bundle []byte
-			if bundle, err = advancedRollbackWorkloadBundle(verified.baselineArtifacts, marker.ModuleRef, marker.InstanceRef); err == nil {
-				files, err = opentofu.RestoreWorkloadRoot(ctx, workspace, stack.RuntimeRoot, bundle)
+			repair.WorkloadBundle, err = advancedRollbackWorkloadBundle(verified.baselineArtifacts, marker.ModuleRef, marker.InstanceRef)
+			if err != nil {
+				return nil, err
 			}
 		default:
 			continue
 		}
-		if err != nil {
-			return restored, fmt.Errorf("restore the governed runtime files of stack %s: %w", id, err)
-		}
-		for _, file := range files {
-			restored = append(restored, restoredRuntimeFile{StackID: id, RuntimeFileRestore: file})
-		}
+		repairs = append(repairs, repair)
+		stackIDs[stack.RuntimeRoot] = id
+	}
+	files, err := admission.RestoreRuntimeRootFiles(ctx, repairs)
+	restored := make([]restoredRuntimeFile, 0, len(files))
+	for _, file := range files {
+		restored = append(restored, restoredRuntimeFile{StackID: stackIDs[file.RuntimeRoot], RuntimeFileRestore: file.RuntimeFileRestore})
+	}
+	if err != nil {
+		return restored, fmt.Errorf("restore governed reconcile runtime files: %w", err)
 	}
 	return restored, nil
 }
@@ -261,10 +287,7 @@ func (orchestration *advancedTerramateOrchestration) convergeStacks(
 	if len(orchestration.reconcile) == 0 {
 		return affected, nil
 	}
-	order, err := terramatestackgraph.RunOrder(layout.Graph)
-	if err != nil {
-		return nil, err
-	}
+	order := layout.Host.RunOrder
 	stacks := make([]string, 0, len(affected)+len(orchestration.reconcile))
 	for _, id := range order {
 		if slices.Contains(affected, id) || slices.Contains(orchestration.reconcile, id) {
@@ -442,24 +465,37 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 		}
 		orchestration = &advancedTerramateOrchestration{tools: tools}
 	}
-	if request.Operation == advancedcapability.OperationDriftReconcileAdvanced && request.ObserveDrift != nil {
-		// The drift the reconcile must repair is observed after admission and
-		// before the checkpoint: the target apply rewrites an edited payload,
-		// so after it the plans no longer show which stack drifted.
-		before, observeErr := request.ObserveDrift(ctx)
-		if observeErr != nil {
-			return result, fmt.Errorf("observe drift before the Advanced reconcile: %w", observeErr)
+	if orchestration == nil {
+		if err := refuseUnorchestratedWorkloadRetirement(verified); err != nil {
+			return result, err
 		}
-		orchestration.reconcile = advanceddrift.ReconcileTargets(before.HasDrift, before.Stacks)
-		// Drifted governed runtime files are what the reconcile repairs, and
-		// the checkpoint below refuses them; they are restored first.
-		restoreErr := withLifecycleMutation(workspace, "drift-reconcile", func() error {
-			restored, err := restoreAdvancedReconcileRuntimeFiles(ctx, workspace, verified, orchestration.reconcile)
-			result.RestoredRuntimeFiles = restored
-			return err
+	}
+	if request.Operation == advancedcapability.OperationDriftReconcileAdvanced && request.ObserveDrift != nil {
+		candidateLayout, err := terramatehost.PlanFromArtifacts(verified.candidate.Artifacts(), verified.admission.owner.Binding.SiteRef, verified.admission.owner.Binding.NodeRef)
+		if err != nil {
+			return result, err
+		}
+		layouts := []terramatehost.Layout{candidateLayout}
+		if verified.baselineLayout != nil {
+			layouts = append(layouts, *verified.baselineLayout)
+		}
+		// Observation itself can materialize and plan. One complete admission
+		// precedes that callback and survives through repair, then releases before
+		// checkpoint/target children perform their normal executor admission.
+		prepareErr := advanceddrift.PrepareReconcile(ctx, workspace, layouts, func(ctx context.Context, admission *opentofu.GenericRestoreAdmission) error {
+			before, err := request.ObserveDrift(ctx, admission)
+			if err != nil {
+				return fmt.Errorf("observe drift before the Advanced reconcile: %w", err)
+			}
+			orchestration.reconcile = advanceddrift.ReconcileTargets(before.HasDrift, before.Stacks)
+			return withLifecycleMutation(workspace, "drift-reconcile", func() error {
+				restored, err := restoreAdvancedReconcileRuntimeFiles(ctx, workspace, verified, orchestration.reconcile, admission)
+				result.RestoredRuntimeFiles = restored
+				return err
+			})
 		})
-		if restoreErr != nil {
-			return result, fmt.Errorf("restore governed runtime files before the Advanced reconcile checkpoint: %w", restoreErr)
+		if prepareErr != nil {
+			return result, fmt.Errorf("prepare governed Advanced reconcile: %w", prepareErr)
 		}
 	}
 	result.PlanHash = verified.admission.candidate.PlanHash
@@ -557,6 +593,9 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 		result.ChangeSetResult = orchestration.report
 		result.RollbackResult = orchestration.rollback
 		result.ReconciledStacks = orchestration.reconciled
+		if transactionErr == nil {
+			result.RemovedWorkloads = orchestration.removed
+		}
 	}
 	transactionErr = completeAdvancedApplicationLifecycles(
 		workspace, applicationRuns, result, transactionErr,
@@ -754,6 +793,14 @@ func verifyAdvancedMutation(
 	if err != nil {
 		return verifiedAdvancedMutation{}, fmt.Errorf("verify Advanced candidate lifecycle plan: %w", err)
 	}
+	baselineResolution, err := admission.baselineCurrent.Result()
+	if err != nil {
+		return verifiedAdvancedMutation{}, err
+	}
+	baselinePlan, err := admission.service.VerifyCanonicalPlan(baselineResolution.CanonicalPlan)
+	if err != nil {
+		return verifiedAdvancedMutation{}, fmt.Errorf("verify Advanced baseline removal plan: %w", err)
+	}
 	baselineHash, err := advancedchangeset.RenderSHA256(baseline)
 	if err != nil {
 		return verifiedAdvancedMutation{}, err
@@ -819,7 +866,7 @@ func verifyAdvancedMutation(
 	return verifiedAdvancedMutation{
 		admission: admission, record: record,
 		digest:    "sha256:" + hex.EncodeToString(digest[:]),
-		candidate: candidate, candidatePlan: candidatePlan,
+		candidate: candidate, candidatePlan: candidatePlan, baselinePlan: baselinePlan,
 		baselineLayout: baselineLayout, baselineArtifacts: baselineArtifacts,
 		candidateBackupAuthority: backupAuthority,
 	}, nil
@@ -1006,6 +1053,13 @@ func executeAdvancedMutation(
 				// are already sealed in the rollback checkpoint.
 				if forceErr := orchestration.forceConverge(operationCtx, workspace, revalidated); forceErr != nil {
 					return forceErr
+				}
+				// Baseline-only stacks have no candidate graph entry. Remove
+				// their exact applied local workloads through the existing native
+				// owner before adopting intent; the checkpoint already seals the
+				// prior runtime and data for coordinated recovery.
+				if removeErr := orchestration.removeRetiredWorkloads(operationCtx, workspace, revalidated); removeErr != nil {
+					return removeErr
 				}
 				if writeErr := writeAdvancedCandidateIntent(
 					workspace, specFile, revalidated.admission.candidateRaw,

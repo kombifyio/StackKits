@@ -10,7 +10,14 @@ uses it as the relocation engine for Coolify workloads
 | --- | --- |
 | Upstream | https://github.com/mtalavi/coolify-mirror |
 | Upstream commit | `f46fa093644268759fc0802e7d098e9e45dee984` (release 1.9.3, 2026-10-15) |
-| Fork revision | `kombify.4` |
+| Fork revision | `kombify.5` |
+
+Revision `kombify.5` binds relocation backup and restore to the checked plan and
+semantic transfer identity, emits a resource verification receipt and supports
+read-only current-runtime observations. The receipt identifies the encrypted
+archive by SHA-256. Applications with automatic deployments enabled or an
+active deployment are refused before source drain. Restore failures after the
+database commit are retained outcomes, never described as an automatic rollback.
 | Tested Coolify | 4.4.6 (the StackKits pin) |
 
 Upstream's `docs/`, `site/`, `lab/`, `scripts/` and `install.sh` are not
@@ -78,3 +85,12 @@ LICENSE under `licenses/coolify-mirror/`, and into the Debian package.
    `internal/workloadrelocation/coolify/engine.go` (`Pinned`).
 3. Build with `CGO_ENABLED=0 go build -trimpath ./cmd/coolify-mirror` and run
    `stackkit relocate plan` and `check` between two Coolify servers.
+
+The kombify.5 checked-relocation recovery extension uses transfer-keyed source
+drain journals, durable original Docker restart policies, pre-serve signed
+ciphertext preparation, and a destination no-effects abort marker serialized
+with the existing engine Apply lock. It refuses standalone databases whose
+external writers cannot be fenced, automatic/preview deployments, and full
+controller replacement through the checked relocation adapter. Requested domain
+switches require exact readback. These source changes require the exact built
+Preview candidate; they do not claim a newly published stable capability.

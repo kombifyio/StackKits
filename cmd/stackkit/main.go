@@ -3,9 +3,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/kombifyio/stackkits/cmd/stackkit/commands"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/secretexec"
 )
 
@@ -25,6 +27,10 @@ func main() {
 	commands.SetVersionInfo(Version, GitCommit, BuildDate)
 
 	if isAPIMode(os.Args) {
+		if err := runtimeprofile.Boot(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 		os.Exit(runAPIMode(context.Background(), os.Args[2:]))
 	}
 

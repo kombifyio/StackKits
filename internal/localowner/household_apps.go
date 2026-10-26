@@ -94,6 +94,23 @@ func ensureHouseholdOpenGroup(ctx context.Context, client pocketIDOwnerClient) (
 		if user.IsAdmin || !householdMember(user) || hasRequiredGroups(user.UserGroups) {
 			continue
 		}
+		if fenced, ok := client.(pocketIDMembershipClient); ok {
+			if e := fenced.RequireMembershipCAS(ctx); e == nil {
+				snapshot, e := fenced.GetMembership(ctx, user.ID)
+				if e != nil {
+					return "", e
+				}
+				if snapshot.ConditionalRequired {
+					continue
+				}
+				if _, e = fenced.UpdateMembership(ctx, *snapshot, requiredAndExistingGroupIDs([]string{id}, snapshot.User.UserGroups)); e != nil {
+					return "", e
+				}
+				continue
+			} else if !errors.Is(e, pocketid.ErrNotFound) {
+				return "", e
+			}
+		}
 		if _, err := client.UpdateUserGroups(ctx, user.ID, requiredAndExistingGroupIDs([]string{id}, user.UserGroups)); err != nil {
 			return "", errors.New("localowner: household open-group seeding failed")
 		}
@@ -148,23 +165,65 @@ func householdAccessGroupIDs(ctx context.Context, client pocketIDOwnerClient, ac
 // user-tier app clients so a legacy client cannot still admit the whole
 // household.
 func (s *Service) applyHouseholdAccess(ctx context.Context, client pocketIDOwnerClient, user pocketid.User, access HouseholdAppAccess) error {
+	return s.applyHouseholdAccessWithFence(ctx, client, user, access, false)
+}
+
+// requireCAS is chosen by the projection entrypoint, never a request flag.
+func (s *Service) applyHouseholdAccessWithFence(ctx context.Context, client pocketIDOwnerClient, user pocketid.User, access HouseholdAppAccess, requireCAS bool) error {
+	fenced, hasFence := client.(pocketIDMembershipClient)
+	if hasFence {
+		err := fenced.RequireMembershipCAS(ctx)
+		if errors.Is(err, pocketid.ErrNotFound) && !requireCAS {
+			// Unmodified official providers support the established manual lane.
+			// Every other capability failure remains fail closed.
+			hasFence = false
+		} else if err != nil {
+			return errors.New("localowner: conditional membership provider unavailable")
+		}
+	}
+	if requireCAS && !hasFence {
+		return errors.New("localowner: conditional membership provider required")
+	}
 	desired, err := householdAccessGroupIDs(ctx, client, access)
 	if err != nil {
 		return err
 	}
-	ids := append([]string(nil), desired...)
-	for _, group := range user.UserGroups {
-		if group.Name == householdOpenGroupName || strings.HasPrefix(group.Name, householdAppGroupPrefix) {
-			continue
+	for attempt := 0; attempt < 3; attempt++ {
+		var snapshot *pocketid.MembershipSnapshot
+		if hasFence {
+			snapshot, err = fenced.GetMembership(ctx, user.ID)
+			if err != nil {
+				return err
+			}
+			user = snapshot.User
 		}
-		ids = append(ids, group.ID)
+		ids := append([]string(nil), desired...)
+		for _, group := range user.UserGroups {
+			if group.Name != householdOpenGroupName && !strings.HasPrefix(group.Name, householdAppGroupPrefix) {
+				ids = append(ids, group.ID)
+			}
+		}
+		sort.Strings(ids)
+		ids = slices.Compact(ids)
+		var updated *pocketid.User
+		if hasFence {
+			var committed *pocketid.MembershipSnapshot
+			committed, err = fenced.UpdateMembership(ctx, *snapshot, ids)
+			if errors.Is(err, pocketid.ErrMembershipConflict) {
+				continue
+			}
+			if err == nil {
+				updated = &committed.User
+			}
+		} else {
+			updated, err = client.UpdateUserGroups(ctx, user.ID, ids)
+		}
+		if err != nil || updated == nil || !householdMember(*updated) || !sameAccess(householdAccessOf(*updated), access) {
+			return errors.New("localowner: household app grant remains unconfirmed")
+		}
+		return s.convergeHouseholdAppClients(ctx, client)
 	}
-	sort.Strings(ids)
-	updated, err := client.UpdateUserGroups(ctx, user.ID, slices.Compact(ids))
-	if err != nil || updated == nil || !householdMember(*updated) || !sameAccess(householdAccessOf(*updated), access) {
-		return errors.New("localowner: household app grant readback failed")
-	}
-	return s.convergeHouseholdAppClients(ctx, client)
+	return errors.New("localowner: household membership contention; retry latest projection")
 }
 
 func sameAccess(a, b HouseholdAppAccess) bool {

@@ -1,0 +1,112 @@
+{
+  "schema": "pocketid-membership-cas-source-v1",
+  "contract": "pocketid-membership-cas-v1",
+  "upstreamRepository": "https://github.com/pocket-id/pocket-id",
+  "upstreamTag": "v2.16.0",
+  "upstreamCommit": "bb05e6922444c33eec87466919f1bcf105967825",
+  "archiveURL": "https://codeload.github.com/pocket-id/pocket-id/tar.gz/bb05e6922444c33eec87466919f1bcf105967825",
+  "archiveSHA256": "6b92b6e02b89bcb557c5b66fbd6d2ecdede479b4133111f237fba279434c60d6",
+  "license": "BSD-2-Clause",
+  "licenseSHA256": "c4822dc23fddabd9aef6cd1b1e5dfe307cbc36dc0f1d662e82d58ebc886d9d0f",
+  "patchSHA256": "339b3aba9b1d6bdd990cf5cb0e2e61e339f44a731d574f989e8b64cc1cacd698",
+  "files": [
+    {
+      "path": "backend/internal/controller/membership.go",
+      "beforeSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSHA256": "8eb02ef87f2c5944dad8c89a8fa875a88029529a1c5bca91ed7cfb17714cbcb1"
+    },
+    {
+      "path": "backend/internal/controller/user_controller.go",
+      "beforeSHA256": "2acbc15414f852413cdd2fc3399666af3a20e45b4a8239b1fd79af0205bcebbd",
+      "afterSHA256": "98ec720591b15dcc918c84280afd51e9d0d2ce263f2c4d68759b184a7daa742c"
+    },
+    {
+      "path": "backend/internal/controller/user_group_controller.go",
+      "beforeSHA256": "3d9ed285bba70675329abea490d409e893a5003f3984b81bb468221fec4325e1",
+      "afterSHA256": "de2898d38bf8cc5f4baa379fa8a349166a0d72fb37be66cfdaf6ee15745db4f7"
+    },
+    {
+      "path": "backend/internal/ldapsync/service.go",
+      "beforeSHA256": "2b8662ecc133fa0826e11651ab569aabec266db963a5f7c084dd37c7d3e74e06",
+      "afterSHA256": "4145e773041455ee56abb7fbaafae527e24b5880f5bcca9f5d836edaacfd65d5"
+    },
+    {
+      "path": "backend/internal/membership/fence.go",
+      "beforeSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSHA256": "3fcb22e4c453af834fdcf28e6a2a9efb0b26bf009f3976b89e5815f6d40d4306"
+    },
+    {
+      "path": "backend/internal/service/membership_protocol_test.go",
+      "beforeSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSHA256": "f12473719e3d359770fda48db0c1afc2f9b8f10ae5edea750ca883454b1757d7"
+    },
+    {
+      "path": "backend/internal/service/membership_snapshot.go",
+      "beforeSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSHA256": "5b6028526139b4002005d538910dda1ff7d2dfe74f6b88aaee66cf788c0c82ce"
+    },
+    {
+      "path": "backend/internal/service/user_group_service.go",
+      "beforeSHA256": "fec9fe5a81a79b0ebbeed1b3c1c771e7d4420cdff9bd48a2b9dd6b04d5a00102",
+      "afterSHA256": "4e25d92c62837ebef67a5dd72736da0f62f4dbf7d03365eef3807f49d2f397c6"
+    },
+    {
+      "path": "backend/internal/service/user_service.go",
+      "beforeSHA256": "d133c357a7664662627c0c23ea70f4e2e3a2853f6183bd86df2d9dc5123ef1e1",
+      "afterSHA256": "7dd770a86983efdf661c4e8c78211f2e25bd038fd79eb691dc368c2564a57e91"
+    },
+    {
+      "path": "backend/internal/usersignup/service.go",
+      "beforeSHA256": "575b4f7da6116560cf899a95be29b48ea8898619c316f58f5ce887c3bff73ebc",
+      "afterSHA256": "d807c31777cb8ee5ff634027294510988d32e4d4d1c17941127535fd882caee9"
+    },
+    {
+      "path": "backend/resources/migrations/postgres/20261025060000_membership_cas.up.sql",
+      "beforeSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSHA256": "00f988b56a3664c745161772dd36553ea24b97a38641d92f011d2db5f9cce97f"
+    },
+    {
+      "path": "backend/resources/migrations/sqlite/20261025060000_membership_cas.up.sql",
+      "beforeSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "afterSHA256": "205c2cff089812e97b910d64f6c8011d0ca7ce3492d8b8f4176cff3da3706b16"
+    },
+    {
+      "path": "frontend/src/lib/services/user-group-service.ts",
+      "beforeSHA256": "0fd9b113643b0933c9332239fa3f35eee80ef08ec966f32c023964ca51dc8dd2",
+      "afterSHA256": "bbfc70890bba3372092e19ec83f3e1d77c07035ba6808f9f7a052c5f8881b426"
+    },
+    {
+      "path": "frontend/src/lib/services/user-service.ts",
+      "beforeSHA256": "d1a4042d9a4809879ec148845dfc662a6d8cdb56b6d909f10a1eac53e62d6c93",
+      "afterSHA256": "490de8dd5ca7c9c298da514d5ebf4921666379b8e8f3ee5e3e44c3e0d3627e64"
+    },
+    {
+      "path": "frontend/src/routes/settings/admin/user-groups/[id]/+page.svelte",
+      "beforeSHA256": "5837c0976b1a426b8009306ba4e1f915444ede5000c48b06fa34b27f1b5b0aca",
+      "afterSHA256": "8da5584cfce8bcbd850365f64106b554b186cbcc51d88a058ebc94319e4ecc8e"
+    },
+    {
+      "path": "frontend/src/routes/settings/admin/user-groups/[id]/+page.ts",
+      "beforeSHA256": "8c446d038ec98b5b40b6494087be57e492493984c00198789f81d252b82b940e",
+      "afterSHA256": "15bf36697f7e82d3c03b56121d52781bb27c3c89039803b923ff0f23538ad184"
+    },
+    {
+      "path": "frontend/src/routes/settings/admin/users/[id]/+page.svelte",
+      "beforeSHA256": "71b57d3abdb2b09ed1e12fdbbb77a92c501f463b35caa3fbba25d0575ec5d1e2",
+      "afterSHA256": "ee71a22608213c3ac392d2820442f02e5829fe727a40b39f703af7d6a1aa6ddb"
+    },
+    {
+      "path": "frontend/src/routes/settings/admin/users/[id]/+page.ts",
+      "beforeSHA256": "832b6315ca6bed3f39b7e5a3eaf307ce69294542676d686190187bf772a5ca64",
+      "afterSHA256": "2a9f62d91e6f0610746933eb8cb4ec5f53c36561f328088b937210f7fdb301a9"
+    }
+  ],
+  "buildInputs": {
+    "backend/go.mod": "d7d893983f62f58864a836e0c877ae652855504234649bfaaae3676bd0ae1bbd",
+    "backend/go.sum": "328f59a50572be346eb791120766c586fafd688d6e271ccacf4f93b1c47a0555",
+    "pnpm-lock.yaml": "8cae1ffc0c6f177b427516a86d3b518168880bb232c78773d55f6c3372aa66dc",
+    "docker/Dockerfile": "018d04ed4989f6ebba02ae0eb99728fb0d8cdeeb309534c37cdc2dcc830dc5b3"
+  },
+  "imagePinChanged": false,
+  "runtimeAcceptance": false
+}

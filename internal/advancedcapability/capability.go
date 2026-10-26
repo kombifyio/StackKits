@@ -20,14 +20,17 @@ const (
 	Audience                 = wire.Audience
 )
 
+type TransferRetirement = wire.TransferRetirement
+
 const (
-	OperationDriftReconcileAdvanced   = wire.OperationDriftReconcileAdvanced
-	OperationOriginCertificateInstall = wire.OperationOriginCertificateInstall
-	OperationOriginCertificateRequest = wire.OperationOriginCertificateRequest
-	OperationRestoreDrill             = wire.OperationRestoreDrill
-	OperationRollbackCoordinated      = wire.OperationRollbackCoordinated
-	OperationTerramateChangeSetApply  = wire.OperationTerramateChangeSetApply
-	OperationTerramateChangeSetCreate = wire.OperationTerramateChangeSetCreate
+	OperationApplicationTransferRetire = wire.OperationApplicationTransferRetire
+	OperationDriftReconcileAdvanced    = wire.OperationDriftReconcileAdvanced
+	OperationOriginCertificateInstall  = wire.OperationOriginCertificateInstall
+	OperationOriginCertificateRequest  = wire.OperationOriginCertificateRequest
+	OperationRestoreDrill              = wire.OperationRestoreDrill
+	OperationRollbackCoordinated       = wire.OperationRollbackCoordinated
+	OperationTerramateChangeSetApply   = wire.OperationTerramateChangeSetApply
+	OperationTerramateChangeSetCreate  = wire.OperationTerramateChangeSetCreate
 )
 
 // ReasonCode is a stable, machine-readable fail-closed denial reason.
@@ -91,29 +94,31 @@ type TrustBundle struct {
 // Request binds verification to the exact local operation being admitted.
 // Optional expected issuer/approval references add narrower caller scope.
 type Request struct {
-	Now          time.Time
-	TrustBundle  *TrustBundle
-	StackID      string
-	OwnerRef     string
-	Operation    string
-	IssuerID     string
-	UIManagerRef string
-	RILRef       string
+	TransferRetirement *wire.TransferRetirement
+	Now                time.Time
+	TrustBundle        *TrustBundle
+	StackID            string
+	OwnerRef           string
+	Operation          string
+	IssuerID           string
+	UIManagerRef       string
+	RILRef             string
 }
 
 // Grant is the fully verified and locally scoped capability.
 type Grant struct {
-	BackupRenewal     *wire.BackupRenewal
-	CapabilityID      string
-	IssuerID          string
-	StackID           string
-	OwnerRef          string
-	AllowedOperations []string
-	UIManagerRef      string
-	RILRef            string
-	IssuedAt          time.Time
-	ExpiresAt         time.Time
-	KeyID             string
+	TransferRetirement *wire.TransferRetirement
+	BackupRenewal      *wire.BackupRenewal
+	CapabilityID       string
+	IssuerID           string
+	StackID            string
+	OwnerRef           string
+	AllowedOperations  []string
+	UIManagerRef       string
+	RILRef             string
+	IssuedAt           time.Time
+	ExpiresAt          time.Time
+	KeyID              string
 }
 
 func deny(code ReasonCode, field, detail string) error {

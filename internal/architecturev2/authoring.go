@@ -8,6 +8,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
 
@@ -25,6 +26,10 @@ const (
 // matching Definition.authoring.requiredOverrides contract and an explicit
 // materializer implementation; arbitrary paths are never accepted.
 type AuthoringOverrides struct {
+	// DataProfile is persisted into canonical intent, independently of kit identity.
+	DataProfile runtimeprofile.DataProfile
+	// OfflineBundle is supplied only after the caller verifies the source bundle.
+	OfflineBundle *runtimeprofile.OfflineBundleRef
 	// CatalogDefaults explicitly accepts CUE-owned defaults during initial
 	// authoring. Persisted intent remains fully explicit.
 	CatalogDefaults bool
@@ -483,6 +488,32 @@ func materializeInitialStackSpec(
 	initialProfile, err := nestedString(spec, "kit", "slug")
 	if err != nil || initialProfile != string(profile) {
 		return StackSpecValidation{}, resolveError(ErrAuthorityLoad, fmt.Sprintf("%s Definition authoring.initialSpec kit.slug is %q", profile, initialProfile), err)
+	}
+	dataProfile, err := runtimeprofile.Parse(string(overrides.DataProfile))
+	if err != nil {
+		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, err.Error(), err)
+	}
+	if dataProfile.FullLocal() {
+		spec["dataProfile"] = string(dataProfile)
+		spec["edition"] = "selfhost-oss"
+		spec["loc"] = "local"
+		spec["placement"] = map[string]any{"mode": "local-only"}
+		// The seed was normalized before this profile was selected. Discard
+		// its inherited Standard DNS default so CUE owns the Full Local default.
+		if network, ok := spec["network"].(map[string]any); ok {
+			if dns, ok := network["dns"].(map[string]any); ok {
+				delete(dns, "servers")
+			}
+		}
+	}
+	if overrides.OfflineBundle != nil {
+		if !dataProfile.FullLocal() {
+			return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, "offlineBundle requires dataProfile full-local", nil)
+		}
+		if err := overrides.OfflineBundle.Validate(); err != nil {
+			return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, err.Error(), err)
+		}
+		spec["offlineBundle"] = map[string]any{"path": overrides.OfflineBundle.Path, "manifestSha256": overrides.OfflineBundle.ManifestSHA256}
 	}
 
 	nativeProfiles, err := nativeModuleProfileAuthoring(overrides)

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/pkg/models"
 	"gopkg.in/yaml.v3"
 )
@@ -40,9 +41,11 @@ type Document struct {
 
 // V2Identity is the minimum safe dispatch header for a canonical v2 document.
 type V2Identity struct {
-	APIVersion string
-	Kind       string
-	KitProfile KitProfile
+	APIVersion    string
+	Kind          string
+	KitProfile    KitProfile
+	DataProfile   string
+	OfflineBundle *runtimeprofile.OfflineBundleRef
 }
 
 // ReadError is a typed fail-closed dual-read error.
@@ -150,13 +153,46 @@ func Read(data []byte) (Document, error) {
 		if apiVersion == APIVersionV2Alpha2 {
 			version = SourceVersionV2Alpha2
 		}
+		dataProfile := ""
+		if field, exists := fields["dataProfile"]; exists {
+			if field.Kind != yaml.ScalarNode || field.Tag != "!!str" || field.Value == "" {
+				return Document{}, &ReadError{Code: "v2.invalid-data-profile", Message: "StackSpec dataProfile must be a non-empty string"}
+			}
+			dataProfile = field.Value
+		}
+		if _, err := runtimeprofile.Parse(dataProfile); err != nil {
+			return Document{}, &ReadError{Code: "v2.invalid-data-profile", Message: err.Error()}
+		}
+		// Dispatch must see the explicit profile before CUE normalization. A
+		// locality or bundle field cannot silently upgrade an absent boot profile.
+		if scalarValue(fields["loc"]) == "local" && dataProfile != string(runtimeprofile.FullLocalProfile) {
+			return Document{}, &ReadError{Code: "v2.invalid-data-profile", Message: "loc local requires explicit dataProfile full-local"}
+		}
+		var offlineBundle *runtimeprofile.OfflineBundleRef
+		if field, exists := fields["offlineBundle"]; exists {
+			if dataProfile != string(runtimeprofile.FullLocalProfile) {
+				return Document{}, &ReadError{Code: "v2.invalid-offline-bundle", Message: "offlineBundle requires explicit dataProfile full-local"}
+			}
+			if field.Kind != yaml.MappingNode {
+				return Document{}, &ReadError{Code: "v2.invalid-offline-bundle", Message: "StackSpec offlineBundle must be an object"}
+			}
+			offlineBundle = &runtimeprofile.OfflineBundleRef{}
+			if err := field.Decode(offlineBundle); err != nil {
+				return Document{}, &ReadError{Code: "v2.invalid-offline-bundle", Message: err.Error()}
+			}
+			if err := offlineBundle.Validate(); err != nil {
+				return Document{}, &ReadError{Code: "v2.invalid-offline-bundle", Message: err.Error()}
+			}
+		}
 		return Document{
 			Version: version,
 			Raw:     rawCopy,
 			V2: &V2Identity{
-				APIVersion: apiVersion,
-				Kind:       kind,
-				KitProfile: profile,
+				APIVersion:    apiVersion,
+				Kind:          kind,
+				KitProfile:    profile,
+				DataProfile:   dataProfile,
+				OfflineBundle: offlineBundle,
 			},
 		}, nil
 
@@ -199,6 +235,11 @@ func v2OnlyFields(fields map[string]*yaml.Node) []string {
 		"capabilities",
 		"controlPlane",
 		"data",
+		"dataProfile",
+		"offlineBundle",
+		"edition",
+		"loc",
+		"placement",
 		"deviceEnrollment",
 		"generation",
 		"install",

@@ -16,6 +16,7 @@ package terramatehost
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -27,6 +28,8 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
 
@@ -213,11 +216,106 @@ type MaterializeResult struct {
 	ManifestSHA256 string   `json:"manifestSha256"`
 }
 
+// MaterializeRoots places the project root and only the selected stacks.
+// Coordinated rollback uses it for pending actions: placing an unchanged or
+// completed stack can create an unmarked executor root or recreate one that
+// rollback already removed. The projected manifest records only placed stacks.
+func MaterializeRoots(workspaceRoot string, layout Layout, runtimeRoots []string, admission *opentofu.GenericRestoreAdmission) (MaterializeResult, error) {
+	if err := admission.CheckRoots(workspaceRoot, LayoutRuntimeRoots(layout)); err != nil {
+		return MaterializeResult{}, err
+	}
+	selected := make(map[string]bool, len(runtimeRoots))
+	for _, root := range runtimeRoots {
+		selected[root] = true
+	}
+	projected := layout
+	projected.files = nil
+	projected.Manifest.Stacks = nil
+	projected.Manifest.RunOrder = nil
+	paths := map[string]bool{layout.Manifest.RootConfig.Path: true}
+	ids := make(map[string]bool)
+	for _, stack := range layout.Manifest.Stacks {
+		if selected[stack.RuntimeRoot] {
+			projected.Manifest.Stacks = append(projected.Manifest.Stacks, stack)
+			paths[stack.StackFile.Path] = true
+			ids[stack.ID] = true
+		}
+	}
+	for _, id := range layout.Manifest.RunOrder {
+		if ids[id] {
+			projected.Manifest.RunOrder = append(projected.Manifest.RunOrder, id)
+		}
+	}
+	for _, file := range layout.files {
+		if paths[file.path] {
+			projected.files = append(projected.files, file)
+		}
+	}
+	raw, err := marshal(projected.Manifest)
+	if err != nil {
+		return MaterializeResult{}, err
+	}
+	projected.ManifestBytes, projected.ManifestSHA256 = raw, digest(raw)
+	return materializeAdmitted(workspaceRoot, projected)
+}
+
 // Materialize places the layout under workspaceRoot. It creates missing
 // runtime roots (the executor may not have installed `main.tf` yet), rewrites
 // a file only when its bytes differ, refuses symlinks and non-regular files on
 // the way, and writes the manifest last.
 func Materialize(workspaceRoot string, layout Layout) (MaterializeResult, error) {
+	admission, err := opentofu.AcquireGenericRestoreAdmission(workspaceRoot, LayoutRuntimeRoots(layout))
+	if err != nil {
+		return MaterializeResult{}, err
+	}
+	defer admission.Close()
+	return MaterializeWithAdmission(workspaceRoot, layout, admission)
+}
+
+// LayoutRuntimeRoots is the complete local destination footprint, including
+// roots not yet materialized. Host pre-steps have no executor root.
+func LayoutRuntimeRoots(layout Layout) []string {
+	var roots []string
+	for _, stack := range layout.Manifest.Stacks {
+		if stack.Role != string(terramatestackgraph.RoleHost) {
+			roots = append(roots, stack.RuntimeRoot)
+		}
+	}
+	return roots
+}
+
+// MaterializeContext borrows an enclosing execution/observation lease.
+func MaterializeContext(ctx context.Context, workspace string, layout Layout) (_ MaterializeResult, returnErr error) {
+	_, release, err := opentofu.AdmitGenericOperation(ctx, workspace, LayoutRuntimeRoots(layout))
+	if err != nil {
+		return MaterializeResult{}, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, release()) }()
+	return materializeAdmitted(workspace, layout)
+}
+
+// MaterializeWithAdmission reuses the complete observation/reconcile lease.
+// Unlike MaterializeRoots it retains the canonical layout and manifest.
+func MaterializeWithAdmission(workspace string, layout Layout, admission *opentofu.GenericRestoreAdmission) (MaterializeResult, error) {
+	var roots []string
+	for _, id := range layout.Host.RunOrder {
+		stack, found := layout.Stack(id)
+		if !found {
+			return MaterializeResult{}, fmt.Errorf("host run order names unknown stack %s", id)
+		}
+		if stack.Role != terramatestackgraph.RoleHost {
+			roots = append(roots, stack.RuntimeRoot)
+		}
+	}
+	if err := admission.CheckRoots(workspace, roots); err != nil {
+		return MaterializeResult{}, err
+	}
+	return materializeAdmitted(workspace, layout)
+}
+
+// Every caller has checked its complete sorted destination lease. Nested
+// placement point-checks ownership, without acquiring a second project lock.
+func materializeAdmitted(workspaceRoot string, layout Layout) (MaterializeResult, error) {
 	if len(layout.files) == 0 || len(layout.ManifestBytes) == 0 {
 		return MaterializeResult{}, errors.New("host layout is empty; derive it with Plan")
 	}
@@ -231,6 +329,14 @@ func Materialize(workspaceRoot string, layout Layout) (MaterializeResult, error)
 	result := MaterializeResult{Written: make([]string, 0), ManifestSHA256: layout.ManifestSHA256}
 	files := append(append([]placedFile{}, layout.files...), placedFile{path: ManifestPath, bytes: layout.ManifestBytes, mode: manifestMode})
 	for _, file := range files {
+		if path.Base(file.path) == StackFile && path.Base(path.Dir(file.path)) == opentofu.RootDirName {
+			written, err := placeExecutorStack(workspace, file, layout.Manifest.PlanHash)
+			if err != nil {
+				return result, err
+			}
+			result.Written = append(result.Written, written...)
+			continue
+		}
 		written, err := placeFile(workspace, file)
 		if err != nil {
 			return result, err
@@ -240,6 +346,40 @@ func Materialize(workspaceRoot string, layout Layout) (MaterializeResult, error)
 		}
 	}
 	return result, nil
+}
+
+func placeExecutorStack(workspace string, file placedFile, authority string) (written []string, returnErr error) {
+	fs, err := confinedfs.Open(workspace)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, fs.Close()) }()
+	tx, err := fs.BeginTransaction()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { returnErr = errors.Join(returnErr, tx.Close()) }()
+	root := path.Dir(file.path)
+	if err := opentofu.RequireGenericRestoreAdmission(workspace, []string{root}); err != nil {
+		return nil, err
+	}
+
+	marker, _, err := tx.Exists(path.Join(root, opentofu.MarkerFile))
+	if err != nil {
+		return nil, err
+	}
+	if marker {
+		placed, err := placeFile(workspace, file)
+		if placed {
+			written = append(written, file.path)
+		}
+		return written, err
+	}
+	view, err := fs.View(".")
+	if err != nil {
+		return nil, err
+	}
+	return opentofu.WriteGenericRootFiles(tx, view, root, opentofu.RootPreparationScaffold, authority, map[string][]byte{file.path: file.bytes})
 }
 
 func placeFile(workspace string, file placedFile) (bool, error) {

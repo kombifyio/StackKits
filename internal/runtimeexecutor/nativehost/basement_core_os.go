@@ -20,6 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
+	"github.com/kombifyio/stackkits/internal/pocketidruntime"
 	"github.com/kombifyio/stackkits/internal/rollout"
 )
 
@@ -141,8 +142,14 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if _, ok := basementCoreProjectProfile(project); !ok {
 		return BasementCoreApplyObservation{}, errors.New("Basement core operations do not support the selected local profile")
 	}
+	if err := verifyFullLocalCoreDNS(o.workspaceRoot, project.Definition); err != nil {
+		return BasementCoreApplyObservation{}, err
+	}
 	preparation, err := o.prepareApply()
 	if err != nil {
+		return BasementCoreApplyObservation{}, err
+	}
+	if err := pocketidruntime.Prepare(ctx, o.workspaceRoot, "stackkit-basement-core", project.Definition); err != nil {
 		return BasementCoreApplyObservation{}, err
 	}
 	composePath, err := o.persistCompose(project)
@@ -274,7 +281,11 @@ func (o *osBasementCoreOperations) completeApplyWithIdentity(
 	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("local TinyAuth PocketID binding did not complete: %w", err)
 	}
-	return binding, nil
+	definition, err := (&osNativeComposeRuntime{workspaceRoot: o.workspaceRoot}).readComposeDefinition(composePath)
+	if err != nil {
+		return localevidence.OwnerRuntimeBinding{}, err
+	}
+	return pocketidruntime.Complete(ctx, o.workspaceRoot, "stackkit-basement-core", definition, binding)
 }
 
 func (o *osBasementCoreOperations) VerifyProject(ctx context.Context, project BasementCoreProject) (BasementCoreVerifyObservation, error) {
@@ -535,16 +546,26 @@ func (osBasementCoreProcessRunner) Run(ctx context.Context, args []string, direc
 	if err != nil {
 		return nil, &basementCoreProcessError{output: "docker-not-found", cause: err}
 	}
-	command := exec.CommandContext(ctx, executable, args...)
+	var admission *fullLocalComposeDocument
+	if args[5] == "up" {
+		admission, err = admitFullLocalCompose(ctx, args[4], args[2])
+		if err != nil {
+			return nil, err
+		}
+	}
+	command := exec.CommandContext(ctx, executable, fullLocalComposeUpArgs(args, 5)...)
 	command.Dir = directory
 	command.Env = append([]string(nil), environment...)
 	output := &basementCoreBoundedBuffer{remaining: basementCoreProcessOutputLimit}
 	command.Stdout, command.Stderr = output, output
+	var runErr error
 	if err := command.Run(); err != nil {
-		return nil, &basementCoreProcessError{output: boundedBasementCoreProcessDiagnostic(output.Bytes()), cause: err}
+		runErr = &basementCoreProcessError{output: boundedBasementCoreProcessDiagnostic(output.Bytes()), cause: err}
+	} else if output.exceeded {
+		runErr = &basementCoreProcessError{output: "output-exceeded", cause: errors.New("bounded process output exceeded")}
 	}
-	if output.exceeded {
-		return nil, &basementCoreProcessError{output: "output-exceeded", cause: errors.New("bounded process output exceeded")}
+	if err := finishFullLocalCompose(ctx, admission, runErr); err != nil {
+		return nil, err
 	}
 	return append([]byte(nil), output.Bytes()...), nil
 }

@@ -293,6 +293,9 @@ func collectOpenTofuRootState(workspaceRoot, parent, name string) (ExecutorState
 	if err != nil {
 		return ExecutorStateOpenTofuRootInput{}, false, fmt.Errorf("executor state: %s: %w", relative, err)
 	}
+	if opentofu.IsPlatformProviderExecution(marker.Execution) {
+		return ExecutorStateOpenTofuRootInput{}, false, fmt.Errorf("executor state: %s requires explicit signed provider recovery; generic capture cannot preserve its complete custody", marker.Execution)
+	}
 	read := func(portable, id, mode string) (ExecutorStateBlobInput, error) {
 		data, err := os.ReadFile(filepath.Join(workspaceRoot, filepath.FromSlash(portable)))
 		if err != nil {
@@ -347,12 +350,13 @@ func restoreExecutorStateOpenTofuRoots(
 	transaction *confinedfs.Transaction,
 	view confinedfs.View,
 	roots []ExecutorStateOpenTofuRoot,
+	checkpointID string,
 ) ([]string, error) {
+	if err := admitExecutorStateOpenTofuRestore(transaction.Name(), roots); err != nil {
+		return nil, err
+	}
 	restored := make([]string, 0, 4*len(roots))
 	for _, root := range roots {
-		if err := transaction.MkdirAll(root.Root, 0o700); err != nil {
-			return nil, fmt.Errorf("executor state: recreate OpenTofu root %s: %w", root.Root, err)
-		}
 		blobs := make([]ExecutorStateBlob, 0, 4)
 		for _, blob := range []ExecutorStateBlob{root.Environment, root.Compose} {
 			if blob != (ExecutorStateBlob{}) {
@@ -362,16 +366,25 @@ func restoreExecutorStateOpenTofuRoots(
 		if root.Lock != (ExecutorStateBlob{}) {
 			blobs = append(blobs, root.Lock)
 		}
+		payloads := make(map[string][]byte)
 		for _, blob := range append(blobs, root.Config, root.State) {
 			data, err := readExecutorStateRecoveryBlob(transaction, blob)
 			if err != nil {
+				for _, held := range payloads {
+					clear(held)
+				}
 				return nil, err
 			}
-			if _, err := view.WriteAtomic0600(blob.Path, data); err != nil {
-				return nil, fmt.Errorf("executor state: atomically restore %s: %w", blob.Path, err)
-			}
-			restored = append(restored, blob.Path)
+			payloads[blob.Path] = data
 		}
+		paths, err := opentofu.WriteGenericRootFiles(transaction, view, root.Root, opentofu.RootPreparationRecovery, checkpointID, payloads)
+		for _, data := range payloads {
+			clear(data)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("executor state: restore authenticated root %s: %w", root.Root, err)
+		}
+		restored = append(restored, paths...)
 	}
 	return restored, nil
 }
@@ -394,4 +407,17 @@ func GenerationTargetForPlan(plan generationartifact.VerifiedPlan) (string, erro
 	default:
 		return "", fmt.Errorf("plan generation target %q is not supported", target)
 	}
+}
+
+// Admit every destination before any root is written, not one root at a time.
+func admitExecutorStateOpenTofuRestore(workspaceRoot string, roots []ExecutorStateOpenTofuRoot) error {
+	return opentofu.RequireGenericRestoreAdmission(workspaceRoot, executorStateOpenTofuRestoreDestinations(roots))
+}
+
+func executorStateOpenTofuRestoreDestinations(roots []ExecutorStateOpenTofuRoot) []string {
+	destinations := make([]string, 0, len(roots))
+	for _, root := range roots {
+		destinations = append(destinations, root.Root)
+	}
+	return destinations
 }

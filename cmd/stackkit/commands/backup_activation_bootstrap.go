@@ -204,3 +204,12 @@ func (r *restoreActivationBootstrapRuntime) BindControlJournal(s *lifecyclemutat
 	}
 	return nil
 }
+
+// Recovery rebinds Runtime after resolving the original signed authority.
+// Forward its optional group closer through the embedded Runtime interface.
+func (r *restoreActivationBootstrapRuntime) CloseAppGroupHolds(ctx context.Context) error {
+	if closer, ok := r.Runtime.(interface{ CloseAppGroupHolds(context.Context) error }); ok {
+		return closer.CloseAppGroupHolds(ctx)
+	}
+	return errors.New("restore activation bootstrap has no native group close adapter")
+}

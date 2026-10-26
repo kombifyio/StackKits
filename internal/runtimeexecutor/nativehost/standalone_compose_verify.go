@@ -40,6 +40,10 @@ type standaloneComposeReadinessObserver interface {
 // deployment its executor applied. Targets of other hosts are not this host's
 // to observe.
 func AppliedStandaloneComposeWorkloads(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding) ([]SelectedPaaSWorkloadDeployment, error) {
+	return appliedSelectedPaaSWorkloads(request, binding, standaloneComposeAdapterRef, standaloneComposeModuleRef)
+}
+
+func appliedSelectedPaaSWorkloads(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding, adapterRef, adapterModuleRef string) ([]SelectedPaaSWorkloadDeployment, error) {
 	if len(request.RuntimeTargets) == 0 {
 		return nil, nil
 	}
@@ -48,13 +52,13 @@ func AppliedStandaloneComposeWorkloads(request runtimeexecutor.ExecutionRequest,
 	}
 	var deployments []SelectedPaaSWorkloadDeployment
 	for _, target := range request.RuntimeTargets {
-		if target.RuntimeAdapter == nil || target.RuntimeAdapter.ID != standaloneComposeAdapterRef ||
-			target.RuntimeAdapter.ModuleRef != standaloneComposeModuleRef ||
+		if target.RuntimeAdapter == nil || target.RuntimeAdapter.ID != adapterRef ||
+			target.RuntimeAdapter.ModuleRef != adapterModuleRef ||
 			!slices.Equal(target.SiteRefs, []string{binding.SiteRef}) || !slices.Equal(target.NodeRefs, []string{binding.NodeRef}) ||
 			target.ExecutionChannelRef != binding.ExecutionChannelRef {
 			continue
 		}
-		deployment, err := standaloneComposeDeploymentFromApplied(target, request.Artifacts)
+		deployment, err := selectedPaaSDeploymentFromApplied(target, request.Artifacts, adapterRef, adapterModuleRef)
 		if err != nil {
 			return nil, fmt.Errorf("workload %q: %w", target.WorkloadRef, err)
 		}
@@ -84,6 +88,31 @@ func VerifyAppliedStandaloneComposeWorkloads(
 	if err != nil {
 		return nil, err
 	}
+	return verifySelectedPaaSDeployments(ctx, deployments, operations)
+}
+
+// VerifyAppliedCoolifyWorkloads observes every applied Coolify API workload on
+// this node through the same Coolify owner Apply used. These workloads own no
+// OpenTofu root; this observation is their runtime verification.
+func VerifyAppliedCoolifyWorkloads(
+	ctx context.Context,
+	request runtimeexecutor.ExecutionRequest,
+	binding LocalTargetBinding,
+	operations SelectedPaaSWorkloadOperations,
+) ([]StandaloneComposeWorkloadVerifyObservation, error) {
+	if ctx == nil || operations == nil {
+		return nil, errors.New("Coolify workload verification requires a context and operations owner")
+	}
+	ctx, cancel := context.WithTimeout(ctx, standaloneComposeVerifyReadinessBudget)
+	defer cancel()
+	deployments, err := appliedSelectedPaaSWorkloads(request, binding, "coolify", "stackkits-coolify-runtime")
+	if err != nil || len(deployments) == 0 {
+		return nil, err
+	}
+	return verifySelectedPaaSDeployments(ctx, deployments, operations)
+}
+
+func verifySelectedPaaSDeployments(ctx context.Context, deployments []SelectedPaaSWorkloadDeployment, operations SelectedPaaSWorkloadOperations) ([]StandaloneComposeWorkloadVerifyObservation, error) {
 	validate := ValidateSelectedPaaSWorkloadObservation
 	if validator, ok := operations.(SelectedPaaSWorkloadObservationValidator); ok {
 		validate = validator.ValidateWorkloadObservation
@@ -152,15 +181,21 @@ func joinStandaloneComposeVerifyFailures(failures []error) error {
 // references. Removal and Verify share it so both observe the exact project
 // Apply created.
 func standaloneComposeDeploymentFromApplied(target runtimeexecutor.RuntimeTarget, artifacts []runtimeexecutor.Artifact) (SelectedPaaSWorkloadDeployment, error) {
-	if target.RuntimeAdapter == nil || target.RuntimeAdapter.ID != standaloneComposeAdapterRef ||
-		target.RuntimeAdapter.ModuleRef != standaloneComposeModuleRef {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied workload is not bound to the standalone Compose adapter")
+	return selectedPaaSDeploymentFromApplied(target, artifacts, standaloneComposeAdapterRef, standaloneComposeModuleRef)
+}
+
+// selectedPaaSDeploymentFromApplied reconstructs one applied workload bound to
+// the exact named adapter from the sealed Apply request.
+func selectedPaaSDeploymentFromApplied(target runtimeexecutor.RuntimeTarget, artifacts []runtimeexecutor.Artifact, adapterRef, adapterModuleRef string) (SelectedPaaSWorkloadDeployment, error) {
+	if target.RuntimeAdapter == nil || target.RuntimeAdapter.ID != adapterRef ||
+		target.RuntimeAdapter.ModuleRef != adapterModuleRef {
+		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("applied workload is not bound to the %s adapter", adapterRef)
 	}
 	if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied standalone Compose workload requires one exact Site and node")
+		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("applied %s workload requires one exact Site and node", adapterRef)
 	}
 	if len(target.ArtifactRefs) != 1 {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied standalone Compose workload requires exactly one workload artifact")
+		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("applied %s workload requires exactly one workload artifact", adapterRef)
 	}
 	adapterRefs := map[string]struct{}{}
 	for _, ref := range target.RuntimeAdapter.ArtifactRefs {
@@ -185,20 +220,20 @@ func standaloneComposeDeploymentFromApplied(target runtimeexecutor.RuntimeTarget
 		}
 	}
 	if len(artifactContent) == 0 || artifactDigest == "" {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied standalone Compose workload artifact is absent")
+		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("applied %s workload artifact is absent", adapterRef)
 	}
 	sum := sha256.Sum256(artifactContent)
 	if artifactDigest != "sha256:"+hex.EncodeToString(sum[:]) {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied standalone Compose workload artifact digest does not match its content")
+		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("applied %s workload artifact digest does not match its content", adapterRef)
 	}
 	bundle, err := architecturev2renderer.ParseApplicationDeliveryWorkloadBundle(artifactContent)
 	if err != nil {
-		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("validate applied standalone workload bundle: %w", err)
+		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("validate applied %s workload bundle: %w", adapterRef, err)
 	}
 	if bundle.WorkloadRef != target.WorkloadRef || bundle.ModuleRef != target.ModuleRef ||
 		bundle.InstanceRef != target.InstanceRef || bundle.SiteRef != target.SiteRefs[0] ||
 		bundle.NodeRef != target.NodeRefs[0] {
-		return SelectedPaaSWorkloadDeployment{}, errors.New("applied standalone workload bundle differs from the sealed target")
+		return SelectedPaaSWorkloadDeployment{}, fmt.Errorf("applied %s workload bundle differs from the sealed target", adapterRef)
 	}
 	return SelectedPaaSWorkloadDeployment{
 		WorkloadRef: bundle.WorkloadRef, ModuleRef: bundle.ModuleRef, UnitRef: target.UnitRef,

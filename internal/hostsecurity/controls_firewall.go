@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -228,6 +229,7 @@ func (o *observation) compareHomeRuleset(ctx context.Context) (State, string, st
 }
 
 func normalizeRuleset(text string) string {
+	text = regexp.MustCompile(`counter packets [0-9]+ bytes [0-9]+`).ReplaceAllString(text, "counter")
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	out := make([]string, 0, len(lines))
 	for _, line := range lines {
@@ -236,6 +238,16 @@ func normalizeRuleset(text string) string {
 		}
 	}
 	return strings.Join(out, "\n") + "\n"
+}
+
+func rulesetDifference(want, got string) string {
+	wanted, observed := strings.Split(normalizeRuleset(want), "\n"), strings.Split(normalizeRuleset(got), "\n")
+	for i := 0; i < len(wanted) && i < len(observed); i++ {
+		if wanted[i] != observed[i] {
+			return fmt.Sprintf("line %d expected %q, observed %q", i+1, boundedText(wanted[i]), boundedText(observed[i]))
+		}
+	}
+	return fmt.Sprintf("expected %d lines, observed %d", len(wanted), len(observed))
 }
 
 func boundedText(text string) string {

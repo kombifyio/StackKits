@@ -35,6 +35,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localorigin"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/internal/telemetry"
 )
@@ -49,6 +50,10 @@ var (
 const apiWriteTimeout = 14*time.Minute + 30*time.Second
 
 func main() {
+	if err := runtimeprofile.Boot(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	port := flag.Int("port", 8082, "HTTP server port")
 	baseDir := flag.String("base-dir", "", "Base directory for StackKit definitions (default: executable directory)")
 	apiKey := flag.String("api-key", "", "API key for authentication (or set STACKKITS_API_KEY env var)")
@@ -131,8 +136,9 @@ func main() {
 func initServerTelemetry(version string) func() {
 	runtime, shutdown, err := telemetry.SetupOTel(context.Background(), serverOTelConfig(version))
 	if err != nil {
-		slog.Warn("otel telemetry disabled", "error", err)
-		return func() {}
+		// Only the exporter failed: local tracing is installed and shutdown must
+		// still run, so warn that export is unavailable and keep both.
+		slog.Warn("otel export unavailable, local tracing stays on", "error", telemetry.RedactTelemetryValue(err.Error()))
 	}
 	if runtime.Enabled {
 		slog.Info("otel telemetry enabled", "service", runtime.ServiceName, "protocol", runtime.Protocol)

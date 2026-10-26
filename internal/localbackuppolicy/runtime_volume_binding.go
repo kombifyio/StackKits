@@ -12,7 +12,7 @@ func (source Source) WithRuntimeVolumeNames(names map[string]string) (Source, er
 	}
 	bound := map[string]string{}
 	for logical, physical := range names {
-		if !allowed[logical] || !ValidComposeVolumeName(physical) {
+		if !allowed[logical] || !ValidPlatformVolumeName(physical) {
 			return Source{}, fmt.Errorf("physical binding is outside the selected application volumes")
 		}
 		bound[logical] = physical

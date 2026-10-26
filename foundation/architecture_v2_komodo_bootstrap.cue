@@ -58,7 +58,10 @@ _architectureV2KomodoBootstrapModules: [{
 	}
 	renderUnits: [{
 		id: "bootstrap", kind: "native-config", rendererRef: "stackkit"
-		compatibleTargets: ["compose"]
+		// OpenTofu workloads still need the retained native bootstrap owner to
+		// install Core/Periphery and establish private API/node custody first.
+		// This recipe grants no provider resource or host lifecycle authority.
+		compatibleTargets: ["compose", "opentofu"]
 		templateRef:  "builtin://platform/komodo/bootstrap/v1.json"
 		version:      "1.0.0"
 		contractHash: "sha256:fb498163b0aae017eb15961d0096cab5b7b2ef20edc61dfeb995d44f53e849c6"
@@ -78,7 +81,7 @@ _architectureV2KomodoBootstrapModules: [{
 			outputBindings: [{artifactRef: "komodo-bootstrap", unitRef: "bootstrap", outputRef: "platform/komodo/bootstrap.json"}]
 			contracts: [{
 				id: "komodo-bootstrap", kind: "native-config", format: "json", mode: "0600", required: true
-				compatibleTargets: ["compose"]
+				compatibleTargets: ["compose", "opentofu"]
 				unitRef: "bootstrap", outputRef: "platform/komodo/bootstrap.json"
 			}]
 		}

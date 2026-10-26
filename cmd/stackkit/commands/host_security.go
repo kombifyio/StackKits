@@ -68,7 +68,7 @@ unknown control never counts as compliant.
 It works on its own (Standard Mode, no account) and through the pinned CLI when
 Techstack manages the deployment (--mode advanced).`,
 	}
-	security.AddCommand(newHostSecurityVerifyCommand(), newHostSecurityStatusCommand(), newHostSecurityRepairCommand())
+	security.AddCommand(newHostSecurityVerifyCommand(), newHostSecurityStatusCommand(), newHostSecurityRepairCommand(), newHostSecurityNetworkCommand())
 	return security
 }
 

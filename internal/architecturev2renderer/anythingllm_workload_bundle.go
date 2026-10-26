@@ -68,7 +68,7 @@ func anythingLLMExpectedComponents() []selectedPaaSRuntimeComponent {
 			"SERVER_PORT": "3001", "STORAGE_DIR": "/app/server/storage",
 			"LLM_PROVIDER": "ollama", "OLLAMA_BASE_PATH": "http://ollama:11434",
 			"EMBEDDING_ENGINE": "ollama", "EMBEDDING_BASE_PATH": "http://ollama:11434",
-			"VECTOR_DB": "lancedb", "DISABLE_TELEMETRY": "true",
+			"DISABLE_TELEMETRY": "true",
 		},
 		SecretEnvironment: map[string]string{"AUTH_TOKEN": "owner-password", "JWT_SECRET": "session-key"},
 		Volumes:           []selectedPaaSRuntimeVolume{{ID: "storage", Target: "/app/server/storage", Class: "persistent", Backup: true}},

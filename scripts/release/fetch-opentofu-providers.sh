@@ -7,6 +7,8 @@ set -eu
 LOCAL_PROVIDER_VERSION="2.5.3"
 KOMODO_PROVIDER_VERSION="0.12.0"
 DOCKER_PROVIDER_VERSION="4.6.0"
+COOLIFY_PROVIDER_VERSION="0.1.27"
+DOKPLOY_PROVIDER_VERSION="1.10.0"
 OUT_DIR="${OUT_DIR:-.dist-tools/opentofu-providers}"
 DOWNLOAD_DIR="${OUT_DIR}/downloads"
 TARGETS="${STACKKIT_RELEASE_TOOL_TARGETS:-linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64}"
@@ -14,6 +16,8 @@ REGISTRY_HOST="registry.opentofu.org"
 LOCAL_RELEASE_URL="https://github.com/opentofu/terraform-provider-local/releases/download/v${LOCAL_PROVIDER_VERSION}"
 KOMODO_RELEASE_URL="https://github.com/sebastianfs82/terraform-provider-komodo/releases/download/v${KOMODO_PROVIDER_VERSION}"
 DOCKER_RELEASE_URL="https://github.com/kreuzwerker/terraform-provider-docker/releases/download/v${DOCKER_PROVIDER_VERSION}"
+COOLIFY_RELEASE_URL="https://github.com/coolify-terraform/terraform-provider-coolify/releases/download/v${COOLIFY_PROVIDER_VERSION}"
+DOKPLOY_RELEASE_URL="https://github.com/vanillauys/terraform-provider-dokploy/releases/download/v${DOKPLOY_PROVIDER_VERSION}"
 MANIFEST_SOURCE="internal/tofu/provider_manifest.json"
 
 if command -v go >/dev/null 2>&1; then
@@ -47,9 +51,13 @@ unzip_into() {
 LOCAL_SUMS="${DOWNLOAD_DIR}/terraform-provider-local_${LOCAL_PROVIDER_VERSION}_SHA256SUMS"
 KOMODO_SUMS="${DOWNLOAD_DIR}/terraform-provider-komodo_${KOMODO_PROVIDER_VERSION}_SHA256SUMS"
 DOCKER_SUMS="${DOWNLOAD_DIR}/terraform-provider-docker_${DOCKER_PROVIDER_VERSION}_SHA256SUMS"
+COOLIFY_SUMS="${DOWNLOAD_DIR}/terraform-provider-coolify_${COOLIFY_PROVIDER_VERSION}_SHA256SUMS"
+DOKPLOY_SUMS="${DOWNLOAD_DIR}/terraform-provider-dokploy_${DOKPLOY_PROVIDER_VERSION}_SHA256SUMS"
 curl -fsSL "${LOCAL_RELEASE_URL}/$(basename "$LOCAL_SUMS")" -o "$LOCAL_SUMS"
 curl -fsSL "${KOMODO_RELEASE_URL}/$(basename "$KOMODO_SUMS")" -o "$KOMODO_SUMS"
 curl -fsSL "${DOCKER_RELEASE_URL}/$(basename "$DOCKER_SUMS")" -o "$DOCKER_SUMS"
+curl -fsSL "${COOLIFY_RELEASE_URL}/$(basename "$COOLIFY_SUMS")" -o "$COOLIFY_SUMS"
+curl -fsSL "${DOKPLOY_RELEASE_URL}/$(basename "$DOKPLOY_SUMS")" -o "$DOKPLOY_SUMS"
 
 fetch_one() {
   source="$1"
@@ -100,10 +108,14 @@ for target in $TARGETS; do
   fetch_one "hashicorp/local" "$LOCAL_PROVIDER_VERSION" "$target_os" "$target_arch" "$LOCAL_RELEASE_URL" "$LOCAL_SUMS"
   fetch_one "sebastianfs82/komodo" "$KOMODO_PROVIDER_VERSION" "$target_os" "$target_arch" "$KOMODO_RELEASE_URL" "$KOMODO_SUMS"
   fetch_one "kreuzwerker/docker" "$DOCKER_PROVIDER_VERSION" "$target_os" "$target_arch" "$DOCKER_RELEASE_URL" "$DOCKER_SUMS"
+  fetch_one "coolify-terraform/coolify" "$COOLIFY_PROVIDER_VERSION" "$target_os" "$target_arch" "$COOLIFY_RELEASE_URL" "$COOLIFY_SUMS"
+  fetch_one "vanillauys/dokploy" "$DOKPLOY_PROVIDER_VERSION" "$target_os" "$target_arch" "$DOKPLOY_RELEASE_URL" "$DOKPLOY_SUMS"
   cp "$MANIFEST_SOURCE" "${providers_dir}/stackkit-provider-manifest.json"
   $GO_COMMAND run ./internal/tofu/cmd/providerclosure \
     -providers-dir "$providers_dir" -os "$target_os" -arch "$target_arch" \
     -archive "${REGISTRY_HOST}/hashicorp/local=${DOWNLOAD_DIR}/terraform-provider-local_${LOCAL_PROVIDER_VERSION}_${target_os}_${target_arch}.zip" \
     -archive "${REGISTRY_HOST}/sebastianfs82/komodo=${DOWNLOAD_DIR}/terraform-provider-komodo_${KOMODO_PROVIDER_VERSION}_${target_os}_${target_arch}.zip" \
-    -archive "${REGISTRY_HOST}/kreuzwerker/docker=${DOWNLOAD_DIR}/terraform-provider-docker_${DOCKER_PROVIDER_VERSION}_${target_os}_${target_arch}.zip"
+    -archive "${REGISTRY_HOST}/kreuzwerker/docker=${DOWNLOAD_DIR}/terraform-provider-docker_${DOCKER_PROVIDER_VERSION}_${target_os}_${target_arch}.zip" \
+    -archive "${REGISTRY_HOST}/coolify-terraform/coolify=${DOWNLOAD_DIR}/terraform-provider-coolify_${COOLIFY_PROVIDER_VERSION}_${target_os}_${target_arch}.zip" \
+    -archive "${REGISTRY_HOST}/vanillauys/dokploy=${DOWNLOAD_DIR}/terraform-provider-dokploy_${DOKPLOY_PROVIDER_VERSION}_${target_os}_${target_arch}.zip"
 done

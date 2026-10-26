@@ -48,6 +48,17 @@ func NewOSKomodoWorkloadOperations(workspace string) (SelectedPaaSWorkloadOperat
 	return &osKomodoWorkloadOperations{workspace: prepared.workspaceRoot, prepared: prepared}, nil
 }
 
+// NewOSKomodoWorkloadPreparation shares the node's existing preparation,
+// completion and observation without granting the provider bridge Compose up
+// or down ownership. Only Komodo executes the workload.
+func NewOSKomodoWorkloadPreparation(workspace string) (NativeWorkloadComposeOperations, error) {
+	operations, err := NewOSKomodoWorkloadOperations(workspace)
+	if err != nil {
+		return nil, err
+	}
+	return operations.(*osKomodoWorkloadOperations).prepared, nil
+}
+
 func (o *osKomodoWorkloadOperations) ApplyWorkload(ctx context.Context, deployment SelectedPaaSWorkloadDeployment) (SelectedPaaSApplyReceipt, error) {
 	// Establish signing custody before the platform API can create or update a stack.
 	if _, err := localevidence.LoadOwnerCustody(o.workspace); err != nil {

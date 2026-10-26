@@ -580,7 +580,8 @@ func validateBasementCoreComposeArtifact(content []byte, render func(string) []b
 	}
 	expected = alignKopiaSourceVolumeBinds(content, expected, core)
 	stripped, ok := stripTinyAuthRouteACLs(content)
-	return expected != nil && ok && bytes.Equal(stripped, expected)
+	stripped, profileOK := stripStackKitServerDataProfile(stripped)
+	return expected != nil && ok && profileOK && bytes.Equal(stripped, expected)
 }
 
 // BasementCoreServiceContract is the secret-free, pinned service identity
@@ -623,7 +624,7 @@ func BasementCoreServiceContracts() []BasementCoreServiceContract {
 }
 
 func basementCoreContract(kind, templateRef, schema string) RendererContract {
-	sum := sha256.Sum256([]byte(schema + tinyAuthRouteACLContractSalt))
+	sum := sha256.Sum256([]byte(schema + tinyAuthRouteACLContractSalt + coreDataProfileContractSalt))
 	return RendererContract{
 		Kind: kind, RendererRef: basementCoreRendererRef, TemplateRef: templateRef,
 		Version: basementCoreVersion, ContractHash: "sha256:" + hex.EncodeToString(sum[:]),
@@ -680,6 +681,10 @@ func (r basementCoreRenderer) RenderUnit(ctx context.Context, unit RenderUnit) (
 	}
 	compose := renderKopiaSourceVolumeBinds(unit, renderSiteListenerBindings(unit, r.render(unit)))
 	compose, err := renderTinyAuthRouteACLs(unit, compose)
+	if err != nil {
+		return nil, err
+	}
+	compose, err = renderStackKitServerDataProfile(unit, compose)
 	if err != nil {
 		return nil, err
 	}

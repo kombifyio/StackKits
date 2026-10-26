@@ -18,11 +18,12 @@ import (
 
 // SelectiveRestore restores individual resources into a running Coolify.
 type SelectiveRestore struct {
-	In        *coolify.Instance
-	F         *Fetched
-	Target    *dbx.TargetState
-	Conflicts []coolify.Resource // resources whose uuid already exists here
-	Plan      *dbx.Plan
+	BeforeApply func() error // checked relocation journal, called under the existing engine lock before effects
+	In          *coolify.Instance
+	F           *Fetched
+	Target      *dbx.TargetState
+	Conflicts   []coolify.Resource // resources whose uuid already exists here
+	Plan        *dbx.Plan
 	// ExistingVolumes lists target volumes that get the backup's data (their
 	// current data is kept in an aside volume).
 	ExistingVolumes []string
@@ -203,6 +204,11 @@ func (s *SelectiveRestore) Apply(ctx context.Context, pr *Progress) (rep *Restor
 		return nil, err
 	}
 	defer unlock()
+	if s.BeforeApply != nil {
+		if err := s.BeforeApply(); err != nil {
+			return nil, err
+		}
+	}
 	start := time.Now()
 	plan := s.Plan
 	man := s.F.Manifest

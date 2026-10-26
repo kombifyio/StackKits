@@ -266,6 +266,8 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationDocling, deployment, observation)
 	case "stackkits-litellm-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationLitellm, deployment, observation)
+	case "stackkits-qdrant-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationQdrant, deployment, observation)
 	case "stackkits-immich-power-tools-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationImmichPowerTools, deployment, observation)
 	case homeAssistantWorkloadModuleRef:

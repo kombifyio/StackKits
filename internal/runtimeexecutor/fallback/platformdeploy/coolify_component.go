@@ -109,3 +109,48 @@ func SelectCoolifyServiceComponent(components []CoolifyApplicationComponent, nam
 	}
 	return selected, nil
 }
+
+// ControlServiceComponent stops or starts one component of the retained
+// service through the manager. Coolify lists database containers (for example
+// Immich's postgres) under the service's databases, not its applications, so
+// the control path follows the component's actual kind.
+func (a *CoolifyAdapter) ControlServiceComponent(ctx context.Context, ref DeploymentRef, componentUUID, action string) error {
+	if action != "stop" && action != "start" {
+		return errors.New("unsupported Coolify component control")
+	}
+	if ref.Platform != "coolify" || ref.ExternalID == "" || a.cfg.LegacyDockerComposeAPI || componentUUID == "" {
+		return errors.New("Coolify component control requires retained service custody")
+	}
+	var service struct {
+		UUID         string                        `json:"uuid"`
+		Applications []CoolifyApplicationComponent `json:"applications"`
+		Databases    []CoolifyApplicationComponent `json:"databases"`
+	}
+	if _, _, err := a.client.getJSON(ctx, "/api/v1/services/"+url.PathEscape(ref.ExternalID), &service); err != nil {
+		return err
+	}
+	if service.UUID != ref.ExternalID {
+		return errors.New("Coolify component service identity changed")
+	}
+	kind := ""
+	for _, group := range []struct {
+		name       string
+		components []CoolifyApplicationComponent
+	}{{"applications", service.Applications}, {"databases", service.Databases}} {
+		for _, component := range group.components {
+			if component.UUID == componentUUID {
+				if kind != "" {
+					return errors.New("Coolify component readback is ambiguous")
+				}
+				kind = group.name
+			}
+		}
+	}
+	if kind == "" {
+		return errors.New("Coolify component is not held by the retained service")
+	}
+	path := "/api/v1/services/" + url.PathEscape(ref.ExternalID) + "/" + kind + "/" + url.PathEscape(componentUUID) + "/" + action
+	var response map[string]any
+	_, _, err := a.client.doJSON(ctx, http.MethodPost, path, nil, &response)
+	return err
+}
