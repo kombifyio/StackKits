@@ -9,6 +9,7 @@ before:
     - sh scripts/release/fetch-opentofu.sh
     - sh scripts/release/fetch-terramate.sh
     - sh scripts/release/fetch-opentofu-providers.sh
+    - sh scripts/release/build-failure-snapshot.sh
 
 builds:
   - id: stackkit
@@ -158,6 +159,12 @@ archives:
         dst: providers
         info:
           mode: 0755
+      # Offline failure resolution snapshot (internal/failureknowledge).
+      - src: .dist-tools/failure-knowledge/failure-resolutions.sqlite
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0644
       - README.md
       - LICENSING.md
       - LICENSE-APACHE
@@ -251,6 +258,12 @@ archives:
         dst: providers
         info:
           mode: 0755
+      # Offline failure resolution snapshot (internal/failureknowledge).
+      - src: .dist-tools/failure-knowledge/failure-resolutions.sqlite
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0644
       - README.md
       - LICENSING.md
       - LICENSE-APACHE
@@ -341,6 +354,12 @@ archives:
         dst: providers
         info:
           mode: 0755
+      # Offline failure resolution snapshot (internal/failureknowledge).
+      - src: .dist-tools/failure-knowledge/failure-resolutions.sqlite
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0644
       - README.md
       - LICENSING.md
       - LICENSE-APACHE
@@ -431,6 +450,12 @@ archives:
         dst: providers
         info:
           mode: 0755
+      # Offline failure resolution snapshot (internal/failureknowledge).
+      - src: .dist-tools/failure-knowledge/failure-resolutions.sqlite
+        dst: .
+        strip_parent: true
+        info:
+          mode: 0644
       - README.md
       - LICENSING.md
       - LICENSE-APACHE
@@ -533,6 +558,10 @@ nfpms:
         dst: /usr/local/bin/terramate
         file_info:
           mode: 0755
+      - src: .dist-tools/failure-knowledge/failure-resolutions.sqlite
+        dst: /usr/local/lib/stackkit/failure-resolutions.sqlite
+        file_info:
+          mode: 0644
       - src: ".dist-tools/opentofu-providers/linux_{{ .Arch }}/providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_{{ .Arch }}/terraform-provider-local"
         dst: /usr/local/lib/stackkit/providers/registry.opentofu.org/hashicorp/local/2.5.3/linux_{{ .Arch }}/terraform-provider-local
         file_info:

@@ -220,6 +220,7 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(planCmd)
 	rootCmd.AddCommand(newCapacityCommand())
+	rootCmd.AddCommand(newFailuresCommand())
 	rootCmd.AddCommand(newFeasibilityCommand())
 	rootCmd.AddCommand(applyCmd)
 	rootCmd.AddCommand(verifyCmd)

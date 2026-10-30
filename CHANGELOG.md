@@ -380,6 +380,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## [0.54.12](https://github.com/kombifyio/StackKits/compare/v0.54.11...v0.54.12) (2026-10-30)
+
+
+### Fixed
+
+* **release:** every kit archive carries the failure resolution snapshot (platform-w8th0)
+
+## [0.54.11](https://github.com/kombifyio/StackKits/compare/v0.54.10...v0.54.11) (2026-10-30)
+
+
+### Added
+
+* **failures:** offline failure resolution snapshot and lookup (P5 slice 3)
+
+
+### Fixed
+
+* **delivery:** run the Candidate E2E after activation, dispatch Delivery directly
+* **deps:** update internal products
+* **deps:** update module github.com/go-jose/go-jose/v4 to v4.1.6 [security]
+* **deps:** update module golang.org/x/net to v0.62.0 [security]
+* **pocketid:** qualify native frontend and bound builder cleanup
+* **release:** repin Techstack on an immutable published retry
+
 ## [0.54.10](https://github.com/kombifyio/StackKits/compare/v0.54.9...v0.54.10) (2026-10-26)
 
 

@@ -286,6 +286,23 @@ whose always-on or active-resident modules exceed its observed CPU or RAM
 reports `RESIDENT_LOAD_EXCEEDS_HOST`; a module that declares no load reports
 `MODULE_LOAD_UNDECLARED` and stays unknown.
 
+### `stackkit failures lookup [description]`
+
+`stackkit failures lookup --signature <hex>` or `stackkit failures lookup "nextcloud does not start"`
+searches the failure resolution snapshot shipped with the release
+(`failure-resolutions.sqlite`, installed to `../lib/stackkit` beside the binary;
+`STACKKIT_FAILURE_SNAPSHOT` overrides the path). The snapshot holds promoted
+resolutions only: symptoms as normalized failure signatures, where a resolution
+applies, its root cause and fix steps as references to product procedures. The
+lookup runs offline: an exact signature first, then the words of the
+description through SQLite FTS5. With a local Ollama serving `bge-m3`
+(`--ollama-url` or `STACKKIT_FAILURE_OLLAMA_URL`) the description is also
+matched by meaning against the vectors the snapshot carries. A result is
+advice; apply a fix only through the referenced procedure.
+`stackkit failures snapshot info` prints the snapshot version and size, and
+`stackkit failures snapshot build --catalog <json> --output <file>` builds a
+snapshot from a resolution catalog, as the release build does.
+
 ### `stackkit feasibility --spec <file> --inventory <file> --json`
 
 `stackkit feasibility` checks a proposed placement against an exact observed

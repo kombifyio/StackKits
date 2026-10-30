@@ -588,6 +588,17 @@ if [ -f "$TMP/coolify-mirror" ]; then
   echo "  -> Installed the Coolify relocation engine to $ENGINE_PATH"
 fi
 
+# The offline failure resolution snapshot (`stackkit failures lookup`); the CLI
+# resolves ../lib/stackkit/failure-resolutions.sqlite beside its binary.
+if [ -f "$TMP/failure-resolutions.sqlite" ]; then
+  as_root=""
+  [ "$(id -u)" -eq 0 ] || as_root="sudo"
+  $as_root mkdir -p "$INSTALL_DIR/../lib/stackkit"
+  SNAPSHOT_PATH="$(cd "$INSTALL_DIR/../lib/stackkit" && pwd)/failure-resolutions.sqlite"
+  $as_root install -m 644 "$TMP/failure-resolutions.sqlite" "$SNAPSHOT_PATH"
+  echo "  -> Installed the failure resolution snapshot to $SNAPSHOT_PATH"
+fi
+
 # --- Optional short `sk` alias ------------------------------------------------
 # Create a convenience `sk -> stackkit` symlink, but never clobber an existing
 # `sk` command: `skim` (the fuzzy finder) and other tools also ship an `sk`

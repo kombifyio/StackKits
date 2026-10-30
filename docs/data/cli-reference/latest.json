@@ -4082,6 +4082,134 @@
       "subcommands": []
     },
     {
+      "path": "stackkit failures",
+      "name": "failures",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit failures [flags]",
+      "short": "Look up known failures and their resolutions offline",
+      "description": "Search the failure resolution snapshot shipped with this release. A resolution names its symptoms, where it applies, the root cause and the product procedures that fix it. It is advice: apply a fix only through the referenced procedure.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit failures lookup",
+        "stackkit failures snapshot"
+      ]
+    },
+    {
+      "path": "stackkit failures lookup",
+      "name": "lookup",
+      "parent": "stackkit failures",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit failures lookup [description] [flags]",
+      "short": "Find resolutions by failure signature or description",
+      "description": "Look up promoted resolutions in the offline snapshot: an exact failure signature first, then the words of the description (FTS5). With a local Ollama serving bge-m3 (--ollama-url or STACKKIT_FAILURE_OLLAMA_URL) the description is also matched by meaning. Prints JSON; nothing leaves this host except the description sent to that local Ollama.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "ollama-url",
+          "type": "string",
+          "description": "Ollama with bge-m3 on this host (localhost or a loopback address) for the semantic step",
+          "required": false
+        },
+        {
+          "name": "signature",
+          "type": "string",
+          "description": "Failure signature (64 hex characters) from the failure normalizer",
+          "required": false
+        },
+        {
+          "name": "snapshot",
+          "type": "string",
+          "description": "Snapshot file (default: STACKKIT_FAILURE_SNAPSHOT, then beside the stackkit binary)",
+          "required": false
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Error text or a description of the failure",
+          "required": false
+        },
+        {
+          "name": "top",
+          "type": "int",
+          "default": "5",
+          "description": "Number of results (1 to 20)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit failures snapshot",
+      "name": "snapshot",
+      "parent": "stackkit failures",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit failures snapshot [flags]",
+      "short": "Build or describe the failure resolution snapshot",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit failures snapshot build",
+        "stackkit failures snapshot info"
+      ]
+    },
+    {
+      "path": "stackkit failures snapshot build",
+      "name": "build",
+      "parent": "stackkit failures snapshot",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit failures snapshot build [flags]",
+      "short": "Build the SQLite FTS5 snapshot from a resolution catalog",
+      "description": "Build the versioned snapshot from a catalog of promoted resolutions (kombify.failure-resolution-catalog/v1). The release build runs this over the catalog in internal/failureknowledge/data.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "catalog",
+          "type": "string",
+          "description": "Resolution catalog JSON",
+          "required": false
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Snapshot file to write",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit failures snapshot info",
+      "name": "info",
+      "parent": "stackkit failures snapshot",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit failures snapshot info [flags]",
+      "short": "Print the version and size of the snapshot",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "snapshot",
+          "type": "string",
+          "description": "Snapshot file (default: STACKKIT_FAILURE_SNAPSHOT, then beside the stackkit binary)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit feasibility",
       "name": "feasibility",
       "parent": "stackkit",

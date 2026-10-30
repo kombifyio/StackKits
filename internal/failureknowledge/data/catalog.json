@@ -1,0 +1,10 @@
+{
+  "schema": "kombify.failure-resolution-catalog/v1",
+  "generatedAt": "2026-10-26T00:00:00Z",
+  "dimensions": 1024,
+  "vectorEncoding": "float32le-base64",
+  "advisory": true,
+  "truncated": false,
+  "count": 0,
+  "resolutions": []
+}

@@ -8,7 +8,7 @@
   "patch_sha256": "339b3aba9b1d6bdd990cf5cb0e2e61e339f44a731d574f989e8b64cc1cacd698",
   "license": "BSD-2-Clause",
   "license_sha256": "c4822dc23fddabd9aef6cd1b1e5dfe307cbc36dc0f1d662e82d58ebc886d9d0f",
-  "dockerfile_sha256": "096d7b2a0a3031d5c28376e3701f33535a0c8ea165e9465450ecdd11b6c63b0b",
+  "dockerfile_sha256": "b660ede3398d3fd06d9c9298c90810504f5df151df35dc023bafb34761cf9194",
   "build_tags": "",
   "platforms": {
     "linux/amd64": {
@@ -68,5 +68,13 @@
   "public_workflow": ".github/workflows/publish-image.yml",
   "artifact": "pocketid-cas-image",
   "qualified_manifest_sha256": "ea4be1fb5acaa11d75cd75bc824234cbef0fa77e6763cb627aef041d3c28175d",
-  "global_module_pin_change_admitted": false
+  "global_module_pin_change_admitted": false,
+  "dockerfile_frontend": {
+    "reference": "docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e",
+    "source_index_sha256": "a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e",
+    "platform_manifests": {
+      "linux/amd64": "sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720",
+      "linux/arm64": "sha256:c8678869a83fab70232869ba24acc1c0be661f4d65135c0eeacb6a8e78420fdd"
+    }
+  }
 }

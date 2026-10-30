@@ -129,6 +129,9 @@ jobs:
             ${{ runner.temp }}/pocketid-native-${{ matrix.arch }}/qualification.json
             ${{ runner.temp }}/pocketid-native-${{ matrix.arch }}/publication.json
             ${{ runner.temp }}/pocketid-native-${{ matrix.arch }}/build-metadata.json
+            ${{ runner.temp }}/pocketid-native-${{ matrix.arch }}/builder-creation.json
+            ${{ runner.temp }}/pocketid-native-${{ matrix.arch }}/builder-cleanup.json
+            ${{ runner.temp }}/pocketid-native-${{ matrix.arch }}/builder-daemon.log
           if-no-files-found: error
           retention-days: 30
 

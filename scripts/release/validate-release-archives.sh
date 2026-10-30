@@ -144,6 +144,7 @@ check_archive_contents() {
     terramate \
     providers/stackkit-provider-manifest.json \
     providers/stackkit-provider-lock.hcl \
+    failure-resolutions.sqlite \
     README.md \
     LICENSING.md \
     LICENSE-APACHE \
