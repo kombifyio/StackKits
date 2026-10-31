@@ -79,7 +79,7 @@ func (r *applicationRuntime) verify(ctx context.Context, a Authority) error {
 	if !reflect.DeepEqual(a, r.authority) {
 		return errors.New("restoreactivation: application authority changed")
 	}
-	b, err := r.current(ctx)
+	b, err := r.current(r.custodyContext(ctx))
 	if err != nil {
 		return err
 	}
@@ -87,6 +87,26 @@ func (r *applicationRuntime) verify(ctx context.Context, a Authority) error {
 		return errors.New("restoreactivation: signed manager custody changed")
 	}
 	return nil
+}
+
+// custodyContext hands the live restore Session's held lifecycle lock to the
+// custody callbacks once the journal is bound. The callback may then treat the
+// signed Apply authority as fenced (generation, Apply and StackSpec authoring
+// take the same lock) and still re-observes the manager's deployment, volumes
+// and mounts on every call. Before the journal is bound, or when the Session
+// no longer proves its lease, ctx stays unchanged and the callback re-reads
+// the full authority as before.
+func (r *applicationRuntime) custodyContext(ctx context.Context) context.Context {
+	if r.journal != nil {
+		if leased, err := r.journal.WithAppGroupContext(ctx); err == nil {
+			return leased
+		}
+	}
+	return ctx
+}
+
+func (r *applicationRuntime) observeComponent(ctx context.Context, ref string) (backupexec.QuiesceContainer, error) {
+	return r.observe(r.custodyContext(ctx), ref)
 }
 
 func (r *applicationRuntime) physical(ctx context.Context, a Authority, v Volume) (Authority, Volume, error) {

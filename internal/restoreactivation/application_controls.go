@@ -38,7 +38,7 @@ func (r *applicationRuntime) captureControls(ctx context.Context) error {
 	}
 	var controls []backuplifecycle.RuntimeControl
 	for _, ref := range r.order {
-		c, err := r.observe(ctx, ref)
+		c, err := r.observeComponent(ctx, ref)
 		if err != nil {
 			return err
 		}
@@ -78,7 +78,7 @@ func (r *applicationRuntime) advanceControl(ctx context.Context, ref string, sta
 			candidate[i] = next
 			return r.journal.RecordRestoreControls(candidate)
 		}, func(ctx context.Context) (string, bool, error) {
-			current, err := r.observe(ctx, ref)
+			current, err := r.observeComponent(ctx, ref)
 			return current.ID, current.Running, err
 		}, driver)
 		return err
@@ -101,7 +101,7 @@ func (r *applicationRuntime) settleControls(ctx context.Context) error {
 			candidate[i] = next
 			return r.journal.RecordRestoreControls(candidate)
 		}, func(ctx context.Context) (string, bool, error) {
-			current, err := r.observe(ctx, c.ComponentRef)
+			current, err := r.observeComponent(ctx, c.ComponentRef)
 			return current.ID, current.Running, err
 		}, driver)
 		if err != nil {
