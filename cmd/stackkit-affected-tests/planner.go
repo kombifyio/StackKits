@@ -516,7 +516,7 @@ func buildPlan(input plannerInput) testPlan {
 			testCommand{
 				Kind:   "website",
 				Scope:  "source",
-				Argv:   []string{"npm", "--prefix", "website", "run", "check"},
+				Argv:   []string{"pnpm", "--dir", "website", "run", "check"},
 				Reason: "type-check and validate website source without building",
 			},
 			testCommand{
@@ -533,7 +533,7 @@ func buildPlan(input plannerInput) testPlan {
 			commands = append(commands, testCommand{
 				Kind:   "website",
 				Scope:  "production-build",
-				Argv:   []string{"env", "NODE_ENV=production", "npm", "--prefix", "website", "run", "build"},
+				Argv:   []string{"env", "NODE_ENV=production", "pnpm", "--dir", "website", "run", "build"},
 				Reason: "run the deploy's production build when bundler config or dependency manifests change",
 			})
 		}
@@ -543,31 +543,31 @@ func buildPlan(input plannerInput) testPlan {
 			testCommand{
 				Kind:   "website",
 				Scope:  "webmcp-dependencies",
-				Argv:   []string{"npm", "--prefix", "webmcp", "ci"},
+				Argv:   []string{"pnpm", "--dir", "webmcp", "install", "--frozen-lockfile"},
 				Reason: "install the locked public WebMCP contract toolchain on a clean runner",
 			},
 			testCommand{
 				Kind:   "website",
 				Scope:  "webmcp-contract",
-				Argv:   []string{"npm", "--prefix", "webmcp", "run", "check"},
+				Argv:   []string{"pnpm", "--dir", "webmcp", "run", "check"},
 				Reason: "build the generated schemas, authority projection and browser-tool contract",
 			},
 			testCommand{
 				Kind:   "website",
 				Scope:  "webmcp-reference-dependencies",
-				Argv:   []string{"npm", "--prefix", "webmcp/reference-host", "ci"},
+				Argv:   []string{"pnpm", "--dir", "webmcp/reference-host", "install", "--frozen-lockfile"},
 				Reason: "install the locked public reference-host toolchain on a clean runner",
 			},
 			testCommand{
 				Kind:   "website",
 				Scope:  "webmcp-reference-check",
-				Argv:   []string{"npm", "--prefix", "webmcp/reference-host", "run", "check"},
+				Argv:   []string{"pnpm", "--dir", "webmcp/reference-host", "run", "check"},
 				Reason: "type-check the public reference host against the shared planner component",
 			},
 			testCommand{
 				Kind:   "website",
 				Scope:  "webmcp-reference-build",
-				Argv:   []string{"npm", "--prefix", "webmcp/reference-host", "run", "build"},
+				Argv:   []string{"pnpm", "--dir", "webmcp/reference-host", "run", "build"},
 				Reason: "build the independently reproducible public reference host",
 			},
 		)
@@ -648,7 +648,7 @@ func slicesContain(values []string, want string) bool {
 func websiteBuildAffected(files []string) bool {
 	for _, file := range files {
 		switch file {
-		case "website/package.json", "website/package-lock.json":
+		case "website/package.json", "website/pnpm-lock.yaml", "website/pnpm-workspace.yaml":
 			return true
 		}
 		if strings.HasPrefix(file, "website/svelte.config.") || strings.HasPrefix(file, "website/vite.config.") {

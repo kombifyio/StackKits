@@ -382,6 +382,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## [0.54.16](https://github.com/kombifyio/StackKits/compare/v0.54.15...v0.54.16) (2026-10-31)
+
+
+### Added
+
+* **full-local:** qualify the native offline J3 journey in governed windows
+* **j3:** support admitted depot test host
+* **toolchain:** pnpm and Vite+ for the StackKits JS projects (platform-uv4ut)
+
+
+### Fixed
+
+* **ci:** forward J3 tracker bootstrap custody to shared admission
+* **compat:** import Coolify restore window receipts and record codec-less suites (kombify-StackKits-y7dv)
+* **compat:** retain original J3 pending and failed coverage
+* **j3:** retain and qualify native host capacity
+* **pocketid:** read su-exec through apk-tools 3 so the CAS image publishes (platform-r2920)
+* **public-tls:** an install zone serves the delivered origin certificate (platform-hl4cb)
+
 ## [0.54.15](https://github.com/kombifyio/StackKits/compare/v0.54.14...v0.54.15) (2026-10-31)
 
 

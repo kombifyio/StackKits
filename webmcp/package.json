@@ -4,6 +4,7 @@
   "description": "StackKits WebMCP v2alpha1 planner, contracts, and public reference host",
   "type": "module",
   "license": "Apache-2.0",
+  "packageManager": "pnpm@12.10.1",
   "engines": {
     "node": ">=24.22.1 <25 || >=26.12.1"
   },
@@ -17,7 +18,8 @@
     "reference-host/src",
     "reference-host/scripts",
     "reference-host/package.json",
-    "reference-host/package-lock.json",
+    "reference-host/pnpm-lock.yaml",
+    "reference-host/pnpm-workspace.yaml",
     "reference-host/vite.config.ts",
     "reference-host/svelte.config.js",
     "reference-host/tsconfig.json",
@@ -55,10 +57,10 @@
   "scripts": {
     "generate:types": "node scripts/generate-types.mjs",
     "build:capacity": "node scripts/build-capacity-wasm.mjs",
-    "prepack": "npm run build",
-    "build": "npm run build:capacity && npm run generate:types && tsc -p tsconfig.json",
-    "generate:catalog": "npm run build && node scripts/generate-catalog.mjs",
-    "check": "npm run build"
+    "prepack": "pnpm run build",
+    "build": "pnpm run build:capacity && pnpm run generate:types && tsc -p tsconfig.json",
+    "generate:catalog": "pnpm run build && node scripts/generate-catalog.mjs",
+    "check": "pnpm run build"
   },
   "dependencies": {
     "webmcp-types": "0.1.10"

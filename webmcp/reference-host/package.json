@@ -4,12 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "license": "Apache-2.0",
+  "packageManager": "pnpm@12.10.1",
   "engines": { "node": ">=24.22.1 <25 || >=26.12.1" },
   "scripts": {
     "prebuild": "node scripts/prebuild.mjs",
-    "dev": "node scripts/prebuild.mjs && vite --host 127.0.0.1",
-    "build": "vite build",
-    "check": "svelte-check --tsconfig ./tsconfig.json"
+    "dev": "node scripts/prebuild.mjs && vp dev --host 127.0.0.1",
+    "build": "vp build",
+    "check": "vp check --no-fmt && svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {
     "webmcp-types": "0.1.10"
@@ -21,6 +22,7 @@
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",
     "typescript": "~6.0.3",
-    "vite": "^8.3.3"
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
   }
 }

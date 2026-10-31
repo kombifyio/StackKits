@@ -250,7 +250,7 @@ func RenderCloudStandaloneCoreComposeForOriginCertificate(domain, prefix string)
 }
 
 func withStandaloneOriginCertificateRouter(output []byte, domain string) []byte {
-	if output == nil || domain != managedOriginCertificateZone {
+	if output == nil || !managedOriginCertificateDomain(domain) {
 		return output
 	}
 	text := string(output)
@@ -280,7 +280,7 @@ func ValidateCloudStandaloneCoreComposeArtifact(content []byte) bool {
 		return false
 	}
 	expected := RenderCloudStandaloneCoreComposeForAddress(domain, prefix)
-	if domain == managedOriginCertificateZone && bytes.Contains(content, []byte(":/origin-tls:ro")) {
+	if managedOriginCertificateDomain(domain) && bytes.Contains(content, []byte(":/origin-tls:ro")) {
 		expected = withStandaloneOriginCertificateRouter(expected, domain)
 	}
 	before := cloudDefaultSessionTopology(domain, prefix)

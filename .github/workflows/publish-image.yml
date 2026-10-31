@@ -108,7 +108,10 @@ jobs:
         with:
           node-version: '24.22.1'
       - name: Resolve the locked real protocol driver
-        run: npm ci --ignore-scripts --no-audit --no-fund --prefix modules/pocketid/compat/qualification
+        working-directory: modules/pocketid/compat/qualification
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile --ignore-scripts
       - name: Build the immutable native source and retain OCI provenance
         run: node modules/pocketid/compat/native-image.mjs build
       - name: Qualify the actual embedded binary and native protocol

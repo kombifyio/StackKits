@@ -1,11 +1,11 @@
 {
   "schemaVersion": 3,
   "stackkitsVersion": "v0.54.4",
-  "requestedStackkitsVersion": "v0.54.8",
+  "requestedStackkitsVersion": "v0.54.15",
   "testedStackkitsVersion": "v0.54.4",
   "referenceBinding": {
     "scope": "product-artifact",
-    "requestedRelease": "v0.54.8"
+    "requestedRelease": "v0.54.15"
   },
   "currentResult": "NOT_RUN",
   "generatedAt": "2026-10-21T18:16:12Z",
@@ -279,6 +279,93 @@
         "diskGiB": 100
       },
       "executionState": "passed",
+      "applicability": "historical",
+      "currentResult": "NOT_RUN",
+      "reasonCodes": [
+        "release-mismatch"
+      ]
+    },
+    {
+      "schemaVersion": "stackkits.runtime-observation/v1",
+      "id": "runtime_65ffab0386d97f1d01eb425463fcbe8d66d175bc10fbff11c23520ef5fe77546",
+      "subject": {
+        "kind": "StackKitUseCase",
+        "product": "stackkits",
+        "useCase": "files",
+        "platform": "coolify"
+      },
+      "originalOutcome": "PASS",
+      "receiptSha256": "7b975ceb1dbdaf1d0c319e4a282cbe7f4be78f022e08e7098f64e97b4619def3",
+      "operations": [
+        {
+          "name": "install",
+          "status": "passed"
+        },
+        {
+          "name": "init",
+          "status": "passed"
+        },
+        {
+          "name": "generate",
+          "status": "passed"
+        },
+        {
+          "name": "apply",
+          "status": "passed"
+        },
+        {
+          "name": "setup-files",
+          "status": "passed"
+        },
+        {
+          "name": "verify",
+          "status": "passed"
+        },
+        {
+          "name": "files-restart",
+          "status": "passed"
+        },
+        {
+          "name": "backup",
+          "status": "passed"
+        },
+        {
+          "name": "restore",
+          "status": "passed"
+        },
+        {
+          "name": "cleanup",
+          "status": "passed"
+        }
+      ],
+      "artifactSha256": "fe57eb8c0936bc9dc1c303af6f106d6ba562555aa7aae42abf6d00ee7073023c",
+      "indexSha256": "5266f7bb065d24347e9c853afb20b5d5b404b0028de50525d46d95259d0a38f3",
+      "candidateDigest": "3a6bc30a33d434e046e0708dba93b1fc44643d18cf7f6f5b99b845267104e618",
+      "githubNativeArchiveSha256": "f05551457a03736cbebe014e804d99fcad111f012e54cb0cef525fb21f64c2d8",
+      "githubSuiteArchiveSha256": "fe266c6fc748fd09bb8fe625d453d5199c844b70b5ea31404ad5df7904c77c92",
+      "githubMetadataSha256": "8f79f948440cd41d97ca3ca11c69d3ee288c6791599f02759bf3ff1c089f186d",
+      "windowReportSha256": "70ec2988d877007214e51bb95b973f3131591c6408559646c630dd587b9003a4",
+      "producerArtifactSha256": "579bdd06d6383bf7aaa1240315bc171d117ea9f93d269a25e70fb0c0364cec10",
+      "suiteBindingSha256": "dc02fdd5669bf076ca74c852e8dff767a039f109874504c9ebe791a446565790",
+      "suiteCandidateDigest": "3a6bc30a33d434e046e0708dba93b1fc44643d18cf7f6f5b99b845267104e618",
+      "sourceCommit": "fc2c151d30af1010992ef41b928ba46173a505c6",
+      "producerCommit": "0247f5b8c8ed6e0b9cc1cc5b0f263b443b65385f",
+      "consumerSha": "0247f5b8c8ed6e0b9cc1cc5b0f263b443b65385f",
+      "testedRelease": "v0.54.15",
+      "suiteBindingState": "artifact-verified",
+      "runtimeIdentity": {
+        "family": "linux",
+        "distribution": "ubuntu",
+        "version": "26.04",
+        "arch": "amd64",
+        "environment": "depot-vm"
+      },
+      "capacity": {
+        "cpus": 2,
+        "memoryMiB": 4096,
+        "diskGiB": 100
+      },
+      "executionState": "passed",
       "applicability": "unbound",
       "currentResult": "NOT_RUN",
       "reasonCodes": [
@@ -414,10 +501,10 @@
         "diskGiB": 100
       },
       "executionState": "passed",
-      "applicability": "unbound",
+      "applicability": "historical",
       "currentResult": "NOT_RUN",
       "reasonCodes": [
-        "exact-bindings-required"
+        "release-mismatch"
       ]
     },
     {
@@ -475,40 +562,20 @@
     }
   ],
   "windowCoverage": {
-    "reportSha256": "833cbdf1a9c32aa84537d483f3b1a85b994d0e15ee79a330e5e5ae1d996ab9dc",
-    "candidateDigest": "73e67e9bafa4b2bc4a191c3adcd046b74b6369c3a52e7366df63e61bf35f7424",
-    "generatedAt": "2026-10-22T23:36:44.942Z",
-    "result": "pending",
-    "declared": 6,
-    "passed": 2,
-    "pending": 4,
+    "reportSha256": "70ec2988d877007214e51bb95b973f3131591c6408559646c630dd587b9003a4",
+    "candidateDigest": "3a6bc30a33d434e046e0708dba93b1fc44643d18cf7f6f5b99b845267104e618",
+    "generatedAt": "2026-10-31T20:52:07.614Z",
+    "result": "passed",
+    "declared": 1,
+    "passed": 1,
+    "pending": 0,
     "failed": 0,
     "blocked": 0,
     "notRun": 0,
     "obligations": [
       {
-        "suite": "stackkits-standalone-files-restore",
+        "suite": "stackkits-coolify-files-restore",
         "result": "passed"
-      },
-      {
-        "suite": "stackkits-standalone-photos-restore",
-        "result": "passed"
-      },
-      {
-        "suite": "stackkits-standalone-files-restore-ubuntu-24.04",
-        "result": "pending"
-      },
-      {
-        "suite": "stackkits-standalone-photos-restore-ubuntu-24.04",
-        "result": "pending"
-      },
-      {
-        "suite": "stackkits-standalone-files-restore-debian-13",
-        "result": "pending"
-      },
-      {
-        "suite": "stackkits-standalone-photos-restore-debian-13",
-        "result": "pending"
       }
     ]
   },

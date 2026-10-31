@@ -4,6 +4,6 @@
 contract. Its `tools` object contains the four closed input schemas and its
 `$defs` contains the shared result envelope and public data vocabulary. The
 TypeScript files under `src/generated/` are generated from the v2 schemas by
-`npm run generate:types`.
+`pnpm run generate:types`.
 
 Unknown input properties are rejected at runtime as well as by the schemas.

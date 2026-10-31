@@ -294,6 +294,14 @@ const (
 
 var originCertificateResolverLabel = regexp.MustCompile(`(?m)^      - traefik[.]http[.]routers[.][a-z-]+[.]tls[.]certresolver=stackkits\n`)
 
+// managedOriginCertificateDomain reports a stack domain served from the managed
+// zone: kombify.me with a prefix, or an install zone <zone>.kombify.me
+// (addressplan.BindZone). Both receive the delivered origin certificate, and the
+// public TLS probe expects it for every managed host.
+func managedOriginCertificateDomain(domain string) bool {
+	return domain == managedOriginCertificateZone || strings.HasSuffix(domain, "."+managedOriginCertificateZone)
+}
+
 // RenderCloudCoreComposeForOriginCertificate renders the Advanced
 // (Terramate-generated, Techstack-dispatched) Cloud core for a managed
 // kombify.me address (ADR-0047). The core routers carry no ACME resolver: the
@@ -302,7 +310,7 @@ var originCertificateResolverLabel = regexp.MustCompile(`(?m)^      - traefik[.]
 // owner custody through the file provider. Other domains keep ACME.
 func RenderCloudCoreComposeForOriginCertificate(domain, prefix string) []byte {
 	output := RenderCloudCoreComposeForAddress(domain, prefix)
-	if output == nil || domain != managedOriginCertificateZone {
+	if output == nil || !managedOriginCertificateDomain(domain) {
 		return output
 	}
 	text := string(output)
@@ -344,7 +352,7 @@ func ValidateCloudCoreComposeArtifact(content []byte) bool {
 	domain, prefix, ok := CloudComposeIdentityAddress(content)
 	stripped, aclOK := stripTinyAuthRouteACLs(content)
 	return ok && aclOK && (bytes.Equal(stripped, RenderCloudCoreComposeForAddress(domain, prefix)) ||
-		domain == managedOriginCertificateZone && bytes.Equal(stripped, RenderCloudCoreComposeForOriginCertificate(domain, prefix)))
+		managedOriginCertificateDomain(domain) && bytes.Equal(stripped, RenderCloudCoreComposeForOriginCertificate(domain, prefix)))
 }
 
 func CloudCoreServiceContracts() []BasementCoreServiceContract {

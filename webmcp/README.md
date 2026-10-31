@@ -32,10 +32,10 @@ asset manifest. Consumers outside the StackKits source repository reuse those
 packaged bytes; their build does not require Go or a surrounding Go checkout.
 
 ```sh
-npm ci
-npm run build
-npm test
-npm run generate:catalog -- --authority-bundle /path/to/authority_bundle --schema v2alpha1 --out data/stackkits-webmcp/v2alpha1/catalog.json --source-sha <40-char-sha>
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm test
+pnpm run generate:catalog --authority-bundle /path/to/authority_bundle --schema v2alpha1 --out data/stackkits-webmcp/v2alpha1/catalog.json --source-sha <40-char-sha>
 ```
 
 The generator accepts only an OSS StackKits authority bundle. It requires the
@@ -54,9 +54,9 @@ generated catalog and component:
 
 ```sh
 cd reference-host
-npm ci
-npm run check
-npm run build
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm run build
 ```
 
 The build copies the exported `../data/stackkits-webmcp/v2alpha1/catalog.json`

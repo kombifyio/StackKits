@@ -160,7 +160,7 @@ if(mode==='build'){
   const buildInfo=command('go',['version','-m',path.join(out,'pocket-id')],{cwd:out,env:{...process.env,GOTOOLCHAIN:'local'}});
   if(!buildInfo.includes('go1.27.1')||!buildInfo.includes('CGO_ENABLED=0')||buildInfo.includes('e2etest'))fail('binary_toolchain');
   fs.writeFileSync(path.join(out,'go-build-info.txt'),buildInfo);
-  if(docker('run','--rm','--network','none','--entrypoint','/sbin/apk',identity.imageId,'info','-v','su-exec')!=='su-exec-0.3-r0')fail('runtime_apk');
+  if(docker('run','--rm','--network','none','--entrypoint','/sbin/apk',identity.imageId,'info','-e','-v','su-exec')!=='su-exec-0.3-r0')fail('runtime_apk');
   const config=JSON.parse(docker('image','inspect',identity.imageId))[0].Config;
   const runtime=Object.fromEntries(Object.keys(qualified.runtime_config).map(key=>[key,config[key]??null]));
   const reuse=arch==='amd64'&&binary===qualified.binary_sha256&&license===qualified.license_sha256&&

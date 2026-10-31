@@ -83,6 +83,7 @@ type osMatrixReferenceBinding struct {
 	Scope            string `json:"scope,omitempty"`
 	RequestedRelease string `json:"requestedRelease"`
 	OperationScope   string `json:"operationScope,omitempty"`
+	Platform         string `json:"platform,omitempty"`
 	osMatrixRuntimeBindings
 	RuntimeIdentity *osMatrixRuntimeIdentity `json:"runtimeIdentity,omitempty"`
 	RequiredPhases  []string                 `json:"requiredPhases,omitempty"`
@@ -97,9 +98,10 @@ type osMatrixRuntimeObservation struct {
 	SchemaVersion string `json:"schemaVersion"`
 	ID            string `json:"id"`
 	Subject       struct {
-		Kind    string `json:"kind"`
-		Product string `json:"product"`
-		UseCase string `json:"useCase,omitempty"`
+		Kind     string `json:"kind"`
+		Product  string `json:"product"`
+		UseCase  string `json:"useCase,omitempty"`
+		Platform string `json:"platform,omitempty"`
 	} `json:"subject"`
 	OriginalOutcome string `json:"originalOutcome"`
 	OperationScope  string `json:"operationScope,omitempty"`
@@ -141,6 +143,7 @@ type osMatrixWindowCoverage struct {
 	Failed          int    `json:"failed"`
 	Blocked         int    `json:"blocked"`
 	NotRun          int    `json:"notRun"`
+	NotProjected    *int   `json:"notProjected,omitempty"`
 	Obligations     []struct {
 		Suite  string `json:"suite"`
 		Result string `json:"result"`
@@ -503,14 +506,23 @@ func validateOSMatrixWindowCoverage(coverage *osMatrixWindowCoverage) error {
 	for _, row := range coverage.Obligations {
 		if !osMatrixOneOf(row.Suite, "stackkits-standalone-files-restore", "stackkits-standalone-photos-restore",
 			"stackkits-standalone-files-restore-ubuntu-24.04", "stackkits-standalone-photos-restore-ubuntu-24.04",
-			"stackkits-standalone-files-restore-debian-13", "stackkits-standalone-photos-restore-debian-13", "stackkits-retained-marketplace") ||
+			"stackkits-standalone-files-restore-debian-13", "stackkits-standalone-photos-restore-debian-13", "stackkits-retained-marketplace",
+			"stackkits-coolify-files-restore", "stackkits-coolify-photos-restore") ||
 			!osMatrixOneOf(row.Result, "passed", "pending", "failed", "blocked", "not-run") || seen[row.Suite] {
 			return fmt.Errorf("invalid or duplicate runtime window obligation")
 		}
 		seen[row.Suite] = true
 		counts[row.Result]++
 	}
-	if coverage.Declared != len(coverage.Obligations) || coverage.Passed != counts["passed"] || coverage.Pending != counts["pending"] ||
+	// Obligations without a coverage codec are declared but only counted.
+	notProjected := 0
+	if coverage.NotProjected != nil {
+		if *coverage.NotProjected < 1 {
+			return fmt.Errorf("invalid public runtime window coverage")
+		}
+		notProjected = *coverage.NotProjected
+	}
+	if coverage.Declared != len(coverage.Obligations)+notProjected || coverage.Passed != counts["passed"] || coverage.Pending != counts["pending"] ||
 		coverage.Failed != counts["failed"] || coverage.Blocked != counts["blocked"] || coverage.NotRun != counts["not-run"] {
 		return fmt.Errorf("runtime window coverage totals disagree with its obligations")
 	}
@@ -527,7 +539,8 @@ func validateOSMatrixRuntimeObservations(matrix osMatrixDoc) error {
 	binding := matrix.ReferenceBinding
 	if matrix.SchemaVersion != 3 || !osMatrixRelease.MatchString(matrix.RequestedStackKitsVersion) || binding == nil ||
 		binding.RequestedRelease != matrix.RequestedStackKitsVersion || !osMatrixOneOf(binding.Scope, "product-artifact", "test-window-candidate") ||
-		!validOSMatrixRuntime(binding.RuntimeIdentity) || binding.OperationScope != "" && binding.OperationScope != "retained-selective-files-removal" || matrix.CurrentPassCount == nil || *matrix.CurrentPassCount < 0 {
+		!validOSMatrixRuntime(binding.RuntimeIdentity) || binding.OperationScope != "" && binding.OperationScope != "retained-selective-files-removal" ||
+		binding.Platform != "" && (binding.Platform != "coolify" || binding.OperationScope != "") || matrix.CurrentPassCount == nil || *matrix.CurrentPassCount < 0 {
 		return bad()
 	}
 	if len(matrix.TestedStackKitsVersion) == 0 {
@@ -580,13 +593,14 @@ func validateOSMatrixRuntimeObservations(matrix osMatrixDoc) error {
 			return bad()
 		}
 		mandatory := []string{"owner-setup", "install", "enrollment", "connected", "independent-readback", "cleanup"}
-		if observation.Subject.Kind == "StackKitUseCase" && observation.Subject.Product == "stackkits" && osMatrixOneOf(observation.Subject.UseCase, "files", "photos") {
+		if observation.Subject.Kind == "StackKitUseCase" && observation.Subject.Product == "stackkits" && osMatrixOneOf(observation.Subject.UseCase, "files", "photos") &&
+			osMatrixOneOf(observation.Subject.Platform, "", "coolify") {
 			mandatory = []string{"install", "init", "generate", "apply", "setup-" + observation.Subject.UseCase, "verify", "backup", "restore", "cleanup"}
-		} else if observation.Subject.Kind != "Product" || observation.Subject.Product != "guard" || observation.Subject.UseCase != "" {
+		} else if observation.Subject.Kind != "Product" || observation.Subject.Product != "guard" || observation.Subject.UseCase != "" || observation.Subject.Platform != "" {
 			return bad()
 		}
 		if observation.OperationScope != "" {
-			if observation.OperationScope != "retained-selective-files-removal" || observation.Subject.Kind != "StackKitUseCase" || observation.Subject.Product != "stackkits" || observation.Subject.UseCase != "files" || observation.SuiteBindingState != "artifact-verified" || len(observation.Operations) != 4 ||
+			if observation.OperationScope != "retained-selective-files-removal" || observation.Subject.Kind != "StackKitUseCase" || observation.Subject.Product != "stackkits" || observation.Subject.UseCase != "files" || observation.Subject.Platform != "" || observation.SuiteBindingState != "artifact-verified" || len(observation.Operations) != 4 ||
 				observation.RuntimeIdentity == nil || *observation.RuntimeIdentity != (osMatrixRuntimeIdentity{Family: "linux", Distribution: "ubuntu", Version: "24.04", Arch: "amd64", Environment: "retained-lxd-guest"}) {
 				return bad()
 			}
@@ -623,7 +637,7 @@ func validateOSMatrixRuntimeObservations(matrix osMatrixDoc) error {
 			return bad()
 		}
 		if observation.Applicability == "current" {
-			if binding.OperationScope != observation.OperationScope || binding.RequestedRelease != observation.TestedRelease || binding.SourceCommit == "" || binding.ProducerCommit == "" || binding.ArtifactSHA256 == "" ||
+			if binding.OperationScope != observation.OperationScope || binding.Platform != observation.Subject.Platform || binding.RequestedRelease != observation.TestedRelease || binding.SourceCommit == "" || binding.ProducerCommit == "" || binding.ArtifactSHA256 == "" ||
 				binding.RuntimeIdentity == nil || observation.RuntimeIdentity == nil || *binding.RuntimeIdentity != *observation.RuntimeIdentity {
 				return bad()
 			}
@@ -793,6 +807,9 @@ func renderOSMatrixMarkdown(matrix osMatrixDoc, sourceHash string) string {
 			if observation.Subject.UseCase != "" {
 				subject += "/" + observation.Subject.UseCase
 			}
+			if observation.Subject.Platform != "" {
+				subject += " via " + observation.Subject.Platform
+			}
 			if observation.OperationScope != "" {
 				subject += " (retained selective removal)"
 			}
@@ -803,7 +820,11 @@ func renderOSMatrixMarkdown(matrix osMatrixDoc, sourceHash string) string {
 			fmt.Fprintf(&b, "| `%s` | `%s` | %s | %s | %s |\n", subject, tested, observation.OriginalOutcome, observation.Applicability, observation.CurrentResult)
 		}
 		if coverage := matrix.WindowCoverage; coverage != nil {
-			fmt.Fprintf(&b, "\nOriginal window coverage: %d declared, %d passed, %d pending, %d failed, %d blocked, %d not run. Window result: `%s`. This is the original window's coverage, not a new execution or a current-release admission.\n", coverage.Declared, coverage.Passed, coverage.Pending, coverage.Failed, coverage.Blocked, coverage.NotRun, coverage.Result)
+			notProjected := ""
+			if coverage.NotProjected != nil {
+				notProjected = fmt.Sprintf(", %d not projected (no StackKits coverage codec)", *coverage.NotProjected)
+			}
+			fmt.Fprintf(&b, "\nOriginal window coverage: %d declared, %d passed, %d pending, %d failed, %d blocked, %d not run%s. Window result: `%s`. This is the original window's coverage, not a new execution or a current-release admission.\n", coverage.Declared, coverage.Passed, coverage.Pending, coverage.Failed, coverage.Blocked, coverage.NotRun, notProjected, coverage.Result)
 		}
 	}
 	b.WriteString("\n## Authority boundary\n\n")
