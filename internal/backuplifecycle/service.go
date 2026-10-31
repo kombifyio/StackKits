@@ -579,6 +579,12 @@ func (s *Service) repositoryStatus(ctx context.Context, configuration Configurat
 }
 
 func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, error) {
+	stage := RunStageRuntime
+	anchor, err := s.run(ctx, input, &stage)
+	return anchor, WithRunStage(stage, err)
+}
+
+func (s *Service) run(ctx context.Context, input RunInput, stage *string) (SnapshotAnchor, error) {
 	if err := s.ready(ctx); err != nil {
 		return SnapshotAnchor{}, err
 	}
@@ -588,6 +594,7 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 	if !validOperationID(input.OperationID) {
 		return SnapshotAnchor{}, errors.New("backuplifecycle: operation ID must match [A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 	}
+	*stage = RunStageConfiguration
 	configuration, err := s.boundConfiguration(StatusInput{
 		OwnerRef: input.OwnerRef, AuthorityRef: input.AuthorityRef,
 		Lineage: input.Lineage, PolicyArtifact: input.PolicyArtifact,
@@ -595,6 +602,7 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 	if err != nil {
 		return SnapshotAnchor{}, err
 	}
+	*stage = RunStageOperationJournal
 	boundInput := operationInput{
 		OwnerRef: configuration.OwnerRef, AuthorityRef: configuration.AuthorityRef,
 		Lineage: configuration.Lineage, PolicyArtifactDigest: configuration.PolicyArtifactDigest,
@@ -622,11 +630,13 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 			if !reflect.DeepEqual(stored, *operation.Anchor) {
 				return SnapshotAnchor{}, errors.New("backuplifecycle: completed operation journal differs from its content-addressed snapshot anchor")
 			}
+			*stage = RunStageAppGroups
 			if err := s.closeCompletedSnapshotGroups(ctx, operationPath, operation); err != nil {
 				return SnapshotAnchor{}, err
 			}
 			return stored, nil
 		case operation.State == "failed" && operation.Anchor == nil:
+			*stage = RunStageAppGroups
 			if err := s.closeFailedSnapshotGroups(ctx, operationPath, operation); err != nil {
 				return SnapshotAnchor{}, err
 			}
@@ -639,10 +649,12 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 	} else if !errors.Is(loadErr, os.ErrNotExist) {
 		return SnapshotAnchor{}, loadErr
 	}
+	*stage = RunStageRetention
 	if err := s.admitSnapshotRetention(ctx, configuration); err != nil {
 		return SnapshotAnchor{}, err
 	}
 
+	*stage = RunStageRepository
 	request, err := snapshotRequest(configuration, input.OperationID, input.Workloads...)
 	if err != nil {
 		return SnapshotAnchor{}, err
@@ -669,28 +681,35 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 		if pendingOperation.Quiescence != nil {
 			quiescence = cloneSnapshotQuiescence(*pendingOperation.Quiescence)
 		}
+		*stage = RunStageSnapshot
 		snapshot, quiesceErr := quiescedRuntime.CreateSnapshotWithQuiescence(ctx, request, quiescence, persistQuiescence)
 		if quiesceErr != nil {
 			return SnapshotAnchor{}, errors.Join(fmt.Errorf("backuplifecycle: create repository snapshot: %w", quiesceErr), s.settleFailedSnapshot(ctx, operationPath, boundInput))
 		}
+		*stage = RunStageSnapshotReceipt
 		if err := validateSnapshotReceipt(snapshot, request); err != nil {
 			return SnapshotAnchor{}, err
 		}
+		*stage = RunStageComplete
 		return s.completeSnapshot(ctx, operationPath, boundInput, configuration.Repository, snapshot, true)
 	}
 	if pending {
+		*stage = RunStageSnapshot
 		snapshot, found, lookupErr := s.runtime.LookupSnapshot(ctx, request)
 		if lookupErr != nil {
 			return SnapshotAnchor{}, fmt.Errorf("backuplifecycle: lookup pending repository snapshot: %w", lookupErr)
 		}
 		if found {
+			*stage = RunStageSnapshotReceipt
 			if err := validateSnapshotReceipt(snapshot, request); err != nil {
 				return SnapshotAnchor{}, err
 			}
+			*stage = RunStageComplete
 			return s.completeSnapshot(ctx, operationPath, boundInput, configuration.Repository, snapshot, false)
 		}
 	}
 
+	*stage = RunStageRepository
 	status, err := s.repositoryStatus(ctx, configuration)
 	if err != nil {
 		return SnapshotAnchor{}, err
@@ -698,6 +717,7 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 	if !status.Ready || status.Consistency != ConsistencyCrashConsistent {
 		return SnapshotAnchor{}, errors.New("backuplifecycle: repository is not ready for a crash-consistent snapshot")
 	}
+	*stage = RunStageOperationJournal
 	if !pending {
 		if err := s.writeSnapshotOperation(operationPath, snapshotOperation{
 			APIVersion: snapshotOperationAPI, State: "pending", Input: cloneOperationInput(boundInput),
@@ -705,6 +725,7 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 			return SnapshotAnchor{}, err
 		}
 	}
+	*stage = RunStageSnapshot
 	var snapshot RepositorySnapshotReceipt
 	if supportsQuiescence {
 		snapshot, err = quiescedRuntime.CreateSnapshotWithQuiescence(ctx, request, SnapshotQuiescence{}, persistQuiescence)
@@ -714,9 +735,11 @@ func (s *Service) Run(ctx context.Context, input RunInput) (SnapshotAnchor, erro
 	if err != nil {
 		return SnapshotAnchor{}, errors.Join(fmt.Errorf("backuplifecycle: create repository snapshot: %w", err), s.settleFailedSnapshot(ctx, operationPath, boundInput))
 	}
+	*stage = RunStageSnapshotReceipt
 	if err := validateSnapshotReceipt(snapshot, request); err != nil {
 		return SnapshotAnchor{}, err
 	}
+	*stage = RunStageComplete
 	return s.completeSnapshot(ctx, operationPath, boundInput, configuration.Repository, snapshot, supportsQuiescence)
 }
 

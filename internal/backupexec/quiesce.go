@@ -417,7 +417,16 @@ func (q *dockerV2Quiescer) StopContainer(ctx context.Context, id string) error {
 	if err := q.verifyApplicationContainerIdentity(ctx, stopped); err != nil {
 		return err
 	}
-	if err := validateCleanDockerStop(stopped, container.StopSignal); err != nil {
+	// Docker keeps OOMKilled set for the rest of a container's run once any
+	// process in its memory cgroup is OOM-killed, while the container itself
+	// keeps running (Immich machine learning loses a model worker to its
+	// memory limit and respawns it). That earlier kill says nothing about this
+	// stop; only an OOM kill first seen after the stop makes it unclean.
+	observed := stopped
+	if container.OOMKilled {
+		observed.OOMKilled = false
+	}
+	if err := validateCleanDockerStop(observed, container.StopSignal); err != nil {
 		return fmt.Errorf("Docker container %q did not reach a clean stopped state: %w", container.ID, err)
 	}
 	return nil

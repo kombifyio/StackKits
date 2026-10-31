@@ -98,6 +98,22 @@ func restoreActivationFailureReason(err error) (string, bool) {
 
 var restoreActivationStagePattern = regexp.MustCompile(`^[a-z][a-z-]{1,39}$`)
 
+// backupRunFailureReason names the closed step at which a snapshot run failed,
+// e.g. backup_run_failed_in_quiesce_stop. Without it every run failure was the
+// generic run_failed, and evidence that keeps only closed tokens could not say
+// whether writers stopped, Kopia failed or the resume failed. Restore
+// activation and typed product reasons keep precedence.
+func backupRunFailureReason(err error) (string, bool) {
+	var stage *backuplifecycle.RunStageError
+	if !errors.As(err, &stage) || !restoreActivationStagePattern.MatchString(stage.Stage) {
+		return "", false
+	}
+	if _, restoring := restoreActivationFailureReason(err); restoring {
+		return "", false
+	}
+	return "backup_run_failed_in_" + strings.ReplaceAll(stage.Stage, "-", "_"), true
+}
+
 // Preserve the existing product classifications without exposing error fields.
 // Code types can hold arbitrary strings, so only registered values are public.
 func typedProductFailureReason(err error) (reason string, typed bool) {
@@ -239,6 +255,9 @@ func commandFailureDetail(cmd *cobra.Command, err error, guidance ...string) (st
 		message = "StackKits rejected the command at a typed product boundary."
 	}
 	if stageReason, ok := restoreActivationFailureReason(err); ok && !typed {
+		reason = stageReason
+	}
+	if stageReason, ok := backupRunFailureReason(err); ok && !typed {
 		reason = stageReason
 	}
 	var pathError *os.PathError

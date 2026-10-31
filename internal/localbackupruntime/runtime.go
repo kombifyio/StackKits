@@ -301,7 +301,12 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 	journal backuplifecycle.SnapshotQuiescence,
 	persist func(backuplifecycle.SnapshotQuiescence) error,
 ) (receipt backuplifecycle.RepositorySnapshotReceipt, resultErr error) {
+	// Registered first so it runs last: the failed step is named after the
+	// writer cleanup below has had its say.
+	stage := backuplifecycle.RunStageQuiescePrepare
+	defer func() { resultErr = backuplifecycle.WithRunStage(stage, resultErr) }()
 	if r != nil && (r.appGroups != nil || journal.ControlVersion == 2) {
+		stage = backuplifecycle.RunStageAppGroups
 		if r.appGroups == nil {
 			return receipt, errors.New("retained v2 snapshot requires original app-group adapter")
 		}
@@ -333,17 +338,17 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 		if (resumeSettlementRequired && !settlementComplete) || (snapshotAttempted && resultErr != nil && !settlementComplete) {
 			if r.snapshotSettler == nil {
 				settlementFailed = true
-				resultErr = combineQuiescenceErrors(resultErr, errors.New("localbackupruntime: recovery-required: Kopia runtime settlement is required before writer resume"))
+				resultErr = combineQuiescenceErrors(resultErr, backuplifecycle.WithRunStage(backuplifecycle.RunStageKopiaSettle, errors.New("localbackupruntime: recovery-required: Kopia runtime settlement is required before writer resume")))
 				return
 			}
 			if err := r.authorizeSnapshotSettlement(request); err != nil {
 				settlementFailed = true
-				resultErr = combineQuiescenceErrors(resultErr, err)
+				resultErr = combineQuiescenceErrors(resultErr, backuplifecycle.WithRunStage(backuplifecycle.RunStageKopiaSettle, err))
 				return
 			}
 			if err := r.settleSnapshotRuntime(); err != nil {
 				settlementFailed = true
-				resultErr = combineQuiescenceErrors(resultErr, fmt.Errorf("localbackupruntime: settle Kopia runtime before writer resume: %w", err))
+				resultErr = combineQuiescenceErrors(resultErr, backuplifecycle.WithRunStage(backuplifecycle.RunStageKopiaSettle, fmt.Errorf("localbackupruntime: settle Kopia runtime before writer resume: %w", err)))
 				return
 			}
 			settlementComplete = true
@@ -354,6 +359,7 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 		} else {
 			cleanupErr = r.restoreQuiescence(journal, persist)
 		}
+		cleanupErr = backuplifecycle.WithRunStage(backuplifecycle.RunStageQuiesceResume, cleanupErr)
 		if resultErr != nil {
 			resultErr = combineQuiescenceErrors(resultErr, cleanupErr)
 			return
@@ -377,6 +383,7 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 		if hasJournal {
 			return backuplifecycle.RepositorySnapshotReceipt{}, errors.New("localbackupruntime: snapshot quiescer is required to recover a journaled operation")
 		}
+		stage = backuplifecycle.RunStageSnapshotCreate
 		return r.CreateSnapshot(ctx, request)
 	}
 	if persist == nil {
@@ -391,6 +398,7 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 			return backuplifecycle.RepositorySnapshotReceipt{}, err
 		}
 		if journal.Phase == "stopped" || journal.Phase == "snapshot-created" {
+			stage = backuplifecycle.RunStageKopiaSettle
 			if r.snapshotSettler == nil {
 				settlementFailed = true
 				return backuplifecycle.RepositorySnapshotReceipt{}, errors.New("localbackupruntime: resumed snapshot requires Kopia runtime settlement")
@@ -404,6 +412,7 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 				return backuplifecycle.RepositorySnapshotReceipt{}, fmt.Errorf("localbackupruntime: settle resumed Kopia runtime: %w", err)
 			}
 			settlementComplete = true
+			stage = backuplifecycle.RunStageQuiescePrepare
 		}
 	}
 	policy, err := r.sourcePolicy(ctx, request.OwnerRef, request.AuthorityRef, request.Lineage, r.sourceProjection())
@@ -443,6 +452,7 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 		}
 	}
 
+	stage = backuplifecycle.RunStageQuiesceStop
 	if err := r.stopSnapshotWriters(ctx, request.OperationID, &journal, persist); err != nil {
 		return backuplifecycle.RepositorySnapshotReceipt{}, err
 	}
@@ -451,6 +461,7 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 		return backuplifecycle.RepositorySnapshotReceipt{}, err
 	}
 
+	stage = backuplifecycle.RunStageSnapshotCreate
 	secret, err = r.loadAuthorizedSecret(request.OwnerRef, request.AuthorityRef, request.Lineage)
 	if err != nil {
 		return backuplifecycle.RepositorySnapshotReceipt{}, err
@@ -466,6 +477,7 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 		return backuplifecycle.RepositorySnapshotReceipt{}, errors.New("localbackupruntime: snapshot creation failed")
 	}
 
+	stage = backuplifecycle.RunStageSnapshotFinalize
 	journal.Phase = "snapshot-created"
 	if err := persist(journal); err != nil {
 		return backuplifecycle.RepositorySnapshotReceipt{}, err

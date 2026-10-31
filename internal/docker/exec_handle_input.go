@@ -70,7 +70,7 @@ func (c *ExecHandleClient) StartInput(ctx context.Context, handle string, comman
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
 	defer stop()
 	body, _ := json.Marshal(struct{ Detach, Tty bool }{false, false})
-	request, _ := http.NewRequest(http.MethodPost, "http://docker/v1.40/exec/"+handle+"/start", bytes.NewReader(body))
+	request, _ := http.NewRequest(http.MethodPost, "http://docker/"+execAPIVersion+"/exec/"+handle+"/start", bytes.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Connection", "Upgrade")
 	request.Header.Set("Upgrade", "tcp")

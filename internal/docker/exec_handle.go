@@ -12,10 +12,22 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 )
 
 var fullDockerID = regexp.MustCompile(`^[a-f0-9]{64}$`)
+
+// execAPIVersion is the Engine API the exec handle speaks. Every qualified
+// Engine is 29.x, whose minimum API version is 1.44: an older version path is
+// answered HTTP 400 before the daemon reads the request, on every call.
+const execAPIVersion = "v1.44"
+
+// Bounded, credential-free reasons the exec handle names in its failures.
+const (
+	ExecReasonAPIRejected       = "docker_exec_api_rejected"
+	ExecReasonEngineUnqualified = "docker_exec_engine_unqualified"
+)
 
 // ExecHandleClient exposes Docker's dormant exec handle separately from its
 // single start request. It is local-only and ignores proxy/DOCKER_HOST state.
@@ -44,7 +56,7 @@ func (c *ExecHandleClient) request(ctx context.Context, method, path string, inp
 		}
 		body = bytes.NewReader(raw)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, "http://docker/v1.40/"+path, body)
+	req, err := http.NewRequestWithContext(ctx, method, "http://docker/"+execAPIVersion+"/"+path, body)
 	if err != nil {
 		return err
 	}
@@ -55,7 +67,7 @@ func (c *ExecHandleClient) request(ctx context.Context, method, path string, inp
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("local Docker exec %s returned HTTP%d", method, resp.StatusCode)
+		return fmt.Errorf("%s: local Docker exec %s %s returned HTTP%d", ExecReasonAPIRejected, method, execRequestKind(path), resp.StatusCode)
 	}
 	if output == nil {
 		_, err = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
@@ -138,9 +150,28 @@ func (c *ExecHandleClient) Qualify(ctx context.Context) error {
 	if err := c.request(ctx, http.MethodGet, "version", nil, &version); err != nil {
 		return err
 	}
-	if !(version.Version == "29.9.0" && version.GitCommit == "a5b58c9" || version.Version == "29.8.0" && version.GitCommit == "3ce5872") {
-		return errors.New("native completion requires a qualified Docker exec implementation")
+	// Ubuntu 26.04's docker.io 29.1.3 was probed on a held compatibility guest:
+	// dormant handle Running=false/ExitCode=null, detached start and the
+	// command-defined exit code readback match the other qualified Engines.
+	if !(version.Version == "29.9.0" && version.GitCommit == "a5b58c9" || version.Version == "29.8.0" && version.GitCommit == "3ce5872" ||
+		version.Version == "29.1.3" && version.GitCommit == "29.1.3-0ubuntu4.1") {
+		return fmt.Errorf("%s: native completion requires a qualified Docker exec implementation (engine %.32q build %.32q)", ExecReasonEngineUnqualified, version.Version, version.GitCommit)
 	}
 
 	return nil
+}
+
+// execRequestKind names a request without its handle or container ID.
+func execRequestKind(path string) string {
+	switch {
+	case path == "version":
+		return "version"
+	case strings.HasPrefix(path, "containers/"):
+		return "create"
+	case strings.HasSuffix(path, "/start"):
+		return "start"
+	case strings.HasSuffix(path, "/json"):
+		return "inspect"
+	}
+	return "request"
 }

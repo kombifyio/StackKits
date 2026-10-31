@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix: restore activation of Coolify-managed workloads (for example Files) reaches its data copy again. The quiesce step stops the workload through the local Docker exec API, which asked for API version 1.40; Docker Engine 29 answers every request below 1.44 with HTTP 400, so activation failed before its first copy. The exec API now uses version 1.44, Ubuntu 26.04 Docker 29.1.3 is a qualified Engine, and a failure names `docker_exec_api_rejected` or `docker_exec_engine_unqualified` with the request kind or Engine build.
+
 - Fix: lifecycle interruption recovery stops only leftover processes that prove they belong to the dead owner: each owner exports a random `STACKKIT_LEASE_OWNER` token to its children, and only processes carrying that exact token in the same boot are stopped (pidfd-pinned). An unrelated process that reuses the group or session is never signalled. A resumed operation claim is checked under the state lock, and the dead owner's lease stays held until its interruption is recorded. When nothing could be stopped, the record says the old effects may still be in progress.
 
 - Fix: a lifecycle operation whose process was killed (for example `stackkit backup run` stopped with SIGKILL) no longer blocks every later Apply and backup. Each operation, including a resumed one, holds a kernel advisory lease while its process runs; the next Apply or backup that finds the lease free stops any child processes left in the dead owner's process group, records the operation as interrupted with its uncertain effects, and continues. A live or resumed operation still blocks.
@@ -379,6 +381,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## [0.54.14](https://github.com/kombifyio/StackKits/compare/v0.54.13...v0.54.14) (2026-10-31)
+
+
+### Fixed
+
+* **backup:** accept a clean stop after an earlier in-container OOM kill and name the failed snapshot-run step (platform-1ax58.2)
+* **restore:** speak Docker exec API 1.44 so Coolify restore activation can quiesce (2ujh.3.7)
 
 ## [0.54.13](https://github.com/kombifyio/StackKits/compare/v0.54.12...v0.54.13) (2026-10-31)
 
