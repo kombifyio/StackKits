@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 )
 
 // ResolvedPlanArtifactID is the plan-owned metadata artifact that accompanies

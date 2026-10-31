@@ -12,9 +12,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/localevidence"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 const (

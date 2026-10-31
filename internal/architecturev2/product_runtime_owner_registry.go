@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeapply"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutordispatch"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 // ProductRuntimeOwnerSelector is the stable CUE/catalog identity a product

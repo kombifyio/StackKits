@@ -7,7 +7,7 @@ package workloadremoval
 import (
 	"time"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	public "github.com/kombifyio/stackkits/pkg/workloadremoval"
 )
 

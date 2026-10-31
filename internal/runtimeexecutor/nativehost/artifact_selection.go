@@ -3,7 +3,7 @@ package nativehost
 import (
 	"errors"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 )
 
 // exactOwnedArtifactWithPlanMetadata selects one target-owned artifact while

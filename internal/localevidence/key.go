@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kombifyio/stackkits/internal/applyevidencev2"
+	"github.com/kombifyio/stackkits/contracts/applyevidence"
 )
 
 // ownerKeyRelPath is the workspace-relative private custody location.

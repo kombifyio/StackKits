@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/contracts/runtimeapply"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 )
 
 // OwnerRoute binds one complete, already-verified RuntimeTarget to one typed

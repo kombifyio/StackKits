@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeapply"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
-	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 // Scope names the routing level of a prepared child.

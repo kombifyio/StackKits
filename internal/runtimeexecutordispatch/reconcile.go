@@ -1,8 +1,8 @@
 package runtimeexecutordispatch
 
 import (
-	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/contracts/runtimeapply"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 )
 
 // ReconcileRequiredError is the provider-free structured partial-failure

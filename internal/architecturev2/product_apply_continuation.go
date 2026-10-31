@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 const productApplyContinuationAPIVersion = "stackkits.product-apply-continuation/v1alpha1"

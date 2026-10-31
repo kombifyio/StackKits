@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kombifyio/stackkits/internal/applyevidencev2"
+	"github.com/kombifyio/stackkits/contracts/applyevidence"
 )
 
 // producerID is the stable provider-neutral identity of this producer. It must

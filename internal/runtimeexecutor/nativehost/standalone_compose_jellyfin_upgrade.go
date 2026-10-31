@@ -114,6 +114,9 @@ func readPersistedJellyfinRuntime(directory, project string) (string, bool, erro
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return "", false, errors.New("Jellyfin runtime custody is unavailable")
 	}
+	if standaloneComposeRuntimeCustodyAbsent(directory) {
+		return "", false, nil
+	}
 	root, err := confinedfs.Open(directory)
 	if err != nil {
 		return "", false, err

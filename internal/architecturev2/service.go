@@ -9,11 +9,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeapply"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
-	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )

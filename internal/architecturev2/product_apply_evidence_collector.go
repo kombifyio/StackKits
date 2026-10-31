@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/kombifyio/stackkits/internal/applyevidencev2"
+	"github.com/kombifyio/stackkits/contracts/applyevidence"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )

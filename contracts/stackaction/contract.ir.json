@@ -1,0 +1,2879 @@
+{
+  "schemaVersion": "stackkit.stackaction-contract-ir/v1",
+  "generatorVersion": "stackactiongen/v1",
+  "source": {
+    "path": "foundation/stack_action.cue",
+    "sha256": "590d0803a54d4c89035fa38d90690b39838ff0d0f895b76c4f7e6006db29d863"
+  },
+  "contract": {
+    "wireVersion": "stackkit.stack-action/v1",
+    "target": "stackkits",
+    "pathPrefix": "/api/v1/internal/stack-actions",
+    "observationVersion": "stackkit.runtime-observation/v2",
+    "enums": {
+      "Action": {
+        "order": 10,
+        "goName": "Action",
+        "values": [
+          {
+            "goConst": "ActionStackKitRollout",
+            "value": "stackkit_rollout"
+          },
+          {
+            "goConst": "ActionVerifyRollout",
+            "value": "verify_rollout"
+          },
+          {
+            "goConst": "ActionRestoreDrill",
+            "value": "restore_drill"
+          },
+          {
+            "goConst": "ActionBackupRun",
+            "value": "backup_run",
+            "backup": true
+          },
+          {
+            "goConst": "ActionBackupStatus",
+            "value": "backup_status",
+            "backup": true
+          },
+          {
+            "goConst": "ActionBackupRestore",
+            "value": "backup_restore",
+            "backup": true
+          },
+          {
+            "goConst": "ActionBackupWipe",
+            "value": "backup_wipe",
+            "backup": true
+          },
+          {
+            "goConst": "ActionServiceStart",
+            "value": "service_start"
+          },
+          {
+            "goConst": "ActionServiceStop",
+            "value": "service_stop"
+          },
+          {
+            "goConst": "ActionServiceRestart",
+            "value": "service_restart"
+          },
+          {
+            "goConst": "ActionServiceLogs",
+            "value": "service_logs"
+          }
+        ]
+      },
+      "CheckStatus": {
+        "order": 40,
+        "goName": "CheckStatus",
+        "values": [
+          {
+            "goConst": "CheckStatusOK",
+            "value": "ok"
+          },
+          {
+            "goConst": "CheckStatusWarning",
+            "value": "warning"
+          },
+          {
+            "goConst": "CheckStatusMissing",
+            "value": "missing"
+          },
+          {
+            "goConst": "CheckStatusReference",
+            "value": "reference"
+          },
+          {
+            "goConst": "CheckStatusSkipped",
+            "value": "skipped"
+          },
+          {
+            "goConst": "CheckStatusFailed",
+            "value": "failed"
+          }
+        ]
+      },
+      "ContainerHealth": {
+        "order": 90,
+        "goName": "ContainerHealth",
+        "values": [
+          {
+            "goConst": "ContainerHealthHealthy",
+            "value": "healthy"
+          },
+          {
+            "goConst": "ContainerHealthUnhealthy",
+            "value": "unhealthy"
+          },
+          {
+            "goConst": "ContainerHealthStarting",
+            "value": "starting"
+          },
+          {
+            "goConst": "ContainerHealthNone",
+            "value": "none"
+          },
+          {
+            "goConst": "ContainerHealthUnknown",
+            "value": "unknown"
+          }
+        ]
+      },
+      "Mode": {
+        "order": 20,
+        "goName": "Mode",
+        "values": [
+          {
+            "goConst": "ModeDryRun",
+            "value": "dry-run"
+          },
+          {
+            "goConst": "ModeApply",
+            "value": "apply"
+          }
+        ]
+      },
+      "OverallOutcome": {
+        "order": 120,
+        "goName": "OverallOutcome",
+        "values": [
+          {
+            "goConst": "OverallOutcomeApplied",
+            "value": "applied"
+          },
+          {
+            "goConst": "OverallOutcomeCompletedDegraded",
+            "value": "completed_degraded"
+          },
+          {
+            "goConst": "OverallOutcomeFailed",
+            "value": "failed"
+          },
+          {
+            "goConst": "OverallOutcomeBlocked",
+            "value": "blocked"
+          }
+        ]
+      },
+      "PlatformManagement": {
+        "order": 70,
+        "goName": "PlatformManagement",
+        "values": [
+          {
+            "goConst": "PlatformManagementManaged",
+            "value": "managed"
+          },
+          {
+            "goConst": "PlatformManagementHandoff",
+            "value": "handoff"
+          },
+          {
+            "goConst": "PlatformManagementUnmanaged",
+            "value": "unmanaged"
+          },
+          {
+            "goConst": "PlatformManagementFallback",
+            "value": "fallback"
+          }
+        ]
+      },
+      "ServiceHealthStatus": {
+        "order": 50,
+        "goName": "ServiceHealthStatus",
+        "values": [
+          {
+            "goConst": "ServiceHealthStarting",
+            "value": "starting"
+          },
+          {
+            "goConst": "ServiceHealthHealthy",
+            "value": "healthy"
+          },
+          {
+            "goConst": "ServiceHealthUnhealthy",
+            "value": "unhealthy"
+          },
+          {
+            "goConst": "ServiceHealthUnknown",
+            "value": "unknown"
+          }
+        ]
+      },
+      "SetupPolicy": {
+        "order": 80,
+        "goName": "SetupPolicy",
+        "values": [
+          {
+            "goConst": "SetupPolicyManual",
+            "value": "manual"
+          },
+          {
+            "goConst": "SetupPolicyOnDemand",
+            "value": "on_demand"
+          },
+          {
+            "goConst": "SetupPolicyAutomatic",
+            "value": "automatic"
+          }
+        ]
+      },
+      "Status": {
+        "order": 30,
+        "goName": "Status",
+        "values": [
+          {
+            "goConst": "StatusAccepted",
+            "value": "accepted"
+          },
+          {
+            "goConst": "StatusReady",
+            "value": "ready"
+          },
+          {
+            "goConst": "StatusApplied",
+            "value": "applied"
+          },
+          {
+            "goConst": "StatusVerified",
+            "value": "verified"
+          },
+          {
+            "goConst": "StatusCompletedDegraded",
+            "value": "completed_degraded"
+          },
+          {
+            "goConst": "StatusSkipped",
+            "value": "skipped"
+          },
+          {
+            "goConst": "StatusFailed",
+            "value": "failed"
+          }
+        ]
+      },
+      "SupplementalNodeRole": {
+        "order": 60,
+        "goName": "SupplementalNodeRole",
+        "values": [
+          {
+            "goConst": "SupplementalNodeRoleWorker",
+            "value": "worker"
+          },
+          {
+            "goConst": "SupplementalNodeRoleStorage",
+            "value": "storage"
+          }
+        ]
+      },
+      "UnitCriticality": {
+        "order": 110,
+        "goName": "UnitCriticality",
+        "values": [
+          {
+            "goConst": "UnitCriticalityCore",
+            "value": "core"
+          },
+          {
+            "goConst": "UnitCriticalityPlatform",
+            "value": "platform"
+          },
+          {
+            "goConst": "UnitCriticalityWorkload",
+            "value": "workload"
+          },
+          {
+            "goConst": "UnitCriticalityAddon",
+            "value": "addon"
+          }
+        ]
+      },
+      "UnitOutcomeStatus": {
+        "order": 100,
+        "goName": "UnitOutcomeStatus",
+        "values": [
+          {
+            "goConst": "UnitOutcomeApplied",
+            "value": "applied"
+          },
+          {
+            "goConst": "UnitOutcomeDegraded",
+            "value": "degraded"
+          },
+          {
+            "goConst": "UnitOutcomeFailed",
+            "value": "failed"
+          },
+          {
+            "goConst": "UnitOutcomeSkipped",
+            "value": "skipped"
+          },
+          {
+            "goConst": "UnitOutcomeUnverified",
+            "value": "unverified"
+          }
+        ]
+      }
+    },
+    "paths": [
+      {
+        "goConst": "PathStackKitRollout",
+        "suffix": "/stackkit-rollout",
+        "action": "stackkit_rollout",
+        "operationID": "stackActionStackKitRollout",
+        "summary": "Run or dry-run StackKits rollout for TechStack"
+      },
+      {
+        "goConst": "PathStackKitVerify",
+        "suffix": "/stackkit-verify",
+        "action": "verify_rollout",
+        "operationID": "stackActionStackKitVerify",
+        "summary": "Verify StackKits rollout state for TechStack"
+      },
+      {
+        "goConst": "PathRestoreDrill",
+        "suffix": "/restore-drill",
+        "action": "restore_drill",
+        "operationID": "stackActionRestoreDrill",
+        "summary": "Run or dry-run StackKits restore drill for TechStack"
+      },
+      {
+        "goConst": "PathBackupRun",
+        "suffix": "/backup-run",
+        "action": "backup_run",
+        "operationID": "stackActionBackupRun",
+        "summary": "Start a StackKits backup run"
+      },
+      {
+        "goConst": "PathBackupStatus",
+        "suffix": "/backup-status",
+        "action": "backup_status",
+        "operationID": "stackActionBackupStatus",
+        "summary": "Inspect StackKits backup status"
+      },
+      {
+        "goConst": "PathBackupRestore",
+        "suffix": "/backup-restore",
+        "action": "backup_restore",
+        "operationID": "stackActionBackupRestore",
+        "summary": "Restore a StackKits backup snapshot"
+      },
+      {
+        "goConst": "PathBackupWipe",
+        "suffix": "/backup-wipe",
+        "action": "backup_wipe",
+        "operationID": "stackActionBackupWipe",
+        "summary": "Wipe the configured StackKits backup repository"
+      },
+      {
+        "goConst": "PathServiceStart",
+        "suffix": "/service-start",
+        "action": "service_start",
+        "operationID": "stackActionServiceStart",
+        "summary": "Start one StackKits-managed service"
+      },
+      {
+        "goConst": "PathServiceStop",
+        "suffix": "/service-stop",
+        "action": "service_stop",
+        "operationID": "stackActionServiceStop",
+        "summary": "Stop one non-critical StackKits-managed service"
+      },
+      {
+        "goConst": "PathServiceRestart",
+        "suffix": "/service-restart",
+        "action": "service_restart",
+        "operationID": "stackActionServiceRestart",
+        "summary": "Restart one StackKits-managed service"
+      },
+      {
+        "goConst": "PathServiceLogs",
+        "suffix": "/service-logs",
+        "action": "service_logs",
+        "operationID": "stackActionServiceLogs",
+        "summary": "Read bounded redacted logs for one StackKits-managed service"
+      }
+    ],
+    "types": {
+      "BackupRepoTarget": {
+        "order": 80,
+        "goName": "BackupRepoTarget",
+        "openapiName": "StackActionBackupRepoTarget",
+        "description": "Backup repository target with an opaque credential reference.",
+        "fields": [
+          {
+            "json": "type",
+            "goName": "Type",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "endpoint",
+            "goName": "Endpoint",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "bucket",
+            "goName": "Bucket",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "region",
+            "goName": "Region",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "prefix",
+            "goName": "Prefix",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "credential_ref",
+            "goName": "CredentialRef",
+            "goType": "*ScopedReference",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionScopedReference"
+            }
+          }
+        ]
+      },
+      "BackupRequest": {
+        "order": 90,
+        "goName": "BackupRequest",
+        "openapiName": "StackActionBackupRequest",
+        "description": "Backup action parameters containing no credential material.",
+        "fields": [
+          {
+            "json": "classes",
+            "goName": "Classes",
+            "goType": "[]string",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string"
+            }
+          },
+          {
+            "json": "snapshot_id",
+            "goName": "SnapshotID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "repo",
+            "goName": "Repo",
+            "goType": "*BackupRepoTarget",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionBackupRepoTarget"
+            }
+          },
+          {
+            "json": "confirm",
+            "goName": "Confirm",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "BackupResult": {
+        "order": 110,
+        "goName": "BackupResult",
+        "openapiName": "StackActionBackupResult",
+        "description": "Backup engine state and snapshots.",
+        "fields": [
+          {
+            "json": "engine",
+            "goName": "Engine",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "phase",
+            "goName": "Phase",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "classes",
+            "goName": "Classes",
+            "goType": "[]string",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string"
+            }
+          },
+          {
+            "json": "snapshots",
+            "goName": "Snapshots",
+            "goType": "[]BackupSnapshot",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionBackupSnapshot"
+            }
+          },
+          {
+            "json": "repo_size_bytes",
+            "goName": "RepoSizeBytes",
+            "goType": "int64",
+            "required": false,
+            "openapi": {
+              "kind": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "json": "wiped",
+            "goName": "Wiped",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          }
+        ]
+      },
+      "BackupSnapshot": {
+        "order": 100,
+        "goName": "BackupSnapshot",
+        "openapiName": "StackActionBackupSnapshot",
+        "description": "One observed backup snapshot.",
+        "fields": [
+          {
+            "json": "id",
+            "goName": "ID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "source",
+            "goName": "Source",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "classes",
+            "goName": "Classes",
+            "goType": "[]string",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string"
+            }
+          },
+          {
+            "json": "started_at",
+            "goName": "StartedAt",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "json": "finished_at",
+            "goName": "FinishedAt",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "json": "total_bytes",
+            "goName": "TotalBytes",
+            "goType": "int64",
+            "required": false,
+            "openapi": {
+              "kind": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ]
+      },
+      "Check": {
+        "order": 120,
+        "goName": "Check",
+        "openapiName": "StackActionCheck",
+        "description": "One named action check.",
+        "fields": [
+          {
+            "json": "name",
+            "goName": "Name",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "status",
+            "goName": "Status",
+            "goType": "CheckStatus",
+            "required": true,
+            "openapi": {
+              "kind": "enum",
+              "enum": "CheckStatus"
+            }
+          },
+          {
+            "json": "detail",
+            "goName": "Detail",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "ContainerObservation": {
+        "order": 150,
+        "goName": "ContainerObservation",
+        "openapiName": "StackActionContainerObservation",
+        "description": "Measured Docker container state.",
+        "fields": [
+          {
+            "json": "id",
+            "goName": "ID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "name",
+            "goName": "Name",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "state",
+            "goName": "State",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "running",
+            "goName": "Running",
+            "goType": "bool",
+            "required": true,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "health",
+            "goName": "Health",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "enum",
+              "enum": "ContainerHealth"
+            }
+          }
+        ]
+      },
+      "DeploymentRef": {
+        "order": 260,
+        "goName": "DeploymentRef",
+        "openapiName": "StackActionDeploymentRef",
+        "description": "Selected-PaaS deployment reference.",
+        "fields": [
+          {
+            "json": "platform",
+            "goName": "Platform",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "appName",
+            "goName": "AppName",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "externalId",
+            "goName": "ExternalID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "deploymentId",
+            "goName": "DeploymentID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "observedStatus",
+            "goName": "ObservedStatus",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "observedAt",
+            "goName": "ObservedAt",
+            "goType": "time.Time",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "json": "lastDeployed",
+            "goName": "LastDeployed",
+            "goType": "time.Time",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          }
+        ]
+      },
+      "HTTPProbeObservation": {
+        "order": 160,
+        "goName": "HTTPProbeObservation",
+        "openapiName": "StackActionHTTPProbeObservation",
+        "description": "Measured HTTP health probe.",
+        "fields": [
+          {
+            "json": "url",
+            "goName": "URL",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "reached",
+            "goName": "Reached",
+            "goType": "bool",
+            "required": true,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "status_code",
+            "goName": "StatusCode",
+            "goType": "int",
+            "required": false,
+            "openapi": {
+              "kind": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          },
+          {
+            "json": "failure_class",
+            "goName": "FailureClass",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "HostObservation": {
+        "order": 130,
+        "goName": "HostObservation",
+        "openapiName": "StackActionObservationHost",
+        "description": "Measured host and Docker reachability.",
+        "fields": [
+          {
+            "json": "host",
+            "goName": "Host",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "reachable",
+            "goName": "Reachable",
+            "goType": "bool",
+            "required": true,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "docker_reachable",
+            "goName": "DockerReachable",
+            "goType": "bool",
+            "required": true,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "failure_class",
+            "goName": "FailureClass",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "IdentityOutputs": {
+        "order": 210,
+        "goName": "IdentityOutputs",
+        "openapiName": "StackActionIdentityOutputs",
+        "description": "Owner and recovery output projection.",
+        "fields": [
+          {
+            "json": "owner",
+            "goName": "Owner",
+            "goType": "*OwnerIdentity",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionOwnerIdentity"
+            }
+          },
+          {
+            "json": "recovery",
+            "goName": "Recovery",
+            "goType": "*RecoveryOutput",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionRecoveryOutput"
+            }
+          }
+        ]
+      },
+      "LiveObservation": {
+        "order": 180,
+        "goName": "LiveObservation",
+        "openapiName": "StackActionLiveObservation",
+        "description": "Versioned persistable live-runtime evidence.",
+        "fields": [
+          {
+            "json": "version",
+            "goName": "Version",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "observed_at",
+            "goName": "ObservedAt",
+            "goType": "time.Time",
+            "required": true,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "json": "host",
+            "goName": "Host",
+            "goType": "HostObservation",
+            "required": true,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionObservationHost"
+            }
+          },
+          {
+            "json": "platform",
+            "goName": "Platform",
+            "goType": "*PlatformObservation",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionObservationPlatform"
+            }
+          },
+          {
+            "json": "services",
+            "goName": "Services",
+            "goType": "[]ServiceObservation",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionServiceObservation"
+            }
+          },
+          {
+            "json": "failure_class",
+            "goName": "FailureClass",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "LoginGatewayOutput": {
+        "order": 220,
+        "goName": "LoginGatewayOutput",
+        "openapiName": "StackActionLoginGatewayOutput",
+        "description": "Login gateway endpoints.",
+        "fields": [
+          {
+            "json": "url",
+            "goName": "URL",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "label",
+            "goName": "Label",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "admin_url",
+            "goName": "AdminURL",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          }
+        ]
+      },
+      "NodeBootstrap": {
+        "order": 60,
+        "goName": "NodeBootstrap",
+        "openapiName": "StackActionNodeBootstrap",
+        "description": "Platform-specific supplemental-node bootstrap.",
+        "fields": [
+          {
+            "json": "komodo_core_address",
+            "goName": "KomodoCoreAddress",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "onboarding_ref",
+            "goName": "OnboardingRef",
+            "goType": "*ScopedReference",
+            "required": true,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionScopedReference"
+            }
+          },
+          {
+            "json": "ssh",
+            "goName": "SSH",
+            "goType": "*SSHBootstrap",
+            "required": true,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionSSHBootstrap"
+            }
+          }
+        ]
+      },
+      "NodePlatformTarget": {
+        "order": 40,
+        "goName": "NodePlatformTarget",
+        "openapiName": "StackActionNodePlatformTarget",
+        "description": "Observed platform placement identity; values are never synthesized.",
+        "anyOfRequired": [
+          [
+            "server_id"
+          ],
+          [
+            "destination_uuid"
+          ],
+          [
+            "environment_id"
+          ],
+          [
+            "project_uuid"
+          ],
+          [
+            "environment_uuid"
+          ]
+        ],
+        "fields": [
+          {
+            "json": "server_id",
+            "goName": "ServerID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "destination_uuid",
+            "goName": "DestinationUUID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "environment_id",
+            "goName": "EnvironmentID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "project_uuid",
+            "goName": "ProjectUUID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "environment_uuid",
+            "goName": "EnvironmentUUID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "OwnerIdentity": {
+        "order": 190,
+        "goName": "OwnerIdentity",
+        "openapiName": "StackActionOwnerIdentity",
+        "description": "Configured owner identity.",
+        "fields": [
+          {
+            "json": "username",
+            "goName": "Username",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "email",
+            "goName": "Email",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "email"
+            }
+          },
+          {
+            "json": "display_name",
+            "goName": "DisplayName",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "subject",
+            "goName": "Subject",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "provider",
+            "goName": "Provider",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "PlatformAppState": {
+        "order": 280,
+        "goName": "PlatformAppState",
+        "openapiName": "StackActionPlatformAppState",
+        "description": "Artifact-ready selected-PaaS application state.",
+        "fields": [
+          {
+            "json": "name",
+            "goName": "Name",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "role",
+            "goName": "Role",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "platform",
+            "goName": "Platform",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "management",
+            "goName": "Management",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "enum",
+              "enum": "PlatformManagement"
+            }
+          },
+          {
+            "json": "externalId",
+            "goName": "ExternalID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "deploymentId",
+            "goName": "DeploymentID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "observedStatus",
+            "goName": "ObservedStatus",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "observedAt",
+            "goName": "ObservedAt",
+            "goType": "time.Time",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "json": "composePath",
+            "goName": "ComposePath",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "setupPolicy",
+            "goName": "SetupPolicy",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "enum",
+              "enum": "SetupPolicy"
+            }
+          },
+          {
+            "json": "setupDrops",
+            "goName": "SetupDrops",
+            "goType": "[]SetupDrop",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionSetupDrop"
+            }
+          },
+          {
+            "json": "lastDeployed",
+            "goName": "LastDeployed",
+            "goType": "time.Time",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "json": "failureStage",
+            "goName": "FailureStage",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "failureMessage",
+            "goName": "FailureMessage",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "retryable",
+            "goName": "Retryable",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          }
+        ]
+      },
+      "PlatformNode": {
+        "order": 70,
+        "goName": "PlatformNode",
+        "openapiName": "StackActionPlatformNode",
+        "description": "Supplemental worker or storage node.",
+        "anyOfRequired": [
+          [
+            "platform"
+          ],
+          [
+            "bootstrap"
+          ]
+        ],
+        "fields": [
+          {
+            "json": "name",
+            "goName": "Name",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "role",
+            "goName": "Role",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "enum",
+              "enum": "SupplementalNodeRole"
+            }
+          },
+          {
+            "json": "ip",
+            "goName": "IP",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "host",
+            "goName": "Host",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "services",
+            "goName": "Services",
+            "goType": "[]string",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string"
+            }
+          },
+          {
+            "json": "platform",
+            "goName": "Platform",
+            "goType": "NodePlatformTarget",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionNodePlatformTarget"
+            }
+          },
+          {
+            "json": "bootstrap",
+            "goName": "Bootstrap",
+            "goType": "*NodeBootstrap",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionNodeBootstrap"
+            }
+          }
+        ]
+      },
+      "PlatformObservation": {
+        "order": 140,
+        "goName": "PlatformObservation",
+        "openapiName": "StackActionObservationPlatform",
+        "description": "Observed selected-PaaS identity.",
+        "fields": [
+          {
+            "json": "name",
+            "goName": "Name",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "endpoint",
+            "goName": "Endpoint",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "server_id",
+            "goName": "ServerID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "project_uuid",
+            "goName": "ProjectUUID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "environment_uuid",
+            "goName": "EnvironmentUUID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "destination_uuid",
+            "goName": "DestinationUUID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "RecoveryOutput": {
+        "order": 200,
+        "goName": "RecoveryOutput",
+        "openapiName": "StackActionRecoveryOutput",
+        "description": "Opaque recovery references; no secret material.",
+        "fields": [
+          {
+            "json": "bundle_ref",
+            "goName": "BundleRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "secret_ref",
+            "goName": "SecretRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "machine_secret_ref",
+            "goName": "MachineSecretRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "passphrase_hash_present",
+            "goName": "PassphraseHashPresent",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          }
+        ]
+      },
+      "Request": {
+        "order": 320,
+        "goName": "Request",
+        "openapiName": "StackActionRequest",
+        "description": "StackKits-owned action request.",
+        "fields": [
+          {
+            "json": "action",
+            "goName": "Action",
+            "goType": "Action",
+            "required": true,
+            "openapi": {
+              "kind": "enum",
+              "enum": "Action"
+            }
+          },
+          {
+            "json": "stack_id",
+            "goName": "StackID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "stack_name",
+            "goName": "StackName",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "stackkit",
+            "goName": "StackKit",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "mode",
+            "goName": "Mode",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "tenant_id",
+            "goName": "TenantID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "owner_id",
+            "goName": "OwnerID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "tofu_dir",
+            "goName": "TofuDir",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "unified_path",
+            "goName": "UnifiedPath",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "owner_spec_ref",
+            "goName": "OwnerSpecRef",
+            "goType": "*ScopedReference",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionScopedReference"
+            }
+          },
+          {
+            "json": "runtime_target",
+            "goName": "RuntimeTarget",
+            "goType": "*RuntimeTarget",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionTarget"
+            }
+          },
+          {
+            "json": "platform_nodes",
+            "goName": "PlatformNodes",
+            "goType": "[]PlatformNode",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionPlatformNode"
+            }
+          },
+          {
+            "json": "techstack_enrollment",
+            "goName": "TechStackEnrollment",
+            "goType": "*TechStackEnrollment",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionTechStackEnrollment"
+            }
+          },
+          {
+            "json": "backup",
+            "goName": "Backup",
+            "goType": "*BackupRequest",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionBackupRequest"
+            }
+          },
+          {
+            "json": "service",
+            "goName": "Service",
+            "goType": "*ServiceActionRequest",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionServiceActionRequest"
+            }
+          }
+        ]
+      },
+      "Response": {
+        "order": 330,
+        "goName": "Response",
+        "openapiName": "StackActionResponse",
+        "description": "StackKits-owned action response and evidence.",
+        "fields": [
+          {
+            "json": "status",
+            "goName": "Status",
+            "goType": "Status",
+            "required": true,
+            "openapi": {
+              "kind": "enum",
+              "enum": "Status"
+            }
+          },
+          {
+            "json": "action",
+            "goName": "Action",
+            "goType": "Action",
+            "required": true,
+            "openapi": {
+              "kind": "enum",
+              "enum": "Action"
+            }
+          },
+          {
+            "json": "stack_id",
+            "goName": "StackID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "stack_name",
+            "goName": "StackName",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "stackkit",
+            "goName": "StackKit",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "tofu_dir",
+            "goName": "TofuDir",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "unified_path",
+            "goName": "UnifiedPath",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "mode",
+            "goName": "Mode",
+            "goType": "Mode",
+            "required": true,
+            "openapi": {
+              "kind": "enum",
+              "enum": "Mode"
+            }
+          },
+          {
+            "json": "checks",
+            "goName": "Checks",
+            "goType": "[]Check",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionCheck"
+            }
+          },
+          {
+            "json": "stackkit_outputs",
+            "goName": "StackKitOutputs",
+            "goType": "*StackKitOutputs",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionStackKitOutputs"
+            }
+          },
+          {
+            "json": "observation",
+            "goName": "Observation",
+            "goType": "*LiveObservation",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionLiveObservation"
+            }
+          },
+          {
+            "json": "runtime_metrics",
+            "goName": "RuntimeMetrics",
+            "goType": "*RuntimeMetrics",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionRuntimeMetrics"
+            }
+          },
+          {
+            "json": "platform_refs",
+            "goName": "PlatformRefs",
+            "goType": "[]DeploymentRef",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionDeploymentRef"
+            }
+          },
+          {
+            "json": "platform_system_apps",
+            "goName": "PlatformSystemApps",
+            "goType": "[]PlatformAppState",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionPlatformAppState"
+            }
+          },
+          {
+            "json": "platform_apps",
+            "goName": "PlatformApps",
+            "goType": "[]PlatformAppState",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionPlatformAppState"
+            }
+          },
+          {
+            "json": "backup",
+            "goName": "Backup",
+            "goType": "*BackupResult",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionBackupResult"
+            }
+          },
+          {
+            "json": "service",
+            "goName": "Service",
+            "goType": "*ServiceActionResult",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionServiceActionResult"
+            }
+          },
+          {
+            "json": "units",
+            "goName": "Units",
+            "goType": "[]UnitOutcome",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionUnitOutcome"
+            }
+          },
+          {
+            "json": "overall_outcome",
+            "goName": "OverallOutcome",
+            "goType": "OverallOutcome",
+            "required": false,
+            "openapi": {
+              "kind": "enum",
+              "enum": "OverallOutcome"
+            }
+          }
+        ]
+      },
+      "RuntimeMetrics": {
+        "order": 250,
+        "goName": "RuntimeMetrics",
+        "openapiName": "StackActionRuntimeMetrics",
+        "description": "Measured host utilization.",
+        "fields": [
+          {
+            "json": "cpu_percent",
+            "goName": "CPUPercent",
+            "goType": "float64",
+            "required": true,
+            "openapi": {
+              "kind": "number"
+            }
+          },
+          {
+            "json": "memory_percent",
+            "goName": "MemoryPercent",
+            "goType": "float64",
+            "required": true,
+            "openapi": {
+              "kind": "number"
+            }
+          },
+          {
+            "json": "disk_percent",
+            "goName": "DiskPercent",
+            "goType": "float64",
+            "required": true,
+            "openapi": {
+              "kind": "number"
+            }
+          },
+          {
+            "json": "uptime_seconds",
+            "goName": "UptimeSeconds",
+            "goType": "float64",
+            "required": true,
+            "openapi": {
+              "kind": "number"
+            }
+          },
+          {
+            "json": "updated_at",
+            "goName": "UpdatedAt",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          }
+        ]
+      },
+      "RuntimeTarget": {
+        "order": 30,
+        "goName": "RuntimeTarget",
+        "openapiName": "StackActionTarget",
+        "description": "Primary runtime host with an opaque access-profile reference and its expected SSH host key; absent host_key fails closed unless host_key_first_contact is set.",
+        "fields": [
+          {
+            "json": "host",
+            "goName": "Host",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "public_ip",
+            "goName": "PublicIP",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "private_ip",
+            "goName": "PrivateIP",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "user",
+            "goName": "User",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "port",
+            "goName": "Port",
+            "goType": "int",
+            "required": false,
+            "openapi": {
+              "kind": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          },
+          {
+            "json": "docker_host",
+            "goName": "DockerHost",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri",
+              "pattern": "^ssh://[^/?#]+$"
+            }
+          },
+          {
+            "json": "access_profile_ref",
+            "goName": "AccessProfileRef",
+            "goType": "*ScopedReference",
+            "required": true,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionScopedReference"
+            }
+          },
+          {
+            "json": "host_key",
+            "goName": "HostKey",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "pattern": "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$"
+            }
+          },
+          {
+            "json": "host_key_first_contact",
+            "goName": "HostKeyFirstContact",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          }
+        ]
+      },
+      "SSHBootstrap": {
+        "order": 50,
+        "goName": "SSHBootstrap",
+        "openapiName": "StackActionSSHBootstrap",
+        "description": "Supplemental-node SSH endpoint with an opaque access-profile reference and its expected SSH host key; absent host_key fails closed unless host_key_first_contact is set.",
+        "fields": [
+          {
+            "json": "host",
+            "goName": "Host",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "user",
+            "goName": "User",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "port",
+            "goName": "Port",
+            "goType": "int",
+            "required": false,
+            "openapi": {
+              "kind": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          },
+          {
+            "json": "access_profile_ref",
+            "goName": "AccessProfileRef",
+            "goType": "*ScopedReference",
+            "required": true,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionScopedReference"
+            }
+          },
+          {
+            "json": "host_key",
+            "goName": "HostKey",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "pattern": "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$"
+            }
+          },
+          {
+            "json": "host_key_first_contact",
+            "goName": "HostKeyFirstContact",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "proxy_jump",
+            "goName": "ProxyJump",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "ScopedReference": {
+        "order": 10,
+        "goName": "ScopedReference",
+        "openapiName": "StackActionScopedReference",
+        "description": "Opaque versioned reference whose scope and expiry are revalidated by internal custody.",
+        "fields": [
+          {
+            "json": "ref",
+            "goName": "Ref",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "version",
+            "goName": "Version",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "scopes",
+            "goName": "Scopes",
+            "goType": "[]string",
+            "required": true,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string",
+              "minItems": 1
+            }
+          },
+          {
+            "json": "expires_at",
+            "goName": "ExpiresAt",
+            "goType": "time.Time",
+            "required": true,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          }
+        ]
+      },
+      "ServiceActionRequest": {
+        "order": 290,
+        "goName": "ServiceActionRequest",
+        "openapiName": "StackActionServiceActionRequest",
+        "description": "Bounded service action parameters without caller-supplied runtime authority.",
+        "fields": [
+          {
+            "json": "service_key",
+            "goName": "ServiceKey",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "expected_inventory_revision",
+            "goName": "ExpectedInventoryRevision",
+            "goType": "int64",
+            "required": false,
+            "openapi": {
+              "kind": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "json": "owner_approved",
+            "goName": "OwnerApproved",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "tail",
+            "goName": "Tail",
+            "goType": "int",
+            "required": false,
+            "openapi": {
+              "kind": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          {
+            "json": "cursor",
+            "goName": "Cursor",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "pattern": "^(|sha256:[a-f0-9]{64})$"
+            }
+          }
+        ]
+      },
+      "ServiceActionResult": {
+        "order": 310,
+        "goName": "ServiceActionResult",
+        "openapiName": "StackActionServiceActionResult",
+        "description": "Desired and observed service state plus protected evidence.",
+        "fields": [
+          {
+            "json": "service_key",
+            "goName": "ServiceKey",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "desired_state",
+            "goName": "DesiredState",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "observed_state",
+            "goName": "ObservedState",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "revision",
+            "goName": "Revision",
+            "goType": "int64",
+            "required": false,
+            "openapi": {
+              "kind": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "json": "checks",
+            "goName": "Checks",
+            "goType": "[]Check",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionCheck"
+            }
+          },
+          {
+            "json": "reason_code",
+            "goName": "ReasonCode",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "retryable",
+            "goName": "Retryable",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "evidence_ref",
+            "goName": "EvidenceRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "log_entries",
+            "goName": "LogEntries",
+            "goType": "[]ServiceLogEntry",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionServiceLogEntry"
+            }
+          },
+          {
+            "json": "next_cursor",
+            "goName": "NextCursor",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "truncated",
+            "goName": "Truncated",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          }
+        ]
+      },
+      "ServiceLogEntry": {
+        "order": 300,
+        "goName": "ServiceLogEntry",
+        "openapiName": "StackActionServiceLogEntry",
+        "description": "One redacted bounded service log entry.",
+        "fields": [
+          {
+            "json": "timestamp",
+            "goName": "Timestamp",
+            "goType": "time.Time",
+            "required": true,
+            "openapi": {
+              "kind": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "json": "message",
+            "goName": "Message",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "ServiceObservation": {
+        "order": 170,
+        "goName": "ServiceObservation",
+        "openapiName": "StackActionServiceObservation",
+        "description": "Measured service health and evidence.",
+        "fields": [
+          {
+            "json": "name",
+            "goName": "Name",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "status",
+            "goName": "Status",
+            "goType": "ServiceHealthStatus",
+            "required": true,
+            "openapi": {
+              "kind": "enum",
+              "enum": "ServiceHealthStatus"
+            }
+          },
+          {
+            "json": "platform_app_id",
+            "goName": "PlatformAppID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "platform_status",
+            "goName": "PlatformStatus",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "containers",
+            "goName": "Containers",
+            "goType": "[]ContainerObservation",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionContainerObservation"
+            }
+          },
+          {
+            "json": "health_path",
+            "goName": "HealthPath",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "probe",
+            "goName": "Probe",
+            "goType": "*HTTPProbeObservation",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionHTTPProbeObservation"
+            }
+          },
+          {
+            "json": "failure_class",
+            "goName": "FailureClass",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          }
+        ]
+      },
+      "ServiceOutput": {
+        "order": 230,
+        "goName": "ServiceOutput",
+        "openapiName": "StackActionServiceOutput",
+        "description": "One exposed StackKit service.",
+        "fields": [
+          {
+            "json": "name",
+            "goName": "Name",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "url",
+            "goName": "URL",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "admin_url",
+            "goName": "AdminURL",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "metadata",
+            "goName": "Metadata",
+            "goType": "map[string]string",
+            "required": false,
+            "openapi": {
+              "kind": "object",
+              "additionalProperties": "string"
+            }
+          }
+        ]
+      },
+      "SetupDrop": {
+        "order": 270,
+        "goName": "SetupDrop",
+        "openapiName": "StackActionSetupDrop",
+        "description": "Secret-free first-run setup evidence.",
+        "fields": [
+          {
+            "json": "name",
+            "goName": "Name",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "version",
+            "goName": "Version",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "runner",
+            "goName": "Runner",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "description",
+            "goName": "Description",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "rollbackNotes",
+            "goName": "RollbackNotes",
+            "goType": "[]string",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string"
+            }
+          }
+        ]
+      },
+      "StackKitOutputs": {
+        "order": 240,
+        "goName": "StackKitOutputs",
+        "openapiName": "StackActionStackKitOutputs",
+        "description": "Structured StackKit rollout outputs.",
+        "fields": [
+          {
+            "json": "identity",
+            "goName": "Identity",
+            "goType": "*IdentityOutputs",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionIdentityOutputs"
+            }
+          },
+          {
+            "json": "login_gateway",
+            "goName": "LoginGateway",
+            "goType": "*LoginGatewayOutput",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionLoginGatewayOutput"
+            }
+          },
+          {
+            "json": "recovery",
+            "goName": "Recovery",
+            "goType": "*RecoveryOutput",
+            "required": false,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionRecoveryOutput"
+            }
+          },
+          {
+            "json": "services",
+            "goName": "Services",
+            "goType": "[]ServiceOutput",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "ref",
+              "itemsRef": "StackActionServiceOutput"
+            }
+          },
+          {
+            "json": "metadata",
+            "goName": "Metadata",
+            "goType": "map[string]string",
+            "required": false,
+            "openapi": {
+              "kind": "object",
+              "additionalProperties": "string"
+            }
+          }
+        ]
+      },
+      "TechStackEnrollment": {
+        "order": 20,
+        "goName": "TechStackEnrollment",
+        "openapiName": "StackActionTechStackEnrollment",
+        "description": "Generation-bound managed runtime enrollment and callback channels.",
+        "anyOfRequired": [
+          [
+            "heartbeat_url"
+          ],
+          [
+            "inventory_url"
+          ]
+        ],
+        "fields": [
+          {
+            "json": "tenant_id",
+            "goName": "TenantID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "owner_id",
+            "goName": "OwnerID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "stack_id",
+            "goName": "StackID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "lease_id",
+            "goName": "LeaseID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "server_url",
+            "goName": "ServerURL",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "server_id",
+            "goName": "ServerID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "runtime_agent_id",
+            "goName": "RuntimeAgentID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "enrollment_access_ref",
+            "goName": "EnrollmentAccessRef",
+            "goType": "*ScopedReference",
+            "required": true,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionScopedReference"
+            }
+          },
+          {
+            "json": "heartbeat_url",
+            "goName": "HeartbeatURL",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "inventory_url",
+            "goName": "InventoryURL",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "control_urls",
+            "goName": "ControlURLs",
+            "goType": "[]string",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string",
+              "itemsFormat": "uri"
+            }
+          }
+        ]
+      },
+      "UnitOutcome": {
+        "order": 115,
+        "goName": "UnitOutcome",
+        "openapiName": "StackActionUnitOutcome",
+        "description": "One rollout unit and what actually happened to it.",
+        "fields": [
+          {
+            "json": "ref",
+            "goName": "Ref",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "kind",
+            "goName": "Kind",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "outcome",
+            "goName": "Outcome",
+            "goType": "UnitOutcomeStatus",
+            "required": true,
+            "openapi": {
+              "kind": "enum",
+              "enum": "UnitOutcomeStatus"
+            }
+          },
+          {
+            "json": "criticality",
+            "goName": "Criticality",
+            "goType": "UnitCriticality",
+            "required": true,
+            "openapi": {
+              "kind": "enum",
+              "enum": "UnitCriticality"
+            }
+          },
+          {
+            "json": "workload_ref",
+            "goName": "WorkloadRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "requirement_id",
+            "goName": "RequirementID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "instance_ref",
+            "goName": "InstanceRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "runtime_owner_ref",
+            "goName": "RuntimeOwnerRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "module_ref",
+            "goName": "ModuleRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "site_ref",
+            "goName": "SiteRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "node_ref",
+            "goName": "NodeRef",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "failure_class",
+            "goName": "FailureClass",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "failure_code",
+            "goName": "FailureCode",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "retryable",
+            "goName": "Retryable",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "transient",
+            "goName": "Transient",
+            "goType": "bool",
+            "required": false,
+            "openapi": {
+              "kind": "boolean"
+            }
+          },
+          {
+            "json": "message",
+            "goName": "Message",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "remediation",
+            "goName": "Remediation",
+            "goType": "[]string",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

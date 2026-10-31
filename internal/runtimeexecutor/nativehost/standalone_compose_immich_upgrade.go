@@ -130,6 +130,9 @@ func readPersistedImmichRuntime(directory, project string) (string, bool, error)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return "", false, errors.New("Immich runtime custody is unavailable")
 	}
+	if standaloneComposeRuntimeCustodyAbsent(directory) {
+		return "", false, nil
+	}
 	root, err := confinedfs.Open(directory)
 	if err != nil {
 		return "", false, err
@@ -169,6 +172,22 @@ func readPersistedImmichRuntime(directory, project string) (string, bool, error)
 		return "", false, err
 	}
 	return server.Image, true, nil
+}
+
+// standaloneComposeRuntimeCustodyAbsent reports a project directory that holds
+// neither persisted Compose file nor its environment. Under the opentofu and
+// terramate generation targets the wrapper root <project>/opentofu is prepared
+// before the native project is first persisted, so the directory alone does
+// not prove an earlier install. Existing data without custody is still found
+// by the container and volume discovery that follows. Any other state,
+// including an unreadable entry, is left to the strict custody read.
+func standaloneComposeRuntimeCustodyAbsent(directory string) bool {
+	for _, name := range []string{"compose.yaml", standaloneComposeEnvFile} {
+		if _, err := os.Lstat(filepath.Join(directory, name)); !os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
 }
 
 func composeServiceMountsVolume(volumes []any, source, target string) bool {

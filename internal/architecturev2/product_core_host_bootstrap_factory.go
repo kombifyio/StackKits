@@ -6,10 +6,10 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 const productCoreHostBootstrapAdapterID = "stackkits-core-host-bootstrap-local"

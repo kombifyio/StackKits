@@ -2,9 +2,9 @@ package architecturev2
 
 import (
 	"errors"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"strings"
 )
 

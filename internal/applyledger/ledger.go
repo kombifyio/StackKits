@@ -16,9 +16,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeapply"
 	"github.com/kombifyio/stackkits/internal/applyoutcome"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
-	"github.com/kombifyio/stackkits/internal/runtimeapplyv2"
 )
 
 // SchemaVersion identifies the machine-readable ledger.

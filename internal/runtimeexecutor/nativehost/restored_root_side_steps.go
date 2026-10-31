@@ -12,9 +12,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/pocketidruntime"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 // NativeComposeRootSteps runs the native Core Apply side steps around a Core

@@ -60,9 +60,9 @@ func applyOwnerProgressContext(ctx context.Context) context.Context {
 
 // recordApplyOwnerEvent maps one owner observation to a stackkit.rollout-event/v1
 // event. Only identities, positions and timings leave the process here. The
-// cause of a failure is reduced to its failure class and the journal failure
-// code: the error text may carry command lines, paths or secrets and stays in
-// the Apply result.
+// cause of a failure is reduced to its failure class, its closed diagnostic
+// code and the journal failure code: the error text may carry command lines,
+// paths or secrets and stays in the Apply result.
 func recordApplyOwnerEvent(event runtimeexecutordispatch.OwnerEvent) {
 	attributes := map[string]string{
 		"scope":    event.Scope,
@@ -109,6 +109,10 @@ func recordApplyOwnerEvent(event runtimeexecutordispatch.OwnerEvent) {
 		recorded.FailureClass = "unknown_failure"
 		if event.Err != nil {
 			recorded.FailureClass = rollout.ClassifyFailure(event.Err.Error())
+			// The closed, credential-free code of this owner's own cause (for
+			// example an actionable refusal's reason), so a failed owner is
+			// diagnosable from the rollout sinks without its error text.
+			attributes["diagnostic_code"] = diagnoseExecutorFailure(event.Err).Code
 		}
 		attributes["failure_code"] = string(event.FailureCode)
 		if event.Degraded {

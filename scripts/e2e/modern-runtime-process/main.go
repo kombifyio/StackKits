@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 )
 
 const (

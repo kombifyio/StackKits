@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/applyevidencev2"
+	"github.com/kombifyio/stackkits/contracts/applyevidence"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 )
 

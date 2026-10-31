@@ -3,7 +3,7 @@ package backuplifecycle
 import (
 	"bytes"
 	"errors"
-	wire "github.com/kombifyio/stackkits/internal/advancedcapabilityv2"
+	wire "github.com/kombifyio/stackkits/contracts/advancedcapability"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"strings"
 )

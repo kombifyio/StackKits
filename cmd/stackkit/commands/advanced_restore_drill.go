@@ -20,7 +20,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/spf13/cobra"
 
-	wire "github.com/kombifyio/stackkits/internal/advancedcapabilityv2"
+	wire "github.com/kombifyio/stackkits/contracts/advancedcapability"
 )
 
 // The Advanced restore drill proves that a backup anchor can be restored

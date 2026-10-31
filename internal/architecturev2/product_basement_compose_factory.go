@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 const productBasementComposeAdapterID = "stackkits-basement-compose-local"

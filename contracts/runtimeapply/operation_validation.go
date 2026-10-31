@@ -3,7 +3,7 @@ package runtimeapply
 import (
 	"errors"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 )
 
 // operationCoverage tracks the exact authority consumed by the sorted child

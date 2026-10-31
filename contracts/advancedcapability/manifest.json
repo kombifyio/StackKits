@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "kombify.advanced-capability-generation-manifest/v1",
+  "generatorVersion": "advancedcapabilitygen/v1",
+  "wireVersion": "stackkit.advanced-capability/v1",
+  "source": {
+    "repository": "github.com/kombifyio/stackkits",
+    "path": "contracts/advancedcapability/contract.json",
+    "sha256": "f38573729a8975f47872b88009793001a54daacfa67bcc14a20573f0157faa19"
+  },
+  "outputs": {
+    "advancedcapability_gen.go": "cd631f780dab7962a116e927e60d69383844bd34667371e427c8c9bb6bc2461a",
+    "schema.json": "e62d934d584fe84520ac93b9c4a19e2ab7e1797df2ea5df5188f6638c5971ee0",
+    "testdata/advanced-capability-v1.json": "c73754e797cd6904d5a9b26b85ad49ba56b82c6ba5950909bb638089706233d7",
+    "testdata/advanced-capability-v1.trust-bundle.json": "198cd10223a18e983f686ca9a3d8a8268dc288ef604f79f7edeaf951bb9feda7",
+    "testdata/backup-renewal-v1.json": "9f6e93318a81fe55897e3480e97487353fb13bd099a94d3cfab69e0aa917bc92",
+    "testdata/backup-renewal-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
+    "testdata/transfer-retirement-v1.json": "5ae69e756d2f57bec3c573708821a84e727eacf048aceeb1318bdd298b86673e",
+    "testdata/transfer-retirement-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062"
+  }
+}

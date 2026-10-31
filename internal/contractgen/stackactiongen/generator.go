@@ -24,7 +24,7 @@ const (
 	contractSource     = "foundation/stack_action.cue"
 	localGoOutput      = "internal/stackaction/wire_gen.go"
 	openAPIOutput      = "api/openapi/stackkits-v1.yaml"
-	bundleOutput       = "contracts/stackaction/v1"
+	bundleOutput       = "contracts/stackaction"
 	bundleIRFile       = "contract.ir.json"
 	bundleOpenAPIFile  = "openapi.yaml"
 	bundleGoFile       = "stackaction_gen.go"
@@ -177,13 +177,10 @@ func Run(options Options) error {
 		{path: filepath.Join(root, filepath.FromSlash(localGoOutput)), data: goOutput},
 		{path: openAPIPath, data: openAPI},
 	}
-	// The neutral contract bundle is a private tree that never reaches the
-	// public export; its projection exists only where the tree does. The
-	// website's OpenAPI mirror is the public projection written by
-	// `mise run api:surface`, not a copy of this document.
-	if privateTreePresent(root, "contracts") {
-		outputs = append(outputs, bundle.outputs(filepath.Join(root, filepath.FromSlash(bundleOutput)))...)
-	}
+	// The neutral contract bundle is the contracts/stackaction package that
+	// Techstack imports. The website's OpenAPI mirror is the public projection
+	// written by `mise run api:surface`, not a copy of this document.
+	outputs = append(outputs, bundle.outputs(filepath.Join(root, filepath.FromSlash(bundleOutput)))...)
 	if strings.TrimSpace(options.ExternalGoOutput) != "" {
 		external, err := filepath.Abs(options.ExternalGoOutput)
 		if err != nil {
@@ -693,8 +690,3 @@ func renderOpenAPIField(b *strings.Builder, field openAPIFieldSpec, spec generat
 func yamlString(value string) string { return strconv.Quote(value) }
 
 func number(value float64) string { return strconv.FormatFloat(value, 'f', -1, 64) }
-
-func privateTreePresent(root, top string) bool {
-	info, err := os.Lstat(filepath.Join(root, top))
-	return err == nil && info.IsDir()
-}

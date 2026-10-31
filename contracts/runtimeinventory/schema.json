@@ -1,0 +1,270 @@
+{
+  "schemaVersion": "techstack.runtimeinventory-schema/v1",
+  "generatorVersion": "runtimeinventorygen/v1",
+  "wireVersion": "runtimeinventory/v1",
+  "packageName": "runtimeinventory",
+  "sourceRepository": "github.com/kombify/kombify-Techstack",
+  "sourcePath": "contracts/runtimeinventory/v1/schema.json",
+  "imports": [
+    "time"
+  ],
+  "types": [
+    {
+      "name": "Freshness",
+      "doc": [
+        "Freshness qualifies an observation using the owning authority's freshness",
+        "policy."
+      ],
+      "fields": [
+        { "name": "State", "goType": "string", "json": "state" },
+        { "name": "AgeSeconds", "goType": "*int64", "json": "age_seconds", "omitempty": true },
+        { "name": "StaleAfterSeconds", "goType": "int64", "json": "stale_after_seconds" },
+        { "name": "ReasonCode", "goType": "string", "json": "reason_code", "omitempty": true }
+      ]
+    },
+    {
+      "name": "Addresses",
+      "doc": ["Addresses contains sanitized network addresses and DNS names."],
+      "fields": [
+        { "name": "PublicIPs", "goType": "[]string", "json": "public_ips" },
+        { "name": "PrivateIPs", "goType": "[]string", "json": "private_ips" },
+        { "name": "LocalIPs", "goType": "[]string", "json": "local_ips" },
+        { "name": "Domains", "goType": "[]string", "json": "domains" }
+      ]
+    },
+    {
+      "name": "ObservedState",
+      "doc": ["ObservedState is a freshness-qualified runtime observation."],
+      "fields": [
+        { "name": "State", "goType": "string", "json": "state" },
+        { "name": "ReasonCode", "goType": "string", "json": "reason_code", "omitempty": true },
+        { "name": "ChangedAt", "goType": "*time.Time", "json": "changed_at", "omitempty": true },
+        { "name": "ObservedAt", "goType": "*time.Time", "json": "observed_at", "omitempty": true }
+      ]
+    },
+    {
+      "name": "ResourceMetric",
+      "doc": [
+        "ResourceMetric is one heartbeat-observed resource figure. Status is ok",
+        "with a value, stale when the heartbeat is outside the freshness window,",
+        "or unknown when the server has not reported the figure."
+      ],
+      "fields": [
+        { "name": "Status", "goType": "string", "json": "status" },
+        { "name": "Value", "goType": "*float64", "json": "value", "omitempty": true },
+        { "name": "Unit", "goType": "string", "json": "unit", "omitempty": true }
+      ]
+    },
+    {
+      "name": "ResourceMetrics",
+      "doc": ["ResourceMetrics carries the freshness-qualified resource figures of one server."],
+      "fields": [
+        { "name": "CPUPercent", "goType": "ResourceMetric", "json": "cpu_percent" },
+        { "name": "MemoryPercent", "goType": "ResourceMetric", "json": "memory_percent" },
+        { "name": "DiskPercent", "goType": "ResourceMetric", "json": "disk_percent" },
+        { "name": "UptimeSeconds", "goType": "ResourceMetric", "json": "uptime_seconds" }
+      ]
+    },
+    {
+      "name": "LifecycleProjection",
+      "doc": ["LifecycleProjection is the control-plane lifecycle read projection."],
+      "fields": [
+        { "name": "State", "goType": "string", "json": "state" },
+        { "name": "ReasonCode", "goType": "string", "json": "reason_code", "omitempty": true },
+        { "name": "ChangedAt", "goType": "*time.Time", "json": "changed_at", "omitempty": true }
+      ]
+    },
+    {
+      "name": "DesiredProjection",
+      "doc": ["DesiredProjection is the user-owned desired-state read projection."],
+      "fields": [
+        { "name": "State", "goType": "string", "json": "state" },
+        { "name": "ReasonCode", "goType": "string", "json": "reason_code", "omitempty": true },
+        { "name": "ChangedAt", "goType": "*time.Time", "json": "changed_at", "omitempty": true }
+      ]
+    },
+    {
+      "name": "LeaseProjection",
+      "doc": ["LeaseProjection contains only an opaque runtime-lease identity and state."],
+      "fields": [
+        { "name": "ID", "goType": "string", "json": "id", "omitempty": true },
+        { "name": "State", "goType": "string", "json": "state" }
+      ]
+    },
+    {
+      "name": "CleanupProjection",
+      "doc": ["CleanupProjection reports evidence-qualified provider cleanup state."],
+      "fields": [
+        { "name": "State", "goType": "string", "json": "state" },
+        { "name": "ProviderAbsenceVerified", "goType": "bool", "json": "provider_absence_verified" },
+        { "name": "VerifiedAt", "goType": "*time.Time", "json": "verified_at", "omitempty": true }
+      ]
+    },
+    {
+      "name": "StackKit",
+      "doc": ["StackKit identifies the observed StackKit without configuration or secrets."],
+      "fields": [
+        { "name": "Name", "goType": "string", "json": "name", "omitempty": true },
+        { "name": "Version", "goType": "string", "json": "version", "omitempty": true },
+        { "name": "Variant", "goType": "string", "json": "variant", "omitempty": true }
+      ]
+    },
+    {
+      "name": "Platform",
+      "doc": ["Platform contains sanitized operating-system and architecture labels."],
+      "fields": [
+        { "name": "OS", "goType": "string", "json": "os", "omitempty": true },
+        { "name": "OSVersion", "goType": "string", "json": "os_version", "omitempty": true },
+        { "name": "Arch", "goType": "string", "json": "arch", "omitempty": true }
+      ]
+    },
+    {
+      "name": "Server",
+      "doc": ["Server is the canonical secret-free runtime-server read model."],
+      "fields": [
+        { "name": "ID", "goType": "string", "json": "id" },
+        { "name": "StackID", "goType": "string", "json": "stack_id", "omitempty": true },
+        { "name": "Name", "goType": "string", "json": "name" },
+        { "name": "ObservedAt", "goType": "*time.Time", "json": "observed_at" },
+        { "name": "Freshness", "goType": "Freshness", "json": "freshness" },
+        { "name": "InventoryRevision", "goType": "int64", "json": "inventory_revision" },
+        { "name": "Addresses", "goType": "Addresses", "json": "addresses" },
+        { "name": "Platform", "goType": "Platform", "json": "platform" },
+        { "name": "StackKit", "goType": "StackKit", "json": "stackkit" },
+        { "name": "Provider", "goType": "string", "json": "provider", "omitempty": true },
+        { "name": "Lifecycle", "goType": "LifecycleProjection", "json": "lifecycle" },
+        { "name": "Desired", "goType": "DesiredProjection", "json": "desired" },
+        { "name": "Lease", "goType": "LeaseProjection", "json": "lease" },
+        { "name": "Cleanup", "goType": "CleanupProjection", "json": "cleanup" },
+        { "name": "Connection", "goType": "ObservedState", "json": "connection" },
+        { "name": "Health", "goType": "ObservedState", "json": "health" },
+        { "name": "Metrics", "goType": "ResourceMetrics", "json": "metrics" }
+      ]
+    },
+    {
+      "name": "ServerList",
+      "doc": ["ServerList is one bounded server-collection page."],
+      "fields": [
+        { "name": "ObservedAt", "goType": "time.Time", "json": "observed_at" },
+        { "name": "Freshness", "goType": "Freshness", "json": "freshness" },
+        { "name": "InventoryRevision", "goType": "int64", "json": "inventory_revision" },
+        { "name": "CollectionCursor", "goType": "string", "json": "collection_cursor" },
+        { "name": "NextCursor", "goType": "string", "json": "next_cursor", "omitempty": true },
+        { "name": "PageSize", "goType": "int", "json": "page_size" },
+        { "name": "Servers", "goType": "[]Server", "json": "servers" }
+      ]
+    },
+    {
+      "name": "ServerHealth",
+      "doc": ["ServerHealth is the compact health projection for one server."],
+      "fields": [
+        { "name": "ServerID", "goType": "string", "json": "server_id" },
+        { "name": "ObservedAt", "goType": "*time.Time", "json": "observed_at" },
+        { "name": "Freshness", "goType": "Freshness", "json": "freshness" },
+        { "name": "InventoryRevision", "goType": "int64", "json": "inventory_revision" },
+        { "name": "Connection", "goType": "ObservedState", "json": "connection" },
+        { "name": "Health", "goType": "ObservedState", "json": "health" },
+        { "name": "Metrics", "goType": "ResourceMetrics", "json": "metrics" }
+      ]
+    },
+    {
+      "name": "ServiceLink",
+      "doc": [
+        "ServiceLink is a sanitized HTTP(S) access link without query or fragment",
+        "secrets."
+      ],
+      "fields": [
+        { "name": "URL", "goType": "string", "json": "url" },
+        { "name": "Mode", "goType": "string", "json": "mode" }
+      ]
+    },
+    {
+      "name": "Service",
+      "doc": [
+        "Service is the canonical secret-free runtime-service read model.",
+        "ManagementState reports definition ownership: managed for a declared",
+        "target, observed for discovery without one. An omitted value is unreported.",
+        "It is independent of desired state, observed state, and health."
+      ],
+      "fields": [
+        { "name": "ID", "goType": "string", "json": "id" },
+        { "name": "StackID", "goType": "string", "json": "stack_id" },
+        { "name": "ServerID", "goType": "string", "json": "server_id" },
+        { "name": "Key", "goType": "string", "json": "key" },
+        { "name": "Name", "goType": "string", "json": "name" },
+        { "name": "ManagementState", "goType": "string", "json": "management_state", "omitempty": true },
+        { "name": "DesiredState", "goType": "string", "json": "desired_state" },
+        { "name": "ObservedState", "goType": "string", "json": "observed_state" },
+        { "name": "ObservedAt", "goType": "*time.Time", "json": "observed_at" },
+        { "name": "Freshness", "goType": "Freshness", "json": "freshness" },
+        { "name": "InventoryRevision", "goType": "int64", "json": "inventory_revision" },
+        { "name": "Health", "goType": "ObservedState", "json": "health" },
+        { "name": "StackKit", "goType": "StackKit", "json": "stackkit" },
+        { "name": "Links", "goType": "[]ServiceLink", "json": "links" },
+        { "name": "AllowedActions", "goType": "[]string", "json": "allowed_actions" },
+        { "name": "EvidenceRef", "goType": "string", "json": "evidence_ref", "omitempty": true },
+        { "name": "Source", "goType": "string", "json": "source" }
+      ]
+    },
+    {
+      "name": "ServiceList",
+      "doc": ["ServiceList is one bounded service-collection page."],
+      "fields": [
+        { "name": "ObservedAt", "goType": "time.Time", "json": "observed_at" },
+        { "name": "Freshness", "goType": "Freshness", "json": "freshness" },
+        { "name": "InventoryRevision", "goType": "int64", "json": "inventory_revision" },
+        { "name": "CollectionCursor", "goType": "string", "json": "collection_cursor" },
+        { "name": "NextCursor", "goType": "string", "json": "next_cursor", "omitempty": true },
+        { "name": "PageSize", "goType": "int", "json": "page_size" },
+        { "name": "Services", "goType": "[]Service", "json": "services" }
+      ]
+    },
+    {
+      "name": "Channel",
+      "doc": ["Channel is sanitized connection-channel state without an endpoint reference."],
+      "fields": [
+        { "name": "Type", "goType": "string", "json": "type" },
+        { "name": "Role", "goType": "string", "json": "role" },
+        { "name": "State", "goType": "string", "json": "state" },
+        { "name": "ObservedAt", "goType": "*time.Time", "json": "observed_at", "omitempty": true }
+      ]
+    },
+    {
+      "name": "AccessServiceLink",
+      "doc": ["AccessServiceLink is a reachable service link in a server access context."],
+      "fields": [
+        { "name": "ServiceID", "goType": "string", "json": "service_id" },
+        { "name": "ServiceName", "goType": "string", "json": "service_name" },
+        { "name": "URL", "goType": "string", "json": "url" },
+        { "name": "Mode", "goType": "string", "json": "mode" },
+        { "name": "Health", "goType": "string", "json": "health" }
+      ]
+    },
+    {
+      "name": "Availability",
+      "doc": ["Availability reports whether a sanitized access context is currently usable."],
+      "fields": [
+        { "name": "State", "goType": "string", "json": "state" },
+        { "name": "ReasonCode", "goType": "string", "json": "reason_code", "omitempty": true }
+      ]
+    },
+    {
+      "name": "ServerAccessContext",
+      "doc": [
+        "ServerAccessContext contains sanitized connection and service-link data for",
+        "an authorized operator."
+      ],
+      "fields": [
+        { "name": "ServerID", "goType": "string", "json": "server_id" },
+        { "name": "ObservedAt", "goType": "*time.Time", "json": "observed_at" },
+        { "name": "Freshness", "goType": "Freshness", "json": "freshness" },
+        { "name": "InventoryRevision", "goType": "int64", "json": "inventory_revision" },
+        { "name": "Availability", "goType": "Availability", "json": "availability" },
+        { "name": "Connection", "goType": "ObservedState", "json": "connection" },
+        { "name": "Addresses", "goType": "Addresses", "json": "addresses" },
+        { "name": "Channels", "goType": "[]Channel", "json": "channels" },
+        { "name": "ServiceLinks", "goType": "[]AccessServiceLink", "json": "service_links" }
+      ]
+    }
+  ]
+}

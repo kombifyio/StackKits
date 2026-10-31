@@ -7,11 +7,11 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 // ProductApplyInput contains request-specific bytes and already-held

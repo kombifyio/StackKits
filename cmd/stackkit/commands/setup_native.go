@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/appsetup"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
@@ -25,7 +26,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/spf13/cobra"
 )
 

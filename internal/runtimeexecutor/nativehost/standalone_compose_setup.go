@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 // ApplicationSetupAdapter is the executable setup access owned by one exact

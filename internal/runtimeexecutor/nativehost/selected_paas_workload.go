@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 // SelectedPaaSWorkloadAuthority is catalog authority fixed by product-owned

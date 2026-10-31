@@ -1,0 +1,219 @@
+{
+  "schemaVersion": "kombify.advanced-capability-contract/v1",
+  "wireVersion": "stackkit.advanced-capability/v1",
+  "constants": [
+    {"go": "SchemaVersion", "value": "stackkit.advanced-capability/v1", "doc": "SchemaVersion is the capability document version and the signing domain prefix."},
+    {"go": "TrustBundleSchemaVersion", "value": "stackkit.advanced-trust-bundle/v1", "doc": "TrustBundleSchemaVersion is the Owner-imported trust bundle version."},
+    {"go": "Audience", "value": "stackkit", "doc": "Audience is the only accepted capability audience."},
+    {"go": "IssuerClass", "value": "techstack", "doc": "IssuerClass is the only issuer a verifier may trust: issuerId is either exactly this value or this value followed by a dot and a per-installation suffix."},
+    {"go": "BackupRenewalRepositoryID", "value": "kopia:local:cloud", "doc": "BackupRenewalRepositoryID is the only repository a backup renewal can name."}
+  ],
+  "limits": [
+    {"go": "MaxDocumentBytes", "value": 65536, "doc": "MaxDocumentBytes bounds a capability or trust bundle document."},
+    {"go": "MaxLifetimeSeconds", "value": 2592000, "doc": "MaxLifetimeSeconds bounds expiresAt minus issuedAt (30 days)."},
+    {"go": "MaxTrustBundleKeys", "value": 64, "doc": "MaxTrustBundleKeys bounds the keys of one trust bundle."},
+    {"go": "MaxLogicalReferenceBytes", "value": 256, "doc": "MaxLogicalReferenceBytes bounds uiManagerRef and rilRef."},
+    {"go": "BackupRenewalMaxLifetimeSeconds", "value": 900, "doc": "BackupRenewalMaxLifetimeSeconds bounds a capability that carries a backup renewal (15 minutes)."},
+    {"go": "BackupRenewalMaxMeasurementAgeSeconds", "value": 300, "doc": "BackupRenewalMaxMeasurementAgeSeconds bounds how long before issuedAt the renewal usage may have been measured."},
+    {"go": "TransferRetirementMaxLifetimeSeconds", "value": 900, "doc": "TransferRetirementMaxLifetimeSeconds bounds a capability for one held transfer retirement (15 minutes)."}
+  ],
+  "operations": [
+    {"go": "OperationApplicationTransferRetire", "value": "application-transfer.retire"},
+    {"go": "OperationDriftReconcileAdvanced", "value": "drift.reconcile.advanced"},
+    {"go": "OperationOriginCertificateInstall", "value": "public-tls.origin-certificate.install"},
+    {"go": "OperationOriginCertificateRequest", "value": "public-tls.origin-certificate.request"},
+    {"go": "OperationRestoreDrill", "value": "restore.drill", "backupRenewal": true},
+    {"go": "OperationRollbackCoordinated", "value": "rollback.coordinated"},
+    {"go": "OperationTerramateChangeSetApply", "value": "terramate.change-set.apply"},
+    {"go": "OperationTerramateChangeSetCreate", "value": "terramate.change-set.create"}
+  ],
+  "patterns": [
+    {"name": "issuerId", "regexp": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+    {"name": "stackId", "regexp": "^[a-z0-9][a-z0-9._-]{0,127}$"},
+    {"name": "ownerRef", "regexp": "^owner/local/[0-9a-f]{32}$"},
+    {"name": "keyId", "regexp": "^ed25519://sha256/[0-9a-f]{64}$"},
+    {"name": "capabilityId", "regexp": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    {"name": "renewalIdentity", "regexp": "^[A-Za-z0-9_:@|.-]{1,180}$"},
+    {"name": "renewalJobId", "regexp": "^[a-z0-9][a-z0-9._-]{7,99}$"},
+    {"name": "sha256Digest", "regexp": "^sha256:[0-9a-f]{64}$"},
+    {"name": "backupTargetRef", "regexp": "^backup-target://sha256/[0-9a-f]{64}$"},
+    {"name": "custodyAttestationRef", "regexp": "^backup-custody-attestation://sha256/[0-9a-f]{64}$"},
+    {"name": "decimalInt64", "regexp": "^(0|[1-9][0-9]{0,18})$"},
+    {"name": "transferOperationId", "regexp": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    {"name": "transferRetirementRole", "regexp": "^(source|destination)$"}
+  ],
+  "documents": [
+    {
+      "go": "Capability",
+      "doc": "Capability is one stackkit.advanced-capability/v1 document. Its canonical bytes are RFC 8785 (JCS): members in code-point order, no whitespace, and every value validated ASCII.",
+      "signingDomain": "SchemaVersion",
+      "fields": [
+        {"json": "allowedOperations", "go": "AllowedOperations", "type": "operationSet", "doc": "AllowedOperations is the sorted, duplicate-free operation set."},
+        {"json": "audience", "go": "Audience", "type": "string", "const": "Audience"},
+        {"json": "backupRenewal", "go": "BackupRenewal", "type": "object:BackupRenewal", "optional": true, "doc": "BackupRenewal is present only on a single short-lived restore.drill capability."},
+        {"json": "capabilityId", "go": "CapabilityID", "type": "string", "pattern": "capabilityId", "doc": "CapabilityID is a lowercase UUIDv7."},
+        {"json": "expiresAt", "go": "ExpiresAt", "type": "string", "format": "rfc3339-utc-seconds"},
+        {"json": "issuedAt", "go": "IssuedAt", "type": "string", "format": "rfc3339-utc-seconds"},
+        {"json": "issuerId", "go": "IssuerID", "type": "string", "pattern": "issuerId", "doc": "IssuerID names a Techstack issuer (see IssuerClass)."},
+        {"json": "keyId", "go": "KeyID", "type": "string", "pattern": "keyId", "doc": "KeyID is ed25519://sha256/<hex SHA-256 of the raw public key>."},
+        {"json": "ownerRef", "go": "OwnerRef", "type": "string", "pattern": "ownerRef"},
+        {"json": "rilRef", "go": "RILRef", "type": "string", "format": "logical-reference"},
+        {"json": "schemaVersion", "go": "SchemaVersion", "type": "string", "const": "SchemaVersion"},
+        {"json": "signature", "go": "Signature", "type": "string", "signature": true, "format": "ed25519-signature", "doc": "Signature is the unpadded standard-Base64 Ed25519 signature over SigningDigest of the unsigned canonical bytes."},
+        {"json": "stackId", "go": "StackID", "type": "string", "pattern": "stackId"},
+        {"json": "transferRetirement", "go": "TransferRetirement", "type": "object:TransferRetirement", "optional": true, "doc": "TransferRetirement binds a short-lived retirement to the exact existing held snapshot, signed peer outcome and canonical desired-intent transition."},
+        {"json": "uiManagerRef", "go": "UIManagerRef", "type": "string", "format": "logical-reference"}
+      ]
+    },
+    {
+      "go": "BackupRenewal",
+      "doc": "BackupRenewal authorizes one local staged drill against unchanged applied authority after fresh managed entitlement, usage and remote target attestation. It grants no remote snapshot or data activation authority.",
+      "fields": [
+        {"json": "agentId", "go": "AgentID", "type": "string", "pattern": "renewalIdentity"},
+        {"json": "bindingHash", "go": "BindingHash", "type": "string", "pattern": "sha256Digest"},
+        {"json": "custodyAttestationRef", "go": "CustodyAttestationRef", "type": "string", "pattern": "custodyAttestationRef"},
+        {"json": "deploymentId", "go": "DeploymentID", "type": "string", "pattern": "renewalIdentity"},
+        {"json": "freshAttestationRef", "go": "FreshAttestationRef", "type": "string", "pattern": "custodyAttestationRef"},
+        {"json": "jobId", "go": "JobID", "type": "string", "pattern": "renewalJobId"},
+        {"json": "measuredAt", "go": "MeasuredAt", "type": "string", "format": "rfc3339-utc"},
+        {"json": "planHash", "go": "PlanHash", "type": "string", "pattern": "sha256Digest"},
+        {"json": "quotaBytes", "go": "QuotaBytes", "type": "string", "pattern": "decimalInt64"},
+        {"json": "repositoryId", "go": "RepositoryID", "type": "string", "const": "BackupRenewalRepositoryID"},
+        {"json": "targetRef", "go": "TargetRef", "type": "string", "pattern": "backupTargetRef"},
+        {"json": "tenantId", "go": "TenantID", "type": "string", "pattern": "renewalIdentity"},
+        {"json": "usedBytes", "go": "UsedBytes", "type": "string", "pattern": "decimalInt64"}
+      ]
+    },
+    {
+      "go": "TransferRetirement",
+      "doc": "TransferRetirement authorizes only selected intent retirement within its original held snapshot after the signed peer outcome is verified. It grants no runtime activation, source restart, data deletion, server or provider authority. The consumer must reconstruct and compare every field from its authenticated journal and canonical candidate.",
+      "fields": [
+        {
+          "json": "baselineSpecHash",
+          "go": "BaselineSpecHash",
+          "type": "string",
+          "pattern": "sha256Digest"
+        },
+        {
+          "json": "candidateSpecHash",
+          "go": "CandidateSpecHash",
+          "type": "string",
+          "pattern": "sha256Digest"
+        },
+        {
+          "json": "operationId",
+          "go": "OperationID",
+          "type": "string",
+          "pattern": "transferOperationId"
+        },
+        {
+          "json": "outcomeDigest",
+          "go": "OutcomeDigest",
+          "type": "string",
+          "pattern": "sha256Digest"
+        },
+        {
+          "json": "role",
+          "go": "Role",
+          "type": "string",
+          "pattern": "transferRetirementRole"
+        },
+        {
+          "json": "transferId",
+          "go": "TransferID",
+          "type": "string",
+          "pattern": "sha256Digest"
+        }
+      ]
+    },
+    {
+      "go": "TrustBundle",
+      "doc": "TrustBundle is one stackkit.advanced-trust-bundle/v1 document. It holds public verification keys only; the Owner imports it pinned by Digest.",
+      "fields": [
+        {"json": "keys", "go": "Keys", "type": "array:TrustBundleKey"},
+        {"json": "schemaVersion", "go": "SchemaVersion", "type": "string", "const": "TrustBundleSchemaVersion"}
+      ]
+    },
+    {
+      "go": "TrustBundleKey",
+      "doc": "TrustBundleKey binds one Techstack issuer to one raw Ed25519 public key.",
+      "fields": [
+        {"json": "issuerId", "go": "IssuerID", "type": "string", "pattern": "issuerId"},
+        {"json": "keyId", "go": "KeyID", "type": "string", "pattern": "keyId"},
+        {"json": "publicKey", "go": "PublicKey", "type": "string", "format": "ed25519-public-key", "doc": "PublicKey is the unpadded standard-Base64 raw 32-byte Ed25519 public key."}
+      ]
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "advanced-capability-v1",
+      "seedHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "capability": {
+        "allowedOperations": ["drift.reconcile.advanced", "rollback.coordinated", "terramate.change-set.apply", "terramate.change-set.create"],
+        "capabilityId": "018f47a0-7b55-7cc2-8c4a-65f238d78a15",
+        "expiresAt": "2026-07-27T15:14:05Z",
+        "issuedAt": "2026-07-27T15:04:05Z",
+        "issuerId": "techstack",
+        "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
+        "rilRef": "urn:kombify:techstack:ril:decision:018f47a0-7b55-7cc2-8c4a-65f238d78a15",
+        "stackId": "basement-main",
+        "uiManagerRef": "urn:kombify:techstack:ui-manager:approval:018f47a0-7b55-7cc2-8c4a-65f238d78a15"
+      }
+    },
+    {
+      "name": "backup-renewal-v1",
+      "seedHex": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+      "capability": {
+        "allowedOperations": ["restore.drill"],
+        "backupRenewal": {
+          "agentId": "agent-1",
+          "bindingHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "custodyAttestationRef": "backup-custody-attestation://sha256/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "deploymentId": "deployment-1",
+          "freshAttestationRef": "backup-custody-attestation://sha256/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "jobId": "job-drill-1",
+          "measuredAt": "2026-09-27T12:00:00Z",
+          "planHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "quotaBytes": "100",
+          "repositoryId": "kopia:local:cloud",
+          "targetRef": "backup-target://sha256/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tenantId": "tenant-1",
+          "usedBytes": "20"
+        },
+        "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
+        "expiresAt": "2026-09-27T12:15:00Z",
+        "issuedAt": "2026-09-27T12:00:00Z",
+        "issuerId": "techstack",
+        "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
+        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
+        "stackId": "cloud-stack",
+        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1"
+      }
+    },
+    {
+      "name": "transfer-retirement-v1",
+      "seedHex": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+      "capability": {
+        "allowedOperations": [
+          "application-transfer.retire"
+        ],
+        "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
+        "expiresAt": "2026-09-27T12:15:00Z",
+        "issuedAt": "2026-09-27T12:00:00Z",
+        "issuerId": "techstack",
+        "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
+        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
+        "stackId": "cloud-stack",
+        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1",
+        "transferRetirement": {
+          "baselineSpecHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "candidateSpecHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "operationId": "snapshot.transfer-1",
+          "outcomeDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "role": "source",
+          "transferId": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      }
+    }
+  ]
+}

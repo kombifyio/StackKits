@@ -16,7 +16,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
 
-	wire "github.com/kombifyio/stackkits/internal/advancedcapabilityv2"
+	wire "github.com/kombifyio/stackkits/contracts/advancedcapability"
 )
 
 const (

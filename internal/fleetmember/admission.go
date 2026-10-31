@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kombifyio/stackkits/internal/applyevidencev2"
+	"github.com/kombifyio/stackkits/contracts/applyevidence"
 	"github.com/kombifyio/stackkits/internal/fleetlifecycle"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"

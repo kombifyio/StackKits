@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutorprocess"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 )
 
 type ProductProcessExecutionChannelBinding struct {

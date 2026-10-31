@@ -3,7 +3,7 @@ package runtimeexecutor
 import (
 	"fmt"
 
-	"github.com/kombifyio/stackkits/internal/referenceidv2"
+	"github.com/kombifyio/stackkits/contracts/internal/referenceid"
 )
 
 func validateRuntimeTargets(targets []RuntimeTarget) error {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/sigstore/sigstore-go/pkg/fulcio/certificate"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -232,7 +233,7 @@ func (verifier SigstoreVerifier) VerifyPreviewCandidate(ctx context.Context, inp
 	if err := decodePreviewCandidateJSON(input.Index, &index); err != nil {
 		return VerifiedPreviewCandidate{}, err
 	}
-	if index.SchemaVersion != PreviewCandidateIndexSchema || index.Channel != "preview" || !index.InternalOnly || index.DeclaredVersion != "0.54.8" || index.Source != input.Expected.Source || index.Producer != input.Expected.Producer || index.Trust.Issuer != GitHubOIDCIssuer || index.Trust.PredicateType != GitHubAttestationPredicate || index.Trust.CertificateIdentity != "https://github.com/"+previewCandidateWorkflowRef || index.Trust.PayloadAttestation != (PreviewCandidateBlob{PreviewCandidatePayloadAttestationName, input.Expected.PayloadAttestationSHA256}) || index.Trust.TrustedRoots != (PreviewCandidateBlob{TrustedRootAssetName, input.Expected.TrustedRootSHA256}) {
+	if index.SchemaVersion != PreviewCandidateIndexSchema || index.Channel != "preview" || !index.InternalOnly || !semver.IsValid("v"+index.DeclaredVersion) || semver.Canonical("v"+index.DeclaredVersion) != "v"+index.DeclaredVersion || semver.Prerelease("v"+index.DeclaredVersion) != "" || index.Source != input.Expected.Source || index.Producer != input.Expected.Producer || index.Trust.Issuer != GitHubOIDCIssuer || index.Trust.PredicateType != GitHubAttestationPredicate || index.Trust.CertificateIdentity != "https://github.com/"+previewCandidateWorkflowRef || index.Trust.PayloadAttestation != (PreviewCandidateBlob{PreviewCandidatePayloadAttestationName, input.Expected.PayloadAttestationSHA256}) || index.Trust.TrustedRoots != (PreviewCandidateBlob{TrustedRootAssetName, input.Expected.TrustedRootSHA256}) {
 		return VerifiedPreviewCandidate{}, errors.New("candidate index differs from the exact private Preview contract and admitted source")
 	}
 	buildProfile, err := candidateBuildProfile(index.BuildProfile, index.BuildTags)
@@ -255,7 +256,7 @@ func (verifier SigstoreVerifier) VerifyPreviewCandidate(ctx context.Context, inp
 	}
 	archiveName := "stackkits-" + input.Kit + "_" + index.DeclaredVersion + "_" + input.Platform.OS + "_" + input.Platform.Arch + extension
 	assets := map[string]string{}
-	assetNamePattern := regexp.MustCompile(`^stackkits(?:-(?:basement-kit|cloud-kit|modern-homelab))?_0\.54\.8_(?:linux|darwin|windows)_(?:amd64|arm64)\.(?:tar\.gz|zip)(?:\.spdx\.json)?$`)
+	assetNamePattern := regexp.MustCompile(`^stackkits(?:-(?:basement-kit|cloud-kit|modern-homelab))?_` + regexp.QuoteMeta(index.DeclaredVersion) + `_(?:linux|darwin|windows)_(?:amd64|arm64)\.(?:tar\.gz|zip)(?:\.spdx\.json)?$`)
 	if len(index.Assets) < 2 || len(index.Assets) > 128 {
 		return VerifiedPreviewCandidate{}, errors.New("candidate asset count exceeds the fixed producer envelope")
 	}

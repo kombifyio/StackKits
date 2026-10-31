@@ -69,7 +69,7 @@ type SSHAccess struct {
 type SSHAccessState struct {
 	Desired SSHAccess
 	// Recorded is false when custody never received SSH access; then the
-	// controls appear only if StackKits-managed files are found anyway.
+	// controls still report managed files or effective foreign user-CA trust.
 	Recorded bool
 	// CleanupPending names revocation effects not yet completed on the target.
 	CleanupPending []string
@@ -741,9 +741,6 @@ func (o *observation) sshUserCA(ctx context.Context, state SSHAccessState) (Cont
 		return o.unknown(c, "the recorded SSH access cannot be read: "+state.Failure), true
 	}
 	keys, principals, normalizeErr := NormalizeSSHUserCATrust(state.Desired.CAKeys, state.Desired.Principals)
-	if !state.Recorded && !installed.any() && len(keys) == 0 {
-		return Control{}, false
-	}
 	if normalizeErr != nil {
 		c.Remediation = Remediation{Capability: RemediationManual, Action: "deliver the SSH CA trust again (ssh-ca-trust)"}
 		return o.finish(c, StateDrifted, "the recorded SSH CA trust is invalid", normalizeErr.Error()), true
@@ -755,6 +752,24 @@ func (o *observation) sshUserCA(ctx context.Context, state SSHAccessState) (Cont
 	if len(keys) == 0 {
 		if installed.any() {
 			return o.finish(c, StateDrifted, "StackKits SSH CA trust files are installed", "the SSH CA trust was revoked or never delivered, but its files remain"), true
+		}
+		// Removing our first-match drop-in can expose another CA trust source.
+		// Check sshd's effective policy even when our files are already gone.
+		effective, failure := o.sshdEffective(ctx)
+		if effective == nil {
+			if !state.Recorded {
+				return Control{}, false
+			}
+			return o.unknown(c, failure), true
+		}
+		for _, setting := range []string{"trustedusercakeys", "authorizedprincipalsfile"} {
+			if value := effective.first(setting); value != "" && value != "none" {
+				c.Remediation = Remediation{Capability: RemediationManual, Action: "review and remove the sshd " + setting + " setting outside StackKits custody"}
+				return o.finish(c, StateDrifted, setting+" "+value, "sshd retains SSH CA trust or principals outside StackKits custody after trust was revoked or never delivered"), true
+			}
+		}
+		if !state.Recorded {
+			return Control{}, false
 		}
 		return o.finish(c, StateCompliant, "no StackKits SSH CA trust is installed", ""), true
 	}

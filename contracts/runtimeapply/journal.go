@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 )
 
 const APIVersion = "kombify.runtime-apply-operation/v1alpha1"

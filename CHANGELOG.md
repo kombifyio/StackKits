@@ -380,6 +380,73 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## [0.54.13](https://github.com/kombifyio/StackKits/compare/v0.54.12...v0.54.13) (2026-10-31)
+
+
+### Added
+
+* **advancedcapability:** bind held transfer retirement to exact evidence
+* align public Go release preflight
+* **beads:** cloud sessions get Beads access via OIDC workflow
+* bootstrap runtime contract authority
+* **ci:** adopt phase-aware development fleet
+* **contracts:** fail check when StackAction CUE drifts
+* **contracts:** relocate runtimeexecutor, runtimeapply and applyevidence and add generated advancedcapability
+* **contracts:** the runtime contracts are part of the StackKits module (platform-nisyi)
+* **datasubject:** account export and erasure wire contract
+* define canonical public runtime-contract mirror
+* define runtime consumer compatibility evidence
+* harden public runtime-contract export handoff
+* **providerexecutor:** bind customer worker submit and observe envelopes
+* publish managed service control contracts
+* **release:** prepare bounded runtime-contracts 0.2.0 package
+* **runtimeinventory:** bind generated Techstack lineage
+* **runtimeinventory:** freshness-qualified resource metrics on server and health
+* **runtimeinventory:** preserve service definition ownership
+
+
+### Fixed
+
+* authenticate portable Agent Home Git refresh
+* **beads:** adopt central remote-backed hook authority
+* **beads:** adopt the central remote-authority hook guard
+* **beads:** bridge writes to the Cloudflare store
+* **beads:** commit the tracker remote and Dolt backend
+* **beads:** project the current root-owned Beads runtime chain into kombify-runtime-contracts-go (platform-f4ggj.10)
+* **bootstrap:** GitHub Actions is no longer a bootstrap gap
+* **ci:** adopt Node security workflow producers
+* **ci:** repin the internal updater with the org token
+* **context:** refresh canonical standalone session projections
+* **contracts:** restore local architecture gate
+* **contracts:** verify inventory generation in fast gates
+* **delivery:** admit checkpoints from two-digit patch baselines
+* **delivery:** adopt compiler-bound repository runner
+* **delivery:** adopt patch-19 release preparation authority
+* **delivery:** bind exact compiler lineage
+* **delivery:** bind releases to exact plan
+* **delivery:** boundary check ignores the Delivery compiler checkout
+* **delivery:** consume the canonical compiler control pointer
+* **delivery:** follow the acknowledged workflow run when main moves
+* **delivery:** keep Go smoke within contract module
+* **delivery:** migrate repository auth contract
+* **delivery:** pin the release authority that allows PATCH through 19
+* **delivery:** repin Delivery v2 and its runtime to the PAT rate-limit fix
+* **delivery:** repin shared rollout caller
+* **delivery:** require numeric pre-1.0 versions
+* **delivery:** resolve release versions through the workspace authority
+* **delivery:** retain public credential fallback
+* **export:** make the private-dependency test module cache removable
+* **export:** verify private generation lineage
+* **photos:** admit fresh Immich and Jellyfin installs under the OpenTofu target (platform-1ax58.2)
+* **publicexport:** run existing checks without mise
+* **release:** accept PATCH up to 19 like the release standard
+* **release:** bind tags to source version
+* **releases:** verify the authenticated private candidate version
+* **release:** use the registered contract version authority
+* **ssh:** report foreign CA trust after managed trust is removed
+* **stackaction:** restore reviewed bundle parity pin
+* **toolchain:** align mise Go pin with go.mod (go 1.27.1)
+
 ## [0.54.12](https://github.com/kombifyio/StackKits/compare/v0.54.11...v0.54.12) (2026-10-30)
 
 

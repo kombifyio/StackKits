@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
@@ -22,7 +23,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localbackupschedule"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutorv2"
 	"github.com/spf13/cobra"
 )
 

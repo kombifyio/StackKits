@@ -8,7 +8,9 @@ This project is available under a **dual license**. You may choose to use this p
 2. **GNU General Public License, Version 3** ("GPL-3.0-or-later") — complete text: [LICENSE-GPL-3.0-or-later](LICENSE-GPL-3.0-or-later)
 
 The webmcp/ package remains Apache-2.0-only; its complete text is in
-[webmcp/LICENSE](webmcp/LICENSE).
+[webmcp/LICENSE](webmcp/LICENSE). The runtime contracts under contracts/ are
+Apache-2.0-only as well; their complete text is in
+[contracts/LICENSE](contracts/LICENSE).
 
 ## Bundled third-party software
 

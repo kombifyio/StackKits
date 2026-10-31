@@ -1,0 +1,1190 @@
+openapi: 3.1.0
+info:
+  title: StackAction Contract
+  version: "stackkit.stack-action/v1"
+  description: Provider-free StackKits action request and evidence contract generated from CUE.
+x-kombify-generator-version: "stackactiongen/v1"
+x-kombify-source-path: "foundation/stack_action.cue"
+x-kombify-source-sha256: "590d0803a54d4c89035fa38d90690b39838ff0d0f895b76c4f7e6006db29d863"
+paths:
+  /api/v1/internal/stack-actions/stackkit-rollout:
+    post:
+      operationId: stackActionStackKitRollout
+      summary: "Run or dry-run StackKits rollout for TechStack"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "stackkit_rollout"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/stackkit-verify:
+    post:
+      operationId: stackActionStackKitVerify
+      summary: "Verify StackKits rollout state for TechStack"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "verify_rollout"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/restore-drill:
+    post:
+      operationId: stackActionRestoreDrill
+      summary: "Run or dry-run StackKits restore drill for TechStack"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "restore_drill"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/backup-run:
+    post:
+      operationId: stackActionBackupRun
+      summary: "Start a StackKits backup run"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "backup_run"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/backup-status:
+    post:
+      operationId: stackActionBackupStatus
+      summary: "Inspect StackKits backup status"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "backup_status"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/backup-restore:
+    post:
+      operationId: stackActionBackupRestore
+      summary: "Restore a StackKits backup snapshot"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "backup_restore"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/backup-wipe:
+    post:
+      operationId: stackActionBackupWipe
+      summary: "Wipe the configured StackKits backup repository"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "backup_wipe"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/service-start:
+    post:
+      operationId: stackActionServiceStart
+      summary: "Start one StackKits-managed service"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "service_start"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/service-stop:
+    post:
+      operationId: stackActionServiceStop
+      summary: "Stop one non-critical StackKits-managed service"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "service_stop"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/service-restart:
+    post:
+      operationId: stackActionServiceRestart
+      summary: "Restart one StackKits-managed service"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "service_restart"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+  /api/v1/internal/stack-actions/service-logs:
+    post:
+      operationId: stackActionServiceLogs
+      summary: "Read bounded redacted logs for one StackKits-managed service"
+      tags: [StackAction]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/StackActionRequest"
+                - type: object
+                  properties:
+                    action:
+                      const: "service_logs"
+      responses:
+        "200":
+          description: StackAction result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StackActionResponse"
+        "400":
+          description: Invalid StackAction request
+
+components:
+  schemas:
+    StackActionScopedReference:
+      type: object
+      description: "Opaque versioned reference whose scope and expiry are revalidated by internal custody."
+      additionalProperties: false
+      required:
+        - ref
+        - version
+        - scopes
+        - expires_at
+      properties:
+        ref:
+          type: string
+        version:
+          type: string
+        scopes:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        expires_at:
+          type: string
+          format: date-time
+    StackActionTechStackEnrollment:
+      type: object
+      description: "Generation-bound managed runtime enrollment and callback channels."
+      additionalProperties: false
+      required:
+        - lease_id
+        - server_url
+        - server_id
+        - runtime_agent_id
+        - enrollment_access_ref
+      anyOf:
+        - required:
+            - heartbeat_url
+        - required:
+            - inventory_url
+      properties:
+        tenant_id:
+          type: string
+        owner_id:
+          type: string
+        stack_id:
+          type: string
+        lease_id:
+          type: string
+        server_url:
+          type: string
+          format: uri
+        server_id:
+          type: string
+        runtime_agent_id:
+          type: string
+        enrollment_access_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        heartbeat_url:
+          type: string
+          format: uri
+        inventory_url:
+          type: string
+          format: uri
+        control_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+    StackActionTarget:
+      type: object
+      description: "Primary runtime host with an opaque access-profile reference and its expected SSH host key; absent host_key fails closed unless host_key_first_contact is set."
+      additionalProperties: false
+      required:
+        - access_profile_ref
+      properties:
+        host:
+          type: string
+        public_ip:
+          type: string
+        private_ip:
+          type: string
+        user:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        docker_host:
+          type: string
+          format: uri
+          pattern: "^ssh://[^/?#]+$"
+        access_profile_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        host_key:
+          type: string
+          pattern: "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$"
+        host_key_first_contact:
+          type: boolean
+    StackActionNodePlatformTarget:
+      type: object
+      description: "Observed platform placement identity; values are never synthesized."
+      additionalProperties: false
+      anyOf:
+        - required:
+            - server_id
+        - required:
+            - destination_uuid
+        - required:
+            - environment_id
+        - required:
+            - project_uuid
+        - required:
+            - environment_uuid
+      properties:
+        server_id:
+          type: string
+        destination_uuid:
+          type: string
+        environment_id:
+          type: string
+        project_uuid:
+          type: string
+        environment_uuid:
+          type: string
+    StackActionSSHBootstrap:
+      type: object
+      description: "Supplemental-node SSH endpoint with an opaque access-profile reference and its expected SSH host key; absent host_key fails closed unless host_key_first_contact is set."
+      additionalProperties: false
+      required:
+        - host
+        - access_profile_ref
+      properties:
+        host:
+          type: string
+        user:
+          type: string
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        access_profile_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        host_key:
+          type: string
+          pattern: "^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/=]+( [ -~]*)?$"
+        host_key_first_contact:
+          type: boolean
+        proxy_jump:
+          type: string
+    StackActionNodeBootstrap:
+      type: object
+      description: "Platform-specific supplemental-node bootstrap."
+      additionalProperties: false
+      required:
+        - komodo_core_address
+        - onboarding_ref
+        - ssh
+      properties:
+        komodo_core_address:
+          type: string
+          format: uri
+        onboarding_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        ssh:
+          $ref: "#/components/schemas/StackActionSSHBootstrap"
+    StackActionPlatformNode:
+      type: object
+      description: "Supplemental worker or storage node."
+      additionalProperties: false
+      required:
+        - name
+      anyOf:
+        - required:
+            - platform
+        - required:
+            - bootstrap
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+          enum:
+            - "worker"
+            - "storage"
+        ip:
+          type: string
+        host:
+          type: string
+        services:
+          type: array
+          items:
+            type: string
+        platform:
+          $ref: "#/components/schemas/StackActionNodePlatformTarget"
+        bootstrap:
+          $ref: "#/components/schemas/StackActionNodeBootstrap"
+    StackActionBackupRepoTarget:
+      type: object
+      description: "Backup repository target with an opaque credential reference."
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+        endpoint:
+          type: string
+          format: uri
+        bucket:
+          type: string
+        region:
+          type: string
+        prefix:
+          type: string
+        credential_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+    StackActionBackupRequest:
+      type: object
+      description: "Backup action parameters containing no credential material."
+      additionalProperties: false
+      properties:
+        classes:
+          type: array
+          items:
+            type: string
+        snapshot_id:
+          type: string
+        repo:
+          $ref: "#/components/schemas/StackActionBackupRepoTarget"
+        confirm:
+          type: string
+    StackActionBackupSnapshot:
+      type: object
+      description: "One observed backup snapshot."
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        classes:
+          type: array
+          items:
+            type: string
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        total_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+    StackActionBackupResult:
+      type: object
+      description: "Backup engine state and snapshots."
+      additionalProperties: false
+      properties:
+        engine:
+          type: string
+        phase:
+          type: string
+        classes:
+          type: array
+          items:
+            type: string
+        snapshots:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionBackupSnapshot"
+        repo_size_bytes:
+          type: integer
+          format: int64
+          minimum: 0
+        wiped:
+          type: boolean
+    StackActionUnitOutcome:
+      type: object
+      description: "One rollout unit and what actually happened to it."
+      additionalProperties: false
+      required:
+        - ref
+        - kind
+        - outcome
+        - criticality
+      properties:
+        ref:
+          type: string
+        kind:
+          type: string
+        outcome:
+          type: string
+          enum:
+            - "applied"
+            - "degraded"
+            - "failed"
+            - "skipped"
+            - "unverified"
+        criticality:
+          type: string
+          enum:
+            - "core"
+            - "platform"
+            - "workload"
+            - "addon"
+        workload_ref:
+          type: string
+        requirement_id:
+          type: string
+        instance_ref:
+          type: string
+        runtime_owner_ref:
+          type: string
+        module_ref:
+          type: string
+        site_ref:
+          type: string
+        node_ref:
+          type: string
+        failure_class:
+          type: string
+        failure_code:
+          type: string
+        retryable:
+          type: boolean
+        transient:
+          type: boolean
+        message:
+          type: string
+        remediation:
+          type: array
+          items:
+            type: string
+    StackActionCheck:
+      type: object
+      description: "One named action check."
+      additionalProperties: false
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - "ok"
+            - "warning"
+            - "missing"
+            - "reference"
+            - "skipped"
+            - "failed"
+        detail:
+          type: string
+    StackActionObservationHost:
+      type: object
+      description: "Measured host and Docker reachability."
+      additionalProperties: false
+      required:
+        - reachable
+        - docker_reachable
+      properties:
+        host:
+          type: string
+        reachable:
+          type: boolean
+        docker_reachable:
+          type: boolean
+        failure_class:
+          type: string
+    StackActionObservationPlatform:
+      type: object
+      description: "Observed selected-PaaS identity."
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        endpoint:
+          type: string
+          format: uri
+        server_id:
+          type: string
+        project_uuid:
+          type: string
+        environment_uuid:
+          type: string
+        destination_uuid:
+          type: string
+    StackActionContainerObservation:
+      type: object
+      description: "Measured Docker container state."
+      additionalProperties: false
+      required:
+        - running
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        state:
+          type: string
+        running:
+          type: boolean
+        health:
+          type: string
+          enum:
+            - "healthy"
+            - "unhealthy"
+            - "starting"
+            - "none"
+            - "unknown"
+    StackActionHTTPProbeObservation:
+      type: object
+      description: "Measured HTTP health probe."
+      additionalProperties: false
+      required:
+        - url
+        - reached
+      properties:
+        url:
+          type: string
+          format: uri
+        reached:
+          type: boolean
+        status_code:
+          type: integer
+          minimum: 100
+          maximum: 599
+        failure_class:
+          type: string
+    StackActionServiceObservation:
+      type: object
+      description: "Measured service health and evidence."
+      additionalProperties: false
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - "starting"
+            - "healthy"
+            - "unhealthy"
+            - "unknown"
+        platform_app_id:
+          type: string
+        platform_status:
+          type: string
+        containers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionContainerObservation"
+        health_path:
+          type: string
+        probe:
+          $ref: "#/components/schemas/StackActionHTTPProbeObservation"
+        failure_class:
+          type: string
+    StackActionLiveObservation:
+      type: object
+      description: "Versioned persistable live-runtime evidence."
+      additionalProperties: false
+      required:
+        - version
+        - observed_at
+        - host
+      properties:
+        version:
+          type: string
+        observed_at:
+          type: string
+          format: date-time
+        host:
+          $ref: "#/components/schemas/StackActionObservationHost"
+        platform:
+          $ref: "#/components/schemas/StackActionObservationPlatform"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionServiceObservation"
+        failure_class:
+          type: string
+    StackActionOwnerIdentity:
+      type: object
+      description: "Configured owner identity."
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        subject:
+          type: string
+        provider:
+          type: string
+    StackActionRecoveryOutput:
+      type: object
+      description: "Opaque recovery references; no secret material."
+      additionalProperties: false
+      properties:
+        bundle_ref:
+          type: string
+        secret_ref:
+          type: string
+        machine_secret_ref:
+          type: string
+        passphrase_hash_present:
+          type: boolean
+    StackActionIdentityOutputs:
+      type: object
+      description: "Owner and recovery output projection."
+      additionalProperties: false
+      properties:
+        owner:
+          $ref: "#/components/schemas/StackActionOwnerIdentity"
+        recovery:
+          $ref: "#/components/schemas/StackActionRecoveryOutput"
+    StackActionLoginGatewayOutput:
+      type: object
+      description: "Login gateway endpoints."
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+        label:
+          type: string
+        admin_url:
+          type: string
+          format: uri
+    StackActionServiceOutput:
+      type: object
+      description: "One exposed StackKit service."
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        admin_url:
+          type: string
+          format: uri
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    StackActionStackKitOutputs:
+      type: object
+      description: "Structured StackKit rollout outputs."
+      additionalProperties: false
+      properties:
+        identity:
+          $ref: "#/components/schemas/StackActionIdentityOutputs"
+        login_gateway:
+          $ref: "#/components/schemas/StackActionLoginGatewayOutput"
+        recovery:
+          $ref: "#/components/schemas/StackActionRecoveryOutput"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionServiceOutput"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    StackActionRuntimeMetrics:
+      type: object
+      description: "Measured host utilization."
+      additionalProperties: false
+      required:
+        - cpu_percent
+        - memory_percent
+        - disk_percent
+        - uptime_seconds
+      properties:
+        cpu_percent:
+          type: number
+        memory_percent:
+          type: number
+        disk_percent:
+          type: number
+        uptime_seconds:
+          type: number
+        updated_at:
+          type: string
+          format: date-time
+    StackActionDeploymentRef:
+      type: object
+      description: "Selected-PaaS deployment reference."
+      additionalProperties: false
+      required:
+        - platform
+        - appName
+        - externalId
+      properties:
+        platform:
+          type: string
+        appName:
+          type: string
+        externalId:
+          type: string
+        deploymentId:
+          type: string
+        observedStatus:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        lastDeployed:
+          type: string
+          format: date-time
+    StackActionSetupDrop:
+      type: object
+      description: "Secret-free first-run setup evidence."
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        runner:
+          type: string
+        description:
+          type: string
+        rollbackNotes:
+          type: array
+          items:
+            type: string
+    StackActionPlatformAppState:
+      type: object
+      description: "Artifact-ready selected-PaaS application state."
+      additionalProperties: false
+      required:
+        - name
+        - platform
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        platform:
+          type: string
+        management:
+          type: string
+          enum:
+            - "managed"
+            - "handoff"
+            - "unmanaged"
+            - "fallback"
+        externalId:
+          type: string
+        deploymentId:
+          type: string
+        observedStatus:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        composePath:
+          type: string
+        setupPolicy:
+          type: string
+          enum:
+            - "manual"
+            - "on_demand"
+            - "automatic"
+        setupDrops:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionSetupDrop"
+        lastDeployed:
+          type: string
+          format: date-time
+        failureStage:
+          type: string
+        failureMessage:
+          type: string
+        retryable:
+          type: boolean
+    StackActionServiceActionRequest:
+      type: object
+      description: "Bounded service action parameters without caller-supplied runtime authority."
+      additionalProperties: false
+      required:
+        - service_key
+      properties:
+        service_key:
+          type: string
+        expected_inventory_revision:
+          type: integer
+          format: int64
+          minimum: 0
+        owner_approved:
+          type: boolean
+        tail:
+          type: integer
+          minimum: 1
+          maximum: 200
+        cursor:
+          type: string
+          pattern: "^(|sha256:[a-f0-9]{64})$"
+    StackActionServiceLogEntry:
+      type: object
+      description: "One redacted bounded service log entry."
+      additionalProperties: false
+      required:
+        - timestamp
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        message:
+          type: string
+    StackActionServiceActionResult:
+      type: object
+      description: "Desired and observed service state plus protected evidence."
+      additionalProperties: false
+      required:
+        - service_key
+      properties:
+        service_key:
+          type: string
+        desired_state:
+          type: string
+        observed_state:
+          type: string
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionCheck"
+        reason_code:
+          type: string
+        retryable:
+          type: boolean
+        evidence_ref:
+          type: string
+        log_entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionServiceLogEntry"
+        next_cursor:
+          type: string
+        truncated:
+          type: boolean
+    StackActionRequest:
+      type: object
+      description: "StackKits-owned action request."
+      additionalProperties: false
+      required:
+        - action
+        - stack_id
+      properties:
+        action:
+          type: string
+          enum:
+            - "stackkit_rollout"
+            - "verify_rollout"
+            - "restore_drill"
+            - "backup_run"
+            - "backup_status"
+            - "backup_restore"
+            - "backup_wipe"
+            - "service_start"
+            - "service_stop"
+            - "service_restart"
+            - "service_logs"
+        stack_id:
+          type: string
+        stack_name:
+          type: string
+        stackkit:
+          type: string
+        mode:
+          type: string
+        tenant_id:
+          type: string
+        owner_id:
+          type: string
+        tofu_dir:
+          type: string
+        unified_path:
+          type: string
+        owner_spec_ref:
+          $ref: "#/components/schemas/StackActionScopedReference"
+        runtime_target:
+          $ref: "#/components/schemas/StackActionTarget"
+        platform_nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionPlatformNode"
+        techstack_enrollment:
+          $ref: "#/components/schemas/StackActionTechStackEnrollment"
+        backup:
+          $ref: "#/components/schemas/StackActionBackupRequest"
+        service:
+          $ref: "#/components/schemas/StackActionServiceActionRequest"
+    StackActionResponse:
+      type: object
+      description: "StackKits-owned action response and evidence."
+      additionalProperties: false
+      required:
+        - status
+        - action
+        - stack_id
+        - mode
+      properties:
+        status:
+          type: string
+          enum:
+            - "accepted"
+            - "ready"
+            - "applied"
+            - "verified"
+            - "completed_degraded"
+            - "skipped"
+            - "failed"
+        action:
+          type: string
+          enum:
+            - "stackkit_rollout"
+            - "verify_rollout"
+            - "restore_drill"
+            - "backup_run"
+            - "backup_status"
+            - "backup_restore"
+            - "backup_wipe"
+            - "service_start"
+            - "service_stop"
+            - "service_restart"
+            - "service_logs"
+        stack_id:
+          type: string
+        stack_name:
+          type: string
+        stackkit:
+          type: string
+        tofu_dir:
+          type: string
+        unified_path:
+          type: string
+        mode:
+          type: string
+          enum:
+            - "dry-run"
+            - "apply"
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionCheck"
+        stackkit_outputs:
+          $ref: "#/components/schemas/StackActionStackKitOutputs"
+        observation:
+          $ref: "#/components/schemas/StackActionLiveObservation"
+        runtime_metrics:
+          $ref: "#/components/schemas/StackActionRuntimeMetrics"
+        platform_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionDeploymentRef"
+        platform_system_apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionPlatformAppState"
+        platform_apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionPlatformAppState"
+        backup:
+          $ref: "#/components/schemas/StackActionBackupResult"
+        service:
+          $ref: "#/components/schemas/StackActionServiceActionResult"
+        units:
+          type: array
+          items:
+            $ref: "#/components/schemas/StackActionUnitOutcome"
+        overall_outcome:
+          type: string
+          enum:
+            - "applied"
+            - "completed_degraded"
+            - "failed"
+            - "blocked"

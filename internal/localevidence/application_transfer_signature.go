@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 
-	"github.com/kombifyio/stackkits/internal/applyevidencev2"
+	"github.com/kombifyio/stackkits/contracts/applyevidence"
 )
 
 const applicationTransferDomain = "stackkit.owner-application-transfer/v1\x00"

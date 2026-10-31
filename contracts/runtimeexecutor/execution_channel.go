@@ -3,7 +3,7 @@ package runtimeexecutor
 import (
 	"fmt"
 
-	"github.com/kombifyio/stackkits/internal/referenceidv2"
+	"github.com/kombifyio/stackkits/contracts/internal/referenceid"
 )
 
 // ExecutionChannelRequest is one exact provider-neutral routing scope already

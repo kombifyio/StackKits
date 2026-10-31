@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kombifyio/stackkits/internal/applyevidencev2"
+	"github.com/kombifyio/stackkits/contracts/applyevidence"
 )
 
 // Integrator decision 2026-09-25 (reversible): a Fleet member signs its own
