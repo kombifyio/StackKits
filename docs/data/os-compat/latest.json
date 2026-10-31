@@ -1,11 +1,11 @@
 {
   "schemaVersion": 3,
   "stackkitsVersion": "v0.54.4",
-  "requestedStackkitsVersion": "v0.54.15",
+  "requestedStackkitsVersion": "v0.54.16",
   "testedStackkitsVersion": "v0.54.4",
   "referenceBinding": {
     "scope": "product-artifact",
-    "requestedRelease": "v0.54.15"
+    "requestedRelease": "v0.54.16"
   },
   "currentResult": "NOT_RUN",
   "generatedAt": "2026-10-21T18:16:12Z",
@@ -366,10 +366,10 @@
         "diskGiB": 100
       },
       "executionState": "passed",
-      "applicability": "unbound",
+      "applicability": "historical",
       "currentResult": "NOT_RUN",
       "reasonCodes": [
-        "exact-bindings-required"
+        "release-mismatch"
       ]
     },
     {
@@ -559,12 +559,95 @@
       "reasonCodes": [
         "exact-bindings-required"
       ]
+    },
+    {
+      "schemaVersion": "stackkits.runtime-observation/v1",
+      "id": "runtime_e4c6a326e87bfc882cff8f65401d49d14129c8e3f1008df4b76daac254095b3c",
+      "subject": {
+        "kind": "StackKitUseCase",
+        "product": "stackkits",
+        "useCase": "photos",
+        "platform": "coolify"
+      },
+      "originalOutcome": "PASS",
+      "receiptSha256": "5d0122bb996c86b2845c3a6b8e007f55cdeabf338dea225345514a621a62ca8c",
+      "operations": [
+        {
+          "name": "install",
+          "status": "passed"
+        },
+        {
+          "name": "init",
+          "status": "passed"
+        },
+        {
+          "name": "generate",
+          "status": "passed"
+        },
+        {
+          "name": "apply",
+          "status": "passed"
+        },
+        {
+          "name": "setup-photos",
+          "status": "passed"
+        },
+        {
+          "name": "verify",
+          "status": "passed"
+        },
+        {
+          "name": "backup",
+          "status": "passed"
+        },
+        {
+          "name": "restore",
+          "status": "passed"
+        },
+        {
+          "name": "cleanup",
+          "status": "passed"
+        }
+      ],
+      "artifactSha256": "fe57eb8c0936bc9dc1c303af6f106d6ba562555aa7aae42abf6d00ee7073023c",
+      "indexSha256": "5266f7bb065d24347e9c853afb20b5d5b404b0028de50525d46d95259d0a38f3",
+      "candidateDigest": "bb22cd136f617d86229be46501026c998acc002e920d6b6a1afd77cddc7e43de",
+      "githubNativeArchiveSha256": "fda49d2e62e94831f27d51b8cac1314211673040410129ddb8483e2f2d650094",
+      "githubSuiteArchiveSha256": "37bedc5bca98770cfcd2201d35e57e866c05f840c72c87a500f896b28654c1c6",
+      "githubMetadataSha256": "c45ab0d771b00e05a10448d5b9b4bcd7d993fa456410e9bba1d4cf52fd03beee",
+      "windowReportSha256": "1c283620c47df0803ee368a2ee9feaf0b165dc39fa96a471162ef5a4114dc821",
+      "producerArtifactSha256": "d39dc68360323416c48123d0fb2a291934fffc7ef0fe1c80c2c4f9e18a6f4b2b",
+      "suiteBindingSha256": "22f8db87c57a55ffe4396a8eabad19316eb0d952c8a1a64542c87032ac7c8b3b",
+      "suiteCandidateDigest": "bb22cd136f617d86229be46501026c998acc002e920d6b6a1afd77cddc7e43de",
+      "sourceCommit": "fc2c151d30af1010992ef41b928ba46173a505c6",
+      "producerCommit": "0247f5b8c8ed6e0b9cc1cc5b0f263b443b65385f",
+      "consumerSha": "0247f5b8c8ed6e0b9cc1cc5b0f263b443b65385f",
+      "testedRelease": "v0.54.15",
+      "suiteBindingState": "artifact-verified",
+      "runtimeIdentity": {
+        "family": "linux",
+        "distribution": "ubuntu",
+        "version": "26.04",
+        "arch": "amd64",
+        "environment": "depot-vm"
+      },
+      "capacity": {
+        "cpus": 8,
+        "memoryMiB": 24576,
+        "diskGiB": 100
+      },
+      "executionState": "passed",
+      "applicability": "historical",
+      "currentResult": "NOT_RUN",
+      "reasonCodes": [
+        "release-mismatch"
+      ]
     }
   ],
   "windowCoverage": {
-    "reportSha256": "70ec2988d877007214e51bb95b973f3131591c6408559646c630dd587b9003a4",
-    "candidateDigest": "3a6bc30a33d434e046e0708dba93b1fc44643d18cf7f6f5b99b845267104e618",
-    "generatedAt": "2026-10-31T20:52:07.614Z",
+    "reportSha256": "1c283620c47df0803ee368a2ee9feaf0b165dc39fa96a471162ef5a4114dc821",
+    "candidateDigest": "bb22cd136f617d86229be46501026c998acc002e920d6b6a1afd77cddc7e43de",
+    "generatedAt": "2026-10-31T21:22:55.591Z",
     "result": "passed",
     "declared": 1,
     "passed": 1,
@@ -574,7 +657,7 @@
     "notRun": 0,
     "obligations": [
       {
-        "suite": "stackkits-coolify-files-restore",
+        "suite": "stackkits-coolify-photos-restore",
         "result": "passed"
       }
     ]

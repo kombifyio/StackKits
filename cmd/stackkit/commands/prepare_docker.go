@@ -377,6 +377,7 @@ func baseKitImages(tier string) []string {
 		"ghcr.io/traefik/traefik:v3",
 		"ghcr.io/tinyauthapp/tinyauth:v5.1.2",
 		"ghcr.io/pocket-id/pocket-id:v2.16.0@sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
+		"ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f@sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c",
 		"public.ecr.aws/docker/library/nginx:alpine",
 		"ghcr.io/gethomepage/homepage:latest",
 		"ghcr.io/tecnativa/docker-socket-proxy:latest",

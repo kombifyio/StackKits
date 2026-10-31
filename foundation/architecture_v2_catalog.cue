@@ -7570,8 +7570,8 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "pocketid", role: "application", lifecycle: "daemon"
 					image: {
-						ref:    "ghcr.io/pocket-id/pocket-id:v2.16.0"
-						digest: "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
+						ref:    "ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f"
+						digest: "sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c"
 					}
 					dependsOn: [], networkRefs: ["basement-core"]
 					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
@@ -7700,7 +7700,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:2d3044f3d0774f5a3fc12402645e3070c485037ed7ca154ee3c5da37713fe9a0"
+				contractHash:    "sha256:9433c6abb3e74f7402537bedb18a281b9b202806e5db459afacd7ce4f861d00c"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7713,7 +7713,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:5b77ac2f49e4420f47d7d9b2f86b8e414c19f9e20ac2aae21327e24edf15c61e"
+				contractHash:    "sha256:66a1a1c29541a8ab44d4e9aede2eb0c31abcba363c337c2cef48a9cd8505c22d"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7726,7 +7726,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:c6c4d3612d8a921501d6e331a9263f0b8bc469d123c72b0c652057cf1aa55451"
+				contractHash:    "sha256:83151892402d0fcada116a4f7bf2dd6278dff3b2119b9927c4017b668d00d823"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7908,8 +7908,8 @@ _architectureV2Modules: list.Concat([[
 				{
 					id: "pocketid", role: "application", lifecycle: "daemon"
 					image: {
-						ref:    "ghcr.io/pocket-id/pocket-id:v2.16.0"
-						digest: "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea"
+						ref:    "ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f"
+						digest: "sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c"
 					}
 					dependsOn: [], networkRefs: ["basement-core"]
 					volumes: [{id: "pocketid-data", target: "/app/data", class: "persistent", backup: true}]
@@ -7982,7 +7982,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:cb8467cbb985e3a7026dd784c357eb3020099a5d9656a1be4ba4a2433c8f05a5"
+				contractHash:    "sha256:e087d7b3f9e0a909408e41a3797bd3fbc8d551620bedf79daa222ced933498a5"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7995,7 +7995,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:49a900ce0b30ccda2370b9c2070771d5f557711b32dc37416aba4b2202be5e57"
+				contractHash:    "sha256:43461242567cffc9d268b46f527fc3c745f1ab59b9ce4f3b04e7e7215d50de73"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -8008,7 +8008,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:9ad9e0d127a1150845b062e2d1d839bf146d6a56b54ff06f599f4cc6076792fb"
+				contractHash:    "sha256:beb28123a7cea7426d20afdf297072f625311951c8341535c973fad10e1c22db"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs

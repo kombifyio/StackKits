@@ -24,8 +24,8 @@
       },
       {
         "component": "pocketid",
-        "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
-        "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
+        "digest": "sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c",
+        "ref": "ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f"
       },
       {
         "component": "tinyauth",
@@ -109,8 +109,8 @@
       },
       {
         "component": "pocketid",
-        "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
-        "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
+        "digest": "sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c",
+        "ref": "ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f"
       },
       {
         "component": "tinyauth",
@@ -175,8 +175,8 @@
       },
       {
         "component": "pocketid",
-        "digest": "sha256:9366436f3fd21619ed7e5709fa0acac88130f73414ec8ee1caf768fc487111ea",
-        "ref": "ghcr.io/pocket-id/pocket-id:v2.16.0"
+        "digest": "sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c",
+        "ref": "ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f"
       },
       {
         "component": "tinyauth",
