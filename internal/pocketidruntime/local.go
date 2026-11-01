@@ -162,8 +162,10 @@ func localVolume(ctx context.Context, items []container, selected *container, pr
 			continue
 		}
 		for _, m := range c.Mounts {
-			// Include stopped containers: they could restart the old writer.
-			if m.Name == volume || m.Source == source {
+			// Include stopped containers: they could restart the old writer. A
+			// read-only consumer, such as the Kopia agent's backup source bind
+			// of this volume, can never write the database.
+			if (m.Name == volume || m.Source == source) && m.RW {
 				return "", errors.New("PocketID data volume has another container consumer")
 			}
 		}

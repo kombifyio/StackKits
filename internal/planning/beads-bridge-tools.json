@@ -1,27 +1,12 @@
 {
   "schema_version": 1,
-  "compatibility": "Operational bd: public Beads Cloudflare v0.2.6, backend 1.3.1+cloudflare.0.2.6. Exact source a62e57f7febd19df0d2e37e1cfa9e3e935b7ad96, public commit 342ec0745ea4e62c2c06299b9d8544c9271b0342, proved OSS run 40080754485. All five public archives are verified against SHA256SUMS, binary build provenance and bundled licenses. Each repository must explicitly activate its verified Cloudflare binding; installing tools alone never activates a tracker. Retained bd-dolt 1.3.0/schema v66 and Dolt 2.3.5 are optional read-only comparison tools on Linux x64 and Windows x64.",
+  "compatibility": "Operational bd: public Beads Cloudflare v0.2.6, backend 1.3.1+cloudflare.0.2.6. Exact source a62e57f7febd19df0d2e37e1cfa9e3e935b7ad96, public commit 342ec0745ea4e62c2c06299b9d8544c9271b0342, proved OSS run 40080754485. All five public archives are verified against SHA256SUMS, binary build provenance and bundled licenses. Each repository must explicitly activate its verified Cloudflare binding; installing tools alone never activates a tracker.",
   "linux-x64": [
     {
       "binary": "bd",
       "version": "1.3.1+cloudflare.0.2.6",
       "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.6/bd_linux_amd64.tar.gz",
       "sha256": "fedf2f3938fa284b99327d3bf71501c2265dd73e5786c7fc80981e1e13d17f7c"
-    },
-    {
-      "binary": "bd-dolt",
-      "version": "1.3.0",
-      "url": "https://github.com/gastownhall/beads/releases/download/v1.3.0/beads_1.3.0_linux_amd64.tar.gz",
-      "sha256": "2f92b904ecf35b607e44dc5c39229173af69c54f1183e8d709f1773540cdcf3b",
-      "member": "bd",
-      "optional": true
-    },
-    {
-      "binary": "dolt",
-      "version": "2.3.5",
-      "url": "https://github.com/dolthub/dolt/releases/download/v2.3.5/dolt-linux-amd64.tar.gz",
-      "sha256": "c49d4c3e004cf1581ba0d4a00c5023a26f84eb2ec15d5fe876eed36d5343f463",
-      "optional": true
     }
   ],
   "linux-arm64": [
@@ -54,21 +39,6 @@
       "version": "1.3.1+cloudflare.0.2.6",
       "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.6/bd_windows_amd64.zip",
       "sha256": "4dd87d5f76b65320b70e8f8672dfbfe8de2b4b06ad9ba1ac9df61c0c529f62fc"
-    },
-    {
-      "binary": "bd-dolt",
-      "version": "1.3.0",
-      "url": "https://github.com/gastownhall/beads/releases/download/v1.3.0/beads_1.3.0_windows_amd64.zip",
-      "sha256": "fa4c72c5d27f68f906e89a759656b5a051b330088c4acc38fa445cbb561e5cdf",
-      "member": "bd",
-      "optional": true
-    },
-    {
-      "binary": "dolt",
-      "version": "2.3.5",
-      "url": "https://github.com/dolthub/dolt/releases/download/v2.3.5/dolt-windows-amd64.zip",
-      "sha256": "55e9c2053496d29a1c1b23e6ad689779da41518f8cc257f531c5b20f37621c5d",
-      "optional": true
     }
   ]
 }
