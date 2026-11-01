@@ -255,10 +255,12 @@ func withStandaloneOriginCertificateRouter(output []byte, domain string) []byte 
 	}
 	text := string(output)
 	if strings.Count(text, standaloneOriginCertificateRouterArg) != 1 || strings.Count(text, standaloneOriginCertificateRouterVol) != 1 ||
+		strings.Count(text, acmeStorageArg) != 1 ||
 		len(standaloneOriginCertificateResolverLabel.FindAllStringIndex(text, -1)) == 0 {
 		return nil
 	}
 	text = standaloneOriginCertificateResolverLabel.ReplaceAllString(text, "")
+	text = strings.Replace(text, acmeStorageArg, originCertificateACMEStorageArg, 1)
 	text = strings.Replace(text, standaloneOriginCertificateRouterArg, standaloneOriginCertificateRouterArg+
 		"            - --providers.file.directory=/origin-tls\n            - --providers.file.watch=true\n", 1)
 	text = strings.Replace(text, standaloneOriginCertificateRouterVol, standaloneOriginCertificateRouterVol+

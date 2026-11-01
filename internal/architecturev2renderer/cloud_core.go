@@ -294,6 +294,15 @@ const (
 
 var originCertificateResolverLabel = regexp.MustCompile(`(?m)^      - traefik[.]http[.]routers[.][a-z-]+[.]tls[.]certresolver=stackkits\n`)
 
+// An install that ordered ACME certificates before it received the origin
+// certificate keeps them in acme.json, and the router prefers them for their exact
+// hosts, so the origin probe meets Let's Encrypt. The origin router reads its own
+// empty store; the old file stays untouched as the way back.
+const (
+	acmeStorageArg                  = "acme.storage=/letsencrypt/acme.json\n"
+	originCertificateACMEStorageArg = "acme.storage=/letsencrypt/acme-origin.json\n"
+)
+
 // managedOriginCertificateDomain reports a stack domain served from the managed
 // zone: kombify.me with a prefix, or an install zone <zone>.kombify.me
 // (addressplan.BindZone). Both receive the delivered origin certificate, and the
@@ -315,6 +324,7 @@ func RenderCloudCoreComposeForOriginCertificate(domain, prefix string) []byte {
 	}
 	text := string(output)
 	text = originCertificateResolverLabel.ReplaceAllString(text, "")
+	text = strings.Replace(text, acmeStorageArg, originCertificateACMEStorageArg, 1)
 	text = strings.Replace(text, originCertificateRouterArg, originCertificateRouterArg+
 		"      - --providers.file.directory=/origin-tls\n      - --providers.file.watch=true\n", 1)
 	text = strings.Replace(text, originCertificateRouterVols,

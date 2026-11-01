@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix: household member adds work on a Basement node again after a backup. A backup's quiescence stops and starts the Pocket ID container in place, and the managed admission then refused every `stackkit user project` with "PocketID managed admission: installed incarnation changed" until the next rollout, because it pinned the container's start time. The same container, image content and data volume are now re-observed under the lifecycle lock: the authenticated membership-CAS capability is checked again and the new start is bound. A recreated container or another image is still refused.
+
 - Fix: Basement Apply no longer stops at the Basement core runtime with "PocketID data volume has another container consumer". The managed PocketID writer drain counted the Kopia agent's read-only backup bind of the PocketID data volume as a second writer. Only a read-write consumer, running or stopped, is now refused. Every Basement deploy whose PocketID container already existed failed this way, including a first rollout on a fresh owner server and later use-case changes.
 
 - Fix: restore activation of Coolify-managed workloads (for example Files) reaches its data copy again. The quiesce step stops the workload through the local Docker exec API, which asked for API version 1.40; Docker Engine 29 answers every request below 1.44 with HTTP 400, so activation failed before its first copy. The exec API now uses version 1.44, Ubuntu 26.04 Docker 29.1.3 is a qualified Engine, and a failure names `docker_exec_api_rejected` or `docker_exec_engine_unqualified` with the request kind or Engine build.
@@ -383,6 +385,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.54.19 (2026-11-01)
+
+### Fixed
+
+* **consolidation:** a techstack-only pull request no-ops every gate step, detected from git
+* **pocketid:** a backup's in-place restart of the bound Pocket ID container no longer blocks household adds
+* **public-tls:** an origin-certificate router ignores certificates ordered before it
+* **release:** preparation authority ignores the imported Techstack history
 
 ## [0.54.18](https://github.com/kombifyio/StackKits/compare/v0.54.17...v0.54.18) (2026-11-01)
 

@@ -334,8 +334,25 @@ func Require(ctx context.Context, workspace string) error {
 	if err != nil {
 		return err
 	}
-	if !current.State.Running || current.State.Restarting || current.State.Dead || current.State.Pid <= 0 || current.ID != proof.ContainerID || current.Image != proof.ImageID || current.Config.Image != proof.ImageRef || current.State.StartedAt != proof.StartedAt || volume != proof.Volume {
+	if !current.State.Running || current.State.Restarting || current.State.Dead || current.State.Pid <= 0 || current.ID != proof.ContainerID || current.Image != proof.ImageID || current.Config.Image != proof.ImageRef || volume != proof.Volume {
 		return fmt.Errorf("PocketID managed admission: installed incarnation changed")
 	}
-	return nil
+	if current.State.StartedAt == proof.StartedAt {
+		return nil
+	}
+	// The bound container was stopped and started in place, as a backup's
+	// quiescence does: same container, image content and volume. Re-observe the
+	// authenticated CAS capability, as Complete does, and bind the new start;
+	// the caller holds the lifecycle mutation lock.
+	key, err := localevidence.ReadBasementRuntimePocketIDAdminKey(workspace)
+	if err != nil {
+		return err
+	}
+	if err := pocketid.NewClient("http://127.0.0.1:1411", key).RequireMembershipCAS(ctx); err != nil {
+		return fmt.Errorf("PocketID managed admission: restarted incarnation membership contract unavailable: %w", err)
+	}
+	rebound := *proof
+	rebound.StartedAt = current.State.StartedAt
+	_, err = localevidence.BindPocketIDRuntime(workspace, rebound)
+	return err
 }
