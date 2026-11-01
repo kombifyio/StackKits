@@ -6823,7 +6823,7 @@
       "group": "reference",
       "usage": "stackkit kit upgrade [flags]",
       "short": "Resolve and install a verified StackKit release",
-      "description": "Resolve a public StackKit release from GitHub, verify its archive,\nSPDX SBOM, GitHub OIDC/Sigstore attestation, and cached trusted root, then\natomically install it under .stackkit/releases/.\n\nWith --dry-run it generates the verified target only in a bounded shadow\nworkspace and reports a canonical plan/artifact diff. Without --dry-run it\nfirst inspects that target, creates a native Kopia snapshot plus an\nowner-signed executor-state recovery checkpoint, stages and verifies the\nrollback data without activating it, and only then installs and executes the\nexact target generate/apply/verify transaction. A failed target transaction\ncan restore and verify the prior executor only before target Apply is admitted.\nAfter Apply, prior-runtime restart is blocked until verified prior-data\nactivation exists; isolated Kopia staging alone does not authorize it.\n--recover with --forward is the owner's approval to finish such an operation\nforward: it reruns the exact signed target Apply and Verify, then commits.\nA completed target commit keeps its success proof for explicit finalization.\nFresh upgrades require support in the embedded CUE Kit policy; recovery of an\nexisting operation follows its signed journal and checkpoint.",
+      "description": "Resolve a public StackKit release from GitHub, verify its archive,\nSPDX SBOM, GitHub OIDC/Sigstore attestation, and cached trusted root, then\natomically install it under .stackkit/releases/.\n\nWith --dry-run it generates the verified target only in a bounded shadow\nworkspace and reports a canonical plan/artifact diff. Without --dry-run it\nfirst inspects that target, creates a native Kopia snapshot plus an\nowner-signed executor-state recovery checkpoint, stages and verifies the\nrollback data without activating it, and only then installs and executes the\nexact target generate/apply/verify transaction. A failed target transaction\ncan restore and verify the prior executor only before target Apply is admitted.\nAfter Apply, prior-runtime restart is blocked until verified prior-data\nactivation exists; isolated Kopia staging alone does not authorize it.\n--recover with --forward is the owner's approval to finish such an operation\nforward: it reruns the exact signed target Apply and Verify, then commits.\nAdd --to with a newer release when the signed target cannot finish: that\nverified release becomes the target and regenerates, applies and verifies.\nA completed target commit keeps its success proof for explicit finalization.\nFresh upgrades require support in the embedded CUE Kit policy; recovery of an\nexisting operation follows its signed journal and checkpoint.",
       "runnable": true,
       "examples": [
         {
@@ -6845,6 +6845,10 @@
         {
           "command": "stackkit upgrade --recover <operation-id> --forward",
           "description": "Finish an upgrade interrupted after target Apply with its exact target release"
+        },
+        {
+          "command": "stackkit upgrade --recover <operation-id> --forward --to vX.Y.Z",
+          "description": "Finish it with a newer verified release instead"
         }
       ],
       "flags": [
@@ -6876,7 +6880,7 @@
           "name": "to",
           "type": "string",
           "default": "latest",
-          "description": "Target: latest, vX.Y.Z, or channel:stable|beta|edge.",
+          "description": "Target: latest, vX.Y.Z, or channel:stable|beta|edge. With --recover --forward: a newer release that finishes the operation.",
           "required": false
         }
       ],
@@ -9671,7 +9675,7 @@
       "group": "care",
       "usage": "stackkit upgrade [flags]",
       "short": "Resolve and install a verified StackKit release",
-      "description": "Resolve a public StackKit release from GitHub, verify its archive,\nSPDX SBOM, GitHub OIDC/Sigstore attestation, and cached trusted root, then\natomically install it under .stackkit/releases/.\n\nWith --dry-run it generates the verified target only in a bounded shadow\nworkspace and reports a canonical plan/artifact diff. Without --dry-run it\nfirst inspects that target, creates a native Kopia snapshot plus an\nowner-signed executor-state recovery checkpoint, stages and verifies the\nrollback data without activating it, and only then installs and executes the\nexact target generate/apply/verify transaction. A failed target transaction\ncan restore and verify the prior executor only before target Apply is admitted.\nAfter Apply, prior-runtime restart is blocked until verified prior-data\nactivation exists; isolated Kopia staging alone does not authorize it.\n--recover with --forward is the owner's approval to finish such an operation\nforward: it reruns the exact signed target Apply and Verify, then commits.\nA completed target commit keeps its success proof for explicit finalization.\nFresh upgrades require support in the embedded CUE Kit policy; recovery of an\nexisting operation follows its signed journal and checkpoint.",
+      "description": "Resolve a public StackKit release from GitHub, verify its archive,\nSPDX SBOM, GitHub OIDC/Sigstore attestation, and cached trusted root, then\natomically install it under .stackkit/releases/.\n\nWith --dry-run it generates the verified target only in a bounded shadow\nworkspace and reports a canonical plan/artifact diff. Without --dry-run it\nfirst inspects that target, creates a native Kopia snapshot plus an\nowner-signed executor-state recovery checkpoint, stages and verifies the\nrollback data without activating it, and only then installs and executes the\nexact target generate/apply/verify transaction. A failed target transaction\ncan restore and verify the prior executor only before target Apply is admitted.\nAfter Apply, prior-runtime restart is blocked until verified prior-data\nactivation exists; isolated Kopia staging alone does not authorize it.\n--recover with --forward is the owner's approval to finish such an operation\nforward: it reruns the exact signed target Apply and Verify, then commits.\nAdd --to with a newer release when the signed target cannot finish: that\nverified release becomes the target and regenerates, applies and verifies.\nA completed target commit keeps its success proof for explicit finalization.\nFresh upgrades require support in the embedded CUE Kit policy; recovery of an\nexisting operation follows its signed journal and checkpoint.",
       "runnable": true,
       "examples": [
         {
@@ -9693,6 +9697,10 @@
         {
           "command": "stackkit upgrade --recover <operation-id> --forward",
           "description": "Finish an upgrade interrupted after target Apply with its exact target release"
+        },
+        {
+          "command": "stackkit upgrade --recover <operation-id> --forward --to vX.Y.Z",
+          "description": "Finish it with a newer verified release instead"
         }
       ],
       "flags": [
@@ -9724,7 +9732,7 @@
           "name": "to",
           "type": "string",
           "default": "latest",
-          "description": "Target: latest, vX.Y.Z, or channel:stable|beta|edge.",
+          "description": "Target: latest, vX.Y.Z, or channel:stable|beta|edge. With --recover --forward: a newer release that finishes the operation.",
           "required": false
         }
       ],

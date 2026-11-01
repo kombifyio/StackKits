@@ -16,7 +16,7 @@ const (
 	coolifyRuntimeAdapterOutputRef   = "platform/coolify/runtime-adapter.json"
 )
 
-const coolifyRuntimeAdapterRendererSchema = `stackkit.runtime-adapter/v1|WorkloadRuntimeAdapter|coolify|container:application-adapter|operations:apply,observe|provider-lifecycle:not-owned|credentials:external-owner|routes:artifact-bound|evidence:required`
+const coolifyRuntimeAdapterRendererSchema = `stackkit.runtime-adapter/v1|WorkloadRuntimeAdapter|coolify|container:application-adapter|operations:apply,observe,remove|provider-lifecycle:not-owned|credentials:external-owner|routes:artifact-bound|evidence:required`
 
 type coolifyRuntimeAdapterBundle struct {
 	APIVersion string `json:"apiVersion"`
@@ -144,7 +144,7 @@ func validateCoolifyRuntimeAdapterUnit(unit RenderUnit, contract RendererContrac
 	bundle.Adapter.Version = "1.0.0"
 	bundle.Adapter.SupportedKinds = []string{"container"}
 	bundle.Adapter.SupportedDeliveries = []string{"application-adapter"}
-	bundle.Adapter.Operations = []string{"apply", "observe"}
+	bundle.Adapter.Operations = []string{"apply", "observe", "remove"}
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
 	bundle.Inputs.ArtifactAPIVersions = []string{"stackkit.workload-bundle/v2"}
 	bundle.Inputs.PublicValues = "artifact-bound-only"

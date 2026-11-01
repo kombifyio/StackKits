@@ -9775,6 +9775,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-runtipi-runtime"
+        ],
+        "matches": [
+          "stackkits-runtipi"
+        ],
+        "module": "stackkits-runtipi-runtime",
+        "provider": "stackkits-runtipi"
+      },
+      {
+        "governanceMatches": [
           "stackkits-marketplace-coolify-runtime"
         ],
         "matches": [
@@ -10176,6 +10186,13 @@
         ],
         "module": "stackkits-marketplace-runtipi-runtime",
         "requires": "stackkits-core-host-bootstrap"
+      },
+      {
+        "matches": [
+          "stackkits-marketplace-runtipi-runtime"
+        ],
+        "module": "stackkits-runtipi-runtime",
+        "requires": "stackkits-marketplace-runtipi-runtime"
       },
       {
         "matches": [
@@ -10795,6 +10812,12 @@
             "availability-ha"
           ],
           "providerID": "stackkits-ha-modern-quorum"
+        },
+        {
+          "contracts": [
+            "runtipi"
+          ],
+          "providerID": "stackkits-runtipi"
         },
         {
           "contracts": [
@@ -11936,6 +11959,13 @@
         ],
         "module": "stackkits-ha-modern-quorum-runtime",
         "provider": "stackkits-ha-modern-quorum"
+      },
+      {
+        "matches": [
+          "stackkits-runtipi-runtime"
+        ],
+        "module": "stackkits-runtipi-runtime",
+        "provider": "stackkits-runtipi"
       },
       {
         "matches": [
@@ -14589,6 +14619,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-ha-modern-quorum"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-runtipi"
         },
         {
           "capabilityBindings": [],
@@ -46775,7 +46811,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:0115f3bdc1a7806823330a1a271085c9721549f9b69dbb0e9fd2da25bada97ab",
+          "contractHash": "sha256:2606489918fbc55b503b305369fcb7c6efa33fc5010ab6f949ea66eef3033233",
           "id": "coolify-adapter",
           "inputBindings": [],
           "kind": "native-config",
@@ -46848,7 +46884,8 @@
         "id": "coolify",
         "operations": [
           "apply",
-          "observe"
+          "observe",
+          "remove"
         ],
         "providerLifecycle": "not-owned",
         "supportedDeliveries": [
@@ -50089,6 +50126,148 @@
         "entryComponentRef": "runtipi",
         "execution": "executable",
         "kind": "host"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "evidence": [
+        "runtipi-current-pin-lifecycle"
+      ],
+      "health": [
+        {
+          "id": "runtipi-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Prepared, unqualified node-custodied Runtipi application adapter; no server-provider lifecycle.",
+        "id": "stackkits-runtipi-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-runtipi",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "runtipi-runtime-adapter",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "platform/runtipi/runtime-adapter.json",
+              "required": true,
+              "unitRef": "runtipi-adapter"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "runtipi-runtime-adapter",
+              "outputRef": "platform/runtipi/runtime-adapter.json",
+              "unitRef": "runtipi-adapter"
+            }
+          ],
+          "requiredRefs": [
+            "runtipi-runtime-adapter"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "runtipi-current-pin-lifecycle"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:2765e73e1718e1186b54f61bf0ef7104980e4f2e743243416830a198d50559ef",
+          "id": "runtipi-adapter",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "platform/runtipi/runtime-adapter.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://platform/runtipi/runtime-adapter/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-marketplace-runtipi-runtime"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "external-control-plane",
+        "execution": "contract-handoff",
+        "kind": "control-plane"
+      },
+      "runtimeAdapter": {
+        "agentRefs": [],
+        "capabilities": [
+          "application-setup-local-api"
+        ],
+        "credentialCustody": "local-owner",
+        "evidenceRequired": true,
+        "id": "runtipi",
+        "operations": [
+          "apply",
+          "observe"
+        ],
+        "providerLifecycle": "not-owned",
+        "supportedDeliveries": [
+          "application-adapter"
+        ],
+        "supportedKinds": [
+          "container"
+        ]
       },
       "serviceControls": [],
       "supportedSiteKinds": [
@@ -57322,6 +57501,37 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "runtipi-current-pin-lifecycle"
+      ],
+      "metadata": {
+        "id": "stackkits-runtipi",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-runtipi-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [],
+      "runtimeAdapterRefs": [
+        "runtipi"
+      ],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "marketplace-native-installation"
       ],
       "metadata": {
@@ -58864,6 +59074,7 @@
             "allowedAdapterRefs": [
               "coolify",
               "komodo",
+              "runtipi",
               "standalone-compose"
             ],
             "allowedDeliveries": [
@@ -58887,6 +59098,16 @@
                 "adapterRef": "komodo",
                 "capabilities": {
                   "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
+                "adapterRef": "runtipi",
+                "capabilities": {
+                  "backupRestore": false,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true

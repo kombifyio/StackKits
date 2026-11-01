@@ -3,8 +3,9 @@ package foundation
 // The Marketplace module and alternative below are admitted to
 // ArchitectureV2Catalog as an explicit, non-default Marketplace alternative
 // (--use-case-alternative marketplace=runtipi). The provider and adapter
-// module remain prepared only; no compute tier selects Runtipi and no
-// current-pin support follows until a test-window receipt exists.
+// module are admitted with it, so Files can run on that Runtipi instance. No
+// compute tier selects Runtipi and no current-pin support follows until a
+// test-window receipt exists.
 #PreparedRuntipiMarketplaceAlternative: #WorkloadAlternativeV2 & {
 	id:                        "runtipi", providerRef:       "stackkits-marketplace", moduleRef: "stackkits-marketplace-runtipi-runtime"
 	providesRuntimeAdapterRef: "runtipi", minimumTLSVersion: "TLS1.3"

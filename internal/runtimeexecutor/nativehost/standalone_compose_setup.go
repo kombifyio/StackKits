@@ -49,6 +49,13 @@ var applicationSetupAdapterRegistrations = []applicationSetupAdapterRegistration
 		},
 		adapter: platformApplicationSetupAdapter{adapterRef: "coolify"},
 	},
+	{
+		matches: func(binding runtimeexecutor.RuntimeAdapterBinding) bool {
+			return binding.ID == "runtipi" && binding.ProviderRef == "stackkits-runtipi" &&
+				binding.ModuleRef == "stackkits-runtipi-runtime"
+		},
+		adapter: runtipiApplicationSetupAdapter{},
+	},
 }
 
 // ResolveApplicationSetupAdapter admits an executable setup transport from

@@ -299,6 +299,20 @@ func (o *osMarketplaceOperations) loadMarketplaceCustody(ctx context.Context, vi
 			return state, errors.New("Marketplace API token and server custody are inconsistent")
 		}
 		composeFile, err := view.Open("compose.yaml")
+		// New custody is saved before its first recipe. An Apply interrupted
+		// between the two started nothing from it and holds no API token, so
+		// the same custody resumes and Apply writes its recipe. Containers
+		// prove a recipe existed; then its loss needs repair, not a rewrite.
+		if errors.Is(err, os.ErrNotExist) && state.APIToken == "" {
+			raw, psErr := o.run(ctx, []string{"ps", "--all", "--filter", "label=com.docker.compose.project=" + marketplaceProject, "--quiet"}, nil, o.workspace)
+			if psErr != nil {
+				return state, psErr
+			}
+			if strings.TrimSpace(string(raw)) != "" {
+				return state, errors.New("Marketplace custody has no installation recipe but has containers; repair it before applying")
+			}
+			return state, nil
+		}
 		if err != nil {
 			return state, errors.New("Marketplace custody has no existing installation recipe")
 		}

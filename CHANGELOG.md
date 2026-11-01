@@ -8,6 +8,16 @@
 
 - Fix: restore activation of Coolify-managed workloads (for example Files) reaches its data copy again. The quiesce step stops the workload through the local Docker exec API, which asked for API version 1.40; Docker Engine 29 answers every request below 1.44 with HTTP 400, so activation failed before its first copy. The exec API now uses version 1.44, Ubuntu 26.04 Docker 29.1.3 is a qualified Engine, and a failure names `docker_exec_api_rejected` or `docker_exec_engine_unqualified` with the request kind or Engine build.
 
+- Added: Files on Coolify restores in place. `stackkit backup restore activate --workload files` now works on the default OpenTofu target: Coolify stops and starts the application, StackKits copies the staged data into its volumes, and the Kit's Core runtime is bound through its OpenTofu root. Marketplace service activation still requires the compose target.
+
+- Added: `stackkit remove --workload <name>` removes a Coolify-managed application. Coolify deletes the service and its stored configuration but never its data; StackKits keeps the volumes by default and deletes them only with `--delete-data`. Adding the application again reattaches retained data. An interrupted removal resumes from its signed journal. The Coolify adapter contract now declares `remove`; an installation applied before this release runs `stackkit generate` and `stackkit apply` once before removing.
+
+- Added: `stackkit drift detect` and `stackkit verify` compare the recipe Coolify stores for each managed application with the authorized one. Any edit made in Coolify to a service (for example image, ports, networks, environment, privileges or volumes) is reported as drift `coolify-service-recipe-changed`; `stackkit apply` restores the authorized recipe.
+
+- Added: Files runs on the Runtipi Marketplace. With `--use-case-alternative marketplace=runtipi`, init binds Files to that Runtipi instance, and Apply, verify and owner setup work through Runtipi (drift detection does not yet compare the Runtipi app recipe). Runtipi stays an explicit, non-default choice. Backup and restore of Files on Runtipi fail closed before any effect: they need a Runtipi app-control manager that the pinned upstream Runtipi does not provide. `stackkit remove --workload files` on Runtipi also fails closed, because the Runtipi adapter declares only apply and observe.
+
+- Fix: a Marketplace (Coolify) Apply that was interrupted after its private custody was saved but before its recipe was written resumes instead of failing with "Marketplace custody has no existing installation recipe".
+
 - Fix: lifecycle interruption recovery stops only leftover processes that prove they belong to the dead owner: each owner exports a random `STACKKIT_LEASE_OWNER` token to its children, and only processes carrying that exact token in the same boot are stopped (pidfd-pinned). An unrelated process that reuses the group or session is never signalled. A resumed operation claim is checked under the state lock, and the dead owner's lease stays held until its interruption is recorded. When nothing could be stopped, the record says the old effects may still be in progress.
 
 - Fix: a lifecycle operation whose process was killed (for example `stackkit backup run` stopped with SIGKILL) no longer blocks every later Apply and backup. Each operation, including a resumed one, holds a kernel advisory lease while its process runs; the next Apply or backup that finds the lease free stops any child processes left in the dead owner's process group, records the operation as interrupted with its uncertain effects, and continues. A live or resumed operation still blocks.
@@ -387,6 +397,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.55.3 (2026-11-01)
+
+### Added
+
+* **paas:** Coolify restore activation, removal and drift; Files on Runtipi
+
+### Fixed
+
+* **upgrade:** forward recovery can finish with a newer verified release when the signed target cannot
+* **window:** pin the shared test-window admission at 6b5cc2b2 so Techstack kit lanes pass in StackKits (, )
+* **window:** the paid journeys read the served checkout from the workspace root
 
 ## 0.55.2 (2026-11-01)
 

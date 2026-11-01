@@ -242,7 +242,8 @@ const (
 
 // ownerExecutionRank keeps owner execution deterministic while ordering
 // dependent owners after the owners they need:
-//   - workloads executed through a Marketplace platform adapter (Coolify)
+//   - workloads executed through a Marketplace platform adapter (Coolify or
+//     Runtipi)
 //     run after the Marketplace installation that holds the platform recipe;
 //     "stackkits-immich-runtime" sorts before the Marketplace module, so
 //     lexical order alone deployed Photos before Coolify existed;
@@ -253,7 +254,7 @@ func ownerExecutionRank(target runtimeexecutor.RuntimeTarget) int {
 	if target.ModuleRef == internalPKIContractModuleRef || target.ModuleRef == publicTLSContractModuleRef {
 		return 2
 	}
-	if target.RuntimeAdapter != nil && target.RuntimeAdapter.ID == "coolify" {
+	if target.RuntimeAdapter != nil && (target.RuntimeAdapter.ID == "coolify" || target.RuntimeAdapter.ID == "runtipi") {
 		return 1
 	}
 	return 0

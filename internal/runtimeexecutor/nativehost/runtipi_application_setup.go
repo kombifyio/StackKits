@@ -9,8 +9,8 @@ import (
 )
 
 // PreparedRuntipiApplicationSetupAdapter supplies the existing Files owner
-// bootstrap over its own node session. It is deliberately not registered in
-// applicationSetupAdapterRegistrations before current-pin qualification.
+// bootstrap over its own node session. applicationSetupAdapterRegistrations
+// admits it for the exact Runtipi adapter binding.
 func PreparedRuntipiApplicationSetupAdapter() ApplicationSetupAdapter {
 	return runtipiApplicationSetupAdapter{}
 }

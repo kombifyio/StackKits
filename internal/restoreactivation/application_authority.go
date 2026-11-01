@@ -127,8 +127,22 @@ func deriveSelectedSourceAuthority(workspace string, plan generationartifact.Ver
 	if err != nil {
 		return Authority{}, err
 	}
+	// The selected manager controls the application, so the Core runtime only
+	// supplies the held Kopia helper and staging custody. Under an OpenTofu
+	// target that is the runtime Compose file its root writes, bound to the
+	// root's current state exactly as the full-node recovery graph binds it.
+	renderTarget := ""
+	coreRuntime := ComposeRuntime{Project: derived.composeProject, Path: derived.composeArtifact.Path, Digest: derived.composeArtifact.SHA256}
+	var composeRuntimes []ComposeRuntime
 	if derived.renderTarget != renderTargetCompose {
-		return Authority{}, errors.New("restoreactivation: application activation requires the native compose generation target")
+		if workload == "" {
+			return Authority{}, errors.New("restoreactivation: Marketplace service activation requires the native compose generation target")
+		}
+		renderTarget = derived.renderTarget
+		if coreRuntime, _, err = bindOpenTofuRuntimes(workspace, derived, nil); err != nil {
+			return Authority{}, err
+		}
+		composeRuntimes = []ComposeRuntime{coreRuntime}
 	}
 	manifestHash, err := manifest.Hash()
 	if err != nil {
@@ -151,5 +165,5 @@ func deriveSelectedSourceAuthority(workspace string, plan generationartifact.Ver
 	if err != nil {
 		return Authority{}, err
 	}
-	return Authority{OperationID: operation, OwnerRef: result.OwnerRef, RestoreResultID: result.ID, PlanHash: plan.Binding().PlanHash, ManifestHash: manifestHash, ApplyResultHash: result.AuthorizationLineage.ApplyResultHash, ManagedVolumeSetHash: hash, StackID: derived.stackID, ComposeProject: derived.composeProject, ComposePath: derived.composeArtifact.Path, ComposeDigest: derived.composeArtifact.SHA256, KopiaHelperImage: derived.kopiaImage, StagingVolume: derived.stagingVolume, StagingPath: result.Request.StagingPath, Volumes: names, VolumeDetails: selected}, nil
+	return Authority{OperationID: operation, RenderTarget: renderTarget, OwnerRef: result.OwnerRef, RestoreResultID: result.ID, PlanHash: plan.Binding().PlanHash, ManifestHash: manifestHash, ApplyResultHash: result.AuthorizationLineage.ApplyResultHash, ManagedVolumeSetHash: hash, StackID: derived.stackID, ComposeProject: derived.composeProject, ComposePath: coreRuntime.Path, ComposeDigest: coreRuntime.Digest, ComposeRuntimes: composeRuntimes, KopiaHelperImage: derived.kopiaImage, StagingVolume: derived.stagingVolume, StagingPath: result.Request.StagingPath, Volumes: names, VolumeDetails: selected}, nil
 }

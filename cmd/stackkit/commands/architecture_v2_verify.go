@@ -250,6 +250,15 @@ func verifyArchitectureV2AppliedWorkloads(
 		return err
 	}
 	observations = append(observations, coolifyObservations...)
+	runtipiOperations, err := nativehost.NewOSRuntipiWorkloadOperations(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	runtipiObservations, err := nativehost.VerifyAppliedRuntipiWorkloads(ctx, appliedRequest, binding, runtipiOperations)
+	if err != nil {
+		return err
+	}
+	observations = append(observations, runtipiObservations...)
 	for _, observation := range observations {
 		runtime.Workloads = append(runtime.Workloads, architectureV2WorkloadVerifySummary{
 			WorkloadRef: observation.WorkloadRef, ProjectRef: observation.ProjectRef, Status: observation.Status,
@@ -290,16 +299,16 @@ func verifyArchitectureV2OpenTofuState(
 	return states, nil
 }
 
-// coolifyAPIManagedWorkload reports a Coolify workload that the Coolify API
+// coolifyAPIManagedWorkload reports a Coolify or Runtipi workload its platform API
 // owns without an OpenTofu root, proven by its owner-signed node deployment
-// record (manager coolify, no provider recipe). Owner observation verifies its
+// record (manager equal to the adapter, no provider recipe). Owner observation verifies its
 // runtime. A missing or unreadable record keeps the OpenTofu root expectation.
 func coolifyAPIManagedWorkload(workspaceRoot string, adapter *generationartifact.ApplyRuntimeAdapterRequirement, project string) bool {
-	if workspaceRoot == "" || adapter == nil || adapter.ID != "coolify" {
+	if workspaceRoot == "" || adapter == nil || (adapter.ID != "coolify" && adapter.ID != "runtipi") {
 		return false
 	}
 	state, err := platformdeploy.LoadOwnerHostDeployment(workspaceRoot, project)
-	return err == nil && state.Manager == "coolify" && state.RecipeDigest == ""
+	return err == nil && state.Manager == adapter.ID && state.RecipeDigest == ""
 }
 
 // nativeMarketplaceRequirement names the natively executed Marketplace unit,

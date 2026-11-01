@@ -200,14 +200,15 @@ func (o *osCoolifyWorkloadOperations) ObserveWorkload(ctx context.Context, deplo
 	if !present || state.ArtifactDigest != deployment.ArtifactDigest {
 		return SelectedPaaSWorkloadObservation{}, errors.New("Coolify requires current workload deployment custody")
 	}
-	cfg, _, err := o.configuration(ctx, deployment)
+	cfg, _, marketplace, err := o.marketplaceConfiguration(ctx, deployment)
 	if err != nil {
 		return SelectedPaaSWorkloadObservation{}, err
 	}
 	if state.ServerID != cfg.ServerID {
 		return SelectedPaaSWorkloadObservation{}, errors.New("Coolify observation server differs from node custody")
 	}
-	if err := platformdeploy.NewCoolifyAdapter(cfg).Status(ctx, state.Deployment); err != nil {
+	adapter := platformdeploy.NewCoolifyAdapter(cfg)
+	if err := adapter.Status(ctx, state.Deployment); err != nil {
 		return SelectedPaaSWorkloadObservation{}, err
 	}
 	project, err := o.prepared.prepareWithIdentityMutation(ctx, deployment, false)
@@ -216,6 +217,13 @@ func (o *osCoolifyWorkloadOperations) ObserveWorkload(ctx context.Context, deplo
 	}
 	if err := o.prepared.verifyPersisted(project); err != nil {
 		return SelectedPaaSWorkloadObservation{}, err
+	}
+	// A provider-owned service carries the provider recipe and its digest
+	// label; ObserveCoolifyProviderWorkload compares it with that signed digest.
+	if state.RecipeDigest == "" {
+		if err := requireCoolifyServiceRecipe(ctx, marketplace, state.Deployment, project); err != nil {
+			return SelectedPaaSWorkloadObservation{}, err
+		}
 	}
 	project.runtimeProject = state.Deployment.ExternalID
 	return o.prepared.observePreparedWorkload(ctx, deployment, project)
@@ -226,38 +234,45 @@ func (o *osCoolifyWorkloadOperations) ValidateWorkloadObservation(d SelectedPaaS
 }
 
 func (o *osCoolifyWorkloadOperations) configuration(ctx context.Context, d SelectedPaaSWorkloadDeployment) (platformdeploy.HTTPConfig, marketplaceCustody, error) {
+	cfg, custody, _, err := o.marketplaceConfiguration(ctx, d)
+	return cfg, custody, err
+}
+
+// marketplaceConfiguration also returns the verified Marketplace owner, whose
+// node-local application container reads state the API does not expose.
+func (o *osCoolifyWorkloadOperations) marketplaceConfiguration(ctx context.Context, d SelectedPaaSWorkloadDeployment) (platformdeploy.HTTPConfig, marketplaceCustody, *osMarketplaceOperations, error) {
 	owner, err := localevidence.LoadOwnerCustody(o.workspace)
 	if err != nil || owner.Binding.SiteRef != d.SiteRef || owner.Binding.NodeRef != d.NodeRef {
-		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, errors.New("Coolify requires the established exact node owner")
+		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, errors.New("Coolify requires the established exact node owner")
 	}
 	address, err := localevidence.LocalIdentityRuntimeAddress(o.workspace)
 	if err != nil {
-		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, err
+		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, err
 	}
 	kit := "basement-kit"
 	if _, err := localevidence.LoadBasementRuntimeCustody(o.workspace); err != nil {
 		if !errors.Is(err, localevidence.ErrBasementRuntimeCustodyMissing) {
-			return platformdeploy.HTTPConfig{}, marketplaceCustody{}, err
+			return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, err
 		}
 		kit = "cloud-kit"
 	}
 	root, err := confinedfs.Open(o.workspace)
 	if err != nil {
-		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, err
+		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, err
 	}
 	defer root.Close()
 	view, err := root.View(marketplaceDirectory)
 	if err != nil {
-		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, err
+		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, err
 	}
 	file, err := view.Open("compose.yaml")
 	if err != nil {
-		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, errors.New("Coolify requires the installed Marketplace recipe")
+		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, errors.New("Coolify requires the installed Marketplace recipe")
 	}
 	defer file.Close()
 	raw, err := io.ReadAll(io.LimitReader(file, 131073))
 	if err != nil || len(raw) > 131072 {
-		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, errors.New("Marketplace installation recipe is invalid")
+		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, errors.New("Marketplace installation recipe is invalid")
 	}
 	var recipe struct {
 		Services map[string]struct {
@@ -266,26 +281,26 @@ func (o *osCoolifyWorkloadOperations) configuration(ctx context.Context, d Selec
 		} `yaml:"services"`
 	}
 	if yaml.Unmarshal(raw, &recipe) != nil {
-		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, errors.New("Marketplace installation recipe is invalid")
+		return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, errors.New("Marketplace installation recipe is invalid")
 	}
 	document := architecturev2renderer.MarketplaceCoolifyDocument{APIVersion: "stackkit.marketplace-coolify/v1", Kind: "MarketplaceCoolify", KitRef: kit, SiteRef: d.SiteRef, NodeRef: d.NodeRef, DomainBase: address.Domain, SubdomainPrefix: address.SubdomainPrefix}
 	for _, id := range []string{"coolify", "postgres", "redis"} {
 		entry := recipe.Services[id]
 		image, digest, ok := strings.Cut(entry.Image, "@")
 		if !ok {
-			return platformdeploy.HTTPConfig{}, marketplaceCustody{}, errors.New("Marketplace image is not pinned")
+			return platformdeploy.HTTPConfig{}, marketplaceCustody{}, nil, errors.New("Marketplace image is not pinned")
 		}
 		document.Components = append(document.Components, architecturev2renderer.KomodoBootstrapImage{ID: id, ImageRef: image, ImageDigest: digest, MemoryLimit: entry.MemoryLimit})
 	}
 	ops, custody, err := existingMarketplace(ctx, o.workspace, document)
 	if err != nil {
-		return platformdeploy.HTTPConfig{}, custody, err
+		return platformdeploy.HTTPConfig{}, custody, nil, err
 	}
 	if _, err := ObserveMarketplaceContainerCustody(ctx, o.workspace, document); err != nil {
-		return platformdeploy.HTTPConfig{}, custody, err
+		return platformdeploy.HTTPConfig{}, custody, nil, err
 	}
 	endpoint, err := ops.endpoint(ctx, filepath.Join(o.workspace, marketplaceDirectory))
-	return platformdeploy.HTTPConfig{BaseURL: endpoint, Token: custody.APIToken, ServerID: custody.ServerID, ProjectUUID: custody.CuratedProjects[d.WorkloadRef], EnvironmentID: "production"}, custody, err
+	return platformdeploy.HTTPConfig{BaseURL: endpoint, Token: custody.APIToken, ServerID: custody.ServerID, ProjectUUID: custody.CuratedProjects[d.WorkloadRef], EnvironmentID: "production"}, custody, ops, err
 }
 
 func (o *osCoolifyWorkloadOperations) project(ctx context.Context, cfg *platformdeploy.HTTPConfig, c *marketplaceCustody, workload string) error {

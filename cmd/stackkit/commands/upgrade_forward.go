@@ -26,17 +26,23 @@ import (
 const publicUpgradeForwardTimeout = 90 * time.Minute
 
 // forwardPublicUpgradeSession is the recovery-only re-admission of target
-// Apply that an explicit lifecycle recovery session offers.
+// Apply, or of a newer target's Generate, that an explicit lifecycle recovery
+// session offers.
 type forwardPublicUpgradeSession interface {
 	BeginForwardRecoveryJoin(expected, binaryVersion, executableSHA256 string) (string, error)
+	BeginForwardRetargetJoin(expected string, target lifecyclemutation.ReleaseAuthority) (string, error)
 }
 
 // completePublicUpgradeForward finishes an upgrade interrupted after target
 // Apply was admitted with its exact signed target release. It reruns target
 // Apply, the documented resume of a killed Apply (ADR-0035), and Verify, then
-// commits the same success proof a completed upgrade writes. The prior runtime
-// never starts, so live data the target may already have changed is opened
-// only by the target. A failed step leaves the operation active at its signed
+// commits the same success proof a completed upgrade writes. With retargetTo
+// the owner approves a newer verified release instead, for a signed target
+// whose own Apply cannot finish: that release is installed like a fresh
+// upgrade's target, becomes the signed target and regenerates from the
+// Inventory the interrupted target sealed. The prior runtime never starts, so
+// live data the target may already have changed is opened only by the same or
+// a newer runtime. A failed step leaves the operation active at its signed
 // phase for another attempt. It does not repeat an Advanced change set's
 // Terramate stack convergence.
 func completePublicUpgradeForward(
@@ -44,6 +50,7 @@ func completePublicUpgradeForward(
 	workspace, requestedSpec string,
 	record lifecyclemutation.Record,
 	mutation publicUpgradeLifecycleSession,
+	retargetTo string,
 	result *publicUpgradeTransaction,
 ) error {
 	forwarder, ok := mutation.(forwardPublicUpgradeSession)
@@ -79,7 +86,15 @@ func completePublicUpgradeForward(
 		if pending, err := backupcustody.S3TargetMovePending(workspace); err != nil || pending {
 			return errors.Join(errors.New("forward recovery refuses an operation with a pending backup target move; recover it without --forward"), err)
 		}
-		receipt, err := forwardPublicUpgradeTargetReceipt(operationCtx, workspace, record.Target)
+		// At a target Generate phase a retarget was interrupted: the signed
+		// target, already the newer release, regenerates.
+		regenerate := retargetTo == "" && !lifecyclemutation.ForwardRecoveryPhase(record.Phase)
+		var receipt releaseindex.Receipt
+		if retargetTo == "" {
+			receipt, err = forwardPublicUpgradeTargetReceipt(operationCtx, workspace, record.Target)
+		} else {
+			receipt, err = installForwardRetargetRelease(operationCtx, workspace, retargetTo, record.Target)
+		}
 		if err != nil {
 			return err
 		}
@@ -89,8 +104,18 @@ func completePublicUpgradeForward(
 			if err != nil {
 				return fmt.Errorf("hash the exact target executable: %w", err)
 			}
-			if executableDigest != record.Target.ExecutableSHA256 {
+			var retarget *lifecyclemutation.ReleaseAuthority
+			if retargetTo != "" {
+				retarget = &lifecyclemutation.ReleaseAuthority{
+					Version:          architectureV2ComponentVersion(receipt.Version),
+					ArchiveSHA256:    "sha256:" + receipt.ArchiveSHA256,
+					ExecutableSHA256: executableDigest,
+				}
+			} else if executableDigest != record.Target.ExecutableSHA256 {
 				return errors.New("installed target executable differs from the signed lifecycle journal")
+			} else if regenerate {
+				signed := record.Target
+				retarget = &signed
 			}
 			// An interrupted commit may have written its proof before its
 			// journal phase; this run writes it again from its own Verify.
@@ -99,10 +124,51 @@ func completePublicUpgradeForward(
 			}
 			return runPublicUpgradeForward(
 				operationCtx, workspace, requestedSpec, binary, executableDigest,
-				record, snapshot, receipt, mutation, forwarder, control, result,
+				record, snapshot, receipt, retarget, mutation, forwarder, control, result,
 			)
 		})
 	})
+}
+
+// installForwardRetargetRelease resolves and installs the owner-approved
+// newer release through the verified public Release Index, exactly as a fresh
+// upgrade installs its target. It refuses a release that is not newer than
+// the signed target.
+func installForwardRetargetRelease(
+	ctx context.Context,
+	workspace, to string,
+	signed lifecyclemutation.ReleaseAuthority,
+) (releaseindex.Receipt, error) {
+	if signed.Authority != "" || !semver.IsValid("v"+signed.Version) {
+		return releaseindex.Receipt{}, errors.New(
+			"forward retarget needs an upgrade whose signed target came from the verified workspace release cache",
+		)
+	}
+	kit, err := loadWorkspaceKit(workspace)
+	if err != nil {
+		return releaseindex.Receipt{}, fmt.Errorf("load StackKit identity before forward retarget: %w", err)
+	}
+	if err := admitPublicUpgradeKit(kit); err != nil {
+		return releaseindex.Receipt{}, err
+	}
+	source := newPublicReleaseSource()
+	attestations := newPublicAttestationVerifier()
+	resolution, err := (releaseindex.Resolver{Source: source, Attestations: attestations}).Resolve(ctx, releaseindex.ResolveRequest{
+		Kit: kit, Target: to, OS: currentReleasePlatform().OS, Arch: currentReleasePlatform().Arch,
+	})
+	if err != nil {
+		return releaseindex.Receipt{}, fmt.Errorf("resolve the forward retarget release: %w", err)
+	}
+	if semver.Compare("v"+architectureV2ComponentVersion(resolution.Asset.Version), "v"+signed.Version) <= 0 {
+		return releaseindex.Receipt{}, fmt.Errorf(
+			"forward retarget release %s is not newer than the signed target %s", resolution.Asset.Version, signed.Version,
+		)
+	}
+	receipt, err := installPublicUpgradeRelease(ctx, source, attestations, resolution, workspace)
+	if err != nil {
+		return releaseindex.Receipt{}, fmt.Errorf("install the verified forward retarget release: %w", err)
+	}
+	return receipt, nil
 }
 
 func runPublicUpgradeForward(
@@ -111,18 +177,20 @@ func runPublicUpgradeForward(
 	record lifecyclemutation.Record,
 	snapshot upgradelifecycle.ExecutorStateSnapshot,
 	receipt releaseindex.Receipt,
+	retarget *lifecyclemutation.ReleaseAuthority,
 	mutation publicUpgradeLifecycleSession,
 	forwarder forwardPublicUpgradeSession,
 	control *confinedfs.Transaction,
 	result *publicUpgradeTransaction,
 ) error {
 	operationID := record.OperationID
+	targetVersion := record.Target.Version
 	livePlan, err := forwardPublicUpgradeLivePlan(workspace, snapshot)
 	if err != nil {
 		return err
 	}
-	// The target Generate sealed its Inventory into the plan it wrote; Apply
-	// and Verify resolve exactly that document again.
+	// The target Generate sealed its Inventory into the plan it wrote; a
+	// retarget Generate, Apply and Verify resolve exactly that document again.
 	inventoryPath, cleanupInventory, err := materializePlanInventory(livePlan)
 	if err != nil {
 		return fmt.Errorf("materialize the target plan's sealed Inventory: %w", err)
@@ -136,6 +204,35 @@ func runPublicUpgradeForward(
 	}
 	runner := newPublicUpgradeTransactionRunner()
 	common := publicUpgradeCommandPrefix(workspace, requestedSpec)
+	if retarget != nil {
+		targetVersion = retarget.Version
+		result.Target.GenerateInvoked = true
+		emitPublicUpgradeTransactionEvent(operationID, "forward-generate", "started")
+		generateNonce, err := forwarder.BeginForwardRetargetJoin(mutation.Record().Phase, *retarget)
+		if err != nil {
+			return &publicUpgradePhaseError{phase: "target-generate-journal", cause: err}
+		}
+		generateArgs := append(
+			append(common, lifecycleChildFlags(
+				operationID, lifecyclemutation.PhaseTargetGenerateStarted, generateNonce,
+			)...),
+			"generate",
+		)
+		if _, err := runner.Run(ctx, binary, withInventory(generateArgs), workspace); err != nil {
+			emitPublicUpgradeTransactionEvent(operationID, "forward-generate", "failed")
+			return &publicUpgradePhaseError{phase: "target-generate", cause: err}
+		}
+		if err := mutation.Transition(
+			lifecyclemutation.PhaseTargetGenerateStarted,
+			lifecyclemutation.PhaseTargetGenerateSucceeded,
+		); err != nil {
+			return &publicUpgradePhaseError{phase: "target-generate-journal", cause: err}
+		}
+		emitPublicUpgradeTransactionEvent(operationID, "forward-generate", "succeeded")
+		if livePlan, err = forwardPublicUpgradeLivePlan(workspace, snapshot); err != nil {
+			return err
+		}
+	}
 	rawPlan, err := runner.Run(ctx, binary, withInventory(append(common, "plan", "--json")), workspace)
 	if err != nil {
 		return &publicUpgradePhaseError{phase: "target-plan", cause: err}
@@ -159,7 +256,7 @@ func runPublicUpgradeForward(
 		return err
 	}
 	undoReinstatement, err := reinstateForwardOwnerBinding(
-		workspace, record.Target.Version, snapshot, checkpointed, checkpointedRaw,
+		workspace, targetVersion, snapshot, checkpointed, checkpointedRaw,
 	)
 	if err != nil {
 		return err
@@ -168,9 +265,18 @@ func runPublicUpgradeForward(
 
 	result.Target.ApplyInvoked = true
 	emitPublicUpgradeTransactionEvent(operationID, "forward-apply", "started")
-	applyNonce, err := forwarder.BeginForwardRecoveryJoin(
-		mutation.Record().Phase, record.Target.Version, executableDigest,
-	)
+	var applyNonce string
+	if retarget != nil {
+		applyNonce, err = mutation.BeginJoin(
+			lifecyclemutation.PhaseTargetGenerateSucceeded,
+			lifecyclemutation.PhaseTargetApplyStarted,
+			"apply", targetVersion, executableDigest,
+		)
+	} else {
+		applyNonce, err = forwarder.BeginForwardRecoveryJoin(
+			mutation.Record().Phase, targetVersion, executableDigest,
+		)
+	}
 	if err != nil {
 		return applyErr(&publicUpgradePhaseError{phase: "target-apply-journal", cause: err})
 	}
@@ -197,7 +303,7 @@ func runPublicUpgradeForward(
 	verifyNonce, err := mutation.BeginJoin(
 		lifecyclemutation.PhaseTargetApplySucceeded,
 		lifecyclemutation.PhaseTargetVerifyStarted,
-		"verify", record.Target.Version, executableDigest,
+		"verify", targetVersion, executableDigest,
 	)
 	if err != nil {
 		return &publicUpgradePhaseError{phase: "target-verify-journal", cause: err}

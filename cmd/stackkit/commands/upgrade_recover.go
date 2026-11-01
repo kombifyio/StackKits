@@ -21,6 +21,7 @@ func recoverPublicUpgradeOperation(
 	ctx context.Context,
 	workspace, requestedSpec, operationID string,
 	forward bool,
+	retargetTo string,
 ) (result publicUpgradeTransaction, returnErr error) {
 	result = publicUpgradeTransaction{
 		APIVersion:  publicUpgradeTransactionAPIVersion,
@@ -65,15 +66,20 @@ func recoverPublicUpgradeOperation(
 		return result, nil
 	}
 	if forward {
-		if !lifecyclemutation.ForwardRecoveryPhase(record.Phase) {
+		admission, ok := mutation.(interface{ ForwardRecoveryAdmitted() (bool, error) })
+		if !ok {
 			result.Status = "failed"
-			return result, fmt.Errorf(
-				"lifecycle operation %s stopped at phase %s, before target Apply; recover it without --forward",
+			return result, errors.New("forward recovery requires an explicit lifecycle recovery session")
+		}
+		if admitted, err := admission.ForwardRecoveryAdmitted(); err != nil || !admitted {
+			result.Status = "failed"
+			return result, errors.Join(fmt.Errorf(
+				"lifecycle operation %s stopped at phase %s and its signed history never admitted target Apply; recover it without --forward",
 				operationID, record.Phase,
-			)
+			), err)
 		}
 		if err := completePublicUpgradeForward(
-			ctx, workspace, requestedSpec, record, mutation, &result,
+			ctx, workspace, requestedSpec, record, mutation, retargetTo, &result,
 		); err != nil {
 			result.Status = "failed"
 			return result, err

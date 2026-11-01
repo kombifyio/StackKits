@@ -1,6 +1,7 @@
 package platformdeploy
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -269,6 +270,43 @@ func LoadOwnerHostDeployment(workspace, project string) (HostDeployment, error) 
 		}
 	}
 	return state, nil
+}
+
+// RemoveOwnerHostDeployment retires the exact signed record a completed
+// workload removal read; a changed or replaced record is never removed.
+func RemoveOwnerHostDeployment(workspace, project string, expected HostDeployment) error {
+	current, err := LoadOwnerHostDeployment(workspace, project)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	left, _ := json.Marshal(current)
+	right, _ := json.Marshal(expected)
+	if !bytes.Equal(left, right) {
+		return errors.New("platform deployment custody changed during workload removal")
+	}
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+	tx, err := root.BeginTransaction()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Close() }()
+	relative := filepath.ToSlash(filepath.Join(".stackkit", "runtime", "applications", project, hostDeploymentFile))
+	info, err := tx.Lstat(relative)
+	if err != nil {
+		return err
+	}
+	if err := tx.RemoveRegularFile(relative, info); err != nil {
+		return err
+	}
+	_, err = tx.SyncDirectory(filepath.ToSlash(filepath.Dir(relative)))
+	return err
 }
 
 // HasOwnerHostDeployment distinguishes absent native custody from invalid

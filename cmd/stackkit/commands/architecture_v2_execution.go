@@ -1381,6 +1381,7 @@ const (
 	architectureV2WorkloadRemovalStandaloneCompose architectureV2WorkloadRemovalKind = "standalone-compose"
 	architectureV2WorkloadRemovalMarketplace       architectureV2WorkloadRemovalKind = "marketplace"
 	architectureV2WorkloadRemovalBasementCore      architectureV2WorkloadRemovalKind = "basement-core"
+	architectureV2WorkloadRemovalCoolify           architectureV2WorkloadRemovalKind = "coolify"
 )
 
 func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
@@ -1483,6 +1484,9 @@ func (g architectureV2ExecutionGate) executeValidatedNativeWorkloadRemoval(wd st
 		if remove == nil {
 			remove = nativehost.RemoveMarketplaceWorkload
 		}
+	}
+	if removalKind == architectureV2WorkloadRemovalCoolify {
+		remove = nativehost.RemoveCoolifyWorkload
 	}
 	if removalKind == architectureV2WorkloadRemovalBasementCore {
 		remove = g.removeCore
@@ -1598,6 +1602,9 @@ func architectureV2WorkloadRemovalDispatch(
 	}
 	if adapterID == "standalone-compose" && moduleRef == "stackkits-standalone-compose-runtime" {
 		return architectureV2WorkloadRemovalStandaloneCompose, nil
+	}
+	if adapterID == "coolify" && moduleRef == "stackkits-coolify-runtime" {
+		return architectureV2WorkloadRemovalCoolify, nil
 	}
 	if architectureV2MarketplaceRemovalTarget(target) {
 		return architectureV2WorkloadRemovalMarketplace, nil

@@ -348,8 +348,13 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(MarketplaceCoolifyRendererContract(), marketplaceCoolifyRenderer{}); err != nil {
 		return nil, err
 	}
-	// Runtipi is an explicit, non-default Marketplace alternative.
+	// Runtipi is an explicit, non-default Marketplace alternative; its
+	// workload adapter runs Files on that same installation.
 	if err := registry.Register(MarketplaceRuntipiRendererContract(), marketplaceRuntipiRenderer{}); err != nil {
+		return nil, err
+	}
+	runtipiAdapter := newRuntipiRuntimeAdapterRenderer()
+	if err := registry.Register(runtipiAdapter.contract, runtipiAdapter); err != nil {
 		return nil, err
 	}
 	if err := registry.Register(KomodoBootstrapRendererContract(), komodoBootstrap); err != nil {

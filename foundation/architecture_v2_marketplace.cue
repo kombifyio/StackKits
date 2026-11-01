@@ -33,7 +33,7 @@ _architectureV2MarketplaceComputeProfile: #ModuleComputeProfileV2 & {
 	provenance: {hostFloor: _architectureV2PolicyFloorProvenance, reservation: _architectureV2PolicyReservationProvenance, recommended: _architectureV2PolicyRecommendedProvenance}
 }
 
-_architectureV2MarketplaceProviders: [{
+_architectureV2MarketplaceProviders: [#PreparedRuntipiProvider, {
 	metadata: {id: "stackkits-marketplace", version: "1.0.0"}
 	provides: [], workloadRefs: ["marketplace"]
 	requires: [{id: "service-catalog"}, {id: "storage-data-policy"}, {id: "backup-core"}]
@@ -75,7 +75,7 @@ _architectureV2MarketplaceLifecycles: [#ApplicationLifecycleContractV1 & {
 	lifecycle: #StandardUseCaseLifecycle & {stages: setup: {}}
 }]
 
-_architectureV2MarketplaceModules: [#PreparedRuntipiMarketplaceModule, {
+_architectureV2MarketplaceModules: [#PreparedRuntipiMarketplaceModule, #PreparedRuntipiAdapterModule, {
 	metadata: {id: "stackkits-marketplace-coolify-runtime", version: "1.0.0", description: "Node-custodied Marketplace installation with a pinned Coolify control application, private API, closed root bootstrap and PocketID. It does not acquire a workload execution adapter."}
 	role: "workload", providerRef: "stackkits-marketplace"
 	provides: [], requires: ["stackkits-core-host-bootstrap"]

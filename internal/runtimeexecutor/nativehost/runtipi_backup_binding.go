@@ -40,7 +40,7 @@ func LoadRuntipiTerminalQualification(workspace string, deployment SelectedPaaSW
 		TerminalControl *platformdeploy.RuntipiTerminalQualification `json:"terminalControl"`
 	}
 	if json.Unmarshal(raw, &saved) != nil || saved.TerminalControl == nil || !saved.Bootstrapped || saved.OwnerRef != owner.OwnerRef || saved.SiteRef != owner.Binding.SiteRef || saved.NodeRef != owner.Binding.NodeRef || saved.SiteRef != deployment.SiteRef || saved.NodeRef != deployment.NodeRef || saved.Username == "" || saved.Password == "" || saved.TerminalControl.SourceDigest != expectedSourceDigest {
-		return result, errors.New("exact retained terminal qualification/Owner/source absent")
+		return result, errors.New("Runtipi application backup requires a qualified Runtipi app-control manager; the installed Runtipi has no retained terminal qualification for this Owner and source")
 	}
 	q := *saved.TerminalControl
 	if err = platformdeploy.ValidateRuntipiTerminalQualification(q); err != nil {

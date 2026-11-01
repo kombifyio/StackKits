@@ -1111,12 +1111,17 @@ _architectureV2WorkloadContracts: [
 			runtime: {
 				allowedKinds: ["container"]
 				allowedDeliveries: ["application-adapter"]
-				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				allowedAdapterRefs: ["coolify", "komodo", "runtipi", "standalone-compose"]
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
 					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					// Explicit only: Files binds to Runtipi when the Marketplace runs
+					// Runtipi; no default or compute tier selects it. Backup needs the
+					// Runtipi app-control manager, which the pinned upstream Runtipi
+					// does not provide, so backup and restore fail closed.
+					{adapterRef: "runtipi", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
@@ -13087,7 +13092,7 @@ _architectureV2Modules: list.Concat([[
 			id: "coolify"
 			supportedKinds: ["container"]
 			supportedDeliveries: ["application-adapter"]
-			operations: ["apply", "observe"]
+			operations: ["apply", "observe", "remove"]
 			capabilities: ["application-setup-local-api"]
 			credentialCustody: "external-owner"
 			providerLifecycle: "not-owned"
@@ -13101,7 +13106,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://platform/coolify/runtime-adapter/v1.json"
 			version:      "1.0.0"
-			contractHash: "sha256:0115f3bdc1a7806823330a1a271085c9721549f9b69dbb0e9fd2da25bada97ab"
+			contractHash: "sha256:2606489918fbc55b503b305369fcb7c6efa33fc5010ab6f949ea66eef3033233"
 			publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 			outputs: ["platform/coolify/runtime-adapter.json"]
 			placement: {scope: "node-local", cardinality: "one-per-node"}

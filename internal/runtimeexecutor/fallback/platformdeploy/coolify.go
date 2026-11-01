@@ -929,6 +929,34 @@ func (a *CoolifyAdapter) Delete(ctx context.Context, ref DeploymentRef) error {
 	return nil
 }
 
+// DeleteServiceKeepingData deletes one service and its stored configuration.
+// Coolify keeps its volumes, networks and unrelated Docker resources; the
+// caller owns the data disposition of the volumes it created.
+func (a *CoolifyAdapter) DeleteServiceKeepingData(ctx context.Context, ref DeploymentRef) error {
+	if ref.ExternalID == "" || a.cfg.LegacyDockerComposeAPI {
+		return fmt.Errorf("coolify service delete requires an exact service id")
+	}
+	path := "/api/v1/services/" + url.PathEscape(ref.ExternalID) +
+		"?delete_configurations=true&delete_volumes=false&docker_cleanup=false&delete_connected_networks=false"
+	if _, _, err := a.client.doJSON(ctx, "DELETE", path, nil, nil); err != nil {
+		return fmt.Errorf("coolify delete %q: %w", ref.AppName, err)
+	}
+	return nil
+}
+
+// ServiceAbsent is true only when the exact service id positively returns
+// 404; transport or authorization failures never read as absence.
+func (a *CoolifyAdapter) ServiceAbsent(ctx context.Context, ref DeploymentRef) (bool, error) {
+	if ref.ExternalID == "" {
+		return false, fmt.Errorf("coolify service lookup requires an exact service id")
+	}
+	status, _, err := a.client.getJSON(ctx, "/api/v1/services/"+url.PathEscape(ref.ExternalID), nil)
+	if status == http.StatusNotFound {
+		return true, nil
+	}
+	return false, err
+}
+
 func coolifyServicePayload(manifest AppManifest, cfg HTTPConfig) map[string]any {
 	compose := normalizeComposeYAML(manifest.ComposeYAML)
 	resourceName := coolifyServiceResourceName(manifest.Name, compose)

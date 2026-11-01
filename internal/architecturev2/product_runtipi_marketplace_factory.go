@@ -15,7 +15,9 @@ type productRuntipiMarketplaceFactory struct {
 
 // PreparedRuntipiRuntimeOwners assembles both owners for an eventual qualified
 // Marketplace plus Files slice. The caller must explicitly install the returned
-// registrations; the production registry never invokes this preparation hook.
+// registrations. The production registry registers its Runtipi owners itself
+// (cmd/stackkit/commands/architecture_v2_product_runtime.go) and never invokes
+// this preparation hook.
 func PreparedRuntipiRuntimeOwners(version, workspace string) ([]ProductRuntimeOwnerRegistration, error) {
 	bootstrap, err := nativehost.NewOSRuntipiMarketplaceOperations(workspace)
 	if err != nil {

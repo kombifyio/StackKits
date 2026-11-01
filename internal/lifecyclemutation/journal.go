@@ -27,6 +27,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -219,8 +220,10 @@ type Session struct {
 	// claimed its join and recovery proved that claimant ended.
 	claimantGone bool
 	// forwardRecovery admits the one recovery-only re-entry into target Apply
-	// for the duration of BeginForwardRecoveryJoin.
+	// for the duration of BeginForwardRecoveryJoin; with forwardRetarget it
+	// admits BeginForwardRetargetJoin's re-entry into target Generate instead.
 	forwardRecovery bool
+	forwardRetarget bool
 }
 
 func BeginUpgrade(workspace string, request BeginRequest) (*Session, error) {
@@ -1057,13 +1060,62 @@ func (session *Session) BeginForwardRecoveryJoin(
 	)
 }
 
+// BeginForwardRetargetJoin admits a target Generate for forward completion of
+// an upgrade whose history admitted target Apply. With a newer verified release
+// it supersedes the signed target: the owner approves that when the signed
+// target itself cannot finish the operation, for example because its own Apply
+// is defective. With the signed target itself it regenerates after a failed
+// retarget. The checkpoint and prior release stay the recovery authority. Only
+// the signed or a strictly newer release from the verified workspace release
+// cache is accepted, so live data the interrupted Apply may have changed is
+// never opened by an older runtime. Operations whose signed target is the
+// running executable (change sets, coordinated rollbacks) are refused.
+// Custody requirements equal BeginForwardRecoveryJoin's.
+func (session *Session) BeginForwardRetargetJoin(
+	expected string,
+	target ReleaseAuthority,
+) (string, error) {
+	if session == nil || session.transaction == nil || session.claimLock == nil ||
+		session.record.Kind != KindUpgrade || session.record.Status != StatusActive ||
+		session.record.UpgradeDataActivation != nil || session.record.Phase != expected {
+		return "", errors.New("forward recovery requires explicit recovery custody of an upgrade after target Apply admission")
+	}
+	if admitted, err := session.ForwardRecoveryAdmitted(); err != nil || !admitted {
+		return "", errors.Join(errors.New("forward recovery requires an upgrade whose signed history admitted target Apply"), err)
+	}
+	signedTarget := session.record.Target
+	order := semver.Compare("v"+target.Version, "v"+signedTarget.Version)
+	if signedTarget.Authority != "" || !semver.IsValid("v"+signedTarget.Version) ||
+		target.Authority != "" || !validReleaseAuthority(target) ||
+		order < 0 || (order == 0 && target != signedTarget) {
+		return "", errors.New("a forward retarget requires the signed or a newer verified release from the workspace release cache")
+	}
+	session.record.Target = target
+	session.forwardRecovery, session.forwardRetarget = true, true
+	defer func() { session.forwardRecovery, session.forwardRetarget = false, false }()
+	nonce, err := session.BeginJoin(
+		expected, PhaseTargetGenerateStarted, "generate", target.Version, target.ExecutableSHA256,
+	)
+	if err != nil && session.record.Phase == expected {
+		session.record.Target = signedTarget
+	}
+	return nonce, err
+}
+
 // forwardRecoveryTransition admits only BeginForwardRecoveryJoin's re-entry
-// into target Apply while it holds explicit recovery custody.
+// into target Apply, or BeginForwardRetargetJoin's into target Generate,
+// while it holds explicit recovery custody. Both verified forward admission
+// before setting forwardRecovery.
 func (session *Session) forwardRecoveryTransition(expected, next string, join *JoinAuthority) bool {
-	return session.forwardRecovery && session.claimLock != nil &&
-		session.record.Kind == KindUpgrade && session.record.UpgradeDataActivation == nil &&
-		ForwardRecoveryPhase(expected) && next == PhaseTargetApplyStarted &&
-		join != nil && join.Command == "apply"
+	if !session.forwardRecovery || session.claimLock == nil ||
+		session.record.Kind != KindUpgrade || session.record.UpgradeDataActivation != nil || join == nil {
+		return false
+	}
+	if session.forwardRetarget {
+		return (ForwardRecoveryPhase(expected) || expected == PhaseTargetGenerateStarted || expected == PhaseTargetGenerateSucceeded) &&
+			next == PhaseTargetGenerateStarted && join.Command == "generate"
+	}
+	return ForwardRecoveryPhase(expected) && next == PhaseTargetApplyStarted && join.Command == "apply"
 }
 
 func (session *Session) transition(

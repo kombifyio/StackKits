@@ -95,6 +95,8 @@ After Apply, prior-runtime restart is blocked until verified prior-data
 activation exists; isolated Kopia staging alone does not authorize it.
 --recover with --forward is the owner's approval to finish such an operation
 forward: it reruns the exact signed target Apply and Verify, then commits.
+Add --to with a newer release when the signed target cannot finish: that
+verified release becomes the target and regenerates, applies and verifies.
 A completed target commit keeps its success proof for explicit finalization.
 Fresh upgrades require support in the embedded CUE Kit policy; recovery of an
 existing operation follows its signed journal and checkpoint.`,
@@ -111,13 +113,16 @@ existing operation follows its signed journal and checkpoint.`,
   stackkit upgrade --recover <operation-id>
 
   # Finish an upgrade interrupted after target Apply with its exact target release
-  stackkit upgrade --recover <operation-id> --forward`,
+  stackkit upgrade --recover <operation-id> --forward
+
+  # Finish it with a newer verified release instead
+  stackkit upgrade --recover <operation-id> --forward --to vX.Y.Z`,
 		RunE: runPublicUpgrade,
 	}
 	if deprecatedAlias {
 		command.Deprecated = "use stackkit upgrade"
 	}
-	command.Flags().StringVar(&publicUpgradeTo, "to", "latest", "Target: latest, vX.Y.Z, or channel:stable|beta|edge.")
+	command.Flags().StringVar(&publicUpgradeTo, "to", "latest", "Target: latest, vX.Y.Z, or channel:stable|beta|edge. With --recover --forward: a newer release that finishes the operation.")
 	command.Flags().BoolVar(&publicUpgradeDryRun, "dry-run", false, "Verify and inspect target generation in a bounded shadow workspace without applying it.")
 	command.Flags().BoolVar(&publicUpgradeJSON, "json", false, "Emit stackkit.command-result/v1 JSON.")
 	command.Flags().StringVar(
@@ -146,12 +151,18 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		return errors.New("--forward requires --recover <operation-id>")
 	}
 	if strings.TrimSpace(publicUpgradeRecover) != "" {
-		if publicUpgradeDryRun || cmd.Flags().Changed("to") {
-			return errors.New("--recover cannot be combined with --dry-run or --to")
+		if publicUpgradeDryRun || (cmd.Flags().Changed("to") && !publicUpgradeForward) {
+			return errors.New("--recover cannot be combined with --dry-run, or with --to without --forward")
+		}
+		retargetTo := ""
+		if cmd.Flags().Changed("to") {
+			if retargetTo = strings.TrimSpace(publicUpgradeTo); retargetTo == "" {
+				return errors.New("--to with --recover --forward requires a release")
+			}
 		}
 		recovery, recoverErr := recoverPublicUpgradeOperation(
 			ctx, workspace, specFile, strings.TrimSpace(publicUpgradeRecover),
-			publicUpgradeForward,
+			publicUpgradeForward, retargetTo,
 		)
 		if publicUpgradeJSON {
 			if writeErr := writeCommandResultStatus(

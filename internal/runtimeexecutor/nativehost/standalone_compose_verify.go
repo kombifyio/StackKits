@@ -112,6 +112,26 @@ func VerifyAppliedCoolifyWorkloads(
 	return verifySelectedPaaSDeployments(ctx, deployments, operations)
 }
 
+// VerifyAppliedRuntipiWorkloads observes Files on the node's Runtipi
+// installation through the same owner Apply used.
+func VerifyAppliedRuntipiWorkloads(
+	ctx context.Context,
+	request runtimeexecutor.ExecutionRequest,
+	binding LocalTargetBinding,
+	operations SelectedPaaSWorkloadOperations,
+) ([]StandaloneComposeWorkloadVerifyObservation, error) {
+	if ctx == nil || operations == nil {
+		return nil, errors.New("Runtipi workload verification requires a context and operations owner")
+	}
+	ctx, cancel := context.WithTimeout(ctx, standaloneComposeVerifyReadinessBudget)
+	defer cancel()
+	deployments, err := appliedSelectedPaaSWorkloads(request, binding, "runtipi", "stackkits-runtipi-runtime")
+	if err != nil || len(deployments) == 0 {
+		return nil, err
+	}
+	return verifySelectedPaaSDeployments(ctx, deployments, operations)
+}
+
 func verifySelectedPaaSDeployments(ctx context.Context, deployments []SelectedPaaSWorkloadDeployment, operations SelectedPaaSWorkloadOperations) ([]StandaloneComposeWorkloadVerifyObservation, error) {
 	validate := ValidateSelectedPaaSWorkloadObservation
 	if validator, ok := operations.(SelectedPaaSWorkloadObservationValidator); ok {
@@ -160,7 +180,7 @@ func verifySelectedPaaSDeployments(ctx context.Context, deployments []SelectedPa
 func joinStandaloneComposeVerifyFailures(failures []error) error {
 	allDrift := true
 	for _, failure := range failures {
-		var drift *StandaloneComposeDriftError
+		var drift interface{ DriftCode() string }
 		if !errors.As(failure, &drift) {
 			allDrift = false
 		}

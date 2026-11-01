@@ -1739,6 +1739,8 @@ func adapterName(ref string) string {
 		return "Coolify"
 	case "komodo":
 		return "Komodo"
+	case "runtipi":
+		return "Runtipi"
 	case "standalone-compose":
 		return "Standalone Compose"
 	default:
