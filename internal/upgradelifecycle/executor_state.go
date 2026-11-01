@@ -641,9 +641,7 @@ func (store ExecutorStateStore) verifySnapshot(
 	if snapshot.Signature.OwnerRef != snapshot.OwnerRef {
 		return errors.New("executor state: signature Owner differs from snapshot")
 	}
-	if err := verifyExecutorStateSnapshotAnchor(
-		workspaceRoot, snapshot.OwnerRef, snapshot.CoreModuleRef, snapshot.Lineage, snapshot.KopiaSnapshotAnchor,
-	); err != nil {
+	if err := verifyRetainedExecutorStateSnapshotAnchor(workspaceRoot, transaction, snapshot); err != nil {
 		return err
 	}
 	profile, err := currentStateCoreProfileForCapture(ExecutorStateCaptureInput{
@@ -1018,8 +1016,71 @@ func verifyExecutorStateSnapshotAnchor(
 		return fmt.Errorf("executor state: load current Owner runtime binding: %w", err)
 	}
 	return verifyExecutorStateSnapshotAnchorWithAuthority(
-		workspaceRoot, ownerRef, coreModuleRef, lineage, anchor, owner, runtimeBinding,
+		workspaceRoot, ownerRef, coreModuleRef, lineage, anchor, owner, runtimeBinding, nil,
 	)
+}
+
+// verifyRetainedExecutorStateSnapshotAnchor verifies a checkpoint's anchor.
+// Its lineage may name the binding digest of an older release; only then is
+// the Owner binding the checkpoint retained read and verified for
+// OwnerBindingMatchesLineage. A capture verifies before its blobs exist and
+// always matches the live binding directly.
+func verifyRetainedExecutorStateSnapshotAnchor(
+	workspaceRoot string,
+	transaction *confinedfs.Transaction,
+	snapshot ExecutorStateSnapshot,
+) error {
+	owner, err := localevidence.LoadOwnerCustody(workspaceRoot)
+	if err != nil {
+		return fmt.Errorf("executor state: load Owner authority for snapshot anchor: %w", err)
+	}
+	runtimeBinding, err := localevidence.LoadOwnerRuntimeBinding(workspaceRoot)
+	if err != nil {
+		return fmt.Errorf("executor state: load current Owner runtime binding: %w", err)
+	}
+	var checkpointed *localevidence.OwnerRuntimeBinding
+	for _, artifact := range snapshot.Artifacts {
+		if artifact.ID != OwnerRuntimeBindingArtifactID ||
+			localevidence.OwnerRuntimeBindingDigest(runtimeBinding) == snapshot.Lineage.OwnerBindingDigest {
+			continue
+		}
+		raw, readErr := readExecutorStateRecoveryBlob(transaction, artifact)
+		if readErr != nil {
+			return readErr
+		}
+		retained, parseErr := localevidence.ParseOwnerRuntimeBinding(workspaceRoot, raw)
+		if parseErr != nil {
+			return fmt.Errorf("executor state: verify retained Owner runtime binding: %w", parseErr)
+		}
+		checkpointed = &retained
+	}
+	return verifyExecutorStateSnapshotAnchorWithAuthority(
+		workspaceRoot, snapshot.OwnerRef, snapshot.CoreModuleRef, snapshot.Lineage,
+		snapshot.KopiaSnapshotAnchor, owner, runtimeBinding, checkpointed,
+	)
+}
+
+// OwnerRuntimeBindingArtifactID is the checkpoint artifact that retains the
+// Owner runtime binding the lineage was sealed from.
+const OwnerRuntimeBindingArtifactID = "owner-runtime-binding"
+
+// OwnerBindingMatchesLineage accepts the current Owner runtime binding when
+// its digest is the lineage's. Lineage sealed by v0.54.19 or earlier names the
+// incarnation digest of the binding the checkpoint retained; a later Apply
+// that replaced PocketID re-signed the binding with a new incarnation. Such a
+// lineage is accepted only when the retained binding hashes to it and names
+// the same owner identity as the current binding.
+func OwnerBindingMatchesLineage(
+	current localevidence.OwnerRuntimeBinding,
+	lineageDigest string,
+	checkpointed *localevidence.OwnerRuntimeBinding,
+) bool {
+	if localevidence.OwnerRuntimeBindingDigest(current) == lineageDigest {
+		return true
+	}
+	return checkpointed != nil &&
+		localevidence.IncarnationOwnerRuntimeBindingDigest(*checkpointed) == lineageDigest &&
+		localevidence.OwnerRuntimeBindingDigest(*checkpointed) == localevidence.OwnerRuntimeBindingDigest(current)
 }
 
 // verifyExecutorStateSnapshotAnchorWithAuthority binds the anchor to the
@@ -1032,6 +1093,7 @@ func verifyExecutorStateSnapshotAnchorWithAuthority(
 	anchor backuplifecycle.SnapshotAnchor,
 	owner localevidence.OwnerCustody,
 	runtimeBinding localevidence.OwnerRuntimeBinding,
+	checkpointed *localevidence.OwnerRuntimeBinding,
 ) error {
 	if err := backuplifecycle.VerifySnapshotAnchor(workspaceRoot, anchor); err != nil {
 		return fmt.Errorf("executor state: verify Kopia snapshot anchor: %w", err)
@@ -1049,7 +1111,7 @@ func verifyExecutorStateSnapshotAnchorWithAuthority(
 		anchor.Repository.RepositoryID != localbackupruntime.RepositoryIDForCoreModule(strings.TrimSpace(coreModuleRef)) ||
 		runtimeBinding.OwnerRef != ownerRef ||
 		runtimeBinding.PocketIDSubject != lineage.PocketIDSubject ||
-		localevidence.OwnerRuntimeBindingDigest(runtimeBinding) != lineage.OwnerBindingDigest ||
+		!OwnerBindingMatchesLineage(runtimeBinding, lineage.OwnerBindingDigest, checkpointed) ||
 		!reflect.DeepEqual(anchor.Lineage, lineage) {
 		return errors.New("executor state: Kopia snapshot anchor differs from Owner, authority, repository, or lineage")
 	}

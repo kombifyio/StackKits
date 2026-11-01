@@ -27,6 +27,7 @@ var (
 	publicUpgradeDryRun            bool
 	publicUpgradeJSON              bool
 	publicUpgradeRecover           string
+	publicUpgradeForward           bool
 	newUpgradeInspectionRunner     = func() upgradelifecycle.Runner { return upgradelifecycle.ExecRunner{} }
 	newCurrentUpgradeInspection    = currentUpgradeInspection
 	inspectPublishedV012Current    = inspectPublishedV012CurrentGeneration
@@ -92,6 +93,8 @@ exact target generate/apply/verify transaction. A failed target transaction
 can restore and verify the prior executor only before target Apply is admitted.
 After Apply, prior-runtime restart is blocked until verified prior-data
 activation exists; isolated Kopia staging alone does not authorize it.
+--recover with --forward is the owner's approval to finish such an operation
+forward: it reruns the exact signed target Apply and Verify, then commits.
 A completed target commit keeps its success proof for explicit finalization.
 Fresh upgrades require support in the embedded CUE Kit policy; recovery of an
 existing operation follows its signed journal and checkpoint.`,
@@ -105,7 +108,10 @@ existing operation follows its signed journal and checkpoint.`,
   stackkit upgrade --to channel:beta
 
   # Recover an interrupted upgrade by its lifecycle operation ID
-  stackkit upgrade --recover <operation-id>`,
+  stackkit upgrade --recover <operation-id>
+
+  # Finish an upgrade interrupted after target Apply with its exact target release
+  stackkit upgrade --recover <operation-id> --forward`,
 		RunE: runPublicUpgrade,
 	}
 	if deprecatedAlias {
@@ -117,6 +123,10 @@ existing operation follows its signed journal and checkpoint.`,
 	command.Flags().StringVar(
 		&publicUpgradeRecover, "recover", "",
 		"Explicitly recover one exact interrupted lifecycle operation ID.",
+	)
+	command.Flags().BoolVar(
+		&publicUpgradeForward, "forward", false,
+		"With --recover: approve finishing an operation interrupted after target Apply by rerunning its exact target Apply and Verify.",
 	)
 	return command
 }
@@ -132,12 +142,16 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		ctx = context.Background()
 	}
 	workspace := getWorkDir()
+	if publicUpgradeForward && strings.TrimSpace(publicUpgradeRecover) == "" {
+		return errors.New("--forward requires --recover <operation-id>")
+	}
 	if strings.TrimSpace(publicUpgradeRecover) != "" {
 		if publicUpgradeDryRun || cmd.Flags().Changed("to") {
 			return errors.New("--recover cannot be combined with --dry-run or --to")
 		}
 		recovery, recoverErr := recoverPublicUpgradeOperation(
 			ctx, workspace, specFile, strings.TrimSpace(publicUpgradeRecover),
+			publicUpgradeForward,
 		)
 		if publicUpgradeJSON {
 			if writeErr := writeCommandResultStatus(

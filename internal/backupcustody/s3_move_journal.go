@@ -64,6 +64,13 @@ func SettleS3TargetMove(workspace string) error {
 	return removeS3MoveJournal(workspace)
 }
 
+// S3TargetMovePending reports whether a journaled target move still awaits
+// its commit or settlement.
+func S3TargetMovePending(workspace string) (bool, error) {
+	previous, err := readS3MoveJournal(workspace)
+	return previous != nil, err
+}
+
 // CommitS3TargetMove drops the journal once the move is the committed baseline.
 // It changes nothing when no move is pending.
 func CommitS3TargetMove(workspace string) error { return removeS3MoveJournal(workspace) }

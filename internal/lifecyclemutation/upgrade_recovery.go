@@ -9,7 +9,7 @@ import (
 // ErrUpgradeDataActivationRequired prevents a prior runtime from opening data
 // that a newer runtime may already have changed. Isolated backup staging alone
 // is not proof that the live data belongs to the prior runtime.
-var ErrUpgradeDataActivationRequired = errors.New("lifecycle mutation: prior-runtime rollback requires verified live data activation after target Apply or an ambiguous recovery phase")
+var ErrUpgradeDataActivationRequired = errors.New("lifecycle mutation: prior-runtime rollback requires verified live data activation after target Apply or an ambiguous recovery phase; after target Apply, stackkit upgrade --recover <operation-id> --forward completes the target release instead")
 
 // RequirePreApplyUpgradeRollback admits executor-only recovery while the signed
 // journal proves that no target Apply was admitted. Once Apply may have run,
@@ -75,7 +75,9 @@ func (session *Session) RequirePreApplyUpgradeRollback() error {
 		if err != nil {
 			return err
 		}
-		if claimed {
+		// A prior Generate whose claimant recovery proved gone wrote only
+		// generated artifacts; the restart regenerates them.
+		if claimed && !session.claimantGone {
 			return ErrUpgradeDataActivationRequired
 		}
 	}

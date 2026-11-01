@@ -20,6 +20,7 @@ var openPublicUpgradeRecovery = func(
 func recoverPublicUpgradeOperation(
 	ctx context.Context,
 	workspace, requestedSpec, operationID string,
+	forward bool,
 ) (result publicUpgradeTransaction, returnErr error) {
 	result = publicUpgradeTransaction{
 		APIVersion:  publicUpgradeTransactionAPIVersion,
@@ -60,6 +61,25 @@ func recoverPublicUpgradeOperation(
 			return result, fmt.Errorf("complete already committed lifecycle operation: %w", err)
 		}
 		result.Status = "succeeded"
+		result.Rollback.Status = publicUpgradeRollbackNotRequired
+		return result, nil
+	}
+	if forward {
+		if !lifecyclemutation.ForwardRecoveryPhase(record.Phase) {
+			result.Status = "failed"
+			return result, fmt.Errorf(
+				"lifecycle operation %s stopped at phase %s, before target Apply; recover it without --forward",
+				operationID, record.Phase,
+			)
+		}
+		if err := completePublicUpgradeForward(
+			ctx, workspace, requestedSpec, record, mutation, &result,
+		); err != nil {
+			result.Status = "failed"
+			return result, err
+		}
+		result.Status = "succeeded"
+		result.FailedPhase = ""
 		result.Rollback.Status = publicUpgradeRollbackNotRequired
 		return result, nil
 	}

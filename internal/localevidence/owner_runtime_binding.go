@@ -188,6 +188,13 @@ func LoadOwnerRuntimeBinding(workspaceRoot string) (OwnerRuntimeBinding, error) 
 	if err := requirePrivateRuntimeFile(path); err != nil {
 		return OwnerRuntimeBinding{}, err
 	}
+	return ParseOwnerRuntimeBinding(workspaceRoot, raw)
+}
+
+// ParseOwnerRuntimeBinding verifies canonical binding bytes, for example a copy
+// retained in an upgrade checkpoint, against the established local custody
+// exactly as the live binding is verified.
+func ParseOwnerRuntimeBinding(workspaceRoot string, raw []byte) (OwnerRuntimeBinding, error) {
 	var record OwnerRuntimeBinding
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -468,10 +475,50 @@ func OwnerRuntimeBindingDigest(record OwnerRuntimeBinding) string {
 		record.PocketIDRuntime = nil
 		record.Signature = ""
 	}
+	return IncarnationOwnerRuntimeBindingDigest(record)
+}
+
+// IncarnationOwnerRuntimeBindingDigest is the digest releases up to v0.54.19
+// recorded as the binding digest: it covers the PocketID runtime incarnation
+// and the signature. Authority lineage those releases sealed names it.
+func IncarnationOwnerRuntimeBindingDigest(record OwnerRuntimeBinding) string {
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return ""
 	}
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// ReinstateOwnerRuntimeBinding writes retained, owner-signed binding bytes
+// back as the live binding. It accepts only bytes that verify against local
+// custody and name the same owner identity as the live binding, so only the
+// PocketID runtime incarnation and its signature can change. No new signature
+// is made. The incarnation it restores is never trusted as is: every PocketID
+// transition and receiver re-observes the real container before use.
+func ReinstateOwnerRuntimeBinding(workspaceRoot string, raw []byte) error {
+	retained, err := ParseOwnerRuntimeBinding(workspaceRoot, raw)
+	if err != nil {
+		return fmt.Errorf("localevidence: verify retained owner runtime binding: %w", err)
+	}
+	current, err := LoadOwnerRuntimeBinding(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	if retained.PocketIDRuntime == nil || current.PocketIDRuntime == nil ||
+		OwnerRuntimeBindingDigest(retained) != OwnerRuntimeBindingDigest(current) {
+		return errors.New("localevidence: retained owner runtime binding names a different owner identity")
+	}
+	path, err := confinedCustodyPath(workspaceRoot, ownerRuntimeBindingRelPath)
+	if err != nil {
+		return err
+	}
+	if err := writePrivateJSON(path, retained); err != nil {
+		return fmt.Errorf("localevidence: reinstate owner runtime binding: %w", err)
+	}
+	written, err := os.ReadFile(path) //nolint:gosec // fixed workspace evidence path
+	if err != nil || !bytes.Equal(written, raw) {
+		return errors.New("localevidence: reinstated owner runtime binding differs from the retained bytes")
+	}
+	return nil
 }

@@ -215,6 +215,12 @@ type Session struct {
 	view         confinedfs.View
 	record       Record
 	recordDigest string
+	// claimantGone is set by explicit recovery when the current phase's child
+	// claimed its join and recovery proved that claimant ended.
+	claimantGone bool
+	// forwardRecovery admits the one recovery-only re-entry into target Apply
+	// for the duration of BeginForwardRecoveryJoin.
+	forwardRecovery bool
 }
 
 func BeginUpgrade(workspace string, request BeginRequest) (*Session, error) {
@@ -471,8 +477,8 @@ func RequireIdle(workspace string) error {
 	}
 	if active {
 		return fmt.Errorf(
-			"lifecycle mutation %s is active at phase %s; ordinary mutation is denied",
-			record.OperationID, record.Phase,
+			"lifecycle mutation %s is active at phase %s; ordinary mutation is denied%s",
+			record.OperationID, record.Phase, recoveryHint(record),
 		)
 	}
 	return nil
@@ -537,10 +543,14 @@ func withIdleMutation(workspace string, join JoinRequest, snapshot string, execu
 		if err := backuplifecycle.RequireSettledRuntimeControls(workspace, snapshot); err != nil {
 			return err
 		}
-		if err := AdmitJoin(workspace, join); err != nil {
+		claim, err := admitJoin(workspace, join)
+		if err != nil {
 			return err
 		}
-		return execute()
+		// The child keeps its claim lock until its mutation returns. The
+		// kernel also releases it when the child dies, so explicit recovery
+		// that acquires it proves this claimant gone.
+		return errors.Join(execute(), claim.Release())
 	}
 	session, err := openLocked(workspace)
 	if err != nil {
@@ -553,8 +563,8 @@ func withIdleMutation(workspace string, join JoinRequest, snapshot string, execu
 	}
 	if exists && recordBlocksMutation(record) {
 		return fmt.Errorf(
-			"lifecycle mutation %s is active at phase %s; ordinary mutation is denied",
-			record.OperationID, record.Phase,
+			"lifecycle mutation %s is active at phase %s; ordinary mutation is denied%s",
+			record.OperationID, record.Phase, recoveryHint(record),
 		)
 	}
 	if err := backuplifecycle.RequireSettledRuntimeControls(workspace, snapshot); err != nil {
@@ -563,10 +573,19 @@ func withIdleMutation(workspace string, join JoinRequest, snapshot string, execu
 	return execute()
 }
 
+// recoveryHint names the owner command that settles an active operation.
+func recoveryHint(record Record) string {
+	if record.Kind != KindUpgrade || record.Status != StatusActive {
+		return ""
+	}
+	return fmt.Sprintf("; settle it with stackkit upgrade --recover %s", record.OperationID)
+}
+
 // InspectJoin validates a signed child admission without consuming its
 // one-use nonce. It is safe for pre-observability admission only.
 func InspectJoin(workspace string, request JoinRequest) error {
-	return inspectJoin(workspace, request, false)
+	_, err := inspectJoin(workspace, request, false)
+	return err
 }
 
 // InspectUpgradeTargetApplySnapshot exposes the signed pre-target checkpoint
@@ -602,38 +621,39 @@ func InspectUpgradeTargetApplySnapshot(workspace string, request JoinRequest) (s
 	return record.Checkpoint.ExecutorStateSnapshotID, nil
 }
 
-// AdmitJoin validates and atomically consumes the exact one-use child nonce.
-func AdmitJoin(workspace string, request JoinRequest) error {
+// admitJoin validates and atomically consumes the exact one-use child nonce.
+// It returns the held claim lock; the caller releases it after its mutation.
+func admitJoin(workspace string, request JoinRequest) (*confinedfs.OutputLock, error) {
 	return inspectJoin(workspace, request, true)
 }
 
-func inspectJoin(workspace string, request JoinRequest, claim bool) error {
+func inspectJoin(workspace string, request JoinRequest, claim bool) (*confinedfs.OutputLock, error) {
 	if strings.TrimSpace(request.OperationID) == "" &&
 		strings.TrimSpace(request.Phase) == "" {
-		return RequireIdle(workspace)
+		return nil, RequireIdle(workspace)
 	}
 	if !operationPattern.MatchString(request.OperationID) ||
 		strings.TrimSpace(request.Phase) == "" {
-		return errors.New("internal lifecycle join requires an exact operation ID and phase")
+		return nil, errors.New("internal lifecycle join requires an exact operation ID and phase")
 	}
 	root, err := confinedfs.Open(workspace)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer root.Close()
 	transaction, err := root.BeginTransaction()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer transaction.Close()
 	record, recordDigest, exists, err := loadRecord(workspace, transaction)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !exists || record.Status != StatusActive ||
 		record.OperationID != request.OperationID ||
 		record.Phase != request.Phase {
-		return errors.New("internal lifecycle join differs from the exact current signed operation")
+		return nil, errors.New("internal lifecycle join differs from the exact current signed operation")
 	}
 	expectedVersion, expectedCommand := joinAuthority(record)
 	if request.BinaryVersion != expectedVersion ||
@@ -643,10 +663,10 @@ func inspectJoin(workspace string, request JoinRequest, claim bool) error {
 		request.Command != record.Join.Command ||
 		request.ExecutableSHA256 != record.Join.ExecutableSHA256 ||
 		digestNonce(request.Nonce) != record.Join.NonceSHA256 {
-		return errors.New("internal lifecycle join binary version or command is not authorized")
+		return nil, errors.New("internal lifecycle join binary version or command is not authorized")
 	}
 	if !claim {
-		return nil
+		return nil, nil
 	}
 	return claimJoin(workspace, root, transaction, record, recordDigest)
 }
@@ -670,6 +690,12 @@ func joinAuthority(record Record) (string, string) {
 	}
 }
 
+// JoinClaimCustodyLifetime marks a claim whose child holds the operation's
+// claim lock until its mutation returns. An older child released that lock
+// right after claiming and wrote no custody, so only this marker lets
+// recovery read a free lock as proof that the claimant ended.
+const JoinClaimCustodyLifetime = "lifetime-lock"
+
 type joinClaim struct {
 	APIVersion       string    `json:"apiVersion"`
 	OperationID      string    `json:"operationId"`
@@ -679,6 +705,7 @@ type joinClaim struct {
 	NonceSHA256      string    `json:"nonceSha256"`
 	ExecutableSHA256 string    `json:"executableSha256"`
 	ClaimedAt        time.Time `json:"claimedAt"`
+	Custody          string    `json:"custody,omitempty"`
 }
 
 func claimJoin(
@@ -687,63 +714,111 @@ func claimJoin(
 	transaction *confinedfs.Transaction,
 	record Record,
 	validatedDigest string,
-) (returnErr error) {
+) (held *confinedfs.OutputLock, returnErr error) {
 	if root == nil || transaction == nil || record.Join == nil {
-		return errors.New("lifecycle mutation join claim authority is incomplete")
+		return nil, errors.New("lifecycle mutation join claim authority is incomplete")
 	}
 	operationRoot := claimsRoot + "/" + record.OperationID
 	if err := transaction.MkdirAll(claimsRoot, 0o700); err != nil {
-		return err
+		return nil, err
 	}
 	if err := transaction.MkdirAll(operationRoot, 0o700); err != nil {
-		return err
+		return nil, err
 	}
 	for _, relative := range []string{claimsRoot, operationRoot} {
 		if err := backupcustody.ProtectPrivatePath(
 			filepath.Join(workspace, filepath.FromSlash(relative)), true,
 		); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	lock, err := transaction.TryAcquireOutputLock(operationRoot)
 	if err != nil {
-		return fmt.Errorf("acquire lifecycle join claim lock: %w", err)
+		return nil, fmt.Errorf("acquire lifecycle join claim lock: %w", err)
 	}
-	defer func() { returnErr = errors.Join(returnErr, lock.Release()) }()
+	defer func() {
+		if returnErr != nil {
+			returnErr = errors.Join(returnErr, lock.Release())
+		}
+	}()
 	// Recovery owns this same lock until its replacement phase is signed.
 	// Rebind the pre-lock validation before consuming any child authority.
 	current, currentDigest, exists, err := loadRecord(workspace, transaction)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !exists || current.Status != StatusActive || current.OperationID != record.OperationID ||
 		currentDigest != validatedDigest {
-		return errors.New("lifecycle mutation join changed before its claim lock was acquired")
+		return nil, errors.New("lifecycle mutation join changed before its claim lock was acquired")
 	}
 	view, err := root.View(".")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	claim := joinClaim{
 		APIVersion: APIVersion + "/join-claim", OperationID: record.OperationID,
 		Sequence: record.Sequence, Phase: record.Phase,
 		Command: record.Join.Command, NonceSHA256: record.Join.NonceSHA256,
 		ExecutableSHA256: record.Join.ExecutableSHA256, ClaimedAt: time.Now().UTC(),
+		Custody: JoinClaimCustodyLifetime,
 	}
 	encoded, err := resolvedplan.CanonicalJSON(claim)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	path := joinClaimPath(record)
 	if _, err := view.WriteAtomic0600NoReplace(path, encoded); err != nil {
-		return errors.New("lifecycle mutation join nonce is already claimed")
+		return nil, errors.New("lifecycle mutation join nonce is already claimed")
 	}
 	if err := backupcustody.ProtectPrivatePath(
 		filepath.Join(workspace, filepath.FromSlash(path)), false,
 	); err != nil {
+		return nil, err
+	}
+	return lock, nil
+}
+
+// requireClaimantGone proves that the child which claimed the current join
+// can no longer mutate. The caller holds the claim lock. A lifetime-lock
+// claim is proven by that lock alone; an older child's claim needs the
+// kernel process table (requireLegacyClaimantGone). Anything else keeps the
+// refusal.
+func (session *Session) requireClaimantGone(claimPath string) error {
+	if err := backupcustody.RequirePrivatePath(
+		filepath.Join(session.workspace, filepath.FromSlash(claimPath)), false,
+	); err != nil {
+		return fmt.Errorf("verify private join claim: %w", err)
+	}
+	raw, info, err := session.transaction.ReadStable(claimPath)
+	if err != nil {
 		return err
 	}
-	return nil
+	if !info.Mode().IsRegular() || len(raw) > maxRecordBytes {
+		return errors.New("join claim is not a bounded regular file")
+	}
+	var claim joinClaim
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&claim); err != nil {
+		return fmt.Errorf("decode join claim: %w", err)
+	}
+	record := session.record
+	if claim.APIVersion != APIVersion+"/join-claim" ||
+		claim.OperationID != record.OperationID ||
+		claim.Sequence != record.Sequence || claim.Phase != record.Phase ||
+		record.Join == nil || claim.Command != record.Join.Command ||
+		claim.NonceSHA256 != record.Join.NonceSHA256 ||
+		claim.ExecutableSHA256 != record.Join.ExecutableSHA256 {
+		return errors.New("join claim differs from the signed current phase")
+	}
+	switch claim.Custody {
+	case JoinClaimCustodyLifetime:
+		return nil
+	case "":
+		return requireLegacyClaimantGone(record.OperationID)
+	default:
+		return fmt.Errorf("join claim custody %q is unknown", claim.Custody)
+	}
 }
 
 func (session *Session) acquireRecoveryClaimLock() error {
@@ -768,7 +843,7 @@ func (session *Session) acquireRecoveryClaimLock() error {
 	lock, err := session.transaction.TryAcquireOutputLock(operationRoot)
 	if err != nil {
 		return fmt.Errorf(
-			"acquire exclusive explicit-recovery join-claim lock: %w", err,
+			"acquire exclusive explicit-recovery join-claim lock (a claimed child may still run): %w", err,
 		)
 	}
 	session.claimLock = lock
@@ -779,9 +854,12 @@ func (session *Session) acquireRecoveryClaimLock() error {
 			return inspectErr
 		}
 		if exists {
-			return errors.New(
-				"explicit lifecycle recovery refuses a claimed child phase",
-			)
+			if err := session.requireClaimantGone(claimPath); err != nil {
+				return fmt.Errorf(
+					"explicit lifecycle recovery refuses a claimed child phase: %w", err,
+				)
+			}
+			session.claimantGone = true
 		}
 	}
 	return nil
@@ -936,8 +1014,56 @@ func (session *Session) BeginJoin(
 			return "", err
 		}
 		session.claimLock = nil
+		session.claimantGone = false
 	}
 	return nonce, nil
+}
+
+// ForwardRecoveryPhase reports the phases after target Apply was admitted
+// from which an owner may complete the target release forward instead of
+// rolling it back.
+func ForwardRecoveryPhase(phase string) bool {
+	switch phase {
+	case PhaseTargetApplyStarted, PhaseTargetApplySucceeded,
+		PhaseTargetVerifyStarted, PhaseTargetVerifySucceeded,
+		PhaseCommitStarted:
+		return true
+	default:
+		return false
+	}
+}
+
+// BeginForwardRecoveryJoin re-admits the exact signed target Apply of an
+// upgrade interrupted after target Apply was admitted. Rerunning the target
+// Apply is the documented resume of a killed Apply, and it never starts the
+// prior runtime on data the target may already have changed. It requires
+// explicit recovery custody: the shared lifecycle lock and the join-claim
+// lock, with no live claimant of the current phase. The new signed phase
+// invalidates the abandoned child's nonce before the claim lock is handed to
+// the re-admitted child.
+func (session *Session) BeginForwardRecoveryJoin(
+	expected, binaryVersion, executableSHA256 string,
+) (string, error) {
+	if session == nil || session.transaction == nil || session.claimLock == nil ||
+		session.record.Kind != KindUpgrade || session.record.Status != StatusActive ||
+		session.record.UpgradeDataActivation != nil ||
+		session.record.Phase != expected || !ForwardRecoveryPhase(expected) {
+		return "", errors.New("forward recovery requires explicit recovery custody of an upgrade after target Apply admission")
+	}
+	session.forwardRecovery = true
+	defer func() { session.forwardRecovery = false }()
+	return session.BeginJoin(
+		expected, PhaseTargetApplyStarted, "apply", binaryVersion, executableSHA256,
+	)
+}
+
+// forwardRecoveryTransition admits only BeginForwardRecoveryJoin's re-entry
+// into target Apply while it holds explicit recovery custody.
+func (session *Session) forwardRecoveryTransition(expected, next string, join *JoinAuthority) bool {
+	return session.forwardRecovery && session.claimLock != nil &&
+		session.record.Kind == KindUpgrade && session.record.UpgradeDataActivation == nil &&
+		ForwardRecoveryPhase(expected) && next == PhaseTargetApplyStarted &&
+		join != nil && join.Command == "apply"
 }
 
 func (session *Session) transition(
@@ -967,7 +1093,7 @@ func (session *Session) transitionWithUpgradeData(
 	if session == nil || session.transaction == nil ||
 		session.record.Status != StatusActive ||
 		session.record.Phase != expected ||
-		!(allowedTransition(session.record.Kind, expected, next) || (validRestoreControlTransition(session.record, expected, next, restoreActivation) || validRestoreAppGroupTransition(session.record, expected, next, restoreActivation))) {
+		!(allowedTransition(session.record.Kind, expected, next) || session.forwardRecoveryTransition(expected, next, join) || (validRestoreControlTransition(session.record, expected, next, restoreActivation) || validRestoreAppGroupTransition(session.record, expected, next, restoreActivation))) {
 		return errors.New("lifecycle mutation transition is not authorized")
 	}
 	if session.record.Kind == KindRestoreActivation {

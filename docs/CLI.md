@@ -907,8 +907,10 @@ Retained files are not automatically activated by executor-only
 recovery. The target runs `generate -> plan -> apply -> verify`.
 Executor-only rollback is allowed before target Apply; after Apply admission,
 `data-activation-required,dataStaged` blocks old-runtime restart until verified
-prior-data activation exists. A completed target commit retains its success
-proof for journal finalization. Because Compose is the real Basement
+prior-data activation exists, and `stackkit upgrade --recover <operation-id>
+--forward` finishes the operation with its exact target Apply and Verify
+instead. A completed target
+commit retains its success proof for journal finalization. Because Compose is the real Basement
 executor, no fictional `terraform.tfstate` is created. Under the `opentofu` and
 `terramate` targets the checkpoint captures every OpenTofu root's state and
 configuration and restores them on recovery.

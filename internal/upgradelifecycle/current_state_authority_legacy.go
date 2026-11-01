@@ -213,7 +213,7 @@ func NewVerifiedLegacyExecutorStateCapture(
 	}
 	if err := verifyExecutorStateSnapshotAnchorWithAuthority(
 		input.WorkspaceRoot, owner.OwnerRef, "", lineage,
-		input.Capture.KopiaSnapshotAnchor, owner, runtimeBinding,
+		input.Capture.KopiaSnapshotAnchor, owner, runtimeBinding, nil,
 	); err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
@@ -447,7 +447,7 @@ func appendLegacyCurrentStateControlBlobs(
 		{ID: "generation-receipt", Path: metadataRoot + "/" + generationartifact.GenerationReceiptFileName, Mode: "0600", Data: receiptBytes},
 		{ID: "apply-result", Path: ".stackkit/evidence/apply/results/" + strings.TrimPrefix(executorStateDigest(input.ApplyResult), "sha256:") + ".json", Mode: "0600", Data: append([]byte(nil), input.ApplyResult...)},
 		{ID: "apply-result-receipt", Path: ".stackkit/evidence/apply/receipts/" + strings.TrimPrefix(executorStateDigest(input.ApplyResult), "sha256:") + ".json", Mode: "0600", Data: append([]byte(nil), input.ApplyReceipt...)},
-		{ID: "owner-runtime-binding", Path: ".stackkit/evidence/owner-runtime-binding.json", Mode: "0600", Data: runtimeBindingBytes},
+		{ID: OwnerRuntimeBindingArtifactID, Path: ".stackkit/evidence/owner-runtime-binding.json", Mode: "0600", Data: runtimeBindingBytes},
 	}
 	for _, control := range controls {
 		for _, artifact := range input.Capture.Artifacts {

@@ -388,7 +388,7 @@ func NewVerifiedExecutorStateCapture(input CurrentStateAuthorityInput) (Verified
 	}
 	if err := verifyExecutorStateSnapshotAnchorWithAuthority(
 		input.WorkspaceRoot, owner.OwnerRef, profile.ModuleRef, lineage, input.Capture.KopiaSnapshotAnchor,
-		owner, runtimeBinding,
+		owner, runtimeBinding, nil,
 	); err != nil {
 		return VerifiedExecutorStateCapture{}, err
 	}
@@ -693,7 +693,7 @@ func appendCurrentStateControlBlobs(
 		{ID: "generation-receipt", Path: currentStateRelativePath(input.WorkspaceRoot, receiptPath), Mode: "0600", Data: receiptBytes},
 		{ID: "apply-result", Path: ".stackkit/evidence/apply/results/" + strings.TrimPrefix(executorStateDigest(input.ApplyResult), "sha256:") + ".json", Mode: "0600", Data: append([]byte(nil), input.ApplyResult...)},
 		{ID: "apply-result-receipt", Path: ".stackkit/evidence/apply/receipts/" + strings.TrimPrefix(executorStateDigest(input.ApplyResult), "sha256:") + ".json", Mode: "0600", Data: append([]byte(nil), input.ApplyReceipt...)},
-		{ID: "owner-runtime-binding", Path: ".stackkit/evidence/owner-runtime-binding.json", Mode: "0600", Data: runtimeBindingBytes},
+		{ID: OwnerRuntimeBindingArtifactID, Path: ".stackkit/evidence/owner-runtime-binding.json", Mode: "0600", Data: runtimeBindingBytes},
 		{ID: runtimeCustody.ID, Path: runtimeCustody.Path, Mode: runtimeCustody.Mode, Data: append([]byte(nil), runtimeCustody.Data...)},
 		runtimeGraph,
 	}

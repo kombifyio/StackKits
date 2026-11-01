@@ -388,6 +388,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.55.2 (2026-11-01)
+
+### Fixed
+
+* **delivery:** the Techstack Render fallback uses the admission that carries the re-qualified contract
+* **early-access:** pin the workspace authority that carries the re-qualified Techstack Render contract
+* **release:** Guard release reads techstack/.kombify so the Techstack service Delivery is dispatched again
+* **upgrade:** an upgrade interrupted after target Apply recovers: claimant proof and owner-approved forward completion
+
 ## 0.55.1 (2026-11-01)
 
 ### Fixed
