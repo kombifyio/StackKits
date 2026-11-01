@@ -336,7 +336,7 @@ func buildPlan(input plannerInput) testPlan {
 	commands := []testCommand{{
 		Kind:   "hygiene",
 		Scope:  "changed-files",
-		Argv:   []string{"git", "diff", "--check", input.MergeBase, "--"},
+		Argv:   []string{"git", "diff", "--check", input.MergeBase, "--", ".", techstackPathspec},
 		Reason: "catch whitespace errors only in the candidate diff",
 	}}
 	goSelection := affectedGoSelectionWithInert(files, input.GoPackages, maxReverse, input.InertGoFiles)

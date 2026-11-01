@@ -452,9 +452,22 @@ func certificateDigest(raw []byte) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// OwnerRuntimeBindingDigest identifies the exact signed, secret-free binding
-// for inclusion in Apply and Verify evidence.
+// OwnerRuntimeBindingDigest identifies the signed, secret-free owner binding
+// for inclusion in Apply, Verify and authority-lineage evidence.
+//
+// Once the PocketID runtime is bound, the digest covers the owner identity only
+// and leaves out the runtime incarnation (container id, start time, drain
+// observation) and the signature that covers it. That incarnation changes with
+// every container re-creation, for example when a restore activation starts the
+// runtime on restored volumes, and re-signing the binding must not look like a
+// different owner: a digest that followed it made restore activation fail its
+// post-start check ("restored runtime differs from the signed activation
+// authority"). A binding without a bound runtime keeps its original digest.
 func OwnerRuntimeBindingDigest(record OwnerRuntimeBinding) string {
+	if record.PocketIDRuntime != nil {
+		record.PocketIDRuntime = nil
+		record.Signature = ""
+	}
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return ""

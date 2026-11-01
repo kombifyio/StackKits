@@ -85,7 +85,7 @@ func (o *osCloudCoreOperations) ApplyProject(ctx context.Context, project CloudC
 	if err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
-	if err := pocketidruntime.Prepare(ctx, o.workspaceRoot, "stackkit-"+o.name(), project.Definition); err != nil {
+	if err := pocketidruntime.PrepareApply(ctx, o.workspaceRoot, "stackkit-"+o.name(), project.Definition); err != nil {
 		return CloudCoreApplyObservation{}, err
 	}
 	composePath, err := o.persistCompose(project)

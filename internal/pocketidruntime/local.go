@@ -186,7 +186,18 @@ func localVolume(ctx context.Context, items []container, selected *container, pr
 
 // Prepare runs before every supported executor's up. The old container's
 // process, HTTP queues, and restart identity must be gone before replacement.
+// Restore activation and rollback use it: their data swap needs the drain.
 func Prepare(ctx context.Context, workspace, project string, definition []byte) error {
+	return prepare(ctx, workspace, project, definition, false)
+}
+
+// PrepareApply is Prepare for an Apply, which swaps no data: a provider that
+// already runs the authorized qualified image on the managed volume is kept.
+func PrepareApply(ctx context.Context, workspace, project string, definition []byte) error {
+	return prepare(ctx, workspace, project, definition, true)
+}
+
+func prepare(ctx context.Context, workspace, project string, definition []byte, keepQualified bool) error {
 	image, err := selectedImage(definition)
 	if err != nil {
 		return err
@@ -224,6 +235,14 @@ func Prepare(ctx context.Context, workspace, project string, definition []byte) 
 	}
 	if previous != nil && previous.Ready && old != nil && old.State.Running && !old.State.Restarting && !old.State.Dead && previous.ImageRef == image && previous.ContainerID == old.ID && previous.StartedAt == old.State.StartedAt && previous.ImageID == old.Image {
 		return nil // Reconcile the same running incarnation without a needless restart.
+	}
+	if keepQualified && previous != nil && previous.Contract == pocketid.MembershipContract && old != nil && old.State.Running && !old.State.Restarting && !old.State.Dead && old.Config.Image == image {
+		// The qualified provider already runs the authorized image on the managed
+		// volume (restarted in place by a backup, or recreated by a recovery): no
+		// unfenced writer is left to drain, and Complete re-observes and binds it.
+		if raw, err := docker(ctx, "image", "inspect", "--format", "{{.Id}}", image); err == nil && strings.TrimSpace(string(raw)) == old.Image {
+			return nil
+		}
 	}
 	if err := localevidence.InvalidatePocketIDRuntime(workspace); err != nil {
 		return err

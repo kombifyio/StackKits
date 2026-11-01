@@ -149,7 +149,7 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if err != nil {
 		return BasementCoreApplyObservation{}, err
 	}
-	if err := pocketidruntime.Prepare(ctx, o.workspaceRoot, "stackkit-basement-core", project.Definition); err != nil {
+	if err := pocketidruntime.PrepareApply(ctx, o.workspaceRoot, "stackkit-basement-core", project.Definition); err != nil {
 		return BasementCoreApplyObservation{}, err
 	}
 	composePath, err := o.persistCompose(project)
@@ -270,6 +270,11 @@ func (o *osBasementCoreOperations) completeApplyWithIdentity(
 		if err := localevidence.CompleteBasementOriginProvisionerUpgrade(o.workspaceRoot); err != nil {
 			return localevidence.OwnerRuntimeBinding{}, err
 		}
+	}
+	// Start what the PocketID drain removed before the owner identity waits on
+	// it: the OpenTofu executor runs no Compose `up` when its root is unchanged.
+	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("start the local Basement core before PocketID owner %s: %w", identityAction, err)
 	}
 	binding, err := completeIdentity(ctx)
 	if err != nil {

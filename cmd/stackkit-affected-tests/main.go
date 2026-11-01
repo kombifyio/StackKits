@@ -298,12 +298,17 @@ func executeCommand(repo string, argv []string, stdout, stderr io.Writer) error 
 	return nil
 }
 
+// techstackPathspec leaves out the Techstack product (techstack/, moved here with
+// D-2026-10-31-04): it is a separate Go module with its own gate, and no StackKits package
+// may import it. The StackKits plan covers the repository root only.
+const techstackPathspec = ":(exclude)techstack"
+
 func changedFiles(repo, mergeBase string) ([]string, error) {
-	tracked, err := gitLines(repo, "diff", "--name-only", "--diff-filter=ACMR", mergeBase, "--")
+	tracked, err := gitLines(repo, "diff", "--name-only", "--diff-filter=ACMR", mergeBase, "--", ".", techstackPathspec)
 	if err != nil {
 		return nil, fmt.Errorf("list tracked changes: %w", err)
 	}
-	untracked, err := gitLines(repo, "ls-files", "--others", "--exclude-standard")
+	untracked, err := gitLines(repo, "ls-files", "--others", "--exclude-standard", "--", ".", techstackPathspec)
 	if err != nil {
 		return nil, fmt.Errorf("list untracked changes: %w", err)
 	}

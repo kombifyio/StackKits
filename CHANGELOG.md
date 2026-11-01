@@ -1,5 +1,7 @@
 # Changelog
 
+- Fix: a Basement Apply after a backup no longer leaves the node without Pocket ID. The Apply stopped and removed the Pocket ID container whenever its start time differed from the recorded one, which a backup's in-place restart causes. When nothing else in the core had changed, it then never started Pocket ID again and failed with "PocketID is not healthy", so household sign-in was down until someone intervened. A Pocket ID that already runs the qualified image on its data volume is now kept, and the Apply always starts the Basement core before it waits for the Pocket ID owner.
+
 - Fix: household member adds work on a Basement node again after a backup. A backup's quiescence stops and starts the Pocket ID container in place, and the managed admission then refused every `stackkit user project` with "PocketID managed admission: installed incarnation changed" until the next rollout, because it pinned the container's start time. The same container, image content and data volume are now re-observed under the lifecycle lock: the authenticated membership-CAS capability is checked again and the new start is bound. A recreated container or another image is still refused.
 
 - Fix: Basement Apply no longer stops at the Basement core runtime with "PocketID data volume has another container consumer". The managed PocketID writer drain counted the Kopia agent's read-only backup bind of the PocketID data volume as a second writer. Only a read-write consumer, running or stopped, is now refused. Every Basement deploy whose PocketID container already existed failed this way, including a first rollout on a fresh owner server and later use-case changes.
@@ -385,6 +387,154 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.55.0 (2026-11-01)
+
+### Added
+
+* **ai:** add Qdrant as Private AI vector store
+* **authoring:** expose typed installed configuration contracts
+* **auth:** verify per-caller Ed25519 service tokens on StackActions
+* **backup:** transfer selected native applications with retained source custody
+* bind retained removal candidates to native baseline
+* **community:** render the community kit into the public mirror surface
+* **compat:** ingest source-bound retained Files evidence
+* **compat:** run one matrix cell alone, mise run compat -- core
+* configure retained use cases and foundation capabilities
+* **contracts:** the runtime contracts are part of the StackKits module
+* **coolify:** admit imported Files provider workloads
+* **failures:** offline failure resolution snapshot and lookup (P5 slice 3)
+* **full-local:** install authenticated offline bundles with LAN-only runtimes
+* **full-local:** qualify the native offline J3 journey in governed windows
+* **hostpreflight:** run Local AI on Windows through WSL2 GPU paravirtualization
+* **identity:** Basement runs the published Pocket ID CAS derivative
+* **identity:** publish qualified PocketID CAS image and enforce managed writer drain
+* **j3:** support admitted build service test host
+* **komodo:** bind imported Files to guarded provider lifecycle
+* **komodo:** execute guarded provider lifecycle and exact-ID recovery
+* **lifecycle:** record native Apply executable provenance
+* **lifecycle:** remove selected applications and use cases safely
+* **lifecycle:** retain and verify selected workload transfers
+* **marketplace:** admit Runtipi as an explicit non-default alternative
+* **photos:** move Immich to v3.3.4 with a fail-closed v2 major hold
+* **plan:** expose verified native Owner binding
+* **preview:** produce and retain exact private StackKits candidates
+* **release:** Early Access channel with owner release and rollback
+* **release:** serve installers, release archives and stackkit.cc from Cloudflare instead of Render
+* **release:** verify internal Preview candidate provenance
+* **runtime:** add guarded Coolify and Dokploy Vault provider execution
+* **runtipi:** journal app-group backup and restore custody
+* **runtipi:** order native API workload execution through OpenTofu
+* **server:** Owner passkey page to approve or deny agent write requests
+* **three-stages:** remove Stage and Preview from Techstack, rename the Early Access merge run
+* **tofu:** bundle Coolify and Dokploy providers offline
+* **tofu:** guard platform plans and preserve action process leases
+* **toolchain:** pnpm and Vite+ for the StackKits JS projects
+* **website:** count installer fetches as an aggregate, person-free metric
+* **website:** serve stackkit.cc security.txt and add info@kombify.io contact
+
+### Fixed
+
+* **advanced:** consume central capabilities and reuse CLI build
+* **ai:** require storage-data-policy and backup-core on the Qdrant provider
+* **apply:** run Coolify workload owners after the Marketplace installation
+* authenticate complete retained Apply artifact snapshots
+* **backup:** accept a clean stop after an earlier in-container OOM kill and name the failed snapshot-run step
+* **backup:** back up Coolify workloads with digit-led service identities and database components
+* **basement:** multi-arch LAN DNS resolver for arm64 hosts
+* **issue tracker:** keep cleanup close reasons within the tracker limit
+* **ci:** adopt Node security workflow producers
+* **ci:** forward J3 tracker bootstrap custody to shared admission
+* **ci:** stop requiring website content in StackKits website gates
+* **cli:** report apply completion after finalization
+* **compat:** bind v0.54.4 Files and Photos lifecycle receipts
+* **compat:** import Coolify restore window receipts and record codec-less suites
+* **compat:** require preservation of unselected guest workloads
+* **compat:** retain original J3 pending and failed coverage
+* **consolidation:** a techstack-only pull request no-ops every gate step, detected from git
+* **coolify-mirror:** return bubbles to v1 so public archives build
+* **coolify:** deliver workload secret variables through an owner-only env file
+* **delivery:** call the Delivery producer with the fixed public surface scan
+* **delivery:** pin prepare-release-publication to the queued-parent fix (platform )
+* **delivery:** preserve publication results and original retest coordinates
+* **delivery:** produce the Candidate receipt the fast publish gate requires
+* **delivery:** run the Candidate E2E after activation, dispatch Delivery directly
+* **delivery:** Techstack's Render fallback uses the preparation authority that binds StackKits
+* **deps:** update dependency dockerode to v5
+* **deps:** update dependency express to v5
+* **deps:** update internal products
+* **deps:** update internal products
+* **deps:** update module bubbles to v2
+* **deps:** update module bubbletea to v2
+* **deps:** update module go-jose to v4.1.6 [security]
+* **deps:** update module golang.org/x/net to v0.62.0 [security]
+* **early-access:** pin the Delivery authority whose Company comparison binds to this repository
+* **early-access:** pin the paired Delivery authority that places Techstack in this repository
+* **early-access:** publish the Early Access image to this repository's own package
+* **early-access:** run the script and read the version from techstack/
+* **files:** keep Cloudreve Files behind forward-auth until patched runtime
+* **files:** restrict Cloudreve share access to owners until upstream fixes shares
+* **guard:** pin the Guard release signer to StackKits only
+* **host:** match privileged listener probes to the planned address
+* **hostpreflight:** read systemd socket continuation and vsock lines
+* **j3:** retain and qualify native host capacity
+* **lifecycle:** claim under the state lock and reap only token-proven leftovers
+* **lifecycle:** recover operations whose owning process died
+* **marketplace:** link the Coolify root admin to the signed Pocket ID owner
+* **marketplace:** reach the Basement issuer and verify native Marketplace
+* **marketplace:** revoke foreign root-team access on every Coolify bootstrap
+* **marketplace:** revoke pending team-0 invitations on every Coolify bootstrap
+* **overlay:** bring the kit-owned WireGuard interface up and keep it up after reboot
+* **photos:** admit fresh Immich and Jellyfin installs under the OpenTofu target
+* **pocketid:** a backup's in-place restart of the bound Pocket ID container no longer blocks household adds
+* **pocketid:** an Apply after a backup keeps the qualified Pocket ID and always starts the Basement core
+* **pocketid:** qualify native frontend and bound builder cleanup
+* **pocketid:** read su-exec through apk-tools 3 so the CAS image publishes
+* **pocketid:** the writer drain admits Kopia's read-only backup bind of the PocketID volume
+* **preview:** preserve native candidate verification authority in packaged CLI
+* **preview:** reserve hosted runner disk for candidate archives
+* **public-tls:** an install zone serves the delivered origin certificate
+* **public-tls:** an origin-certificate router ignores certificates ordered before it
+* **public-tls:** serve managed kombify.me standalone Cloud core from the origin certificate
+* realize Komodo bootstrap for Standard OpenTofu generation
+* **registry:** keep per-application facts for apps sharing a URL slot
+* **release:** bound Terramate archive downloads
+* **release:** every kit archive carries the failure resolution snapshot
+* **release:** pin coolify-mirror bubbletea to v1 so public archives build
+* **release:** preparation authority ignores the imported Techstack history
+* **release:** preparation reads the registry that places Techstack in this repository
+* **release:** release-triggered database gate reads techstack/ paths
+* **release:** repin Techstack on an immutable published retry
+* **release:** reserve the OSS version with the current authority and App token
+* **release:** retry transient GitHub errors when drafting the public release
+* **release:** Stable image in this repository's own package; mirror publishes with the release App
+* **release:** Stable Render admission scans techstack/
+* **releases:** verify the authenticated private candidate version
+* **release:** Techstack adapters expect the techstack-v release tag
+* **release:** train calls shared producer 2bf85c84
+* **remove:** remove the Basement core workload through the native Owner-signed path
+* **restore:** owner binding digest ignores the PocketID runtime incarnation
+* **restore:** reuse the lock-fenced Apply authority in Coolify restore custody checks
+* **restore:** speak Docker exec API 1.44 so Coolify restore activation can quiesce (2ujh.3.7)
+* **runtime:** diagnose the deficient host capacity
+* **runtipi:** activate custom revisions through installed recipes
+* **runtipi:** bind bootstrap to the node Docker daemon
+* **runtipi:** verify actual removal and retained data volumes
+* **security:** Go 1.27.3, MCP app dependency bumps, reviewed OSV ignores, verified-only history scan
+* **ssh:** report foreign CA trust after managed trust is removed
+* **tenantdb:** adopt released verified-context Common in StackKits
+* **terramatehost:** give the Day 2 encrypted-state fixture its owner root marker
+* **tofu:** admit selected runtime roots before apply and recovery
+* **upgrade:** recover prior release on its own archived OpenTofu
+* **upgrade:** run each release on a provider mirror that carries its own manifest
+* **upgrade:** run release children on their verified OpenTofu and the installation's provider mirror
+* **verify:** keep OpenTofu state roots for every non-Marketplace workload
+* **verify:** name the actual adapter in applied-workload errors
+* **verify:** verify Coolify API workloads through their owner observation
+* **website:** deploy stackkit.cc with the Pages Write purpose token
+* **website:** link the canonical kombify.io legal pages
+
+
 
 ## 0.54.19 (2026-11-01)
 

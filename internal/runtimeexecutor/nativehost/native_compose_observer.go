@@ -141,7 +141,7 @@ func (r *osNativeComposeRuntime) PrepareCompose(ctx context.Context, request Nat
 		if err != nil {
 			return NativeComposePreparation{}, err
 		}
-		if err := pocketidruntime.Prepare(ctx, r.workspaceRoot, project, request.Definition); err != nil {
+		if err := pocketidruntime.PrepareApply(ctx, r.workspaceRoot, project, request.Definition); err != nil {
 			return NativeComposePreparation{}, err
 		}
 		return NativeComposePreparation{moduleRef: moduleRef, originReload: preparation.originReload, browserCAReload: preparation.browserCAReload, recreateServer: preparation.recreateServer}, nil
@@ -157,7 +157,7 @@ func (r *osNativeComposeRuntime) PrepareCompose(ctx context.Context, request Nat
 		if err != nil {
 			return NativeComposePreparation{}, err
 		}
-		if err := pocketidruntime.Prepare(ctx, r.workspaceRoot, project, request.Definition); err != nil {
+		if err := pocketidruntime.PrepareApply(ctx, r.workspaceRoot, project, request.Definition); err != nil {
 			return NativeComposePreparation{}, err
 		}
 		return NativeComposePreparation{moduleRef: moduleRef, recreateServer: recreateServer}, nil
