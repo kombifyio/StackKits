@@ -388,6 +388,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.55.1 (2026-11-01)
+
+### Fixed
+
+* **b3:** the cleanup proof proves a retired Techstack run and accepts the owner's product readback after a refused removal
+* **consolidation:** live StackKits code stops acting on archived repositories
+* **window:** StackKits consumers bind the one-repository window model; J3 builds from techstack/ and speechkit/
+
 ## 0.55.0 (2026-11-01)
 
 ### Added
