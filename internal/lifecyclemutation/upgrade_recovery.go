@@ -117,3 +117,60 @@ func (session *Session) targetApplyAdmitted() (bool, error) {
 	}
 	return false, nil
 }
+
+// PreparedReleaseAdmitted reports whether the operation is an upgrade whose
+// complete signed history never left the prepared phase: no target or
+// rollback phase, no child join and no data activation was ever recorded, so
+// nothing of the target ran and no prior release effect needs to be replayed.
+func (session *Session) PreparedReleaseAdmitted() (bool, error) {
+	if session == nil || session.transaction == nil ||
+		session.record.Kind != KindUpgrade || session.record.Status != StatusActive ||
+		session.record.Phase != PhasePrepared || session.record.Join != nil ||
+		session.record.UpgradeDataActivation != nil || session.record.RestoreActivation != nil {
+		return false, nil
+	}
+	latest, digest, err := latestHistoryRecord(session.workspace, session.transaction, session.record.OperationID)
+	if err != nil {
+		return false, err
+	}
+	if latest.Sequence != session.record.Sequence || digest != session.recordDigest {
+		return false, nil
+	}
+	entries, err := session.transaction.Walk(operationsRoot + "/" + session.record.OperationID)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.Info.IsDir() || strings.HasPrefix(filepath.Base(filepath.FromSlash(entry.Path)), ".stackkit-tmp-") {
+			continue
+		}
+		data, _, err := session.transaction.ReadStable(entry.Path)
+		if err != nil {
+			return false, err
+		}
+		record, _, err := decodeRecord(session.workspace, data)
+		if err != nil {
+			return false, err
+		}
+		if record.Phase != PhasePrepared || record.Join != nil {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// CompletePreparedRelease completes an upgrade that never left its prepared
+// phase as recovered, without any rollback phase. It re-proves the exact
+// prepared history under the held lifecycle lock before signing.
+func (session *Session) CompletePreparedRelease() error {
+	admitted, err := session.PreparedReleaseAdmitted()
+	if err != nil {
+		return err
+	}
+	if !admitted {
+		return errors.New("lifecycle mutation is not an upgrade that stopped exactly at prepared")
+	}
+	session.releasePrepared = true
+	defer func() { session.releasePrepared = false }()
+	return session.Complete(StatusRecovered)
+}

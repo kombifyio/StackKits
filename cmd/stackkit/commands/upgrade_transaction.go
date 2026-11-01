@@ -34,6 +34,10 @@ const (
 	publicUpgradeRollbackFailed         = "rollback-failed,dataStaged"
 	publicUpgradeRollbackDataRequired   = "data-activation-required,dataStaged"
 	publicUpgradeRollbackCommitRequired = "commit-finalization-required"
+	// publicUpgradeRollbackReleasedBeforeTarget reports an upgrade that stopped
+	// at the prepared phase and was released without replaying the prior
+	// release: nothing of the target ran, so nothing was restored or verified.
+	publicUpgradeRollbackReleasedBeforeTarget = "released-before-target"
 )
 
 var (

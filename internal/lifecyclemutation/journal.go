@@ -224,6 +224,10 @@ type Session struct {
 	// admits BeginForwardRetargetJoin's re-entry into target Generate instead.
 	forwardRecovery bool
 	forwardRetarget bool
+	// releasePrepared admits the one terminal completion of an upgrade that
+	// never left its prepared phase, for the duration of
+	// CompletePreparedRelease.
+	releasePrepared bool
 }
 
 func BeginUpgrade(workspace string, request BeginRequest) (*Session, error) {
@@ -255,8 +259,8 @@ func BeginUpgradePrepared(
 	}
 	if exists && recordBlocksMutation(current) {
 		return fail(fmt.Errorf(
-			"lifecycle mutation %s is active at phase %s; recover it explicitly",
-			current.OperationID, current.Phase,
+			"lifecycle mutation %s is active at phase %s; recover it explicitly%s",
+			current.OperationID, current.Phase, recoveryHint(current),
 		))
 	}
 	if err := backuplifecycle.RequireSettledRuntimeControls(workspace, ""); err != nil {
@@ -346,8 +350,8 @@ func beginRestoreActivationPreparedContext(ctx context.Context, workspace, opera
 	}
 	if exists && recordBlocksMutation(current) {
 		return fail(fmt.Errorf(
-			"lifecycle mutation %s is active at phase %s; recover it explicitly",
-			current.OperationID, current.Phase,
+			"lifecycle mutation %s is active at phase %s; recover it explicitly%s",
+			current.OperationID, current.Phase, recoveryHint(current),
 		))
 	}
 	if err := backuplifecycle.RequireSettledRuntimeControls(workspace, ""); err != nil {
@@ -1210,7 +1214,8 @@ func (session *Session) Complete(status string) error {
 	if status == StatusSucceeded && session.record.Phase != PhaseCommitSucceeded {
 		return errors.New("successful lifecycle mutation requires committed phase")
 	}
-	if status == StatusRecovered && session.record.Phase != PhaseRollbackSucceeded {
+	if status == StatusRecovered && session.record.Phase != PhaseRollbackSucceeded &&
+		!(session.releasePrepared && session.record.Phase == PhasePrepared) {
 		return errors.New("recovered lifecycle mutation requires verified rollback phase")
 	}
 	if session.record.Status == status {
@@ -1859,7 +1864,10 @@ func validateRecord(record Record) error {
 			)
 		}
 	case StatusRecovered:
-		if record.Phase != PhaseRollbackSucceeded {
+		// A prepared upgrade released before any target phase is the only
+		// recovered record that never reached a rollback phase.
+		if record.Phase != PhaseRollbackSucceeded &&
+			!(record.Kind == KindUpgrade && record.Phase == PhasePrepared) {
 			return errors.New(
 				"recovered lifecycle mutation has a non-rollback phase",
 			)
