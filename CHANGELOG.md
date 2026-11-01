@@ -398,6 +398,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.55.5 (2026-11-01)
+
+### Fixed
+
+* **techstack:** qualify public mirror App access
+* **window:** a cleanup proof reads back a run without a live gate report
+* **window:** the cleanup readback reads its files from the workspace root
+* **window:** the journey workflows upload what their techstack/ steps write
+
 ## 0.55.4 (2026-11-01)
 
 ### Fixed
