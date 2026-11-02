@@ -1484,7 +1484,7 @@ func (osStandaloneComposeProcessRunner) RunStreaming(
 	live io.Writer,
 ) ([]byte, error) {
 	dockerRootQuery := slices.Equal(args, standaloneComposeDockerRootArgs)
-	majorHoldDiscoveryQuery := validJellyfinDiscoveryQuery(args) || validImmichDiscoveryQuery(args)
+	majorHoldDiscoveryQuery := validJellyfinDiscoveryQuery(args) || validImmichDiscoveryQuery(args) || validApplicationReleaseDiscoveryQuery(args)
 	if !dockerRootQuery && !majorHoldDiscoveryQuery && !validNetworkGatewayQuery(args) && !validWorkloadManagerQuery(args) && !validWorkloadVolumeCreateQuery(args, directory) && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
 		args[3] != "--env-file" || filepath.Dir(args[4]) != directory ||
 		filepath.Base(args[4]) != ".env" || args[5] != "-f" ||

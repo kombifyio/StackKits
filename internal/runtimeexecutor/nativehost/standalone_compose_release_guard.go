@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -115,7 +116,7 @@ func (o *osStandaloneComposeWorkloadOperations) requireApplicationReleaseTransit
 		if !choice {
 			return nil
 		}
-		raw, err := o.runner.Run(ctx, []string{"volume", "ls", "--filter", "label=com.docker.compose.project=" + project, "--format", "{{.Name}}"}, o.workspaceRoot)
+		raw, err := o.runner.Run(ctx, applicationReleaseVolumeDiscoveryArgs(project), o.workspaceRoot)
 		if err != nil || len(bytes.TrimSpace(raw)) > 0 {
 			return unknown
 		}
@@ -192,3 +193,19 @@ func readPersistedEntryImage(directory, project, entry string) (string, bool, er
 	}
 	return service.Image, true, nil
 }
+
+func applicationReleaseVolumeDiscoveryArgs(project string) []string {
+	return []string{"volume", "ls", "--filter", "label=com.docker.compose.project=" + project, "--format", "{{.Name}}"}
+}
+
+// validApplicationReleaseDiscoveryQuery admits only the read-only volume
+// listing of one standalone application project to the closed runner.
+func validApplicationReleaseDiscoveryQuery(args []string) bool {
+	if len(args) != 6 || args[0] != "volume" || args[1] != "ls" || args[2] != "--filter" || args[4] != "--format" || args[5] != "{{.Name}}" {
+		return false
+	}
+	project, ok := strings.CutPrefix(args[3], "label=com.docker.compose.project=stackkit-")
+	return ok && applicationReleaseProjectPattern.MatchString(project)
+}
+
+var applicationReleaseProjectPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
