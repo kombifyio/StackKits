@@ -381,6 +381,9 @@ func (v *CUEContractValidator) validatePlan(plan ResolvedPlan) error {
 // downstream apply/generation gates cannot claim semantic verification from a
 // self-consistent planHash alone or inject a no-op schema validator.
 func (v *CUEContractValidator) ValidateCanonicalPlan(plan ResolvedPlan) error {
+	if err := v.requireBoundCompiler(plan); err != nil {
+		return err
+	}
 	normalized, err := v.normalizePlan(plan)
 	if err != nil {
 		return err

@@ -85,7 +85,9 @@ func runPlan(cmd *cobra.Command, args []string) error {
 		return writeArchitectureV2PlanCapacity(cmd.OutOrStdout(), verifiedPlan)
 	}
 	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Plan, options); handled {
-		return err
+		// A refused --json inspection still answers with its typed reason, so
+		// a caller can tell a stale plan from any other refusal.
+		return machineAwareCommandError(cmd, err)
 	}
 	if planJSON {
 		return &architectureV2PlanOptionError{Flag: "--json", Message: "JSON plan inspection is available only for native Architecture v2; exact v0.6 keeps the OpenTofu preview"}

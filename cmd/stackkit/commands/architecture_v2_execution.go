@@ -498,6 +498,10 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 		persisted, err := authority.ReadCanonicalPlan(planPath)
 		if err != nil {
 			var planError *generationartifact.Error
+			var stale *resolvedplan.CompilerVersionMismatchError
+			if errors.As(err, &stale) {
+				return actionableerror.WithDiagnostic("stored_plan_upgrade_required", err)
+			}
 			if errors.As(err, &planError) && planError.Code == generationartifact.ErrInvalidPlan {
 				return actionableerror.WithDiagnostic("stored_plan_invalid", err)
 			}

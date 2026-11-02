@@ -3,6 +3,7 @@ package localowner
 import (
 	"context"
 	"errors"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -143,6 +144,8 @@ func (s *Service) replaceUnusedLegacySubject(ctx context.Context, client pocketI
 	return nil
 }
 
+const householdCustodyDir = ".stackkit/custody"
+
 // householdCustodyNames reports whether any household projection custody file
 // names the Pocket ID subject. Any mention refuses; it never grants.
 func (s *Service) householdCustodyNames(pocketIDSubject string) (bool, error) {
@@ -151,29 +154,26 @@ func (s *Service) householdCustodyNames(pocketIDSubject string) (bool, error) {
 		return false, err
 	}
 	defer root.Close()
-	view, err := root.View(".")
-	if err != nil {
-		return false, err
-	}
-	dir, err := view.Open(".stackkit/custody")
-	if err != nil {
-		return false, err
-	}
-	names, err := dir.Readdirnames(-1)
-	_ = dir.Close()
-	if err != nil {
-		return false, err
-	}
 	tx, err := root.BeginTransaction()
 	if err != nil {
 		return false, err
 	}
 	defer tx.Close()
-	for _, name := range names {
-		if !strings.HasPrefix(name, "household-projection-") || !strings.HasSuffix(name, ".json") {
+	// View.Open admits only regular files, so the directory is listed through
+	// the transaction walk. Anything but a top-level projection file is left
+	// out before it is inspected.
+	entries, err := tx.WalkExcluding(householdCustodyDir, func(entry string) bool {
+		name := path.Base(entry)
+		return path.Dir(entry) != householdCustodyDir || !strings.HasPrefix(name, "household-projection-") || !strings.HasSuffix(name, ".json")
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if entry.Path == householdCustodyDir {
 			continue
 		}
-		body, _, err := tx.ReadStableBounded(".stackkit/custody/"+name, 4096)
+		body, _, err := tx.ReadStableBounded(entry.Path, 4096)
 		if err != nil {
 			return false, err
 		}

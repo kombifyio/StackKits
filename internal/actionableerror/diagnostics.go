@@ -84,6 +84,9 @@ var lifecycleDiagnostics = []Contract{
 	New("stackkit_command_failed", "restore_original_release_required",
 		"Interrupted restore recovery requires the original admitted release and Owner journal.",
 		[]string{"Use `stackkit backup restore recover --help` for original-release recovery with the exact release, archive/index digests and original Plan hash; retain the signed journal and never force activation with substituted evidence."}, false),
+	New("stackkit_command_failed", "stored_plan_upgrade_required",
+		"The stored ResolvedPlan was compiled by another StackKits release than this CLI.",
+		[]string{"Keep the StackSpec, Inventory and Owner custody unchanged; `stackkit status --json` names both compiler releases. Run lifecycle operations with the release that compiled the Plan, and move to another release only through `stackkit upgrade --to <release>`, which regenerates, applies and verifies the Plan under the target compiler. Do not edit the Plan."}, false),
 	New("stackkit_command_failed", "stored_plan_invalid",
 		"The stored ResolvedPlan is not accepted by this CLI's canonical Plan contract.",
 		[]string{"Keep the original Plan, manifest, release and Owner custody unchanged. Inspect the retained generation with `stackkit plan --source-generation --json` through its already installed attested source release; if unavailable, use `stackkit kit prepare-source-generation --help`. Follow the kit's supported upgrade policy; do not edit the Plan, replay the installer or use a newly resolved candidate as execution authority."}, false),
@@ -137,6 +140,7 @@ func RecordedFailures() []RecordedFailure {
 		{"Interrupted Cloud workspace rerun", []string{"workspace_missing", "binding_mismatch"}},
 		{"Interrupted restore after CLI upgrade", []string{"restore_original_release_required"}},
 		{"Stored generation rejected by a newer CLI", []string{"stored_plan_invalid"}},
+		{"Day-2 refused after a managed StackKits runtime convergence", []string{"stored_plan_upgrade_required"}},
 		{"Fresh Cloud/Modern standalone upgrade", []string{"upgrade_kit_unsupported"}},
 		{"Interrupted whole-deployment removal", []string{"remove_incomplete"}},
 	}
