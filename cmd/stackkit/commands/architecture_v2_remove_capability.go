@@ -94,11 +94,16 @@ func requireArchitectureV2BasementCoreRemovalCapability(plan generationartifact.
 	return errors.New("Basement core removal module is absent from the verified plan")
 }
 
+// The Marketplace runs Coolify by default or Runtipi when explicitly chosen;
+// each installation is removed by its own native owner.
 func architectureV2MarketplaceRemovalTarget(target runtimeexecutor.RuntimeTarget) bool {
-	module := architecturev2renderer.MarketplaceCoolifyModuleRef
+	module, unit, contract := architecturev2renderer.MarketplaceCoolifyModuleRef, architecturev2renderer.MarketplaceCoolifyUnitRef, architecturev2renderer.MarketplaceCoolifyRendererContract()
+	if target.ModuleRef == architecturev2renderer.MarketplaceRuntipiModuleRef {
+		module, unit, contract = architecturev2renderer.MarketplaceRuntipiModuleRef, architecturev2renderer.MarketplaceRuntipiUnitRef, architecturev2renderer.MarketplaceRuntipiRendererContract()
+	}
 	return target.OwnerKind == "module" && target.OwnerRef == module && target.ModuleRef == module &&
-		target.UnitRef == architecturev2renderer.MarketplaceCoolifyUnitRef && target.ProviderRef == "stackkits-marketplace" &&
+		target.UnitRef == unit && target.ProviderRef == "stackkits-marketplace" &&
 		target.WorkloadRef == "marketplace" && target.RuntimeKind == "host" && target.RuntimeDelivery == "stackkit" &&
 		target.RuntimeEngine == "" && target.RuntimeAdapter == nil && len(target.DaemonBindings) == 0 &&
-		target.UnitContractHash == architecturev2renderer.MarketplaceCoolifyRendererContract().ContractHash
+		target.UnitContractHash == contract.ContractHash
 }

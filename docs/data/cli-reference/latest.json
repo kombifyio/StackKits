@@ -9107,20 +9107,30 @@
         {
           "command": "stackkit secrets reveal --workload photos --slot database-password",
           "description": "Print the Photos database password from local owner custody"
+        },
+        {
+          "command": "stackkit secrets reveal --platform dokploy --slot owner-password",
+          "description": "Print the local Dokploy owner password for the login behind PocketID"
         }
       ],
       "flags": [
         {
+          "name": "platform",
+          "type": "string",
+          "description": "Print the node-held owner login of this Layer-2 platform instead (dokploy)",
+          "required": false
+        },
+        {
           "name": "slot",
           "type": "string",
-          "description": "Declared workload secret slot",
+          "description": "Declared workload secret slot, or owner-email/owner-password with --platform",
           "required": true
         },
         {
           "name": "workload",
           "type": "string",
           "description": "Selected workload ID",
-          "required": true
+          "required": false
         }
       ],
       "subcommands": []
@@ -9753,7 +9763,8 @@
       "subcommands": [
         "stackkit use-cases add",
         "stackkit use-cases configure",
-        "stackkit use-cases pick"
+        "stackkit use-cases pick",
+        "stackkit use-cases upgrade"
       ]
     },
     {
@@ -9971,6 +9982,82 @@
           "name": "print",
           "type": "bool",
           "description": "Write selected use-case IDs as a comma-separated line on stdout",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit use-cases upgrade",
+      "name": "upgrade",
+      "parent": "stackkit use-cases",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit use-cases upgrade [slug] [flags]",
+      "short": "Move one application to another admitted release, keeping its prior data for a rollback",
+      "description": "Move one selected application to another release its catalog admits, without\ntouching unrelated applications. The command stops only that application,\ncopies each of its governed volumes into a retained volume, reads the copy back\nas a file-tree digest, records an owner-signed checkpoint and selects the target\nrelease. The application stays stopped until normal generate and apply start\nthe target release.\n\n--rollback <operation-id> stops the application again, verifies the retained\ncopy, copies it back, proves the live data equals the checkpoint and selects the\nprior release; the next apply starts the prior release on exactly that data, and\ndata written since the checkpoint is discarded. Rolling back a checkpoint that\nnever completed releases it and restarts the unchanged application. While an\noperation is open, apply starts only the release it expects; without one, apply\nrefuses every move to an earlier release.\n--finalize <operation-id> removes the retained data once the change is\naccepted (or after the rollback was applied). --status reads a record.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit use-cases upgrade vault --to 1.37.5 --owner-approve\nstackkit generate && stackkit apply",
+          "description": "Move Vaultwarden to an admitted later release, then apply it"
+        },
+        {
+          "command": "stackkit use-cases upgrade --rollback release.vault.20261101T120000Z --owner-approve\nstackkit generate && stackkit apply",
+          "description": "Return to the prior release and its data, then apply it"
+        },
+        {
+          "command": "stackkit use-cases upgrade --finalize release.vault.20261101T120000Z --owner-approve",
+          "description": "Accept the result and remove the retained data"
+        }
+      ],
+      "flags": [
+        {
+          "name": "expected-spec-hash",
+          "type": "string",
+          "description": "Require the current canonical spec hash",
+          "required": false
+        },
+        {
+          "name": "finalize",
+          "type": "string",
+          "description": "Remove the retained data of this release operation",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the release operation result as JSON",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Resume this interrupted release checkpoint instead of starting a new one",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve stopping the application while its data is copied",
+          "required": false
+        },
+        {
+          "name": "rollback",
+          "type": "string",
+          "description": "Return the application of this release operation to its prior release and data",
+          "required": false
+        },
+        {
+          "name": "status",
+          "type": "string",
+          "description": "Read one release operation record",
+          "required": false
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "description": "Admitted release to move the selected application to",
           "required": false
         }
       ],

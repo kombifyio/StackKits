@@ -23,7 +23,6 @@ func init() {
 	action.Flags().StringVar(&digest, "request-digest", "", "Signed parent request digest")
 	rootCmd.AddCommand(action)
 	command := &cobra.Command{Use: "runtipi-runtime", Hidden: true, Args: cobra.NoArgs}
-	command.AddCommand(newRuntipiTerminalQualificationCommand())
 	for _, operation := range []string{"apply", "observe"} {
 		var deploymentFile string
 		child := &cobra.Command{Use: operation, Args: cobra.NoArgs,

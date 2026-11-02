@@ -210,6 +210,40 @@ to complete that use case's custody. No services are deployed by `add`.
 Legacy specs require explicit migration; Advanced and multi-site changes belong
 to Techstack dispatch.
 
+### `stackkit use-cases upgrade <slug> --to <release>`
+
+Move one selected application to another release its catalog admits (today
+Vaultwarden `1.37.2` and `1.37.5`), with a rollback that restores the prior
+release and its data. Unrelated applications and their data are not touched.
+
+```bash
+stackkit use-cases upgrade vault --to 1.37.5 --owner-approve
+stackkit generate
+stackkit apply
+# keep the result
+stackkit use-cases upgrade --finalize <operation-id> --owner-approve
+# or return to the prior release and its data
+stackkit use-cases upgrade --rollback <operation-id> --owner-approve
+stackkit generate
+stackkit apply
+```
+
+The checkpoint stops only that application, copies each governed volume into
+a retained volume bound to the operation, reads the copy back as a file-tree
+digest equal to the live one, records an owner-signed checkpoint and selects the
+target release (the workload `release` setting). The application stays stopped
+until `apply` starts the target. `--rollback` verifies the retained copy, copies
+it back, refuses unless the live data equals the checkpoint digest, and selects
+the prior release, so the next `apply` starts it on exactly that data; data
+written since the checkpoint is discarded. While an operation is open, `apply`
+starts only the release it expects (none while a checkpoint or rollback is
+incomplete); without one, `apply` refuses every move to an earlier release. `--finalize` removes the retained
+copy; after a rollback it first requires the prior release to be applied.
+`--status <operation-id>` reads the record; `--operation-id` resumes an
+interrupted checkpoint, and `--rollback` on one releases it and restarts the
+unchanged application. The retained copy lives on the same disk; it is a
+rollback checkpoint, not a backup.
+
 ### `stackkit secrets materialize`
 
 After manually adding a governed workload to an existing standalone StackSpec, run

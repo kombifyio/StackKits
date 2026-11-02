@@ -204,7 +204,9 @@ func ApplicationTransferPersistentWorkloads(policy localbackuppolicy.Policy, sel
 	}
 	slices.Sort(refs)
 	if len(refs) == 0 {
-		return nil, errors.New("all-stateless transfer has no persistent snapshot source; runtime-only retirement is not yet supported")
+		// A selection without governed data has nothing to carry: it moves by
+		// selection on the receiving node and removal here, not by transfer.
+		return nil, errors.New("all-stateless transfer has no persistent data to carry; move it with stackkit use-cases add <slug> (then use-cases configure for its settings) and apply on the receiving node, and stackkit remove --use-case <slug> here")
 	}
 	return refs, nil
 }

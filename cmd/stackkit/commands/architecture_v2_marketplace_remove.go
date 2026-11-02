@@ -29,7 +29,7 @@ func appliedMarketplaceRemovalPlacement(applied architecturev2.VerifiedApplyResu
 	}
 	matches := 0
 	for _, workload := range summary.AppliedWorkloads {
-		if workload.WorkloadRef != candidate.WorkloadRef || workload.RuntimeOwnerRef != architecturev2renderer.MarketplaceCoolifyModuleRef {
+		if workload.WorkloadRef != candidate.WorkloadRef || (workload.RuntimeOwnerRef != architecturev2renderer.MarketplaceCoolifyModuleRef && workload.RuntimeOwnerRef != architecturev2renderer.MarketplaceRuntipiModuleRef) {
 			continue
 		}
 		for _, placement := range workload.Placements {

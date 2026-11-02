@@ -73,6 +73,9 @@ func RemoveMarketplaceWorkload(ctx context.Context, workspace string, request wo
 	}
 	ctx, cancel := context.WithDeadline(ctx, validUntil)
 	defer cancel()
+	if request.Applied.RuntimeTargets[0].ModuleRef == architecturev2renderer.MarketplaceRuntipiModuleRef {
+		return removeRuntipiMarketplace(ctx, workspace, request)
+	}
 	owner, err := localevidence.LoadOwnerCustody(workspace)
 	if err != nil {
 		return result, err

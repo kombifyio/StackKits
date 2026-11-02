@@ -12,7 +12,7 @@ import (
 // operations (media import, connectors, model pulls) stay unsupported.
 var platformSetupActions = []string{"immich-owner-bootstrap", "cloudreve-owner-bootstrap", "vault-owner-invite"}
 
-// platformApplicationSetupAdapter gives a Komodo- or Coolify-managed workload
+// platformApplicationSetupAdapter gives a Komodo-, Coolify- or Dokploy-managed workload
 // the same native setup as standalone Compose: both managers run the exact
 // generated bundle, so the loopback session and its per-request identity
 // checks are unchanged. The verified manager custody selects only the physical
@@ -44,6 +44,13 @@ func (a platformApplicationSetupAdapter) WithHTTP(ctx context.Context, workspace
 			return errors.New("Coolify setup requires the signed service identity")
 		}
 		return o.prepared.withRuntimeProjectHTTP(ctx, deployment, run, true, state.Deployment.ExternalID)
+	case "dokploy":
+		// Dokploy runs the bundle under its suffixed physical Compose project.
+		o, state, _, err := dokployOwnedWorkload(ctx, workspace, deployment)
+		if err != nil {
+			return err
+		}
+		return o.prepared.withRuntimeProjectHTTP(ctx, deployment, run, true, state.RuntimeProject)
 	}
 	return errors.New("runtime adapter has no executable application setup transport")
 }

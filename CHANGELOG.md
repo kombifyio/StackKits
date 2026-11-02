@@ -1,5 +1,9 @@
 # Changelog
 
+- Feature: Dokploy is a selectable Layer-2 platform on Basement. `stackkit init basement-kit --use-case files --platform dokploy` (also Photos and Vault, or `stackkit use-cases add <slug> --platform dokploy`) installs Dokploy 0.30.8 with PostgreSQL 16 on the node during Apply, without Docker Swarm and without Dokploy's own Traefik: the Kit router stays the only ingress and publishes the Dokploy UI at `dokploy.<domain>` behind TinyAuth and Pocket ID. The first Dokploy owner is created for the root owner's email and closes Dokploy's registration; its password and an unlimited node API key stay in node custody on the node (`stackkit secrets reveal --platform dokploy --slot owner-password` prints the login, because native Dokploy SSO is licensed). Workloads deploy through the Dokploy Compose API with their data in node-named volumes; `stackkit setup`, `verify`, `drift detect` (`dokploy-service-recipe-changed` after a Dokploy UI edit), `backup run`, `backup restore activate --workload` and `stackkit remove --workload` (keep or delete data) work on them. Dokploy stays a draft platform without a support claim until its current-pin test-window receipt.
+
+- Fix: when the Marketplace (Coolify or Runtipi) fails during an Apply, the workloads that deploy through it now fail at once with "not attempted: the Marketplace or Dokploy platform this workload deploys through failed earlier in this Apply". Before, such a workload (for example Photos or Files on Coolify) still started, waited for a deployment the unconfigured platform could never run, and ended the Apply after about 14 minutes with only `product_deadline_exceeded`, which hid the Marketplace failure.
+
 - Fix: a Basement Apply after a backup no longer leaves the node without Pocket ID. The Apply stopped and removed the Pocket ID container whenever its start time differed from the recorded one, which a backup's in-place restart causes. When nothing else in the core had changed, it then never started Pocket ID again and failed with "PocketID is not healthy", so household sign-in was down until someone intervened. A Pocket ID that already runs the qualified image on its data volume is now kept, and the Apply always starts the Basement core before it waits for the Pocket ID owner.
 
 - Fix: household member adds work on a Basement node again after a backup. A backup's quiescence stops and starts the Pocket ID container in place, and the managed admission then refused every `stackkit user project` with "PocketID managed admission: installed incarnation changed" until the next rollout, because it pinned the container's start time. The same container, image content and data volume are now re-observed under the lifecycle lock: the authenticated membership-CAS capability is checked again and the new start is bound. A recreated container or another image is still refused.
@@ -397,6 +401,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.55.7 (2026-11-02)
+
+### Added
+
+* **lifecycle:** scoped application release change with retained-data rollback
+
+## 0.55.6 (2026-11-02)
+
+### Added
+
+* **paas:** Dokploy Layer-2 platform on Basement with bootstrap, login, data operations and removal
+* **rack-kvm:** released Files, Photos and Vault restore cells with native receipts
+* **runtipi:** shared backup, restore and removal for Runtipi workloads and the Runtipi Marketplace
+
+### Fixed
+
+* **ci:** integration lane dispatch script regex escapes
+* **ci:** integration lane dispatches with the CI App token
+* **ci:** reuse shared publisher App for Techstack
+* **coolify:** workloads fail fast when the Marketplace fails; released Vault lanes leave main
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **deps:** update internal products
 
 ## 0.55.5 (2026-11-01)
 

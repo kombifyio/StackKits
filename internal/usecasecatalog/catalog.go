@@ -1737,6 +1737,8 @@ func adapterName(ref string) string {
 	switch ref {
 	case "coolify":
 		return "Coolify"
+	case "dokploy":
+		return "Dokploy"
 	case "komodo":
 		return "Komodo"
 	case "runtipi":

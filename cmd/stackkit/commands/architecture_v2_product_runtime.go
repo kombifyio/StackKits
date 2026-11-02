@@ -672,6 +672,11 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			return nil, fmt.Errorf("register local Coolify application owners: %w", err)
 		}
 		registrations = append(registrations, coolify...)
+		dokploy, err := architectureV2LocalDokployRegistrations(workspaceRoot, runtimeVersion)
+		if err != nil {
+			return nil, fmt.Errorf("register local Dokploy application owners: %w", err)
+		}
+		registrations = append(registrations, dokploy...)
 		runtipiFiles, err := architectureV2LocalRuntipiRegistrations(workspaceRoot, runtimeVersion)
 		if err != nil {
 			return nil, fmt.Errorf("register local Runtipi application owners: %w", err)

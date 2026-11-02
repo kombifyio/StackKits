@@ -17,7 +17,7 @@ func requireAppliedWorkloadManagers(workspace string, plan generationartifact.Ve
 			continue
 		}
 		manager := target.RuntimeAdapter.ID
-		if target.WorkloadRef == "" || (manager != "standalone-compose" && manager != "komodo" && manager != "coolify") ||
+		if target.WorkloadRef == "" || (manager != "standalone-compose" && manager != "komodo" && manager != "coolify" && manager != "dokploy") ||
 			!slices.Contains(target.SiteRefs, binding.SiteRef) || !slices.Contains(target.NodeRefs, binding.NodeRef) {
 			continue
 		}

@@ -51,6 +51,13 @@ var applicationSetupAdapterRegistrations = []applicationSetupAdapterRegistration
 	},
 	{
 		matches: func(binding runtimeexecutor.RuntimeAdapterBinding) bool {
+			return binding.ID == "dokploy" && binding.ProviderRef == "stackkits-dokploy" &&
+				binding.ModuleRef == "stackkits-dokploy-runtime"
+		},
+		adapter: platformApplicationSetupAdapter{adapterRef: "dokploy"},
+	},
+	{
+		matches: func(binding runtimeexecutor.RuntimeAdapterBinding) bool {
 			return binding.ID == "runtipi" && binding.ProviderRef == "stackkits-runtipi" &&
 				binding.ModuleRef == "stackkits-runtipi-runtime"
 		},

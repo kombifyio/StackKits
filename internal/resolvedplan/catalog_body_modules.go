@@ -127,6 +127,9 @@ func validateResolvedModuleBodies(plan ResolvedPlan, catalog *indexedCatalog, ca
 		if err != nil {
 			return err
 		}
+		if err := projectBoundComponentRelease(plan, id, expectedRuntime); err != nil {
+			return err
+		}
 		if err := projectPrivateBoundModuleRuntime(plan, id, expectedRuntime); err != nil {
 			return err
 		}

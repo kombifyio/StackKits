@@ -12,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
 
 // nativeBackupApplicationCustody uses the same signed-Apply bundle selector as
@@ -45,13 +46,16 @@ func nativeBackupApplicationCustody(authority nativeV2BackupAuthority, selected 
 		}
 		deployment := deployments[requested.ComposeProject]
 		if deployment.RuntimeAdapter.ID == "runtipi" {
-			return nil, errors.New("Runtipi container generations require the signed app-group controller")
+			return nativehost.ObserveRuntipiContainerCustody(ctx, authority.WorkspaceRoot, deployment)
 		}
 		if deployment.RuntimeAdapter.ID == "coolify" {
 			return nativehost.ObserveCoolifyContainerCustody(ctx, authority.WorkspaceRoot, deployment)
 		}
 		if deployment.RuntimeAdapter.ID == "komodo" {
 			return nativehost.ObserveKomodoContainerCustody(ctx, authority.WorkspaceRoot, deployment)
+		}
+		if deployment.RuntimeAdapter.ID == "dokploy" {
+			return nativehost.ObserveDokployContainerCustody(ctx, authority.WorkspaceRoot, deployment)
 		}
 		return nativehost.ObserveStandaloneComposeContainerCustody(ctx, authority.WorkspaceRoot, deployment)
 	}, nil
@@ -145,10 +149,6 @@ func verifyNativeV2SelectedApplications(ctx context.Context, authority nativeV2B
 	if len(activationScope) > 1 {
 		return errors.New("application verification has ambiguous activation scope")
 	}
-	var scope nativeRestoreActivationScope
-	if len(activationScope) == 1 {
-		scope = activationScope[0]
-	}
 	runtimes := authority.Policy.SourceProjection().ApplicationRuntimes
 	if selected != nil {
 		runtimes = selected
@@ -190,21 +190,6 @@ func verifyNativeV2SelectedApplications(ctx context.Context, authority nativeV2B
 		if !exists {
 			return errors.New("selected application restore verifier has no exact signed deployment")
 		}
-		if deployment.RuntimeAdapter.ID == "runtipi" {
-			var err error
-			if scope.WorkloadRef == graph.WorkloadRef && scope.MarketplaceService == "" {
-				if scope.OperationID == "" {
-					return errors.New("Runtipi restore verification requires its exact signed activation operation")
-				}
-				err = nativeRuntipiRestoreReadback(ctx, authority, deployment, graph, scope.OperationID)
-			} else {
-				err = nativeRuntipiCurrentReadback(ctx, authority, deployment)
-			}
-			if err != nil {
-				return err
-			}
-			continue
-		}
 		var selectedOperations interface {
 			ObserveWorkload(context.Context, nativehost.SelectedPaaSWorkloadDeployment) (nativehost.SelectedPaaSWorkloadObservation, error)
 		} = operations
@@ -216,12 +201,26 @@ func verifyNativeV2SelectedApplications(ctx context.Context, authority nativeV2B
 			}
 			selectedValidator = selectedOperations.(nativehost.SelectedPaaSWorkloadObservationValidator)
 		}
+		if deployment.RuntimeAdapter.ID == "runtipi" {
+			selectedOperations, err = nativehost.NewOSRuntipiWorkloadOperations(authority.WorkspaceRoot)
+			if err != nil {
+				return err
+			}
+			selectedValidator = selectedOperations.(nativehost.SelectedPaaSWorkloadObservationValidator)
+		}
 		if deployment.RuntimeAdapter.ID == "komodo" {
 			selectedOperations, err = nativehost.NewOSKomodoWorkloadOperations(authority.WorkspaceRoot)
 			if err != nil {
 				return err
 			}
 			selectedValidator = selectedOperations.(nativehost.SelectedPaaSWorkloadObservationValidator)
+		}
+		if deployment.RuntimeAdapter.ID == "dokploy" {
+			owner, err := opentofu.NewDokployWorkloadOwner(opentofu.Runtime{WorkspaceRoot: authority.WorkspaceRoot})
+			if err != nil {
+				return err
+			}
+			selectedOperations, selectedValidator = owner, owner
 		}
 		observation, err := selectedOperations.ObserveWorkload(ctx, deployment)
 		if err != nil {

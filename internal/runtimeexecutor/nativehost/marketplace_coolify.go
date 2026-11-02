@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -520,11 +518,17 @@ func (o *osMarketplaceOperations) endpoint(ctx context.Context, directory string
 	return "http://" + address, nil
 }
 func waitMarketplaceHTTP(ctx context.Context, endpoint string) error {
+	return waitPlatformHTTP(ctx, endpoint, "/api/health", "Marketplace")
+}
+
+// waitPlatformHTTP waits until a Layer-2 platform's private loopback API
+// answers its health path.
+func waitPlatformHTTP(ctx context.Context, endpoint, path, label string) error {
 	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{Proxy: nil}}
 	deadline := time.NewTimer(90 * time.Second)
 	defer deadline.Stop()
 	for {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/api/health", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+path, nil)
 		if err != nil {
 			return err
 		}
@@ -539,7 +543,7 @@ func waitMarketplaceHTTP(ctx context.Context, endpoint string) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-deadline.C:
-			return errors.New("Marketplace private API did not become healthy")
+			return errors.New(label + " private API did not become healthy")
 		case <-time.After(time.Second):
 		}
 	}
@@ -567,49 +571,9 @@ func (o *osMarketplaceOperations) verifyPrivateUI(ctx context.Context, d archite
 	if err != nil {
 		return err
 	}
-	raw, err := o.run(ctx, []string{"ps", "--filter", "label=com.docker.compose.project=" + coreProject, "--filter", "label=com.docker.compose.service=router", "--no-trunc", "--quiet"}, nil, o.workspace)
-	if err != nil {
-		return err
-	}
-	id := strings.TrimSpace(string(raw))
-	if len(id) != 64 {
-		return errors.New("Marketplace requires its own single Core router")
-	}
-	raw, err = o.run(ctx, []string{"inspect", "--format", fmt.Sprintf(`{{(index .NetworkSettings.Networks %q).IPAddress}}`, coreNetwork), id}, nil, o.workspace)
-	if err != nil {
-		return err
-	}
-	ip := strings.TrimSpace(string(raw))
-	if net.ParseIP(ip) == nil {
-		return errors.New("Marketplace Core router has no own private interface")
-	}
-	ca, err := homeIdentityCABundle(o.workspace)
-	if err != nil {
-		return err
-	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(ca) {
-		return errors.New("Marketplace Kit CA is invalid")
-	}
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	transport := &http.Transport{Proxy: nil, TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: d.Route.Host, MinVersion: tls.VersionTLS13}, DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-		return dialer.DialContext(ctx, network, net.JoinHostPort(ip, "443"))
-	}}
-	defer transport.CloseIdleConnections()
-	client := &http.Client{Timeout: 15 * time.Second, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+d.Route.Host+"/", nil)
-	if err != nil {
-		return err
-	}
-	reply, err := client.Do(request)
-	if err != nil {
-		return errors.New("Marketplace UI Kit CA/TLS verification failed")
-	}
-	defer reply.Body.Close()
-	if reply.StatusCode != http.StatusUnauthorized || reply.TLS == nil || reply.TLS.Version != tls.VersionTLS13 {
-		return errors.New("Marketplace UI did not deny anonymous access through the Kit TLS router")
-	}
-	return nil
+	return verifyKitRouterDeniesAnonymous(ctx, o.workspace, "Marketplace", coreProject, coreNetwork, d.Route.Host, func(ctx context.Context, args []string) ([]byte, error) {
+		return o.run(ctx, args, nil, o.workspace)
+	})
 }
 
 // marketplaceBootstrapPHP binds Coolify sign-in to the node's own Pocket ID.

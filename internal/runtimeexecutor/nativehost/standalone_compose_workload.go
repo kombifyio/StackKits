@@ -586,6 +586,11 @@ func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
 		if err := o.requireImmichApplySafety(ctx, bundle); err != nil {
 			return standaloneComposeProject{}, err
 		}
+		// A selected earlier release starts only on data the scoped release
+		// rollback restored to its own checkpoint.
+		if err := o.requireApplicationReleaseTransition(ctx, bundle); err != nil {
+			return standaloneComposeProject{}, err
+		}
 	}
 	dockerRoot := ""
 	if standaloneComposeNeedsDockerRoot(bundle) {

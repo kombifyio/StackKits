@@ -401,6 +401,9 @@ func (c *Compiler) resolveSelectedModule(spec *specView, resolved *resolution, m
 			narrowedSites = append(narrowedSites, spec.nodeByID[nodeRef].siteRef)
 		}
 		siteRefs = sortStringsUnique(narrowedSites)
+		if err := requireComponentReleaseAdapter(workloadID, workload); err != nil {
+			return nil, nil, nil, err
+		}
 		rawIntent = map[string]any{
 			"enabled":    true,
 			"settings":   workload.settings,
@@ -1031,6 +1034,9 @@ func resolveModuleRuntimeContracts(moduleID string, contract map[string]any, raw
 	}
 	resolvedRuntime, err := cloneObject(runtimeContract, true)
 	if err != nil {
+		return nil, nil, nil, nil, "", err
+	}
+	if err := projectComponentRelease(moduleID, rawIntent, resolvedRuntime); err != nil {
 		return nil, nil, nil, nil, "", err
 	}
 	if err := projectPrivateModuleRuntime(moduleID, rawIntent, resolvedRuntime); err != nil {

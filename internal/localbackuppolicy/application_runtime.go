@@ -96,7 +96,7 @@ func canonicalApplicationRuntimes(runtimes []ApplicationRuntime) ([]ApplicationR
 }
 
 func validateApplicationRuntime(runtime ApplicationRuntime) error {
-	if runtime.RuntimeAdapterRef != "" && runtime.RuntimeAdapterRef != "standalone-compose" && runtime.RuntimeAdapterRef != "coolify" && runtime.RuntimeAdapterRef != "komodo" && runtime.RuntimeAdapterRef != "runtipi" {
+	if runtime.RuntimeAdapterRef != "" && runtime.RuntimeAdapterRef != "standalone-compose" && runtime.RuntimeAdapterRef != "coolify" && runtime.RuntimeAdapterRef != "komodo" && runtime.RuntimeAdapterRef != "runtipi" && runtime.RuntimeAdapterRef != "dokploy" {
 		return fmt.Errorf("unsupported application runtime adapter")
 	}
 	for _, field := range []struct {

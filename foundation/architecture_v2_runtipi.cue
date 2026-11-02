@@ -89,11 +89,11 @@ package foundation
 	provides: [], requires: ["stackkits-marketplace-runtipi-runtime"]
 	supportedSiteKinds: ["home", "cloud"]
 	nodeSelection: {authority: "control-authority-site", controlPlaneMembers: "only", requiredRoles: ["worker"]}
-	runtimeAdapter: {id: "runtipi", supportedKinds: ["container"], supportedDeliveries: ["application-adapter"], operations: ["apply", "observe"], capabilities: ["application-setup-local-api"], credentialCustody: "local-owner", providerLifecycle: "not-owned", evidenceRequired: true}
+	runtimeAdapter: {id: "runtipi", supportedKinds: ["container"], supportedDeliveries: ["application-adapter"], operations: ["apply", "observe", "remove"], capabilities: ["application-setup-local-api"], credentialCustody: "local-owner", providerLifecycle: "not-owned", evidenceRequired: true}
 	runtime: {execution: "contract-handoff", kind: "control-plane", delivery: "external-control-plane"}
 	renderUnits: [{
 		id: "runtipi-adapter", kind: "native-config", rendererRef: "stackkit", compatibleTargets: ["compose", "opentofu"]
-		templateRef: "builtin://platform/runtipi/runtime-adapter/v1.json", version: "1.0.0", contractHash: "sha256:2765e73e1718e1186b54f61bf0ef7104980e4f2e743243416830a198d50559ef"
+		templateRef: "builtin://platform/runtipi/runtime-adapter/v1.json", version: "1.0.0", contractHash: "sha256:d81d6ecdae77e64941b14c138cc73936ec75dcfc6a7de61ee41cc0bd035c3646"
 		publicInputRefs: [], secretInputRefs: [], planInputRefs: []
 		outputs: ["platform/runtipi/runtime-adapter.json"]
 		placement: {scope: "node-local", cardinality: "one-per-node"}

@@ -1382,6 +1382,8 @@ const (
 	architectureV2WorkloadRemovalMarketplace       architectureV2WorkloadRemovalKind = "marketplace"
 	architectureV2WorkloadRemovalBasementCore      architectureV2WorkloadRemovalKind = "basement-core"
 	architectureV2WorkloadRemovalCoolify           architectureV2WorkloadRemovalKind = "coolify"
+	architectureV2WorkloadRemovalRuntipi           architectureV2WorkloadRemovalKind = "runtipi"
+	architectureV2WorkloadRemovalDokploy           architectureV2WorkloadRemovalKind = "dokploy"
 )
 
 func (g architectureV2ExecutionGate) executeNativeWorkloadRemoval(
@@ -1487,6 +1489,12 @@ func (g architectureV2ExecutionGate) executeValidatedNativeWorkloadRemoval(wd st
 	}
 	if removalKind == architectureV2WorkloadRemovalCoolify {
 		remove = nativehost.RemoveCoolifyWorkload
+	}
+	if removalKind == architectureV2WorkloadRemovalRuntipi {
+		remove = nativehost.RemoveRuntipiWorkload
+	}
+	if removalKind == architectureV2WorkloadRemovalDokploy {
+		remove = nativehost.RemoveDokployWorkload
 	}
 	if removalKind == architectureV2WorkloadRemovalBasementCore {
 		remove = g.removeCore
@@ -1605,6 +1613,12 @@ func architectureV2WorkloadRemovalDispatch(
 	}
 	if adapterID == "coolify" && moduleRef == "stackkits-coolify-runtime" {
 		return architectureV2WorkloadRemovalCoolify, nil
+	}
+	if adapterID == "runtipi" && moduleRef == "stackkits-runtipi-runtime" {
+		return architectureV2WorkloadRemovalRuntipi, nil
+	}
+	if adapterID == "dokploy" && moduleRef == "stackkits-dokploy-runtime" {
+		return architectureV2WorkloadRemovalDokploy, nil
 	}
 	if architectureV2MarketplaceRemovalTarget(target) {
 		return architectureV2WorkloadRemovalMarketplace, nil

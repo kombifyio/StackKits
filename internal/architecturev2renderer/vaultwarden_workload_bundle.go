@@ -16,8 +16,9 @@ const (
 	vaultwardenWorkloadOutputRef   = "workloads/vaultwarden/bundle.json"
 )
 
-const vaultwardenWorkloadRendererSchema = `stackkit.workload-bundle/v2|VaultwardenWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:vaultwarden|release:` +
-	vaultwardenRelease + `|secret-material:not-included|native-oidc:pocketid-pkce-v1|admission:owners-admins`
+// The release field names every admitted release (workload_release.go).
+var vaultwardenWorkloadRendererSchema = `stackkit.workload-bundle/v2|VaultwardenWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:vaultwarden|release:` +
+	admittedWorkloadReleaseSchema(vaultwardenWorkloadModuleID, vaultwardenRelease) + `|secret-material:not-included|native-oidc:pocketid-pkce-v1|admission:owners-admins`
 
 // VaultwardenWorkloadBundleDescriptor is the closed, credential-free runtime
 // artifact accepted by the selected-PaaS executor. AdminTokenRef is opaque.
@@ -73,11 +74,11 @@ func ParseVaultwardenWorkloadBundle(data []byte) (VaultwardenWorkloadBundleDescr
 	}
 	if bundle.APIVersion != "stackkit.workload-bundle/v2" || bundle.Kind != "VaultwardenWorkloadBundle" ||
 		bundle.Workload.Ref != "vault" || bundle.Workload.AlternativeRef != "vaultwarden" ||
-		bundle.Workload.ModuleRef != vaultwardenWorkloadModuleID || bundle.Workload.Release != vaultwardenRelease ||
+		bundle.Workload.ModuleRef != vaultwardenWorkloadModuleID ||
 		bundle.Workload.Delivery != "application-adapter" || bundle.Workload.EntryComponent != vaultwardenWorkloadUnitID ||
 		bundle.Ownership.ExecutionAdapter != "selected-application-adapter" ||
 		bundle.Ownership.ProviderLifecycle != "not-owned" || bundle.Ownership.Credentials != "opaque-references-only" {
-		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Vaultwarden "+vaultwardenRelease+" contract")
+		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path, "workload or ownership identity differs from the closed Vaultwarden contract")
 	}
 	if len(bundle.SecretRefs) != 1 || !validSecretReference(bundle.SecretRefs["admin-token"]) {
 		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".secretRefs", "requires exactly one opaque admin-token reference")
@@ -85,6 +86,10 @@ func ParseVaultwardenWorkloadBundle(data []byte) (VaultwardenWorkloadBundleDescr
 	components, err := validateVaultwardenRuntimeComponents(bundle.Components, path+".components")
 	if err != nil {
 		return VaultwardenWorkloadBundleDescriptor{}, err
+	}
+	release, admitted := admittedWorkloadRelease(vaultwardenWorkloadModuleID, vaultwardenRelease, vaultwardenImageRef, vaultwardenImageDigest, components[0].Image.Ref, components[0].Image.Digest)
+	if !admitted || bundle.Workload.Release != release {
+		return VaultwardenWorkloadBundleDescriptor{}, fail(ErrInvalidPlan, path+".workload.release", "release and image must name one admitted Vaultwarden release")
 	}
 	if err := validateVaultwardenServiceEndpoint(bundle.Route, path+".route"); err != nil {
 		return VaultwardenWorkloadBundleDescriptor{}, err
@@ -95,7 +100,7 @@ func ParseVaultwardenWorkloadBundle(data []byte) (VaultwardenWorkloadBundleDescr
 		}
 	}
 	descriptor := VaultwardenWorkloadBundleDescriptor{
-		WorkloadRef: "vault", ModuleRef: vaultwardenWorkloadModuleID, Release: vaultwardenRelease,
+		WorkloadRef: "vault", ModuleRef: vaultwardenWorkloadModuleID, Release: release,
 		SiteRef: bundle.Target.SiteRef, NodeRef: bundle.Target.NodeRef, InstanceRef: bundle.Target.InstanceRef,
 		AdminTokenRef: bundle.SecretRefs["admin-token"],
 		Components:    make([]SelectedPaaSWorkloadComponentDescriptor, len(components)),
@@ -128,9 +133,12 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 	imageDigest, hasDigest := unit.ContainerImageDigest()
 	entry, hasEntry := unit.RuntimeEntryComponentRef()
 	if unit.RuntimeKind() != "container" || unit.RuntimeDelivery() != "application-adapter" ||
-		!hasEngine || engine != "docker" || !hasImage || imageRef != vaultwardenImageRef ||
-		!hasDigest || imageDigest != vaultwardenImageDigest || !hasEntry || entry != vaultwardenWorkloadUnitID {
-		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact Vaultwarden "+vaultwardenRelease+" contract")
+		!hasEngine || engine != "docker" || !hasImage || !hasDigest || !hasEntry || entry != vaultwardenWorkloadUnitID {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime identity must match the exact Vaultwarden contract")
+	}
+	release, admitted := admittedWorkloadRelease(vaultwardenWorkloadModuleID, vaultwardenRelease, vaultwardenImageRef, vaultwardenImageDigest, imageRef, imageDigest)
+	if !admitted {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime", "runtime image is not an admitted Vaultwarden release")
 	}
 	siteRef, hasSite := unit.SiteRef()
 	nodeRef, hasNode := unit.NodeRef()
@@ -146,9 +154,17 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 	if hasDaemonRef || hasDaemonInstance || hasDaemonEngine || hasDaemonSocket {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".instances", "selected-PaaS workload receives no daemon or socket authority")
 	}
-	deliveryRoute, err := validateApplicationDeliveryRouteInput(unit, vaultwardenWorkloadModuleID, "vault", 80, path+".inputs")
+	deliveryRoute, values, err := validateApplicationDeliveryInputsWithSettings(unit, vaultwardenWorkloadModuleID, "vault", 80, []string{"release"}, path+".inputs")
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
+	}
+	if raw, selected := values["release"]; selected {
+		var named string
+		if err := decodeStrict(raw, &named); err != nil || named != release {
+			return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs.release", "selected release differs from the runtime image")
+		}
+	} else if release != vaultwardenRelease {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs.release", "a non-default Vaultwarden release requires its release setting")
 	}
 	if !exactStringList(unit.SecretInputRefs(), []string{"admin-token"}) {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".inputs", "Vaultwarden requires only its exact opaque admin-token slot")
@@ -181,6 +197,9 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 	if err != nil {
 		return selectedPaaSWorkloadBundle{}, err
 	}
+	if components[0].Image.Ref != imageRef || components[0].Image.Digest != imageDigest {
+		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".runtime.components", "entry component image differs from the selected Vaultwarden release")
+	}
 	var endpoints []selectedPaaSServiceEndpoint
 	if err := decodeStrict(unit.ServiceEndpointsJSON(), &endpoints); err != nil || len(endpoints) != 1 {
 		return selectedPaaSWorkloadBundle{}, fail(ErrInvalidPlan, path+".serviceEndpoints", "requires one exact vault endpoint")
@@ -193,7 +212,7 @@ func validateVaultwardenWorkloadUnit(unit RenderUnit, contract RendererContract)
 		SecretRefs: secretRefs, Components: components, Route: endpoints[0], DeliveryRoute: deliveryRoute,
 	}
 	bundle.Workload.Ref, bundle.Workload.AlternativeRef = "vault", "vaultwarden"
-	bundle.Workload.ModuleRef, bundle.Workload.Release = vaultwardenWorkloadModuleID, vaultwardenRelease
+	bundle.Workload.ModuleRef, bundle.Workload.Release = vaultwardenWorkloadModuleID, release
 	bundle.Workload.Delivery, bundle.Workload.EntryComponent = "application-adapter", entry
 	bundle.Target.SiteRef, bundle.Target.NodeRef, bundle.Target.InstanceRef = siteRef, nodeRef, unit.InstanceID()
 	bundle.Ownership.ExecutionAdapter = "selected-application-adapter"

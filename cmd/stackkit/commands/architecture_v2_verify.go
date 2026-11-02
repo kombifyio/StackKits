@@ -259,6 +259,15 @@ func verifyArchitectureV2AppliedWorkloads(
 		return err
 	}
 	observations = append(observations, runtipiObservations...)
+	dokployOperations, err := opentofu.NewDokployWorkloadOwner(opentofu.Runtime{WorkspaceRoot: workspaceRoot})
+	if err != nil {
+		return err
+	}
+	dokployObservations, err := nativehost.VerifyAppliedDokployWorkloads(ctx, appliedRequest, binding, dokployOperations)
+	if err != nil {
+		return err
+	}
+	observations = append(observations, dokployObservations...)
 	for _, observation := range observations {
 		runtime.Workloads = append(runtime.Workloads, architectureV2WorkloadVerifySummary{
 			WorkloadRef: observation.WorkloadRef, ProjectRef: observation.ProjectRef, Status: observation.Status,
@@ -304,11 +313,25 @@ func verifyArchitectureV2OpenTofuState(
 // record (manager equal to the adapter, no provider recipe). Owner observation verifies its
 // runtime. A missing or unreadable record keeps the OpenTofu root expectation.
 func coolifyAPIManagedWorkload(workspaceRoot string, adapter *generationartifact.ApplyRuntimeAdapterRequirement, project string) bool {
-	if workspaceRoot == "" || adapter == nil || (adapter.ID != "coolify" && adapter.ID != "runtipi") {
+	if workspaceRoot == "" || adapter == nil || (adapter.ID != "coolify" && adapter.ID != "runtipi" && adapter.ID != "dokploy") {
 		return false
 	}
 	state, err := platformdeploy.LoadOwnerHostDeployment(workspaceRoot, project)
-	return err == nil && state.Manager == adapter.ID && state.RecipeDigest == ""
+	if err != nil || state.Manager != adapter.ID {
+		return false
+	}
+	if adapter.ID != "dokploy" {
+		return state.RecipeDigest == ""
+	}
+	// Dokploy custody always signs its recipe. The held-ID provider path also
+	// writes an OpenTofu root; without one, the API owner's recipe comparison
+	// still fails a workload whose provider root was removed.
+	relative, err := opentofu.WorkloadRootRelativePath(project)
+	if err != nil {
+		return false
+	}
+	_, err = os.Lstat(filepath.Join(workspaceRoot, filepath.FromSlash(relative), opentofu.MarkerFile))
+	return errors.Is(err, os.ErrNotExist)
 }
 
 // nativeMarketplaceRequirement names the natively executed Marketplace unit,

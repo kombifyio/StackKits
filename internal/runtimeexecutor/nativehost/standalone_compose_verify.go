@@ -280,3 +280,24 @@ func standaloneComposeMissingComponents(
 	sort.Strings(missing)
 	return strings.Join(missing, ", ")
 }
+
+// VerifyAppliedDokployWorkloads observes Photos, Files and Vault on this
+// node's Dokploy through the same owner Apply used. These workloads own no
+// OpenTofu root; this observation is their runtime verification.
+func VerifyAppliedDokployWorkloads(
+	ctx context.Context,
+	request runtimeexecutor.ExecutionRequest,
+	binding LocalTargetBinding,
+	operations SelectedPaaSWorkloadOperations,
+) ([]StandaloneComposeWorkloadVerifyObservation, error) {
+	if ctx == nil || operations == nil {
+		return nil, errors.New("Dokploy workload verification requires a context and operations owner")
+	}
+	ctx, cancel := context.WithTimeout(ctx, standaloneComposeVerifyReadinessBudget)
+	defer cancel()
+	deployments, err := appliedSelectedPaaSWorkloads(request, binding, "dokploy", "stackkits-dokploy-runtime")
+	if err != nil || len(deployments) == 0 {
+		return nil, err
+	}
+	return verifySelectedPaaSDeployments(ctx, deployments, operations)
+}

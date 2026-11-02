@@ -148,6 +148,7 @@ func (r *OwnerRouter) Execute(ctx context.Context, request runtimeexecutor.Execu
 		prepared = append(prepared, preparedExecution{
 			label: route.requirementID, scope: ScopeOwner, executor: route.executor, request: childRequest, compensation: route.compensation,
 			critical: criticalRuntimeTargets(groups[targetHash].runtime),
+			platform: marketplaceInstallation(groups[targetHash].runtime), platformBound: marketplaceAdapterBound(groups[targetHash].runtime),
 		})
 	}
 	return executePrepared(ctx, request, prepared, r.journal)
@@ -242,9 +243,9 @@ const (
 
 // ownerExecutionRank keeps owner execution deterministic while ordering
 // dependent owners after the owners they need:
-//   - workloads executed through a Marketplace platform adapter (Coolify or
-//     Runtipi)
-//     run after the Marketplace installation that holds the platform recipe;
+//   - workloads executed through a Layer-2 platform adapter (Coolify or
+//     Runtipi through the Marketplace, Dokploy through its bootstrap) run
+//     after the installation that holds the platform recipe;
 //     "stackkits-immich-runtime" sorts before the Marketplace module, so
 //     lexical order alone deployed Photos before Coolify existed;
 //   - certificate verification runs after the workload owners it observes.
@@ -254,7 +255,7 @@ func ownerExecutionRank(target runtimeexecutor.RuntimeTarget) int {
 	if target.ModuleRef == internalPKIContractModuleRef || target.ModuleRef == publicTLSContractModuleRef {
 		return 2
 	}
-	if target.RuntimeAdapter != nil && (target.RuntimeAdapter.ID == "coolify" || target.RuntimeAdapter.ID == "runtipi") {
+	if target.RuntimeAdapter != nil && (target.RuntimeAdapter.ID == "coolify" || target.RuntimeAdapter.ID == "runtipi" || target.RuntimeAdapter.ID == "dokploy") {
 		return 1
 	}
 	return 0
@@ -286,4 +287,27 @@ func hashRuntimeTarget(target runtimeexecutor.RuntimeTarget) (string, error) {
 func cloneRuntimeTarget(target runtimeexecutor.RuntimeTarget) runtimeexecutor.RuntimeTarget {
 	request := runtimeexecutor.CloneExecutionRequest(runtimeexecutor.ExecutionRequest{RuntimeTargets: []runtimeexecutor.RuntimeTarget{target}})
 	return request.RuntimeTargets[0]
+}
+
+// marketplaceInstallation reports whether a child installs the Layer-2
+// platform (the Marketplace or Dokploy) that adapter-bound workloads deploy
+// through.
+func marketplaceInstallation(targets []runtimeexecutor.RuntimeTarget) bool {
+	for _, target := range targets {
+		if target.WorkloadRef == "marketplace" || target.ModuleRef == "stackkits-dokploy-bootstrap-runtime" {
+			return true
+		}
+	}
+	return false
+}
+
+// marketplaceAdapterBound reports whether a child deploys through a Marketplace
+// platform adapter, the same targets ownerExecutionRank orders after it.
+func marketplaceAdapterBound(targets []runtimeexecutor.RuntimeTarget) bool {
+	for _, target := range targets {
+		if ownerExecutionRank(target) == 1 {
+			return true
+		}
+	}
+	return false
 }

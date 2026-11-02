@@ -3,7 +3,7 @@ package commands
 import "github.com/spf13/cobra"
 
 func init() {
-	useCasesCmd.AddCommand(newUseCasesAddCommand(), newUseCasesConfigureCommand())
+	useCasesCmd.AddCommand(newUseCasesAddCommand(), newUseCasesConfigureCommand(), newUseCasesUpgradeCommand())
 	rootCmd.AddCommand(newCapabilitiesConfigureCommand())
 }
 

@@ -12,8 +12,6 @@ import (
 
 // ApplicationRuntimeBinding is an adapter's exact node-custody translation of
 // one held Plan graph. It has no policy, credential or lifecycle custody.
-// Runtipi bindings carry data identities only; their Control must be nil and
-// their power operations go through the signed app-group runtime.
 type ApplicationRuntimeBinding struct {
 	Runtime         localbackuppolicy.ApplicationRuntime
 	PhysicalProject string
@@ -22,11 +20,6 @@ type ApplicationRuntimeBinding struct {
 }
 
 func NewDockerV2QuiescerWithApplicationBindings(source localbackuppolicy.Source, verifier ApplicationContainerCustodyVerifier, bindings []ApplicationRuntimeBinding) (ContainerQuiescer, error) {
-	for _, graph := range source.ApplicationRuntimes {
-		if graph.RuntimeAdapterRef == "runtipi" {
-			return nil, errors.New("Runtipi requires signed app-group controls, not exact-container quiescence")
-		}
-	}
 	if len(source.ApplicationRuntimes) != 0 && verifier == nil {
 		return nil, errors.New("application source has no adapter custody verifier")
 	}
@@ -122,11 +115,11 @@ func bindApplicationSources(source localbackuppolicy.Source, bindings []Applicat
 	physicalProjects := map[string]bool{}
 	for _, binding := range bindings {
 		adapter := binding.Runtime.RuntimeAdapterRef
-		if (adapter != "coolify" && adapter != "komodo" && adapter != "runtipi") || !localbackuppolicy.ValidPlatformVolumeName(binding.PhysicalProject) || (adapter != "runtipi" && binding.Control == nil) || seen[binding.Runtime.ComposeProject] || physicalProjects[binding.PhysicalProject] {
+		if (adapter != "coolify" && adapter != "komodo" && adapter != "runtipi" && adapter != "dokploy") || !localbackuppolicy.ValidPlatformVolumeName(binding.PhysicalProject) || binding.Control == nil || seen[binding.Runtime.ComposeProject] || physicalProjects[binding.PhysicalProject] {
 			return source, physical, errors.New("invalid or repeated adapter-owned application binding")
 		}
-		if adapter == "runtipi" && (binding.PhysicalProject != binding.Runtime.ComposeProject+"__user" || binding.Control != nil) {
-			return source, physical, errors.New("Runtipi source requires its exact physical project and separate app-group control")
+		if adapter == "runtipi" && binding.PhysicalProject != binding.Runtime.ComposeProject+"__user" {
+			return source, physical, errors.New("Runtipi binding changes the held app project identity")
 		}
 		if adapter == "komodo" && binding.PhysicalProject != binding.Runtime.ComposeProject {
 			return source, physical, errors.New("Komodo binding changes the held project identity")
@@ -149,7 +142,7 @@ func bindApplicationSources(source localbackuppolicy.Source, bindings []Applicat
 				continue
 			}
 			name := binding.VolumeNames[volume.VolumeName]
-			if (adapter == "komodo" || adapter == "runtipi") && name != volume.VolumeName {
+			if (adapter == "komodo" || adapter == "runtipi" || adapter == "dokploy") && name != volume.VolumeName {
 				return source, physical, errors.New("application binding changes an exact external volume identity")
 			}
 			if !localbackuppolicy.ValidPlatformVolumeName(name) || (name != volume.VolumeName && name != binding.PhysicalProject+"_"+volume.LogicalName) {
@@ -166,7 +159,7 @@ func bindApplicationSources(source localbackuppolicy.Source, bindings []Applicat
 		}
 	}
 	for _, runtime := range source.ApplicationRuntimes {
-		if (runtime.RuntimeAdapterRef == "coolify" || runtime.RuntimeAdapterRef == "komodo" || runtime.RuntimeAdapterRef == "runtipi") && !seen[runtime.ComposeProject] {
+		if (runtime.RuntimeAdapterRef == "coolify" || runtime.RuntimeAdapterRef == "komodo" || runtime.RuntimeAdapterRef == "runtipi" || runtime.RuntimeAdapterRef == "dokploy") && !seen[runtime.ComposeProject] {
 			return source, physical, errors.New("managed application source has no adapter-owned node binding")
 		}
 	}

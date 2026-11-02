@@ -469,6 +469,16 @@ func (a *RuntipiAdapter) ObserveDeployment(ctx context.Context, ref DeploymentRe
 	return ref, nil
 }
 
+// AppAbsent reports whether Runtipi no longer knows the app. Custom-app
+// uninstall deletes its source metadata too, so /apps/:urn returns 404.
+func (a *RuntipiAdapter) AppAbsent(ctx context.Context, ref DeploymentRef) (bool, error) {
+	_, err := a.App(ctx, ref)
+	if runtipiAppNotFound(err) {
+		return true, nil
+	}
+	return false, err
+}
+
 // Uninstall retains upstream backups unless the installed lifecycle explicitly
 // authorizes their deletion. Node-owned external volumes retain their custody.
 func (a *RuntipiAdapter) Uninstall(ctx context.Context, ref DeploymentRef, removeBackups bool) error {

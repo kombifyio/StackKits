@@ -116,11 +116,7 @@ func beginArchitectureV2ApplicationLifecyclesMatching(
 		if workloadRef != "" && contract.WorkloadRef != workloadRef || include != nil && !include(contract.WorkloadRef) {
 			continue
 		}
-		groupSource, sourceErr := nativeRuntipiLifecycleSource(plan, contract, stage)
-		if sourceErr != nil {
-			return nil, sourceErr
-		}
-		if !applicationLifecycleStageSupportedByDelivery(contract, stage) && !groupSource {
+		if !applicationLifecycleStageSupportedByDelivery(contract, stage) {
 			if workloadRef != "" {
 				return nil, fmt.Errorf(
 					"application workload %q adapter %q does not support the %s lifecycle",
@@ -354,11 +350,7 @@ func completeExistingApplicationLifecycles(
 		if workloadRef != "" && contract.WorkloadRef != workloadRef {
 			continue
 		}
-		groupSource, sourceErr := nativeRuntipiLifecycleSource(plan, contract, "restore")
-		if sourceErr != nil {
-			return sourceErr
-		}
-		if !applicationLifecycleStageSupportedByDelivery(contract, "restore") && !groupSource {
+		if !applicationLifecycleStageSupportedByDelivery(contract, "restore") {
 			continue
 		}
 		state, loadErr := store.Load(contract)

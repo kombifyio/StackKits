@@ -10,6 +10,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/spf13/cobra"
 )
 
@@ -86,15 +87,24 @@ func runSecretsMaterialize(_ *cobra.Command, _ []string) error {
 // Reveal is an explicit local-owner read. It does not accept arbitrary secret
 // references, create custody, or send secret values to deploy observability.
 func newSecretsRevealCommand() *cobra.Command {
-	var workload, slot string
+	var workload, slot, platform string
 	cmd := &cobra.Command{
 		Use: "reveal", Short: "Print one selected workload secret from local owner custody",
 		Long: "Print the existing value of one secret slot declared by a selected workload in the current CUE-valid StackSpec. Output contains secret material; use it only in a private terminal or an intentional pipe. No value is written to deploy logs or receipts.",
 		Example: `  # Print the Photos database password from local owner custody
-  stackkit secrets reveal --workload photos --slot database-password`,
+  stackkit secrets reveal --workload photos --slot database-password
+
+  # Print the local Dokploy owner password for the login behind PocketID
+  stackkit secrets reveal --platform dokploy --slot owner-password`,
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if platform != "" {
+				return revealPlatformOwnerSecret(cmd, platform, workload, slot)
+			}
+			if workload == "" {
+				return fmt.Errorf("--workload is required unless --platform names a Layer-2 platform")
+			}
 			canonical, err := loadCanonicalLocalSecretSpec()
 			if err != nil {
 				return err
@@ -124,8 +134,8 @@ func newSecretsRevealCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&workload, "workload", "", "Selected workload ID")
-	cmd.Flags().StringVar(&slot, "slot", "", "Declared workload secret slot")
-	_ = cmd.MarkFlagRequired("workload")
+	cmd.Flags().StringVar(&slot, "slot", "", "Declared workload secret slot, or owner-email/owner-password with --platform")
+	cmd.Flags().StringVar(&platform, "platform", "", "Print the node-held owner login of this Layer-2 platform instead (dokploy)")
 	_ = cmd.MarkFlagRequired("slot")
 	return cmd
 }
@@ -158,4 +168,27 @@ func materializeArchitectureV2LocalSecrets(workspaceRoot string, canonicalStackS
 		}
 	}
 	return len(ordered), nil
+}
+
+// revealPlatformOwnerSecret prints the node-held owner login of a Layer-2
+// platform whose native SSO is not available (Dokploy's is licensed).
+func revealPlatformOwnerSecret(cmd *cobra.Command, platform, workload, slot string) error {
+	if platform != "dokploy" || workload != "" {
+		return fmt.Errorf("--platform admits only dokploy and excludes --workload")
+	}
+	email, password, err := nativehost.DokployOwnerLogin(getWorkDir())
+	if err != nil {
+		return fmt.Errorf("read Dokploy owner login: %w", err)
+	}
+	var value string
+	switch slot {
+	case "owner-email":
+		value = email
+	case "owner-password":
+		value = password
+	default:
+		return fmt.Errorf("Dokploy declares the slots owner-email and owner-password")
+	}
+	_, err = fmt.Fprintln(cmd.OutOrStdout(), value)
+	return err
 }

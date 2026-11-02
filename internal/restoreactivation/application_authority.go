@@ -24,7 +24,7 @@ func ApplicationAuthorityForVolumes(workspace string, plan generationartifact.Ve
 		return Authority{}, "", false, err
 	}
 	for _, graph := range graphs {
-		if graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo" && graph.RuntimeAdapterRef != "runtipi" {
+		if graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo" && graph.RuntimeAdapterRef != "runtipi" && graph.RuntimeAdapterRef != "dokploy" {
 			continue
 		}
 		a, err := DeriveApplicationAuthority(workspace, plan, manifest, result, operation, graph.WorkloadRef)
@@ -96,7 +96,7 @@ func deriveSelectedSourceAuthority(workspace string, plan generationartifact.Ver
 	project := ""
 	for _, graph := range source.ApplicationRuntimes {
 		if graph.WorkloadRef == workload {
-			if project != "" || (graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo" && graph.RuntimeAdapterRef != "runtipi") {
+			if project != "" || (graph.RuntimeAdapterRef != "coolify" && graph.RuntimeAdapterRef != "komodo" && graph.RuntimeAdapterRef != "runtipi" && graph.RuntimeAdapterRef != "dokploy") {
 				return Authority{}, errors.New("restoreactivation: workload has no unique managed source")
 			}
 			project = graph.ComposeProject

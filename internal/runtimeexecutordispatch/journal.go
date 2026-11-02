@@ -20,6 +20,9 @@ type preparedExecution struct {
 	request      runtimeexecutor.ExecutionRequest
 	compensation runtimeapply.CompensationMode
 	critical     bool
+	// platform is the Marketplace installation; platformBound runs through its
+	// adapter (Coolify, Runtipi) and needs that installation.
+	platform, platformBound bool
 }
 
 // criticalRuntimeTargets reports whether a prepared child carries core work.
@@ -147,6 +150,7 @@ func executePrepared(
 	outcome := runtimeexecutor.ExecutionOutcome{}
 	failures := make([]error, 0, len(prepared))
 	settled := runtimeapply.Snapshot{}
+	gate := platformGate{}
 	for index, child := range prepared {
 		step, exists := stepByDigest[child.request.RequestDigest]
 		if !exists {
@@ -182,7 +186,7 @@ func executePrepared(
 		}
 		states = indexStepSnapshots(snapshot)
 
-		result, invokeErr := invokeObserved(ctx, child, index+1, len(prepared))
+		result, invokeErr := gate.invoke(ctx, child, index+1, len(prepared))
 		if invokeErr != nil {
 			failed := runtimeapply.StepCommit{
 				OperationID: operation.OperationID, FenceToken: reservation.FenceToken,
@@ -270,8 +274,9 @@ func executePrepared(
 func executePreparedDirect(ctx context.Context, prepared []preparedExecution) (runtimeexecutor.ExecutionOutcome, error) {
 	outcome := runtimeexecutor.ExecutionOutcome{}
 	failures := make([]error, 0, len(prepared))
+	gate := platformGate{}
 	for index, child := range prepared {
-		result, err := invokeObserved(ctx, child, index+1, len(prepared))
+		result, err := gate.invoke(ctx, child, index+1, len(prepared))
 		if err != nil {
 			failures = append(failures, fmt.Errorf("execute runtime owner for %q: %w", child.label, err))
 			if stopsRollout(child, err) {

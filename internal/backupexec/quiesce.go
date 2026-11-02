@@ -144,12 +144,6 @@ func dockerV2QuiescerForSelectedRuntimeGraphs(newClient dockerQuiesceClientFacto
 	if selected != nil {
 		source.ApplicationRuntimes = selected
 	}
-	for _, graph := range source.ApplicationRuntimes {
-		if graph.RuntimeAdapterRef == "runtipi" {
-			return &dockerV2Quiescer{newClient: newClient, managed: managed, applicationVolumes: applicationVolumes,
-				initErr: fmt.Errorf("Runtipi app-group source cannot use Docker container power control")}
-		}
-	}
 	if len(source.ApplicationRuntimes) > 0 && verifier == nil {
 		return &dockerV2Quiescer{
 			newClient: newClient, managed: managed, applicationVolumes: applicationVolumes,

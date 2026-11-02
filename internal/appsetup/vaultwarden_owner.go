@@ -78,12 +78,10 @@ func BootstrapVaultwardenOwner(
 	if len(request.AdminToken) == 0 {
 		return result, errors.New("Vaultwarden owner invitation requires the owner-custodied admin token")
 	}
+	// An empty expectation admits whichever catalog-admitted release runs.
 	expectedVersion := strings.TrimSpace(request.ExpectedVersion)
-	if expectedVersion == "" {
-		expectedVersion = VaultwardenPinnedVersion
-	}
-	if expectedVersion != VaultwardenPinnedVersion {
-		return result, fmt.Errorf("Vaultwarden owner invitation is bound to application version %q", VaultwardenPinnedVersion)
+	if expectedVersion != "" && !vaultwardenReleaseAdmitted(expectedVersion) {
+		return result, fmt.Errorf("Vaultwarden owner invitation is bound to an admitted application version, not %q", expectedVersion)
 	}
 
 	if client == nil || client.Transport == nil {
@@ -109,8 +107,8 @@ func BootstrapVaultwardenOwner(
 		return result, fmt.Errorf("read Vaultwarden release: %w", err)
 	}
 	version = strings.TrimSpace(version)
-	if version != expectedVersion {
-		return result, fmt.Errorf("Vaultwarden release differs from the admitted version %q", expectedVersion)
+	if (expectedVersion != "" && version != expectedVersion) || !vaultwardenReleaseAdmitted(version) {
+		return result, fmt.Errorf("Vaultwarden release %q differs from the admitted version %q", version, expectedVersion)
 	}
 	var config vaultwardenConfigReadback
 	if err := vaultwardenJSONRequest(ctx, client, baseURL, http.MethodGet, "/api/config", nil, nil, &config); err != nil {
@@ -503,4 +501,17 @@ func cloneVaultwardenHTTPClient(client *http.Client) *http.Client {
 	// keep the admin cookie only in the short-lived, explicitly cleaned session.
 	clone.Jar = nil
 	return &clone
+}
+
+// vaultwardenReleaseAdmitted reports a release the catalog admits for Vaultwarden.
+func vaultwardenReleaseAdmitted(version string) bool {
+	if version == VaultwardenPinnedVersion {
+		return true
+	}
+	for _, release := range architecturev2renderer.AdmittedWorkloadReleases("stackkits-vaultwarden-runtime") {
+		if release.Release == version {
+			return true
+		}
+	}
+	return false
 }

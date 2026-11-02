@@ -3523,6 +3523,20 @@ _servicePublicationShape: {
 		ref:    string & =~"^[^[:space:]]+$"
 		digest: #ContentHash
 	}
+	// releases lists further upstream releases the catalog admits for the
+	// entry component beside its default image. A workload selects one with
+	// its declared `release` setting; generation, Apply and the renderers
+	// admit only these exact tag and digest pins, and a downgrade on existing
+	// data needs the scoped release rollback (`stackkit use-cases upgrade`).
+	// Tags are plain semantic versions so Apply can order them. Keep a release
+	// admitted while installations may still select it; a dropped release
+	// fails their generation closed.
+	releases?: [...close({
+		image: {
+			ref:    string & =~"^[^[:space:]@]+:[^[:space:]:/@]+$"
+			digest: #ContentHash
+		}
+	})] & list.MinItems(1)
 	dependsOn: [...#ContractID] | *[]
 	networkRefs: [...#ContractID] & list.MinItems(1)
 	// Outbound access for owner-requested downloads; never publishes a port.
@@ -4675,7 +4689,7 @@ _servicePublicationShape: {
 	// copied from the selected module runtime; dependency order must never be
 	// inferred from Docker names or mutable labels.
 	applicationRuntimes?: [...close({
-		runtimeAdapterRef?: "standalone-compose" | "coolify" | "komodo" | "runtipi"
+		runtimeAdapterRef?: "standalone-compose" | "coolify" | "komodo" | "runtipi" | "dokploy"
 		workloadRef:        #ContractID
 		siteRef:            #SiteID
 		nodeRef:            #NodeID

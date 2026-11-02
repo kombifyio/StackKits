@@ -1034,11 +1034,12 @@ _architectureV2WorkloadContracts: [
 			runtime: {
 				allowedKinds: ["container"]
 				allowedDeliveries: ["application-adapter"]
-				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				allowedAdapterRefs: ["coolify", "dokploy", "komodo", "standalone-compose"]
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
 					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "dokploy", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
@@ -1111,17 +1112,17 @@ _architectureV2WorkloadContracts: [
 			runtime: {
 				allowedKinds: ["container"]
 				allowedDeliveries: ["application-adapter"]
-				allowedAdapterRefs: ["coolify", "komodo", "runtipi", "standalone-compose"]
+				allowedAdapterRefs: ["coolify", "dokploy", "komodo", "runtipi", "standalone-compose"]
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
 					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "dokploy", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					// Explicit only: Files binds to Runtipi when the Marketplace runs
-					// Runtipi; no default or compute tier selects it. Backup needs the
-					// Runtipi app-control manager, which the pinned upstream Runtipi
-					// does not provide, so backup and restore fail closed.
-					{adapterRef: "runtipi", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: false}},
+					// Runtipi; no default or compute tier selects it. Backup quiesces
+					// the exact app containers like the other adapters.
+					{adapterRef: "runtipi", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
@@ -1193,18 +1194,20 @@ _architectureV2WorkloadContracts: [
 			runtime: {
 				allowedKinds: ["container"]
 				allowedDeliveries: ["application-adapter"]
-				allowedAdapterRefs: ["coolify", "komodo", "standalone-compose"]
+				allowedAdapterRefs: ["coolify", "dokploy", "komodo", "standalone-compose"]
 				defaultAdapterRef: "standalone-compose"
 				defaultFallbackAdapterRefs: []
 				compatibility: [
 					{adapterRef: "coolify", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+					{adapterRef: "dokploy", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "komodo", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["vault-owner-invite"]}
 			inputs: {
-				settings: {allowedRefs: [], requiredRefs: []}
+				// release selects one admitted Vaultwarden release; omission keeps the default.
+				settings: {allowedRefs: ["release"], requiredRefs: [], descriptors: [{key: "release", type: "string", label: "Release"}]}
 				secretInputs: {
 					allowedRefs: ["admin-token"]
 					requiredRefs: ["admin-token"]
@@ -8948,6 +8951,13 @@ _architectureV2Modules: list.Concat([[
 					ref:    "ghcr.io/dani-garcia/vaultwarden:1.37.2"
 					digest: "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912"
 				}
+				// Further upstream release (multi-arch index digest, amd64 and
+				// arm64) one installation can move to with a retained-data
+				// rollback: `stackkit use-cases upgrade vault --to 1.37.5`.
+				releases: [{image: {
+					ref:    "ghcr.io/dani-garcia/vaultwarden:1.37.5"
+					digest: "sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f"
+				}}]
 				dependsOn: []
 				networkRefs: ["vaultwarden-internal"]
 				environment: SIGNUPS_ALLOWED: "false"
@@ -8977,8 +8987,8 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/vaultwarden/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:44226a82f065830cdc96c5d73667432429b8ba8f65ff0d71e692e32cc8b40cee"
-			publicInputRefs: ["delivery-route"]
+			contractHash: "sha256:bdfc2416ecef3841621bd3166fccf50246f0525a127ec98500158da99142db85"
+			publicInputRefs: ["delivery-route", "release"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
 				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
@@ -9011,19 +9021,19 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
 				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
-				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "release"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
-				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "release"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: _architectureV2TerramateStackHashes.workload
 				unitRefs: ["vaultwarden", "terramate-stack"], artifactRefs: ["vaultwarden-workload-bundle", _architectureV2VaultwardenTerramateStack.contract.id]
-				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
+				publicInputRefs: ["delivery-route", "release"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2VaultwardenSupport
@@ -13537,9 +13547,9 @@ ArchitectureV2InternalHomeWorkloadRefs: _architectureV2InternalHomeWorkloadRefs
 
 ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
-	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2MarketplaceProviders, _architectureV2HomeAssistantInstanceProviders, _architectureV2GuacamoleProviders, _architectureV2NtfyLiveProviders, _architectureV2AdguardHomeProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
+	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2MarketplaceProviders, _architectureV2DokployProviders, _architectureV2HomeAssistantInstanceProviders, _architectureV2GuacamoleProviders, _architectureV2NtfyLiveProviders, _architectureV2AdguardHomeProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
-	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2MarketplaceModules, _architectureV2KomodoBootstrapModules, _architectureV2HomeAssistantInstanceModules, _architectureV2GuacamoleModules, _architectureV2NtfyLiveModules, _architectureV2AdguardHomeModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
+	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2MarketplaceModules, _architectureV2KomodoBootstrapModules, _architectureV2DokployModules, _architectureV2HomeAssistantInstanceModules, _architectureV2GuacamoleModules, _architectureV2NtfyLiveModules, _architectureV2AdguardHomeModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
 	workloads: list.Concat([_architectureV2WorkloadContracts, _architectureV2MarketplaceWorkloads, _architectureV2GuacamoleWorkloads, _architectureV2NtfyLiveWorkloads, _architectureV2AdguardHomeWorkloads, _architectureV2InternalWorkloadContracts])
 	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2GuacamoleLifecycles, _architectureV2NtfyLiveLifecycles, _architectureV2AdguardHomeLifecycles, _architectureV2MarketplaceLifecycles, _architectureV2InternalApplicationLifecycleContracts])
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]

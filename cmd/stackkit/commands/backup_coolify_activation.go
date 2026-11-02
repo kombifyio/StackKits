@@ -52,9 +52,6 @@ func nativeApplicationRestoreActivationRuntime(ctx context.Context, workspace st
 	if err != nil {
 		return nil, err
 	}
-	if binding.Runtime.RuntimeAdapterRef == "runtipi" {
-		return nativeRuntipiRestoreActivationRuntime(ctx, workspace, base, selected, binding, current, held)
-	}
 	bound, err := restoreactivation.WithApplicationBinding(base, selected, binding, current)
 	if err != nil {
 		return nil, err
@@ -70,9 +67,14 @@ func nativeApplicationRestoreActivationRuntime(ctx context.Context, workspace st
 		}
 		var ids map[string]string
 		var err error
-		if binding.Runtime.RuntimeAdapterRef == "coolify" {
+		switch binding.Runtime.RuntimeAdapterRef {
+		case "coolify":
 			ids, err = nativehost.ObserveCoolifyContainerCustody(ctx, workspace, deployment)
-		} else {
+		case "runtipi":
+			ids, err = nativehost.ObserveRuntipiContainerCustody(ctx, workspace, deployment)
+		case "dokploy":
+			ids, err = nativehost.ObserveDokployContainerCustody(ctx, workspace, deployment)
+		default:
 			ids, err = nativehost.ObserveKomodoContainerCustody(ctx, workspace, deployment)
 		}
 		if err != nil {

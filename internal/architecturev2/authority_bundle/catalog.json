@@ -9805,6 +9805,26 @@
       },
       {
         "governanceMatches": [
+          "stackkits-dokploy-bootstrap-runtime"
+        ],
+        "matches": [
+          "stackkits-dokploy"
+        ],
+        "module": "stackkits-dokploy-bootstrap-runtime",
+        "provider": "stackkits-dokploy"
+      },
+      {
+        "governanceMatches": [
+          "stackkits-dokploy-runtime"
+        ],
+        "matches": [
+          "stackkits-dokploy"
+        ],
+        "module": "stackkits-dokploy-runtime",
+        "provider": "stackkits-dokploy"
+      },
+      {
+        "governanceMatches": [
           "stackkits-home-assistant-haos-runtime"
         ],
         "matches": [
@@ -10214,6 +10234,27 @@
         ],
         "module": "stackkits-komodo-bootstrap-runtime",
         "requires": "stackkits-basement-core-lite-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-core-host-bootstrap"
+        ],
+        "module": "stackkits-dokploy-bootstrap-runtime",
+        "requires": "stackkits-core-host-bootstrap"
+      },
+      {
+        "matches": [
+          "stackkits-basement-core-lite-runtime"
+        ],
+        "module": "stackkits-dokploy-bootstrap-runtime",
+        "requires": "stackkits-basement-core-lite-runtime"
+      },
+      {
+        "matches": [
+          "stackkits-dokploy-bootstrap-runtime"
+        ],
+        "module": "stackkits-dokploy-runtime",
+        "requires": "stackkits-dokploy-bootstrap-runtime"
       }
     ],
     "ownership": {
@@ -10824,6 +10865,12 @@
             "marketplace"
           ],
           "providerID": "stackkits-marketplace"
+        },
+        {
+          "contracts": [
+            "dokploy"
+          ],
+          "providerID": "stackkits-dokploy"
         },
         {
           "contracts": [
@@ -11980,6 +12027,20 @@
         ],
         "module": "stackkits-marketplace-runtipi-runtime",
         "provider": "stackkits-marketplace"
+      },
+      {
+        "matches": [
+          "stackkits-dokploy-bootstrap-runtime"
+        ],
+        "module": "stackkits-dokploy-bootstrap-runtime",
+        "provider": "stackkits-dokploy"
+      },
+      {
+        "matches": [
+          "stackkits-dokploy-runtime"
+        ],
+        "module": "stackkits-dokploy-runtime",
+        "provider": "stackkits-dokploy"
       },
       {
         "matches": [
@@ -13864,6 +13925,20 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-dokploy"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-dokploy"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-guacamole"
       },
       {
@@ -14631,6 +14706,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-marketplace"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-dokploy"
         },
         {
           "capabilityBindings": [],
@@ -15554,7 +15635,14 @@
                   ]
                 }
               ],
-              "settingsRefs": []
+              "settingsRefs": [
+                {
+                  "matches": [
+                    "vaultwarden"
+                  ],
+                  "ref": "release"
+                }
+              ]
             }
           ],
           "providerMatches": [
@@ -32262,7 +32350,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:44226a82f065830cdc96c5d73667432429b8ba8f65ff0d71e692e32cc8b40cee",
+          "contractHash": "sha256:bdfc2416ecef3841621bd3166fccf50246f0525a127ec98500158da99142db85",
           "id": "vaultwarden",
           "inputBindings": [
             {
@@ -32285,7 +32373,8 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "release"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -32362,7 +32451,8 @@
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "release"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -32381,7 +32471,8 @@
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "release"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -32401,7 +32492,8 @@
           "id": "terramate",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route"
+            "delivery-route",
+            "release"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -32461,6 +32553,14 @@
                 "SSO_SIGNUPS_MATCH_EMAIL": "true"
               }
             },
+            "releases": [
+              {
+                "image": {
+                  "digest": "sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f",
+                  "ref": "ghcr.io/dani-garcia/vaultwarden:1.37.5"
+                }
+              }
+            ],
             "resources": {
               "memoryLimit": "512m",
               "memoryReservation": "64m"
@@ -50214,7 +50314,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:2765e73e1718e1186b54f61bf0ef7104980e4f2e743243416830a198d50559ef",
+          "contractHash": "sha256:d81d6ecdae77e64941b14c138cc73936ec75dcfc6a7de61ee41cc0bd035c3646",
           "id": "runtipi-adapter",
           "inputBindings": [],
           "kind": "native-config",
@@ -50259,7 +50359,8 @@
         "id": "runtipi",
         "operations": [
           "apply",
-          "observe"
+          "observe",
+          "remove"
         ],
         "providerLifecycle": "not-owned",
         "supportedDeliveries": [
@@ -50857,6 +50958,357 @@
         "credentialCustody": "local-owner",
         "evidenceRequired": true,
         "providerLifecycle": "not-owned"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "dokploy-native-bootstrap"
+      ],
+      "health": [
+        {
+          "id": "dokploy-bootstrap-ready",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Node-local Dokploy and PostgreSQL bootstrap for an explicitly selected Basement Standard installation; no Swarm, no second ingress, owner API key in node custody.",
+        "id": "stackkits-dokploy-bootstrap-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-dokploy",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "dokploy-bootstrap",
+              "kind": "native-config",
+              "mode": "0600",
+              "outputRef": "platform/dokploy/bootstrap.json",
+              "required": true,
+              "unitRef": "bootstrap"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "dokploy-bootstrap",
+              "outputRef": "platform/dokploy/bootstrap.json",
+              "unitRef": "bootstrap"
+            }
+          ],
+          "requiredRefs": [
+            "dokploy-bootstrap"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "dokploy-native-bootstrap"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "kit"
+          ]
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:01c7191a6b6fadc6f3b021cb67573d042c5a19d4a813c26801ce18da8f568dbe",
+          "id": "bootstrap",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "platform/dokploy/bootstrap.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [
+            "kit"
+          ],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://platform/dokploy/bootstrap/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [],
+      "requires": [
+        "stackkits-core-host-bootstrap",
+        "stackkits-basement-core-lite-runtime"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "components": [
+          {
+            "dependsOn": [],
+            "health": {
+              "kind": "image"
+            },
+            "id": "postgres",
+            "image": {
+              "digest": "sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab",
+              "ref": "docker.io/library/postgres:16-alpine"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "dokploy-control"
+            ],
+            "resources": {
+              "memoryLimit": "512m"
+            },
+            "role": "database"
+          },
+          {
+            "dependsOn": [
+              "postgres"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/api/health",
+              "port": 3000
+            },
+            "id": "dokploy",
+            "image": {
+              "digest": "sha256:e8789a3f71a1e50d817836ad222ee0eab8ee69fc1b0451fee189a880b5602871",
+              "ref": "docker.io/dokploy/dokploy:v0.30.8"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "dokploy-control",
+              "basement-core"
+            ],
+            "resources": {
+              "memoryLimit": "1536m"
+            },
+            "role": "application"
+          }
+        ],
+        "delivery": "stackkit",
+        "entryComponentRef": "dokploy",
+        "execution": "executable",
+        "kind": "host"
+      },
+      "runtimeAdapterBootstrap": {
+        "adapterRef": "dokploy",
+        "credentialCustody": "local-owner",
+        "evidenceRequired": true,
+        "providerLifecycle": "not-owned"
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home"
+      ]
+    },
+    {
+      "evidence": [
+        "dokploy-adapter-contract"
+      ],
+      "health": [
+        {
+          "id": "dokploy-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "scope": "each-node",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "description": "Workload-scoped Dokploy Compose API adapter over the node's own bootstrapped Dokploy; owner API key in node custody, server-provider lifecycle external.",
+        "id": "stackkits-dokploy-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "only",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-dokploy",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "dokploy-runtime-adapter",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "platform/dokploy/runtime-adapter.json",
+              "required": true,
+              "unitRef": "dokploy-adapter"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "dokploy-runtime-adapter",
+              "outputRef": "platform/dokploy/runtime-adapter.json",
+              "unitRef": "dokploy-adapter"
+            }
+          ],
+          "requiredRefs": [
+            "dokploy-runtime-adapter"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": []
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "level": "generation-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:c1368eba64ddd4b19ec9de15224be5035ab20a82907e6826c120283c6d73ff2d",
+          "id": "dokploy-adapter",
+          "inputBindings": [],
+          "kind": "native-config",
+          "outputs": [
+            "platform/dokploy/runtime-adapter.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://platform/dokploy/runtime-adapter/v1.json",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "dokploy-runtime-adapter"
+          ],
+          "contractHash": "sha256:12bc280a7042488f8b15d62ba91b9a08367aca9806a22230bc96b01e1e494607",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "compose",
+          "unitRefs": [
+            "dokploy-adapter"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "dokploy-runtime-adapter"
+          ],
+          "contractHash": "sha256:81700878de92b06985c45f4173531717b68cebbdc6da4fe93bee6f0b33866f9d",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [],
+          "target": "opentofu",
+          "unitRefs": [
+            "dokploy-adapter"
+          ]
+        }
+      ],
+      "requires": [
+        "stackkits-dokploy-bootstrap-runtime"
+      ],
+      "rilActionPrimitives": [],
+      "role": "platform",
+      "runtime": {
+        "delivery": "external-control-plane",
+        "execution": "contract-handoff",
+        "kind": "control-plane"
+      },
+      "runtimeAdapter": {
+        "agentRefs": [],
+        "capabilities": [
+          "application-setup-local-api"
+        ],
+        "credentialCustody": "local-owner",
+        "evidenceRequired": true,
+        "id": "dokploy",
+        "operations": [
+          "apply",
+          "observe",
+          "remove"
+        ],
+        "providerLifecycle": "not-owned",
+        "supportedDeliveries": [
+          "application-adapter"
+        ],
+        "supportedKinds": [
+          "container"
+        ]
       },
       "serviceControls": [],
       "supportedSiteKinds": [
@@ -57577,6 +58029,54 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "dokploy-adapter-contract"
+      ],
+      "health": [
+        {
+          "id": "dokploy-runtime-contract",
+          "kind": "contract",
+          "phase": "post-apply",
+          "timeoutSeconds": 30
+        }
+      ],
+      "metadata": {
+        "id": "stackkits-dokploy",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [],
+          "required": [
+            "stackkits-dokploy-bootstrap-runtime",
+            "stackkits-dokploy-runtime"
+          ]
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [
+        "dokploy"
+      ],
+      "supportedSiteKinds": [
+        "home"
+      ],
+      "workloadRefs": []
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "home-assistant-instance-evidence"
       ],
       "metadata": {
@@ -58791,6 +59291,7 @@
           "runtime": {
             "allowedAdapterRefs": [
               "coolify",
+              "dokploy",
               "komodo",
               "standalone-compose"
             ],
@@ -58803,6 +59304,16 @@
             "compatibility": [
               {
                 "adapterRef": "coolify",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
+                "adapterRef": "dokploy",
                 "capabilities": {
                   "backupRestore": true,
                   "deployment": true,
@@ -59073,6 +59584,7 @@
           "runtime": {
             "allowedAdapterRefs": [
               "coolify",
+              "dokploy",
               "komodo",
               "runtipi",
               "standalone-compose"
@@ -59095,6 +59607,16 @@
                 "maturity": "beta"
               },
               {
+                "adapterRef": "dokploy",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
                 "adapterRef": "komodo",
                 "capabilities": {
                   "backupRestore": true,
@@ -59107,7 +59629,7 @@
               {
                 "adapterRef": "runtipi",
                 "capabilities": {
-                  "backupRestore": false,
+                  "backupRestore": true,
                   "deployment": true,
                   "routeTLS": true,
                   "statusEvidence": true
@@ -59485,8 +60007,16 @@
               ]
             },
             "settings": {
-              "allowedRefs": [],
-              "descriptors": [],
+              "allowedRefs": [
+                "release"
+              ],
+              "descriptors": [
+                {
+                  "key": "release",
+                  "label": "Release",
+                  "type": "string"
+                }
+              ],
               "requiredRefs": []
             }
           },
@@ -59499,6 +60029,7 @@
           "runtime": {
             "allowedAdapterRefs": [
               "coolify",
+              "dokploy",
               "komodo",
               "standalone-compose"
             ],
@@ -59511,6 +60042,16 @@
             "compatibility": [
               {
                 "adapterRef": "coolify",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              },
+              {
+                "adapterRef": "dokploy",
                 "capabilities": {
                   "backupRestore": true,
                   "deployment": true,

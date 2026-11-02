@@ -24,9 +24,14 @@ const platformSecretEnvFile = ".env.platform"
 
 var platformSecretReference = regexp.MustCompile(`^\$\{([A-Za-z_][A-Za-z0-9_]*)(?::[?-][^}]*)?\}$`)
 
-// coolifyNodeCompose renders the platform Compose for the Coolify API path and
-// writes the owner-only derived secret environment beside the node `.env`.
+// coolifyNodeCompose renders the platform Compose for the Coolify API path.
 func coolifyNodeCompose(p NativeWorkloadCompose) ([]byte, error) {
+	return platformDerivedNodeCompose(p, "Coolify")
+}
+
+// platformDerivedNodeCompose renders the platform Compose for a Layer-2 API path and
+// writes the owner-only derived secret environment beside the node `.env`.
+func platformDerivedNodeCompose(p NativeWorkloadCompose, platform string) ([]byte, error) {
 	var source struct {
 		Services map[string]struct {
 			Environment map[string]any `yaml:"environment"`
@@ -44,10 +49,10 @@ func coolifyNodeCompose(p NativeWorkloadCompose) ([]byte, error) {
 			}
 			match := platformSecretReference.FindStringSubmatch(text)
 			if match == nil {
-				return nil, fmt.Errorf("Coolify workload variable %s uses an unsupported interpolation", key)
+				return nil, fmt.Errorf("%s workload variable %s uses an unsupported interpolation", platform, key)
 			}
 			if prior, exists := references[key]; exists && prior != match[1] {
-				return nil, fmt.Errorf("Coolify workload variable %s names two node secrets", key)
+				return nil, fmt.Errorf("%s workload variable %s names two node secrets", platform, key)
 			}
 			references[key] = match[1]
 		}
@@ -80,11 +85,11 @@ func coolifyNodeCompose(p NativeWorkloadCompose) ([]byte, error) {
 	for _, key := range keys {
 		value, ok := values[references[key]]
 		if !ok {
-			return nil, fmt.Errorf("Coolify workload variable %s has no node secret", key)
+			return nil, fmt.Errorf("%s workload variable %s has no node secret", platform, key)
 		}
 		// Single quotes keep Compose from interpolating the secret value.
 		if strings.ContainsAny(value, "'\r\n\x00") {
-			return nil, fmt.Errorf("Coolify workload secret for %s cannot be carried literally", key)
+			return nil, fmt.Errorf("%s workload secret for %s cannot be carried literally", platform, key)
 		}
 		fmt.Fprintf(&derived, "%s='%s'\n", key, value)
 	}

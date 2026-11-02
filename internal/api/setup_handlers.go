@@ -1226,7 +1226,8 @@ func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdep
 	tfvars["vaultwarden_admin_token"] = ""
 	defer clear(adminToken)
 	observed, setupErr := appsetup.BootstrapVaultwardenOwner(ctx, client, baseURL, appsetup.VaultwardenOwnerRequest{
-		Email: ownerEmail, AdminToken: adminToken, ExpectedVersion: appsetup.VaultwardenPinnedVersion,
+		// The server cannot see the selected release; any admitted one is accepted.
+		Email: ownerEmail, AdminToken: adminToken,
 	})
 	if setupErr != nil {
 		return nil, skerrors.NewDependencyError(

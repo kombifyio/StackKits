@@ -69,6 +69,9 @@ func VerifyServiceToken(token string, opts VerifyOptions) (*Claims, error) {
 	if err := json.Unmarshal(payload, &claims); err != nil {
 		return nil, fmt.Errorf("auth: decode claims: %w", err)
 	}
+	if err := rejectRoleAssertion(payload); err != nil {
+		return nil, err
+	}
 
 	expectedAud := "kombify-" + target
 	if claims.Aud != expectedAud {
@@ -105,6 +108,26 @@ func VerifyServiceToken(token string, opts VerifyOptions) (*Claims, error) {
 	}
 
 	return &claims, nil
+}
+
+func rejectRoleAssertion(payload []byte) error {
+	var claim struct {
+		OnBehalfOf *struct {
+			Roles []string `json:"roles"`
+		} `json:"on_behalf_of"`
+	}
+	if err := json.Unmarshal(payload, &claim); err != nil {
+		return fmt.Errorf("auth: decode claims: %w", err)
+	}
+	if claim.OnBehalfOf == nil {
+		return nil
+	}
+	for _, role := range claim.OnBehalfOf.Roles {
+		if strings.TrimSpace(role) != "" {
+			return fmt.Errorf("auth: on_behalf_of role assertion")
+		}
+	}
+	return nil
 }
 
 func verifyJWTHeader(encoded string) (alg, kid string, err error) {
