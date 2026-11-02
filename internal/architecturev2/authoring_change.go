@@ -298,6 +298,7 @@ func (s *Service) MaterializeUseCaseRemoval(raw []byte, slug string) (StackSpecV
 			delete(routes, id)
 		}
 	}
+	retireDokployPlatformRoute(spec)
 	return s.validateChangedIntent(spec)
 }
 

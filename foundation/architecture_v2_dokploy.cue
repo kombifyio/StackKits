@@ -41,6 +41,9 @@ _architectureV2DokployModules: [{
 		controlPlaneMembers: "only"
 		requiredRoles: ["worker"]
 	}
+	// The UI route's service is this module's own control, which binds it to
+	// the Dokploy runtime the way Core and the Marketplace bind theirs.
+	serviceControls: [{key: "dokploy", serviceRef: "dokploy", adapter: "compose", runtimeRef: "dokploy", componentRefs: ["dokploy", "postgres"], allowedActions: ["logs", "restart", "start", "stop"], critical: false}]
 	runtimeAdapterBootstrap: {
 		adapterRef:        "dokploy"
 		credentialCustody: "local-owner"
@@ -76,10 +79,14 @@ _architectureV2DokployModules: [{
 		compatibleTargets: ["compose", "opentofu"]
 		templateRef:  "builtin://platform/dokploy/bootstrap/v1.json"
 		version:      "1.0.0"
-		contractHash: "sha256:01c7191a6b6fadc6f3b021cb67573d042c5a19d4a813c26801ce18da8f568dbe"
-		publicInputRefs: [], secretInputRefs: [], planInputRefs: ["kit"]
+		contractHash: "sha256:000c76b558747cdaf1a58248f9c7dc73363f70a269e962cba80454d24aecfa84"
+		publicInputRefs: ["delivery-route"], secretInputRefs: [], planInputRefs: ["kit"]
+		inputBindings: [{targetRef: "delivery-route", sourceRef: "network.moduleRoute", valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null}]
 		outputs: ["platform/dokploy/bootstrap.json"]
 		placement: {scope: "node-local", cardinality: "one-per-node"}
+		// The UI route is authored with the first Dokploy workload. TinyAuth admits
+		// only declared hosts; household members pass it but hold no Dokploy account.
+		serviceEndpoints: [{serviceRef: "dokploy", upstreamProtocol: "http", targetPort: 3000, requiredPrivilege: "user", ingressAuth: "forward-auth", allowedIngressProtocols: ["https"], allowedExposures: ["local", "remote-private"], originSelector: "control-authority-site", healthRef: "dokploy-ui-ready", data: {bindingRef: "dokploy", requiredClasses: ["secret"], locality: "primary-site"}}]
 	}]
 	realizationSupport: {
 		contractVersion: "1.0.0"
@@ -99,7 +106,7 @@ _architectureV2DokployModules: [{
 		}
 		evidence: requiredRefs: ["dokploy-native-bootstrap"]
 	}
-	health: [{id: "dokploy-bootstrap-ready", kind: "contract", scope: "each-node"}]
+	health: [{id: "dokploy-ui-ready", kind: "http", phase: "continuous", path: "/api/health", port: 3000, timeoutSeconds: 10, expectedStatuses: [200]}]
 	evidence: ["dokploy-native-bootstrap"]
 }, {
 	metadata: {

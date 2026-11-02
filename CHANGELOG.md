@@ -1,5 +1,8 @@
 # Changelog
 
+- Fix: the Dokploy UI at `dokploy.<domain>` now opens for the owner after the Pocket ID sign-in, and `stackkit verify` accepts its route. TinyAuth admits only hosts the plan declares, and the UI was not a declared route, so even the owner was sent back to the sign-in. The first workload on `--platform dokploy` now authors a `dokploy-initial-https` route (user privilege, like the Marketplace UI: household members pass TinyAuth but have no Dokploy account), the last one retires it, and the Dokploy router labels follow that route. Dokploy itself is now a managed service (`stackkit service logs|restart|start|stop dokploy`), which binds that route to the Dokploy runtime for `stackkit verify`.
+- Fix: a backup of a Dokploy workload no longer fails with `create repository snapshot: docker-compose-exit; output="closed-contract-rejected"`. Quiescence stopped and restarted the writers with a bare `docker stop`/`docker start`, which the closed Compose process contract refuses; it now runs `docker compose stop`/`start <service>` on the workload's Dokploy project through that contract.
+
 - Feature: Dokploy is a selectable Layer-2 platform on Basement. `stackkit init basement-kit --use-case files --platform dokploy` (also Photos and Vault, or `stackkit use-cases add <slug> --platform dokploy`) installs Dokploy 0.30.8 with PostgreSQL 16 on the node during Apply, without Docker Swarm and without Dokploy's own Traefik: the Kit router stays the only ingress and publishes the Dokploy UI at `dokploy.<domain>` behind TinyAuth and Pocket ID. The first Dokploy owner is created for the root owner's email and closes Dokploy's registration; its password and an unlimited node API key stay in node custody on the node (`stackkit secrets reveal --platform dokploy --slot owner-password` prints the login, because native Dokploy SSO is licensed). Workloads deploy through the Dokploy Compose API with their data in node-named volumes; `stackkit setup`, `verify`, `drift detect` (`dokploy-service-recipe-changed` after a Dokploy UI edit), `backup run`, `backup restore activate --workload` and `stackkit remove --workload` (keep or delete data) work on them. Dokploy stays a draft platform without a support claim until its current-pin test-window receipt.
 
 - Fix: when the Marketplace (Coolify or Runtipi) fails during an Apply, the workloads that deploy through it now fail at once with "not attempted: the Marketplace or Dokploy platform this workload deploys through failed earlier in this Apply". Before, such a workload (for example Photos or Files on Coolify) still started, waited for a deployment the unconfigured platform could never run, and ended the Apply after about 14 minutes with only `product_deadline_exceeded`, which hid the Marketplace failure.
@@ -402,27 +405,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
-## 0.55.9 (2026-11-02)
+## 0.55.10 (2026-11-02)
+
+### Added
+
+* **window:** Dokploy and Runtipi platform restore suites on rack-kvm, shared test-window 7b662ab8 (, )
 
 ### Fixed
 
 * **delivery:** Techstack Render fallback uses the admission carrying the contract
-* **delivery:** the Techstack Render fallback reads Techstack's own version declaration in the monorepo
-* **deps:** update internal products
-* **lifecycle:** selected Vaultwarden release in the executor and a non-nested release checkpoint lock
-
-## 0.55.8 (2026-11-02)
-
-### Fixed
-
-* **release-guard:** admit the release volume probe in the closed Compose runner
-* **window:** B3 binds the Techstack product source, not the monorepo head
-
-## 0.55.7 (2026-11-02)
-
-### Added
-
-* **lifecycle:** scoped application release change with retained-data rollback
+* **delivery:** the Render runner dispatches with the controller revision's dispatcher
+* **dokploy:** quiesce backup writers through the Compose process contract
+* **dokploy:** UI route behind TinyAuth, bound for verify through the Dokploy service control
+* **localowner:** refuse either admin group and re-judge the CAS snapshot before a legacy delete
 
 ## 0.55.6 (2026-11-02)
 

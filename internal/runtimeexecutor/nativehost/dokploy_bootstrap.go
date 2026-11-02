@@ -38,13 +38,14 @@ type DokployBootstrapOperations interface {
 }
 
 type DokployBootstrapExecutor struct {
-	identity   runtimeexecutor.ExecutorIdentity
-	binding    LocalTargetBinding
-	operations DokployBootstrapOperations
+	identity           runtimeexecutor.ExecutorIdentity
+	binding            LocalTargetBinding
+	healthContractHash string
+	operations         DokployBootstrapOperations
 }
 
-func NewDokployBootstrapExecutor(identity runtimeexecutor.ExecutorIdentity, binding LocalTargetBinding, operations DokployBootstrapOperations) *DokployBootstrapExecutor {
-	return &DokployBootstrapExecutor{identity: identity, binding: binding, operations: operations}
+func NewDokployBootstrapExecutor(identity runtimeexecutor.ExecutorIdentity, binding LocalTargetBinding, healthContractHash string, operations DokployBootstrapOperations) *DokployBootstrapExecutor {
+	return &DokployBootstrapExecutor{identity: identity, binding: binding, healthContractHash: healthContractHash, operations: operations}
 }
 
 func (e *DokployBootstrapExecutor) Identity() runtimeexecutor.ExecutorIdentity { return e.identity }
@@ -53,8 +54,14 @@ func (e *DokployBootstrapExecutor) Execute(ctx context.Context, request runtimee
 	if ctx == nil || e == nil || e.operations == nil || strings.TrimSpace(e.binding.SiteRef) == "" || strings.TrimSpace(e.binding.NodeRef) == "" {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Dokploy bootstrap requires its construction-owned local node")
 	}
-	target, health, document, err := validateDokployBootstrapRequest(request, e.binding)
+	target, document, err := validateDokployBootstrapRequest(request, e.binding)
 	if err != nil {
+		return runtimeexecutor.ExecutionOutcome{}, err
+	}
+	// The module HTTP health and, once the UI route is authored, its route
+	// backend probe use the shared selected-application health boundary.
+	spec := selectedPaaSApplicationSpec{name: "Dokploy", moduleRef: architecturev2renderer.DokployBootstrapModuleRef, healthRef: "dokploy-ui-ready", expectedStatuses: []int{200}}
+	if err := spec.validateHealth(request.HealthTargets, target, SelectedPaaSWorkloadAuthority{HealthContractHash: e.healthContractHash}, document.Route, architecturev2renderer.ApplicationDeliveryComponentDescriptor{HealthPort: 3000, HealthPath: "/api/health"}); err != nil {
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	observed, err := e.operations.ApplyDokploy(ctx, document)
@@ -62,7 +69,7 @@ func (e *DokployBootstrapExecutor) Execute(ctx context.Context, request runtimee
 		return runtimeexecutor.ExecutionOutcome{}, err
 	}
 	if observed.Status != "ready" || !observed.SingleOwner || !observed.RegistrationClosed || !observed.APIPrivate || !observed.APIKeyAuthorized ||
-		observed.EnvironmentID == "" || observed.Swarm || observed.Ingress != "kit-router" || !observed.UIProtected {
+		observed.EnvironmentID == "" || observed.Swarm || observed.Ingress != "kit-router" || (document.Route.ID != "" && !observed.UIProtected) {
 		return runtimeexecutor.ExecutionOutcome{}, errors.New("Dokploy bootstrap did not prove its single owner, private API, Kit-router ingress and protected UI postconditions")
 	}
 	images := map[string]string{}
@@ -78,22 +85,26 @@ func (e *DokployBootstrapExecutor) Execute(ctx context.Context, request runtimee
 	}
 	sum := sha256.Sum256(raw)
 	digest := "sha256:" + hex.EncodeToString(sum[:])
+	health := make([]runtimeexecutor.HealthOutcome, 0, len(request.HealthTargets))
+	for _, requirement := range request.HealthTargets {
+		health = append(health, runtimeexecutor.HealthOutcome{RequirementID: requirement.RequirementID, TargetRef: requirement.TargetRef, Status: runtimeexecutor.HealthStatusHealthy,
+			ObservationRef: "health-observation://dokploy-bootstrap/" + target.InstanceRef, ObservationDigest: digest})
+	}
 	return runtimeexecutor.ExecutionOutcome{
 		Runtime: []runtimeexecutor.RuntimeOutcome{{RequirementID: target.RequirementID, InstanceRef: target.InstanceRef, Status: runtimeexecutor.RuntimeStatusApplied,
 			ObservationRef: "runtime-observation://dokploy-bootstrap/" + target.InstanceRef, ObservationDigest: digest}},
-		Health: []runtimeexecutor.HealthOutcome{{RequirementID: health.RequirementID, TargetRef: health.TargetRef, Status: runtimeexecutor.HealthStatusHealthy,
-			ObservationRef: "health-observation://dokploy-bootstrap/" + target.InstanceRef, ObservationDigest: digest}},
+		Health: health,
 	}, nil
 }
 
-func validateDokployBootstrapRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, architecturev2renderer.DokployBootstrapDocument, error) {
-	invalid := func(message string) (runtimeexecutor.RuntimeTarget, runtimeexecutor.HealthTarget, architecturev2renderer.DokployBootstrapDocument, error) {
-		return runtimeexecutor.RuntimeTarget{}, runtimeexecutor.HealthTarget{}, architecturev2renderer.DokployBootstrapDocument{}, errors.New(message)
+func validateDokployBootstrapRequest(request runtimeexecutor.ExecutionRequest, binding LocalTargetBinding) (runtimeexecutor.RuntimeTarget, architecturev2renderer.DokployBootstrapDocument, error) {
+	invalid := func(message string) (runtimeexecutor.RuntimeTarget, architecturev2renderer.DokployBootstrapDocument, error) {
+		return runtimeexecutor.RuntimeTarget{}, architecturev2renderer.DokployBootstrapDocument{}, errors.New(message)
 	}
-	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) != 1 {
-		return invalid("Dokploy bootstrap requires exactly its runtime and health target")
+	if len(request.RuntimeTargets) != 1 || len(request.HealthTargets) == 0 {
+		return invalid("Dokploy bootstrap requires exactly its runtime target and its health requirements")
 	}
-	target, health := request.RuntimeTargets[0], request.HealthTargets[0]
+	target := request.RuntimeTargets[0]
 	module, unit := architecturev2renderer.DokployBootstrapModuleRef, architecturev2renderer.DokployBootstrapUnitRef
 	if target.OwnerKind != "module" || target.OwnerRef != module || target.ModuleRef != module || target.UnitRef != unit ||
 		target.ProviderRef != "stackkits-dokploy" || target.OwnerVersion != "" || target.RuntimeKind != "host" || target.RuntimeDelivery != "stackkit" ||
@@ -101,11 +112,6 @@ func validateDokployBootstrapRequest(request runtimeexecutor.ExecutionRequest, b
 		!slices.Equal(target.SiteRefs, []string{binding.SiteRef}) || !slices.Equal(target.NodeRefs, []string{binding.NodeRef}) ||
 		target.ExecutionChannelRef != binding.ExecutionChannelRef || len(target.ArtifactRefs) != 1 {
 		return invalid("Dokploy bootstrap target differs from the exact node-local selected adapter contract")
-	}
-	if health.SourceRef != "dokploy-bootstrap-ready" || health.Phase != "post-apply" || health.Kind != "contract" || health.TargetKind != "module" ||
-		health.TargetRef != module || health.RouteRef != "" || health.BackendPoolRef != "" ||
-		!slices.Equal(health.SiteRefs, target.SiteRefs) || !slices.Equal(health.NodeRefs, target.NodeRefs) {
-		return invalid("Dokploy bootstrap health target differs from its closed postcondition")
 	}
 	artifact, err := exactOwnedArtifactWithPlanMetadata(request.Artifacts, target.ArtifactRefs[0])
 	if err != nil {
@@ -125,5 +131,5 @@ func validateDokployBootstrapRequest(request runtimeexecutor.ExecutionRequest, b
 	if document.SiteRef != binding.SiteRef || document.NodeRef != binding.NodeRef {
 		return invalid("Dokploy bootstrap recipe names another node")
 	}
-	return target, health, document, nil
+	return target, document, nil
 }

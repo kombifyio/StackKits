@@ -345,11 +345,21 @@ func architectureV2HTTPProbeAccess(
 			workloadsByService[key] = append(workloadsByService[key], workload)
 		}
 	}
-	runtimeOwnerByService := map[string]string{}
+	// Runtime component IDs repeat across platforms (each PaaS has its own
+	// postgres), so only a component that is itself a route must have one owner.
+	routeKeys := map[string]bool{}
+	for _, service := range access.Services {
+		routeKeys[architectureV2AccessServiceKey(service.Key)] = true
+	}
+	runtimeOwnerByService, platformOwners := map[string]string{}, map[string]bool{}
 	for _, runtime := range access.RuntimeServices {
 		serviceKey := architectureV2AccessServiceKey(runtime.ServiceKey)
 		ownerKey := architectureV2AccessServiceKey(runtime.ApplicationKey)
 		if serviceKey == "" || ownerKey == "" {
+			continue
+		}
+		platformOwners[ownerKey] = true
+		if !routeKeys[serviceKey] {
 			continue
 		}
 		if previous, ok := runtimeOwnerByService[serviceKey]; ok && previous != ownerKey {
@@ -372,14 +382,7 @@ func architectureV2HTTPProbeAccess(
 		}
 		candidates := workloadsByService[workloadKey]
 		if len(candidates) == 0 {
-			platform := false
-			for _, ownerKey := range runtimeOwnerByService {
-				if ownerKey == serviceKey {
-					platform = true
-					break
-				}
-			}
-			if !platform {
+			if !platformOwners[serviceKey] {
 				return nil, fmt.Errorf("verified Access manifest route %q has no exact Plan workload binding", key)
 			}
 			routeRef := strings.TrimSpace(service.RouteRef)

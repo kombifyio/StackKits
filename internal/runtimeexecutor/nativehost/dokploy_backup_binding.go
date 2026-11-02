@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backupexec"
@@ -75,7 +76,10 @@ func controlDokployWorkloadComponent(ctx context.Context, workspace string, depl
 	if err != nil {
 		return err
 	}
-	if _, err := o.prepared.runner.Run(ctx, []string{action, ids[componentRef]}, project.directory); err != nil {
+	// The closed Compose process contract admits operations only after its
+	// exact project, env-file and compose prefix, here on the physical project.
+	args := append(slices.Clip(standaloneComposeArgs(project, "ps")[:7]), action, componentRef)
+	if _, err := o.prepared.runner.Run(ctx, args, project.directory); err != nil {
 		return err
 	}
 	if err := o.prepared.waitForComponentReadiness(ctx, project, func(statuses map[string]standaloneComposePS) (bool, error) {

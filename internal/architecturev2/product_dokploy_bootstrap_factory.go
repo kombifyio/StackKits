@@ -27,8 +27,23 @@ func (f *productDokployBootstrapFactory) PrepareRuntimeOwner(request ProductRunt
 	}
 	target, health := cloneProductRuntimeTarget(request.Target), cloneProductHealthTargets(request.HealthTargets)
 	if productRuntimeOwnerSelectorForTarget(target) != productDokployBootstrapSelector() || len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 ||
-		target.ExecutionChannelRef == "" || len(health) != 1 || !productHealthTargetsRuntime(health[0], target) {
-		return nil, errors.New("Dokploy bootstrap requires one selected node-local runtime and health contract")
+		target.ExecutionChannelRef == "" || len(health) == 0 {
+		return nil, errors.New("Dokploy bootstrap requires one selected node-local runtime and its health contracts")
+	}
+	moduleHealthIndex := -1
+	for index, requirement := range health {
+		if !productHealthTargetsRuntime(requirement, target) {
+			return nil, errors.New("Dokploy bootstrap received health outside its node authority")
+		}
+		if requirement.TargetKind == "module" {
+			if moduleHealthIndex >= 0 {
+				return nil, errors.New("Dokploy bootstrap received multiple module health contracts")
+			}
+			moduleHealthIndex = index
+		}
+	}
+	if moduleHealthIndex < 0 {
+		return nil, errors.New("Dokploy bootstrap module health contract is missing")
 	}
 	identity, err := productRuntimeOwnerAdapterIdentity("stackkits-dokploy-bootstrap-local", f.runtimeVersion, target, health)
 	if err != nil {
@@ -36,7 +51,7 @@ func (f *productDokployBootstrapFactory) PrepareRuntimeOwner(request ProductRunt
 	}
 	return nativehost.NewDokployBootstrapExecutor(identity, nativehost.LocalTargetBinding{
 		SiteRef: target.SiteRefs[0], NodeRef: target.NodeRefs[0], ExecutionChannelRef: target.ExecutionChannelRef,
-	}, f.operations), nil
+	}, health[moduleHealthIndex].ContractHash, f.operations), nil
 }
 
 func productDokployBootstrapSelector() ProductRuntimeOwnerSelector {

@@ -534,12 +534,11 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, 
 		if _, exists := source.network["routes"]; !exists {
 			return nil, false, nil
 		}
+		// A platform module that no workload selects (the Dokploy bootstrap UI)
+		// binds only the routes its spec names by exact moduleRef.
 		serviceRef, selected, err := selectedWorkloadServiceForModule(source.workloads, moduleID)
 		if err != nil {
 			return nil, false, err
-		}
-		if source.workloads != nil && !selected {
-			return nil, false, nil
 		}
 		projected, err := projectPublicRouteListFromNetwork(source.network, source.gates, "resolvedPlan.network", true, true)
 		if err != nil {

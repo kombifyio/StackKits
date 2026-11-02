@@ -182,12 +182,15 @@ func (o *osDokployBootstrapOperations) ApplyDokploy(ctx context.Context, d archi
 	if err != nil {
 		return empty, err
 	}
-	if err := verifyKitRouterDeniesAnonymous(ctx, o.workspace, "Dokploy", coreProject, coreNetwork, d.Host(), func(ctx context.Context, args []string) ([]byte, error) {
-		return o.run(ctx, args, o.workspace)
-	}); err != nil {
-		return empty, err
+	if d.Route.ID != "" {
+		if err := verifyKitRouterDeniesAnonymous(ctx, o.workspace, "Dokploy", coreProject, coreNetwork, d.Route.Host, func(ctx context.Context, args []string) ([]byte, error) {
+			return o.run(ctx, args, o.workspace)
+		}); err != nil {
+			return empty, err
+		}
+		observed.UIProtected = true
 	}
-	observed.UIProtected, observed.Status = true, "ready"
+	observed.Status = "ready"
 	return observed, nil
 }
 
@@ -352,18 +355,17 @@ func (o *osDokployBootstrapOperations) prepare(view confinedfs.View, s dokployCu
 			entry["volumes"] = []string{"dokploy-postgres:/var/lib/postgresql/data"}
 			entry["healthcheck"] = map[string]any{"test": []string{"CMD", "pg_isready", "-U", "dokploy", "-d", "dokploy"}, "interval": "5s", "retries": 20, "timeout": "3s"}
 		case "dokploy":
-			router := map[string]string{}
-			for key, value := range labels {
-				router[key] = value
+			// The UI is published only through the authored route, whose exact host
+			// TinyAuth admits.
+			if d.Route.ID != "" {
+				router := standaloneComposeRouteLabels(d.Route, false)
+				for key, value := range labels {
+					if key != "traefik.enable" {
+						router[key] = value
+					}
+				}
+				entry["labels"] = router
 			}
-			router["traefik.enable"], router["traefik.docker.network"] = "true", coreNetwork
-			router["traefik.http.routers.stackkit-dokploy.rule"] = "Host(`" + d.Host() + "`)"
-			router["traefik.http.routers.stackkit-dokploy.entrypoints"] = "websecure"
-			router["traefik.http.routers.stackkit-dokploy.tls"] = "true"
-			router["traefik.http.routers.stackkit-dokploy.tls.certresolver"] = "stackkits"
-			router["traefik.http.routers.stackkit-dokploy.middlewares"] = "stackkit-forward-auth@docker"
-			router["traefik.http.services.stackkit-dokploy.loadbalancer.server.port"] = "3000"
-			entry["labels"] = router
 			entry["env_file"] = []string{"./dokploy.env"}
 			entry["ports"] = []string{"127.0.0.1::3000"}
 			entry["networks"] = []string{"dokploy-control", "kit-core", "dokploy-network"}

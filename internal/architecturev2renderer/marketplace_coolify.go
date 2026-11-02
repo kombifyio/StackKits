@@ -143,7 +143,7 @@ func ParseMarketplaceCoolifyDocument(raw []byte) (MarketplaceCoolifyDocument, er
 	if err := decodeStrict(raw, &d); err != nil {
 		return d, err
 	}
-	coreModuleRef, kitSupported := MarketplaceCoreModuleRef(d.KitRef)
+	_, kitSupported := MarketplaceCoreModuleRef(d.KitRef)
 	if d.APIVersion != "stackkit.marketplace-coolify/v1" || d.Kind != "MarketplaceCoolify" || !kitSupported ||
 		d.SiteRef == "" || d.NodeRef == "" || !komodoBootstrapDomainPattern.MatchString(d.DomainBase) || !strings.Contains(d.DomainBase, ".") || strings.Contains(d.DomainBase, "..") {
 		return d, errors.New("Marketplace requires the exact Basement or Cloud node and Kit domain")
@@ -163,11 +163,8 @@ func ParseMarketplaceCoolifyDocument(raw []byte) (MarketplaceCoolifyDocument, er
 	if len(seen) != len(prefixes) {
 		return d, errors.New("Marketplace installation dependency is missing")
 	}
-	if d.Route.ID != "" && (d.Route.ModuleRef != MarketplaceCoolifyModuleRef || d.Route.ServiceRef != "marketplace" ||
-		d.Route.CoreModuleRef != coreModuleRef || d.Route.Host != d.Host() || d.Route.Path != "/" ||
-		d.Route.Protocol != "https" || d.Route.Port != 443 || d.Route.UpstreamProtocol != "http" || d.Route.TargetPort != 8080 ||
-		!d.Route.TLSRequired || d.Route.TLSMinVersion != "TLS1.3" || d.Route.IngressAuth != "forward-auth" ||
-		(d.Route.Exposure != "local" && d.Route.Exposure != "remote-private" && (d.KitRef != "cloud-kit" || d.Route.Exposure != "public"))) {
+	if d.Route.ID != "" && !(kitRouterUIRoute{moduleRef: MarketplaceCoolifyModuleRef, serviceRef: "marketplace", kitRef: d.KitRef, host: d.Host(),
+		targetPort: 8080, tlsMinVersions: []string{"TLS1.3"}}).matches(d.Route) {
 		return d, errors.New("Marketplace UI requires the own-node Kit router, HTTPS and forward authentication")
 	}
 	return d, nil

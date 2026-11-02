@@ -3,9 +3,11 @@ package localowner
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/pocketid"
 )
@@ -20,10 +22,15 @@ func (s *Service) createProjectedSubject(ctx context.Context, client pocketIDOwn
 		return nil, errors.New("localowner: invalid projected household identity")
 	}
 	matches, err := client.FindUsersByUsername(ctx, username)
-	if err != nil || len(matches) != 0 {
+	if err != nil {
+		return nil, errors.New("localowner: projected household username cannot be checked")
+	}
+	if len(matches) != 0 {
 		// Even matching mutable profile data cannot claim an existing local
-		// subject. Legacy adoption needs separate explicit ID-bound evidence.
-		return nil, errors.New("localowner: projected household username already exists or cannot be checked")
+		// subject: an unused legacy account is replaced, never adopted.
+		if err := s.replaceUnusedLegacySubject(ctx, client, matches, username, email, subject); err != nil {
+			return nil, err
+		}
 	}
 	if _, err := ensureRequiredGroups(ctx, client); err != nil {
 		return nil, err
@@ -57,6 +64,124 @@ func (s *Service) createProjectedSubject(ctx context.Context, client pocketIDOwn
 		return nil, errors.New("localowner: projected household creation not confirmed")
 	}
 	return client.GetUser(ctx, subject)
+}
+
+// replaceUnusedLegacySubject deletes the one account that the old unrevisioned
+// household add left under the projected username (platform-cztj4.5), so the
+// bound subject can be created. Pocket ID keeps username and email unique, so
+// the bound create cannot coexist with it. Its UUID never becomes custody. It
+// is deleted only when nothing on it belongs to a person yet: a non-admin
+// household account with the member's address, no passkey, and no projection
+// custody naming it. An account with a passkey is refused, because replacing it
+// would cut off whoever holds that passkey; it needs ID-bound adoption.
+func (s *Service) replaceUnusedLegacySubject(ctx context.Context, client pocketIDOwnerClient, matches []pocketid.User, username, email, subject string) error {
+	refuse := func(reason string) error {
+		return errors.New("localowner: projected household username is held by " + reason)
+	}
+	if len(matches) != 1 || !strings.EqualFold(matches[0].Username, username) {
+		return refuse("several or differently named accounts")
+	}
+	legacyID := matches[0].ID
+	if legacyID == "" || legacyID == subject {
+		return refuse("an unidentified account")
+	}
+	fenced, ok := client.(pocketIDMembershipClient)
+	if !ok {
+		return errors.New("localowner: provider conditional membership contract unavailable")
+	}
+	bound, err := s.householdCustodyNames(legacyID)
+	if err != nil {
+		return err
+	}
+	if bound {
+		return refuse("a bound household subject")
+	}
+	// The caller already refused the owner's username and address, and both are
+	// unique in Pocket ID, so a match on them is never the owner. Any admin or
+	// owner group still refuses: the delete below cannot be undone.
+	eligible := func(user *pocketid.User) bool {
+		groups := pocketIDGroupNames(user.UserGroups)
+		return user.ID == legacyID && !user.IsAdmin && !slices.Contains(groups, "admins") &&
+			!slices.Contains(groups, "owners") && householdMember(*user) &&
+			strings.EqualFold(user.Username, username) && strings.EqualFold(strings.TrimSpace(user.Email), email)
+	}
+	user, err := client.GetUser(ctx, legacyID)
+	if err != nil || user == nil {
+		return errors.New("localowner: legacy household account readback failed")
+	}
+	if !eligible(user) {
+		return refuse("an account that is not this member's legacy household account")
+	}
+	snapshot, err := fenced.GetMembership(ctx, legacyID)
+	if err != nil {
+		return err
+	}
+	// The conditional delete is fenced on this snapshot, so judge the
+	// snapshot itself, not the earlier readback.
+	if !eligible(&snapshot.User) {
+		return refuse("an account that is not this member's legacy household account")
+	}
+	// The membership version may not cover passkeys: read them last, right
+	// before the delete.
+	credentials, err := client.ListUserWebAuthnCredentials(ctx, legacyID)
+	if err != nil {
+		return errors.New("localowner: legacy household passkey readback failed")
+	}
+	if len(credentials) != 0 {
+		return refuse("a legacy account with a passkey; it needs ID-bound adoption")
+	}
+	if err := fenced.DeleteMembership(ctx, *snapshot); err != nil && !errors.Is(err, pocketid.ErrNotFound) {
+		return errors.New("localowner: legacy household account deletion failed")
+	}
+	if _, err := client.GetUser(ctx, legacyID); !errors.Is(err, pocketid.ErrNotFound) {
+		return errors.New("localowner: legacy household account deletion is not confirmed")
+	}
+	remaining, err := client.FindUsersByUsername(ctx, username)
+	if err != nil || len(remaining) != 0 {
+		return errors.New("localowner: projected household username already exists or cannot be checked")
+	}
+	return nil
+}
+
+// householdCustodyNames reports whether any household projection custody file
+// names the Pocket ID subject. Any mention refuses; it never grants.
+func (s *Service) householdCustodyNames(pocketIDSubject string) (bool, error) {
+	root, err := confinedfs.Open(s.workspaceRoot)
+	if err != nil {
+		return false, err
+	}
+	defer root.Close()
+	view, err := root.View(".")
+	if err != nil {
+		return false, err
+	}
+	dir, err := view.Open(".stackkit/custody")
+	if err != nil {
+		return false, err
+	}
+	names, err := dir.Readdirnames(-1)
+	_ = dir.Close()
+	if err != nil {
+		return false, err
+	}
+	tx, err := root.BeginTransaction()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Close()
+	for _, name := range names {
+		if !strings.HasPrefix(name, "household-projection-") || !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		body, _, err := tx.ReadStableBounded(".stackkit/custody/"+name, 4096)
+		if err != nil {
+			return false, err
+		}
+		if strings.Contains(string(body), pocketIDSubject) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func validateProjectedSubject(user *pocketid.User, subject, ownerSubject string) error {

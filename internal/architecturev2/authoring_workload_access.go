@@ -86,19 +86,8 @@ func projectInitialWorkloadAccess(spec, authoring map[string]any, selections map
 			}
 		}
 		policyRef := service + "-initial-access"
-		access := initialAuthoringObject(spec, "access")
-		if existing, exists := access[policyRef]; exists {
-			retained, ok := existing.(map[string]any)
-			if !ok {
-				return fmt.Errorf("workload %q initial access policy conflicts with existing intent", id)
-			}
-			for key, required := range policy {
-				if !reflect.DeepEqual(retained[key], required) {
-					return fmt.Errorf("workload %q initial access policy conflicts with existing intent", id)
-				}
-			}
-		} else {
-			access[policyRef] = maps.Clone(policy)
+		if !retainInitialAccessPolicy(spec, policyRef, policy) {
+			return fmt.Errorf("workload %q initial access policy conflicts with existing intent", id)
 		}
 		route := maps.Clone(template)
 		route["serviceRef"], route["moduleRef"] = service, selection.ModuleRef
@@ -118,7 +107,28 @@ func projectInitialWorkloadAccess(spec, authoring map[string]any, selections map
 			return err
 		}
 	}
-	return nil
+	return authorDokployPlatformRoute(spec, contract)
+}
+
+// retainInitialAccessPolicy adds the Kit's initial access policy, or keeps a
+// retained one that still carries every required field.
+func retainInitialAccessPolicy(spec map[string]any, policyRef string, policy map[string]any) bool {
+	access := initialAuthoringObject(spec, "access")
+	existing, exists := access[policyRef]
+	if !exists {
+		access[policyRef] = maps.Clone(policy)
+		return true
+	}
+	retained, ok := existing.(map[string]any)
+	if !ok {
+		return false
+	}
+	for key, required := range policy {
+		if !reflect.DeepEqual(retained[key], required) {
+			return false
+		}
+	}
+	return true
 }
 
 func initialAuthoringObject(parent map[string]any, field string) map[string]any {

@@ -50970,11 +50970,15 @@
       ],
       "health": [
         {
-          "id": "dokploy-bootstrap-ready",
-          "kind": "contract",
-          "phase": "post-apply",
-          "scope": "each-node",
-          "timeoutSeconds": 30
+          "expectedStatuses": [
+            200
+          ],
+          "id": "dokploy-ui-ready",
+          "kind": "http",
+          "path": "/api/health",
+          "phase": "continuous",
+          "port": 3000,
+          "timeoutSeconds": 10
         }
       ],
       "metadata": {
@@ -51048,9 +51052,18 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:01c7191a6b6fadc6f3b021cb67573d042c5a19d4a813c26801ce18da8f568dbe",
+          "contractHash": "sha256:000c76b558747cdaf1a58248f9c7dc73363f70a269e962cba80454d24aecfa84",
           "id": "bootstrap",
-          "inputBindings": [],
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
           "kind": "native-config",
           "outputs": [
             "platform/dokploy/bootstrap.json"
@@ -51063,13 +51076,39 @@
             "kit"
           ],
           "providesInterfaces": [],
-          "publicInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
           "runtimeListeners": [],
           "secretInputBindings": {},
           "secretInputRefs": [],
-          "serviceEndpoints": [],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "dokploy",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "secret"
+                ]
+              },
+              "healthRef": "dokploy-ui-ready",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "dokploy",
+              "targetPort": 3000,
+              "upstreamProtocol": "http"
+            }
+          ],
           "templateRef": "builtin://platform/dokploy/bootstrap/v1.json",
           "version": "1.0.0"
         }
@@ -51138,7 +51177,25 @@
         "evidenceRequired": true,
         "providerLifecycle": "not-owned"
       },
-      "serviceControls": [],
+      "serviceControls": [
+        {
+          "adapter": "compose",
+          "allowedActions": [
+            "logs",
+            "restart",
+            "start",
+            "stop"
+          ],
+          "componentRefs": [
+            "dokploy",
+            "postgres"
+          ],
+          "critical": false,
+          "key": "dokploy",
+          "runtimeRef": "dokploy",
+          "serviceRef": "dokploy"
+        }
+      ],
       "supportedSiteKinds": [
         "home"
       ]
