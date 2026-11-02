@@ -58,15 +58,7 @@ func runApplicationReleaseRollback(cmd *cobra.Command, o useCaseUpgradeOptions) 
 					return err
 				}
 			}
-			if err := persistApplicationReleaseIntent(wd, service, specPath, record.TargetSpecHash, record.PriorSpec); err != nil {
-				return err
-			}
-			if err := restoreactivation.ResumeApplicationProject(ctx, wd, record.ComposeProject); err != nil {
-				return err
-			}
-			record.State = applicationrelease.StateAbandoned
-			record, err = applicationrelease.Persist(wd, record)
-			return err
+			return nil
 		case applicationrelease.StateCheckpointed, applicationrelease.StateRollbackStarted:
 		default:
 			return fmt.Errorf("release operation %s is %s and has nothing to roll back", record.OperationID, record.State)
@@ -101,13 +93,22 @@ func runApplicationReleaseRollback(cmd *cobra.Command, o useCaseUpgradeOptions) 
 				return fmt.Errorf("restored %s differs from its checkpoint; the application stays stopped", volume.LiveName)
 			}
 		}
-		if err := persistApplicationReleaseIntent(wd, service, specPath, record.TargetSpecHash, record.PriorSpec); err != nil {
-			return err
+		return nil
+	})
+	// The intent writer takes the lifecycle lock itself; while the record is
+	// incomplete, Apply starts nothing of this application.
+	if err == nil {
+		err = persistApplicationReleaseIntent(wd, service, specPath, record.TargetSpecHash, record.PriorSpec)
+	}
+	if err == nil && abandoned {
+		if err = restoreactivation.ResumeApplicationProject(ctx, wd, record.ComposeProject); err == nil {
+			record.State = applicationrelease.StateAbandoned
+			record, err = applicationrelease.Persist(wd, record)
 		}
+	} else if err == nil {
 		record.State = applicationrelease.StateRolledBack
 		record, err = applicationrelease.Persist(wd, record)
-		return err
-	})
+	}
 	if err != nil {
 		return fmt.Errorf("rollback of %s did not complete; repeat the command: %w", operation, err)
 	}

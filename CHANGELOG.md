@@ -402,6 +402,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.55.9 (2026-11-02)
+
+### Fixed
+
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **delivery:** the Techstack Render fallback reads Techstack's own version declaration in the monorepo
+* **deps:** update internal products
+* **lifecycle:** selected Vaultwarden release in the executor and a non-nested release checkpoint lock
+
 ## 0.55.8 (2026-11-02)
 
 ### Fixed

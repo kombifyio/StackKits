@@ -236,14 +236,9 @@ func runApplicationReleaseForward(cmd *cobra.Command, slug string, o useCaseUpgr
 		} else if found {
 			return record, fmt.Errorf("release operation %s now governs %s", open.OperationID, selected.workload)
 		}
-		// The lifecycle lock fences the applied plan the checkpoint binds.
-		locked, err := inspectNativeV2AppliedAuthority(ctx, wd, specFile)
-		if err != nil {
-			return record, err
-		}
-		if locked.Plan.Binding() != applied.Plan.Binding() || locked.Lineage != applied.Lineage {
-			return record, errors.New("the applied plan changed before the release checkpoint")
-		}
+		// The intent switch at the end compares the exact prior spec hash, so a
+		// concurrent change of intent refuses the checkpoint. The plan gate takes
+		// this same lifecycle lock and is not re-entered here.
 		authority, err := restoreactivation.DeriveApplicationReleaseAuthority(wd, applied.Plan, applied.Manifest, applied.Lineage, record.OperationID, selected.workload)
 		if err != nil {
 			return record, err
@@ -326,13 +321,17 @@ func checkpointApplicationRelease(ctx context.Context, cmd *cobra.Command, o use
 				return err
 			}
 		}
-		if err := persistApplicationReleaseIntent(wd, service, specPath, record.PriorSpecHash, record.TargetSpec); err != nil {
-			return err
-		}
+		return nil
+	})
+	// The intent writer takes the lifecycle lock itself. Until the record
+	// completes, Apply starts nothing of this application.
+	if err == nil {
+		err = persistApplicationReleaseIntent(wd, service, specPath, record.PriorSpecHash, record.TargetSpec)
+	}
+	if err == nil {
 		record.State = applicationrelease.StateCheckpointed
 		record, err = applicationrelease.Persist(wd, record)
-		return err
-	})
+	}
 	if err != nil {
 		return fmt.Errorf("release checkpoint %s did not complete; resume with --operation-id %s or release it with --rollback %s: %w", record.OperationID, record.OperationID, record.OperationID, err)
 	}
