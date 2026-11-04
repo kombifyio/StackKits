@@ -95,7 +95,7 @@ Released archives can materialize a fresh native-v2 input with:
 
 ```bash
 stackkit init modern-homelab --non-interactive --name my-modern-homelab \
-  --domain home.example.test --platform standalone-compose \
+  --domain home.example.com --platform standalone-compose \
   --use-case-alternative basement-core=standalone \
   --use-case-alternative photos=immich \
   --module-compute-profile stackkits-basement-core-runtime=standard \

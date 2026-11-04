@@ -418,6 +418,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.55.16 (2026-11-04)
+
+### Added
+
+* **window-lanes:** lane runs the Workbench M06 performance proof on the EliteDesk G6
+
+### Fixed
+
+* **guard:** back off a persistent server fault on result redelivery to 5 min
+* **techstack:** release-authored seeds and spec templates follow the identity origin rule
+
 ## 0.55.15 (2026-11-04)
 
 ### Added
