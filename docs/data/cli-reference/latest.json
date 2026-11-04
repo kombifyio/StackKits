@@ -1535,12 +1535,15 @@
         "stackkit backup target",
         "stackkit backup transfer-abort",
         "stackkit backup transfer-export",
+        "stackkit backup transfer-fetch",
         "stackkit backup transfer-finish",
         "stackkit backup transfer-import",
         "stackkit backup transfer-prepare",
         "stackkit backup transfer-recover",
         "stackkit backup transfer-resume",
+        "stackkit backup transfer-serve",
         "stackkit backup transfer-target",
+        "stackkit backup transfer-withdraw",
         "stackkit backup verify"
       ]
     },
@@ -2447,6 +2450,47 @@
       "subcommands": []
     },
     {
+      "path": "stackkit backup transfer-fetch",
+      "name": "transfer-fetch",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-fetch [flags]",
+      "short": "Download one transfer archive from the source node and keep it only when its digest matches",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "archive-sha256",
+          "type": "string",
+          "description": "Exact ciphertext digest from the source's signed receipt",
+          "required": false
+        },
+        {
+          "name": "from",
+          "type": "string",
+          "description": "Source HOST:PORT that transfer-serve shares on",
+          "required": false
+        },
+        {
+          "name": "max-bytes",
+          "type": "int",
+          "default": "549755813888",
+          "description": "Maximum ciphertext bytes",
+          "required": false
+        },
+        {
+          "name": "wait",
+          "type": "duration",
+          "default": "2m0s",
+          "description": "Wait this long for the source share to come up",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit backup transfer-finish",
       "name": "transfer-finish",
       "parent": "stackkit backup",
@@ -2525,6 +2569,12 @@
           "name": "archive-sha256",
           "type": "string",
           "description": "Required exact transfer admission value",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Managed node: Techstack capability for this exact receiving import",
           "required": false
         },
         {
@@ -2616,6 +2666,12 @@
           "required": false
         },
         {
+          "name": "capability",
+          "type": "string",
+          "description": "Managed node: Techstack capability for this exact receiving preparation",
+          "required": false
+        },
+        {
           "name": "expected-plan-hash",
           "type": "string",
           "description": "Required exact transfer admission value",
@@ -2689,6 +2745,12 @@
           "name": "archive-sha256",
           "type": "string",
           "description": "Exact original transfer admission",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Managed node: Techstack capability for this exact receiving import",
           "required": false
         },
         {
@@ -2789,17 +2851,76 @@
       "subcommands": []
     },
     {
+      "path": "stackkit backup transfer-serve",
+      "name": "transfer-serve",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-serve [flags]",
+      "short": "Serve one exported transfer archive once to the admitted receiving node",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "open-firewall",
+          "type": "bool",
+          "description": "Admit the peer on the port in the host firewall while sharing",
+          "required": false
+        },
+        {
+          "name": "peer",
+          "type": "string",
+          "description": "Address of the receiving node; no other client is served",
+          "required": false
+        },
+        {
+          "name": "port",
+          "type": "int",
+          "default": "8124",
+          "description": "TCP port of the one-shot share",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Export directory transfer-export wrote",
+          "required": false
+        },
+        {
+          "name": "ttl",
+          "type": "duration",
+          "default": "30m0s",
+          "description": "Stop sharing after this long without a complete download",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit backup transfer-target",
       "name": "transfer-target",
       "parent": "stackkit backup",
       "aliases": [],
       "group": "care",
       "usage": "stackkit backup transfer-target [flags]",
-      "short": "Issue a signed receiving-node admission for an existing private age identity",
+      "short": "Issue a signed receiving-node admission for a private age identity",
       "description": "",
       "runnable": true,
       "examples": [],
       "flags": [
+        {
+          "name": "candidate-spec",
+          "type": "string",
+          "description": "Managed node: the Techstack-approved receiving candidate StackSpec to persist and generate",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Managed node: Techstack capability for this exact receiving admission",
+          "required": false
+        },
         {
           "name": "expected-plan-hash",
           "type": "string",
@@ -2807,9 +2928,48 @@
           "required": false
         },
         {
+          "name": "expected-spec-hash",
+          "type": "string",
+          "description": "Managed node: the exact current intent the receiving candidate was authored from",
+          "required": false
+        },
+        {
           "name": "identity-file",
           "type": "string",
-          "description": "Existing private receiving age identity",
+          "description": "Existing private receiving age identity (default: a new node-held identity)",
+          "required": false
+        },
+        {
+          "name": "source-owner",
+          "type": "string",
+          "description": "Managed node: the source Owner the Techstack receive capability names",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-withdraw",
+      "name": "transfer-withdraw",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-withdraw [flags]",
+      "short": "Withdraw an unused receiving admission and restore the intent its admit replaced",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "nonce",
+          "type": "string",
+          "description": "Nonce of the receiving admission",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve withdrawing the receiving admission",
           "required": false
         }
       ],
@@ -2831,14 +2991,28 @@
       "legacy": true
     },
     {
+      "path": "stackkit binary-capabilities",
+      "name": "binary-capabilities",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit binary-capabilities [flags]",
+      "short": "Print capabilities implemented by this executable",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
       "path": "stackkit break-glass",
       "name": "break-glass",
       "parent": "stackkit",
       "aliases": [],
       "group": "care",
       "usage": "stackkit break-glass [flags]",
-      "short": "Manage break-glass recovery accounts and bundles",
-      "description": "Manage per-node break-glass recovery accounts and the encrypted bundles\nthat hold their credentials.\n\nBundles are written by 'stackkit apply' (Phase 1) into /var/lib/stackkit/recovery/.\nThey are encrypted with the recovery passphrase you set during init.\n\nTo recover a node, decrypt the bundle:\n    age -d -o break-glass.txt break-glass-<node>.age\n\nThen follow the RESTORE INSTRUCTIONS section inside the decrypted YAML.",
+      "short": "Owner recovery: recovery set, recovery key and recovery code",
+      "description": "Owner recovery at the Authority.\n\nThe recovery set (the break-glass bundle) holds the Authority's identity\ncustody: Owner key, CA keys, Pocket ID keys and database, step-ca database,\ndevice registry and device credential issuer key. It is encrypted to the\nOwner's recovery key, which is shown once at setup and never stored here.\nThe separate recovery code registers a new Owner passkey once: at this\nconsole at once (redeem), or from an enrolled Owner device after 24 hours\nwith notices to every Owner device.\n\nRestoring the set onto a replacement Authority keeps the identity origin,\nso existing passkeys keep working.",
       "runnable": false,
       "examples": [],
       "flags": [
@@ -2851,9 +3025,87 @@
         }
       ],
       "subcommands": [
+        "stackkit break-glass cancel",
+        "stackkit break-glass code",
         "stackkit break-glass list",
-        "stackkit break-glass show-bundle"
+        "stackkit break-glass notices",
+        "stackkit break-glass redeem",
+        "stackkit break-glass restore",
+        "stackkit break-glass setup",
+        "stackkit break-glass show-bundle",
+        "stackkit break-glass status",
+        "stackkit break-glass write"
       ]
+    },
+    {
+      "path": "stackkit break-glass cancel",
+      "name": "cancel",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass cancel [flags]",
+      "short": "Cancel a pending Owner device recovery",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass cancel --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize cancelling the pending recovery",
+          "required": false
+        },
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass code",
+      "name": "code",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass code [flags]",
+      "short": "Replace the recovery code and show the new one once",
+      "description": "Replace the recovery code and show the new one once. A custody change: the\nOwner approves it with a passkey step-up on an enrolled Owner device in the\nHub before the code changes.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass code --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print a JSON result that contains the new code",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize replacing the recovery code",
+          "required": false
+        },
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
     },
     {
       "path": "stackkit break-glass list",
@@ -2868,14 +3120,202 @@
       "examples": [
         {
           "command": "stackkit break-glass list",
-          "description": "List the encrypted recovery bundles in /var/lib/stackkit/recovery"
+          "description": "List the encrypted recovery sets in /var/lib/stackkit/recovery"
         },
         {
           "command": "stackkit break-glass list --dir ./recovery-copy",
-          "description": "List bundles copied to another directory"
+          "description": "List sets copied to another directory"
         }
       ],
       "flags": [
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass notices",
+      "name": "notices",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass notices [flags]",
+      "short": "List the recovery notices addressed to the Owner devices",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass notices --json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print a JSON result",
+          "required": false
+        },
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass redeem",
+      "name": "redeem",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass redeem [flags]",
+      "short": "Redeem the recovery code at this console for a new Owner passkey",
+      "description": "Redeem the recovery code at the Authority's console. It yields a Pocket ID\nlink, valid for 20 minutes, that registers a new passkey for the Owner\naccount; the code is then used up (replace it with 'stackkit break-glass\ncode'). A pending Owner device recovery ends. The code is read from\n--code-file or standard input, never from an argument.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass redeem --owner-approve"
+        }
+      ],
+      "flags": [
+        {
+          "name": "code-file",
+          "type": "string",
+          "description": "Read the recovery code from this file instead of standard input",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print a JSON result",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize redeeming the recovery code",
+          "required": false
+        },
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass restore",
+      "name": "restore",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass restore [flags]",
+      "short": "Restore a recovery set onto a replacement Authority",
+      "description": "Restore a recovery set onto a replacement Authority. Run it in the\nworkspace directory of the new host before generate and apply: it verifies\nthe whole set with the recovery key, fills fresh Docker volumes for the\nPocket ID and step-ca databases, and installs the identity custody. The\nidentity origin stays the same (the Pocket ID host is the passkey relying\nparty), so existing passkeys keep working. The key is read from --key-file\nor standard input, never from an argument.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass restore --from break-glass-main.age --owner-approve\nstackkit generate && stackkit apply",
+          "description": "Restore, then roll the Authority out again from the same StackSpec"
+        }
+      ],
+      "flags": [
+        {
+          "name": "from",
+          "type": "string",
+          "description": "Path of the recovery set (break-glass-<node>.age)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print a JSON result",
+          "required": false
+        },
+        {
+          "name": "key-file",
+          "type": "string",
+          "description": "Read the recovery key from this file instead of standard input",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize installing the restored identity custody",
+          "required": false
+        },
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass setup",
+      "name": "setup",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass setup [flags]",
+      "short": "Create the recovery key and code, show both once and write the first recovery set",
+      "description": "Create the Owner's recovery key and recovery code on the Authority, print both\nexactly once, and write the first recovery set.\n\nStore the recovery key offline and apart from the recovery set: whoever\nholds both holds the Authority's identity. StackKits keeps only the public\nhalf of the key, so it can write new sets but never read one. kombify never\nreceives the key. --rotate replaces an existing key and code; it asks for the\nOwner's passkey step-up on an enrolled Owner device in the Hub first.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass setup --owner-approve --target /mnt/backup",
+          "description": "First setup, with a copy of the set on a mounted backup disk"
+        },
+        {
+          "command": "stackkit break-glass setup --owner-approve --backup-target --json",
+          "description": "Machine-readable, for the setup flow that shows key and code once"
+        }
+      ],
+      "flags": [
+        {
+          "name": "backup-target",
+          "type": "bool",
+          "description": "Also upload the set to the S3 backup target bound with 'stackkit backup target import'",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print a JSON result that contains the recovery key and code",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize creating (or with --rotate replacing) the recovery key and code",
+          "required": false
+        },
+        {
+          "name": "rotate",
+          "type": "bool",
+          "description": "Replace an existing recovery key and code",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Also copy the set into this directory of the Owner's backup target (mounted disk, NAS)",
+          "required": false
+        },
         {
           "name": "dir",
           "type": "string",
@@ -2903,6 +3343,83 @@
         }
       ],
       "flags": [
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass status",
+      "name": "status",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass status [flags]",
+      "short": "Show the recovery state without secrets",
+      "description": "",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass status --json"
+        }
+      ],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print a JSON result",
+          "required": false
+        },
+        {
+          "name": "dir",
+          "type": "string",
+          "description": "Override the bundle directory (default: /var/lib/stackkit/recovery)",
+          "required": false,
+          "inheritedFrom": "stackkit break-glass"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit break-glass write",
+      "name": "write",
+      "parent": "stackkit break-glass",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit break-glass write [flags]",
+      "short": "Write a new recovery set of the Authority's identity custody",
+      "description": "Write a new recovery set: the local copy in the bundle directory and,\nwhen given, a copy in a backup target directory and an upload to the bound S3\nbackup target (object StackKitsRecoverySet/<site>/<node>.age below its\nprefix). Pocket ID and step-ca are paused for the few seconds the databases\nare read, so the set is crash-consistent. Write a new set after identity\nchanges such as new members or devices.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit break-glass write --backup-target",
+          "description": "Write the set and upload it to the bound S3 backup target"
+        }
+      ],
+      "flags": [
+        {
+          "name": "backup-target",
+          "type": "bool",
+          "description": "Also upload the set to the S3 backup target bound with 'stackkit backup target import'",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print a JSON result",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Also copy the set into this directory of the Owner's backup target (mounted disk, NAS)",
+          "required": false
+        },
         {
           "name": "dir",
           "type": "string",
@@ -3419,55 +3936,34 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit device [flags]",
-      "short": "Enroll, list and revoke household devices (CLI token fallback of the State Console ceremony)",
-      "description": "",
+      "short": "Enrollment bootstrap, devices, notices and revocation at the Authority (the Owner's local console)",
+      "description": "Each person enrolls their own devices: the device client signs them in with their own passkey and enrolls its own key, automatically at home through the LAN enrollment listener and confirmed away by their own enrolled device or the Owner. These commands are the Owner's console at the Authority: show the enrollment bootstrap, bind the Home trust, list devices and notices, undo an enrollment and revoke any device.",
       "runnable": false,
       "examples": [],
       "flags": [],
       "subcommands": [
-        "stackkit device enroll",
+        "stackkit device bootstrap",
         "stackkit device list",
+        "stackkit device notices",
         "stackkit device overlay",
-        "stackkit device revoke"
+        "stackkit device revoke",
+        "stackkit device signer",
+        "stackkit device trust",
+        "stackkit device undo"
       ]
     },
     {
-      "path": "stackkit device enroll",
-      "name": "enroll",
+      "path": "stackkit device bootstrap",
+      "name": "bootstrap",
       "parent": "stackkit device",
       "aliases": [],
       "group": "reference",
-      "usage": "stackkit device enroll [flags]",
-      "short": "Issue a single-use pairing token after Owner step-up, or redeem one with a device CSR",
-      "description": "With --owner-session-file, issue a single-use 300-second pairing token; the file holds a PocketID Owner session authenticated within the last 60 seconds ('-' reads stdin). With --code and --csr, redeem the token for the device-generated key in the CSR and receive a client certificate from the node-local step-ca device provisioner. Both steps also combine in one call. Enrollment is refused from outside the LAN.",
+      "usage": "stackkit device bootstrap [flags]",
+      "short": "Print the LAN enrollment bootstrap a device client scans (listener URL, TLS name, root fingerprint)",
+      "description": "Print where the LAN enrollment listener is, which server name its certificate carries and the step-ca root fingerprint a device pins, as JSON and as the stackkit-enroll URI. It contains no secret: a device enrolls only with its person's own passkey sign-in.",
       "runnable": true,
       "examples": [],
-      "flags": [
-        {
-          "name": "code",
-          "type": "string",
-          "description": "single-use pairing token to redeem",
-          "required": false
-        },
-        {
-          "name": "csr",
-          "type": "string",
-          "description": "PEM certificate request generated on the device",
-          "required": false
-        },
-        {
-          "name": "out",
-          "type": "string",
-          "description": "write the issued certificate chain to this file instead of stdout",
-          "required": false
-        },
-        {
-          "name": "owner-session-file",
-          "type": "string",
-          "description": "file with a fresh PocketID Owner session token ('-' for stdin); issues a pairing token",
-          "required": false
-        }
-      ],
+      "flags": [],
       "subcommands": []
     },
     {
@@ -3477,7 +3973,21 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit device list [flags]",
-      "short": "List enrolled and revoked household devices",
+      "short": "List every device of every Homelab account: enrolled, pending and revoked",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device notices",
+      "name": "notices",
+      "parent": "stackkit device",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device notices [flags]",
+      "short": "List enrollment notices: at-home enrollments with their 24 hour undo and pending away enrollments",
       "description": "",
       "runnable": true,
       "examples": [],
@@ -3491,8 +4001,8 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit device overlay [flags]",
-      "short": "Join enrolled devices to the kit-owned WireGuard overlay for remote-private access",
-      "description": "The node generates its WireGuard private key into local custody; it is never printed or rendered. Each device generates its own key pair and registers only its public key. Revoked or expired devices drop out of the rendered interface configuration. No kombify account is involved.",
+      "short": "Join enrolled devices to the optional WireGuard VPN add-on",
+      "description": "The VPN add-on is never the default: the Owner switches it on in addition to the standard reach paths, and every request through it still carries the sign-in and device proof its route asks for. The node generates its WireGuard private key into local custody; it is never printed or rendered. Each device generates its own key pair and registers only its public key. Revoked or expired devices drop out of the rendered interface configuration. No kombify account is involved.",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -3565,7 +4075,63 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit device revoke <device-id> [flags]",
-      "short": "Permanently revoke a household device key",
+      "short": "Permanently revoke any device key and everything it holds",
+      "description": "Revoke a device key as the Owner: its renewals stop at once, verifiers refuse its credentials within the revocation refresh, its VPN add-on peer is removed (and a running overlay resynced) and the output lists each revocation-registry artifact. The key can never enroll again.",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device signer",
+      "name": "signer",
+      "parent": "stackkit device",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device signer [flags]",
+      "short": "Run the Authority's host-side identity signer for the Basement core (Apply installs it as a systemd service)",
+      "description": "The Basement core's identity workspace holds verification custody only. This process keeps the Owner custody, the step-ca root and the Pocket ID admin key on the host: it keeps the Owner-signed Home trust, the public Authority record, the household groups and the recovery notices current, and answers the core over a Unix socket that only the core server's account may use: a certificate for the LAN enrollment listener's own names, and the Owner device recovery routes. stackkit apply installs and starts it as stackkit-identity-signer.service.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "peer-uid",
+          "type": "int",
+          "default": "-1",
+          "description": "The only account besides root that may call the signer (default: the core stackkit-server's uid)",
+          "required": false
+        },
+        {
+          "name": "socket",
+          "type": "string",
+          "description": "Unix socket path (default: .stackkit/identity-signer/signer.sock in the workspace)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device trust",
+      "name": "trust",
+      "parent": "stackkit device",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device trust [flags]",
+      "short": "Bind the Owner-signed Home trust to the live PocketID and register the device sign-in client",
+      "description": "Register the stackkit-home-device PocketID client on first use (a public PKCE client for the Homelab groups that requires a passkey on every sign-in), read the live issuer, signing keys and Owner subject, and bind them as the Owner-signed Home trust for 24 hours, keeping every revoked and removed account revoked. The LAN enrollment listener refreshes it every hour; run this once after setup or to repair it.",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit device undo",
+      "name": "undo",
+      "parent": "stackkit device",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit device undo <notice-id> [flags]",
+      "short": "Undo an at-home enrollment within 24 hours, or decline a pending one, by revoking its device",
       "description": "",
       "runnable": true,
       "examples": [],
@@ -9028,6 +9594,27 @@
       "subcommands": []
     },
     {
+      "path": "stackkit ril-primitive-hash",
+      "name": "ril-primitive-hash",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit ril-primitive-hash <id> [flags]",
+      "short": "Read the verified embedded RIL primitive contract hash",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "expect",
+          "type": "string",
+          "description": "Refuse a different primitive contract hash",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit runtime",
       "name": "runtime",
       "parent": "stackkit",
@@ -9428,7 +10015,8 @@
       "subcommands": [
         "stackkit setup ai-connect",
         "stackkit setup ai-provider",
-        "stackkit setup connector"
+        "stackkit setup connector",
+        "stackkit setup identity"
       ]
     },
     {
@@ -9577,6 +10165,57 @@
           "name": "workload",
           "type": "string",
           "description": "Exact local workload; only smart-home is admitted",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit setup identity",
+      "name": "identity",
+      "parent": "stackkit setup",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup identity [flags]",
+      "short": "Finish the identity bootstrap: Owner passkey, recovery key and code, first Owner device",
+      "description": "Finish the homelab identity bootstrap on the applied Authority, in order:\n\n  1. the Owner passkey on the identity origin init fixed (the activation link\n     is printed and the command waits for the passkey);\n  2. the Owner-signed Home trust that every passkey and device check uses;\n  3. the recovery key and recovery code, shown exactly once, and the first\n     recovery set (local copy, --target directory, --backup-target upload);\n  4. the Owner's first device: open the printed Hub address on a phone or\n     laptop at home and connect it with the passkey; it is enrolled at once.\n\nEvery step that is already done is skipped, so the command can be run again\nafter an interruption. The recovery key and code are never shown again.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "stackkit setup identity --owner-approve --target /mnt/backup",
+          "description": "After the first apply, with a copy of the recovery set on a backup disk"
+        }
+      ],
+      "flags": [
+        {
+          "name": "backup-target",
+          "type": "bool",
+          "description": "Also upload the set to the S3 backup target bound with 'stackkit backup target import'",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Print a JSON result (it contains the recovery key and code when they are created)",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Authorize the identity bootstrap of this Authority",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Also copy the set into this directory of the Owner's backup target (mounted disk, NAS)",
+          "required": false
+        },
+        {
+          "name": "wait",
+          "type": "duration",
+          "default": "15m0s",
+          "description": "How long to wait for the Owner passkey and for the first Owner device",
           "required": false
         }
       ],
@@ -10115,14 +10754,25 @@
       "group": "care",
       "usage": "stackkit user activate <username> [flags]",
       "short": "Reissue passkey enrollment for an existing household member",
-      "description": "",
+      "description": "Reissue a one-time passkey registration link for a household member who has no passkey yet. With --reset the Owner resets the passkey of a member who lost every usable passkey: the link is issued although Pocket ID still lists the lost ones, which the member then removes in their account settings. The Owner recovers their own account with the recovery code (stackkit break-glass redeem).",
       "runnable": true,
-      "examples": [],
+      "examples": [
+        {
+          "command": "stackkit user activate alex --reset --owner-approve",
+          "description": "Reset the passkey of a member who lost their phone"
+        }
+      ],
       "flags": [
         {
           "name": "owner-approve",
           "type": "bool",
           "description": "Explicitly approve reissuing household passkey enrollment",
+          "required": false
+        },
+        {
+          "name": "reset",
+          "type": "bool",
+          "description": "Reset the passkey of a member who lost every usable passkey",
           "required": false
         },
         {
@@ -10586,8 +11236,8 @@
       "aliases": [],
       "group": "care",
       "usage": "stackkit user remove <username> [flags]",
-      "short": "Remove a household user from local PocketID",
-      "description": "",
+      "short": "Remove a household user and everything they hold on this Authority",
+      "description": "Remove one household member with the local removal chain: every device of\nthe member is revoked (with its credentials, VPN add-on peer, sessions and app\ncredentials), the member's account joins the revoked accounts of the\nOwner-signed Home trust and can never enroll again, and then the PocketID user\nis deleted, which ends the member's passkeys and PocketID sessions. The output\nlists each revocation-registry artifact and what the chain did for it.",
       "runnable": true,
       "examples": [
         {
@@ -10679,6 +11329,18 @@
           "name": "artifact-manifest",
           "type": "string",
           "description": "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)",
+          "required": false
+        },
+        {
+          "name": "expected-plan-hash",
+          "type": "string",
+          "description": "Require the verified canonical and applied ResolvedPlan hash to match this digest",
+          "required": false
+        },
+        {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded RIL primitive contract hash",
           "required": false
         },
         {
@@ -10815,6 +11477,154 @@
           "description": "Show the installed CLI version"
         }
       ],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit vpn",
+      "name": "vpn",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit vpn [flags]",
+      "short": "The optional VPN add-on: switch it on with WireGuard, Headscale, Tailscale or Pangolin, list its peers, switch it off",
+      "description": "The VPN add-on is never a default in any mode or kit: the Owner switches it on at the Authority, in addition to the standard reach paths, with one of four tools. Every enrolled, unrevoked device then receives its peer from the peer service on the node site address (port 9444) with its device credential, in the same enrollment; revoking the device or removing its person removes the peer, and the reconciler applies it to the live interface or the tool's coordination server within seconds. A peer reaches only the node site address, and every request through it still carries the sign-in and device proof its route asks for.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit vpn disable",
+        "stackkit vpn enable",
+        "stackkit vpn reconcile",
+        "stackkit vpn status"
+      ]
+    },
+    {
+      "path": "stackkit vpn disable",
+      "name": "disable",
+      "parent": "stackkit vpn",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit vpn disable [flags]",
+      "short": "Switch the VPN add-on off: remove every peer, the tool's runtime and the peer service (requires root)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit vpn enable",
+      "name": "enable",
+      "parent": "stackkit vpn",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit vpn enable [flags]",
+      "short": "Switch the VPN add-on on with one tool (requires root at the Authority)",
+      "description": "Records the Owner's opt-in, starts the tool (WireGuard on the host's wireguard-tools; Headscale, the Tailscale node and Newt as their pinned upstream images), registers the Authority as the tool's node that routes only its site address, and starts stackkit-vpn.service: the peer service on port 9444 and the reconciler. Tool secrets are read from files into the add-on's custody and never printed.\n\n  wireguard  --endpoint host:port (UDP, forwarded to 51820; the peer service is host:9444)\n  headscale  --endpoint host:port (TCP, forwarded to 9444: the peer service carries the control endpoint; UDP 3478 for STUN)\n  tailscale  --tailnet <name> --oauth-client-file <json with clientId, clientSecret>\n  pangolin   --pangolin-endpoint https://… --pangolin-api https://…/v1 --pangolin-org <id> --pangolin-site <n> --newt-id <id> --newt-secret-file f --api-key-file f [--ca-file pem]",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "api-key-file",
+          "type": "string",
+          "description": "file with an organization API key that manages clients and site resources (pangolin)",
+          "required": false
+        },
+        {
+          "name": "ca-file",
+          "type": "string",
+          "description": "PEM of the CA of a self-hosted Pangolin server with a private certificate (pangolin)",
+          "required": false
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "description": "public host:port devices dial from away (wireguard, headscale)",
+          "required": false
+        },
+        {
+          "name": "newt-id",
+          "type": "string",
+          "description": "the site's Newt ID (pangolin)",
+          "required": false
+        },
+        {
+          "name": "newt-secret-file",
+          "type": "string",
+          "description": "file with the site's Newt secret (pangolin)",
+          "required": false
+        },
+        {
+          "name": "oauth-client-file",
+          "type": "string",
+          "description": "JSON file with the tailnet OAuth client's clientId and clientSecret (tailscale)",
+          "required": false
+        },
+        {
+          "name": "pangolin-api",
+          "type": "string",
+          "description": "https URL of the Pangolin Integration API, ending in /v1 (pangolin)",
+          "required": false
+        },
+        {
+          "name": "pangolin-endpoint",
+          "type": "string",
+          "description": "https origin of the Owner's Pangolin server (pangolin)",
+          "required": false
+        },
+        {
+          "name": "pangolin-org",
+          "type": "string",
+          "description": "Pangolin organization ID (pangolin)",
+          "required": false
+        },
+        {
+          "name": "pangolin-site",
+          "type": "int",
+          "description": "numeric ID of this Authority's Newt site (pangolin)",
+          "required": false
+        },
+        {
+          "name": "tailnet",
+          "type": "string",
+          "description": "the Owner's tailnet name (tailscale)",
+          "required": false
+        },
+        {
+          "name": "tool",
+          "type": "string",
+          "description": "wireguard, headscale, tailscale or pangolin (no default)",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit vpn reconcile",
+      "name": "reconcile",
+      "parent": "stackkit vpn",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit vpn reconcile [flags]",
+      "short": "Apply the device registry to the tool once: drop the peers of revoked, expired and removed devices (requires root)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit vpn status",
+      "name": "status",
+      "parent": "stackkit vpn",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit vpn status [flags]",
+      "short": "Show the selected tool, the peer ledger and the tool's live device nodes",
+      "description": "",
+      "runnable": true,
+      "examples": [],
       "flags": [],
       "subcommands": []
     },

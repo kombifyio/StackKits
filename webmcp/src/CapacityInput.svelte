@@ -55,7 +55,7 @@
     };
     if (!(event.key in changes) && event.key !== "Home" && event.key !== "End") return;
     event.preventDefault();
-    const requested = event.key === "Home" ? minimum : event.key === "End" ? maximum : current + changes[event.key];
+    const requested = event.key === "Home" ? minimum : event.key === "End" ? maximum : current + (changes[event.key] ?? 0);
     onValue(String(clamp(snapToStep(requested))));
   }
 

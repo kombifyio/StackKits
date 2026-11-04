@@ -13,6 +13,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/clibinding"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/localbackupschedule"
 	"github.com/spf13/cobra"
 )
@@ -55,8 +56,35 @@ func init() {
 		if cmd.Flags().Changed("operation-id") {
 			return errors.New("scheduled backup operation IDs are derived from the approved UTC slot")
 		}
-		return runNativeV2BackupRequest(cmd, nativeV2BackupRun, nativeV2BackupRequest{Scheduled: true})
+		if err := runNativeV2BackupRequest(cmd, nativeV2BackupRun, nativeV2BackupRequest{Scheduled: true}); err != nil {
+			return err
+		}
+		writeScheduledRecoverySet(cmd)
+		return nil
 	}
+}
+
+// writeScheduledRecoverySet keeps the Owner's recovery set as current as the
+// scheduled backups (homelab identity target §9): after each scheduled
+// snapshot it writes a new set, uploads it to the bound S3 backup target when
+// there is one, and keeps the local copy otherwise. A failure is reported and
+// leaves the snapshot result unchanged; the next slot writes again.
+func writeScheduledRecoverySet(cmd *cobra.Command) {
+	root := getWorkDir()
+	status, err := identity.LoadRecoveryStatus(root)
+	if err != nil || !status.Configured {
+		return
+	}
+	destinations := recoverySetDestinations{}
+	if _, _, _, targetErr := inspectBackupTargetAuthority(cmd.Context()); targetErr == nil {
+		destinations.backupTarget = true
+	}
+	written, err := writeRecoverySetEverywhere(cmd.Context(), root, destinations)
+	if err != nil {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "scheduled recovery set not written: %v (retry: stackkit break-glass write)\n", err)
+		return
+	}
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "scheduled recovery set written: %s %s\n", written.BundlePath, written.BackupTargetObject)
 }
 
 type nativeBackupScheduleStatus struct {

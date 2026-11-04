@@ -14,31 +14,71 @@ import (
 	"github.com/kombifyio/stackkits/internal/localowner"
 )
 
-// The device-enroll mode of the Owner step-up page is the State Console
-// enrollment ceremony. The State Console only links to
-// ownerStepUpDeviceEnrollPath; the Owner authenticates with a passkey at the
-// local PocketID through the existing confidential step-up client, and this
-// page alone receives the ID token, issues the single-use pairing code and
-// shows it as text and QR code. Neither the token nor the code passes through
-// the MCP or agent transcript.
+// Enrollment is by the person (homelab identity target §6.2): a device
+// client signs its person in with their own passkey and enrolls its own key;
+// no Owner code is involved. This file serves the two browser surfaces of
+// that flow on this server:
 //
-// Opening the page performs no identity change: it uses only the already
-// prepared step-up client (prepared by an API-key caller, as for action
-// approvals). Starting a flow needs a same-origin POST bound to this
-// browser's cookie; the code is issued only to the browser that completed the
-// passkey login, and only after identity.IssueHomePairingWithOwnerStepUp has
-// verified the ID token against the signed Home trust.
+//   - the enrollment start page, which shows the LAN enrollment bootstrap
+//     (listener URL, TLS server name, step-ca root fingerprint) as text and QR
+//     code for a device client to scan; it carries no secret;
+//   - the Owner's confirmation of an away enrollment at the Authority
+//     (step-up class enroll-confirm): the Owner reviews the pending device,
+//     authenticates with a passkey at the local Pocket ID through the
+//     existing confidential step-up client, and the ID token, bound to the
+//     action digest of exactly that submission, confirms it once. The Owner
+//     confirms only for a person without an enrolled device of their own.
 const (
-	ownerStepUpDeviceEnrollPath  = ownerStepUpPath + "/device-enroll"
-	ownerStepUpDeviceEnrollTTL   = 5 * time.Minute
-	ownerStepUpDeviceEnrollFlows = 16
-	ownerStepUpDeviceEnrollCSRF  = "device-enroll"
+	homeEnrollStartPath           = "/api/v1/identity/home/enroll/start"
+	ownerStepUpEnrollConfirmPath  = identity.HomeOwnerEnrollConfirmPath
+	ownerStepUpEnrollConfirmTTL   = 5 * time.Minute
+	ownerStepUpEnrollConfirmFlows = 16
+	// ownerStepUpEnrollConfirmFlowsPerDevice bounds the open flows of one
+	// pending device.
+	ownerStepUpEnrollConfirmFlowsPerDevice = 2
+	ownerStepUpEnrollConfirmCSRFPart       = "enroll-confirm\x00"
 )
 
-// prepareDeviceEnroll is the API-key route that provisions the step-up client
-// (idempotently, as the action-approval create route does) and returns the
-// page the State Console links to.
-func (h *ownerStepUpHandler) prepareDeviceEnroll(w http.ResponseWriter, r *http.Request) {
+func isHomeEnrollStartRoute(r *http.Request) bool {
+	return r.Method == http.MethodGet && r.URL.Path == homeEnrollStartPath
+}
+
+// serveHomeEnrollStart renders the enrollment bootstrap. A device that scans
+// it still enrolls only with its person's own passkey; at home through the
+// LAN listener, otherwise with a confirmation.
+func (s *Server) serveHomeEnrollStart(w http.ResponseWriter, _ *http.Request) {
+	stepUpHeaders(w)
+	bootstrap, err := identity.LoadHomeEnrollmentBootstrap(s.config.BaseDir)
+	if err != nil {
+		http.Error(w, "Device enrollment needs the Home LAN address and step-ca root; apply the Basement core first.", http.StatusServiceUnavailable)
+		return
+	}
+	scriptNonce, err := stepUpRandom()
+	if err != nil {
+		stepUpFailure(w)
+		return
+	}
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'nonce-"+scriptNonce+"'; style-src 'nonce-"+scriptNonce+"'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = homeEnrollStartPage.Execute(w, struct {
+		Payload, Nonce, URL, ServerName, Fingerprint string
+	}{bootstrap.URI, scriptNonce, bootstrap.EnrollmentURL, bootstrap.TLSServerName, bootstrap.CARootSHA256})
+}
+
+// homeEnrollStartPage draws the QR code with inline JavaScript (byte mode,
+// error correction L, versions 1-15) so no QR library or network request is
+// involved.
+var homeEnrollStartPage = template.Must(template.New("home-enroll-start").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enroll a device</title>
+<style nonce="{{.Nonce}}">body{font-family:system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem}#qr{width:18rem;height:18rem;background:#fff}code{word-break:break-all}</style>
+<h1>Enroll a device</h1><svg id="qr" role="img" aria-label="Enrollment QR code" data-payload="{{.Payload}}"></svg>
+<p>Scan this code with the Homelab Hub or a kombify app on the device, then sign in with your own passkey. At home the device is enrolled at once and your other devices and the Owner are told; anywhere else your own enrolled device, or the Owner if you have none, confirms it.</p>
+<p>The device creates its own key and enrolls it at <code>{{.URL}}</code>. It trusts that address only with a TLS certificate for <code>{{.ServerName}}</code> issued by the node's certificate authority with root fingerprint (SHA-256) <code>{{.Fingerprint}}</code>.</p>
+<script nonce="{{.Nonce}}">` + ownerStepUpQRScript + `</script></html>`))
+
+// prepareEnrollConfirm is the API-key route that provisions the step-up
+// client (idempotently, as the action-approval create route does) and
+// returns the confirmation page's URL; append ?id=<device ID>.
+func (h *ownerStepUpHandler) prepareEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	stepUpHeaders(w)
 	service, err := localowner.NewService(h.root)
 	if err != nil {
@@ -52,13 +92,24 @@ func (h *ownerStepUpHandler) prepareDeviceEnroll(w http.ResponseWriter, r *http.
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"deviceEnrollmentUrl": h.origin + ownerStepUpDeviceEnrollPath})
+	_ = json.NewEncoder(w).Encode(map[string]any{"ownerConfirmationUrl": h.origin + ownerStepUpEnrollConfirmPath})
 }
 
-var ownerStepUpDeviceEnrollReview = template.Must(template.New("device-enroll-review").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Enroll a household device</title><h1>Enroll a household device</h1><p>Continue to your local PocketID and authenticate with your Owner passkey. This page then shows a single-use pairing code and QR code for five minutes.</p><p>Scan or type the code on the device while it is connected to your home network. The device creates its own key; the code is spent on first use.</p><form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">Authenticate with PocketID</button></form></html>`))
+var ownerStepUpEnrollConfirmReview = template.Must(template.New("enroll-confirm-review").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Confirm a device</title><h1>Confirm a device</h1><p>Device: <strong>{{.Device.Name}}</strong> ({{.Device.Custody}} key <code>{{.Device.ID}}</code>)</p><p>Homelab account: <code>{{.Device.AccountSubject}}</code></p><p>Submitted at {{.Device.EnrolledAt.Format "2006-01-02 15:04:05 MST"}} from outside the home network. This person has no enrolled device of their own, so you confirm it as the Owner.</p><p>Action digest: <code>{{.Action.Digest}}</code></p><p>Confirm only if you know this person is enrolling this device now. Continue to your local PocketID and authenticate with your Owner passkey; the confirmation covers exactly this submission once.</p><form method="post"><input type="hidden" name="id" value="{{.Device.ID}}"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">Confirm this device with PocketID</button></form></html>`))
 
-func (h *ownerStepUpHandler) reviewDeviceEnroll(w http.ResponseWriter, r *http.Request) {
+var ownerStepUpEnrollConfirmDone = template.Must(template.New("enroll-confirm-done").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Device confirmed</title><h1>Device confirmed</h1><p>Device <strong>{{.Name}}</strong> (<code>{{.ID}}</code>) is enrolled for account <code>{{.AccountSubject}}</code>. It receives its credential at its next renewal. You can close this page.</p></html>`))
+
+func enrollConfirmCSRF(browser, deviceID string) string {
+	return stepUpCSRF(browser, ownerStepUpEnrollConfirmCSRFPart+deviceID)
+}
+
+func (h *ownerStepUpHandler) reviewEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	stepUpHeaders(w)
+	device, action, err := identity.PendingHomeEnrollment(h.root, r.URL.Query().Get("id"), time.Now())
+	if err != nil {
+		stepUpFailure(w)
+		return
+	}
 	issuer, ok := h.preparedStepUpIssuer(r.Context())
 	if !ok || !stepUpFormPolicy(w, issuer) {
 		stepUpFailure(w)
@@ -70,17 +121,31 @@ func (h *ownerStepUpHandler) reviewDeviceEnroll(w http.ResponseWriter, r *http.R
 		return
 	}
 	w.Header().Set("Referrer-Policy", "same-origin")
-	http.SetCookie(w, &http.Cookie{Name: "__Host-stackkit-step-up", Value: browser, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(ownerStepUpDeviceEnrollTTL)})
+	http.SetCookie(w, &http.Cookie{Name: "__Host-stackkit-step-up", Value: browser, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: time.Now().Add(ownerStepUpEnrollConfirmTTL)})
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = ownerStepUpDeviceEnrollReview.Execute(w, struct{ CSRF string }{stepUpCSRF(browser, ownerStepUpDeviceEnrollCSRF)})
+	_ = ownerStepUpEnrollConfirmReview.Execute(w, struct {
+		Device identity.HomeDevice
+		Action identity.HomeStepUpAction
+		CSRF   string
+	}{device, action, enrollConfirmCSRF(browser, device.ID)})
 }
 
-func (h *ownerStepUpHandler) startDeviceEnroll(w http.ResponseWriter, r *http.Request) {
+func (h *ownerStepUpHandler) startEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	stepUpHeaders(w)
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	cookie, err := r.Cookie("__Host-stackkit-step-up")
 	if r.Header.Get("Origin") != h.origin || (r.Header.Get("Sec-Fetch-Site") != "" && r.Header.Get("Sec-Fetch-Site") != "same-origin") || r.ParseForm() != nil ||
-		err != nil || len(cookie.Value) != 43 || r.PostForm.Get("csrf") != stepUpCSRF(cookie.Value, ownerStepUpDeviceEnrollCSRF) {
+		err != nil || len(cookie.Value) != 43 {
+		stepUpFailure(w)
+		return
+	}
+	id := r.PostForm.Get("id")
+	if r.PostForm.Get("csrf") != enrollConfirmCSRF(cookie.Value, id) {
+		stepUpFailure(w)
+		return
+	}
+	device, action, err := identity.PendingHomeEnrollment(h.root, id, time.Now())
+	if err != nil {
 		stepUpFailure(w)
 		return
 	}
@@ -99,32 +164,39 @@ func (h *ownerStepUpHandler) startDeviceEnroll(w http.ResponseWriter, r *http.Re
 		stepUpFailure(w)
 		return
 	}
-	nonce, err := stepUpRandom()
+	challenge, err := stepUpRandom()
 	if err != nil {
 		stepUpFailure(w)
 		return
 	}
 	now := time.Now()
-	flow := ownerStepUpFlow{issuer: issuer, verifier: verifier, started: true, browserHash: sha256.Sum256([]byte(cookie.Value)), deviceEnroll: true, nonce: nonce}
-	flow.binding.IssuedAt, flow.binding.ExpiresAt = now, now.Add(ownerStepUpDeviceEnrollTTL)
+	flow := ownerStepUpFlow{issuer: issuer, verifier: verifier, started: true, browserHash: sha256.Sum256([]byte(cookie.Value)),
+		enrollConfirm: device.ID, challenge: challenge}
+	flow.binding.IssuedAt, flow.binding.ExpiresAt = now, now.Add(ownerStepUpEnrollConfirmTTL)
 	h.mu.Lock()
-	devices := 0
-	for id, existing := range h.flows {
+	// Anyone who knows a pending device ID can start a flow, so flows are
+	// bounded per device as well as overall: one ID cannot use up the slots
+	// of every other confirmation.
+	pending, sameDevice := 0, 0
+	for existingState, existing := range h.flows {
 		if !now.Before(existing.binding.ExpiresAt) {
-			delete(h.flows, id)
-		} else if existing.deviceEnroll {
-			devices++
+			delete(h.flows, existingState)
+		} else if existing.enrollConfirm != "" {
+			pending++
+			if existing.enrollConfirm == device.ID {
+				sameDevice++
+			}
 		}
 	}
-	if len(h.flows) >= 128 || devices >= ownerStepUpDeviceEnrollFlows {
+	if len(h.flows) >= 128 || pending >= ownerStepUpEnrollConfirmFlows || sameDevice >= ownerStepUpEnrollConfirmFlowsPerDevice {
 		h.mu.Unlock()
 		stepUpFailure(w)
 		return
 	}
 	h.flows[state] = flow
 	h.mu.Unlock()
-	challenge := sha256.Sum256([]byte(verifier))
-	query := url.Values{"response_type": {"code"}, "client_id": {localowner.StepUpClientID}, "redirect_uri": {h.origin + localowner.StepUpCallbackPath}, "scope": {"openid"}, "state": {state}, "nonce": {nonce}, "prompt": {"login"}, "code_challenge_method": {"S256"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(challenge[:])}}
+	codeChallenge := sha256.Sum256([]byte(verifier))
+	query := url.Values{"response_type": {"code"}, "client_id": {localowner.StepUpClientID}, "redirect_uri": {h.origin + localowner.StepUpCallbackPath}, "scope": {"openid"}, "state": {state}, "nonce": {action.Nonce(challenge)}, "prompt": {"login"}, "code_challenge_method": {"S256"}, "code_challenge": {base64.RawURLEncoding.EncodeToString(codeChallenge[:])}}
 	http.Redirect(w, r, issuer+"/authorize?"+query.Encode(), http.StatusSeeOther)
 }
 
@@ -141,47 +213,20 @@ func (h *ownerStepUpHandler) preparedStepUpIssuer(ctx context.Context) (string, 
 	return trust.Issuer, err == nil && trust.Issuer != ""
 }
 
-func (h *ownerStepUpHandler) finishDeviceEnroll(w http.ResponseWriter, ctx context.Context, service *localowner.Service, code string, flow ownerStepUpFlow) {
+func (h *ownerStepUpHandler) finishEnrollConfirm(w http.ResponseWriter, ctx context.Context, service *localowner.Service, code string, flow ownerStepUpFlow) {
 	idToken, err := service.ExchangeStepUpIDToken(ctx, h.origin, code, flow.verifier)
 	if err != nil {
 		stepUpFailure(w)
 		return
 	}
-	// The bootstrap is resolved before the code exists, so a node without a
-	// LAN address or step-ca root never spends an Owner step-up on a code.
-	bootstrap, err := identity.LoadHomeEnrollmentBootstrap(h.root)
-	if err != nil {
-		http.Error(w, "Device enrollment needs the Home LAN address and step-ca root; apply the Basement core first.", http.StatusServiceUnavailable)
-		return
-	}
-	pairing, err := identity.IssueHomePairingWithOwnerStepUp(h.root, idToken, flow.nonce, time.Now())
+	device, err := identity.ConfirmHomeEnrollmentByOwner(h.root, flow.enrollConfirm, flow.challenge, idToken, time.Now())
 	if err != nil {
 		stepUpFailure(w)
 		return
 	}
-	scriptNonce, err := stepUpRandom()
-	if err != nil {
-		stepUpFailure(w)
-		return
-	}
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'nonce-"+scriptNonce+"'; style-src 'nonce-"+scriptNonce+"'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = ownerStepUpDeviceEnrollCode.Execute(w, struct {
-		Code, Payload, Nonce, URL, ServerName, Fingerprint string
-		ExpiresAt                                          time.Time
-	}{pairing.Code, bootstrap.PairingURI(pairing), scriptNonce, bootstrap.EnrollmentURL, bootstrap.TLSServerName, bootstrap.CARootSHA256, pairing.ExpiresAt})
+	_ = ownerStepUpEnrollConfirmDone.Execute(w, device)
 }
-
-// ownerStepUpDeviceEnrollCode draws the QR code with inline JavaScript (byte
-// mode, error correction L, versions 1-15) so no QR library or network request
-// is involved.
-var ownerStepUpDeviceEnrollCode = template.Must(template.New("device-enroll-code").Parse(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Device pairing code</title>
-<style nonce="{{.Nonce}}">body{font-family:system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem}#qr{width:18rem;height:18rem;background:#fff}code{word-break:break-all}.code{font-size:1.5rem;letter-spacing:.1em}</style>
-<h1>Pairing code</h1><p class="code"><code>{{.Code}}</code></p><svg id="qr" role="img" aria-label="Pairing QR code" data-payload="{{.Payload}}"></svg>
-<p>Valid once, until {{.ExpiresAt.Format "15:04:05 MST"}}. Close this page after the device is enrolled; never share the code.</p>
-<p>The device submits its own certificate request to <code>{{.URL}}</code> from the home network. It trusts that address only with a TLS certificate for <code>{{.ServerName}}</code> issued by the node's certificate authority with root fingerprint (SHA-256) <code>{{.Fingerprint}}</code>.</p>
-<p>Command-line fallback: <code>stackkit device enroll --code CODE --csr device.csr</code></p>
-<script nonce="{{.Nonce}}">` + ownerStepUpQRScript + `</script></html>`))
 
 const ownerStepUpQRScript = `(function () {
   var svg = document.getElementById("qr");

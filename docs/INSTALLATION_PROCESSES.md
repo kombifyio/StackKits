@@ -61,7 +61,7 @@ New installations use the native v2alpha2 fields and flags in [CONFIGURATION.md]
 
 | Capability | Config surface | Notes |
 | --- | --- | --- |
-| Owner and admin intent | `--owner-source=local`, `--owner-email`, `--owner-username` | Account-free node custody; legacy `adminEmail` is migration input |
+| Owner and admin intent | `--owner-source=local`, `--owner-email`, `--owner-username` | Node custody without a kombify account; legacy `adminEmail` is migration input |
 | Kit selection | installer argument, `stackkit init <kit>` | `basement-kit` primary |
 | Product mode | Standard Mode; retired `STACKKIT_MODE` warns and is ignored | A legacy value cannot select Advanced |
 | Target context | legacy v1 `context` | Native `init`/`generate` reject `--context`; `local`/`cloud`/`pi` map to site kind and hardware profile |
@@ -110,7 +110,7 @@ Read-only; installs nothing and acts on no target. Entrypoints: `https://stackki
 curl -sSL https://base.stackkit.cc | sh
 ```
 
-Run it in the target server's own shell (SSH, console or on-server agent). Default URLs use `*.lab.home` with Owner-CA HTTPS; each client enrolls once on the LAN so its OS-approved profile scopes `home` lookups to the StackKits resolver and trusts the public Owner-CA root. No router/DHCP changes, hosts entries or alternate local names. Beta validation pins the release:
+Run it in the target server's own shell (SSH, console or on-server agent). Default URLs use `*.lab.home` with Owner-CA HTTPS; each client enrolls once so its OS-approved profile scopes `lab.home` lookups to the StackKits resolver and trusts the public Owner-CA root. No router/DHCP changes, hosts entries or alternate local names. Beta validation pins the release:
 
 ```bash
 env STACKKIT_RELEASE_VERSION='<exact-release-tag>' sh -c 'curl -fsSL https://base.stackkit.cc | sh'
@@ -146,7 +146,7 @@ Important environment variables (each pre-seeds one decision):
 | `STACKKIT_CHANNEL` | Release channel, `stable` (default) or `preview` ("Nightly", unsigned). Same as `install.sh --channel`; `stackkit channel set` saves it in `~/.stackkits/channel`. An unknown value fails closed. |
 | `STACKKIT_ALLOW_DOWNGRADE` | `1` lets the stable channel replace a newer running preview build; otherwise the installer keeps it until a stable release at least as new exists. |
 
-Account-free Standard Mode, core only, with all decisions supplied:
+Standard Mode without a kombify account, core only, with all decisions supplied:
 
 ```bash
 STACKKIT_INSTALL_MODE=auto \
@@ -298,7 +298,7 @@ fail closed with the kit's declared choices):
 | Flag | Effect |
 | --- | --- |
 | `--non-interactive` | Fail instead of prompting. |
-| `--owner-source=local` | Account-free local Owner custody (+ `--owner-email`, `--owner-username`, `--owner-display-name`). |
+| `--owner-source=local` | Local Owner custody without a kombify account (+ `--owner-email`, `--owner-username`, `--owner-display-name`). |
 | `--domain <base>` | `network.domain.base` authoring override. |
 | `--name <id>` | Deployment contract ID (default: normalized workspace name). |
 | `--use-case photos,files,vault` | Optional kit workloads with the governed catalog default alternative and canonical `secret://workloads/<id>/<ref>` inputs. |

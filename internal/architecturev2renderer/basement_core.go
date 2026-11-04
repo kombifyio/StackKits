@@ -36,14 +36,15 @@ const (
 	basementCoreOpenTofuResourcePrefix = "basement_core"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:30|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:33|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:32|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:35|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
 // contains image identities and runtime topology, but no credential material.
 const basementCoreComponentsJSON = `[
 {"id":"router","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/traefik/traefik:v3","digest":"sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"},"dependsOn":["socket-proxy"],"networkRefs":["basement-core","basement-control"],"health":{"kind":"http","path":"/ping","port":8080},"resources":{"memoryLimit":"256m"}},
+{"id":"router-remote","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/traefik/traefik:v3","digest":"sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"},"dependsOn":["socket-proxy","stackkit-server"],"networkRefs":["basement-core","basement-control","remote-connector"],"health":{"kind":"http","path":"/ping","port":8080},"resources":{"memoryLimit":"128m"}},
 {"id":"socket-proxy","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/tecnativa/docker-socket-proxy:v0.4.2","digest":"sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476"},"dependsOn":[],"networkRefs":["basement-control"],"health":{"kind":"image"},"resources":{"memoryLimit":"128m"}},
 {"id":"pocketid","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f","digest":"sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c"},"dependsOn":[],"networkRefs":["basement-core"],"volumes":[{"id":"pocketid-data","target":"/app/data","class":"persistent","backup":true}],"health":{"kind":"http","path":"/health","port":1411},"resources":{"memoryLimit":"512m"}},
 {"id":"tinyauth","role":"application","lifecycle":"daemon","image":{"ref":"ghcr.io/tinyauthapp/tinyauth:v5.1.2","digest":"sha256:910f84801dc9597398458d45f8d305eb232dc583d6927c87cc29626527947d35"},"dependsOn":["pocketid"],"networkRefs":["basement-core"],"volumes":[{"id":"tinyauth-data","target":"/data","class":"persistent","backup":true}],"health":{"kind":"command","command":["tinyauth","healthcheck"]},"resources":{"memoryLimit":"256m"}},
@@ -126,6 +127,40 @@ services:
       basement-core:
         aliases: ["komodo-control.{{STACKKIT_DOMAIN}}"]
       basement-control: {}
+  # The remote listener (homelab identity target §7): a separate router whose
+  # only entrypoint binds the Access Gate at /v1/gate/remote, refuses
+  # forwarded headers and never consults TinyAuth. It publishes no host port;
+  # relay and tunnel connectors reach it only on the remote-connector network.
+  router-remote:
+    image: ghcr.io/traefik/traefik:v3@sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    oom_score_adj: -800
+    mem_limit: 128m
+    depends_on: [socket-proxy, stackkit-server]
+    command:
+      - --ping=true
+      - --global.checknewversion=false
+      - --entrypoints.traefik.address=127.0.0.1:8080
+      - --providers.docker.endpoint=tcp://socket-proxy:2375
+      - --providers.docker.exposedbydefault=false
+      # Only containers StackKits marks for the remote listener: a container
+      # deployed outside the plan cannot add a router here.
+      - --providers.docker.constraints=Label(` + "`io.stackkit.remote-listener`,`true`" + `)
+      - --entrypoints.remote.address=:8000
+      - --entrypoints.remote.forwardedheaders.insecure=false
+      - --entrypoints.remote.http.middlewares=stackkit-access-gate-remote@docker,stackkit-remote-scheme@docker
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    networks: [basement-core, basement-control, remote-connector]
   pocketid:
     image: ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f@sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c
     restart: unless-stopped
@@ -151,6 +186,12 @@ services:
       - traefik.http.routers.pocketid.entrypoints=websecure
       - traefik.http.routers.pocketid.tls=true
       - traefik.http.routers.pocketid.tls.certresolver=stackkits
+      # The sign-in surface on the remote listener; the Access Gate keeps
+      # the identity administration on this host LAN-bound.
+      - traefik.http.routers.pocketid-remote.rule=Host(` + "`id.{{STACKKIT_DOMAIN}}`" + `)
+      - traefik.http.routers.pocketid-remote.entrypoints=remote
+      - traefik.http.routers.pocketid-remote.service=pocketid
+      - io.stackkit.remote-listener=true
       - traefik.http.services.pocketid.loadbalancer.server.port=1411
     networks: [basement-core]
   tinyauth:
@@ -194,8 +235,10 @@ services:
       - traefik.http.routers.tinyauth.tls=true
       - traefik.http.routers.tinyauth.tls.certresolver=stackkits
       - traefik.http.services.tinyauth.loadbalancer.server.port=3000
+      # TinyAuth runs on the LAN listener only, after the Access Gate; its
+      # parent-domain cookie is never a remote credential.
       - traefik.http.middlewares.stackkit-forward-auth.forwardauth.address=http://tinyauth:3000/api/auth/traefik
-      - traefik.http.middlewares.stackkit-forward-auth.forwardauth.trustForwardHeader=true
+      - traefik.http.middlewares.stackkit-forward-auth.forwardauth.trustForwardHeader=false
       - traefik.http.middlewares.stackkit-forward-auth.forwardauth.authResponseHeaders=remote-user,remote-sub,remote-name,remote-email,remote-groups
     networks: [basement-core]
   step-ca:
@@ -345,7 +388,7 @@ services:
       - traefik.http.routers.coolify.entrypoints=websecure
       - traefik.http.routers.coolify.tls=true
       - traefik.http.routers.coolify.tls.certresolver=stackkits
-      - traefik.http.routers.coolify.middlewares=stackkit-forward-auth@docker
+      - traefik.http.routers.coolify.middlewares=stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
       - traefik.http.services.coolify.loadbalancer.server.port=8080
     networks: [basement-core, basement-control]
   kopia-agent:
@@ -409,7 +452,7 @@ services:
       - traefik.http.routers.hub.entrypoints=websecure
       - traefik.http.routers.hub.tls=true
       - traefik.http.routers.hub.tls.certresolver=stackkits
-      - traefik.http.routers.hub.middlewares=stackkit-forward-auth@docker
+      - traefik.http.routers.hub.middlewares=stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
       - traefik.http.services.hub.loadbalancer.server.port=80
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep '\"status\":\"ok\"'"]
@@ -427,6 +470,13 @@ services:
   basement-backup:
     name: stackkit-basement-backup
     internal: true
+  # Relay and tunnel connectors join only this network: it holds the remote
+  # router and nothing else, and the Home firewall drops everything the
+  # bridge sends to the host or a private address.
+  remote-connector:
+    name: stackkit-remote-connector
+    driver_opts:
+      com.docker.network.bridge.name: skremote0
 volumes:
   pocketid-data: {}
   tinyauth-data: {}
@@ -480,8 +530,8 @@ func basementClosedLocalCoreProfile() closedLocalCoreProfile {
 		entryComponent: "coolify", componentsJSON: basementCoreComponentsJSON,
 		serviceEndpoints: map[string]closedLocalCoreEndpoint{
 			"basement-hub": {port: 80, healthRef: "basement-hub-http", privilege: "admin", ingressAuth: "forward-auth"},
-			"id":           {port: 1411, healthRef: "pocketid-http", privilege: "identity", ingressAuth: "none"},
-			"auth":         {port: 3000, healthRef: "tinyauth-http", privilege: "identity", ingressAuth: "none"},
+			"id":           {port: 1411, healthRef: "pocketid-http", privilege: "sign-in", ingressAuth: "none"},
+			"auth":         {port: 3000, healthRef: "tinyauth-http", privilege: "sign-in", ingressAuth: "none"},
 			"coolify":      {port: 8080, healthRef: "coolify-http", privilege: "admin", ingressAuth: "forward-auth"},
 		},
 		renderCompose: func(domain string) []byte { return RenderBasementCoreComposeForDomain(domain) },

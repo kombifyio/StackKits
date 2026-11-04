@@ -211,7 +211,7 @@ func validateHomeLANDiscoveryAdvertisement(advertisement homeLANDiscoveryAdverti
 	if !homeLANDiscoveryHostPattern.MatchString(advertisement.Host) || host == "localhost" || strings.HasSuffix(host, ".localhost") {
 		return fail(ErrInvalidPlan, path+".host", "LAN discovery requires an explicit non-.localhost host")
 	}
-	if advertisement.Access.PolicyExposure != "lan" || !advertisement.Access.DefaultClosed {
+	if advertisement.Access.PolicyExposure != "local-only" || !advertisement.Access.DefaultClosed {
 		return fail(ErrInvalidPlan, path+".access", "LAN discovery requires an explicit default-closed LAN access decision")
 	}
 	return nil

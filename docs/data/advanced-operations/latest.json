@@ -157,6 +157,11 @@
       "description": "Existing snapshot-anchor ID in local custody."
     },
     {
+      "name": "archiveSha256",
+      "description": "Exact transfer ciphertext digest from the source receipt.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
       "name": "bundleFile",
       "description": "Path to the canonical Advanced trust bundle file."
     },
@@ -202,8 +207,32 @@
       "pattern": "^[a-z0-9][a-z0-9._-]{7,99}$"
     },
     {
+      "name": "planHash",
+      "description": "Exact receiving ResolvedPlan hash the destination admission named.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
       "name": "progressFile",
       "description": "Path the rollout event JSONL is written to; never `-` together with --json."
+    },
+    {
+      "name": "sourceFingerprint",
+      "description": "Full SHA-256 of the source node's transfer signing key.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "sourceOwnerRef",
+      "description": "Local Owner reference of the source node.",
+      "pattern": "^owner/local/[0-9a-f]{32}$"
+    },
+    {
+      "name": "sourceReceiptFile",
+      "description": "Path to the source Owner-signed transfer export receipt."
+    },
+    {
+      "name": "transferId",
+      "description": "Content address of the signed application transfer.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
     },
     {
       "name": "targetRef",
@@ -296,6 +325,75 @@
       "modes": {
         "standard": "allowed",
         "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application-transfer.receive",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Receive a native application transfer on a managed node: import the authenticated archive into the prepared receiving application and sign the activated outcome only after the destination data readback. transfer-target (step admit: persist and generate the Techstack-approved candidate, issue the destination admission) and transfer-prepare (step prepare: adopt the transferred credentials before the first Apply) take a capability of their own step.",
+      "command": "stackkit backup transfer-import",
+      "argv": [
+        "backup",
+        "transfer-import",
+        "--archive-sha256",
+        "{archiveSha256}",
+        "--source-receipt",
+        "{sourceReceiptFile}",
+        "--source-owner",
+        "{sourceOwnerRef}",
+        "--source-fingerprint",
+        "{sourceFingerprint}",
+        "--transfer-id",
+        "{transferId}",
+        "--expected-plan-hash",
+        "{planHash}",
+        "--capability",
+        "{capabilityFile}",
+        "--owner-approve"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "application-transfer.receive",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        },
+        {
+          "placeholder": "sourceReceiptFile",
+          "schemaVersion": "stackkit.application-transfer-export-receipt/v1",
+          "schema": "internal/backuplifecycle/application_transfer_receipt.go",
+          "description": "Source Owner-signed export receipt that binds the archive digest, the selected applications and the destination admission."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.application-transfer-outcome/v1",
+          "schema": "internal/backuplifecycle/application_transfer_receipt.go",
+          "description": "Raw signed activated outcome with the destination data readback digest (no command-result envelope)."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
       }
     },
     {

@@ -191,7 +191,7 @@ func validateModuleInputBindingShape(sourceRef, valueType, cardinality string, d
 			return fail(ErrContractConflict, path, "identity.deviceEnrollment requires type %q and single cardinality", moduleInputTypeDeviceEnrollment)
 		}
 		if hasDefault {
-			projected, err := projectPublicDeviceEnrollment(defaultValue, path+".defaultValue", true)
+			projected, err := projectPublicDeviceEnrollment(defaultValue, path+".defaultValue")
 			if err != nil {
 				return err
 			}
@@ -438,7 +438,7 @@ func (source moduleRenderInputSource) resolve(binding moduleRenderInputBinding, 
 		if !exists || value == nil {
 			return nil, false, nil
 		}
-		projected, err := projectPublicDeviceEnrollment(value, "resolvedPlan.identity.deviceEnrollment", false)
+		projected, err := projectPublicDeviceEnrollment(value, "resolvedPlan.identity.deviceEnrollment")
 		return projected, err == nil, err
 	case moduleInputSourceHomeAuthority:
 		if source.identityTrust == nil || source.kit == nil || source.sites == nil || source.stackID == "" {
@@ -1221,43 +1221,35 @@ func projectPublicHostStorageRoots(value any, path string, alreadyPublic bool) (
 	return result, nil
 }
 
-func projectPublicDeviceEnrollment(value any, path string, alreadyPublic bool) (map[string]any, error) {
+// publicDeviceEnrollmentFields is the closed key set of #DeviceEnrollmentPolicy.
+// The public projection is the policy itself: none of its keys falls into the
+// secret-like namespace of #PublicSettings.
+var publicDeviceEnrollmentFields = []string{
+	"mode", "authoritySiteRef", "accountBinding", "homeAttestation", "atHome", "away", "completion",
+	"privilegedAccountPasskeys", "requireDeviceGeneratedKey", "requirePossessionProof", "custodyClasses",
+	"maxDevicesPerAccount", "rateLimit", "revocation", "lifetimes",
+}
+
+func projectPublicDeviceEnrollment(value any, path string) (map[string]any, error) {
 	input, err := asObject(value, path)
 	if err != nil {
 		return nil, err
 	}
-	stringsOut := map[string]string{}
-	for _, field := range []string{"mode", "authoritySiteRef", "endpointExposure", "hardwareBackedKey"} {
-		stringsOut[field], err = stringField(input, path, field)
-		if err != nil {
-			return nil, err
+	if len(input) != len(publicDeviceEnrollmentFields) {
+		return nil, fail(ErrInvalidInput, path, "device enrollment must be the closed enrollment policy")
+	}
+	for _, field := range publicDeviceEnrollmentFields {
+		if _, exists := input[field]; !exists {
+			return nil, fail(ErrInvalidInput, path+"."+field, "device enrollment policy field is missing")
 		}
 	}
-	result := map[string]any{}
-	for key, item := range stringsOut {
-		result[key] = item
+	if mode, err := stringField(input, path, "mode"); err != nil || mode != "person" {
+		return nil, fail(ErrInvalidInput, path+".mode", "device enrollment is enrollment by the person")
 	}
-	for _, field := range []string{
-		"remoteEnrollment", "requireOwnerStepUp", "requireLocalPairingProof", "requireDeviceGeneratedKey",
-		"requirePossessionProof", "revocationSupported",
-	} {
-		item, exists := input[field]
-		boolean, ok := item.(bool)
-		if !exists || !ok {
-			return nil, fail(ErrInvalidInput, path+"."+field, "expected boolean")
-		}
-		result[field] = boolean
+	if attestation, err := stringField(input, path, "homeAttestation"); err != nil || attestation != "authority-lan-listener" {
+		return nil, fail(ErrInvalidInput, path+".homeAttestation", "home is attested only by the Authority's LAN listener")
 	}
-	lifetimeField := "credentialTTLSeconds"
-	if alreadyPublic {
-		lifetimeField = "lifetimeSeconds"
-	}
-	lifetime, err := intField(input, path, lifetimeField)
-	if err != nil {
-		return nil, err
-	}
-	result["lifetimeSeconds"] = lifetime
-	return result, nil
+	return cloneObject(input, false)
 }
 
 func projectPublicRouteList(value any, path string, withProbe, withAuthority bool) ([]any, error) {
@@ -1810,7 +1802,7 @@ func projectPublicRouteAccess(access map[string]any, path string) (map[string]an
 		}
 		result[field] = value
 	}
-	for _, field := range []string{"enrolledDeviceRequired", "ownerStepUpRequired", "lanStepDown", "defaultClosed"} {
+	for _, field := range []string{"enrolledDeviceRequired", "ownerStepUpRequired", "ownerRemoteOptIn", "appAccessAway", "defaultClosed"} {
 		value, exists := access[field]
 		boolean, ok := value.(bool)
 		if !exists || !ok {
@@ -1827,6 +1819,22 @@ func projectPublicRouteAccess(access map[string]any, path string) (map[string]an
 			return nil, err
 		}
 		result[field] = stringSliceAny(sortStringsUnique(values))
+	}
+	if limit, exists, err := optionalObjectField(access, path, "anonymousRateLimit"); err != nil {
+		return nil, err
+	} else if exists {
+		projected := make(map[string]any, 2)
+		for _, field := range []string{"requests", "windowSeconds"} {
+			value, err := intField(limit, path+".anonymousRateLimit", field)
+			if err != nil {
+				return nil, err
+			}
+			if value < 1 {
+				return nil, fail(ErrInvalidInput, path+".anonymousRateLimit."+field, "must be at least 1")
+			}
+			projected[field] = value
+		}
+		result["anonymousRateLimit"] = projected
 	}
 	return result, nil
 }

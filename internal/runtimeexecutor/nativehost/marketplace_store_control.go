@@ -38,6 +38,9 @@ func NewMarketplaceStoreControlDriver(workspace string, d architecturev2renderer
 	return &marketplaceStoreControlDriver{workspace: workspace, document: d, source: source, operation: operation, client: client}, nil
 }
 
+// marketplaceControlReadyTimeout bounds the readiness preflight of a native control.
+const marketplaceControlReadyTimeout = 300 * time.Second
+
 func (d *marketplaceStoreControlDriver) binding(ctx context.Context, action string) (string, []string, error) {
 	if d.resolve != nil {
 		return d.resolve(ctx, action)
@@ -73,6 +76,10 @@ func (d *marketplaceStoreControlDriver) Validate(ctx context.Context, action str
 	if err := d.client.Qualify(ctx); err != nil {
 		return err
 	}
+	// A control that stays unready is reported with its last error instead of being retried
+	// until the caller's deadline hides it.
+	ctx, cancelReady := context.WithTimeout(ctx, marketplaceControlReadyTimeout)
+	defer cancelReady()
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -88,7 +95,7 @@ func (d *marketplaceStoreControlDriver) Validate(ctx context.Context, action str
 		}
 		select {
 		case <-ctx.Done():
-			return errors.Join(ctx.Err(), err)
+			return errors.Join(errors.New("native marketplace control did not become ready"), err)
 		case <-ticker.C:
 		}
 	}

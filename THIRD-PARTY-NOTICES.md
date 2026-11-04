@@ -49,6 +49,17 @@ installations retain their selected pin until an admitted transition.
 | Komodo Core and Periphery | 2.3.3 together (native Basement bootstrap; exact container digests in the CUE catalog) | GPL-3.0 | [Source](https://github.com/moghtech/komodo/tree/v2.3.3), [LICENSE](https://github.com/moghtech/komodo/blob/v2.3.3/LICENSE) |
 | MongoDB Community Server | 7 (node-local Komodo control dependency; exact container digest in the CUE catalog) | SSPL-1.0 | [Source](https://github.com/mongodb/mongo/tree/r7.0.0), [LICENSE](https://github.com/mongodb/mongo/blob/r7.0.0/LICENSE-Community.txt); the upstream container retains its own notices |
 | Coolify in the legacy Full core | 4.1.2 (Architecture v2 core catalog) | Apache-2.0 | [Source](https://github.com/coollabsio/coolify/tree/v4.1.2), [LICENSE](https://github.com/coollabsio/coolify/blob/v4.1.2/LICENSE) |
+| Headscale (VPN add-on, Headscale tool) | 0.29.7 (exact container digest in `addons/vpn/tools.cue`) | BSD-3-Clause | [Source](https://github.com/juanfont/headscale/tree/v0.29.7), [LICENSE](https://github.com/juanfont/headscale/blob/v0.29.7/LICENSE) |
+| Tailscale node (VPN add-on, Headscale and Tailscale tools) | 1.104.4 (exact container digest in `addons/vpn/tools.cue`) | BSD-3-Clause | [Source](https://github.com/tailscale/tailscale/tree/v1.104.4), [LICENSE](https://github.com/tailscale/tailscale/blob/v1.104.4/LICENSE) |
+| Newt (VPN add-on, Pangolin tool) | 1.19.1 (exact container digest in `addons/vpn/tools.cue`) | AGPL-3.0-only | [Source](https://github.com/fosrl/newt/tree/1.19.1), [LICENSE](https://github.com/fosrl/newt/blob/1.19.1/LICENSE); run unmodified, its source is the pinned upstream tag |
+
+The VPN add-on runs these images unmodified, each with its base image's own
+notices inside it. Its WireGuard tool runs the host distribution's own
+`wireguard-tools` (GPL-2.0-only) and bundles nothing. The coordination servers
+of the Tailscale and Pangolin tools are the Owner's own account or server
+(Tailscale's terms; Pangolin community edition, AGPL-3.0, with files under the
+Fossorial Commercial License where their header says so); device clients
+(WireGuard apps, Tailscale, Olm) are installed by the person from upstream.
 
 Marketplace targets digest-pinned Coolify 4.4.x with `AUTOUPDATE=false`
 (ADR-0049). That target is not the legacy 4.1.2 pin. Its implementation must
@@ -143,3 +154,39 @@ by StackKits; the upstream image retains its bundled dependency notices.
 ## PocketID membership CAS compatibility derivative
 
 The optional `modules/pocketid/compat` source recipe builds PocketID 2.16.0, upstream commit `bb05e6922444c33eec87466919f1bcf105967825`, with the reviewed membership CAS patch. PocketID remains BSD-2-Clause, copyright (c) 2024 Elias Schneider. The complete [upstream license](modules/pocketid/compat/UPSTREAM-LICENSE), pinned [source provenance](modules/pocketid/compat/provenance.json), and [build recipe](modules/pocketid/compat/build-recipe.json) accompany the derivative. The native image contains the full notice at `/usr/share/licenses/pocket-id/LICENSE`. Its version is `2.16.0-kombify-cas.1`; the application reports the retained upstream version and the CAS capability identifies the extension. The official module pin remains unchanged until authenticated native publication and both platform qualifications permit adoption.
+
+## kombify SpeechKit voice server (Private AI speech)
+
+The optional Private AI speech module runs the unmodified public image
+`ghcr.io/kombifyio/speechkit-server:v0.78.12` (Apache-2.0), pinned to its
+image-index digest
+`sha256:0085fd65a566708977169b30c4d8d15509935b9b8c85f6a7afebb98135ae2617`.
+Source: [SpeechKit v0.78.12](https://github.com/kombifyio/SpeechKit/tree/v0.78.12).
+The image carries the sherpa-onnx v1.13.8 runtime (Apache-2.0) and ONNX Runtime
+1.17.1 (MIT); its own notices ship in the image and in SpeechKit's
+`THIRD-PARTY-NOTICES.md`. StackKits starts the same image three ways: the
+server, the `speechkit-stt-sherpa` transcription sidecar and the announce-only
+mDNS mode.
+
+The image contains no model. The transcription sidecar downloads, on first
+start and only on an owner-selected speech module, the four Parakeet Ultra int8
+files (about 670 MB) of
+[tpmaerk/parakeet-ultra-sherpa-onnx-int8](https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8)
+at revision `b86784a3a5356cbd126f710b61cd90c5fe5898f1` and verifies each by
+SHA-256 before use (`encoder.int8.onnx` `f4d06712d32431b1718eceba2153c314ac4425e8fe708a3534f5e56c5ad53697`,
+`decoder.int8.onnx` `94373c6405c8149d1c9d1e9862514e0e3e88dab1c7de18fac9d5df9c6ba5efdd`,
+`joiner.int8.onnx` `8a71aaccfdba3d451775507a889afd2257d2e754463fd81095a8c8f290f924c2`,
+`tokens.txt` `d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d`).
+The weights are NVIDIA Parakeet TDT 0.6B v3
+([CC-BY-4.0](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), (c) NVIDIA
+Corporation), post-trained by Moondream as
+[Parakeet Ultra](https://huggingface.co/moondream/parakeet-ultra) (CC-BY-4.0,
+(c) Moondream) and converted to the sherpa-onnx int8 layout by a community
+author; the conversion is not made or endorsed by NVIDIA or Moondream and is
+provided as-is. StackKits does not redistribute the weights; the node downloads
+them from the URL above.
+
+Text-to-speech uses the unmodified Kokoro-FastAPI v0.9.0 CPU image
+(Apache-2.0, digest in the CUE catalog) with the Kokoro-82M weights
+(Apache-2.0) baked in; it runs espeak-ng (GPL-3.0) as a separate phonemizer
+program.

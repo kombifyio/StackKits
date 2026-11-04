@@ -192,7 +192,7 @@ owner:
 - **DNS:** Automatic via kombify.me subdomain registry
 - **Public v0.8 boundary:** The public CLI neither registers kombify.me nor sends
   registry heartbeats. An external orchestrator must provision this domain and
-  pass a complete local StackSpec before invoking the account-free lifecycle.
+  pass a complete local StackSpec before invoking the kombify-account-free lifecycle.
 - **Owner identity:** Public v0.8 Apply accepts local custody only. Legacy
   orchestrator identity envelopes are available solely to the non-public
   Publisher/migration build.

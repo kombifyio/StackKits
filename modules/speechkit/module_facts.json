@@ -3,8 +3,8 @@
   "layer": "L3-application",
   "slug": "speechkit",
   "displayName": "kombify SpeechKit",
-  "description": "kombify SpeechKit server with local speech providers only (whisper.cpp speech-to-text, Kokoro text-to-speech, the node's Ollama for Assist); OpenAI-compatible audio routes for the chat module behind a bearer token on the private AI network.",
-  "rationale": "Private AI speech capability module (default).",
+  "description": "kombify SpeechKit server with local speech providers only (a Parakeet speech-to-text sidecar from the same image, Kokoro text-to-speech, the node's Ollama for Assist); OpenAI-compatible audio routes for the chat module on the private AI network and for the household's devices on the LAN at port 8080, each behind a bearer or device token, announced over mDNS as _speechkit._tcp.",
+  "rationale": "Private AI speech capability module (default); the homelab's first-class SpeechKit target for the Box, phones and the desktop (platform-eu2nt.8).",
   "requires": {
     "infrastructure": {
       "docker": true,
@@ -40,13 +40,13 @@
       }
     },
     {
-      "name": "speechkit-whisper",
-      "type": "application",
+      "name": "speechkit-stt",
+      "type": "backend",
       "required": false,
       "networks": [],
       "healthCheck": {
         "type": "http",
-        "path": "/",
+        "path": "/health",
         "port": 8080
       },
       "resources": {
@@ -54,18 +54,18 @@
         "memoryMax": "3g"
       },
       "upstream": {
-        "github": "ggml-org/whisper.cpp",
-        "registryImage": "ghcr.io/ggml-org/whisper.cpp"
+        "github": "kombifyio/SpeechKit",
+        "registryImage": "ghcr.io/kombifyio/speechkit-server"
       },
       "routed": false,
       "imageSource": {
         "moduleRef": "stackkits-speechkit-runtime",
-        "componentRef": "speechkit-whisper"
+        "componentRef": "speechkit-stt"
       }
     },
     {
       "name": "speechkit-tts",
-      "type": "application",
+      "type": "backend",
       "required": false,
       "networks": [],
       "healthCheck": {

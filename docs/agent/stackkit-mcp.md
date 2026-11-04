@@ -91,6 +91,15 @@ A directly attached (stdio) agent uses the same credentials: start `stackkit-mcp
 credential, ignores `STACKKIT_MCP_ALLOW_WRITE`, and sends every mutating call through the same per-call owner approval.
 The credential is re-checked on each mutating call, so a revoke denies the next write.
 
+### Agent reach on a local installation
+
+Every agent that attaches here is an external agent on a local Standard Mode installation: it needs no kombify
+account, and nothing on the server can attest which rights its owner gave it. Such agents keep these ceilings by
+design: read tools by default, the shared token and an anonymous stdio attachment behind `STACKKIT_MCP_ALLOW_WRITE`
+plus `owner_approved`, and a per-agent credential behind the owner's per-call approval in the server's shell. A kombify
+agent such as the Companion does not attach to this connector; on a Techstack-managed installation it acts through
+Techstack, which checks the rights the kombify Gateway attests for it.
+
 ## StackKits State Console
 
 The connector embeds `ui://stackkits/state-console.html`. The Go MCP runtime

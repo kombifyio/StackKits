@@ -46,7 +46,10 @@ func authorRemovalCandidate(cmd *cobra.Command, slug, path string) error {
 
 func prepareRemovedUseCaseIntent(workspace, slug, inventoryPath string) (*removedUseCaseIntent, error) {
 	// Core removal retains its documented reinstall source. Advanced commits
-	// its candidate only through the signed change-set transaction.
+	// its candidate only through the signed change-set transaction, and that
+	// includes every Techstack-managed workspace: its runtime removal keeps
+	// the desired selection, so the next removal of the same destroy still
+	// resolves the plan the rollout applied (kombify-StackKits-uoe2).
 	if slug == "basement-core" || slug == "cloud-core" {
 		return nil, nil
 	}
@@ -77,7 +80,11 @@ func prepareRemovedUseCaseIntent(workspace, slug, inventoryPath string) (*remove
 	if err := json.Unmarshal(current.CanonicalStackSpec, &spec); err != nil {
 		return nil, err
 	}
-	if spec.Install.Mode == "advanced" || spec.APIVersion != "stackkit/v2alpha2" {
+	advanced, err := advancedManagedIntent(workspace, spec.Install.Mode)
+	if err != nil {
+		return nil, err
+	}
+	if advanced || spec.APIVersion != "stackkit/v2alpha2" {
 		return nil, nil
 	}
 	if len(spec.Nodes) != 1 || len(spec.Sites) != 1 {

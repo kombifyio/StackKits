@@ -4,7 +4,7 @@ _assertDefinitionSlug:        "cloud-kit" & Definition.metadata.slug
 _assertCloudOnly:             "cloud" & Definition.topology.allowedSiteKinds[0]
 _assertCloudAuthority:        "cloud" & Definition.topology.controlPlane.allowedAuthorityKinds[0]
 _assertRoutesClosed:          true & Definition.accessDefaults.publicRoutesDefaultClosed
-_assertLANStepDownDenied:     false & Definition.reachability.accessPolicies.lanStepDownAllowed
+_assertNoLANListener:         "remote-private" & Definition.reachability.accessPolicies.allowedExposures[0]
 _assertRemoteRouteCapability: "private-admin-mesh" & Definition.reachability.routes["remote-private"].requiredRealizations[0].capabilityRef
 _assertRemoteRouteRole:       "access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].role
 _assertPublicRouteCapability: "public-edge" & Definition.reachability.routes.public.requiredRealizations[0].capabilityRef
@@ -13,7 +13,7 @@ _assertPhotosOptional: [for workload in Definition.workloads.optional if workloa
 _assertOffsiteBackupOptional: [for capability in Definition.capabilities.optional if capability == "offsite-object-backup" {capability}] & ["offsite-object-backup"]
 _assertOffsiteBackupNotCore: [for capability in Definition.capabilities.required if capability == "offsite-object-backup" {capability}] & []
 _assertReachabilityMatrix: Definition.reachability & {
-	accessPolicies: {allowedExposures: ["private", "public"], lanStepDownAllowed: false}
+	accessPolicies: {allowedExposures: ["remote-private", "public"]}
 	routes: {
 		local: {allowed: true, requiredRealizations: [], allowedOriginKinds: ["cloud"]}
 		"remote-private": {allowed: true, requiredRealizations: [{capabilityRef: "private-admin-mesh", role: "access"}], allowedOriginKinds: ["cloud"]}
@@ -57,7 +57,7 @@ _validCloudV2: #CloudKitStackV2 & {
 		capabilities: enable: ["private-admin-mesh"]
 		access: {
 			"private-owner": {
-				exposure:               "private"
+				exposure:               "remote-private"
 				authentication:         "human+device"
 				enrolledDeviceRequired: true
 			}

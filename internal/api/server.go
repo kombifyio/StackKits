@@ -98,6 +98,7 @@ func NewServer(cfg ServerConfig) *Server {
 		stackActionReferenceResolver: cfg.StackActionReferenceResolver,
 	}
 	s.routes()
+	s.keepHomeTrustCurrent()
 	return s
 }
 
@@ -149,6 +150,7 @@ func (s *Server) routes() {
 	s.registerStackActionRoutes()
 	s.registerOwnerStepUpRoutes()
 	s.registerHomeIdentityVerifierRoutes()
+	s.registerHomePersonRoutes()
 	s.mux.HandleFunc("POST /api/v1/identity/workload-peers", s.handleWorkloadPeerOperation)
 
 	// Node-local management
@@ -582,7 +584,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 func apiKeyMiddleware(validKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if isPublicAPIKeyExemptRoute(r) || isServiceAuthenticatedRoute(r) || isOwnerStepUpBrowserRoute(r) || isMCPTokenAuthenticatedRoute(r) {
+			if isPublicAPIKeyExemptRoute(r) || isServiceAuthenticatedRoute(r) || isOwnerStepUpBrowserRoute(r) || isMCPTokenAuthenticatedRoute(r) ||
+				isDeviceProofAuthenticatedRoute(r) || isHomePersonRoute(r) {
 				next.ServeHTTP(w, r)
 				return
 			}

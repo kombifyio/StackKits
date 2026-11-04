@@ -124,10 +124,9 @@ import "list"
 	if plan.access != _|_ {
 		integrity: identityTrustAccessVerifiers: [
 			for policyID, policy in plan.access
-			for principal in ["human", "device", "workload"]
+			for principal in ["human", "device"]
 			if (principal == "human" && (policy.authentication == "human" || policy.authentication == "human+device")) ||
-				(principal == "device" && (policy.authentication == "device" || policy.authentication == "human+device")) ||
-				(principal == "workload" && policy.authentication == "workload") {
+				(principal == "device" && policy.authentication == "human+device") {
 				policyRef:     policyID
 				principalKind: principal
 				matches: [for verifier in plan.identityTrust.verifierPlacements if verifier.principal == principal {verifier.id}] & list.MinItems(1)
@@ -139,7 +138,7 @@ import "list"
 		for originSiteRef in route.originSiteRefs
 		for principal in ["human", "device", "workload"]
 		if (principal == "human" && (route.access.authentication == "human" || route.access.authentication == "human+device")) ||
-			(principal == "device" && (route.access.authentication == "device" || route.access.authentication == "human+device")) ||
+			(principal == "device" && route.access.authentication == "human+device") ||
 			(principal == "workload" && route.access.authentication == "workload") {
 			routeRef:      route.id
 			principalKind: principal
@@ -151,7 +150,7 @@ import "list"
 			for publication in plan.bridge.publications
 			for principal in ["human", "device", "workload"]
 			if (principal == "human" && (publication.access.authentication == "human" || publication.access.authentication == "human+device")) ||
-				(principal == "device" && (publication.access.authentication == "device" || publication.access.authentication == "human+device")) ||
+				(principal == "device" && publication.access.authentication == "human+device") ||
 				(principal == "workload" && publication.access.authentication == "workload") {
 				serviceRef:    publication.serviceRef
 				principalKind: principal
@@ -276,10 +275,6 @@ import "list"
 			policyRef: policyID
 			matches: [for allowed in definition.reachability.accessPolicies.allowedExposures if accessPolicy.exposure == allowed {allowed}] & list.MinItems(1) & list.MaxItems(1)
 		}]
-		integrity: lanStepDown: [for policyID, accessPolicy in plan.access if accessPolicy.lanStepDown != _|_ if accessPolicy.lanStepDown == true {
-			policyRef: policyID
-			allowed:   definition.reachability.accessPolicies.lanStepDownAllowed & true
-		}]
 	}
 	integrity: routeReachability: [for route in plan.network.routes for originSiteRef in route.originSiteRefs {
 		routeRef: route.id
@@ -314,8 +309,8 @@ import "list"
 		exposureMatches: [
 			for policyID, accessPolicy in plan.access
 			if route.access.policyRef == policyID
-			if (route.exposure == "local" && (accessPolicy.exposure == "private" || accessPolicy.exposure == "lan")) ||
-				(route.exposure == "remote-private" && accessPolicy.exposure == "private") ||
+			if (route.exposure == "local" && (accessPolicy.exposure == "local-only" || accessPolicy.exposure == "remote-private")) ||
+				(route.exposure == "remote-private" && accessPolicy.exposure == "remote-private") ||
 				(route.exposure == "public" && accessPolicy.exposure == "public") {policyID},
 		] & list.MinItems(1) & list.MaxItems(1)
 		authenticationMatches: [
@@ -343,11 +338,34 @@ import "list"
 			if route.access.policyRef == policyID
 			if route.access.policyExposure == accessPolicy.exposure {policyID},
 		] & list.MinItems(1) & list.MaxItems(1)
-		lanStepDownMatches: [
+		ownerRemoteOptInMatches: [
 			for policyID, accessPolicy in plan.access
 			if route.access.policyRef == policyID
-			if route.access.lanStepDown == accessPolicy.lanStepDown {policyID},
+			if route.access.ownerRemoteOptIn == accessPolicy.ownerRemoteOptIn {policyID},
 		] & list.MinItems(1) & list.MaxItems(1)
+		appAccessAwayMatches: [
+			for policyID, accessPolicy in plan.access
+			if route.access.policyRef == policyID
+			if route.access.appAccessAway == accessPolicy.appAccessAway {policyID},
+		] & list.MinItems(1) & list.MaxItems(1)
+		anonymousRateLimitForward: [
+			for policyID, accessPolicy in plan.access
+			if route.access.policyRef == policyID
+			if accessPolicy.anonymousRateLimit != _|_ {
+				policyRef: policyID
+				value:     route.access.anonymousRateLimit & accessPolicy.anonymousRateLimit
+			},
+		]
+		if route.access.anonymousRateLimit != _|_ {
+			anonymousRateLimitReverse: [
+				for policyID, accessPolicy in plan.access
+				if route.access.policyRef == policyID
+				if accessPolicy.anonymousRateLimit != _|_ {
+					policyRef: policyID
+					value:     route.access.anonymousRateLimit & accessPolicy.anonymousRateLimit
+				},
+			] & list.MinItems(1) & list.MaxItems(1)
+		}
 		allowedSiteRefsForward: [
 			for policyID, accessPolicy in plan.access
 			if route.access.policyRef == policyID
@@ -504,7 +522,7 @@ import "list"
 								for instance in unit.instances
 								if instance.scope == "node-local"
 								if instance.id == originTarget.instanceRef && instance.nodeRef == originTarget.nodeRef && instance.siteRef == publication.sourceSiteRef {
-									nodeRef: instance.nodeRef
+									nodeRef:     instance.nodeRef
 									instanceRef: instance.id
 								},
 							] & list.MinItems(1) & list.MaxItems(1)
@@ -561,6 +579,8 @@ import "list"
 					if publication.access.privilege == policy.privilege
 					if publication.access.enrolledDeviceRequired == policy.enrolledDeviceRequired
 					if publication.access.ownerStepUpRequired == policy.ownerStepUpRequired
+					if publication.access.ownerRemoteOptIn == policy.ownerRemoteOptIn
+					if publication.access.appAccessAway == policy.appAccessAway
 					if publication.access.defaultClosed == true
 					if publication.access.allowedMethods != _|_
 					if len(publication.access.allowedMethods) == len(policy.allowedMethods) {policyID},
@@ -759,8 +779,8 @@ import "list"
 	]
 	_edgeVerifierSitePresenceWanted: [if len(_expectedEdgeVerifierSiteRefs) > 0 {true}]
 	integrity: edgeVerifierRefsPresence: len(_edgeVerifierSitePresent) & len(_edgeVerifierSitePresenceWanted)
-	integrity: edgeVerifierRefsUnique: list.UniqueItems(_edgeVerifierSiteActual) & true
-	integrity: edgeVerifierCountExact: len(_edgeVerifierSiteActual) & len(_expectedEdgeVerifierSiteRefs)
+	integrity: edgeVerifierRefsUnique:   list.UniqueItems(_edgeVerifierSiteActual) & true
+	integrity: edgeVerifierCountExact:   len(_edgeVerifierSiteActual) & len(_expectedEdgeVerifierSiteRefs)
 	integrity: edgeVerifierRefsExact: [for expected in _expectedEdgeVerifierSiteRefs {
 		site: expected
 		matches: [for actual in _edgeVerifierSiteActual if actual == expected {actual}] & list.MinItems(1) & list.MaxItems(1)

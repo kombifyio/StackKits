@@ -40,7 +40,6 @@ type profileView struct {
 
 type reachabilityView struct {
 	allowedAccessExposures []string
-	lanStepDownAllowed     bool
 	routes                 map[string]routeReachabilityRule
 }
 
@@ -392,10 +391,6 @@ func parseReachabilityContract(contract map[string]any) (reachabilityView, error
 	}
 	if len(result.allowedAccessExposures) == 0 {
 		return result, fail(ErrInvalidInput, "definition.reachability.accessPolicies.allowedExposures", "at least one access exposure is required")
-	}
-	result.lanStepDownAllowed, err = requiredBoolField(accessPolicies, "definition.reachability.accessPolicies", "lanStepDownAllowed")
-	if err != nil {
-		return result, err
 	}
 
 	routes, err := objectField(contract, "definition.reachability", "routes")
@@ -767,13 +762,6 @@ func validateAccessPolicies(profile *profileView, policies map[string]any) error
 		}
 		if !contains(profile.reachability.allowedAccessExposures, exposure) {
 			return fail(ErrProfileMismatch, path+".exposure", "access exposure %q is not allowed by the kit reachability contract", exposure)
-		}
-		lanStepDown, err := boolFieldDefault(policy, path, "lanStepDown", false)
-		if err != nil {
-			return err
-		}
-		if lanStepDown && !profile.reachability.lanStepDownAllowed {
-			return fail(ErrProfileMismatch, path+".lanStepDown", "LAN step-down is not allowed by the kit reachability contract")
 		}
 	}
 	return nil

@@ -32,6 +32,8 @@ type modernFederationPartition struct {
 	LocalIdentityAuthorityAvailable bool   `json:"localIdentityAuthorityAvailable"`
 	MaxStaleVerificationSeconds     int    `json:"maxStaleVerificationSeconds"`
 	DenyNewCrossSiteSessions        bool   `json:"denyNewCrossSiteSessions"`
+	IssuedSessions                  string `json:"issuedSessions"`
+	NewSessions                     string `json:"newSessions"`
 }
 
 type federationLinkPolicyProjection struct {
@@ -243,7 +245,8 @@ func validateFederationOverlayPolicy(
 func validateFederationPartition(partition modernFederationPartition, path string) error {
 	if partition.OnCloudLoss != "local-continues" || partition.OnLinkLoss != "local-continues" ||
 		partition.CloudEdge != "fail-closed" || !partition.LocalIdentityAuthorityAvailable ||
-		!partition.DenyNewCrossSiteSessions || partition.MaxStaleVerificationSeconds < 0 {
+		!partition.DenyNewCrossSiteSessions || partition.MaxStaleVerificationSeconds < 0 ||
+		!validPartitionSessionTerms(partition.IssuedSessions, partition.NewSessions) {
 		return fail(ErrInvalidPlan, path, "partition policy must preserve local authority and fail new Cloud/cross-Site access closed")
 	}
 	return nil

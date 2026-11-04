@@ -77,6 +77,58 @@ type FirewallPolicy struct {
 	// DeclaredTCP and DeclaredUDP are the declared service ports.
 	DeclaredTCP []int
 	DeclaredUDP []int
+	// RemoteConnectorIsolation confines the relay and tunnel connector bridge
+	// to the remote listener: it may reach the internet and its own bridge,
+	// never the host or a private address (homelab identity target §7).
+	RemoteConnectorIsolation bool `json:"remote_connector_isolation,omitempty"`
+	// AddOnPublicTCP and AddOnPublicUDP are the ports an add-on the Owner
+	// switched on serves to every source, such as the VPN add-on's WireGuard
+	// endpoint or peer service, which a router forwards from the internet.
+	// They are set and cleared only by that add-on (SetAddOnPublicListeners)
+	// and kept across baseline repairs.
+	AddOnPublicTCP []int `json:"add_on_public_tcp,omitempty"`
+	AddOnPublicUDP []int `json:"add_on_public_udp,omitempty"`
+}
+
+// The Basement core's connector network and its stable Linux bridge. The
+// bridge holds the remote router and the connectors, nothing else.
+const (
+	RemoteConnectorNetwork = "stackkit-remote-connector"
+	RemoteConnectorBridge  = "skremote0"
+	remoteConnectorChain   = "stackkits_home_remote_connector"
+)
+
+// Destinations the connector bridge may never forward to: the host's and
+// every private, shared, link-local, loopback, multicast or reserved range.
+var (
+	remoteConnectorDeniedV4 = []netip.Prefix{
+		netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("10.0.0.0/8"),
+		netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("169.254.0.0/16"), netip.MustParsePrefix("172.16.0.0/12"),
+		netip.MustParsePrefix("192.168.0.0/16"), netip.MustParsePrefix("224.0.0.0/3"),
+	}
+	remoteConnectorDeniedV6 = []netip.Prefix{
+		netip.MustParsePrefix("::1/128"), netip.MustParsePrefix("fc00::/7"),
+		netip.MustParsePrefix("fe80::/10"), netip.MustParsePrefix("ff00::/8"),
+	}
+)
+
+// renderRemoteConnectorChain is the forward hook of the connector bridge. It
+// runs before the container engine's own chains: a drop here is final, an
+// accept lets the engine's rules decide as before. A destination-translated
+// packet is a published host port (the LAN router, the enrollment listener),
+// whatever address range the engine's pool uses, so it is dropped first.
+func renderRemoteConnectorChain() string {
+	selector := "\t\tiifname \"" + RemoteConnectorBridge + "\""
+	return strings.Join([]string{
+		"\tchain " + remoteConnectorChain + " {",
+		"\t\ttype filter hook forward priority filter - 10; policy accept;",
+		selector + " ct status dnat counter drop",
+		selector + " oifname \"" + RemoteConnectorBridge + "\" accept",
+		selector + " ip daddr " + prefixSet(remoteConnectorDeniedV4) + " counter drop",
+		selector + " ip6 daddr " + prefixSet(remoteConnectorDeniedV6) + " counter drop",
+		"\t}",
+	}, "\n")
 }
 
 type firewallRule struct {
@@ -89,6 +141,8 @@ func (p FirewallPolicy) normalized() FirewallPolicy {
 	p.SSHPorts = sortedUniquePorts(p.SSHPorts)
 	p.DeclaredTCP = sortedUniquePorts(p.DeclaredTCP)
 	p.DeclaredUDP = sortedUniquePorts(p.DeclaredUDP)
+	p.AddOnPublicTCP = sortedUniquePorts(p.AddOnPublicTCP)
+	p.AddOnPublicUDP = sortedUniquePorts(p.AddOnPublicUDP)
 	peers := make([]netip.Addr, 0, len(p.Peers))
 	for _, peer := range p.Peers {
 		peers = append(peers, peer.Unmap())
@@ -136,7 +190,8 @@ func (p FirewallPolicy) Validate() error {
 			return fmt.Errorf("management source %q would admit every address", source)
 		}
 	}
-	for _, port := range append(slices.Clone(p.SSHPorts), append(slices.Clone(p.DeclaredTCP), p.DeclaredUDP...)...) {
+	ports := slices.Concat(p.SSHPorts, p.DeclaredTCP, p.DeclaredUDP, p.AddOnPublicTCP, p.AddOnPublicUDP)
+	for _, port := range ports {
 		if port < 1 || port > 65535 {
 			return fmt.Errorf("port %d is outside 1-65535", port)
 		}
@@ -230,6 +285,11 @@ func (p FirewallPolicy) rules() []firewallRule {
 	add("ct state established,related accept", true, func(k Packet) bool { return k.Established })
 	add("ct state invalid drop", false, func(k Packet) bool { return k.Invalid })
 	add(`iif "lo" accept`, true, func(k Packet) bool { return k.Interface == "lo" })
+	if p.RemoteConnectorIsolation {
+		// A relay or tunnel connector reaches the remote listener on its own
+		// bridge and nothing on the host, so the LAN listener stays home-only.
+		add(`iifname "`+RemoteConnectorBridge+`" drop`, false, func(k Packet) bool { return k.Interface == RemoteConnectorBridge })
+	}
 	// ICMP carries path MTU discovery and IPv6 neighbor discovery; dropping it
 	// breaks connectivity without hiding the host.
 	add("meta l4proto { icmp, ipv6-icmp } accept", true, func(k Packet) bool { return k.Protocol == "icmp" })
@@ -264,6 +324,17 @@ func (p FirewallPolicy) rules() []firewallRule {
 	if hasSSH && len(peersV6) > 0 {
 		add("ip6 saddr "+prefixSet(peersV6)+" tcp dport "+portSet(p.SSHPorts)+" accept", true,
 			func(k Packet) bool { return sshAllowed(k) && matchAny(peersV6, k.Source) })
+	}
+	// An Owner-enabled add-on's public ports (the VPN add-on's endpoint and
+	// peer service) are reachable from every source; each authenticates its
+	// own clients.
+	if len(p.AddOnPublicTCP) > 0 {
+		ports := p.AddOnPublicTCP
+		add("tcp dport "+portSet(ports)+" accept", true, func(k Packet) bool { return k.Protocol == "tcp" && containsPort(ports, k.Port) })
+	}
+	if len(p.AddOnPublicUDP) > 0 {
+		ports := p.AddOnPublicUDP
+		add("udp dport "+portSet(ports)+" accept", true, func(k Packet) bool { return k.Protocol == "udp" && containsPort(ports, k.Port) })
 	}
 
 	tcpPorts := sortedUniquePorts(append(slices.Clone(p.DeclaredTCP), p.SSHPorts...))
@@ -334,6 +405,9 @@ func (p FirewallPolicy) Render() string {
 			lines = append(lines, "\t\t"+rule.text)
 		}
 		lines = append(lines, "\t}")
+	}
+	if p.RemoteConnectorIsolation {
+		lines = append(lines, renderRemoteConnectorChain())
 	}
 	for _, scope := range p.Containers {
 		lines = append(lines, scope.renderChain())

@@ -2,21 +2,23 @@ package identity
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -26,24 +28,34 @@ import (
 )
 
 const (
-	HomePublicTrustSchema        = "stackkit.home-human-device-trust/v1"
-	HomeDeviceCredentialType     = "stackkit-device-credential+jwt"
+	HomePublicTrustSchema        = "stackkit.home-public-trust/v2"
 	homeVerifierStatePath        = ".stackkit/custody/home-verifier/state.json"
-	homeVerifierReplayDir        = ".stackkit/custody/home-verifier/replay"
 	homeVerifierMaxTrustLifetime = 24 * time.Hour
-	homeVerifierDPoPWindow       = 30 * time.Second
 	homeVerifierMaxProofBytes    = 64 << 10
-	homeVerifierMaxDPoPBytes     = 16 << 10
 	homeVerifierMaxStateBytes    = 512 << 10
+
+	// The Authority's own verifier rereads its registry at least this often,
+	// well inside the 60 second revocation target, and at most once a second
+	// for a credential whose device it has not seen yet.
+	homeRevocationRefresh     = 10 * time.Second
+	homeRevocationMissRefresh = time.Second
+	// Replay state is bounded overall and per device key, so one key cannot
+	// lock every other device out by filling it.
+	homeReplayCapacity = 1 << 18
+	homeReplayPerKey   = 1 << 12
+	homeReplaySweep    = 5 * time.Second
+	// A proof is kept one second past the last instant the parser accepts it.
+	homeProofReplayRetention = HomeDeviceProofWindow + HomeClockLeeway + time.Second
+	// A renewal proof's jti also binds its passkey assertion, so it is kept
+	// for as long as that assertion could still be fresh.
+	homeRenewalReplayRetention = HomeUserVerificationFreshness + HomeDeviceProofWindow + 2*HomeClockLeeway + time.Second
 )
 
-var (
-	ErrHomeAccessDenied        = errors.New("identity: current independent Home human and device proof required")
-	homeVerifierAllowedJWTAlgs = []jose.SignatureAlgorithm{jose.EdDSA, jose.ES256, jose.RS256}
-)
+var homeVerifierAllowedJWTAlgs = []jose.SignatureAlgorithm{jose.EdDSA, jose.ES256, jose.RS256}
 
 // HomePocketIDTrust is the live PocketID OIDC authority. The CUE human issuer
-// URN cannot alias this HTTPS issuer or its OIDC client audience.
+// URN cannot alias this HTTPS issuer or its OIDC client audience. ClientID is
+// always HomeDeviceClientID, the device sign-in client the pin was bound with.
 type HomePocketIDTrust struct {
 	Issuer   string             `json:"issuer"`
 	ClientID string             `json:"clientId"`
@@ -51,55 +63,20 @@ type HomePocketIDTrust struct {
 	Keys     jose.JSONWebKeySet `json:"keys"`
 }
 
-// HomePublicTrust is current Home public verifier material. Device issuer
-// fields rebound HomeDeviceAuthority; partition denial rebounds Modern
-// IdentityTrust. Private keys, pairing state and enrollment tokens are absent.
+// HomePublicTrust is the Owner-signed Pocket ID pin of this Home: issuer,
+// signing keys, the Owner subject and the revoked Homelab accounts. It backs
+// every passkey verification (enrollment, renewal user verification, every
+// step-up). RefreshHomePublicTrust binds it in production.
+// Device credentials are verified against the device issuer and registry, not
+// against this pin.
 type HomePublicTrust struct {
-	Schema                        string                                  `json:"schema"`
-	HomeSiteRef                   string                                  `json:"homeSiteRef"`
-	PublicOrigin                  string                                  `json:"publicOrigin"`
-	DeviceAuthorityRef            string                                  `json:"deviceAuthorityRef"`
-	DeviceIssuer                  string                                  `json:"deviceIssuer"`
-	DeviceAudiences               []string                                `json:"deviceAudiences"`
-	DeviceKeySetRef               string                                  `json:"deviceKeySetRef"`
-	DeviceCredentialTTLSeconds    int                                     `json:"deviceCredentialTTLSeconds"`
-	DeviceSessionTTLSeconds       int                                     `json:"deviceSessionTTLSeconds"`
-	HumanSessionTTLSeconds        int                                     `json:"humanSessionTTLSeconds"`
-	RevocationMaxStalenessSeconds int                                     `json:"revocationMaxStalenessSeconds"`
-	PartitionDenied               bool                                    `json:"partitionDenied"`
-	PocketID                      HomePocketIDTrust                       `json:"pocketId"`
-	DeviceKeys                    jose.JSONWebKeySet                      `json:"deviceKeys"`
-	RevokedCredentialIDs          []string                                `json:"revokedCredentialIds"`
-	RevokedSubjects               []string                                `json:"revokedSubjects"`
-	IssuedAt                      time.Time                               `json:"issuedAt"`
-	ExpiresAt                     time.Time                               `json:"expiresAt"`
-	Signature                     localevidence.OwnerPolicyStateSignature `json:"signature"`
-}
-
-type HomeConfirmation struct {
-	JWKThumbprint string `json:"jkt"`
-}
-
-type homeDeviceCredentialClaims struct {
-	jwt.Claims
-	HumanSubject string           `json:"humanSubject"`
-	Confirmation HomeConfirmation `json:"cnf"`
-}
-
-// HomeAccessProof is a credential and must never be logged. HumanSession is
-// the original PocketID ID token. DeviceCredential is signed by the Home
-// device-authority issuer, never the workload mTLS issuer.
-type HomeAccessProof struct {
-	HumanSession     string `json:"humanSession"`
-	DeviceCredential string `json:"deviceCredential"`
-	DPoP             string `json:"dpop"`
-}
-
-// HomeAuthentication is request-scoped admission, not privileged approval.
-type HomeAuthentication struct {
-	Subject   string    `json:"subject"`
-	Device    string    `json:"device"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	Schema          string                                  `json:"schema"`
+	HomeSiteRef     string                                  `json:"homeSiteRef"`
+	PocketID        HomePocketIDTrust                       `json:"pocketId"`
+	RevokedSubjects []string                                `json:"revokedSubjects"`
+	IssuedAt        time.Time                               `json:"issuedAt"`
+	ExpiresAt       time.Time                               `json:"expiresAt"`
+	Signature       localevidence.OwnerPolicyStateSignature `json:"signature"`
 }
 
 type homeVerifierState struct {
@@ -107,43 +84,24 @@ type homeVerifierState struct {
 	Active bool            `json:"active"`
 }
 
-type homeAccessDecision struct {
-	Subject   string
-	Device    string
-	ProofID   string
-	ExpiresAt time.Time
-}
-
-// BindHomePublicTrust is local Owner publication of current public trust.
-// It does not enroll a device or mint a credential.
+// BindHomePublicTrust is local Owner publication of the current Pocket ID pin.
+// It does not enroll a device or mint a credential. Every device of a revoked
+// Homelab account is revoked in the registry before the pin is published, so
+// the account's credentials stop renewing at once and stop verifying within
+// the revocation refresh.
 func BindHomePublicTrust(root string, trust HomePublicTrust) error {
 	trust, err := signHomePublicTrust(root, trust)
 	if err != nil {
 		return err
 	}
-	fs, err := confinedfs.Open(root)
+	release, err := localevidence.AcquireCustodyLock(root, homeVerifierStatePath, 1)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = fs.Close() }()
-	tx, err := fs.BeginTransaction()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Close() }()
-	lock, err := tx.TryAcquireOutputLock(homeVerifierStatePath)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = lock.Release() }()
-	if prior, loadErr := loadHomeVerifierState(root); loadErr == nil {
+	defer release()
+	if prior, loadErr := loadOwnerSignedHomeVerifierState(root); loadErr == nil {
 		if !sameHomePublicTrustPin(prior.Trust, trust) || !trust.IssuedAt.After(prior.Trust.IssuedAt) {
 			return ErrHomeAccessDenied
-		}
-		for _, id := range prior.Trust.RevokedCredentialIDs {
-			if !slices.Contains(trust.RevokedCredentialIDs, id) {
-				return ErrHomeAccessDenied
-			}
 		}
 		for _, id := range prior.Trust.RevokedSubjects {
 			if !slices.Contains(trust.RevokedSubjects, id) {
@@ -153,291 +111,493 @@ func BindHomePublicTrust(root string, trust HomePublicTrust) error {
 	} else if !errors.Is(loadErr, os.ErrNotExist) {
 		return loadErr
 	}
+	if err := revokeHomeAccountDevices(root, trust.RevokedSubjects, time.Now()); err != nil {
+		return err
+	}
 	return writeHomeVerifierState(root, homeVerifierState{Trust: trust, Active: true})
 }
 
-// AuthenticateHomeRequest reloads current signed Home trust for every request
-// and durably consumes the DPoP proof. Workload mTLS, API keys and forwarded
-// identity headers cannot satisfy this boundary.
-func AuthenticateHomeRequest(root, method, target string, proof HomeAccessProof) (HomeAuthentication, error) {
-	var result HomeAuthentication
-	state, err := loadHomeVerifierState(root)
-	if err != nil || !state.Active {
-		return result, ErrHomeAccessDenied
+// revokeHomeAccountDevices permanently revokes every device of the given
+// Homelab accounts.
+func revokeHomeAccountDevices(root string, accounts []string, now time.Time) error {
+	if len(accounts) == 0 {
+		return nil
 	}
-	now := time.Now().UTC()
-	if err := validateBoundHomePublicTrust(root, state.Trust, now); err != nil {
-		return result, err
-	}
-	decision, err := verifyHomeAccess(proof, method, target, state.Trust, now)
+	var revoked []string
+	err := updateHomeDeviceRegistry(root, func(registry *homeDeviceRegistry) error {
+		at := now.UTC()
+		for index := range registry.Devices {
+			device := &registry.Devices[index]
+			if slices.Contains(accounts, device.AccountSubject) {
+				if !device.Revoked {
+					device.Revoked, device.RevokedAt, device.RevokedBy = true, &at, HomeRevokedByRemoval
+				}
+				revoked = append(revoked, device.ID)
+				resolveHomeNotices(registry, device.ID, HomeNoticeClosed, HomeRevokedByOwner, at)
+			}
+		}
+		return nil
+	})
 	if err != nil {
-		return result, err
+		return err
 	}
-	claim, err := json.Marshal(struct {
-		ExpiresAt time.Time `json:"expiresAt"`
-	}{decision.ExpiresAt})
-	if err != nil {
-		return result, ErrHomeAccessDenied
+	invalidateHomeVerifier(root)
+	// A revoked account keeps no VPN add-on peer either (where this workspace
+	// holds the add-on's custody; the host's resync drops it otherwise).
+	if _, err = removeHomeOverlayPeers(root, revoked); errors.Is(err, ErrHomeOverlayCustodyAbsent) {
+		return nil
 	}
-	if err := writeHomePrivate(root, homeVerifierReplayDir+"/"+decision.ProofID+".json", claim, true); err != nil {
-		return result, ErrHomeAccessDenied
-	}
-	current, err := loadHomeVerifierState(root)
-	if err != nil || !current.Active || !bytes.Equal(homeTrustBytes(current.Trust), homeTrustBytes(state.Trust)) || !time.Now().UTC().Before(decision.ExpiresAt) {
-		return result, ErrHomeAccessDenied
-	}
-	return HomeAuthentication{Subject: decision.Subject, Device: decision.Device, ExpiresAt: decision.ExpiresAt}, nil
+	return err
 }
 
+// HomeDeviceRequest is one request to a service, as the server running the
+// service observed it. RouteOrigin is the https origin of the matched route
+// taken from the server's own route table, never from a request header; Path
+// is the request target in origin form (a query is allowed and is not part of
+// the proof). Credential is the token of "Authorization: DPoP <credential>",
+// Proof the "DPoP" header (see ParseHomeDeviceAuthorization).
+type HomeDeviceRequest struct {
+	Method      string `json:"method"`
+	RouteOrigin string `json:"routeOrigin"`
+	Path        string `json:"path"`
+	Credential  string `json:"credential"`
+	Proof       string `json:"proof"`
+}
+
+// HomeAuthentication is request-scoped admission of a Homelab account on an
+// enrolled device, not privileged approval. Subject is the account (Pocket ID
+// subject); Device is the device ID (key thumbprint).
+type HomeAuthentication struct {
+	Subject        string    `json:"subject"`
+	Device         string    `json:"device"`
+	CredentialID   string    `json:"credentialId"`
+	ExpiresAt      time.Time `json:"expiresAt"`
+	UserVerifiedAt time.Time `json:"userVerifiedAt"`
+}
+
+// HomeRenewalRequest is one credential renewal at the Authority. Proof is a
+// DPoP proof (htm POST, htu https://<host>HomeDeviceRenewalPath) signed by the
+// enrolled device key. UserVerification is optional until the last user
+// verification is 24 hours old: then it must be a Pocket ID ID token of the
+// device's account from a passkey sign-in through HomeDeviceClientID with the
+// nonce HomeDeviceUserVerificationNonce(thumbprint, proof jti).
+type HomeRenewalRequest struct {
+	Method           string
+	Proof            string
+	UserVerification string
+}
+
+// HomeVerifier verifies device credentials and DPoP proofs for the services of
+// this server and renews credentials on the Authority. It keeps the replay
+// state of every proof it accepted until the proof's window has passed, so one
+// long-lived verifier serves a process; use HomeVerifierFor. A proof whose
+// time, less the clock leeway, is not after the verifier's start is refused,
+// so a restart cannot reopen a replay; the cost is that proofs of the first
+// seconds after a start are refused and the client retries.
+type HomeVerifier struct {
+	root    string
+	now     func() time.Time
+	started time.Time
+	load    func(string) (homeDeviceSnapshot, error)
+
+	mu        sync.Mutex
+	snapshot  *homeDeviceSnapshot
+	attempted time.Time
+	replay    map[string]homeReplayEntry
+	perKey    map[string]int
+	swept     time.Time
+}
+
+type homeReplayEntry struct {
+	expires time.Time
+	key     string
+}
+
+// homeDeviceSnapshot is the last-known verification state: the device issuer
+// and the registry entries. A failed refresh keeps it (partition rule).
+type homeDeviceSnapshot struct {
+	issuer   homeDeviceIssuerPublic
+	devices  map[string]HomeDevice
+	loadedAt time.Time
+}
+
+var homeVerifiers sync.Map
+
+// HomeVerifierFor returns the process-wide verifier of a workspace.
+func HomeVerifierFor(root string) (*HomeVerifier, error) {
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		return nil, err
+	}
+	if existing, ok := homeVerifiers.Load(absolute); ok {
+		return existing.(*HomeVerifier), nil
+	}
+	verifier, _ := homeVerifiers.LoadOrStore(absolute, newHomeVerifier(absolute, time.Now))
+	return verifier.(*HomeVerifier), nil
+}
+
+func invalidateHomeVerifier(root string) {
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		return
+	}
+	if existing, ok := homeVerifiers.Load(absolute); ok {
+		existing.(*HomeVerifier).invalidate()
+	}
+}
+
+func newHomeVerifier(root string, now func() time.Time) *HomeVerifier {
+	return &HomeVerifier{
+		root: root, now: now, started: now().UTC(), load: loadHomeAuthoritySnapshot,
+		replay: map[string]homeReplayEntry{}, perKey: map[string]int{},
+	}
+}
+
+// Authenticate admits one request only when its credential is a current
+// credential of an active registry entry and its proof is a fresh, unused DPoP
+// proof signed by the credential's key for exactly this method, route origin
+// and path. Every refusal is ErrHomeAccessDenied. While the registry cannot be
+// refreshed, issued credentials stay valid to their lifetime against the
+// last-known state; a device the verifier has never seen stays refused.
+func (v *HomeVerifier) Authenticate(request HomeDeviceRequest) (HomeAuthentication, error) {
+	deny := func() (HomeAuthentication, error) { return HomeAuthentication{}, ErrHomeAccessDenied }
+	now := v.now().UTC()
+	target, ok := homeProofTarget(request.RouteOrigin, request.Path)
+	if !ok || !validHomeMethod(request.Method) {
+		return deny()
+	}
+	proof, err := parseHomeDeviceProof(request.Proof, now)
+	if err != nil || proof.Method != request.Method || proof.Target != target || !v.afterStart(proof.IssuedAt) ||
+		subtle.ConstantTimeCompare([]byte(proof.AccessHash), []byte(homeTokenHash(request.Credential))) != 1 {
+		return deny()
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	claims, device, err := v.credentialLocked(request.Credential, now)
+	if err != nil || claims.Confirmation.JWKThumbprint != proof.Thumbprint || device.AccountSubject != claims.Account {
+		return deny()
+	}
+	if !v.rememberLocked(proof.Thumbprint, proof.ID, proof.IssuedAt.Add(homeProofReplayRetention), now) {
+		return deny()
+	}
+	return HomeAuthentication{
+		Subject: claims.Account, Device: claims.Subject, CredentialID: claims.ID,
+		ExpiresAt: claims.Expiry.Time().UTC(), UserVerifiedAt: time.Unix(claims.AuthTime, 0).UTC(),
+	}, nil
+}
+
+// RenewDeviceCredential signs a new one-hour credential for an active
+// registry entry whose key signed the proof. After 24 hours without user
+// verification it returns ErrHomeUserVerificationRequired unless the request
+// carries a valid passkey assertion; every other refusal is
+// ErrHomeAccessDenied. It runs only on the Authority (the holder of the device
+// issuer key and registry) and fails closed whenever the registry, or for a
+// user verification the Pocket ID pin, is not current. A key that is not an
+// active registry entry is refused before it reaches replay state or the
+// registry lock.
+func (v *HomeVerifier) RenewDeviceCredential(request HomeRenewalRequest) (HomeDeviceCredential, error) {
+	deny := func() (HomeDeviceCredential, error) { return HomeDeviceCredential{}, ErrHomeAccessDenied }
+	now := v.now().UTC()
+	proof, err := parseHomeDeviceProof(request.Proof, now)
+	if err != nil || request.Method != http.MethodPost || proof.Method != http.MethodPost || !homeIdentityOriginAdmitted(v.root, proof.Target, HomeDeviceRenewalPath) || !v.afterStart(proof.IssuedAt) {
+		return deny()
+	}
+	current, err := loadHomeDeviceRegistry(v.root)
+	if err != nil {
+		return deny()
+	}
+	entry, known := findHomeDevice(current.Devices, proof.Thumbprint)
+	if known && entry.Pending(now) {
+		// Only the holder of the pending key can sign this proof, so the
+		// answer reveals nothing to anyone else.
+		return HomeDeviceCredential{}, ErrHomeEnrollmentPending
+	}
+	if !known || !entry.Active(now) {
+		return deny()
+	}
+	var trust HomePublicTrust
+	if request.UserVerification != "" {
+		state, stateErr := loadHomeVerifierState(v.root)
+		if stateErr != nil || !state.Active || validateBoundHomePublicTrust(v.root, state.Trust, now) != nil {
+			return deny()
+		}
+		trust = state.Trust
+	}
+	v.mu.Lock()
+	fresh := v.rememberLocked(proof.Thumbprint, proof.ID, now.Add(homeRenewalReplayRetention), now)
+	v.mu.Unlock()
+	if !fresh {
+		return deny()
+	}
+	issuer, err := loadHomeDeviceIssuer(v.root)
+	if err != nil {
+		return deny()
+	}
+	var renewed HomeDevice
+	err = updateHomeDeviceRegistry(v.root, func(registry *homeDeviceRegistry) error {
+		for index := range registry.Devices {
+			device := &registry.Devices[index]
+			if device.ID != proof.Thumbprint {
+				continue
+			}
+			if !device.Active(now) {
+				return ErrHomeAccessDenied
+			}
+			if request.UserVerification != "" {
+				verified, uvErr := verifyHomeUserVerification(request.UserVerification, trust, device.AccountSubject,
+					HomeDeviceUserVerificationNonce(proof.Thumbprint, proof.ID), v.started, now)
+				if uvErr != nil {
+					return ErrHomeAccessDenied
+				}
+				device.LastUserVerifiedAt = verified
+			} else if now.Sub(device.LastUserVerifiedAt) >= HomeDeviceUserVerificationInterval {
+				return ErrHomeUserVerificationRequired
+			}
+			device.LastUsedAt = now
+			renewed = *device
+			return nil
+		}
+		return ErrHomeAccessDenied
+	})
+	if errors.Is(err, ErrHomeUserVerificationRequired) {
+		return HomeDeviceCredential{}, err
+	}
+	if err != nil {
+		return deny()
+	}
+	return issuer.mint(renewed, now)
+}
+
+// credentialLocked verifies the credential against the current snapshot and
+// returns its active registry entry. It refreshes the snapshot when it is due
+// or, rate limited, when a correctly signed credential names an unseen device.
+func (v *HomeVerifier) credentialLocked(raw string, now time.Time) (homeDeviceCredentialClaims, HomeDevice, error) {
+	refreshed := v.refreshLocked(now, now.Sub(v.attempted) >= homeRevocationRefresh)
+	for {
+		if v.snapshot == nil {
+			return homeDeviceCredentialClaims{}, HomeDevice{}, ErrHomeAccessDenied
+		}
+		claims, err := v.snapshot.issuer.verify(raw, now)
+		if err != nil {
+			return claims, HomeDevice{}, err
+		}
+		if device, ok := v.snapshot.devices[claims.Subject]; ok {
+			if !device.Active(now) {
+				return claims, HomeDevice{}, ErrHomeAccessDenied
+			}
+			return claims, device, nil
+		}
+		if refreshed || now.Sub(v.attempted) < homeRevocationMissRefresh {
+			return claims, HomeDevice{}, ErrHomeAccessDenied
+		}
+		refreshed = v.refreshLocked(now, true)
+	}
+}
+
+// refreshLocked reloads the snapshot when forced or absent. A failed reload
+// keeps the last-known snapshot. It reports whether it attempted a load.
+func (v *HomeVerifier) refreshLocked(now time.Time, force bool) bool {
+	if !force && v.snapshot != nil {
+		return false
+	}
+	if v.snapshot == nil && !force && now.Sub(v.attempted) < homeRevocationMissRefresh {
+		return false
+	}
+	v.attempted = now
+	next, err := v.load(v.root)
+	if err != nil {
+		return true
+	}
+	next.loadedAt = now
+	v.snapshot = &next
+	return true
+}
+
+func (v *HomeVerifier) invalidate() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.attempted = time.Time{}
+}
+
+// rememberLocked records a device key's proof until its expiry and refuses
+// one it has seen. Expired entries are pruned; a full cache, overall or for
+// this key, refuses rather than forgets.
+func (v *HomeVerifier) rememberLocked(thumbprint, proofID string, until, now time.Time) bool {
+	if now.Sub(v.swept) >= homeReplaySweep || len(v.replay) >= homeReplayCapacity || v.perKey[thumbprint] >= homeReplayPerKey {
+		for seen, entry := range v.replay {
+			if !now.Before(entry.expires) {
+				delete(v.replay, seen)
+				if v.perKey[entry.key]--; v.perKey[entry.key] <= 0 {
+					delete(v.perKey, entry.key)
+				}
+			}
+		}
+		v.swept = now
+	}
+	id := homeTokenHash(thumbprint + "\x00" + proofID)
+	if entry, seen := v.replay[id]; seen && now.Before(entry.expires) {
+		return false
+	}
+	if len(v.replay) >= homeReplayCapacity || v.perKey[thumbprint] >= homeReplayPerKey {
+		return false
+	}
+	v.replay[id] = homeReplayEntry{expires: until, key: thumbprint}
+	v.perKey[thumbprint]++
+	return true
+}
+
+// afterStart refuses a proof that a previous process could have accepted: one
+// issued, within the clock leeway, before this verifier started.
+func (v *HomeVerifier) afterStart(issued time.Time) bool {
+	return issued.Add(-HomeClockLeeway).After(v.started.Truncate(time.Second))
+}
+
+func loadHomeAuthoritySnapshot(root string) (homeDeviceSnapshot, error) {
+	issuer, err := loadHomeDeviceIssuer(root)
+	if err != nil {
+		return homeDeviceSnapshot{}, err
+	}
+	registry, err := loadHomeDeviceRegistry(root)
+	if err != nil {
+		return homeDeviceSnapshot{}, err
+	}
+	devices := make(map[string]HomeDevice, len(registry.Devices))
+	for _, device := range registry.Devices {
+		devices[device.ID] = device
+	}
+	return homeDeviceSnapshot{issuer: issuer.homeDeviceIssuerPublic, devices: devices}, nil
+}
+
+// verifyHomeUserVerification checks the passkey assertion of a renewal and
+// returns when the person verified.
+func verifyHomeUserVerification(raw string, trust HomePublicTrust, subject, nonce string, started, now time.Time) (time.Time, error) {
+	claims, err := verifyHomePasskeyIDToken(raw, trust, HomeDeviceClientID, nonce, now)
+	if err != nil || claims.Subject != subject || claims.IssuedAt == nil {
+		return time.Time{}, ErrHomeAccessDenied
+	}
+	verified := claims.IssuedAt.Time().UTC()
+	if !verified.Add(-HomeClockLeeway).After(started.Truncate(time.Second)) || now.Sub(verified) > HomeUserVerificationFreshness {
+		return time.Time{}, ErrHomeAccessDenied
+	}
+	if verified.After(now) {
+		verified = now
+	}
+	return verified, nil
+}
+
+func homeProofTarget(origin, path string) (string, bool) {
+	if validateHomeOrigin(origin) != nil {
+		return "", false
+	}
+	if index := strings.IndexByte(path, '?'); index >= 0 {
+		path = path[:index]
+	}
+	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") || len(path) > 8<<10 || strings.ContainsAny(path, "#\\ \t\r\n") {
+		return "", false
+	}
+	return origin + path, true
+}
+
+func validHomeMethod(method string) bool {
+	if method == "" || len(method) > 16 {
+		return false
+	}
+	for _, r := range method {
+		if r < 'A' || r > 'Z' {
+			return false
+		}
+	}
+	return true
+}
+
+// signHomePublicTrust signs the Home trust with the Owner key. Only a
+// process that holds the Owner custody (the host) can; the core's identity
+// workspace holds none and fails here.
 func signHomePublicTrust(root string, trust HomePublicTrust) (HomePublicTrust, error) {
-	owner, err := localevidence.LoadOwnerCustody(root)
-	if err != nil || owner.Binding.SiteRef != trust.HomeSiteRef {
+	authority, err := homeAuthority(root)
+	if err != nil || authority.SiteRef != trust.HomeSiteRef {
 		return trust, ErrHomeAccessDenied
 	}
 	trust.Schema = HomePublicTrustSchema
 	trust.IssuedAt, trust.ExpiresAt = trust.IssuedAt.UTC(), trust.ExpiresAt.UTC()
-	if err := validateHomePublicTrustFields(root, trust, owner, time.Now().UTC()); err != nil {
+	if err := validateHomePublicTrustFields(trust, authority, time.Now().UTC()); err != nil {
 		return trust, err
 	}
 	trust.Signature, err = localevidence.SignHomeHumanDeviceTrust(root, homeTrustBytes(trust))
 	return trust, err
 }
 
+// validateBoundHomePublicTrust verifies the bound Home trust against the
+// Authority's public record: its Owner key, site and Owner subject.
 func validateBoundHomePublicTrust(root string, trust HomePublicTrust, now time.Time) error {
-	owner, err := localevidence.LoadOwnerCustody(root)
+	authority, err := homeAuthority(root)
 	if err != nil {
 		return ErrHomeAccessDenied
 	}
-	if err := validateHomePublicTrustFields(root, trust, owner, now); err != nil {
+	if err := validateHomePublicTrustFields(trust, authority, now); err != nil {
 		return err
 	}
-	return localevidence.VerifyHomeHumanDeviceTrust(root, homeTrustBytes(trust), trust.Signature)
-}
-
-func validateHomePublicTrustFields(root string, trust HomePublicTrust, owner localevidence.OwnerCustody, now time.Time) error {
-	if trust.Schema != HomePublicTrustSchema || trust.HomeSiteRef != owner.Binding.SiteRef || !trust.PartitionDenied {
-		return ErrHomeAccessDenied
-	}
-	if err := validateHomeOrigin(trust.PublicOrigin); err != nil {
-		return err
-	}
-	if err := validateHomeDeviceIssuerFields(trust); err != nil {
-		return err
-	}
-	if err := validateHomeTrustTiming(trust, now); err != nil {
-		return err
-	}
-	if !validHomePublicKeys(trust.PocketID.Keys) || !validHomePublicKeys(trust.DeviceKeys) || overlappingHomeKeys(trust.PocketID.Keys, trust.DeviceKeys) {
-		return ErrHomeAccessDenied
-	}
-	return validateHomePocketIDPin(root, trust.PocketID, owner)
-}
-
-func validateHomeDeviceIssuerFields(trust HomePublicTrust) error {
-	if strings.TrimSpace(trust.DeviceAuthorityRef) == "" || !strings.HasPrefix(trust.DeviceIssuer, "urn:stackkit:") ||
-		!strings.HasPrefix(trust.DeviceKeySetRef, "urn:stackkit:") || len(trust.DeviceAudiences) == 0 {
-		return ErrHomeAccessDenied
-	}
-	if trust.DeviceCredentialTTLSeconds <= 0 || trust.DeviceSessionTTLSeconds <= 0 || trust.HumanSessionTTLSeconds <= 0 ||
-		trust.DeviceSessionTTLSeconds > trust.DeviceCredentialTTLSeconds || trust.RevocationMaxStalenessSeconds < 0 {
+	if authority.VerifyHomeHumanDeviceTrust(homeTrustBytes(trust), trust.Signature) != nil {
 		return ErrHomeAccessDenied
 	}
 	return nil
 }
 
+func validateHomePublicTrustFields(trust HomePublicTrust, authority localevidence.HomeAuthorityPublic, now time.Time) error {
+	if trust.Schema != HomePublicTrustSchema || trust.HomeSiteRef != authority.SiteRef {
+		return ErrHomeAccessDenied
+	}
+	if err := validateHomeTrustTiming(trust, now); err != nil {
+		return err
+	}
+	if !validHomePublicKeys(trust.PocketID.Keys) {
+		return ErrHomeAccessDenied
+	}
+	return validateHomePocketIDPin(trust.PocketID, authority)
+}
+
 func validateHomeTrustTiming(trust HomePublicTrust, now time.Time) error {
 	if trust.IssuedAt.Location() != time.UTC || trust.ExpiresAt.Location() != time.UTC ||
-		!trust.ExpiresAt.After(trust.IssuedAt) || trust.IssuedAt.After(now) || !trust.ExpiresAt.After(now) ||
+		!trust.ExpiresAt.After(trust.IssuedAt) || trust.IssuedAt.After(now.Add(HomeClockLeeway)) || !trust.ExpiresAt.After(now) ||
 		trust.ExpiresAt.Sub(trust.IssuedAt) > homeVerifierMaxTrustLifetime {
 		return ErrHomeAccessDenied
 	}
 	return nil
 }
 
-func validateHomePocketIDPin(root string, trust HomePocketIDTrust, owner localevidence.OwnerCustody) error {
-	if trust.Subject == "" || trust.ClientID == "" {
+// validateHomePocketIDPin admits the pin only for the Owner subject the
+// Authority bound (its owner runtime binding, or the Owner custody projection
+// before the first binding) and an https issuer.
+func validateHomePocketIDPin(trust HomePocketIDTrust, authority localevidence.HomeAuthorityPublic) error {
+	if trust.Subject == "" || trust.ClientID != HomeDeviceClientID || trust.Subject != authority.OwnerPocketIDSubject {
 		return ErrHomeAccessDenied
 	}
 	issuer, err := url.Parse(trust.Issuer)
 	if err != nil || issuer.Scheme != "https" || issuer.Host == "" || issuer.User != nil || issuer.RawQuery != "" || issuer.Fragment != "" {
 		return ErrHomeAccessDenied
 	}
-	binding, err := localevidence.LoadOwnerRuntimeBinding(root)
-	if err == nil {
-		if binding.PocketIDSubject != trust.Subject || binding.OwnerRef != owner.OwnerRef {
-			return ErrHomeAccessDenied
-		}
-		return nil
-	}
-	if !errors.Is(err, localevidence.ErrOwnerRuntimeBindingMissing) || trust.Subject != owner.PocketID.Subject {
-		return ErrHomeAccessDenied
-	}
 	return nil
 }
 
+// validateHomeOrigin admits only a canonical https origin: lowercase host,
+// no default port, no path, query, fragment or user information.
 func validateHomeOrigin(origin string) error {
 	parsed, err := url.Parse(origin)
-	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != origin {
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawPath != "" ||
+		parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != origin || strings.ToLower(parsed.Host) != parsed.Host || parsed.Port() == "443" {
 		return ErrHomeAccessDenied
 	}
 	return nil
-}
-
-func overlappingHomeKeys(sets ...jose.JSONWebKeySet) bool {
-	seen := map[string]bool{}
-	for _, keys := range sets {
-		for _, key := range keys.Keys {
-			thumb, err := key.Thumbprint(crypto.SHA256)
-			if err != nil || seen[string(thumb)] {
-				return true
-			}
-			seen[string(thumb)] = true
-		}
-	}
-	return false
 }
 
 func sameHomePublicTrustPin(prior, next HomePublicTrust) bool {
-	return prior.HomeSiteRef == next.HomeSiteRef && prior.PublicOrigin == next.PublicOrigin &&
-		prior.DeviceAuthorityRef == next.DeviceAuthorityRef && prior.DeviceIssuer == next.DeviceIssuer &&
-		prior.DeviceKeySetRef == next.DeviceKeySetRef && slices.Equal(prior.DeviceAudiences, next.DeviceAudiences) &&
-		prior.PocketID.Issuer == next.PocketID.Issuer && prior.PocketID.ClientID == next.PocketID.ClientID &&
-		prior.PocketID.Subject == next.PocketID.Subject
+	return prior.HomeSiteRef == next.HomeSiteRef && prior.PocketID.Issuer == next.PocketID.Issuer &&
+		prior.PocketID.ClientID == next.PocketID.ClientID && prior.PocketID.Subject == next.PocketID.Subject
 }
 
-func verifyHomeAccess(proof HomeAccessProof, method, target string, trust HomePublicTrust, now time.Time) (homeAccessDecision, error) {
-	deny := func() (homeAccessDecision, error) { return homeAccessDecision{}, ErrHomeAccessDenied }
-	if err := validateHomeTarget(method, target, trust.PublicOrigin); err != nil {
-		return deny()
-	}
-	human, err := verifyHomeHumanToken(proof.HumanSession, trust, now)
-	if err != nil {
-		return deny()
-	}
-	device, err := verifyHomeDeviceToken(proof.DeviceCredential, human.Subject, trust, now)
-	if err != nil {
-		return deny()
-	}
-	dpopID, dpopExpiry, err := verifyHomeDPoP(proof, method, target, device.Confirmation.JWKThumbprint, now)
-	if err != nil {
-		return deny()
-	}
-	sessionTTL := trust.DeviceSessionTTLSeconds
-	if trust.HumanSessionTTLSeconds < sessionTTL {
-		sessionTTL = trust.HumanSessionTTLSeconds
-	}
-	expires := now.Add(time.Duration(sessionTTL) * time.Second)
-	for _, deadline := range []time.Time{human.Expiry.Time(), device.Expiry.Time(), trust.ExpiresAt, dpopExpiry} {
-		if deadline.Before(expires) {
-			expires = deadline
-		}
-	}
-	if !expires.After(now) {
-		return deny()
-	}
-	return homeAccessDecision{
-		Subject: human.Subject, Device: device.Subject,
-		ProofID: homeTokenHash(device.Confirmation.JWKThumbprint + "\x00" + dpopID), ExpiresAt: expires,
-	}, nil
-}
-
-func validateHomeTarget(method, target, origin string) error {
-	if method == "" || strings.ContainsAny(method, " \t\r\n") {
-		return ErrHomeAccessDenied
-	}
-	parsed, err := url.Parse(target)
-	if err != nil || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != target {
-		return ErrHomeAccessDenied
-	}
-	if parsed.Scheme+"://"+parsed.Host != origin {
-		return ErrHomeAccessDenied
-	}
-	return nil
-}
-
-func verifyHomeHumanToken(raw string, trust HomePublicTrust, now time.Time) (jwt.Claims, error) {
-	var claims struct {
-		jwt.Claims
-		Type string `json:"type"`
-	}
-	if err := verifyHomeJWT(raw, "JWT", trust.PocketID.Keys, &claims); err != nil {
-		return jwt.Claims{}, err
-	}
-	if claims.Type != "id-token" || claims.Issuer != trust.PocketID.Issuer || claims.Subject != trust.PocketID.Subject ||
-		len(claims.Audience) != 1 || claims.Audience[0] != trust.PocketID.ClientID {
-		return jwt.Claims{}, ErrHomeAccessDenied
-	}
-	if !validHomeTimeClaims(claims.Claims, now) || slices.Contains(trust.RevokedSubjects, claims.Subject) {
-		return jwt.Claims{}, ErrHomeAccessDenied
-	}
-	return claims.Claims, nil
-}
-
-func verifyHomeDeviceToken(raw, humanSubject string, trust HomePublicTrust, now time.Time) (homeDeviceCredentialClaims, error) {
-	var claims homeDeviceCredentialClaims
-	if err := verifyHomeJWT(raw, HomeDeviceCredentialType, trust.DeviceKeys, &claims); err != nil {
-		return claims, err
-	}
-	if claims.Issuer != trust.DeviceIssuer || claims.Subject == "" || claims.ID == "" || claims.HumanSubject != humanSubject ||
-		len(claims.Audience) != 1 || !slices.Contains(trust.DeviceAudiences, claims.Audience[0]) ||
-		claims.Confirmation.JWKThumbprint == "" {
-		return claims, ErrHomeAccessDenied
-	}
-	if !validHomeTimeClaims(claims.Claims, now) || claims.Expiry.Time().Sub(claims.IssuedAt.Time()) > time.Duration(trust.DeviceCredentialTTLSeconds)*time.Second {
-		return claims, ErrHomeAccessDenied
-	}
-	if slices.Contains(trust.RevokedCredentialIDs, claims.ID) || slices.Contains(trust.RevokedSubjects, claims.HumanSubject) {
-		return claims, ErrHomeAccessDenied
-	}
-	return claims, nil
-}
-
-func verifyHomeDPoP(proof HomeAccessProof, method, target, jkt string, now time.Time) (string, time.Time, error) {
-	key, token, err := parseHomeDPoPKey(proof.DPoP, jkt)
-	if err != nil {
-		return "", time.Time{}, err
-	}
-	var dpop struct {
-		jwt.Claims
-		Method     string `json:"htm"`
-		Target     string `json:"htu"`
-		AccessHash string `json:"ath"`
-		HumanHash  string `json:"hth"`
-	}
-	if token.Claims(key.Key, &dpop) != nil || len(dpop.ID) < 22 || len(dpop.ID) > 128 || dpop.IssuedAt == nil ||
-		dpop.IssuedAt.Time().After(now) || now.Sub(dpop.IssuedAt.Time()) > homeVerifierDPoPWindow ||
-		dpop.Method != method || dpop.Target != target || dpop.AccessHash != homeTokenHash(proof.DeviceCredential) ||
-		dpop.HumanHash != homeTokenHash(proof.HumanSession) {
-		return "", time.Time{}, ErrHomeAccessDenied
-	}
-	return dpop.ID, dpop.IssuedAt.Time().Add(homeVerifierDPoPWindow), nil
-}
-
-func parseHomeDPoPKey(raw, jkt string) (jose.JSONWebKey, *jwt.JSONWebToken, error) {
-	var empty jose.JSONWebKey
-	if len(raw) == 0 || len(raw) > homeVerifierMaxDPoPBytes || strings.Count(raw, ".") != 2 {
-		return empty, nil, ErrHomeAccessDenied
-	}
-	token, err := jwt.ParseSigned(raw, homeVerifierAllowedJWTAlgs)
-	if err != nil || len(token.Headers) != 1 {
-		return empty, nil, ErrHomeAccessDenied
-	}
-	header := token.Headers[0]
-	if header.ExtraHeaders[jose.HeaderType] != "dpop+jwt" || header.JSONWebKey == nil {
-		return empty, nil, ErrHomeAccessDenied
-	}
-	key := *header.JSONWebKey
-	key.KeyID, key.Use, key.Algorithm = "dpop", "sig", header.Algorithm
-	if !validHomePublicKeys(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{key}}) {
-		return empty, nil, ErrHomeAccessDenied
-	}
-	thumb, err := key.Thumbprint(crypto.SHA256)
-	if err != nil || base64.RawURLEncoding.EncodeToString(thumb) != jkt {
-		return empty, nil, ErrHomeAccessDenied
-	}
-	return key, token, nil
-}
-
+// verifyHomeJWT verifies a Pocket ID token against the pinned key set: the
+// header must name one pinned key, whose own algorithm must equal the header
+// algorithm, so no token can choose its verification algorithm.
 func verifyHomeJWT(raw, typ string, keys jose.JSONWebKeySet, claims any) error {
 	if len(raw) == 0 || len(raw) > homeVerifierMaxProofBytes || strings.Count(raw, ".") != 2 {
 		return ErrHomeAccessDenied
@@ -457,11 +617,13 @@ func verifyHomeJWT(raw, typ string, keys jose.JSONWebKeySet, claims any) error {
 	return nil
 }
 
+// validHomeTimeClaims requires iat and exp; nbf is optional (Pocket ID omits
+// it) and, when present, must equal iat.
 func validHomeTimeClaims(claims jwt.Claims, now time.Time) bool {
-	return claims.IssuedAt != nil && claims.NotBefore != nil && claims.Expiry != nil &&
-		!claims.IssuedAt.Time().After(now) && !claims.NotBefore.Time().After(now) &&
-		claims.NotBefore.Time().Equal(claims.IssuedAt.Time()) && claims.Expiry.Time().After(now) &&
-		claims.Expiry.Time().After(claims.IssuedAt.Time())
+	return claims.IssuedAt != nil && claims.Expiry != nil &&
+		!claims.IssuedAt.Time().After(now.Add(HomeClockLeeway)) &&
+		(claims.NotBefore == nil || claims.NotBefore.Time().Equal(claims.IssuedAt.Time())) &&
+		now.Before(claims.Expiry.Time().Add(HomeClockLeeway)) && claims.Expiry.Time().After(claims.IssuedAt.Time())
 }
 
 func validHomePublicKeys(keys jose.JSONWebKeySet) bool {
@@ -515,6 +677,25 @@ func loadHomeVerifierState(root string) (homeVerifierState, error) {
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&state) != nil || decoder.Decode(new(any)) != io.EOF {
 		return state, ErrHomeAccessDenied
+	}
+	return state, nil
+}
+
+// loadOwnerSignedHomeVerifierState is the bound state only when the Owner
+// signed its trust. The state sits in the verification custody the core can
+// write, so the Owner's signing path carries over nothing it did not sign: a
+// state without a valid Owner signature counts as absent.
+func loadOwnerSignedHomeVerifierState(root string) (homeVerifierState, error) {
+	state, err := loadHomeVerifierState(root)
+	if err != nil {
+		return state, err
+	}
+	authority, err := homeAuthority(root)
+	if err != nil {
+		return homeVerifierState{}, err
+	}
+	if authority.VerifyHomeHumanDeviceTrust(homeTrustBytes(state.Trust), state.Trust.Signature) != nil {
+		return homeVerifierState{}, os.ErrNotExist
 	}
 	return state, nil
 }

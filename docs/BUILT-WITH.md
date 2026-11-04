@@ -9,7 +9,7 @@ inspectable as the code itself.
 ## What the product depends on
 
 - **No AI at runtime.** The shipped binaries (`stackkit`, `stackkit-server`,
-  `stackkit-mcp`) call no language-model API. Standard Mode is account-free
+  `stackkit-mcp`) call no language-model API. Standard Mode needs no kombify account
   and works without any OpenAI, kombify, or other hosted service.
 - **Agent-native, provider-neutral.** Every release ships `llms.txt`, OpenAPI,
   JSON schemas, prompt Markdown, and the `stackkit-mcp` connector so that any

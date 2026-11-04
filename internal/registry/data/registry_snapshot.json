@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-11-02T10:26:10Z",
+  "generated_at": "2026-11-04T17:07:31Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1582,20 +1582,6 @@
       "core": true
     },
     {
-      "slug": "login-gateway",
-      "display_name": "Login Gateway",
-      "version": "0.1.0",
-      "layer": "L2-platform-identity",
-      "description": "Enforces TinyAuth forward-auth in front of every L3 service, with PocketID as OIDC IdP. Mandatory platform invariant in V6.",
-      "contract_hash": "fc94b115132e53408167dd442d4d5e9605c379da79ad633f3c740ef25367eca1",
-      "supported_contexts": [
-        "local",
-        "cloud",
-        "pi"
-      ],
-      "core": true
-    },
-    {
       "slug": "mailcow",
       "display_name": "mailcow",
       "version": "0.1.0",
@@ -1880,8 +1866,8 @@
       "display_name": "kombify SpeechKit",
       "version": "0.1.0",
       "layer": "L3-application",
-      "description": "kombify SpeechKit server with local speech providers only (whisper.cpp speech-to-text, Kokoro text-to-speech, the node's Ollama for Assist); OpenAI-compatible audio routes for the chat module behind a bearer token on the private AI network.",
-      "contract_hash": "0c0ab5f3c6190466e04e3eccd9eef2f7cd4bbc188ca581bc33f2f18d4973f364",
+      "description": "kombify SpeechKit server with local speech providers only (a Parakeet speech-to-text sidecar from the same image, Kokoro text-to-speech, the node's Ollama for Assist); OpenAI-compatible audio routes for the chat module on the private AI network and for the household's devices on the LAN at port 8080, each behind a bearer or device token, announced over mDNS as _speechkit._tcp.",
+      "contract_hash": "3d501a53371ad35e558728ae395f19b52cdbc8c5c4b0c9acc2a7e9fea0da168e",
       "supported_contexts": [
         "local",
         "cloud",
@@ -2053,11 +2039,6 @@
           "role": "optional"
         },
         {
-          "slug": "login-gateway",
-          "version": "0.1.0",
-          "role": "default"
-        },
-        {
           "slug": "pocketid",
           "version": "1.0.0",
           "role": "default"
@@ -2114,7 +2095,7 @@
         {
           "service_group_slug": "forward-auth",
           "role": "default",
-          "selected_module_slug": "login-gateway"
+          "selected_module_slug": "tinyauth"
         },
         {
           "service_group_slug": "game-server",
@@ -2188,7 +2169,7 @@
           "kind": "default",
           "is_default": true,
           "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
-          "kit_definition_hash": "b1f9d420dd34701a3d7ea4c49074de302f19b386490e38dc8004788b4dd4f9a5",
+          "kit_definition_hash": "7e86c9000fc16dc87caed2662a5b43b5c53a627ff087b0ca0deeaf9d4ea0ebe5",
           "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       ]
@@ -2205,7 +2186,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "a0c86b034c9120863b7537b9bd09931f2741e75848e7b12a8e44b24223a949d5"
+          "kit_definition_hash": "1ba4011c6b67da3583afd070b4f883b41dac03650a4171416c0317e52fb69b3c"
         }
       ]
     },
@@ -2333,7 +2314,7 @@
       "selection_type": "single",
       "default_module_slug": "tinyauth",
       "yaml_section": "platform",
-      "yaml_key": "login-gateway"
+      "yaml_key": "access-gate"
     },
     {
       "slug": "game-server",

@@ -4,12 +4,18 @@
 #
 # Every provider is a container of this workload or of the node's Private AI
 # workload; no cloud provider is enabled and no cloud key is present:
-#   STT     whisper.cpp whisper-server sidecar      speechkit-whisper:8080
+#   STT     Parakeet sidecar of the same image      speechkit-stt:8080
 #   TTS     Kokoro-FastAPI sidecar                  speechkit-tts:8880
 #   Assist  the node's Ollama (Private AI workload)  ollama:11434
 # Every /v1 route, including the OpenAI-compatible /v1/audio/transcriptions
 # and /v1/audio/speech, requires Authorization: Bearer $SPEECHKIT_SERVER_TOKEN,
-# which StackKits delivers from owner custody (slot server-token).
+# which StackKits delivers from owner custody (slot server-token), or the
+# token of a device paired with this server.
+#
+# The household's devices (Box, phones, desktop) reach the server on the LAN
+# at http://<host>:8080. A host-network announcer component advertises it over
+# mDNS as _speechkit._tcp; the server process itself announces nothing
+# (multicast never leaves a bridge network). See [server.discovery].
 
 [general]
 language = "en"
@@ -41,17 +47,25 @@ wakeword_models = false
 [server.wyoming]
 enabled = false
 
+# LAN discovery: the announcer runs `speechkit-server --discovery-only` in
+# the host's network namespace and advertises _speechkit._tcp with this host
+# port and http://<primary LAN IPv4>:<port>. The server process stays on the
+# bridge network and announces nothing.
+[server.discovery]
+enabled        = false
+advertise_port = 8080
+
 [store]
 backend     = "sqlite"
 sqlite_path = "/var/lib/speechkit/data/speechkit.db"
 
-# STT: the whisper.cpp sidecar over HTTP. "cloud-only" names the routing
+# STT: the Parakeet sidecar over HTTP. "cloud-only" names the routing
 # strategy that selects the self-hosted network client; it enables no cloud
 # provider.
 [vps]
 enabled     = true
-url         = "http://speechkit-whisper:8080"
-model       = "whisper-1"
+url         = "http://speechkit-stt:8080"
+model       = "parakeet-ultra-int8"
 api_key_env = "SPEECHKIT_SELFHOSTED_STT_API_KEY"
 
 [routing]
@@ -149,3 +163,20 @@ temperature   = 0.6
 automatic_activity_detection = true
 vad_start_sensitivity = "medium"
 vad_end_sensitivity   = "medium"
+
+# Account link (opt-in, off by default). Linking this server to one person's
+# account makes it appear in that account's device list; the registry is pull
+# only and grants nothing. It is a public cloud call, so it also needs
+# [privacy] network_scope = "open", which this local-only profile never sets,
+# and a public device-flow client that does not exist yet. The keys are
+# documented here so an operator can turn it on once both exist; the renderer
+# leaves them out so a missing value can never half-enable a link.
+#
+# [server.cloud_link]
+# enabled      = false
+# issuer       = "https://<account issuer>"
+# client_id    = "<public device-flow client>"
+# audience     = "<registry API audience>"
+# scope        = "openid profile email offline_access"
+# gateway_url  = "https://api.kombify.io"
+# display_name = ""

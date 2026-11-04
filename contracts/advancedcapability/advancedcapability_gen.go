@@ -42,18 +42,22 @@ const (
 	// TransferRetirementMaxLifetimeSeconds bounds a capability for one held
 	// transfer retirement (15 minutes).
 	TransferRetirementMaxLifetimeSeconds = 900
+	// TransferReceiveMaxLifetimeSeconds bounds a capability for one receiving
+	// transfer step (15 minutes).
+	TransferReceiveMaxLifetimeSeconds = 900
 )
 
 // Advanced operation identifiers. A capability authorizes a sorted subset.
 const (
-	OperationApplicationTransferRetire = "application-transfer.retire"
-	OperationDriftReconcileAdvanced    = "drift.reconcile.advanced"
-	OperationOriginCertificateInstall  = "public-tls.origin-certificate.install"
-	OperationOriginCertificateRequest  = "public-tls.origin-certificate.request"
-	OperationRestoreDrill              = "restore.drill"
-	OperationRollbackCoordinated       = "rollback.coordinated"
-	OperationTerramateChangeSetApply   = "terramate.change-set.apply"
-	OperationTerramateChangeSetCreate  = "terramate.change-set.create"
+	OperationApplicationTransferReceive = "application-transfer.receive"
+	OperationApplicationTransferRetire  = "application-transfer.retire"
+	OperationDriftReconcileAdvanced     = "drift.reconcile.advanced"
+	OperationOriginCertificateInstall   = "public-tls.origin-certificate.install"
+	OperationOriginCertificateRequest   = "public-tls.origin-certificate.request"
+	OperationRestoreDrill               = "restore.drill"
+	OperationRollbackCoordinated        = "rollback.coordinated"
+	OperationTerramateChangeSetApply    = "terramate.change-set.apply"
+	OperationTerramateChangeSetCreate   = "terramate.change-set.create"
 )
 
 // BackupRenewalOperation is the only operation a backup renewal capability
@@ -63,6 +67,7 @@ const BackupRenewalOperation = OperationRestoreDrill
 // Operations returns every Advanced operation in canonical (sorted) order.
 func Operations() []string {
 	return []string{
+		OperationApplicationTransferReceive,
 		OperationApplicationTransferRetire,
 		OperationDriftReconcileAdvanced,
 		OperationOriginCertificateInstall,
@@ -77,7 +82,7 @@ func Operations() []string {
 // IsOperation reports whether value is an Advanced operation identifier.
 func IsOperation(value string) bool {
 	switch value {
-	case OperationApplicationTransferRetire, OperationDriftReconcileAdvanced, OperationOriginCertificateInstall, OperationOriginCertificateRequest, OperationRestoreDrill, OperationRollbackCoordinated, OperationTerramateChangeSetApply, OperationTerramateChangeSetCreate:
+	case OperationApplicationTransferReceive, OperationApplicationTransferRetire, OperationDriftReconcileAdvanced, OperationOriginCertificateInstall, OperationOriginCertificateRequest, OperationRestoreDrill, OperationRollbackCoordinated, OperationTerramateChangeSetApply, OperationTerramateChangeSetCreate:
 		return true
 	}
 	return false
@@ -97,6 +102,7 @@ var (
 	decimalInt64Pattern           = regexp.MustCompile(`^(0|[1-9][0-9]{0,18})$`)
 	transferOperationIdPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 	transferRetirementRolePattern = regexp.MustCompile(`^(source|destination)$`)
+	transferReceiveStepPattern    = regexp.MustCompile(`^(admit|prepare|import)$`)
 )
 
 // Capability is one stackkit.advanced-capability/v1 document. Its canonical
@@ -124,6 +130,9 @@ type Capability struct {
 	// SigningDigest of the unsigned canonical bytes.
 	Signature string `json:"signature"`
 	StackID   string `json:"stackId"`
+	// TransferReceive binds a short-lived receiving step to the exact receiving
+	// desired intent and the one source Owner Techstack admitted for this move.
+	TransferReceive *TransferReceive `json:"transferReceive,omitempty"`
 	// TransferRetirement binds a short-lived retirement to the exact existing
 	// held snapshot, signed peer outcome and canonical desired-intent
 	// transition.
@@ -148,6 +157,20 @@ type BackupRenewal struct {
 	TargetRef             string `json:"targetRef"`
 	TenantID              string `json:"tenantId"`
 	UsedBytes             string `json:"usedBytes"`
+}
+
+// TransferReceive authorizes one receiving step of a native application
+// transfer on an Advanced destination: admit (issue the destination admission
+// for the staged receiving candidate), prepare (adopt the transferred
+// credentials before the first Apply) or import (activate the transferred
+// data). It names the exact receiving desired intent and the source Owner; it
+// grants no source, retirement, deletion, server or provider authority. The
+// consumer reconstructs every field from its own workspace and the
+// authenticated transfer.
+type TransferReceive struct {
+	CandidateSpecHash string `json:"candidateSpecHash"`
+	SourceOwnerRef    string `json:"sourceOwnerRef"`
+	Step              string `json:"step"`
 }
 
 // TransferRetirement authorizes only selected intent retirement within its
@@ -219,6 +242,10 @@ func (c Capability) appendCanonical(out []byte, signed bool) []byte {
 	}
 	out = append(out, ",\"stackId\":"...)
 	out = strconv.AppendQuote(out, c.StackID)
+	if c.TransferReceive != nil {
+		out = append(out, ",\"transferReceive\":"...)
+		out = c.TransferReceive.appendCanonical(out)
+	}
 	if c.TransferRetirement != nil {
 		out = append(out, ",\"transferRetirement\":"...)
 		out = c.TransferRetirement.appendCanonical(out)
@@ -322,6 +349,31 @@ func (b BackupRenewal) checkFormats() error {
 	}
 	if !decimalInt64Pattern.MatchString(b.UsedBytes) {
 		return invalid("usedBytes", "is not canonical")
+	}
+	return nil
+}
+
+// appendCanonical appends the RFC 8785 bytes of TransferReceive.
+func (t TransferReceive) appendCanonical(out []byte) []byte {
+	out = append(out, "{\"candidateSpecHash\":"...)
+	out = strconv.AppendQuote(out, t.CandidateSpecHash)
+	out = append(out, ",\"sourceOwnerRef\":"...)
+	out = strconv.AppendQuote(out, t.SourceOwnerRef)
+	out = append(out, ",\"step\":"...)
+	out = strconv.AppendQuote(out, t.Step)
+	return append(out, '}')
+}
+
+// checkFormats checks the constant and pattern members of TransferReceive.
+func (t TransferReceive) checkFormats() error {
+	if !sha256DigestPattern.MatchString(t.CandidateSpecHash) {
+		return invalid("candidateSpecHash", "is not canonical")
+	}
+	if !ownerRefPattern.MatchString(t.SourceOwnerRef) {
+		return invalid("sourceOwnerRef", "is not canonical")
+	}
+	if !transferReceiveStepPattern.MatchString(t.Step) {
+		return invalid("step", "is not canonical")
 	}
 	return nil
 }

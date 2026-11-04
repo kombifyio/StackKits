@@ -7,7 +7,7 @@ indexes artifacts that already ship with every release; it introduces no new
 schema. The spec version follows the release tag it ships with, and changes
 within v0 are additive.
 
-Everything below is account-free. Standard Mode needs no kombify account, no
+Everything below works without a kombify account. Standard Mode needs no kombify account, no
 hosted kombify endpoint, and no Techstack.
 
 ## 1. Architecture snapshot

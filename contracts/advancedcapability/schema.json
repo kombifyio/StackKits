@@ -38,6 +38,7 @@
           "uniqueItems": true,
           "items": {
             "enum": [
+              "application-transfer.receive",
               "application-transfer.retire",
               "drift.reconcile.advanced",
               "public-tls.origin-certificate.install",
@@ -103,6 +104,10 @@
         "stackId": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+        },
+        "transferReceive": {
+          "$ref": "#/$defs/TransferReceive",
+          "description": "TransferReceive binds a short-lived receiving step to the exact receiving desired intent and the one source Owner Techstack admitted for this move."
         },
         "transferRetirement": {
           "$ref": "#/$defs/TransferRetirement",
@@ -186,6 +191,30 @@
         "usedBytes": {
           "type": "string",
           "pattern": "^(0|[1-9][0-9]{0,18})$"
+        }
+      }
+    },
+    "TransferReceive": {
+      "description": "TransferReceive authorizes one receiving step of a native application transfer on an Advanced destination: admit (issue the destination admission for the staged receiving candidate), prepare (adopt the transferred credentials before the first Apply) or import (activate the transferred data). It names the exact receiving desired intent and the source Owner; it grants no source, retirement, deletion, server or provider authority. The consumer reconstructs every field from its own workspace and the authenticated transfer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateSpecHash",
+        "sourceOwnerRef",
+        "step"
+      ],
+      "properties": {
+        "candidateSpecHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "sourceOwnerRef": {
+          "type": "string",
+          "pattern": "^owner/local/[0-9a-f]{32}$"
+        },
+        "step": {
+          "type": "string",
+          "pattern": "^(admit|prepare|import)$"
         }
       }
     },

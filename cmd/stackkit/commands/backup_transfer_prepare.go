@@ -34,18 +34,23 @@ func transferPreparationPath(id string) string {
 }
 
 func runApplicationTransferPrepare(cmd *cobra.Command, _ []string) error {
-	if err := requireApplicationTransferDestinationMode(getWorkDir()); err != nil {
-		return err
-	}
 	values := map[string]string{}
 	for _, f := range []string{"archive", "archive-sha256", "identity-file", "source-receipt", "source-owner", "source-fingerprint", "transfer-id", "expected-plan-hash"} {
 		values[f], _ = cmd.Flags().GetString(f)
-		if values[f] == "" {
+		if values[f] == "" && f != "archive" && f != "identity-file" {
 			return fmt.Errorf("--%s is required", f)
 		}
 	}
 	admittedReceipt, err := readAdmittedApplicationTransferReceipt(values)
 	if err != nil {
+		return err
+	}
+	// The archive a transfer-fetch received and the identity the admission
+	// created stay node-held; an operator may still name both explicitly.
+	if values["archive"], err = applicationTransferArchiveFile(getWorkDir(), values["archive"], values["archive-sha256"]); err != nil {
+		return err
+	}
+	if values["identity-file"], err = applicationTransferIdentityFile(getWorkDir(), values["identity-file"], admittedReceipt.Export.Manifest.ApplicationTransfer.Destination.Nonce); err != nil {
 		return err
 	}
 	approved, _ := cmd.Flags().GetBool("owner-approve")
@@ -63,6 +68,16 @@ func runApplicationTransferPrepare(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if err = generated.Plan.RequireExpectedPlanHash(values["expected-plan-hash"]); err != nil {
+		return err
+	}
+	receivingStackID, err := applicationTransferPlanStackID(generated.Plan.Canonical())
+	if err != nil {
+		return err
+	}
+	admitReceive := func() error {
+		return admitApplicationTransferReceive(cmd, generated.WorkspaceRoot, receivingStackID, applicationTransferReceivePrepare, values["source-owner"], generated.Plan.Binding().SpecHash)
+	}
+	if err = admitReceive(); err != nil {
 		return err
 	}
 	root, err := confinedfs.Open(getWorkDir())
@@ -120,6 +135,9 @@ func runApplicationTransferPrepare(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if err = verifyApplicationTransferIssuedAdmission(generated.WorkspaceRoot, t, true); err != nil {
+		return err
+	}
+	if err = requireApplicationTransferAdmittedSource(generated.WorkspaceRoot, t.Destination.Nonce, values["source-owner"]); err != nil {
 		return err
 	}
 	var plan struct {
@@ -200,7 +218,7 @@ func runApplicationTransferPrepare(cmd *cobra.Command, _ []string) error {
 	var receipt applicationTransferPreparation
 	err = withLifecycleMutation(generated.WorkspaceRoot, "backup transfer-prepare", func() error {
 		return withArchitectureV2OutputLock(generated.WorkspaceRoot, generated.OutputRoot, func(_ *confinedfs.Transaction, _ *confinedfs.OutputLock) error {
-			if e := requireApplicationTransferDestinationMode(generated.WorkspaceRoot); e != nil {
+			if e := admitReceive(); e != nil {
 				return e
 			}
 			if _, exists, e := readStoredApplicationTransferOutcome(generated.WorkspaceRoot, t, "stopped"); e != nil {

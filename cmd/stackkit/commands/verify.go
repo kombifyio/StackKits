@@ -94,7 +94,10 @@ local checks. On current releases, run verify on the deployed host.`,
 	RunE: runVerify,
 }
 
+var verifyRILPrimitiveHash string
+
 func init() {
+	verifyCmd.Flags().StringVar(&verifyRILPrimitiveHash, "expected-ril-primitive-hash", "", "Require the verified embedded RIL primitive contract hash")
 	verifyCmd.Flags().BoolVar(&verifyJSON, "json", false, "Emit machine-readable JSON")
 	verifyCmd.Flags().BoolVar(&verifyHTTP, "http", false, "Verify generated service URLs with HTTP requests")
 	verifyCmd.Flags().BoolVar(&verifyStrict, "strict", false, "Treat warnings as verification failure")
@@ -106,6 +109,7 @@ func init() {
 	verifyCmd.Flags().IntVar(&verifyPort, "port", 22, "SSH port for remote verification")
 	verifyCmd.Flags().StringVar(&verifyRemoteDir, "remote-dir", "/opt/stackkit", "Remote StackKit working directory")
 	verifyCmd.Flags().BoolVar(&verifyLegacyRemote, "legacy-remote-transport", false, "Explicitly allow the deprecated raw-SSH verifier for a StackSpec v1 target")
+	verifyCmd.Flags().StringVar(&verifyV2ExecutionOptions.expectedPlanHash, "expected-plan-hash", "", "Require the verified canonical and applied ResolvedPlan hash to match this digest")
 	verifyCmd.Flags().StringVar(&verifyV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
 	verifyCmd.Flags().StringVar(&verifyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 	verifyCmd.Flags().StringVar(&verifyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
@@ -114,6 +118,9 @@ func init() {
 
 func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 	machineResultWritten := false
+	if cmd.Flags().Changed("expected-plan-hash") && strings.TrimSpace(verifyV2ExecutionOptions.expectedPlanHash) == "" {
+		return errors.New("verify: expected-plan-hash cannot be empty")
+	}
 	ctx := context.Background()
 	wd := getWorkDir()
 	v2Gate := newArchitectureV2ExecutionGate()
@@ -151,7 +158,7 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 		if !verifyLegacyRemote {
 			return fmt.Errorf("verify: --host uses deprecated raw SSH and is available only with --legacy-remote-transport for an explicit StackSpec v1 target; Architecture v2 requires an external execution channel")
 		}
-		if strings.TrimSpace(verifyV2ExecutionOptions.inventoryPath) != "" || strings.TrimSpace(verifyV2ExecutionOptions.planPath) != "" ||
+		if strings.TrimSpace(verifyV2ExecutionOptions.expectedPlanHash) != "" || strings.TrimSpace(verifyV2ExecutionOptions.inventoryPath) != "" || strings.TrimSpace(verifyV2ExecutionOptions.planPath) != "" ||
 			strings.TrimSpace(verifyV2ExecutionOptions.manifestPath) != "" || strings.TrimSpace(verifyV2ExecutionOptions.receiptPath) != "" {
 			return fmt.Errorf("verify: Architecture v2 inventory, plan, manifest, and receipt inputs cannot be combined with --legacy-remote-transport")
 		}
@@ -216,6 +223,9 @@ func runVerify(cmd *cobra.Command, args []string) (retErr error) {
 			retErr = errors.New("verify failed: one or more explicitly requested HTTP routes were unreachable")
 		}
 		return retErr
+	}
+	if strings.TrimSpace(v2Options.expectedPlanHash) != "" {
+		return errors.New("verify: expected-plan-hash requires a verified Architecture v2 applied plan")
 	}
 	if verifyOffline {
 		retErr = runOfflineReleaseVerification(cmd, wd, verifyJSON)

@@ -1,8 +1,9 @@
 {
   "accessDefaults": {
     "deviceBoundSessions": true,
-    "deviceEnrollment": "local-only",
+    "deviceEnrollment": "person",
     "lanLocationIsIdentity": false,
+    "privilegedRemoteReach": "owner-opt-in",
     "privilegedStepUpRequired": true,
     "publicRoutesDefaultClosed": true
   },
@@ -12,10 +13,11 @@
     "initialSpec": {
       "access": {
         "home-private": {
+          "appAccessAway": false,
           "authentication": "human",
           "enrolledDeviceRequired": false,
-          "exposure": "private",
-          "lanStepDown": false,
+          "exposure": "local-only",
+          "ownerRemoteOptIn": false,
           "ownerStepUpRequired": false,
           "privilege": "user"
         }
@@ -96,17 +98,55 @@
         "defaultAuthority": "home"
       },
       "deviceEnrollment": {
+        "accountBinding": "homelab-account",
+        "atHome": {
+          "approval": "automatic",
+          "notify": [
+            "own-devices",
+            "owner"
+          ],
+          "undoWindowSeconds": 86400
+        },
         "authoritySiteRef": "home",
-        "credentialTTLSeconds": 3600,
-        "endpointExposure": "lan",
-        "hardwareBackedKey": "preferred",
-        "mode": "local-only",
-        "remoteEnrollment": false,
+        "away": {
+          "approval": "step-up-confirmation",
+          "confirmers": [
+            "own-enrolled-device",
+            "owner"
+          ]
+        },
+        "completion": "client-probes-every-enabled-path",
+        "custodyClasses": [
+          "hardware",
+          "os-protected",
+          "software"
+        ],
+        "homeAttestation": "authority-lan-listener",
+        "lifetimes": {
+          "deviceLifetimeSeconds": 3600,
+          "dpopProofSeconds": 30,
+          "registryEntryUnusedSeconds": 15552000,
+          "userVerificationSeconds": 86400
+        },
+        "maxDevicesPerAccount": 16,
+        "mode": "person",
+        "privilegedAccountPasskeys": "device-bound-where-offered",
+        "rateLimit": {
+          "attempts": 5,
+          "windowSeconds": 3600
+        },
         "requireDeviceGeneratedKey": true,
-        "requireLocalPairingProof": true,
-        "requireOwnerStepUp": true,
         "requirePossessionProof": true,
-        "revocationSupported": true
+        "revocation": {
+          "byOwner": "all-devices",
+          "byPerson": "own-devices",
+          "ends": [
+            "sessions",
+            "app-passes",
+            "app-oidc-sessions",
+            "vpn-peers"
+          ]
+        }
       },
       "driftPolicy": {},
       "generation": {
@@ -178,10 +218,17 @@
       "partitionPolicy": {
         "cloudEdge": "not-applicable",
         "denyNewCrossSiteSessions": true,
+        "issuedSessions": "valid-to-lifetime-against-last-known-revocation",
         "localIdentityAuthorityAvailable": true,
         "maxStaleVerificationSeconds": 0,
+        "newSessions": "fail-closed",
         "onCloudLoss": "not-applicable",
         "onLinkLoss": "local-continues"
+      },
+      "placement": {
+        "coupling": "cloudless",
+        "exposure": "private",
+        "mode": "local-only"
       },
       "sites": [
         {
@@ -206,26 +253,29 @@
     "selectedWorkloadAccess": {
       "accessPolicies": {
         "admin": {
+          "appAccessAway": false,
           "authentication": "human+device",
           "enrolledDeviceRequired": true,
-          "exposure": "private",
-          "lanStepDown": false,
+          "exposure": "local-only",
+          "ownerRemoteOptIn": false,
           "ownerStepUpRequired": true,
           "privilege": "admin"
         },
         "user": {
+          "appAccessAway": false,
           "authentication": "human",
           "enrolledDeviceRequired": false,
-          "exposure": "private",
-          "lanStepDown": false,
+          "exposure": "local-only",
+          "ownerRemoteOptIn": false,
           "ownerStepUpRequired": false,
           "privilege": "user"
         },
         "vault": {
+          "appAccessAway": false,
           "authentication": "human+device",
           "enrolledDeviceRequired": true,
-          "exposure": "private",
-          "lanStepDown": false,
+          "exposure": "local-only",
+          "ownerRemoteOptIn": false,
           "ownerStepUpRequired": true,
           "privilege": "vault"
         }
@@ -475,7 +525,7 @@
     "authorityKinds": [
       "home"
     ],
-    "mode": "local-only",
+    "mode": "person",
     "required": true
   },
   "evidenceScenarios": [
@@ -802,19 +852,20 @@
   "partitionPolicy": {
     "cloudEdge": "not-applicable",
     "denyNewCrossSiteSessions": true,
+    "issuedSessions": "valid-to-lifetime-against-last-known-revocation",
     "localIdentityAuthorityAvailable": true,
     "maxStaleVerificationSeconds": 0,
+    "newSessions": "fail-closed",
     "onCloudLoss": "not-applicable",
     "onLinkLoss": "local-continues"
   },
   "reachability": {
     "accessPolicies": {
       "allowedExposures": [
-        "private",
-        "lan",
+        "local-only",
+        "remote-private",
         "public"
-      ],
-      "lanStepDownAllowed": true
+      ]
     },
     "routes": {
       "local": {

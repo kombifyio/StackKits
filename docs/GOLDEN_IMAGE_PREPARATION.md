@@ -38,7 +38,7 @@ sha256sum /opt/stackkits-image/neutral-image.json
 ```
 
 `prepare` resolves the running CLI's exact published tag through the existing
-account-free GitHub release resolver and installer, and stages its attested
+kombify-account-free GitHub release resolver and installer, and stages its attested
 release under `/opt/stackkits-image/.stackkit/releases/`. This obtains a genuine
 release receipt without creating an Owner or an initialized Stack. Development
 binaries and version labels alone cannot prepare an image.
@@ -70,7 +70,7 @@ identity or mutation authority. The CLI rederives its profile/pins from embedded
 CUE and rechecks the attested release, installed bytes, actual host and cache.
 Rewriting manifest assertions or recomputing its hash cannot authorize tampering.
 
-For an account-free standalone Cloud clone:
+For a kombify-account-free standalone Cloud clone:
 
 ```sh
 cd /srv/stackkit
@@ -103,7 +103,7 @@ sudo stackkit init cloud-kit --non-interactive \
 
 The managed handoff comes from the existing Techstack execution path. Selecting
 Terramate or presenting a manifest does not grant an Advanced capability.
-Standard Mode stays account-free and retains its regular lifecycle.
+Standard Mode needs no kombify account and retains its regular lifecycle.
 
 The image flag admits a fresh deployment before even deploy logging writes local
 state. Normal init then establishes each clone's new Owner key, CA/runtime custody

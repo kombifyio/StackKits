@@ -20,9 +20,9 @@ package foundation
 
 // #ToolType describes how a tool is operationally provided.
 //   - oss     : self-hosted open-source (e.g. PostgreSQL, Traefik, Vaultwarden)
-//   - managed : a managed/SaaS offering (e.g. Render Postgres, Auth0, Doppler)
+//   - managed : a managed/SaaS offering (e.g. ClickHouse Cloud Managed Postgres, Auth0, Doppler)
 //   - hybrid  : OSS core with optional managed backing (e.g. Sentry self-hosted
-//               + sentry.io, Postgres self-hosted + Render-managed)
+//               + sentry.io, Postgres self-hosted + ClickHouse-managed)
 #ToolType: "oss" | "managed" | "hybrid"
 
 // =============================================================================

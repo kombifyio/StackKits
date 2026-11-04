@@ -24,10 +24,13 @@ type ownerStepUpFlow struct {
 	issuer, verifier string
 	browserHash      [32]byte
 	started          bool
-	// deviceEnroll flows carry no action binding; binding.ExpiresAt bounds
-	// them and nonce is the random OIDC nonce the pairing step-up must echo.
-	deviceEnroll bool
-	nonce        string
+	// enrollConfirm flows confirm one pending away enrollment (the device
+	// ID); binding.ExpiresAt bounds them and challenge is the flow value of
+	// the enroll-confirm step-up nonce.
+	enrollConfirm string
+	challenge     string
+	// nonce is the random OIDC nonce of an agent-approval flow.
+	nonce string
 	// agentApproval flows answer one StackKits MCP agent write approval
 	// request; approve is the Owner's answer chosen before the passkey login.
 	agentApproval string
@@ -57,9 +60,9 @@ func (s *Server) registerOwnerStepUpRoutes() {
 	s.mux.HandleFunc("GET "+ownerStepUpPath+"/review", h.review)
 	s.mux.HandleFunc("POST "+ownerStepUpPath+"/review", h.confirm)
 	s.mux.HandleFunc("GET "+localowner.StepUpCallbackPath, h.callback)
-	s.mux.HandleFunc("POST "+ownerStepUpDeviceEnrollPath+"/prepare", h.prepareDeviceEnroll)
-	s.mux.HandleFunc("GET "+ownerStepUpDeviceEnrollPath, h.reviewDeviceEnroll)
-	s.mux.HandleFunc("POST "+ownerStepUpDeviceEnrollPath, h.startDeviceEnroll)
+	s.mux.HandleFunc("POST "+ownerStepUpEnrollConfirmPath+"/prepare", h.prepareEnrollConfirm)
+	s.mux.HandleFunc("GET "+ownerStepUpEnrollConfirmPath, h.reviewEnrollConfirm)
+	s.mux.HandleFunc("POST "+ownerStepUpEnrollConfirmPath, h.startEnrollConfirm)
 	s.mux.HandleFunc("GET "+ownerStepUpAgentApprovalPath, h.reviewAgentApproval)
 	s.mux.HandleFunc("POST "+ownerStepUpAgentApprovalPath, h.startAgentApproval)
 }
@@ -67,7 +70,7 @@ func (s *Server) registerOwnerStepUpRoutes() {
 func isOwnerStepUpBrowserRoute(r *http.Request) bool {
 	return (r.URL.Path == ownerStepUpPath+"/review" && (r.Method == http.MethodGet || r.Method == http.MethodPost)) ||
 		(r.URL.Path == localowner.StepUpCallbackPath && r.Method == http.MethodGet) ||
-		(r.URL.Path == ownerStepUpDeviceEnrollPath && (r.Method == http.MethodGet || r.Method == http.MethodPost)) ||
+		(r.URL.Path == ownerStepUpEnrollConfirmPath && (r.Method == http.MethodGet || r.Method == http.MethodPost)) ||
 		(r.URL.Path == ownerStepUpAgentApprovalPath && (r.Method == http.MethodGet || r.Method == http.MethodPost))
 }
 
@@ -223,8 +226,8 @@ func (h *ownerStepUpHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
-	if flow.deviceEnroll {
-		h.finishDeviceEnroll(w, ctx, service, r.URL.Query().Get("code"), flow)
+	if flow.enrollConfirm != "" {
+		h.finishEnrollConfirm(w, ctx, service, r.URL.Query().Get("code"), flow)
 		return
 	}
 	if flow.agentApproval != "" {

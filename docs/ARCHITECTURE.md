@@ -40,7 +40,7 @@ CUE is the technical contract source. Lifecycle state and evidence stay bound to
 
 ### Shared rollout core and orchestration boundary
 
-[ADR-0031](ADR/ADR-0031-stackkits-standalone-lifecycle-boundary.md) defines the boundary: StackKits provides a CLI-manageable Homelab rollout core. Standard Mode executes it directly; Advanced Mode adds registered authority and orchestration. CUE, StackSpec, immutable ResolvedPlan, lifecycle state, Owner custody and evidence stay bound to the same rollout. Attested GitHub Releases are the account-free distribution source.
+[ADR-0031](ADR/ADR-0031-stackkits-standalone-lifecycle-boundary.md) defines the boundary: StackKits provides a CLI-manageable Homelab rollout core. Standard Mode executes it directly; Advanced Mode adds registered authority and orchestration. CUE, StackSpec, immutable ResolvedPlan, lifecycle state, Owner custody and evidence stay bound to the same rollout. Attested GitHub Releases are the kombify-account-free distribution source.
 
 Target boundary (v0.9; executable Agent admission is Slice 2, so the channel is not claimed live): Techstack is the Orchestrator UI, Config Unifier and Advanced Day-2/RIL control plane. Techstack Core sends only a closed `StackKitCommand` over its own outbound/reverse mTLS gRPC worker channel to the node-side Techstack Agent, which revalidates the release pin, index, receipt and executable, scrubs Techstack/kombify control environment and starts the published CLI locally. Results return only as bounded `stackkit.command-result/v1` plus `stackkit.rollout-event/v1` JSONL. StackKits has no gRPC server and owns no worker enrollment, certificates or transport.
 
@@ -134,15 +134,15 @@ a trusted external signature or attestation rooted outside the plan; `planHash`,
 
 Route exposure is part of the selected `KitDefinition`, not a consequence of a
 global `context`, a provider name, or the number of nodes. Every definition
-declares the allowed access-policy exposures, whether LAN step-down is permitted,
-and one rule for each resolved route exposure. A rule identifies both the
+declares the allowed access-policy exposures (`local-only`, `remote-private`,
+`public`; D-2026-11-02-13) and one rule for each resolved route exposure. A rule identifies both the
 capabilities that must actually be selected and the site kinds from which the
 resolved module may originate.
 
 | Kit | Access policies | `local` route | `remote-private` route | `public` route |
 | --- | --- | --- | --- | --- |
-| Basement Kit | private, LAN, public; enrolled-device LAN step-down allowed | Home; no additional capability | Home + `private-remote-access` | Home + `public-publish-egress` |
-| Cloud Kit | private or public; LAN and LAN step-down rejected | Cloud; no additional capability | Cloud + `private-admin-mesh` | Cloud + `public-edge` |
+| Basement Kit | local-only, remote-private, public | Home; no additional capability | Home + `private-remote-access` | Home + `public-publish-egress` |
+| Cloud Kit | remote-private or public; local-only rejected (no LAN listener) | Cloud; no additional capability | Cloud + `private-admin-mesh` | Cloud + `public-edge` |
 
 The CUE binding rejects invalid intent before compilation. The Go compiler repeats
 the decision against the effective resolved capability set and the module's exact
@@ -759,12 +759,18 @@ revocation state Home-to-Cloud. Reverse distribution, private/signing keys,
 credentials, Cloud enrollment/issuance, and general LAN reachability are closed
 as `false`.
 
-Home enrollment is not granted merely by being on a private subnet. The closed
-contract requires LAN reachability together with owner step-up, local pairing or
-console proof, a device-generated key, proof-of-possession, rotation/revocation,
-and bounded credential and session lifetimes. Human, device, and workload
-issuers remain separate. The resulting enrolled device may support a
-low-friction session, but it never removes step-up from a privileged operation.
+Enrollment is never granted merely by being on a private subnet.
+`#DeviceEnrollmentPolicy` is enrollment by the person: the person signs in with
+their own passkey and the entry binds to their Homelab account; home is attested
+only by the client's direct reach of the Authority's LAN listener (approved
+automatically, with notices and a 24 hour undo), and away enrollment is
+confirmed by the person's own enrolled device, otherwise the Owner. It requires a
+device-generated key and proof of possession, rate limits, a per-account device
+cap, the custody classes `hardware`, `os-protected` and `software`, revocation
+that ends sessions, app passes, app OIDC sessions and VPN peers, and the
+lifetimes of `#HomelabIdentityLifetimesV1`. Human, device, and workload issuers
+remain separate. An enrolled device never removes step-up from a privileged
+operation.
 
 The five emitted identity policy artifacts are generation-only. They explicitly
 state that runtime enforcement and credential issuance are unverified and that
@@ -847,8 +853,8 @@ The compiler does not expose raw `access` or `network` objects to this renderer.
 It derives one closed `localReachability` view containing only sorted `local`
 routes whose origins are Home Sites, their logical origin refs, the effective
 access decision, and non-secret TLS metadata. The projection retains the source
-policy exposure (`private` versus `lan`), device-bound LAN step-down, explicit
-site scope, and default-closed decision. Public, remote-private, and Cloud-origin
+policy exposure (`local-only` versus `remote-private`), authentication class,
+Owner remote opt-in, explicit site scope, and default-closed decision. Public, remote-private, and Cloud-origin
 routes are omitted. Network configuration, DNS/provider configuration,
 credential refs, CIDRs, management addresses, bridge state, runtime networks,
 interfaces, and sockets are structurally unreachable.
@@ -892,7 +898,7 @@ route therefore never becomes an mDNS, DNS-SD, or LAN-DNS advertisement merely
 because it is reachable.
 
 The compiler resolves only explicitly named routes and requires each one to be
-Home-originated, `local`, governed by an effective `lan` policy, default-closed,
+Home-originated, `local`, governed by an effective `local-only` policy, default-closed,
 and addressed by a non-`.localhost` host. It then exposes the closed
 `homeLANDiscovery` projection: sorted Home Site refs plus route/service/origin,
 listener protocol/port/host, and the minimal LAN/default-closed policy proof.
@@ -2579,8 +2585,9 @@ every installation carries the StackKits MCP, just as it carries the CLI
   it, on a digest-pinned `alpine` base. Apply stages the binary from beside
   the running CLI. No `stackkit-server` image is published.
 - The route matches the base host and the exact `/mcp` path. It has a router
-  rate limit and no TinyAuth forward-auth. The server's dedicated MCP token is
-  the only credential, and the REST API is not routed.
+  rate limit and no TinyAuth forward-auth; on a Cloud Kit's public listener
+  the remote Access Gate enforces the base host's reach first. The server's
+  dedicated MCP token is the only credential, and the REST API is not routed.
 - Apply mints the MCP token once, into
   `.stackkit/custody/stackkit-server/mcp/token` (owner-only). The server reads
   it through `STACKKIT_MCP_TOKEN_FILE` on a read-only mount. Re-apply keeps

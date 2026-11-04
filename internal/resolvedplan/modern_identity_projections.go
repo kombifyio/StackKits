@@ -80,11 +80,12 @@ func projectModernIdentitySource(input map[string]any, failurePolicy any, kit ma
 		return modernIdentitySourceProjection{}, fail(ErrContractConflict, "resolvedPlan.kit.slug", "Modern identity projections are available only to modern-homelab")
 	}
 	partition, err := asObject(failurePolicy, path+".failurePolicy")
-	if err != nil || len(partition) != 6 {
+	if err != nil || len(partition) != 8 {
 		return modernIdentitySourceProjection{}, fail(ErrContractConflict, path+".failurePolicy", "Modern partition source must be exact")
 	}
 	if partition["onCloudLoss"] != "local-continues" || partition["onLinkLoss"] != "local-continues" || partition["cloudEdge"] != "fail-closed" ||
-		partition["localIdentityAuthorityAvailable"] != true || partition["denyNewCrossSiteSessions"] != true {
+		partition["localIdentityAuthorityAvailable"] != true || partition["denyNewCrossSiteSessions"] != true ||
+		partition["issuedSessions"] != "valid-to-lifetime-against-last-known-revocation" || partition["newSessions"] != "fail-closed" {
 		return modernIdentitySourceProjection{}, fail(ErrContractConflict, path+".failurePolicy", "Modern partition must keep Home authority available and fail Cloud closed")
 	}
 	maxStale, err := intField(partition, path+".failurePolicy", "maxStaleVerificationSeconds")

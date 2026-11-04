@@ -22,6 +22,14 @@ type DaemonIdentity struct {
 	DockerRootDir string
 }
 
+// Output runs one closed docker command against the client's daemon (the
+// canonical local endpoint for a local-only client) and returns its stdout.
+func (c *Client) Output(ctx context.Context, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return c.command(ctx, args...).Output()
+}
+
 func (c *Client) InspectVolume(ctx context.Context, name string) (VolumeInfo, error) {
 	if err := validateName(name); err != nil {
 		return VolumeInfo{}, err

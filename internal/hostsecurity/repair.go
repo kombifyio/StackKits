@@ -541,9 +541,14 @@ const (
 func (r *repairer) firewallPolicyFor() FirewallPolicy {
 	policy := FirewallPolicy{
 		SSHPorts: r.path.SSHPorts, Peers: r.path.peers, ManagementSources: r.path.sources,
+		// Every home site confines the connector bridge, whether or not a
+		// connector runs yet: the rule exists before the first relay does.
+		RemoteConnectorIsolation: true,
 	}
 	if record := r.obs.recordedFirewall(); record != nil {
 		policy.Containers = record.Policy.Containers
+		// Add-on public ports stay until the add-on clears them.
+		policy.AddOnPublicTCP, policy.AddOnPublicUDP = record.Policy.AddOnPublicTCP, record.Policy.AddOnPublicUDP
 	}
 	if r.options.DeclaredListeners != nil {
 		policy.DeclaredOnly = true

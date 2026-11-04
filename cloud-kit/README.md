@@ -21,7 +21,7 @@ kit definition binds the cloud-specific networking, ingress, DNS, and TLS deltas
 |---|---|---|
 | TLS | Kit CA with device enrollment for LAN routes; declared public routes use their certificate provider | Let's Encrypt (ACME) on a public domain |
 | Origin | LAN host with admitted public access | Public origin with the same router and identity ownership rules |
-| Domain | `lab.home` LAN zone by default; own/custom public domain or `*.kombify.me` through the admitted access path | Required own/custom domain or `kombify.me` |
+| Domain | public identity origin `id.<name>` from setup on an own/custom public domain or `*.kombify.me` through the admitted access path; `lab.home` LAN zone only for a homelab declared local-only | Required own/custom domain or `kombify.me` |
 | Installer | `base.stackkit.cc` | `cloud.stackkit.cc` |
 
 The native platform baseline (standalone Compose, PocketID + TinyAuth identity,

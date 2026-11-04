@@ -155,6 +155,13 @@ After a successful Standard intent retirement, run `stackkit generate` and
 and Apply proof deliberately cannot authorize the new spec. Use `--use-case`
 to remove a complete selected composition together, with one final intent CAS.
 Access policies, data bindings and secret custody remain available for reuse.
+A workspace Techstack manages (it holds the imported Advanced trust bundle)
+is Advanced, like `install.mode: advanced`: a runtime removal never retires
+its intent, so each removal of a destroy resolves the plan the rollout
+applied, and its intent changes only through the Advanced change set.
+`stackkit remove --use-case` there requires `--candidate-output`, and
+`stackkit use-cases configure` requires `--output`. A trust record that does
+not verify is refused, never treated as a Standard installation.
 
 For managed removal, author a separate candidate with
 `stackkit remove --use-case ai --candidate-output without-ai.json` (or

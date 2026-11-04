@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
+	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
@@ -74,6 +77,9 @@ func prepareCoreStackKitServer(workspaceRoot, runtimeDir, binary string) (recrea
 	}
 	credentials, err := localevidence.EnsureStackKitServerCredentials(workspaceRoot)
 	if err != nil {
+		return false, err
+	}
+	if err := prepareCoreIdentityWorkspace(workspaceRoot); err != nil {
 		return false, err
 	}
 	staged, changed, err := stageStackKitServerBinary(binary, filepath.Join(runtimeDir, architecturev2renderer.StackKitServerStagedBinary))
@@ -145,4 +151,18 @@ func stageStackKitServerBinary(source, target string) (existed, changed bool, er
 		return false, false, fmt.Errorf("stage stackkit-server: %w", err)
 	}
 	return existed, true, nil
+}
+
+// prepareCoreIdentityWorkspace records the host's site network for the LAN
+// enrollment listener, which inside the core's network namespace cannot see
+// the site interface. A host whose site address is on no interface records
+// nothing; its listener then attests no home.
+func prepareCoreIdentityWorkspace(workspaceRoot string) error {
+	if _, err := localevidence.BasementLANDNSResolverAddress(workspaceRoot); err != nil {
+		return nil
+	}
+	if err := identity.RecordHomeSiteNetwork(workspaceRoot, time.Now()); err != nil {
+		slog.Warn("the host site network was not recorded; the LAN enrollment listener attests no home until the next apply", "error", err)
+	}
+	return nil
 }

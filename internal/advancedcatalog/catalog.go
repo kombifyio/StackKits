@@ -424,7 +424,7 @@ func New() Catalog {
 				Events: []EventPhase{changeSetPrepareEvents},
 				Modes:  capabilityModes,
 			},
-		}, applicationOperations()...),
+		}, append(applicationOperations(), applicationTransferReceiveEntry())...),
 	}
 	slices.SortFunc(catalog.Operations, func(a, b Operation) int { return cmp.Compare(a.Operation, b.Operation) })
 	return catalog
@@ -476,6 +476,7 @@ func placeholders() []Placeholder {
 		{Name: "connectorRequestFile", Description: "Workspace-relative private metadata-only Home Assistant connector request."},
 		{Name: "ownerFile", Description: "Workspace-relative private native application Owner grant file."},
 		{Name: "anchorId", Description: "Existing snapshot-anchor ID in local custody."},
+		{Name: "archiveSha256", Description: "Exact transfer ciphertext digest from the source receipt.", Pattern: sha},
 		{Name: "bundleFile", Description: "Path to the canonical Advanced trust bundle file."},
 		{Name: "bundleSha256", Description: "Exact digest of the trust bundle bytes.", Pattern: sha},
 		{Name: "candidateSpecFile", Description: "Path to the candidate StackSpec v2 file."},
@@ -486,7 +487,12 @@ func placeholders() []Placeholder {
 		{Name: "hostsCsv", Description: "Comma-separated managed kombify.me hostnames.", Pattern: `^[a-z0-9*][a-z0-9.*,-]*$`},
 		{Name: "correlationId", Description: "Caller correlation ID."},
 		{Name: "operationId", Description: "Stable lowercase operation ID.", Pattern: `^[a-z0-9][a-z0-9._-]{7,99}$`},
+		{Name: "planHash", Description: "Exact receiving ResolvedPlan hash the destination admission named.", Pattern: sha},
 		{Name: "progressFile", Description: "Path the rollout event JSONL is written to; never `-` together with --json."},
+		{Name: "sourceFingerprint", Description: "Full SHA-256 of the source node's transfer signing key.", Pattern: sha},
+		{Name: "sourceOwnerRef", Description: "Local Owner reference of the source node.", Pattern: `^owner/local/[0-9a-f]{32}$`},
+		{Name: "sourceReceiptFile", Description: "Path to the source Owner-signed transfer export receipt."},
+		{Name: "transferId", Description: "Content address of the signed application transfer.", Pattern: sha},
 		{Name: "targetRef", Description: "Rollback target: an executor-state snapshot ID, or the change-set ID whose pre-apply checkpoint is the target.", Pattern: sha},
 		{Name: "workspaceDir", Description: "StackKit workspace directory."},
 	}

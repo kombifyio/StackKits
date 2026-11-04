@@ -154,6 +154,16 @@ func (c Capability) ValidateClaims() error {
 			return invalid("transferRetirement.candidateSpecHash", "must retire selected intent from a different baseline")
 		}
 	}
+	receiveOperation := slices.Contains(c.AllowedOperations, OperationApplicationTransferReceive)
+	if receiveOperation || c.TransferReceive != nil {
+		if !receiveOperation || len(c.AllowedOperations) != 1 || c.TransferReceive == nil || c.TransferRetirement != nil || c.BackupRenewal != nil || lifetime > TransferReceiveMaxLifetimeSeconds*time.Second {
+			return invalid("transferReceive", "requires one short-lived application-transfer.receive operation and its exact scope")
+		}
+		if err := c.TransferReceive.checkFormats(); err != nil {
+			validation := err.(*ValidationError)
+			return invalid("transferReceive."+validation.Field, validation.Detail)
+		}
+	}
 	if c.BackupRenewal != nil {
 		if len(c.AllowedOperations) != 1 || c.AllowedOperations[0] != BackupRenewalOperation || lifetime > BackupRenewalMaxLifetimeSeconds*time.Second {
 			return invalid("backupRenewal", "requires one short-lived "+BackupRenewalOperation+" operation")

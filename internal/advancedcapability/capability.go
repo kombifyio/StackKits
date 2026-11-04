@@ -22,15 +22,18 @@ const (
 
 type TransferRetirement = wire.TransferRetirement
 
+type TransferReceive = wire.TransferReceive
+
 const (
-	OperationApplicationTransferRetire = wire.OperationApplicationTransferRetire
-	OperationDriftReconcileAdvanced    = wire.OperationDriftReconcileAdvanced
-	OperationOriginCertificateInstall  = wire.OperationOriginCertificateInstall
-	OperationOriginCertificateRequest  = wire.OperationOriginCertificateRequest
-	OperationRestoreDrill              = wire.OperationRestoreDrill
-	OperationRollbackCoordinated       = wire.OperationRollbackCoordinated
-	OperationTerramateChangeSetApply   = wire.OperationTerramateChangeSetApply
-	OperationTerramateChangeSetCreate  = wire.OperationTerramateChangeSetCreate
+	OperationApplicationTransferReceive = wire.OperationApplicationTransferReceive
+	OperationApplicationTransferRetire  = wire.OperationApplicationTransferRetire
+	OperationDriftReconcileAdvanced     = wire.OperationDriftReconcileAdvanced
+	OperationOriginCertificateInstall   = wire.OperationOriginCertificateInstall
+	OperationOriginCertificateRequest   = wire.OperationOriginCertificateRequest
+	OperationRestoreDrill               = wire.OperationRestoreDrill
+	OperationRollbackCoordinated        = wire.OperationRollbackCoordinated
+	OperationTerramateChangeSetApply    = wire.OperationTerramateChangeSetApply
+	OperationTerramateChangeSetCreate   = wire.OperationTerramateChangeSetCreate
 )
 
 // ReasonCode is a stable, machine-readable fail-closed denial reason.
@@ -95,6 +98,7 @@ type TrustBundle struct {
 // Optional expected issuer/approval references add narrower caller scope.
 type Request struct {
 	TransferRetirement *wire.TransferRetirement
+	TransferReceive    *wire.TransferReceive
 	Now                time.Time
 	TrustBundle        *TrustBundle
 	StackID            string
@@ -108,6 +112,7 @@ type Request struct {
 // Grant is the fully verified and locally scoped capability.
 type Grant struct {
 	TransferRetirement *wire.TransferRetirement
+	TransferReceive    *wire.TransferReceive
 	BackupRenewal      *wire.BackupRenewal
 	CapabilityID       string
 	IssuerID           string

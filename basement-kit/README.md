@@ -19,7 +19,7 @@ As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu 
 |------|---------|--------|
 | Docker API isolation | Docker socket via target daemon | generated |
 | Reverse proxy | StackKits router | the native default core owns the traffic path; a PaaS router owns it only for an explicitly selected `paas: coolify` on the legacy path |
-| Local access | scoped LAN DNS + Owner-CA HTTPS | canonical `*.lab.home` URLs on enrolled devices; no router/DHCP change |
+| Local access | scoped LAN DNS + Owner-CA HTTPS | canonical `*.lab.home` URLs on enrolled devices for a homelab declared local-only; a homelab with a kombify.me name or its own domain uses public names (`id.<name>`) from setup; no router/DHCP change |
 | Optional platforms | none by default | Marketplace optionally installs Coolify as its application engine; Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and later runtime targets. Current support requires a receipt at the installed pin (ADR-0049). |
 | Passkey identity | `pocketid` | mandatory default |
 | Login gateway | `tinyauth` | generated with PocketID OIDC provider config |
@@ -47,7 +47,7 @@ execution and routing owner. Disabled services do not appear as enabled
 dashboard actions, how-to rows or active outputs.
 
 - TinyAuth is inspected for the v5 `TINYAUTH_OAUTH_PROVIDERS_POCKETID_*` contract and `TINYAUTH_OAUTH_AUTOREDIRECT=pocketid`
-- Local probes use the canonical `*.lab.home` routes over Owner-CA HTTPS. The StackKits LAN resolver and Step-CA are part of the local default; device enrollment installs only this zone and public root with explicit OS approval. Public/custom domains continue through the selected router and their declared certificate provider.
+- Local probes use the canonical `*.lab.home` routes over Owner-CA HTTPS. The StackKits LAN resolver and Step-CA are part of the local default; device enrollment of a `local-only` homelab installs only this zone and public root with explicit OS approval. Public/custom domains continue through the selected router and their declared certificate provider.
 
 If Docker Hub rate-limits anonymous image pulls, the VM smoke is externally inconclusive. Seed the Ubuntu target with Docker auth via `STACKKIT_FRESH_VM_DOCKER_CONFIG` or `STACKKIT_FRESH_VM_DOCKER_CONFIG_JSON` and rerun.
 
@@ -106,7 +106,7 @@ stackkit --chdir build/basement-local generate
 
 ## Access
 
-For the default local spec, enroll the device once and then use the links exactly as generated. Enrollment installs scoped DNS and the public Owner-CA root with explicit OS approval; it does not require router, DHCP, hosts-file, or per-link changes:
+For the default local-only spec, enroll the device once and then use the links exactly as generated. A homelab with a kombify.me name or its own domain uses the public names instead (`id.<name>` with publicly trusted certificates from setup, [identity target](https://github.com/kombify/kombify-workspace/blob/main/HOMELAB-IDENTITY-ACCESS-TARGET.md) §5). Enrollment installs scoped DNS and the public Owner-CA root with explicit OS approval; it does not require router, DHCP, hosts-file, or per-link changes:
 
 ```text
 https://base.lab.home
@@ -120,7 +120,7 @@ https://photos.lab.home
 https://files.lab.home
 ```
 
-Open Node Hub first. `https://base.lab.home` is the canonical local first-setup entrypoint. Device enrollment is Home-authority scoped: connect on the LAN, authenticate as a Homelab user, approve the scoped DNS and Owner-CA profile, and register or confirm the device passkey. Root trust does not authorize a service session. The Hub is bootstrap-open only until the PocketID Owner exists, then `Protect Base Hub` moves Base and the node-local API behind TinyAuth. Optional remote enrollment adds a private split tunnel with the same URLs; it does not publish services or install a second namespace.
+Open Node Hub first. `https://base.lab.home` is the canonical local first-setup entrypoint. A person enrolls their own devices at the Authority: at home (the client reached the Authority's LAN listener directly) they sign in with their Homelab account passkey, approve the scoped DNS and Owner-CA profile, and the device is approved automatically, with a 24 hour undo for their other devices and the Owner; away, the enrollment is confirmed by the person's own enrolled device, otherwise by the Owner. Root trust does not authorize a service session. The Hub is bootstrap-open only until the PocketID Owner exists, then `Protect Base Hub` moves Base and the node-local API behind TinyAuth. Remote reach needs no VPN and is not chosen at enrollment: it runs over the standard paths (kombify.me tunnel mode or relay, the owner's Cloudflare Tunnel) under the public names, and a `local-only` homelab has none. A VPN (WireGuard, Headscale, Pangolin, Tailscale) is an optional add-on, never a default of this kit; it does not publish services or install a second namespace.
 
 The default domain is `lab.home`. It has two labels on purpose: TinyAuth scopes its login session cookie to the parent of `auth.<domain>`, and a single label such as `home` is a public suffix (the Public Suffix List's default rule), so no browser shares that cookie with `base.home` or the application hosts and every protected link loops back to login. `stackkit init` and `stackkit validate` therefore refuse a domain that is its own public suffix (a single label, or a listed suffix such as `home.arpa`) with guidance to use a domain such as `lab.home`.
 
@@ -186,7 +186,7 @@ Preparation validates and updates the StackSpec, retains the original owner sign
 
 The domain transition itself does not create a sealed rollback checkpoint. The subsequent `upgrade` checkpoints the **migrated prior release on `lab.home`** and governs the release rollout and recovery from there. It does not provide rollback to the original `home` configuration. If original-domain rollback is required, this bridge does not satisfy that requirement; checkpointed domain migration is still pending. Runtime preservation, interruption recovery, and the full prior-release bridge remain pending real-host evidence.
 
-Passkeys for `https://id.home` cannot sign in at `https://id.lab.home`. Activation waits until the running PocketID advertises the new issuer, then returns a one-time URL for the same owner or household subject. Existing household members use `user activate`, without deleting or recreating their accounts. Activation status becomes active only after a new credential appears following new-domain enrollment; old credentials remain preserved. Share each household activation URL only with that person.
+Passkeys for `https://id.home` cannot sign in at `https://id.lab.home`; the same holds for any change of the identity host, which is the passkey relying party. Activation waits until the running PocketID advertises the new issuer, then returns a one-time URL for the same owner or household subject. Existing household members use `user activate`, without deleting or recreating their accounts. Activation status becomes active only after a new credential appears following new-domain enrollment; old credentials remain preserved. Share each household activation URL only with that person.
 
 Custom domains remain explicit configuration. They do not create a second local alias: the selected domain becomes the one canonical service URL set and is routed by the selected workload's single admitted routing owner.
 
@@ -217,7 +217,7 @@ These are deliberate scope boundaries, not hidden defaults:
 - Vaultwarden 1.37.2 receives a native PocketID SSO client restricted to `owners` and `admins`, matching the catalog's `vault` privilege. The client uses PKCE, the exact `/identity/connect/oidc-signin` callback, and the existing Home CA. Public signups stay closed; the Owner invitation, app-local email/master-password login and verified break-glass admin token remain available. PocketID authenticates the person; each user chooses and unlocks a personal master password. StackKit never generates a user vault password or shared decryption key. Browser SSO and existing-account association still require runtime qualification. The outer TinyAuth gate remains, so mobile/extension clients that cannot carry its session are not yet a supported path. Existing admin-saved `config.json` settings can override environment SSO settings; an older saved override requires explicit reconciliation before SSO can be claimed active. These settings follow the pinned upstream [SSO configuration](https://github.com/dani-garcia/vaultwarden/blob/1.37.2/src/config.rs) and [identity flow](https://github.com/dani-garcia/vaultwarden/blob/1.37.2/src/api/identity.rs).
 - Jellyfin/media and Dockge are opt-in/manual until their first-run UX matches the default path.
 - Platform-managed workloads require the selected owner's external deployment identity. Standalone Compose workloads remain Compose-owned. A fallback result is not evidence of successful platform management; store applications outside StackKits manifests remain Coolify/user-owned.
-- The host `security-baseline` is mandatory for Basement Kit beta release evidence. `admin-bootstrap` and broader login-gateway follow-ups remain tracked in the roadmap.
+- The host `security-baseline` is mandatory for Basement Kit beta release evidence. `admin-bootstrap` and the Access Gate's later slices (browser sessions, app credentials, the agent class) remain tracked in the roadmap.
 
 ## Architecture
 

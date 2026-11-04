@@ -16,3 +16,13 @@ func standaloneComposeCoreNetwork(module string) (string, error) {
 		return "", fmt.Errorf("standalone Compose route requires a supported plan-bound core owner")
 	}
 }
+
+// standaloneComposeHomeCore reports a core with separate LAN and remote
+// listeners. A Cloud core's only listener is public and therefore remote.
+func standaloneComposeHomeCore(module string) bool {
+	return module == "stackkits-basement-core-runtime" || module == "stackkits-basement-core-lite-runtime"
+}
+
+// standaloneComposeRemoteListenerLabel marks a container whose labels the
+// Home core's remote router may read (its Docker provider constraint).
+const standaloneComposeRemoteListenerLabel = "io.stackkit.remote-listener"

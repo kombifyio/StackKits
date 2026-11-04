@@ -18,12 +18,36 @@ import (
 )
 
 const (
-	pocketIDLocalAPI       = "http://127.0.0.1:1411"
 	tinyAuthClientName     = "StackKits TinyAuth"
 	ownerEnrollmentTTL     = 24 * time.Hour
 	pocketIDHealthTimeout  = 2 * time.Minute
 	ownerEnrollmentRelPath = ".stackkit/custody/pocketid-owner-enrollment.json"
 )
+
+// pocketIDLocalAPI is this Authority's Pocket ID API: its loopback
+// publication on the host, or its name on the Basement core network when
+// stackkit-server runs inside the core (STACKKIT_POCKETID_LOCAL_API). No
+// other address is accepted, so the setting cannot point custody elsewhere.
+var pocketIDLocalAPI = resolvePocketIDLocalAPI(os.Getenv(PocketIDLocalAPIEnvironment))
+
+// PocketIDLocalAPIEnvironment selects the core network address of Pocket ID.
+const PocketIDLocalAPIEnvironment = "STACKKIT_POCKETID_LOCAL_API"
+
+const (
+	pocketIDLoopbackAPI    = "http://127.0.0.1:1411"
+	pocketIDCoreNetworkAPI = "http://pocketid:1411"
+)
+
+// PocketIDLocalAPI is the address this process reaches the Authority's
+// Pocket ID API at.
+func PocketIDLocalAPI() string { return pocketIDLocalAPI }
+
+func resolvePocketIDLocalAPI(value string) string {
+	if strings.TrimSpace(value) == pocketIDCoreNetworkAPI {
+		return pocketIDCoreNetworkAPI
+	}
+	return pocketIDLoopbackAPI
+}
 
 // pocketIDMembershipClient is required for projected household effects. Legacy
 // owner bootstrap remains compatible with an unpatched standalone provider.

@@ -125,6 +125,11 @@ Use stackkit <command> --help for examples and detailed options.`,
 		if machineOutputCommandActive && strings.TrimSpace(progressJSONL) == "-" {
 			return machineAwareCommandError(cmd, fmt.Errorf("machine JSON output cannot share stdout with --progress-jsonl -; select a file path"))
 		}
+		if cmd == verifyCmd && cmd.Flags().Changed("expected-ril-primitive-hash") {
+			if err := requireRILPrimitiveHash("verify-stackkit-state", verifyRILPrimitiveHash); err != nil {
+				return machineAwareCommandError(cmd, err)
+			}
+		}
 		if err := admitCommandBeforeDeployObservability(cmd); err != nil {
 			return machineAwareCommandError(cmd, err)
 		}
@@ -137,7 +142,7 @@ Use stackkit <command> --help for examples and detailed options.`,
 
 		// Initialize structured deploy logger (skip for help/completion/version)
 		switch name {
-		case "stackkit", "help", "completion", "version", "logs", "list", "agent", "install-plan", "self-check", "prompt", "mcp-config", "resolve", "migrate", "contract-proof":
+		case "stackkit", "help", "completion", "version", "logs", "list", "agent", "install-plan", "self-check", "prompt", "mcp-config", "resolve", "migrate", "contract-proof", "ril-primitive-hash":
 			// no logging for these commands
 		default:
 			if !noLog {
@@ -245,8 +250,9 @@ func init() {
 	rootCmd.AddCommand(newNetworkCommand())
 	rootCmd.AddCommand(newRelocateCommand())
 	rootCmd.AddCommand(newDeviceCommand())
+	rootCmd.AddCommand(newVPNCommand())
 	rootCmd.AddCommand(outputTransactionCmd)
-	rootCmd.AddCommand(user.NewCommandWithFilesProvisioner(nativeFilesHouseholdProvisioner{}))
+	rootCmd.AddCommand(user.NewCommandWithFilesProvisioner(nativeFilesHouseholdProvisioner{}, resyncHomeOverlayIfActive))
 }
 
 func commandDisablesDeployObservability(cmd *cobra.Command) bool {

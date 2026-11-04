@@ -96,7 +96,11 @@ func runUseCaseGroupRemoval(cmd *cobra.Command, slug string) error {
 	if err := json.Unmarshal(current.CanonicalStackSpec, &spec); err != nil {
 		return err
 	}
-	if spec.Install.Mode == "advanced" || len(spec.Nodes) != 1 || len(spec.Sites) != 1 {
+	advanced, err := advancedManagedIntent(workspace, spec.Install.Mode)
+	if err != nil {
+		return err
+	}
+	if advanced || len(spec.Nodes) != 1 || len(spec.Sites) != 1 {
 		return errors.New("managed use-case removal requires --candidate-output and existing Advanced change-set dispatch")
 	}
 	candidate, selected, err := useCaseRemovalCandidate(service, current.CanonicalStackSpec, workspace, removeV2ExecutionOptions.inventoryPath, slug)

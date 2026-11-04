@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 
+	"github.com/kombifyio/stackkits/internal/accessgatetable"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
@@ -300,17 +301,19 @@ type CloudPublicEdgeBackendMember struct {
 }
 
 type CloudPublicEdgeAccess struct {
-	Exposure               string   `json:"exposure"`
-	PolicyExposure         string   `json:"policyExposure"`
-	Authentication         string   `json:"authentication"`
-	Privilege              string   `json:"privilege"`
-	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
-	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
-	LANStepDown            bool     `json:"lanStepDown"`
-	AllowedSiteRefs        []string `json:"allowedSiteRefs,omitempty"`
-	AllowedMethods         []string `json:"allowedMethods,omitempty"`
-	DefaultClosed          bool     `json:"defaultClosed"`
-	PolicyRef              string   `json:"policyRef"`
+	Exposure               string                     `json:"exposure"`
+	PolicyExposure         string                     `json:"policyExposure"`
+	Authentication         string                     `json:"authentication"`
+	Privilege              string                     `json:"privilege"`
+	EnrolledDeviceRequired bool                       `json:"enrolledDeviceRequired"`
+	OwnerStepUpRequired    bool                       `json:"ownerStepUpRequired"`
+	OwnerRemoteOptIn       bool                       `json:"ownerRemoteOptIn"`
+	AppAccessAway          bool                       `json:"appAccessAway"`
+	AnonymousRateLimit     *accessgatetable.RateLimit `json:"anonymousRateLimit,omitempty"`
+	AllowedSiteRefs        []string                   `json:"allowedSiteRefs,omitempty"`
+	AllowedMethods         []string                   `json:"allowedMethods,omitempty"`
+	DefaultClosed          bool                       `json:"defaultClosed"`
+	PolicyRef              string                     `json:"policyRef"`
 }
 
 type CloudPublicEdgeTLS struct {
@@ -497,10 +500,10 @@ func validateCloudAdminMeshProjection(projection CloudAdminMeshProjection, plan 
 			return fail(ErrInvalidPlan, routePath+".id", "routes must be unique and sorted")
 		}
 		previousRouteID = route.ID
-		if route.Exposure != "private" || route.Access.PolicyExposure != "private" ||
+		if route.Exposure != "remote-private" || route.Access.PolicyExposure != "remote-private" ||
 			route.Access.Authentication != "human+device" || !route.Access.EnrolledDeviceRequired ||
-			route.Access.LANStepDown || !route.Access.DefaultClosed {
-			return fail(ErrInvalidPlan, routePath, "admin route must remain private, device-bound, and default-closed")
+			!route.Access.DefaultClosed {
+			return fail(ErrInvalidPlan, routePath, "admin route must remain remote-private, device-bound, and default-closed")
 		}
 		authorityCount := 0
 		for _, authority := range route.CapabilityAuthorities {

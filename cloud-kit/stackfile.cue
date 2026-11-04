@@ -125,8 +125,7 @@ Definition: foundation.#ProductKitDefinition & {
 	}
 	reachability: {
 		accessPolicies: {
-			allowedExposures: ["private", "public"]
-			lanStepDownAllowed: false
+			allowedExposures: ["remote-private", "public"]
 		}
 		routes: {
 			local: {
@@ -257,9 +256,11 @@ Definition: foundation.#ProductKitDefinition & {
 					exposure:               "public", authentication: "human+device", privilege: "user"
 					enrolledDeviceRequired: true
 				}
+				// A Cloud Kit has no LAN listener; its Owner's choice of a cloud
+				// server is the opt-in that reaches the vault remotely.
 				vault: {
 					exposure:               "public", authentication:  "human+device", privilege: "vault"
-					enrolledDeviceRequired: true, ownerStepUpRequired: true
+					enrolledDeviceRequired: true, ownerStepUpRequired: true, ownerRemoteOptIn:    true
 				}
 			}
 		}
@@ -306,23 +307,27 @@ Definition: foundation.#ProductKitDefinition & {
 			// Cloud standalone core declares three default-closed public service routes. They
 			// are intent, not an implicit allow-all: the resolved plan binds each
 			// route to the exact Cloud core endpoint and the public-edge/TLS owners.
-			// Hub is TinyAuth-gated; identity routes stay ungated so login can complete.
+			// The Access Gate is in front of every route on the public listener;
+			// the sign-in routes stay open so login can complete.
 			access: {
+				// A Cloud Kit has no LAN listener: server administration is
+				// reached through the public edge by the Owner's opt-in.
 				"cloud-public-admin": {
 					exposure:               "public"
 					privilege:              "admin"
 					authentication:         "human+device"
 					enrolledDeviceRequired: true
 					ownerStepUpRequired:    true
-					lanStepDown:            false
+					ownerRemoteOptIn:       true
 				}
+				// The sign-in surfaces; the opt-in reaches the identity
+				// administration on the Pocket ID host for the same reason.
 				"cloud-public-identity": {
 					exposure:               "public"
-					privilege:              "identity"
-					authentication:         "human+device"
-					enrolledDeviceRequired: true
-					ownerStepUpRequired:    true
-					lanStepDown:            false
+					privilege:              "sign-in"
+					authentication:         "human"
+					enrolledDeviceRequired: false
+					ownerRemoteOptIn:       true
 				}
 			}
 			routes: {

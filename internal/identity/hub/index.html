@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#172e30">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hub">
+<link rel="manifest" href="/device/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/device/icon-192.png">
+<link rel="stylesheet" href="/device/app.css">
+<title>Homelab Hub</title>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Homelab</p>
+    <h1>Hub</h1>
+  </header>
+  <p id="install-hint" class="hint" hidden>On iPhone and iPad, add the Hub to your Home Screen (Share, then Add to Home Screen) so it keeps this device's key and can show notifications.</p>
+  <section id="connect" class="card">
+    <h2>Connect this device</h2>
+    <p>Sign in with your own passkey. At home the device is connected at once; away, one of your enrolled devices confirms it.</p>
+    <form id="enroll">
+      <label for="name">Device name</label>
+      <input id="name" name="name" required maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="my-phone" autocomplete="off">
+      <button type="submit">Connect with my passkey</button>
+    </form>
+  </section>
+  <section id="connected" class="card" hidden>
+    <h2>This device: <span id="device-name"></span></h2>
+    <div class="actions">
+      <button id="refresh" type="button">Refresh</button>
+      <button id="renew" type="button">Renew now</button>
+      <button id="push" type="button">Turn on notifications</button>
+    </div>
+    <h3>Devices</h3>
+    <ul id="devices"></ul>
+    <h3>Notices</h3>
+    <ul id="notices"></ul>
+    <div id="apps-section" hidden>
+      <h3>Apps away from home</h3>
+      <ul id="app-passes"></ul>
+      <form id="app-pass">
+        <label for="app-host">Service</label>
+        <select id="app-host" name="host" required></select>
+        <label for="app-name">App name</label>
+        <input id="app-name" name="name" required maxlength="63" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" placeholder="immich-phone" autocomplete="off">
+        <button type="submit">Create app pass</button>
+      </form>
+      <div id="app-pass-created" hidden>
+        <label for="app-pass-secret">Add this header in the app (shown once)</label>
+        <input id="app-pass-secret" readonly>
+      </div>
+    </div>
+    <div id="approvals-section" hidden>
+      <h3>Owner approvals</h3>
+      <ul id="approvals"></ul>
+    </div>
+  </section>
+  <p id="status" role="status" aria-live="polite"></p>
+</main>
+<script src="/device/app.js" defer></script>
+</body>
+</html>

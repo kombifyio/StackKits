@@ -148,7 +148,7 @@ var (
 // later) fails closed instead of losing that setting.
 var nativeDockerTranslatedServiceFields = map[string]struct{}{
 	"Image": {}, "Restart": {}, "Logging": {}, "OOMScoreAdj": {}, "Deploy": {}, "Command": {}, "Entrypoint": {},
-	"DependsOn": {}, "Environment": {}, "Volumes": {}, "Networks": {}, "Ports": {}, "ExtraHosts": {},
+	"DependsOn": {}, "Environment": {}, "Volumes": {}, "Networks": {}, "NetworkMode": {}, "Ports": {}, "ExtraHosts": {},
 	"StopSignal": {}, "Init": {}, "Labels": {}, "Healthcheck": {}, "Secrets": {}, "Devices": {}, "User": {},
 }
 
@@ -467,6 +467,23 @@ func (r *nativeDockerRender) service(servicePath, name string, service WorkloadC
 
 	if err := r.mounts(servicePath, block, service.Volumes); err != nil {
 		return err
+	}
+	switch service.NetworkMode {
+	case "":
+	case "host":
+		// The only host-networked component is the governed LAN announcer:
+		// mDNS multicast never leaves a bridge network. Docker then owns the
+		// host namespace, so the service joins no network and publishes no
+		// port; its listener is the host's.
+		if len(service.Networks) != 0 {
+			return fail(ErrRendererFailure, servicePath+".networks", "a host-network service joins no network")
+		}
+		if len(service.Ports) != 0 {
+			return fail(ErrRendererFailure, servicePath+".ports", "a host-network service publishes no port")
+		}
+		block.SetAttributeValue("network_mode", cty.StringVal("host"))
+	default:
+		return fail(ErrRendererFailure, servicePath+".network_mode", "only host networking is admitted")
 	}
 	networks := append([]string(nil), service.Networks...)
 	sort.Strings(networks)

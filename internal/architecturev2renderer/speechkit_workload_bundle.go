@@ -9,39 +9,58 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 )
 
 // Private AI speech (docs/use-case-expansion/ai-agents.md): the kombify
 // SpeechKit server with local providers only, selected with the speech
 // capability module. The server profile rendered here enables no cloud
-// provider: speech-to-text runs in the whisper.cpp sidecar, text-to-speech in
-// the Kokoro-FastAPI sidecar and Assist on the node's Ollama. Every /v1
-// route, including the OpenAI-compatible audio routes the chat module uses,
-// requires the bearer token from custody. Only the server joins the private
-// AI network; it has no route of its own in this slice.
+// provider: speech-to-text runs in the Parakeet sidecar of the same image,
+// text-to-speech in the Kokoro-FastAPI sidecar and Assist on the node's
+// Ollama. Every /v1 route, including the OpenAI-compatible audio routes the
+// chat module and the household's devices use, requires a bearer token: the
+// server token from custody or a paired device's own token.
+//
+// The server listens on the LAN at port 8080 so the Box, phones and the
+// desktop find it, and a host-network announcer advertises it over mDNS as
+// _speechkit._tcp (multicast never leaves a bridge network). The chat module
+// still reaches it on the private AI network; the kit's browser forward-auth
+// does not apply to devices, which pair with their own token.
 const (
-	speechKitWorkloadModuleID    = "stackkits-speechkit-runtime"
-	speechKitWorkloadUnitID      = "speechkit"
-	speechKitWorkloadRef         = "ai-speech"
-	speechKitWorkloadTemplateRef = "builtin://workloads/speechkit/bundle/v2.json"
-	speechKitWorkloadVersion     = "2.0.0"
-	speechKitWorkloadOutputRef   = "workloads/speechkit/bundle.json"
-	speechKitPort                = 8080
-	speechKitWhisperPort         = 8080
-	speechKitTTSPort             = 8880
+	speechKitWorkloadModuleID     = "stackkits-speechkit-runtime"
+	speechKitWorkloadUnitID       = "speechkit"
+	speechKitWorkloadRef          = "ai-speech"
+	speechKitWorkloadTemplateRef  = "builtin://workloads/speechkit/bundle/v2.json"
+	speechKitWorkloadVersion      = "2.0.0"
+	speechKitWorkloadOutputRef    = "workloads/speechkit/bundle.json"
+	speechKitPort                 = 8080
+	speechKitSTTComponentID       = "speechkit-stt"
+	speechKitSTTPort              = 8080
+	speechKitTTSComponentID       = "speechkit-tts"
+	speechKitTTSPort              = 8880
+	speechKitDiscoveryComponentID = "speechkit-discovery"
 
 	// speechKitConfigPath is the profile path the server image's CMD names;
 	// the config volume lets the governed file be mounted there.
 	speechKitConfigPath = "/etc/speechkit/config.toml"
 	speechKitTokenSlot  = "server-token"
 
-	// speechKitWhisperModelFile is the MIT-licensed whisper.cpp model the
-	// sidecar fetches at first start and verifies by this SHA-256
-	// (huggingface.co/ggerganov/whisper.cpp, 487,601,967 bytes).
-	speechKitWhisperModelFile   = "ggml-small.bin"
-	speechKitWhisperModelSHA256 = "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+	// The Parakeet Ultra int8 model in the sherpa-onnx layout: NVIDIA Parakeet
+	// TDT 0.6B v3 post-trained by Moondream (CC-BY-4.0), the revision and
+	// SHA-256 values SpeechKit's download catalog pins for parakeet.ultra-int8.
+	speechKitSTTModelDir  = "/var/lib/speechkit/models/parakeet-ultra-int8"
+	speechKitSTTModelBase = "https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1"
 )
+
+// speechKitSTTFiles are the four model files, each verified before it is
+// renamed from .part.
+var speechKitSTTFiles = []struct{ Name, SHA256 string }{
+	{"encoder.int8.onnx", "f4d06712d32431b1718eceba2153c314ac4425e8fe708a3534f5e56c5ad53697"},
+	{"decoder.int8.onnx", "94373c6405c8149d1c9d1e9862514e0e3e88dab1c7de18fac9d5df9c6ba5efdd"},
+	{"joiner.int8.onnx", "8a71aaccfdba3d451775507a889afd2257d2e754463fd81095a8c8f290f924c2"},
+	{"tokens.txt", "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"},
+}
 
 var (
 	//go:embed assets/speechkit/server.toml
@@ -67,9 +86,9 @@ func speechKitAssetsDigest() string {
 }
 
 func speechKitWorkloadRendererSchema() string {
-	return `stackkit.workload-bundle/v2|SpeechKitWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:speechkit,speechkit-whisper,speechkit-tts|providers:local-only|egress:whisper-model-download|volumes:data,config,models|governed-files:sha256:` +
-		speechKitAssetsDigest() + `|whisper-model:` + speechKitWhisperModelFile + `@sha256:` + speechKitWhisperModelSHA256 +
-		`|release:` + speechkitRelease + `|secret-material:references-only|peer:ai/private-ai-internal`
+	return `stackkit.workload-bundle/v2|SpeechKitWorkloadBundle|application-adapter|route:authority-bound-module-route-v1|provider-lifecycle:not-owned|components:speechkit,speechkit-stt,speechkit-tts,speechkit-discovery|providers:local-only|egress:parakeet-model-download|volumes:data,config,models|governed-files:sha256:` +
+		speechKitAssetsDigest() + `|stt-model:parakeet-ultra-int8@sha256:` + speechKitSTTFiles[0].SHA256 +
+		`|lan-listener:` + strconv.Itoa(speechKitPort) + `|discovery:_speechkit._tcp|host-network:announcer-only|release:` + speechkitRelease + `|secret-material:references-only|peer:ai/private-ai-internal`
 }
 
 // SpeechKitWorkloadBundleDescriptor is the closed runtime artifact accepted
@@ -264,75 +283,126 @@ func validSpeechKitSecretRefs(refs map[string]string) bool {
 	return true
 }
 
-// speechKitWhisperEntrypoint fetches the governed model once into the models
-// cache volume, verifies it by SHA-256 and then hands over to whisper-server
-// on the OpenAI-compatible inference path. No shell variable is used.
-func speechKitWhisperEntrypoint() []string {
-	model := "/models/whisper/" + speechKitWhisperModelFile
-	return []string{"/bin/sh", "-ec",
-		"mkdir -p /models/whisper; test -s " + model + " || { curl -fsSL --retry 5 -o " + model + ".part https://huggingface.co/ggerganov/whisper.cpp/resolve/main/" + speechKitWhisperModelFile +
-			" && echo '" + speechKitWhisperModelSHA256 + "  " + model + ".part' | sha256sum -c - && mv " + model + ".part " + model + "; }; exec /app/build/bin/whisper-server --host 0.0.0.0 --port 8080 --model " + model + " --inference-path /v1/audio/transcriptions"}
+// speechKitSTTEntrypoint fetches the governed Parakeet model files once into
+// the models cache volume, verifies each by SHA-256 and then hands over to
+// speechkit-stt-sherpa on the OpenAI-compatible transcription path. A failed
+// check leaves only the .part file, so the next start retries that file. The
+// catalog declares the identical command (platform-eu2nt.8): the resolved
+// plan is the executable authority and this renderer must match it.
+func speechKitSTTEntrypoint() []string {
+	dir := speechKitSTTModelDir
+	var b strings.Builder
+	b.WriteString("mkdir -p " + dir + "; ")
+	for _, file := range speechKitSTTFiles {
+		b.WriteString("test -s " + dir + "/" + file.Name + " || { curl -fsSL --retry 5 -o " + dir + "/" + file.Name + ".part " +
+			speechKitSTTModelBase + "/" + file.Name +
+			" && echo '" + file.SHA256 + "  " + dir + "/" + file.Name + ".part' | sha256sum -c - && mv " + dir + "/" + file.Name + ".part " + dir + "/" + file.Name + "; }; ")
+	}
+	b.WriteString("exec /app/speechkit-stt-sherpa --host 0.0.0.0 --port " + strconv.Itoa(speechKitSTTPort) +
+		" --model " + dir + " --inference-path /v1/audio/transcriptions")
+	return []string{"/bin/sh", "-ec", b.String()}
 }
 
-// speechKitComponents are the three governed components. The server's data
-// volume (SQLite store: transcripts, vocabulary, customizations) is the
-// backup source; the config volume carries the rendered profile and the
-// whisper models volume is a re-downloadable cache.
+// speechKitDiscoveryCommand is the announce-only mode of the server image: it
+// binds nothing but mDNS and announces the server that listens on the host's
+// port 8080. The probe is its health check and makes no network call.
+func speechKitDiscoveryCommand() []string {
+	return []string{"--discovery-only", "--discovery-port", strconv.Itoa(speechKitPort),
+		"--discovery-modes", "dictation,assist,voiceagent"}
+}
+
+// speechKitComponents are the governed components. The server's data volume
+// (SQLite store: transcripts, vocabulary, customizations) is the backup
+// source; the config volume carries the rendered profile and the Parakeet
+// models volume is a re-downloadable cache.
 func speechKitComponents() []selectedPaaSRuntimeComponent {
 	return []selectedPaaSRuntimeComponent{
 		{
 			ID: speechKitWorkloadUnitID, Role: "application", Lifecycle: "daemon",
 			Image:       selectedPaaSRuntimeImage{Ref: speechkitImageRef, Digest: speechkitImageDigest},
-			DependsOn:   []string{"speechkit-tts", "speechkit-whisper"},
+			DependsOn:   []string{speechKitSTTComponentID, speechKitTTSComponentID},
 			NetworkRefs: []string{"speechkit-internal"},
 			SecretEnvironment: map[string]string{
 				"SPEECHKIT_SERVER_TOKEN": speechKitTokenSlot,
 			},
+			// The Box sends no Origin header on its ticketed Voice Agent
+			// WebSocket; every other client still has to send one.
+			Environment: map[string]string{"SPEECHKIT_ALLOW_EMPTY_ORIGIN": "1"},
 			Volumes: []selectedPaaSRuntimeVolume{
 				{ID: "data", Target: "/var/lib/speechkit/data", Class: "persistent", Backup: true},
 				{ID: "config", Target: "/etc/speechkit", Class: "cache"},
 			},
+			// Selecting the speech module is the owner's choice of a LAN
+			// voice server: the listener is on with the module.
+			LANListeners: []selectedPaaSLANListener{{Port: speechKitPort, Protocol: "tcp"}},
 			Health:       selectedPaaSRuntimeHealth{Kind: "http", Path: "/healthz", Port: speechKitPort},
 			Resources:    &selectedPaaSRuntimeLimits{MemoryLimit: "1g", MemoryReservation: "256m"},
 			PeerNetworks: []selectedPaaSPeerNetwork{{WorkloadRef: "ai", NetworkRef: "private-ai-internal"}},
 		},
 		{
-			ID: "speechkit-whisper", Role: "machine-learning", Lifecycle: "daemon", Egress: true,
-			Image:       selectedPaaSRuntimeImage{Ref: speechkitWhisperImageRef, Digest: speechkitWhisperImageDigest},
+			// Local speech-to-text: the server image's speechkit-stt-sherpa
+			// runs NVIDIA Parakeet TDT 0.6B v3 (Parakeet Ultra, int8, 25
+			// European languages) behind the OpenAI-compatible route.
+			ID: speechKitSTTComponentID, Role: "machine-learning", Lifecycle: "daemon", Egress: true,
+			Image:       selectedPaaSRuntimeImage{Ref: speechkitImageRef, Digest: speechkitImageDigest},
 			DependsOn:   []string{},
 			NetworkRefs: []string{"speechkit-internal"},
-			Entrypoint:  speechKitWhisperEntrypoint(),
+			Entrypoint:  speechKitSTTEntrypoint(),
 			Volumes: []selectedPaaSRuntimeVolume{
-				{ID: "models", Target: "/models", Class: "cache"},
+				{ID: "models", Target: "/var/lib/speechkit/models", Class: "cache"},
 			},
-			Health:    selectedPaaSRuntimeHealth{Kind: "http", Path: "/", Port: speechKitWhisperPort},
+			Health:    selectedPaaSRuntimeHealth{Kind: "http", Path: "/health", Port: speechKitSTTPort},
 			Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "3g", MemoryReservation: "1g"},
 		},
 		{
-			ID: "speechkit-tts", Role: "machine-learning", Lifecycle: "daemon",
+			ID: speechKitTTSComponentID, Role: "machine-learning", Lifecycle: "daemon",
 			Image:       selectedPaaSRuntimeImage{Ref: speechkitTTSImageRef, Digest: speechkitTTSImageDigest},
 			DependsOn:   []string{},
 			NetworkRefs: []string{"speechkit-internal"},
 			Health:      selectedPaaSRuntimeHealth{Kind: "http", Path: "/health", Port: speechKitTTSPort},
 			Resources:   &selectedPaaSRuntimeLimits{MemoryLimit: "2g", MemoryReservation: "512m"},
 		},
+		{
+			// LAN discovery: mDNS multicast never leaves a bridge network, so
+			// the same image announces _speechkit._tcp from the host network
+			// and does nothing else (no listener, store, token or provider).
+			ID: speechKitDiscoveryComponentID, Role: "application", Lifecycle: "daemon",
+			Image:       selectedPaaSRuntimeImage{Ref: speechkitImageRef, Digest: speechkitImageDigest},
+			DependsOn:   []string{speechKitWorkloadUnitID},
+			NetworkRefs: []string{},
+			HostNetwork: true,
+			Entrypoint:  []string{"/app/speechkit-server"},
+			Command:     speechKitDiscoveryCommand(),
+			Health: selectedPaaSRuntimeHealth{Kind: "command", Command: []string{
+				"/app/speechkit-server", "--discovery-only", "--probe",
+			}},
+			Resources: &selectedPaaSRuntimeLimits{MemoryLimit: "64m", MemoryReservation: "16m"},
+		},
 	}
 }
 
 // validateSpeechKitRuntimeComponents admits exactly the governed graph: the
-// server with its token and the two local provider sidecars; no accelerator,
-// no host rights, no cloud egress from the server.
+// server with its token, the two local provider sidecars and the LAN
+// announcer; no accelerator, no cloud egress from the server. The plan's
+// component list is set-semantic (the canonical form sorts it), so components
+// are matched by ID, never by position.
 func validateSpeechKitRuntimeComponents(components []selectedPaaSRuntimeComponent, path string) error {
 	expected := speechKitComponents()
 	if len(components) != len(expected) {
 		return fail(ErrInvalidPlan, path, "SpeechKit runtime graph differs from the closed "+speechkitRelease+" contract")
 	}
-	byID := func(a, b selectedPaaSRuntimeVolume) int { return strings.Compare(a.ID, b.ID) }
-	for index, want := range expected {
-		actual := components[index]
-		if actual.ID != want.ID {
+	wantByID := make(map[string]selectedPaaSRuntimeComponent, len(expected))
+	for _, want := range expected {
+		wantByID[want.ID] = want
+	}
+	byVolume := func(a, b selectedPaaSRuntimeVolume) int { return strings.Compare(a.ID, b.ID) }
+	seen := make(map[string]struct{}, len(expected))
+	for _, actual := range components {
+		want, governed := wantByID[actual.ID]
+		if _, duplicate := seen[actual.ID]; !governed || duplicate {
 			return fail(ErrInvalidPlan, path, "SpeechKit runtime graph differs from the closed "+speechkitRelease+" contract")
 		}
+		seen[actual.ID] = struct{}{}
 		if actual.Accelerator != nil {
 			return fail(ErrInvalidPlan, path+".accelerator", "SpeechKit runs its providers on the CPU and admits no accelerator grant")
 		}
@@ -344,8 +414,8 @@ func validateSpeechKitRuntimeComponents(components []selectedPaaSRuntimeComponen
 		}
 		actual.Environment, actual.SecretEnvironment = maps.Clone(want.Environment), maps.Clone(want.SecretEnvironment)
 		// The plan orders volumes by its own rule; the set is what is governed.
-		actual.Volumes = slices.SortedFunc(slices.Values(actual.Volumes), byID)
-		want.Volumes = slices.SortedFunc(slices.Values(want.Volumes), byID)
+		actual.Volumes = slices.SortedFunc(slices.Values(actual.Volumes), byVolume)
+		want.Volumes = slices.SortedFunc(slices.Values(want.Volumes), byVolume)
 		if !reflect.DeepEqual(actual, want) {
 			return fail(ErrInvalidPlan, path, "SpeechKit runtime graph differs from the closed "+speechkitRelease+" contract")
 		}

@@ -4,7 +4,7 @@ _assertDefinitionSlug:        "basement-kit" & Definition.metadata.slug
 _assertHomeOnly:              "home" & Definition.topology.allowedSiteKinds[0]
 _assertLocalAuthority:        "home" & Definition.topology.controlPlane.allowedAuthorityKinds[0]
 _assertBridgeOptional:        false & Definition.bridge.required
-_assertLANStepDown:           true & Definition.reachability.accessPolicies.lanStepDownAllowed
+_assertLANOnlyExposure:       "local-only" & Definition.reachability.accessPolicies.allowedExposures[0]
 _assertRemoteRouteCapability: "private-remote-access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].capabilityRef
 _assertRemoteRouteRole:       "access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].role
 _assertPublicRouteCapability: "public-publish-egress" & Definition.reachability.routes.public.requiredRealizations[0].capabilityRef
@@ -13,7 +13,7 @@ _assertPhotosOptional: [for workload in Definition.workloads.optional if workloa
 _assertMediaOptional: [for workload in Definition.workloads.optional if workload == "media" {workload}] & ["media"]
 _assertSmartHomeOptional: [for workload in Definition.workloads.optional if workload == "smart-home" {workload}] & ["smart-home"]
 _assertReachabilityMatrix: Definition.reachability & {
-	accessPolicies: {allowedExposures: ["private", "lan", "public"], lanStepDownAllowed: true}
+	accessPolicies: {allowedExposures: ["local-only", "remote-private", "public"]}
 	routes: {
 		local: {allowed: true, requiredRealizations: [], allowedOriginKinds: ["home"]}
 		"remote-private": {allowed: true, requiredRealizations: [{capabilityRef: "private-remote-access", role: "access"}], allowedOriginKinds: ["home"]}
@@ -31,7 +31,7 @@ _validBasementV2: #BasementKitStackV2 & {
 		generation: {strategy: "kit-template", target: "compose"}
 		network: {
 			mode: "private"
-			domain: {base: "lab.home"}
+			domain: {base: "family.kombify.me"}
 			transport: {}
 			dns: {}
 			tls: {defaultMode: "internal"}
@@ -57,13 +57,12 @@ _validBasementV2: #BasementKitStackV2 & {
 		capabilities: enable: ["private-remote-access", "public-publish-egress"]
 		access: {
 			"lan-device": {
-				exposure:               "lan"
-				authentication:         "device"
+				exposure:               "local-only"
+				authentication:         "human+device"
 				enrolledDeviceRequired: true
-				lanStepDown:            true
 			}
 			"remote-owner": {
-				exposure:               "private"
+				exposure:               "remote-private"
 				authentication:         "human+device"
 				enrolledDeviceRequired: true
 			}
@@ -98,18 +97,6 @@ _validBasementV2: #BasementKitStackV2 & {
 				accessPolicyRef: "public-owner"
 			}
 		}
-		deviceEnrollment: {
-			mode:                      "local-only"
-			authoritySiteRef:          "home"
-			endpointExposure:          "lan"
-			remoteEnrollment:          false
-			requireOwnerStepUp:        true
-			requireLocalPairingProof:  true
-			requireDeviceGeneratedKey: true
-			requirePossessionProof:    true
-			hardwareBackedKey:         "preferred"
-			revocationSupported:       true
-			credentialTTLSeconds:      3600
-		}
+		deviceEnrollment: {mode: "person", authoritySiteRef: "home"}
 	}
 }

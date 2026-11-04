@@ -79,7 +79,7 @@ func projectLocalReachabilityRoute(route map[string]any, path, originSiteRef str
 		return nil, err
 	}
 	projectedAccess := make(map[string]any)
-	for _, field := range []string{"policyRef", "policyExposure", "authentication", "privilege", "enrolledDeviceRequired", "ownerStepUpRequired", "lanStepDown", "allowedMethods", "defaultClosed"} {
+	for _, field := range []string{"policyRef", "policyExposure", "authentication", "privilege", "enrolledDeviceRequired", "ownerStepUpRequired", "ownerRemoteOptIn", "allowedMethods", "defaultClosed"} {
 		if value, present := access[field]; present {
 			projectedAccess[field] = value
 		}
@@ -105,7 +105,7 @@ func projectLocalReachabilityRoute(route map[string]any, path, originSiteRef str
 		// route origin for the effective local realization.
 		projectedAccess["allowedSiteRefs"] = []any{originSiteRef}
 	}
-	if projectedAccess["policyExposure"] == "lan" {
+	if projectedAccess["policyExposure"] == "local-only" {
 		if rawHost, present := projected["host"]; present {
 			host, ok := rawHost.(string)
 			if !ok {

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"slices"
@@ -51,7 +52,14 @@ var householdProjectionUsername = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]
 // ProjectHouseholdUser must execute under the node lifecycle mutation lock.
 // The provider UUID is signed before POST /users. Only that UUID can recover
 // an uncertain creation; a username, email or mutable profile is not custody.
-func (s *Service) ProjectHouseholdUser(ctx context.Context, request HouseholdProjection) (HouseholdUser, error) {
+// A removal runs chain, the local removal chain of stackkit user remove, for
+// the bound subject before the Pocket ID membership is deleted, and again on
+// every retry, so a projected removal ends the member's devices, VPN peers and
+// account exactly as a local one does.
+func (s *Service) ProjectHouseholdUser(ctx context.Context, request HouseholdProjection, chain HouseholdRemovalChain) (HouseholdUser, error) {
+	if request.Action == "remove" && chain == nil {
+		return HouseholdUser{}, errors.New("localowner: household removal needs the local removal chain")
+	}
 	request.User.Username = strings.TrimSpace(request.User.Username)
 	if !householdProjectionKey.MatchString(request.Key) || request.Revision == 0 ||
 		!householdProjectionUsername.MatchString(request.User.Username) ||
@@ -224,6 +232,11 @@ func (s *Service) ProjectHouseholdUser(ctx context.Context, request HouseholdPro
 			user, err := client.GetUser(ctx, state.PocketIDSubject)
 			if err != nil && !errors.Is(err, pocketid.ErrNotFound) {
 				return HouseholdUser{}, errors.New("localowner: household removal subject readback failed")
+			}
+			// The bound subject's local access ends first; the chain is
+			// idempotent, so a retry after any later failure repeats it.
+			if chainErr := chain(ctx, state.PocketIDSubject); chainErr != nil {
+				return HouseholdUser{}, fmt.Errorf("localowner: household removal chain: %w", chainErr)
 			}
 			if errors.Is(err, pocketid.ErrNotFound) && state.CreationPending && state.CreationAttempted && !state.RemovalAttempted {
 				// An uncertain POST may still commit. Absence is not a delete

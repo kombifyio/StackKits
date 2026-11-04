@@ -58,16 +58,11 @@ func (s *Service) stepUpTrust(ctx context.Context, origin string, create bool) (
 	}
 	defer root.Close()
 	if create {
-		tx, err := root.BeginTransaction()
+		release, err := localevidence.AcquireCustodyLock(s.workspaceRoot, stepUpSecretPath, 1)
 		if err != nil {
 			return StepUpTrust{}, err
 		}
-		defer tx.Close()
-		lock, err := tx.TryAcquireOutputLock(stepUpSecretPath)
-		if err != nil {
-			return StepUpTrust{}, err
-		}
-		defer lock.Release()
+		defer release()
 	}
 	registered, err := client.GetOIDCClient(ctx, StepUpClientID)
 	if create && errors.Is(err, pocketid.ErrNotFound) {

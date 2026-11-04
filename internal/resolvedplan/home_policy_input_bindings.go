@@ -52,7 +52,7 @@ func projectPublicHomeAccessEnforcement(stackID string, network map[string]any, 
 		}
 		for _, field := range []string{
 			"policyRef", "policyExposure", "authentication", "privilege",
-			"enrolledDeviceRequired", "ownerStepUpRequired", "lanStepDown",
+			"enrolledDeviceRequired", "ownerStepUpRequired", "ownerRemoteOptIn",
 			"allowedSiteRefs", "allowedMethods",
 		} {
 			if value, present := access[field]; present {
@@ -177,7 +177,7 @@ func projectPublicLocalAutonomyPolicy(
 	if err != nil {
 		return nil, err
 	}
-	if !possessionBound || lanIsIdentity || enrollmentMode != "local-only" || enrollmentAuthority != authoritySiteRef {
+	if !possessionBound || lanIsIdentity || enrollmentMode != "person" || enrollmentAuthority != authoritySiteRef {
 		return nil, fail(ErrContractConflict, "resolvedPlan.identity", "local autonomy requires possession-bound, LAN-independent, Home-local identity")
 	}
 	edgeVerifierSiteRefs, err := stringListField(identity, "resolvedPlan.identity", "edgeVerifierSiteRefs", false)

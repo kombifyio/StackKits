@@ -152,7 +152,7 @@ func issueBasementWorkloadCertificate(ctx context.Context, workspaceRoot string,
 		return nil, errors.New("localevidence: step-ca origin leaf does not chain to established authority")
 	}
 	if !bytes.Equal(leaf.RawSubjectPublicKeyInfo, csr.RawSubjectPublicKeyInfo) || leaf.Subject.CommonName != csr.Subject.CommonName ||
-		!slices.Equal(leaf.DNSNames, csr.DNSNames) || len(leaf.IPAddresses)+len(leaf.URIs)+len(leaf.EmailAddresses) != 0 ||
+		!slices.Equal(leaf.DNSNames, csr.DNSNames) || !sameIPAddresses(leaf.IPAddresses, csr.IPAddresses) || len(leaf.URIs)+len(leaf.EmailAddresses) != 0 ||
 		leaf.IsCA || !slices.Equal(leaf.ExtKeyUsage, []x509.ExtKeyUsage{usage}) || len(leaf.UnknownExtKeyUsage) != 0 ||
 		leaf.KeyUsage != x509.KeyUsageDigitalSignature || leaf.NotBefore.Before(now) ||
 		leaf.NotAfter.Sub(leaf.NotBefore) > time.Duration(ttl)*time.Second || !leaf.NotAfter.After(time.Now().Add(time.Minute)) {
@@ -167,10 +167,26 @@ func issueBasementWorkloadCertificate(ctx context.Context, workspaceRoot string,
 	return verifiedPEM.Bytes(), nil
 }
 
+// stepCALocalDial is where this process reaches the node-local step-ca: its
+// loopback publication on the host, or its name on the Basement core network
+// when stackkit-server runs inside the core (STACKKIT_STEP_CA_LOCAL_DIAL). TLS
+// still verifies the established root and the localhost name.
+var stepCALocalDial = resolveStepCALocalDial(os.Getenv(StepCALocalDialEnvironment))
+
+// StepCALocalDialEnvironment selects the core network address of step-ca.
+const StepCALocalDialEnvironment = "STACKKIT_STEP_CA_LOCAL_DIAL"
+
+func resolveStepCALocalDial(value string) string {
+	if strings.TrimSpace(value) == "step-ca:9000" {
+		return "step-ca:9000"
+	}
+	return "127.0.0.1:9000"
+}
+
 func basementOriginHTTPTransport(roots *x509.CertPool) *http.Transport {
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	return &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: roots}, DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return dialer.DialContext(ctx, "tcp", "127.0.0.1:9000")
+		return dialer.DialContext(ctx, "tcp", stepCALocalDial)
 	}}
 }
 
@@ -270,26 +286,44 @@ func requireBasementWorkloadProvisioner(workspaceRoot, name string, usage x509.E
 		eku = "clientAuth"
 	}
 	expected, err := basementWorkloadProvisioner(workspaceRoot, name, eku)
-	if name == basementDeviceProvisionerName {
-		expected, err = basementDeviceProvisioner(workspaceRoot)
-	}
 	if err != nil {
 		return err
 	}
 	return requireBasementProvisioner(workspaceRoot, expected)
 }
 
-func requireBasementProvisioner(workspaceRoot string, expected basementStepCAProvisioner) error {
+func readBasementStepCAConfig(workspaceRoot string) (basementStepCAConfig, error) {
+	var config basementStepCAConfig
 	path, err := confinedCustodyPath(workspaceRoot, filepath.ToSlash(filepath.Join(basementRuntimeCustodyRelDir, "step-ca/config/ca.json")))
 	if err != nil {
-		return err
+		return config, err
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return config, err
 	}
-	var config basementStepCAConfig
-	if err := json.Unmarshal(raw, &config); err != nil {
+	err = json.Unmarshal(raw, &config)
+	return config, err
+}
+
+// basementProvisionerConfigured reports whether any provisioner of this name
+// is in the installed step-ca configuration.
+func basementProvisionerConfigured(workspaceRoot, name string) (bool, error) {
+	config, err := readBasementStepCAConfig(workspaceRoot)
+	if err != nil {
+		return false, err
+	}
+	for _, provisioner := range config.Authority.Provisioners {
+		if provisioner.Name == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func requireBasementProvisioner(workspaceRoot string, expected basementStepCAProvisioner) error {
+	config, err := readBasementStepCAConfig(workspaceRoot)
+	if err != nil {
 		return err
 	}
 	for _, provisioner := range config.Authority.Provisioners {
@@ -306,11 +340,31 @@ func basementWorkloadToken(key OwnerKey, csr *x509.CertificateRequest, now time.
 		return "", err
 	}
 	fingerprint := sha256.Sum256(csr.Raw)
+	// step-ca admits exactly the token's names: the CSR's DNS names and, for
+	// a listener dialled by address, its IP addresses.
+	sans := slices.Clone(csr.DNSNames)
+	for _, address := range csr.IPAddresses {
+		sans = append(sans, address.String())
+	}
 	header, _ := json.Marshal(map[string]string{"alg": "EdDSA", "kid": key.KeyID, "typ": "JWT"})
-	claims, err := json.Marshal(map[string]any{"iss": provisioner, "sub": csr.Subject.CommonName, "aud": []string{basementOriginSignURL}, "iat": now.Unix(), "nbf": now.Unix(), "exp": now.Add(time.Minute).Unix(), "jti": base64.RawURLEncoding.EncodeToString(nonce), "sans": csr.DNSNames, "cnf": map[string]string{"x5rt#S256": base64.RawURLEncoding.EncodeToString(fingerprint[:])}})
+	claims, err := json.Marshal(map[string]any{"iss": provisioner, "sub": csr.Subject.CommonName, "aud": []string{basementOriginSignURL}, "iat": now.Unix(), "nbf": now.Unix(), "exp": now.Add(time.Minute).Unix(), "jti": base64.RawURLEncoding.EncodeToString(nonce), "sans": sans, "cnf": map[string]string{"x5rt#S256": base64.RawURLEncoding.EncodeToString(fingerprint[:])}})
 	if err != nil {
 		return "", err
 	}
 	payload := base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(claims)
 	return payload + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key.private, []byte(payload))), nil
+}
+
+// sameIPAddresses reports whether a leaf carries exactly the requested IP
+// addresses, in any order: no address dropped, none added.
+func sameIPAddresses(leaf, requested []net.IP) bool {
+	if len(leaf) != len(requested) {
+		return false
+	}
+	for _, address := range requested {
+		if !slices.ContainsFunc(leaf, address.Equal) {
+			return false
+		}
+	}
+	return true
 }

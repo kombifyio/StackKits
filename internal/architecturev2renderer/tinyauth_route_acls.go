@@ -16,7 +16,7 @@ import (
 
 const (
 	tinyAuthRouteACLInputRef     = "tinyauth-route-acls"
-	tinyAuthRouteACLContractSalt = "|authorization:tinyauth-v5-static-exact-host-groups,unknown-host-deny,no-docker-provider,pocketid-provider-email-admission"
+	tinyAuthRouteACLContractSalt = "|authorization:tinyauth-v5-static-exact-host-groups,unknown-host-deny,no-docker-provider,pocketid-provider-email-admission|access-gate:stackkit-server-8083,compiler-route-table-v1,lan-gate-then-tinyauth,remote-gate-only,trust-forward-header-off"
 )
 
 var tinyAuthRouteACLEnvironmentPattern = regexp.MustCompile(`^TINYAUTH_APPS_ROUTE([A-F0-9]{64})_(CONFIG_DOMAIN|OAUTH_WHITELIST|OAUTH_GROUPS)$`)
@@ -140,7 +140,18 @@ func tinyAuthRouteACLs(unit RenderUnit) (map[string]string, error) {
 	return groupsByHost, nil
 }
 
+// renderTinyAuthRouteACLs renders the compiler-owned route authorization of a
+// core: TinyAuth's exact-host group ACLs for the LAN listener and the Access
+// Gate's route table for both listeners.
 func renderTinyAuthRouteACLs(unit RenderUnit, compose []byte) ([]byte, error) {
+	compose, err := renderTinyAuthGroupACLs(unit, compose)
+	if err != nil {
+		return nil, err
+	}
+	return renderAccessGateRoutes(unit, compose)
+}
+
+func renderTinyAuthGroupACLs(unit RenderUnit, compose []byte) ([]byte, error) {
 	groupsByHost, err := tinyAuthRouteACLs(unit)
 	if err != nil {
 		return nil, err
@@ -185,6 +196,10 @@ func renderTinyAuthRouteACLs(unit RenderUnit, compose []byte) ([]byte, error) {
 }
 
 func stripTinyAuthRouteACLs(content []byte) ([]byte, bool) {
+	content, ok := stripAccessGateRoutes(content)
+	if !ok {
+		return nil, false
+	}
 	var document struct {
 		Services map[string]struct {
 			Environment map[string]string `yaml:"environment"`

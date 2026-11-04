@@ -1,9 +1,7 @@
 package commands
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,102 +9,78 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/identity"
-	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/spf13/cobra"
 )
 
 func newDeviceCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:         "device",
-		Short:       "Enroll, list and revoke household devices (CLI token fallback of the State Console ceremony)",
+		Use:   "device",
+		Short: "Enrollment bootstrap, devices, notices and revocation at the Authority (the Owner's local console)",
+		Long: "Each person enrolls their own devices: the device client signs them in with their own passkey and enrolls " +
+			"its own key, automatically at home through the LAN enrollment listener and confirmed away by their own " +
+			"enrolled device or the Owner. These commands are the Owner's console at the Authority: show the enrollment " +
+			"bootstrap, bind the Home trust, list devices and notices, undo an enrollment and revoke any device.",
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	}
-	command.AddCommand(newDeviceEnrollCommand(), newDeviceListCommand(), newDeviceRevokeCommand(), newDeviceOverlayCommand())
+	command.AddCommand(newDeviceBootstrapCommand(), newDeviceTrustCommand(), newDeviceListCommand(), newDeviceNoticesCommand(),
+		newDeviceUndoCommand(), newDeviceRevokeCommand(), newDeviceOverlayCommand(), newDeviceSignerCommand())
 	return command
 }
 
-type deviceEnrollOptions struct {
-	ownerSessionFile string
-	code             string
-	csrFile          string
-	outFile          string
-}
-
-func newDeviceEnrollCommand() *cobra.Command {
-	options := &deviceEnrollOptions{}
-	command := &cobra.Command{
-		Use:   "enroll",
-		Short: "Issue a single-use pairing token after Owner step-up, or redeem one with a device CSR",
-		Long: "With --owner-session-file, issue a single-use 300-second pairing token; the file holds a PocketID " +
-			"Owner session authenticated within the last 60 seconds ('-' reads stdin). With --code and --csr, redeem " +
-			"the token for the device-generated key in the CSR and receive a client certificate from the node-local " +
-			"step-ca device provisioner. Both steps also combine in one call. Enrollment is refused from outside the LAN.",
+func newDeviceBootstrapCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "bootstrap",
+		Short: "Print the LAN enrollment bootstrap a device client scans (listener URL, TLS name, root fingerprint)",
+		Long: "Print where the LAN enrollment listener is, which server name its certificate carries and the step-ca root " +
+			"fingerprint a device pins, as JSON and as the stackkit-enroll URI. It contains no secret: a device enrolls only " +
+			"with its person's own passkey sign-in.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runDeviceEnroll(cmd, getWorkDir(), options, time.Now())
+			bootstrap, err := identity.LoadHomeEnrollmentBootstrap(getWorkDir())
+			if err != nil {
+				return err
+			}
+			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"bootstrap": bootstrap})
 		},
 	}
-	command.Flags().StringVar(&options.ownerSessionFile, "owner-session-file", "", "file with a fresh PocketID Owner session token ('-' for stdin); issues a pairing token")
-	command.Flags().StringVar(&options.code, "code", "", "single-use pairing token to redeem")
-	command.Flags().StringVar(&options.csrFile, "csr", "", "PEM certificate request generated on the device")
-	command.Flags().StringVar(&options.outFile, "out", "", "write the issued certificate chain to this file instead of stdout")
-	return command
 }
 
-func runDeviceEnroll(cmd *cobra.Command, root string, options *deviceEnrollOptions, now time.Time) error {
-	if options.ownerSessionFile == "" && (options.code == "" || options.csrFile == "") {
-		return errors.New("device enroll: pass --owner-session-file to issue a pairing token, or --code with --csr to redeem one")
+func newDeviceTrustCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "trust",
+		Short: "Bind the Owner-signed Home trust to the live PocketID and register the device sign-in client",
+		Long: "Register the stackkit-home-device PocketID client on first use (a public PKCE client for the Homelab groups " +
+			"that requires a passkey on every sign-in), read the live issuer, signing keys and Owner subject, and bind them " +
+			"as the Owner-signed Home trust for 24 hours, keeping every revoked and removed account revoked. The LAN " +
+			"enrollment listener refreshes it every hour; run this once after setup or to repair it.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Args:          cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			root, now := getWorkDir(), time.Now()
+			trust, err := identity.RefreshHomePublicTrust(commandContext(cmd), root, now)
+			if err != nil {
+				return err
+			}
+			// Revoked accounts lose their VPN add-on peers with the binding.
+			overlay, err := resyncHomeOverlayIfActive(commandContext(cmd), root, now)
+			if err != nil {
+				return fmt.Errorf("Home trust bound, but the running overlay was not updated: %w", err)
+			}
+			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{
+				"issuer": trust.PocketID.Issuer, "clientId": trust.PocketID.ClientID, "ownerSubject": trust.PocketID.Subject,
+				"revokedAccounts": trust.RevokedSubjects, "issuedAt": trust.IssuedAt, "expiresAt": trust.ExpiresAt, "overlay": overlay,
+			})
+		},
 	}
-	if options.ownerSessionFile != "" && options.code != "" {
-		return errors.New("device enroll: --code redeems an existing token; omit --owner-session-file")
-	}
-	result := map[string]any{}
-	code := options.code
-	if options.ownerSessionFile != "" {
-		session, err := readDeviceSecretInput(cmd.InOrStdin(), options.ownerSessionFile)
-		if err != nil {
-			return err
-		}
-		pairing, err := identity.IssueHomePairing(root, session, now)
-		if err != nil {
-			return err
-		}
-		code = pairing.Code
-		if options.csrFile == "" {
-			result["pairing"] = pairing
-			return writeDeviceJSON(cmd.OutOrStdout(), result)
-		}
-	}
-	csr, err := os.ReadFile(options.csrFile)
-	if err != nil {
-		return fmt.Errorf("device enroll: read CSR: %w", err)
-	}
-	issuer := func(ctx context.Context, csrPEM []byte, ttl int) ([]byte, error) {
-		return localevidence.IssueHomeDeviceCertificate(ctx, root, csrPEM, ttl)
-	}
-	device, chain, err := identity.EnrollHomeDeviceWithPairing(commandContext(cmd), root,
-		identity.HomeEnrollmentRequest{Code: strings.TrimSpace(code), CSRPEM: csr, LAN: deviceCLIObservedLAN()}, issuer, now)
-	if err != nil {
-		return err
-	}
-	result["device"] = device
-	if options.outFile != "" {
-		if err := os.WriteFile(options.outFile, chain, 0o644); err != nil {
-			return fmt.Errorf("device enroll: write certificate: %w", err)
-		}
-		result["certificateFile"] = options.outFile
-	} else {
-		result["certificatePEM"] = string(chain)
-	}
-	return writeDeviceJSON(cmd.OutOrStdout(), result)
 }
 
 func newDeviceListCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:           "list",
-		Short:         "List enrolled and revoked household devices",
+		Short:         "List every device of every Homelab account: enrolled, pending and revoked",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.NoArgs,
@@ -120,34 +94,80 @@ func newDeviceListCommand() *cobra.Command {
 	}
 }
 
-func newDeviceRevokeCommand() *cobra.Command {
+func newDeviceNoticesCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:           "revoke <device-id>",
-		Short:         "Permanently revoke a household device key",
+		Use:           "notices",
+		Short:         "List enrollment notices: at-home enrollments with their 24 hour undo and pending away enrollments",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Args:          cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			notices, err := identity.ListHomeEnrollmentNotices(getWorkDir(), identity.HomeActor{Owner: true}, time.Now())
+			if err != nil {
+				return err
+			}
+			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"notices": notices})
+		},
+	}
+}
+
+func newDeviceUndoCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:           "undo <notice-id>",
+		Short:         "Undo an at-home enrollment within 24 hours, or decline a pending one, by revoking its device",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, now := getWorkDir(), time.Now()
-			device, err := identity.RevokeHomeDevice(root, strings.TrimSpace(args[0]), now)
+			revocation, err := identity.UndoHomeEnrollment(root, strings.TrimSpace(args[0]), identity.HomeActor{Owner: true}, now)
 			if err != nil {
 				return err
 			}
-			// A revoked device must lose overlay access now, not at the next manual render.
-			overlay, err := resyncHomeOverlayIfActive(commandContext(cmd), root, now)
-			if err != nil {
-				return fmt.Errorf("device revoked, but the running overlay still admits it: %w", err)
-			}
-			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"device": device, "overlay": overlay})
+			return writeDeviceRevocation(cmd, root, revocation, now)
 		},
 	}
+}
+
+func newDeviceRevokeCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "revoke <device-id>",
+		Short: "Permanently revoke any device key and everything it holds",
+		Long: "Revoke a device key as the Owner: its renewals stop at once, verifiers refuse its credentials within the " +
+			"revocation refresh, its VPN add-on peer is removed (and a running overlay resynced) and the output lists " +
+			"each revocation-registry artifact. The key can never enroll again.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Args:          cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root, now := getWorkDir(), time.Now()
+			revocation, err := identity.RevokeHomeDevice(root, strings.TrimSpace(args[0]), identity.HomeActor{Owner: true}, now)
+			if err != nil {
+				return err
+			}
+			return writeDeviceRevocation(cmd, root, revocation, now)
+		},
+	}
+}
+
+// writeDeviceRevocation resyncs a running VPN add-on overlay, so the revoked
+// device loses its peer now rather than at the next manual render, and prints
+// the revocation.
+func writeDeviceRevocation(cmd *cobra.Command, root string, revocation identity.HomeRevocation, now time.Time) error {
+	overlay, err := resyncHomeOverlayIfActive(commandContext(cmd), root, now)
+	if err != nil {
+		return fmt.Errorf("device revoked, but the running overlay still admits it: %w", err)
+	}
+	return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"revocation": revocation, "overlay": overlay})
 }
 
 func newDeviceOverlayCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "overlay",
-		Short: "Join enrolled devices to the kit-owned WireGuard overlay for remote-private access",
-		Long: "The node generates its WireGuard private key into local custody; it is never printed or rendered. " +
+		Short: "Join enrolled devices to the optional WireGuard VPN add-on",
+		Long: "The VPN add-on is never the default: the Owner switches it on in addition to the standard reach paths, " +
+			"and every request through it still carries the sign-in and device proof its route asks for. " +
+			"The node generates its WireGuard private key into local custody; it is never printed or rendered. " +
 			"Each device generates its own key pair and registers only its public key. Revoked or expired devices " +
 			"drop out of the rendered interface configuration. No kombify account is involved.",
 	}
@@ -220,31 +240,6 @@ func newDeviceOverlayCommand() *cobra.Command {
 	_ = bind.MarkFlagRequired("public-key")
 	command.AddCommand(bind, render, up)
 	return command
-}
-
-// deviceCLIObservedLAN admits a node-local console, or an SSH session whose
-// client the transport reports as a LAN peer. A remote SSH session is refused
-// like any other off-LAN enrollment.
-func deviceCLIObservedLAN() bool {
-	connection := strings.Fields(os.Getenv("SSH_CONNECTION"))
-	if len(connection) == 0 {
-		return true
-	}
-	return identity.ObservedLANAddress(connection[0])
-}
-
-func readDeviceSecretInput(stdin io.Reader, path string) (string, error) {
-	var raw []byte
-	var err error
-	if path == "-" {
-		raw, err = io.ReadAll(io.LimitReader(stdin, 64<<10))
-	} else {
-		raw, err = os.ReadFile(path)
-	}
-	if err != nil {
-		return "", fmt.Errorf("device enroll: read Owner session: %w", err)
-	}
-	return strings.TrimSpace(string(raw)), nil
 }
 
 func writeDeviceJSON(out io.Writer, value any) error {

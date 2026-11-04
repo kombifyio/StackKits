@@ -130,13 +130,12 @@ Definition: foundation.#ProductKitDefinition & {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
 		privilegedStepUpRequired:  true
-		deviceEnrollment:          "local-only"
+		deviceEnrollment:          "person"
 		deviceBoundSessions:       true
 	}
 	reachability: {
 		accessPolicies: {
-			allowedExposures: ["private", "lan", "public"]
-			lanStepDownAllowed: true
+			allowedExposures: ["local-only", "remote-private", "public"]
 		}
 		routes: {
 			local: {
@@ -162,7 +161,7 @@ Definition: foundation.#ProductKitDefinition & {
 	}
 	deviceEnrollment: {
 		required: true
-		mode:     "local-only"
+		mode:     "person"
 		authorityKinds: ["home"]
 	}
 	partitionPolicy: {
@@ -280,16 +279,12 @@ Definition: foundation.#ProductKitDefinition & {
 			enableCapabilities: ["internal-pki"]
 			route: {exposure: "local", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {
-				user: {exposure: "private", authentication: "human", privilege: "user"}
+				user: {exposure: "local-only", authentication: "human", privilege: "user"}
 				// Administrator-only application endpoints (the ntfy live relay).
-				admin: {
-					exposure:               "private", authentication: "human+device", privilege: "admin"
-					enrolledDeviceRequired: true, ownerStepUpRequired: true
-				}
-				vault: {
-					exposure:               "private", authentication: "human+device", privilege: "vault"
-					enrolledDeviceRequired: true, ownerStepUpRequired: true
-				}
+				// Server administration and the vault stay on the LAN listener
+				// unless the Owner opts in.
+				admin: {exposure: "local-only", authentication: "human+device", privilege: "admin"}
+				vault: {exposure: "local-only", authentication: "human+device", privilege: "vault"}
 			}
 		}
 		standaloneOwner: {
@@ -337,6 +332,9 @@ Definition: foundation.#ProductKitDefinition & {
 				dns: {}
 				tls: defaultMode: "internal"
 			}
+			// lab.home is the identity origin only of a homelab declared
+			// local-only; a kombify.me name or an own domain gives id.<name>.
+			placement: mode: "local-only"
 			sites: [{
 				id:            "home"
 				kind:          "home"
@@ -356,19 +354,7 @@ Definition: foundation.#ProductKitDefinition & {
 			}
 			capabilities: {enable: [], disable: []}
 			availability: {}
-			deviceEnrollment: {
-				mode:                      "local-only"
-				authoritySiteRef:          "home"
-				endpointExposure:          "lan"
-				remoteEnrollment:          false
-				requireOwnerStepUp:        true
-				requireLocalPairingProof:  true
-				requireDeviceGeneratedKey: true
-				requirePossessionProof:    true
-				hardwareBackedKey:         "preferred"
-				revocationSupported:       true
-				credentialTTLSeconds:      3600
-			}
+			deviceEnrollment: {mode: "person", authoritySiteRef: "home"}
 			partitionPolicy: {
 				onCloudLoss:                     "not-applicable"
 				onLinkLoss:                      "local-continues"
@@ -379,7 +365,7 @@ Definition: foundation.#ProductKitDefinition & {
 			}
 			access: {
 				"home-private": {
-					exposure:       "private"
+					exposure:       "local-only"
 					authentication: "human"
 					privilege:      "user"
 				}

@@ -78,7 +78,7 @@ wiring, Day-2 operations and drift detection that Techstack sells. Techstack
 must not roll out or operate a StackKit in Standard Mode. A Standard-only
 Techstack rollout is a defect, not a supported variant.
 
-Standard Mode owns account-free executor-native apply, verify, upgrade,
+Standard Mode owns kombify-account-free executor-native apply, verify, upgrade,
 snapshot, rollback, backup, restore, drift detection, and approved standard
 reconciliation. Recovery state binds the selected executor's closure: the exact
 Compose generation/runtime closure when Compose executes directly, and a

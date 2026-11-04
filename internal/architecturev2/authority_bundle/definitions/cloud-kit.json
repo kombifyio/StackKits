@@ -3,6 +3,7 @@
     "deviceBoundSessions": true,
     "deviceEnrollment": "none",
     "lanLocationIsIdentity": false,
+    "privilegedRemoteReach": "owner-opt-in",
     "privilegedStepUpRequired": true,
     "publicRoutesDefaultClosed": true
   },
@@ -12,20 +13,22 @@
     "initialSpec": {
       "access": {
         "cloud-public-admin": {
+          "appAccessAway": false,
           "authentication": "human+device",
           "enrolledDeviceRequired": true,
           "exposure": "public",
-          "lanStepDown": false,
+          "ownerRemoteOptIn": true,
           "ownerStepUpRequired": true,
           "privilege": "admin"
         },
         "cloud-public-identity": {
-          "authentication": "human+device",
-          "enrolledDeviceRequired": true,
+          "appAccessAway": false,
+          "authentication": "human",
+          "enrolledDeviceRequired": false,
           "exposure": "public",
-          "lanStepDown": false,
-          "ownerStepUpRequired": true,
-          "privilege": "identity"
+          "ownerRemoteOptIn": true,
+          "ownerStepUpRequired": false,
+          "privilege": "sign-in"
         }
       },
       "apiVersion": "stackkit/v2alpha1",
@@ -174,8 +177,10 @@
       "partitionPolicy": {
         "cloudEdge": "fail-closed",
         "denyNewCrossSiteSessions": true,
+        "issuedSessions": "valid-to-lifetime-against-last-known-revocation",
         "localIdentityAuthorityAvailable": false,
         "maxStaleVerificationSeconds": 0,
+        "newSessions": "fail-closed",
         "onCloudLoss": "fail-closed",
         "onLinkLoss": "not-applicable"
       },
@@ -236,18 +241,20 @@
     "selectedWorkloadAccess": {
       "accessPolicies": {
         "user": {
+          "appAccessAway": false,
           "authentication": "human+device",
           "enrolledDeviceRequired": true,
           "exposure": "public",
-          "lanStepDown": false,
+          "ownerRemoteOptIn": false,
           "ownerStepUpRequired": false,
           "privilege": "user"
         },
         "vault": {
+          "appAccessAway": false,
           "authentication": "human+device",
           "enrolledDeviceRequired": true,
           "exposure": "public",
-          "lanStepDown": false,
+          "ownerRemoteOptIn": true,
           "ownerStepUpRequired": true,
           "privilege": "vault"
         }
@@ -794,18 +801,19 @@
   "partitionPolicy": {
     "cloudEdge": "fail-closed",
     "denyNewCrossSiteSessions": true,
+    "issuedSessions": "valid-to-lifetime-against-last-known-revocation",
     "localIdentityAuthorityAvailable": false,
     "maxStaleVerificationSeconds": 0,
+    "newSessions": "fail-closed",
     "onCloudLoss": "fail-closed",
     "onLinkLoss": "not-applicable"
   },
   "reachability": {
     "accessPolicies": {
       "allowedExposures": [
-        "private",
+        "remote-private",
         "public"
-      ],
-      "lanStepDownAllowed": false
+      ]
     },
     "routes": {
       "local": {

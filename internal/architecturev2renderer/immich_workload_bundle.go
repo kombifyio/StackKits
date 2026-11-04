@@ -106,7 +106,10 @@ type selectedPaaSRuntimeComponent struct {
 	// Owner-chosen LAN rights: a listener published on the host and a host
 	// device passed through. Catalog components declare them with the
 	// workload setting that enables them; bundles carry only enabled ones.
-	LANListeners      []selectedPaaSLANListener      `json:"lanListeners,omitempty"`
+	LANListeners []selectedPaaSLANListener `json:"lanListeners,omitempty"`
+	// HostNetwork runs the governed LAN announcer in the host's network
+	// namespace (workload_lan_rights.go); never a generic right.
+	HostNetwork       bool                           `json:"hostNetwork,omitempty"`
 	DevicePassthrough *selectedPaaSDevicePassthrough `json:"devicePassthrough,omitempty"`
 	Devices           []selectedPaaSDevice           `json:"devices,omitempty"`
 	// Accelerator is the GPU grant of the module's selected accelerator
@@ -169,9 +172,11 @@ type selectedPaaSPeerNetwork struct {
 }
 
 type selectedPaaSLANListener struct {
-	Port       int    `json:"port"`
-	Protocol   string `json:"protocol"`
-	SettingRef string `json:"settingRef"`
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"`
+	// SettingRef names the owner setting that turns the listener on; empty
+	// means the listener is on with its module (the SpeechKit server only).
+	SettingRef string `json:"settingRef,omitempty"`
 }
 
 type selectedPaaSDevicePassthrough struct {

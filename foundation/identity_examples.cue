@@ -18,7 +18,7 @@ _test_owner_none: #PocketIDOwner & {
 	bootstrapMode: "none"
 }
 
-_test_breakglass_default: #PocketIDBreakGlass & {}
+_test_owner_recovery_default: #OwnerRecoveryPolicy & {}
 _test_tinyauth_static_default: #TinyAuthStaticCred & {}
 _test_recovery_handoff_ref: #RecoveryMaterialHandoff & {
 	kind:  "ref"

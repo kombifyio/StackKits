@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "362e3785b96c64cc9e7abaf2a7c440284ef16948",
-  "authority_bundle_sha256": "bac5e23442cd6e232a1e867d62fabd276179ab8b589c500124ba7c56beb0e6cc",
+  "source_sha": "97192e76b2128d0ecc313e6a4ad225884d0c9157",
+  "authority_bundle_sha256": "4dca6435095c428ed1400b35f4b9d5bcc7128aae2a00192934a038577fa516f2",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -461,6 +461,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -480,7 +481,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "19ce9c8c88c1b1a7b1ad5906bcbd89809b11848d8a6e9b578800726a332059f6"
+              "profile_sha256": "6a83dfabb7fac087f920e2d1e3d2ed843bb24cc18b4142c697b934bdf3740cfe"
             },
             {
               "id": "standard",
@@ -507,6 +508,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -526,7 +528,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "e14bbaf90d60a74d2713a611a4041472ffcf0d14f4c95dd79d83f1967013bbfb"
+              "profile_sha256": "1c357e6a0a90291a6ea37b1741f7428192a61ff539beedba02755782bc481a01"
             },
             {
               "id": "high",
@@ -553,6 +555,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -572,7 +575,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "0c77f89e998c76e2693df756916edfcdcf2b5e5fd0ac2283657e74e0d5be5805"
+              "profile_sha256": "75183d5908351cd59966165707af4479e10ce3aeaa6a09d83f4692be410f6984"
             }
           ],
           "storage_profiles": [],
@@ -619,6 +622,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -636,7 +640,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "5250c9dfe4b7fa99256058ac4e611265814cae6bb629f06e57575b7b3c951e8a"
+              "profile_sha256": "6bd601e8f35d6d434834e9e9ec7dcd8d09de155278e2e75e7b24ec2f0f382231"
             },
             {
               "id": "high",
@@ -667,6 +671,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -684,7 +689,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "0a91ceed2e8e996162484d4584262b61924d4709de4c9fdf864cbe1477695d35"
+              "profile_sha256": "b0d74d36e9d35057f9f7645bb97267855ebc4858dfd5f6fa84d0289fe7aaab50"
             }
           ],
           "storage_profiles": [],
@@ -4363,7 +4368,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "description": "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -4376,8 +4381,9 @@
               "virtualization": [],
               "components": [
                 "speechkit",
-                "speechkit-tts",
-                "speechkit-whisper"
+                "speechkit-discovery",
+                "speechkit-stt",
+                "speechkit-tts"
               ],
               "capabilities": [],
               "degradations": [],
@@ -4391,7 +4397,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "2a6ab95ec65e43a49c31db37d3bb91e245322540d37cf6f9dee02390de2c3d6b"
+              "profile_sha256": "7c83c01da2dd0da3069abb9a31de178960871db7311c70f69282a36e1419006f"
             },
             {
               "id": "high",
@@ -4399,7 +4405,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "description": "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -4412,8 +4418,9 @@
               "virtualization": [],
               "components": [
                 "speechkit",
-                "speechkit-tts",
-                "speechkit-whisper"
+                "speechkit-discovery",
+                "speechkit-stt",
+                "speechkit-tts"
               ],
               "capabilities": [],
               "degradations": [],
@@ -4427,7 +4434,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "f5e6f825dfddd0ee0b57cd3c95266764bfcfc2ba9de0b6aca5ff63a4109d4de8"
+              "profile_sha256": "fcf6b9dbcf350aca4c5c99028fc00921fc424af5c7856b8fb5567bfa68aa779d"
             }
           ],
           "storage_profiles": [],
@@ -4958,7 +4965,7 @@
         {
           "use_case_id": "ai-speech",
           "title": "ai-speech",
-          "description": "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own.",
+          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "speechkit",
@@ -9930,7 +9937,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "description": "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -9943,8 +9950,9 @@
               "virtualization": [],
               "components": [
                 "speechkit",
-                "speechkit-tts",
-                "speechkit-whisper"
+                "speechkit-discovery",
+                "speechkit-stt",
+                "speechkit-tts"
               ],
               "capabilities": [],
               "degradations": [],
@@ -9958,7 +9966,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "2a6ab95ec65e43a49c31db37d3bb91e245322540d37cf6f9dee02390de2c3d6b"
+              "profile_sha256": "7c83c01da2dd0da3069abb9a31de178960871db7311c70f69282a36e1419006f"
             },
             {
               "id": "high",
@@ -9966,7 +9974,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "description": "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -9979,8 +9987,9 @@
               "virtualization": [],
               "components": [
                 "speechkit",
-                "speechkit-tts",
-                "speechkit-whisper"
+                "speechkit-discovery",
+                "speechkit-stt",
+                "speechkit-tts"
               ],
               "capabilities": [],
               "degradations": [],
@@ -9994,7 +10003,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "f5e6f825dfddd0ee0b57cd3c95266764bfcfc2ba9de0b6aca5ff63a4109d4de8"
+              "profile_sha256": "fcf6b9dbcf350aca4c5c99028fc00921fc424af5c7856b8fb5567bfa68aa779d"
             }
           ],
           "storage_profiles": [],
@@ -10641,7 +10650,7 @@
         {
           "use_case_id": "ai-speech",
           "title": "ai-speech",
-          "description": "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own.",
+          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "speechkit",
@@ -11726,6 +11735,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -11745,7 +11755,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "19ce9c8c88c1b1a7b1ad5906bcbd89809b11848d8a6e9b578800726a332059f6"
+              "profile_sha256": "6a83dfabb7fac087f920e2d1e3d2ed843bb24cc18b4142c697b934bdf3740cfe"
             },
             {
               "id": "standard",
@@ -11772,6 +11782,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -11791,7 +11802,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "e14bbaf90d60a74d2713a611a4041472ffcf0d14f4c95dd79d83f1967013bbfb"
+              "profile_sha256": "1c357e6a0a90291a6ea37b1741f7428192a61ff539beedba02755782bc481a01"
             },
             {
               "id": "high",
@@ -11818,6 +11829,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -11837,7 +11849,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "0c77f89e998c76e2693df756916edfcdcf2b5e5fd0ac2283657e74e0d5be5805"
+              "profile_sha256": "75183d5908351cd59966165707af4479e10ce3aeaa6a09d83f4692be410f6984"
             }
           ],
           "storage_profiles": [],
@@ -11884,6 +11896,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -11901,7 +11914,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "5250c9dfe4b7fa99256058ac4e611265814cae6bb629f06e57575b7b3c951e8a"
+              "profile_sha256": "6bd601e8f35d6d434834e9e9ec7dcd8d09de155278e2e75e7b24ec2f0f382231"
             },
             {
               "id": "high",
@@ -11932,6 +11945,7 @@
                 "lan-dns",
                 "pocketid",
                 "router",
+                "router-remote",
                 "socket-proxy",
                 "stackkit-server",
                 "step-ca",
@@ -11949,7 +11963,7 @@
                   "ref": "Kombify recommended sizing policy"
                 }
               },
-              "profile_sha256": "0a91ceed2e8e996162484d4584262b61924d4709de4c9fdf864cbe1477695d35"
+              "profile_sha256": "b0d74d36e9d35057f9f7645bb97267855ebc4858dfd5f6fa84d0289fe7aaab50"
             }
           ],
           "storage_profiles": [],
@@ -15360,7 +15374,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "description": "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -15373,8 +15387,9 @@
               "virtualization": [],
               "components": [
                 "speechkit",
-                "speechkit-tts",
-                "speechkit-whisper"
+                "speechkit-discovery",
+                "speechkit-stt",
+                "speechkit-tts"
               ],
               "capabilities": [],
               "degradations": [],
@@ -15388,7 +15403,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "2a6ab95ec65e43a49c31db37d3bb91e245322540d37cf6f9dee02390de2c3d6b"
+              "profile_sha256": "7c83c01da2dd0da3069abb9a31de178960871db7311c70f69282a36e1419006f"
             },
             {
               "id": "high",
@@ -15396,7 +15411,7 @@
               "maturity": "beta",
               "executable": true,
               "realization": "apply-ready",
-              "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+              "description": "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama.",
               "host_floor": {
                 "cpu_cores": 2,
                 "ram_gb": 4,
@@ -15409,8 +15424,9 @@
               "virtualization": [],
               "components": [
                 "speechkit",
-                "speechkit-tts",
-                "speechkit-whisper"
+                "speechkit-discovery",
+                "speechkit-stt",
+                "speechkit-tts"
               ],
               "capabilities": [],
               "degradations": [],
@@ -15424,7 +15440,7 @@
                   "ref": "Kombify reservation policy; declared, not a sum of component limits"
                 }
               },
-              "profile_sha256": "f5e6f825dfddd0ee0b57cd3c95266764bfcfc2ba9de0b6aca5ff63a4109d4de8"
+              "profile_sha256": "fcf6b9dbcf350aca4c5c99028fc00921fc424af5c7856b8fb5567bfa68aa779d"
             }
           ],
           "storage_profiles": [],
@@ -15955,7 +15971,7 @@
         {
           "use_case_id": "ai-speech",
           "title": "ai-speech",
-          "description": "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own.",
+          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "speechkit",
@@ -18069,5 +18085,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "3978c4d9d926cd970996783bf919c61e7975dac6f406b436d38336d2c7f11f7e"
+  "catalog_sha256": "7f453320cb394d463ec08c8c475892125237f1d492e6b5aa8b73ea782fc6d1ad"
 }

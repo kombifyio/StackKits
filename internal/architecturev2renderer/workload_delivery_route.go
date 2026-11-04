@@ -138,6 +138,9 @@ type ApplicationDeliveryComponentDescriptor struct {
 	// through; both exist only when the owner enabled their workload setting.
 	LANListeners []ApplicationDeliveryLANListener
 	Devices      []ApplicationDeliveryDevice
+	// HostNetwork runs the governed LAN announcer in the host's network
+	// namespace; it then has no network of its own.
+	HostNetwork bool
 	// Accelerator is the GPU grant of the module's selected accelerator
 	// profile; nil for every CPU component.
 	Accelerator *ApplicationDeliveryAccelerator
@@ -363,6 +366,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
 		}
+		if err := validateHostNetwork(bundle.Workload.ModuleRef, component, componentPath); err != nil {
+			return ApplicationDeliveryBundleDescriptor{}, err
+		}
 		accelerator, err := parseAccelerator(component, bundle.Workload.ModuleRef, componentPath)
 		if err != nil {
 			return ApplicationDeliveryBundleDescriptor{}, err
@@ -423,6 +429,7 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 			ACMETLSALPNPort:              hostBindings.ACMETLSALPNPort,
 			LANListeners:                 lanListeners,
 			Devices:                      devices,
+			HostNetwork:                  component.HostNetwork,
 			Accelerator:                  accelerator,
 			SandboxRuntime:               component.SandboxRuntime,
 			PeerNetworks:                 peerNetworks,

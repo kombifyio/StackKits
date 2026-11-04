@@ -5,7 +5,7 @@ _assertHomeRequired:           "home" & Definition.topology.requiredSiteKinds[0]
 _assertCloudRequired:          "cloud" & Definition.topology.requiredSiteKinds[1]
 _assertLocalAuthority:         "home" & Definition.topology.controlPlane.allowedAuthorityKinds[0]
 _assertBridgeRequired:         true & Definition.bridge.required
-_assertLANStepDown:            true & Definition.reachability.accessPolicies.lanStepDownAllowed
+_assertLANOnlyExposure:        "local-only" & Definition.reachability.accessPolicies.allowedExposures[0]
 _assertRemoteAccessCapability: "private-remote-access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].capabilityRef
 _assertRemoteAccessRole:       "access" & Definition.reachability.routes["remote-private"].requiredRealizations[0].role
 _assertPublicEdgeCapability:   "public-edge" & Definition.reachability.routes.public.requiredRealizations[0].capabilityRef
@@ -22,7 +22,7 @@ _assertStandaloneOwnerChannel:              "local-home-main" & Definition.autho
 _assertStandaloneOwnerIdentityProvider:     "pocketid" & Definition.authoring.standaloneOwner.identityProvider
 _assertStandaloneOwnerCertificateAuthority: "step-ca" & Definition.authoring.standaloneOwner.certificateAuthority
 _assertReachabilityMatrix: Definition.reachability & {
-	accessPolicies: {allowedExposures: ["private", "lan", "public"], lanStepDownAllowed: true}
+	accessPolicies: {allowedExposures: ["local-only", "remote-private", "public"]}
 	routes: {
 		local: {allowed: true, requiredRealizations: [], allowedOriginKinds: ["home"]}
 		"remote-private": {
@@ -84,31 +84,18 @@ _validModernV2: #ModernHomelabStackV2 & {
 		}
 		addons: ha: enabled: true
 		availability: {
-			enabled: true, mode: "warm-standby", rpoSeconds: 120, rtoSeconds: 600
+			enabled:             true, mode: "warm-standby", rpoSeconds: 120, rtoSeconds: 600
 			failureDomainSpread: 2, fencing: "automatic"
 		}
-		deviceEnrollment: {
-			mode:                      "local-only"
-			authoritySiteRef:          "home"
-			endpointExposure:          "lan"
-			remoteEnrollment:          false
-			requireOwnerStepUp:        true
-			requireLocalPairingProof:  true
-			requireDeviceGeneratedKey: true
-			requirePossessionProof:    true
-			hardwareBackedKey:         "required"
-			revocationSupported:       true
-			credentialTTLSeconds:      3600
-		}
+		deviceEnrollment: {mode: "person", authoritySiteRef: "home"}
 		access: {
 			"lan-device": {
-				exposure:               "lan"
-				authentication:         "device"
+				exposure:               "local-only"
+				authentication:         "human+device"
 				enrolledDeviceRequired: true
-				lanStepDown:            true
 			}
 			"remote-owner": {
-				exposure:               "private"
+				exposure:               "remote-private"
 				authentication:         "human+device"
 				enrolledDeviceRequired: true
 			}
@@ -118,7 +105,6 @@ _validModernV2: #ModernHomelabStackV2 & {
 				authentication:         "human+device"
 				enrolledDeviceRequired: true
 				ownerStepUpRequired:    false
-				lanStepDown:            false
 				allowedMethods: ["GET", "HEAD"]
 			}
 		}

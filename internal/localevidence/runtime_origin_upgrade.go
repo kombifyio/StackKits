@@ -35,7 +35,7 @@ func UpgradeBasementOriginProvisioner(workspaceRoot string) (bool, error) {
 			if _, err := LoadBasementRuntimeCustody(workspaceRoot); err != nil {
 				return false, err
 			}
-			if err := requireBasementWorkloadProvisioners(workspaceRoot); err == nil {
+			if err := basementWorkloadProvisionersCurrent(workspaceRoot); err == nil {
 				return false, nil
 			} else if !errors.Is(err, ErrBasementOriginProvisionerMissing) {
 				return false, err
@@ -63,7 +63,7 @@ func UpgradeBasementOriginProvisioner(workspaceRoot string) (bool, error) {
 		// A prior binary may have journaled only the server profile. Finish its
 		// exact signed generation first, then durably journal the next transition.
 		// Both crash boundaries remain replayable without replacing old secrets.
-		if err := requireBasementWorkloadProvisioners(workspaceRoot); err != nil {
+		if err := basementWorkloadProvisionersCurrent(workspaceRoot); err != nil {
 			if !errors.Is(err, ErrBasementOriginProvisionerMissing) {
 				return false, err
 			}
@@ -163,9 +163,20 @@ func prepareOriginUpgrade(workspaceRoot string, tx *confinedfs.Transaction) (bas
 	if err := json.Unmarshal(config["authority"], &authority); err != nil {
 		return journal, err
 	}
-	var provisioners []json.RawMessage
-	if err := json.Unmarshal(authority["provisioners"], &provisioners); err != nil {
+	var configured []json.RawMessage
+	if err := json.Unmarshal(authority["provisioners"], &configured); err != nil {
 		return journal, err
+	}
+	// The retired household device provisioner is removed, never carried.
+	provisioners := configured[:0]
+	for _, raw := range configured {
+		var value basementStepCAProvisioner
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return journal, err
+		}
+		if value.Name != basementRetiredDeviceProvisionerName {
+			provisioners = append(provisioners, raw)
+		}
 	}
 	expected, err := basementWorkloadProvisioners(workspaceRoot)
 	if err != nil {

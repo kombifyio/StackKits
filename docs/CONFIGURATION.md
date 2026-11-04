@@ -87,13 +87,13 @@ controlPlane:
   members: [main]
 ```
 
-The seed's `home` value is the one canonical local service zone. Apply realizes
+The seed's `lab.home` value is the one canonical local service zone of a local-only homelab; a homelab with a kombify.me name or its own domain uses public names from setup. Apply realizes
 the StackKit-owned LAN resolver and Owner-CA HTTPS path. The access manifest
 hands a compatible device client the exact scoped DNS and public Owner-CA root;
 the client applies both after explicit OS approval. It never asks the owner to
 configure router DHCP, a hosts file, or a parallel `.local`, `.localhost`, or
-`.arpa` name. Optional remote access binds the same URLs to a private split
-tunnel. The manifest is a handoff, not proof that a client applied it.
+`.arpa` name. Remote reach needs no VPN; an optional VPN add-on
+(`private-remote-access`) binds the same URLs at network level. The manifest is a handoff, not proof that a client applied it.
 
 `stackkit init` with `--owner-source=local` derives platform-appropriate absolute
 storage paths and persists Owner custody separately under `.stackkit/custody/`.
@@ -280,7 +280,7 @@ Identity-bootstrap envelopes are never part of StackSpec exports. Plaintext reco
 valid public StackSpec fields. Cloud passwords, passkeys, sessions, and private
 keys are never user-sync fields.
 
-`breakGlass` is the separate emergency path. It is enabled by default with `scope: full-emergency-admin` and covers a PocketID admin, TinyAuth static fallback, and server recovery material in the encrypted recovery bundle. Synthetic local defaults use reserved/local domains such as `admin@example.com` and `.invalid`; tests must not invent real `@kombify.io` accounts.
+`breakGlass` is the separate emergency path. It is enabled by default with `scope: full-emergency-admin`. Owner recovery itself is not a StackSpec field: the recovery set (the encrypted break-glass bundle of the Authority's identity custody), the recovery key and the recovery code are created with `stackkit break-glass setup` and never enter a spec (see `IDENTITY-STACKKITS.md` "Recovery Boundary"). Synthetic local defaults use reserved/local domains such as `admin@example.com` and `.invalid`; tests must not invent real `@kombify.io` accounts.
 
 ## Public release and Publisher configuration
 

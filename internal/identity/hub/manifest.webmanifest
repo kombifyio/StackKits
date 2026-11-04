@@ -1,0 +1,15 @@
+{
+  "id": "/device/",
+  "name": "Homelab Hub",
+  "short_name": "Hub",
+  "description": "Connect this device to your homelab with your own passkey.",
+  "start_url": "/device/",
+  "scope": "/device/",
+  "display": "standalone",
+  "background_color": "#eff3f2",
+  "theme_color": "#172e30",
+  "icons": [
+    {"src": "/device/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/device/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

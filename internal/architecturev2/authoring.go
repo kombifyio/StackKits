@@ -540,6 +540,12 @@ func materializeInitialStackSpec(
 		if err := setNestedString(spec, overrides.DomainBase, "network", "domain", "base"); err != nil {
 			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "apply network.domain.base override: "+err.Error(), err)
 		}
+		// lab.home is the identity origin only of a homelab declared
+		// local-only; a kombify.me name or an own domain serves id.<name>, so
+		// the kit's lab.home placement does not carry over to a named homelab.
+		if strings.TrimSpace(overrides.DomainBase) != "lab.home" && !dataProfile.FullLocal() {
+			delete(spec, "placement")
+		}
 		if profile == stackspecmigration.KitProfileCloud {
 			if _, declared := spec["routes"]; declared {
 				if err := projectCloudInitialPublicRouteHosts(spec, overrides.DomainBase); err != nil {

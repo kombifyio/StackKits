@@ -115,17 +115,8 @@ workloads:
 availability: {}
 
 deviceEnrollment:
-  mode: local-only
   authoritySiteRef: home
-  endpointExposure: lan
-  remoteEnrollment: false
-  requireOwnerStepUp: true
-  requireLocalPairingProof: true
-  requireDeviceGeneratedKey: true
-  requirePossessionProof: true
-  hardwareBackedKey: required
-  revocationSupported: true
-  credentialTTLSeconds: 3600
+  mode: person
 
 access:
   owner-device:
@@ -134,7 +125,6 @@ access:
     authentication: human+device
     enrolledDeviceRequired: true
     ownerStepUpRequired: false
-    lanStepDown: false
     allowedMethods: [GET, HEAD]
 
 # The bridge is mandatory. Intent selects catalog contracts and scoped action

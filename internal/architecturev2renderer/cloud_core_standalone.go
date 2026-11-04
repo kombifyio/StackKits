@@ -64,8 +64,8 @@ func cloudCoreRenderProfileForCloudCore() cloudCoreRenderProfile {
 		allowedExposures: []string{"public", "remote-private"},
 		serviceEndpoints: map[string]cloudCoreEndpointProfile{
 			"base":    {port: 80, healthRef: "cloud-hub-http", privilege: "admin", ingressAuth: "forward-auth"},
-			"id":      {port: 1411, healthRef: "cloud-pocketid-http", privilege: "identity", ingressAuth: "none"},
-			"auth":    {port: 3000, healthRef: "cloud-tinyauth-http", privilege: "identity", ingressAuth: "none"},
+			"id":      {port: 1411, healthRef: "cloud-pocketid-http", privilege: "sign-in", ingressAuth: "none"},
+			"auth":    {port: 3000, healthRef: "cloud-tinyauth-http", privilege: "sign-in", ingressAuth: "none"},
 			"coolify": {port: 8080, healthRef: "cloud-coolify-http", privilege: "admin", ingressAuth: "forward-auth"},
 		},
 		componentValidate: validateCloudCoreComponents,
@@ -89,8 +89,8 @@ func cloudStandaloneCoreRenderProfile() cloudCoreRenderProfile {
 		allowedExposures: []string{"public", "remote-private"},
 		serviceEndpoints: map[string]cloudCoreEndpointProfile{
 			"base": {port: 80, healthRef: "cloud-hub-http", privilege: "admin", ingressAuth: "forward-auth"},
-			"id":   {port: 1411, healthRef: "cloud-pocketid-http", privilege: "identity", ingressAuth: "none"},
-			"auth": {port: 3000, healthRef: "cloud-tinyauth-http", privilege: "identity", ingressAuth: "none"},
+			"id":   {port: 1411, healthRef: "cloud-pocketid-http", privilege: "sign-in", ingressAuth: "none"},
+			"auth": {port: 3000, healthRef: "cloud-tinyauth-http", privilege: "sign-in", ingressAuth: "none"},
 		},
 		componentValidate: func(data []byte, path string) error {
 			return validateClosedLocalCoreComponents(data, cloudStandaloneCoreComponentsJSON, path, "Cloud standalone core")

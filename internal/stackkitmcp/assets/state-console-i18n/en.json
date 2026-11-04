@@ -28,7 +28,7 @@
   "apps.heading": "Your applications",
   "apps.refreshPrompt": "Refresh status to see the applications selected for this workspace.",
   "devices.heading": "Household devices",
-  "devices.note": "Enroll a phone or laptop on the Owner approval page. You authenticate there with your passkey, and the pairing code and QR code appear only on that page, never in this conversation.",
+  "devices.note": "Each person enrolls their own phone or laptop: scan the enrollment code on that page with the device and sign in with your own passkey. At home the device is enrolled at once; elsewhere your own enrolled device, or the Owner, confirms it.",
   "devices.link": "Open device enrollment",
   "apps.checking": "Checking the selected workspace…",
   "apps.legacyStatus": "This server connector provides legacy status. Connect the current local StackKits CLI to view application evidence; server diagnostics remain available below.",

@@ -55,7 +55,6 @@ type modulePlanInputSource struct {
 	homeLANDiscovery                 map[string]any
 	homeAccessRequirements           map[string]any
 	externalHomeAccessBindings       map[string]any
-	homeAccessOverlays               map[string]any
 	backupTargetRequirements         map[string]any
 	externalBackupTargetBindings     map[string]any
 	homeBackupTargetRequirements     map[string]any
@@ -721,7 +720,7 @@ func safeFederationPartitionPolicy(failurePolicy map[string]any) (map[string]any
 	}
 	return selectObjectFields(failurePolicy, "failurePolicy", []string{
 		"onCloudLoss", "onLinkLoss", "cloudEdge", "localIdentityAuthorityAvailable",
-		"maxStaleVerificationSeconds", "denyNewCrossSiteSessions",
+		"maxStaleVerificationSeconds", "denyNewCrossSiteSessions", "issuedSessions", "newSessions",
 	})
 }
 
@@ -1337,14 +1336,7 @@ func safeModuleHomeAccessHandoff(moduleID string, module map[string]any, source 
 	if err != nil {
 		return nil, err
 	}
-	// The kit-owned overlay is copied verbatim from the plan's hash-bound
-	// homeAccessOverlays record; only the module's own Sites and capability
-	// reach the executor.
-	overlays, err := safeModuleHomeAccessProjection(moduleID, module, source.homeAccessOverlays, false)
-	if err != nil {
-		return nil, err
-	}
-	return normalizedObject(map[string]any{"requirements": requirements, "bindings": bindings, "overlays": overlays}, "homeAccessHandoff")
+	return normalizedObject(map[string]any{"requirements": requirements, "bindings": bindings}, "homeAccessHandoff")
 }
 
 func safeModuleHomeOffsiteBackup(moduleID string, module map[string]any, source modulePlanInputSource) (map[string]any, error) {
@@ -1449,8 +1441,8 @@ func safeModuleCloudAdminMesh(moduleID string, module map[string]any, capabiliti
 			return nil, err
 		}
 		policyExposure, err := stringField(access, path+".access", "policyExposure")
-		if err != nil || policyExposure != "private" {
-			return nil, fmt.Errorf("%s requires private policy exposure", path)
+		if err != nil || policyExposure != "remote-private" {
+			return nil, fmt.Errorf("%s requires remote-private policy exposure", path)
 		}
 		authentication, err := stringField(access, path+".access", "authentication")
 		if err != nil || authentication != "human+device" {
@@ -1458,7 +1450,6 @@ func safeModuleCloudAdminMesh(moduleID string, module map[string]any, capabiliti
 		}
 		for field, expected := range map[string]bool{
 			"enrolledDeviceRequired": true,
-			"lanStepDown":            false,
 			"defaultClosed":          true,
 		} {
 			actual, ok := access[field].(bool)
@@ -2148,10 +2139,6 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 	if err != nil {
 		return modulePlanInputSource{}, err
 	}
-	homeAccessOverlays, err := objectField(top, "resolvedPlan", "homeAccessOverlays")
-	if err != nil {
-		return modulePlanInputSource{}, err
-	}
 	backupTargetRequirements, err := objectField(top, "resolvedPlan", "backupTargetRequirements")
 	if err != nil {
 		return modulePlanInputSource{}, err
@@ -2209,7 +2196,6 @@ func modulePlanInputSourceFromResolvedPlan(plan ResolvedPlan) (modulePlanInputSo
 		controlPlane: controlPlane, bridge: bridge, identity: identity, identityTrust: identityTrust,
 		data: data, failurePolicy: failurePolicy, backupPolicy: backupPolicy, driftPolicy: driftPolicy, observability: observability, localReachability: localReachability,
 		homeLANDiscovery: homeLANDiscovery, homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
-		homeAccessOverlays:       homeAccessOverlays,
 		backupTargetRequirements: backupTargetRequirements, externalBackupTargetBindings: externalBackupTargetBindings,
 		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
 		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,

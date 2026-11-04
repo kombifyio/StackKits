@@ -149,7 +149,7 @@ func (e Engine) EnforceContainerDestinations(ctx context.Context, scope Containe
 		return err
 	}
 	defer unlock()
-	policy := FirewallPolicy{ContainerOnly: true}
+	policy := FirewallPolicy{ContainerOnly: true, RemoteConnectorIsolation: true}
 	raw, err := e.Host.ReadFile(HomeFirewallPolicyPath)
 	if err == nil {
 		var record recordedPolicy

@@ -81,25 +81,15 @@ availability:
   mode: single
   fencing: none
 deviceEnrollment:
-  mode: local-only
   authoritySiteRef: home
-  endpointExposure: lan
-  remoteEnrollment: false
-  requireOwnerStepUp: true
-  requireLocalPairingProof: true
-  requireDeviceGeneratedKey: true
-  requirePossessionProof: true
-  hardwareBackedKey: preferred
-  revocationSupported: true
-  credentialTTLSeconds: 3600
+  mode: person
 access:
   fixture-dashboard-local:
-    exposure: lan
+    exposure: local-only
     privilege: user
-    authentication: device
+    authentication: human+device
     enrolledDeviceRequired: true
     ownerStepUpRequired: false
-    lanStepDown: true
 routes:
   fixture-dashboard:
     moduleRef: fixture-http-consumer

@@ -15,10 +15,10 @@
       "authorityCatalogHash": "sha256:e9f730f37f3d1f7fe347a84a046886d8a57078be8f41cdf774287dcdae45bdfc",
       "rendererRef": "stackkit-contract-fixture",
       "compilerVersion": "stackkits-contract-fixture/0.6.0-fixtures.1",
-      "specSha256": "sha256:3c5fe2ef9de4854d2c791e3501be99f94e5bb60b1f84b3ccce2235834cb52b1a",
+      "specSha256": "sha256:28c7ef1d50c683752bfb82fad7b69ef641d00d9f13f900f4609312d1128f86ff",
       "inventorySha256": "sha256:8c5452e0c3741b4a1f8581f85e659327110d6ddc52cb4236add57a1df6f29f39",
-      "planSha256": "sha256:a86453b668e06718f221f0f346fb346f9caac0a902c3ffa2081c54011a76c706",
-      "planHash": "sha256:21143bbf30dc88ae091bf6eeffca6d5361ada40a0693f819392dcf9918e6f8db"
+      "planSha256": "sha256:88318a93bd706d89e017a4540caada059c2cc6fd42ea2a4e3a38cb85a8fc01f4",
+      "planHash": "sha256:f5d96eeb7e0eeeecae82b1a355a96e93f2aa1a7bdbfde6ce08501b17a81a42c6"
     }
   ]
 }

@@ -396,11 +396,9 @@ foundation:
     alternatives: []
     description: "Planned initial admin user bootstrap for LLDAP/PocketID. Opt-in until admin-authenticated provisioning exists."
 
-# Platform services (L2, identity & routing). Migration 000085 (2026-04-27)
-# moved `login-gateway` here from `foundation:` to align with
-# ARCHITECTURE_V6 §4 — login-gateway (TinyAuth + PocketID) is L2 Platform,
-# not L1 Foundation. Only the bootstrap of an admin user is Foundation;
-# the actual Identity service stack is Platform.
+# Platform services (L2, identity & routing). The Access Gate, TinyAuth and
+# PocketID are L2 Platform, not L1 Foundation. Only the bootstrap of an admin
+# user is Foundation; the actual Identity service stack is Platform.
 platform:
   traefik:
     role: default
@@ -408,10 +406,10 @@ platform:
   tinyauth:
     role: default
     alternatives: []
-  login-gateway:
+  access-gate:
     role: default
     alternatives: []
-    description: "TinyAuth forward-auth middleware in front of every default L3 service."
+    description: "StackKits Access Gate forward-auth on every server: in front of TinyAuth on the LAN listener and in front of every route on the remote listener."
   pocketid:
     role: default
     alternatives: []

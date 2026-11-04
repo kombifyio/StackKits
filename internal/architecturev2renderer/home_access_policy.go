@@ -125,7 +125,7 @@ type homeLocalAccessDecision struct {
 	Privilege              string   `json:"privilege"`
 	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
 	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
-	LANStepDown            bool     `json:"lanStepDown"`
+	OwnerRemoteOptIn       bool     `json:"ownerRemoteOptIn"`
 	AllowedSiteRefs        []string `json:"allowedSiteRefs"`
 	AllowedMethods         []string `json:"allowedMethods,omitempty"`
 	DefaultClosed          bool     `json:"defaultClosed"`
@@ -168,7 +168,7 @@ type HomeAccessEnforcementRoute struct {
 	Privilege              string   `json:"privilege"`
 	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
 	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
-	LANStepDown            bool     `json:"lanStepDown"`
+	OwnerRemoteOptIn       bool     `json:"ownerRemoteOptIn"`
 	AllowedSiteRefs        []string `json:"allowedSiteRefs"`
 	AllowedMethods         []string `json:"allowedMethods,omitempty"`
 	TLSRequired            bool     `json:"tlsRequired"`
@@ -366,7 +366,7 @@ func validateHomeAccessEnforcementRoute(route HomeAccessEnforcementRoute, path s
 	if route.Protocol == "" || route.UpstreamProtocol == "" || route.Port < 1 || route.Port > 65535 || route.TargetPort < 1 || route.TargetPort > 65535 {
 		return fail(ErrInvalidPlan, path, "route requires protocols and valid listener/target ports")
 	}
-	if host := strings.ToLower(strings.TrimSuffix(route.Host, ".")); route.PolicyExposure == "lan" && (host == "localhost" || strings.HasSuffix(host, ".localhost")) {
+	if host := strings.ToLower(strings.TrimSuffix(route.Host, ".")); route.PolicyExposure == "local-only" && (host == "localhost" || strings.HasSuffix(host, ".localhost")) {
 		return fail(ErrInvalidPlan, path+".host", ".localhost is process-local and cannot be a Home LAN route")
 	}
 	if err := validateExactContractIDs(route.OriginNodeRefs, path+".originNodeRefs"); err != nil {
@@ -381,17 +381,9 @@ func validateHomeAccessEnforcementRoute(route HomeAccessEnforcementRoute, path s
 	if len(route.AllowedMethods) > 0 && !validExactStringValues(route.AllowedMethods) {
 		return fail(ErrInvalidPlan, path+".allowedMethods", "allowed methods must be exact, unique, and sorted")
 	}
-	if route.PolicyExposure == "lan" {
-		if !route.LANStepDown || !route.EnrolledDeviceRequired || (route.Authentication != "device" && route.Authentication != "human+device") {
-			return fail(ErrInvalidPlan, path, "LAN step-down requires device-bound authentication and enrollment")
-		}
-	} else if route.PolicyExposure != "private" || route.LANStepDown {
-		return fail(ErrInvalidPlan, path+".policyExposure", "policy exposure must be private or explicit LAN step-down")
-	}
-	if route.Privilege == "admin" || route.Privilege == "identity" || route.Privilege == "secrets" {
-		if route.Authentication != "human+device" || !route.EnrolledDeviceRequired || !route.OwnerStepUpRequired {
-			return fail(ErrInvalidPlan, path, "privileged access requires human+device, enrollment, and owner step-up")
-		}
+	if err := validateHomeLocalAccessDecision(route.PolicyExposure, route.Authentication, route.Privilege,
+		route.EnrolledDeviceRequired, route.OwnerStepUpRequired, route.OwnerRemoteOptIn, path); err != nil {
+		return err
 	}
 	return validateHomeLocalTLS(homeLocalTLSDecision{Required: route.TLSRequired, Mode: route.TLSMode, MinVersion: route.TLSMinVersion}, route.Protocol, path+".tls")
 }
@@ -502,7 +494,7 @@ func validateHomeLocalRoute(route homeLocalReachabilityRoute, siteKinds map[stri
 	if route.Protocol == "" || route.UpstreamProtocol == "" {
 		return fail(ErrInvalidPlan, path+".protocol", "listener and upstream protocols are required")
 	}
-	if host := strings.ToLower(strings.TrimSuffix(route.Host, ".")); route.Access.PolicyExposure == "lan" && (host == "localhost" || strings.HasSuffix(host, ".localhost")) {
+	if host := strings.ToLower(strings.TrimSuffix(route.Host, ".")); route.Access.PolicyExposure == "local-only" && (host == "localhost" || strings.HasSuffix(host, ".localhost")) {
 		return fail(ErrInvalidPlan, path+".host", ".localhost is process-local and cannot be a Home LAN route")
 	}
 	seenNodes := map[string]struct{}{}
@@ -518,7 +510,7 @@ func validateHomeLocalRoute(route homeLocalReachabilityRoute, siteKinds map[stri
 	return validateHomeLocalTLS(route.TLS, route.Protocol, path+".tls")
 }
 
-//nolint:gocyclo // Site scope, LAN step-down, and privileged access are one fail-closed decision.
+//nolint:gocyclo // Site scope, exposure, and privileged access are one fail-closed decision.
 func validateHomeLocalAccess(access homeLocalAccessDecision, originSiteRef string, siteKinds map[string]string, path string) error {
 	if !access.DefaultClosed || len(access.AllowedSiteRefs) == 0 {
 		return fail(ErrInvalidPlan, path, "local access must be default-closed and explicitly site-scoped")
@@ -538,17 +530,41 @@ func validateHomeLocalAccess(access homeLocalAccessDecision, originSiteRef strin
 	if !allowedOrigin {
 		return fail(ErrInvalidPlan, path+".allowedSiteRefs", "route origin must be explicitly authorized")
 	}
-	if access.PolicyExposure == "lan" {
-		if !access.LANStepDown || !access.EnrolledDeviceRequired || (access.Authentication != "device" && access.Authentication != "human+device") {
-			return fail(ErrInvalidPlan, path, "LAN step-down requires device-bound authentication and an enrolled device")
-		}
-	} else if access.PolicyExposure != "private" || access.LANStepDown {
-		return fail(ErrInvalidPlan, path+".policyExposure", "local policy exposure must be private or an explicit LAN step-down")
+	return validateHomeLocalAccessDecision(access.PolicyExposure, access.Authentication, access.Privilege,
+		access.EnrolledDeviceRequired, access.OwnerStepUpRequired, access.OwnerRemoteOptIn, path)
+}
+
+// validateHomeLocalAccessDecision is the per-route rule the Access Gate
+// enforces on a Home listener (homelab identity target §7, §8): a local route
+// carries a local-only or remote-private policy; device proof is asked exactly
+// by human+device; a route without login serves anonymous content only;
+// privileged routes need human+device or agent with the Owner's step-up; and
+// server administration, secrets, vault and recovery stay local-only unless
+// the Owner opted in.
+func validateHomeLocalAccessDecision(policyExposure, authentication, privilege string, enrolledDevice, ownerStepUp, ownerRemoteOptIn bool, path string) error {
+	if policyExposure != "local-only" && policyExposure != "remote-private" {
+		return fail(ErrInvalidPlan, path+".policyExposure", "local policy exposure must be local-only or remote-private")
 	}
-	if access.Privilege == "admin" || access.Privilege == "identity" || access.Privilege == "secrets" {
-		if access.Authentication != "human+device" || !access.EnrolledDeviceRequired || !access.OwnerStepUpRequired {
-			return fail(ErrInvalidPlan, path, "privileged local access requires human+device, enrollment, and owner step-up")
-		}
+	switch authentication {
+	case "none", "human", "human+device", "agent":
+	default:
+		return fail(ErrInvalidPlan, path+".authentication", "unsupported authentication class %q", authentication)
+	}
+	if enrolledDevice != (authentication == "human+device") {
+		return fail(ErrInvalidPlan, path+".enrolledDeviceRequired", "device proof is asked exactly by human+device authentication")
+	}
+	if authentication == "none" && (privilege != "user" || policyExposure != "local-only") {
+		return fail(ErrInvalidPlan, path, "a route without login serves anonymous content on the LAN listener only")
+	}
+	if privilege != "user" && (authentication != "human+device" && authentication != "agent" || !ownerStepUp) {
+		return fail(ErrInvalidPlan, path, "privileged access requires human+device or agent authentication and owner step-up")
+	}
+	lanBound := privilege == "admin" || privilege == "secrets" || privilege == "vault" || privilege == "recovery"
+	if ownerRemoteOptIn && !lanBound {
+		return fail(ErrInvalidPlan, path+".ownerRemoteOptIn", "the remote opt-in exists only for LAN-bound privileged routes")
+	}
+	if lanBound && !ownerRemoteOptIn && policyExposure != "local-only" {
+		return fail(ErrInvalidPlan, path+".policyExposure", "privilege %q stays on the LAN listener unless the Owner opts in", privilege)
 	}
 	return nil
 }

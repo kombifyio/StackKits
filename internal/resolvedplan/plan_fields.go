@@ -350,7 +350,10 @@ func resolveAccessDecision(referencePath, exposure, policyRef string, rawPolicy 
 	if err != nil {
 		return nil, err
 	}
-	validExposure := exposure == "public" && policyExposure == "public" || exposure == "remote-private" && policyExposure == "private" || exposure == "local" && (policyExposure == "private" || policyExposure == "lan")
+	// A service is reachable on the LAN listener whatever its exposure; the
+	// remote listener carries remote-private policies only, and public names
+	// carry public policies only (homelab identity target §7, §8).
+	validExposure := exposure == "public" && policyExposure == "public" || exposure == "remote-private" && policyExposure == "remote-private" || exposure == "local" && (policyExposure == "local-only" || policyExposure == "remote-private")
 	if !validExposure {
 		return nil, fail(ErrProfileMismatch, referencePath, "service exposure %q is incompatible with policy exposure %q", exposure, policyExposure)
 	}
@@ -358,8 +361,15 @@ func resolveAccessDecision(referencePath, exposure, policyRef string, rawPolicy 
 	if err != nil {
 		return nil, err
 	}
-	if (exposure == "public" || exposure == "remote-private") && authentication == "none" {
-		return nil, fail(ErrProfileMismatch, referencePath, "service exposure %q requires authenticated access", exposure)
+	// remote-private is for Homelab accounts only (homelab identity target §8).
+	if exposure == "remote-private" && authentication == "none" {
+		return nil, fail(ErrProfileMismatch, referencePath, "service exposure %q requires a signed-in Homelab account", exposure)
+	}
+	// A public route without login serves anonymous content within the
+	// budget the Access Gate enforces per route; no other route carries one.
+	anonymousRateLimit, err := resolveAnonymousRateLimit(referencePath, policyRef, policy, policyExposure == "public" && authentication == "none")
+	if err != nil {
+		return nil, err
 	}
 	privilege, err := stringField(policy, "access."+policyRef, "privilege")
 	if err != nil {
@@ -373,19 +383,48 @@ func resolveAccessDecision(referencePath, exposure, policyRef string, rawPolicy 
 	if err != nil {
 		return nil, err
 	}
-	lanStepDown, err := boolFieldDefault(policy, "access."+policyRef, "lanStepDown", false)
+	ownerRemoteOptIn, err := boolFieldDefault(policy, "access."+policyRef, "ownerRemoteOptIn", false)
 	if err != nil {
 		return nil, err
 	}
+	appAccessAway, err := boolFieldDefault(policy, "access."+policyRef, "appAccessAway", false)
+	if err != nil {
+		return nil, err
+	}
+	if enrolledDeviceRequired != (authentication == "human+device") {
+		return nil, fail(ErrProfileMismatch, referencePath, "device proof is asked exactly by human+device authentication")
+	}
+	if authentication == "none" && privilege != "user" {
+		return nil, fail(ErrProfileMismatch, referencePath, "a route without login serves anonymous content only")
+	}
 	if isStepUpPrivilege(privilege) &&
-		(authentication != "human+device" || !enrolledDeviceRequired || !ownerStepUpRequired) {
-		return nil, fail(ErrProfileMismatch, referencePath, "privileged access requires human+device, enrolled-device, and owner step-up controls")
+		(authentication != "human+device" && authentication != "agent" || !ownerStepUpRequired) {
+		return nil, fail(ErrProfileMismatch, referencePath, "privileged access requires human+device or agent authentication and owner step-up")
+	}
+	if isLANBoundPrivilege(privilege) && !ownerRemoteOptIn && policyExposure != "local-only" {
+		return nil, fail(ErrProfileMismatch, referencePath, "privilege %q stays on the LAN listener unless the Owner opts in", privilege)
+	}
+	// A sign-in surface performs the person's authentication itself.
+	if privilege == "sign-in" && (authentication != "human" || ownerStepUpRequired) {
+		return nil, fail(ErrProfileMismatch, referencePath, "a sign-in surface authenticates the person natively without owner step-up")
+	}
+	if ownerRemoteOptIn && !isLANBoundPrivilege(privilege) && privilege != "sign-in" {
+		return nil, fail(ErrProfileMismatch, referencePath, "only a LAN-bound privilege or a sign-in surface's identity administration carries the Owner's remote opt-in")
+	}
+	// An app pass stands in for a person's browser session on a user route
+	// reachable away from home, never for device proof, an agent, a sign-in
+	// surface or a privileged route (homelab identity target §6.3).
+	if appAccessAway && (privilege != "user" || authentication != "human" || policyExposure == "local-only") {
+		return nil, fail(ErrProfileMismatch, referencePath, "app access away exists only on a remote-private or public user route with human authentication")
 	}
 	resolved := map[string]any{
 		"exposure": exposure, "defaultClosed": true, "policyRef": policyRef,
-		"policyExposure": policyExposure, "lanStepDown": lanStepDown,
+		"policyExposure": policyExposure, "ownerRemoteOptIn": ownerRemoteOptIn, "appAccessAway": appAccessAway,
 		"authentication": authentication, "privilege": privilege,
 		"enrolledDeviceRequired": enrolledDeviceRequired, "ownerStepUpRequired": ownerStepUpRequired,
+	}
+	if anonymousRateLimit != nil {
+		resolved["anonymousRateLimit"] = anonymousRateLimit
 	}
 	if _, exists := policy["allowedSiteRefs"]; exists {
 		siteRefs, err := stringListField(policy, "access."+policyRef, "allowedSiteRefs", true)
@@ -404,7 +443,54 @@ func resolveAccessDecision(referencePath, exposure, policyRef string, rawPolicy 
 	return resolved, nil
 }
 
+// resolveAnonymousRateLimit carries the policy's anonymous request budget,
+// which a public policy without login requires and every other policy lacks
+// (#AccessPolicyV2).
+func resolveAnonymousRateLimit(referencePath, policyRef string, policy map[string]any, anonymousPublic bool) (map[string]any, error) {
+	path := "access." + policyRef
+	limit, exists, err := optionalObjectField(policy, path, "anonymousRateLimit")
+	if err != nil {
+		return nil, err
+	}
+	if !anonymousPublic {
+		if exists {
+			return nil, fail(ErrProfileMismatch, referencePath, "only a public policy without login carries an anonymous rate limit")
+		}
+		return nil, nil
+	}
+	if !exists {
+		return nil, fail(ErrProfileMismatch, referencePath, "a public route without login needs its anonymous rate limit")
+	}
+	if len(limit) != 2 {
+		return nil, fail(ErrInvalidInput, path+".anonymousRateLimit", "expected exactly requests and windowSeconds")
+	}
+	resolved := make(map[string]any, 2)
+	for _, field := range []string{"requests", "windowSeconds"} {
+		value, err := intField(limit, path+".anonymousRateLimit", field)
+		if err != nil {
+			return nil, err
+		}
+		if value < 1 {
+			return nil, fail(ErrInvalidInput, path+".anonymousRateLimit."+field, "must be at least 1")
+		}
+		resolved[field] = value
+	}
+	return resolved, nil
+}
+
 func isStepUpPrivilege(privilege string) bool {
+	switch privilege {
+	case "admin", "identity", "secrets", "vault", "recovery":
+		return true
+	default:
+		return false
+	}
+}
+
+// isLANBoundPrivilege names the privileges that stay on the LAN listener (or
+// the VPN add-on) unless the Owner opts in: server administration, identity
+// administration, secrets, vault and recovery (#AccessLANBoundPrivilegesV2).
+func isLANBoundPrivilege(privilege string) bool {
 	switch privilege {
 	case "admin", "identity", "secrets", "vault", "recovery":
 		return true

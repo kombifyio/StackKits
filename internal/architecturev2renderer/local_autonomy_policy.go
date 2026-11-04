@@ -49,26 +49,13 @@ type localAutonomyControlPlane struct {
 }
 
 type localAutonomyIdentity struct {
-	HumanAuthoritySiteRef   string                        `json:"humanAuthoritySiteRef"`
-	DeviceAuthoritySiteRef  string                        `json:"deviceAuthoritySiteRef"`
-	EdgeVerifierSiteRefs    []string                      `json:"edgeVerifierSiteRefs,omitempty"`
-	DeviceEnrollment        localAutonomyDeviceEnrollment `json:"deviceEnrollment"`
-	PossessionBoundSessions bool                          `json:"possessionBoundSessions"`
-	LANLocationIsIdentity   bool                          `json:"lanLocationIsIdentity"`
-}
-
-type localAutonomyDeviceEnrollment struct {
-	Mode                      string `json:"mode"`
-	AuthoritySiteRef          string `json:"authoritySiteRef"`
-	EndpointExposure          string `json:"endpointExposure"`
-	RemoteEnrollment          bool   `json:"remoteEnrollment"`
-	RequireOwnerStepUp        bool   `json:"requireOwnerStepUp"`
-	RequireLocalPairingProof  bool   `json:"requireLocalPairingProof"`
-	RequireDeviceGeneratedKey bool   `json:"requireDeviceGeneratedKey"`
-	RequirePossessionProof    bool   `json:"requirePossessionProof"`
-	HardwareBackedKey         string `json:"hardwareBackedKey"`
-	RevocationSupported       bool   `json:"revocationSupported"`
-	CredentialTTLSeconds      int    `json:"credentialTTLSeconds"`
+	HumanAuthoritySiteRef   string                  `json:"humanAuthoritySiteRef"`
+	DeviceAuthoritySiteRef  string                  `json:"deviceAuthoritySiteRef"`
+	EdgeVerifierSiteRefs    []string                `json:"edgeVerifierSiteRefs,omitempty"`
+	DeviceEnrollment        homelabDeviceEnrollment `json:"deviceEnrollment"`
+	PossessionBoundSessions bool                    `json:"possessionBoundSessions"`
+	LANLocationIsIdentity   bool                    `json:"lanLocationIsIdentity"`
+	Origin                  homelabIdentityOrigin   `json:"origin"`
 }
 
 type localAutonomyData struct {
@@ -98,6 +85,8 @@ type localAutonomyFailurePolicy struct {
 	LocalIdentityAuthorityAvailable bool   `json:"localIdentityAuthorityAvailable"`
 	MaxStaleVerificationSeconds     int    `json:"maxStaleVerificationSeconds"`
 	DenyNewCrossSiteSessions        bool   `json:"denyNewCrossSiteSessions"`
+	IssuedSessions                  string `json:"issuedSessions"`
+	NewSessions                     string `json:"newSessions"`
 }
 
 type localAutonomyPolicyInput struct {
@@ -300,7 +289,7 @@ func validateLocalAutonomyPolicyInput(input localAutonomyPolicyInput, path strin
 		input.Data.DefaultAuthoritySiteRef != authority {
 		return input, fail(ErrInvalidPlan, path, "control, identity and data authority must equal the exact Home authority Site")
 	}
-	if input.Identity.EnrollmentMode != "local-only" || !input.Identity.PossessionBoundSessions ||
+	if input.Identity.EnrollmentMode != "person" || !input.Identity.PossessionBoundSessions ||
 		input.Identity.LANLocationIsIdentity || !input.Identity.AvailableDuringPartition {
 		return input, fail(ErrInvalidPlan, path+".identity", "identity must remain Home-local, possession-bound, LAN-independent and partition-available")
 	}
@@ -411,7 +400,7 @@ func ValidateLocalAutonomyPolicyArtifact(raw []byte) (LocalAutonomyEnforcementPo
 	input.Control.AuthoritySiteRef = policy.SiteRef
 	input.Control.MemberNodeRefs = append([]string(nil), policy.ControlMembers...)
 	input.Identity.AuthoritySiteRef = policy.SiteRef
-	input.Identity.EnrollmentMode = "local-only"
+	input.Identity.EnrollmentMode = "person"
 	input.Identity.EdgeVerifierSiteRefs = append([]string(nil), policy.EdgeVerifierSiteRefs...)
 	input.Identity.PossessionBoundSessions = true
 	input.Identity.AvailableDuringPartition = policy.LocalIdentityAuthorityAvailable
@@ -503,18 +492,17 @@ func validateLocalAutonomyControlPlane(control localAutonomyControlPlane, siteKi
 func validateLocalAutonomyIdentity(identity localAutonomyIdentity, authoritySiteRef, path string) error {
 	enrollment := identity.DeviceEnrollment
 	if identity.HumanAuthoritySiteRef != authoritySiteRef || identity.DeviceAuthoritySiteRef != authoritySiteRef ||
-		!identity.PossessionBoundSessions || identity.LANLocationIsIdentity || enrollment.Mode != "local-only" ||
-		enrollment.AuthoritySiteRef != authoritySiteRef || enrollment.EndpointExposure != "lan" || enrollment.RemoteEnrollment ||
-		!enrollment.RequireOwnerStepUp || !enrollment.RequireLocalPairingProof || !enrollment.RequireDeviceGeneratedKey ||
-		!enrollment.RequirePossessionProof || !enrollment.RevocationSupported {
-		return fail(ErrInvalidPlan, path, "identity must remain Home-authoritative, locally enrolled and possession-bound")
+		!identity.PossessionBoundSessions || identity.LANLocationIsIdentity || enrollment.AuthoritySiteRef != authoritySiteRef {
+		return fail(ErrInvalidPlan, path, "identity must remain Home-authoritative, enrolled by the person and possession-bound")
 	}
 	if _, err := uniqueLocalAutonomyIDSet(identity.EdgeVerifierSiteRefs, path+".edgeVerifierSiteRefs"); err != nil {
 		return err
 	}
-	if enrollment.HardwareBackedKey != "preferred" && enrollment.HardwareBackedKey != "required" ||
-		enrollment.CredentialTTLSeconds < 300 || enrollment.CredentialTTLSeconds > 86400 {
-		return fail(ErrInvalidPlan, path+".deviceEnrollment", "device credentials require bounded lifetime and hardware-backed-key policy")
+	if !validHomelabDeviceEnrollment(enrollment) {
+		return fail(ErrInvalidPlan, path+".deviceEnrollment", "device enrollment widens enrollment by the person at the Home Authority")
+	}
+	if !validHomelabIdentityOrigin(identity.Origin) {
+		return fail(ErrInvalidPlan, path+".origin", "identity origin must be id.<homelab name> with its certificate class")
 	}
 	return nil
 }

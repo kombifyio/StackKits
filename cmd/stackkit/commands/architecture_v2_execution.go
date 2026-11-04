@@ -423,6 +423,13 @@ func loadLegacyOperationalStackSpec(wd, requestedSpecPath string, mode architect
 }
 
 func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode architectureV2ExecutionMode, options architectureV2ExecutionCLIOptions) (returnErr error) {
+	if mode == architectureV2Apply {
+		releaseRILApply, err := runtimeprofile.BeginRILAuthorityApply()
+		if err != nil {
+			return fmt.Errorf("acquire RIL applied-profile activation lock: %w", err)
+		}
+		defer releaseRILApply()
+	}
 	inventory, inventoryPath, err := locateArchitectureV2Inventory(wd, options.inventoryPath)
 	if err != nil {
 		return err
@@ -549,6 +556,11 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 			}
 			if err := persisted.RequireExpectedPlanHash(options.expectedPlanHash); err != nil {
 				return err
+			}
+		}
+		if mode == architectureV2Verify && strings.TrimSpace(options.expectedPlanHash) != "" {
+			if err := persisted.RequireExpectedPlanHash(options.expectedPlanHash); err != nil {
+				return fmt.Errorf("verify expected plan: %w", err)
 			}
 		}
 		if mode == architectureV2Plan {
@@ -878,6 +890,9 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		if err != nil {
 			return err
 		}
+		if expected := strings.TrimSpace(options.expectedPlanHash); expected != "" && result.Summary().PlanHash != expected {
+			return errors.New("verify: applied result does not match expected plan hash")
+		}
 		verifyContext := options.context
 		if verifyContext == nil {
 			verifyContext = context.Background()
@@ -1047,6 +1062,9 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	}
 	stopProgress := startApplyProgressHeartbeat(0)
 	defer stopProgress()
+	if err := runtimeprofile.InvalidateRILAuthority(); err != nil {
+		return fmt.Errorf("invalidate RIL applied-profile authority before Product Apply: %w", err)
+	}
 	result, err := executeArchitectureV2ProductApply(
 		executionContext,
 		applyAuthority,
@@ -1183,6 +1201,11 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		},
 		Outcomes:       &ledger,
 		ExecutionScope: local.scope,
+	}
+	if runtimeprofile.RILCanonicalWorkspace(wd) {
+		if err := g.publishRILAppliedProfile(wd, options, canonicalPlan, persisted, manifest, receipt, result, persistedResult, planPath, manifestPath, receiptPath); err != nil {
+			return fmt.Errorf("publish RIL applied-profile authority: %w", err)
+		}
 	}
 	if options.applySink != nil {
 		return options.applySink(applyOutput)
@@ -2168,4 +2191,121 @@ func architectureV2SelectedLocalGenericApplyRoots(plan generationartifact.Verifi
 	}
 	slices.Sort(result)
 	return result, nil
+}
+
+// publishRILAppliedProfile creates a root assertion only from the same durable,
+// authenticated result and control files that Product Apply just completed.
+func (g architectureV2ExecutionGate) publishRILAppliedProfile(wd string, options architectureV2ExecutionCLIOptions, plan resolvedplan.ResolvedPlan, persisted generationartifact.VerifiedPlan, manifest generationartifact.ArtifactManifest, receipt generationartifact.GenerationReceipt, result architecturev2.VerifiedApplyResult, applied architectureV2PersistedApplyResult, planPath, manifestPath, receiptPath string) error {
+	profileValue := ""
+	if value, ok := plan["dataProfile"]; ok {
+		var valid bool
+		profileValue, valid = value.(string)
+		if !valid || profileValue == "" {
+			return errors.New("invalid applied data profile")
+		}
+	}
+	profile, err := runtimeprofile.Parse(profileValue)
+	if err != nil {
+		return err
+	}
+	if profile.FullLocal() {
+		return nil
+	}
+	if value, ok := plan["loc"]; ok {
+		loc, valid := value.(string)
+		if !valid || loc != "hosted" {
+			return nil
+		}
+	}
+	if value, ok := plan["edition"]; ok {
+		edition, valid := value.(string)
+		if !valid || (edition != "selfhost-oss" && edition != "saas-standalone" && edition != "saas-embedded" && edition != "preview") {
+			return nil
+		}
+	}
+	workspace, err := filepath.Abs(wd)
+	if err != nil {
+		return err
+	}
+	workspace = filepath.Clean(workspace)
+	paths := []string{planPath, manifestPath, receiptPath, filepath.Join(workspace, filepath.FromSlash(applied.ResultPath)), filepath.Join(workspace, filepath.FromSlash(applied.OwnerReceiptPath))}
+	expiresAt := ""
+	if localKind := localReceiptKindForRIL(applied.OwnerReceiptPath, workspace); localKind == "member" {
+		paths = append(paths, filepath.Join(workspace, ".stackkit/custody/member.json"), filepath.Join(workspace, ".stackkit/custody/member-evidence-key.json"), filepath.Join(workspace, ".stackkit/custody/member-evidence-certificate.json"))
+	} else {
+		paths = append(paths, filepath.Join(workspace, ".stackkit/custody/owner.json"), filepath.Join(workspace, ".stackkit/custody/owner-key.json"))
+	}
+	raw := make([][]byte, len(paths))
+	for i := range paths {
+		paths[i], err = filepath.Abs(paths[i])
+		if err != nil {
+			return err
+		}
+		paths[i] = filepath.Clean(paths[i])
+		raw[i], err = runtimeprofile.ReadRILEvidence(workspace, paths[i])
+		if err != nil {
+			return err
+		}
+	}
+	manifestBytes, err := manifest.MarshalCanonical()
+	if err != nil {
+		return err
+	}
+	receiptBytes, err := receipt.MarshalCanonical()
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(raw[0], persisted.Canonical()) || !bytes.Equal(raw[1], manifestBytes) || !bytes.Equal(raw[2], receiptBytes) {
+		return errors.New("RIL plan or generation evidence changed")
+	}
+	if g.newVerifyAuthority == nil {
+		return errors.New("RIL result verifier unavailable")
+	}
+	authority, err := g.newVerifyAuthority(wd, options)
+	if err != nil {
+		return err
+	}
+	if closer, ok := authority.(interface{ Close() error }); ok {
+		defer closer.Close()
+	}
+	verifier, ok := authority.(architectureV2ProductVerifyAuthority)
+	if !ok {
+		return errors.New("RIL result verifier unavailable")
+	}
+	verified, err := verifier.VerifyProductApplyResult(architecturev2.ProductApplyResultVerificationInput{Plan: persisted, Manifest: manifest, Receipt: receipt, Versions: g.versions, Result: raw[3]})
+	if err != nil {
+		return err
+	}
+	if verified.ResultHash() != result.ResultHash() || verified.Summary().PlanHash != persisted.Binding().PlanHash {
+		return errors.New("RIL applied result binding mismatch")
+	}
+	if len(paths) == 8 {
+		var certificate struct {
+			ValidUntil time.Time `json:"validUntil"`
+		}
+		if err = json.Unmarshal(raw[7], &certificate); err != nil || certificate.ValidUntil.IsZero() {
+			return errors.New("invalid RIL member certificate expiry")
+		}
+		expiresAt = certificate.ValidUntil.Format(time.RFC3339Nano)
+	}
+	if err = verifyOwnerApplyResultReceipt(workspace, raw[3], raw[4], verified.ResultHash()); err != nil {
+		return err
+	}
+	return runtimeprofile.PublishRILAuthority(workspace, persisted.Binding().PlanHash, verified.ResultHash(), expiresAt, paths, raw)
+}
+
+// Identify custody before reading its complete trust chain; receipt verification
+// below still decides whether the claimed kind is authentic.
+func localReceiptKindForRIL(receiptPath, workspace string) string {
+	raw, err := runtimeprofile.ReadRILEvidence(workspace, filepath.Join(workspace, filepath.FromSlash(receiptPath)))
+	if err != nil {
+		return ""
+	}
+	var v struct {
+		Kind string `json:"kind"`
+	}
+	if json.Unmarshal(raw, &v) == nil && v.Kind == memberApplyResultReceiptKind {
+		return "member"
+	}
+	return "owner"
 }

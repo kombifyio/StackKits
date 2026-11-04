@@ -395,11 +395,45 @@ import (
 	publicRoutesDefaultClosed: true
 	lanLocationIsIdentity:     false
 	privilegedStepUpRequired:  true
-	deviceEnrollment:          "local-only" | "remote-bootstrap" | "none"
-	deviceBoundSessions:       true
+	// Server administration, secrets, vault and recovery stay on the LAN
+	// listener (or the network-level VPN add-on) unless the Owner opts in
+	// per access policy (homelab identity target §8, §14.5).
+	privilegedRemoteReach: "owner-opt-in"
+	deviceEnrollment:      "person" | "none"
+	deviceBoundSessions:   true
 }
 
-#AccessPolicyExposureV2: "private" | "lan" | "public"
+// #AccessPolicyExposureV2 is the exposure the Owner chooses per service
+// (D-2026-11-02-13, homelab identity target §8):
+//
+//   - local-only: the LAN listener only; the optional VPN add-on reaches it
+//     at network level.
+//   - remote-private: the LAN listener plus the remote listener behind the
+//     reach paths the homelab has enabled (kombify.me tunnel or relay, an
+//     own Cloudflare Tunnel), for Homelab accounts only.
+//   - public: the public names, with login (human, human+device, agent) or
+//     without login (authentication none: content the Owner marks
+//     anonymous, rate-limited at the edge, never privileged).
+//
+// A VPN is never the realization of remote-private (D-2026-11-02-12).
+#AccessPolicyExposureV2: "local-only" | "remote-private" | "public"
+
+// #AccessAuthenticationV2 is the proof a route asks for (target §7). A device
+// never authenticates on its own: its registry entry is bound to one Homelab
+// account, so device proof only adds to the person (human+device). agent is a
+// Gateway-signed envelope mapped to the Homelab account it acts for; agents
+// never hold device credentials, passkeys or sessions.
+#AccessAuthenticationV2: "none" | "human" | "human+device" | "agent"
+
+#AccessPrivilegeV2: "user" | "sign-in" | "admin" | "identity" | "secrets" | "vault" | "recovery"
+
+// #AccessLANBoundPrivilegesV2 stay local-only unless the Owner opts in:
+// server administration (admin), identity administration (identity),
+// secrets, vault and recovery. sign-in labels the identity provider's and the
+// forward-auth login's own surfaces at the identity origin; sign-in and away
+// enrollment need them on every enabled path, and the Access Gate classifies
+// the identity administration on the identity provider's host as identity.
+#AccessLANBoundPrivilegesV2: ["admin", "identity", "secrets", "vault", "recovery"]
 
 // #KitRouteExposureRuleV2 makes route reachability a definition-owned
 // capability contract. A route is never made reachable merely because its
@@ -435,15 +469,8 @@ import (
 #KitReachabilityContractV2: {
 	accessPolicies: {
 		allowedExposures: [...#AccessPolicyExposureV2] & list.MinItems(1)
-		lanStepDownAllowed: bool
 
 		_allowedExposuresUnique: list.UniqueItems(allowedExposures) & true
-		if lanStepDownAllowed == true {
-			_lanExposureDeclared: [
-				for exposure in allowedExposures
-				if exposure == "lan" {exposure},
-			] & list.MinItems(1)
-		}
 	}
 	routes: {
 		local:            #KitRouteExposureRuleV2
@@ -461,11 +488,11 @@ import (
 
 #KitDeviceEnrollment: {
 	required: bool
-	mode:     "local-only" | "disabled"
+	mode:     "person" | "disabled"
 	authorityKinds: [...#SiteKind] | *[]
 
 	if required == true {
-		mode:           "local-only"
+		mode:           "person"
 		authorityKinds: list.MinItems(1)
 	}
 	if required == false {
@@ -479,22 +506,90 @@ import (
 	cloudCopyRequiresPolicy: bool | *true
 }
 
-// #DeviceEnrollmentPolicy is separate from human authentication. A trusted
-// network can make enrollment reachable, but cannot itself establish identity.
-#DeviceEnrollmentPolicy: {
-	mode:                      "local-only"
-	authoritySiteRef:          #SiteID
-	endpointExposure:          "lan"
-	remoteEnrollment:          false
-	requireOwnerStepUp:        true
-	requireLocalPairingProof:  true
-	requireDeviceGeneratedKey: true
-	requirePossessionProof:    true
-	hardwareBackedKey:         "preferred" | "required"
-	revocationSupported:       true
-	credentialTTLSeconds:      int & >=300 & <=86400
+// #HomelabIdentityLifetimesV1 are the lifetimes of the homelab identity
+// target §12. Contracts that carry a lifetime reference these values; none of
+// them is an Owner or caller choice. Key names avoid the secret-like public
+// namespace of #PublicSettings, so module projections carry them unchanged.
+#HomelabIdentityLifetimesV1: {
+	// A device registry entry expires after 180 days without use.
+	registryEntryUnusedSeconds: 15552000
+	// The key-bound device credential (stackkit-device-credential+jwt).
+	deviceLifetimeSeconds: 3600
+	dpopProofSeconds:      30
+	// After 24 h without user verification, renewal needs a passkey assertion.
+	userVerificationSeconds:   86400
+	browserSessionAwaySeconds: 3600
+	browserSessionHomeSeconds: 14400
+	launchProofSeconds:        60
+	appPassMaxSeconds:         2592000
+	// An Owner step-up is bound to the digest of the one action it approves.
+	ownerStepUpSeconds:      60
+	revocationTargetSeconds: 60
+	// At-home enrollment notices offer an undo for 24 h.
+	enrollmentUndoSeconds: 86400
 }
 
+// #DeviceCustodyClassV1 is where a device key lives (Connect D4, target §3).
+#DeviceCustodyClassV1: "hardware" | "os-protected" | "software"
+
+// #DeviceEnrollmentPolicy is enrollment by the person (D-2026-11-02-11,
+// homelab identity target §6). The person signs in in the client with their
+// own passkey; the registry entry binds to their Homelab account. A network
+// can make enrollment reachable but never establishes identity or home: home
+// is attested only by the client's direct reach of the Authority's LAN
+// listener, never by an address class, a forwarded header or a DNS answer.
+// Every person revokes their own devices and the Owner all of them;
+// revocation ends the device's sessions, app passes, app OIDC sessions and
+// VPN peers.
+#DeviceEnrollmentPolicy: {
+	mode:             "person"
+	authoritySiteRef: #SiteID
+	accountBinding:   "homelab-account"
+	homeAttestation:  "authority-lan-listener"
+	// At home the enrollment is approved at once; the person's other devices
+	// and the Owner are notified and can undo it for 24 h.
+	atHome: {
+		approval: "automatic"
+		notify: ["own-devices", "owner"]
+		undoWindowSeconds: #HomelabIdentityLifetimesV1.enrollmentUndoSeconds
+	}
+	// Away a passkey step-up confirms it: from the person's own enrolled
+	// device where one exists, otherwise by the Owner at the Authority.
+	away: {
+		approval: "step-up-confirmation"
+		confirmers: ["own-enrolled-device", "owner"]
+	}
+	// Enrollment ends when the client's probes from its own vantage pass on
+	// every enabled reach path.
+	completion:                "client-probes-every-enabled-path"
+	privilegedAccountPasskeys: "device-bound-where-offered"
+	requireDeviceGeneratedKey: true
+	requirePossessionProof:    true
+	custodyClasses: [...#DeviceCustodyClassV1] & list.MinItems(1) | *["hardware", "os-protected", "software"]
+	maxDevicesPerAccount: int & >=1 & <=64 | *16
+	rateLimit: {
+		attempts:      int & >=1 & <=20 | *5
+		windowSeconds: int & >=60 & <=86400 | *3600
+	}
+	revocation: {
+		byPerson: "own-devices"
+		byOwner:  "all-devices"
+		ends: ["sessions", "app-passes", "app-oidc-sessions", "vpn-peers"]
+	}
+	lifetimes: {
+		registryEntryUnusedSeconds: #HomelabIdentityLifetimesV1.registryEntryUnusedSeconds
+		deviceLifetimeSeconds:      #HomelabIdentityLifetimesV1.deviceLifetimeSeconds
+		dpopProofSeconds:           #HomelabIdentityLifetimesV1.dpopProofSeconds
+		userVerificationSeconds:    #HomelabIdentityLifetimesV1.userVerificationSeconds
+	}
+
+	_custodyClassesUnique: list.UniqueItems(custodyClasses) & true
+}
+
+// #PartitionPolicy also states what a server does while it cannot reach the
+// Authority (homelab identity target §4): credentials and sessions already
+// issued stay valid to their lifetime against the last-known revocation
+// state; new sign-ins, enrollments and renewals fail closed.
 #PartitionPolicy: {
 	onCloudLoss:                     "local-continues" | "fail-closed" | "not-applicable"
 	onLinkLoss:                      "local-continues" | "cloud-continues" | "fail-closed" | "not-applicable"
@@ -502,7 +597,47 @@ import (
 	localIdentityAuthorityAvailable: bool
 	maxStaleVerificationSeconds:     int & >=0
 	denyNewCrossSiteSessions:        true
+	issuedSessions:                  "valid-to-lifetime-against-last-known-revocation"
+	newSessions:                     "fail-closed"
 }
+
+// #IdentityOriginV1 is the Pocket ID host and with it the passkey relying
+// party (homelab identity target §5, §14.2). It is derived from the homelab
+// name: a kombify.me name or an own domain serves id.<name> with publicly
+// trusted certificates from setup; lab.home exists only for a homelab
+// declared local-only and uses the homelab root. A special-use or reserved
+// name (localhost, local, internal, arpa, test, invalid, example, home, lan)
+// can never carry a publicly trusted certificate: it is classified
+// reserved-name and setup refuses it as an identity origin. Changing the
+// origin later means re-registering passkeys (stackkit migrate-domain).
+#IdentityOriginV1: {
+	name:         #DNSNameV2
+	host:         "id.\(name)"
+	source:       "kombify-me" | "own-domain" | "local-only" | "reserved-name"
+	certificates: "publicly-trusted" | "homelab-root"
+
+	let _lower = strings.ToLower(name)
+	let _localOnly = _lower == "lab.home"
+	let _reserved = _lower =~ #IdentityOriginReservedNamePattern
+	if _localOnly {
+		source:       "local-only"
+		certificates: "homelab-root"
+	}
+	if !_localOnly && _reserved {
+		source:       "reserved-name"
+		certificates: "homelab-root"
+	}
+	if !_localOnly && !_reserved {
+		certificates: "publicly-trusted"
+		if _lower =~ "\\.kombify\\.me$" {source: "kombify-me"}
+		if _lower !~ "\\.kombify\\.me$" {source: "own-domain"}
+	}
+}
+
+// Special-use and reserved suffixes that no public certificate authority
+// signs (RFC 6761, RFC 6762, RFC 8375, RFC 2606, ICANN .internal) plus the
+// private home and lan zones.
+#IdentityOriginReservedNamePattern: "(^|\\.)(localhost|local|internal|arpa|test|invalid|example|home|lan)$"
 
 #IdentityTrustPrincipalV2: "human" | "device" | "workload"
 
@@ -1461,6 +1596,20 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	routes?: [string]:         #ServiceRouteIntentV2
 	data?:      #DataPlacementIntent
 	placement?: #PlacementIntent
+	// lab.home is the identity origin only of a homelab declared local-only
+	// (homelab identity target §5, §14.2); a kombify.me name or an own domain
+	// serves id.<name> with publicly trusted certificates instead.
+	if strings.ToLower(network.domain.base) == "lab.home" {
+		placement: #PlacementIntent & {mode: "local-only"}
+	}
+
+	// A local-only homelab has no remote reach path (target §8: kombify.me
+	// and Cloudflare reach every placement except local-only); the optional
+	// VPN add-on reaches its local routes at network level.
+	if placement != _|_ if placement.mode == "local-only" {
+		routes?: [string]: {exposure: "local"}
+		access?: [string]: {exposure: "local-only"}
+	}
 	if dataProfile == _|_ {network: dns: servers: [...#NetworkAddressV2] & list.MinItems(1) | *["1.1.1.1", "8.8.8.8"]}
 	if dataProfile != _|_ if dataProfile == "standard" {network: dns: servers: [...#NetworkAddressV2] & list.MinItems(1) | *["1.1.1.1", "8.8.8.8"]}
 	if dataProfile != _|_ if dataProfile == "full-local" {
@@ -1470,7 +1619,7 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 		bridge?: _|_
 		network: tls: defaultMode: "internal" | "off"
 		routes?: [string]: {exposure: !="public"}
-		access?: [string]: {exposure: "private" | "lan"}
+		access?: [string]: {exposure: "local-only" | "remote-private"}
 		if data != _|_ {
 			data: {
 				defaultAuthority: "home" | "per-workload"
@@ -1590,7 +1739,7 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 				if route.host !~ "(?i)(^|\\.)localhost$"
 				for policyRef, policy in access
 				if route.accessPolicyRef == policyRef
-				if policy.exposure == "lan" {
+				if policy.exposure == "local-only" {
 					routeRef:  routeRef
 					policyRef: policyRef
 				},
@@ -2148,34 +2297,90 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	}
 }
 
-// #AccessPolicyV2 keeps network location separate from identity. LAN-aware
-// convenience is allowed only in combination with an enrolled device.
+// #AccessPolicyV2 is the per-service access decision the Access Gate
+// enforces (homelab identity target §7, §8). Network location is never
+// identity: a request is allowed only for a Homelab account, directly or as
+// the subject an agent acts for, plus an enrolled device of that account
+// where the policy asks for one. The safe default is local-only.
 #AccessPolicyV2: {
-	exposure:       *"private" | "lan" | "public"
-	privilege:      *"user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
-	authentication: *"human" | "device" | "human+device" | "none"
+	exposure:       *"local-only" | "remote-private" | "public"
+	privilege:      *"user" | "sign-in" | "admin" | "identity" | "secrets" | "vault" | "recovery"
+	authentication: *"human" | "human+device" | "agent" | "none"
 
-	enrolledDeviceRequired: bool | *false
+	// Derived: device proof is asked exactly when authentication is
+	// human+device.
+	enrolledDeviceRequired: bool
 	ownerStepUpRequired:    bool | *false
-	lanStepDown:            bool | *false
+	// The Owner's explicit decision to reach a LAN-bound privileged route
+	// beyond the LAN listener. On a sign-in policy it opts the identity
+	// administration surface on that host in.
+	ownerRemoteOptIn: bool | *false
+	// The Owner's explicit decision that the third-party apps of this service
+	// (the Immich app for Photos) reach it through the remote listener with a
+	// per-device app pass of at most 30 days, issued by the Hub and revoked
+	// with the device, instead of a browser session or device proof (target
+	// §6.3, §12). Without it a third-party app reaches the service on the LAN
+	// or through the VPN add-on only.
+	appAccessAway: bool | *false
 	allowedSiteRefs?: [...#SiteID]
 	allowedMethods?: [...#HTTPMethod] & list.MinItems(1)
 	if allowedMethods != _|_ {
 		_allowedMethodsUnique: list.UniqueItems(allowedMethods) & true
 	}
 
-	if exposure == "public" {
-		authentication: "human" | "device" | "human+device"
-	}
-	if lanStepDown == true {
-		exposure:               "lan"
+	if authentication == "human+device" {
 		enrolledDeviceRequired: true
-		authentication:         "device" | "human+device"
 	}
-	if privilege == "admin" || privilege == "identity" || privilege == "secrets" || privilege == "vault" || privilege == "recovery" {
-		authentication:         "human+device"
-		ownerStepUpRequired:    true
-		enrolledDeviceRequired: true
+	if authentication != "human+device" {
+		enrolledDeviceRequired: false
+	}
+
+	// An app pass stands in for a person's browser session on an ordinary
+	// user route reachable away from home: never for a route without login,
+	// a device-bound or agent route, a sign-in surface or a privileged route.
+	if appAccessAway == true {
+		privilege:      "user"
+		authentication: "human"
+		exposure:       "remote-private" | "public"
+	}
+
+	// A sign-in surface performs the person's authentication itself; the
+	// Access Gate admits it on every enabled path and keeps the identity
+	// administration on its host LAN-bound (homelab identity target §8).
+	if privilege == "sign-in" {
+		authentication:      "human"
+		ownerStepUpRequired: false
+	}
+
+	// Private remote access is for Homelab accounts only; reach without
+	// login is public by definition.
+	if exposure == "remote-private" {
+		authentication: "human" | "human+device" | "agent"
+	}
+
+	// Without login a route serves anonymous content only, and a public
+	// anonymous route is rate-limited at the edge (target §8).
+	if authentication == "none" {
+		privilege: "user"
+	}
+	if authentication == "none" && exposure == "public" {
+		anonymousRateLimit: {
+			requests:      int & >=1
+			windowSeconds: int & >=1
+		}
+	}
+	if authentication != "none" || exposure != "public" {
+		anonymousRateLimit?: _|_
+	}
+	if privilege != "user" && privilege != "sign-in" {
+		authentication:      *"human+device" | "agent"
+		ownerStepUpRequired: true
+	}
+	if list.Contains(#AccessLANBoundPrivilegesV2, privilege) && ownerRemoteOptIn == false {
+		exposure: "local-only"
+	}
+	if !list.Contains(#AccessLANBoundPrivilegesV2, privilege) && privilege != "sign-in" {
+		ownerRemoteOptIn: false
 	}
 }
 
@@ -2229,7 +2434,7 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	// A route may not downgrade a catalog-owned sensitive service surface to
 	// ordinary user access. Vault and recovery surfaces therefore retain their
 	// mandatory device-bound owner step-up through compilation and publication.
-	requiredPrivilege: *"user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
+	requiredPrivilege: *"user" | "sign-in" | "admin" | "identity" | "secrets" | "vault" | "recovery"
 	ingressAuth:       *"native" | #IngressAuthModeV2
 	allowedIngressProtocols: [...#NetworkProtocol] & list.MinItems(1)
 	allowedExposures: [...#ServiceExposureV2] & list.MinItems(1)
@@ -2263,7 +2468,10 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	if originSelector == "single-site" || originSelector == "control-authority-site" {
 		originSelection?: _|_
 	}
-	if requiredPrivilege == "identity" {
+
+	// The sign-in surface is the login itself; the Access Gate classifies
+	// identity administration on its host.
+	if requiredPrivilege == "sign-in" {
 		ingressAuth: "none"
 	}
 	if requiredPrivilege == "admin" {
@@ -2373,7 +2581,7 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 		host:     string & =~"^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$" & !~"(?i)(^|\\.)localhost$"
 		access: {
 			policyRef:      #ContractID
-			policyExposure: "lan"
+			policyExposure: "local-only"
 			defaultClosed:  true
 		}
 
@@ -2387,11 +2595,20 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 #ResolvedAccessDecisionV2: {
 	exposure:               #ServiceExposureV2
 	policyExposure:         #AccessPolicyExposureV2
-	authentication:         "human" | "device" | "human+device" | "workload" | "none"
-	privilege:              *"user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
+	authentication:         #AccessAuthenticationV2 | "workload"
+	privilege:              *"user" | "sign-in" | "admin" | "identity" | "secrets" | "vault" | "recovery"
 	enrolledDeviceRequired: bool | *false
 	ownerStepUpRequired:    bool | *false
-	lanStepDown:            bool | *false
+	ownerRemoteOptIn:       bool | *false
+	// Carried from the policy (#AccessPolicyV2): the Access Gate admits the
+	// service's third-party apps with an app pass on the remote listener.
+	appAccessAway: bool | *false
+	// Carried from the policy: the per-route budget the Access Gate enforces
+	// for a public route without login.
+	anonymousRateLimit?: {
+		requests:      int & >=1
+		windowSeconds: int & >=1
+	}
 	allowedSiteRefs?: [...#SiteID] & list.MinItems(1)
 	allowedMethods?: [...#HTTPMethod] & list.MinItems(1)
 	defaultClosed: true
@@ -2400,19 +2617,42 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 		_allowedMethodsUnique: list.UniqueItems(allowedMethods) & true
 	}
 
-	if exposure == "remote-private" || exposure == "public" {
-		authentication: "human" | "device" | "human+device" | "workload"
-	}
-	if lanStepDown == true {
-		exposure:               "local"
-		policyExposure:         "lan"
-		authentication:         "device" | "human+device"
+	if authentication == "human+device" {
 		enrolledDeviceRequired: true
 	}
-	if privilege == "admin" || privilege == "identity" || privilege == "secrets" || privilege == "vault" || privilege == "recovery" {
-		authentication:         "human+device"
-		enrolledDeviceRequired: true
-		ownerStepUpRequired:    true
+	if authentication != "human+device" {
+		enrolledDeviceRequired: false
+	}
+	if exposure == "remote-private" {
+		authentication: "human" | "human+device" | "agent" | "workload"
+	}
+	if exposure == "public" && authentication == "none" {
+		privilege: "user"
+	}
+	if appAccessAway == true {
+		privilege:      "user"
+		authentication: "human"
+		policyExposure: "remote-private" | "public"
+	}
+	if authentication == "none" && policyExposure == "public" {
+		anonymousRateLimit: {
+			requests:      int & >=1
+			windowSeconds: int & >=1
+		}
+	}
+	if authentication != "none" || policyExposure != "public" {
+		anonymousRateLimit?: _|_
+	}
+	if privilege == "sign-in" {
+		authentication:      "human"
+		ownerStepUpRequired: false
+	}
+	if privilege != "user" && privilege != "sign-in" {
+		authentication:      "human+device" | "agent"
+		ownerStepUpRequired: true
+	}
+	if list.Contains(#AccessLANBoundPrivilegesV2, privilege) && ownerRemoteOptIn == false {
+		policyExposure: "local-only"
 	}
 }
 
@@ -2639,49 +2879,6 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	peerSiteRefs: [...#SiteID] & list.MinItems(2)
 
 	_peerUnique: list.UniqueItems(peerSiteRefs) & true
-}
-
-// #HomeWireGuardOverlayContractV1 is the kit-owned Standard Mode realization of
-// the remote-private exposure (owner decision 2026-09-30 §4): one WireGuard
-// interface on the Home node whose peers are exactly the enrolled, unrevoked,
-// unexpired household devices. It needs no kombify account and no external
-// access binding. The node generates its own private key into local custody;
-// no private key ever appears in a rendered artifact, plan, log or receipt.
-// Each device generates its own key pair and registers only its public key.
-#HomeWireGuardOverlayContractV1: {
-	capabilityRef:   "private-remote-access"
-	implementation:  "wireguard"
-	ownership:       "kit-owned"
-	accountRequired: false
-	interfaceName:   "wg-stackkit"
-	transport:       "udp"
-	listenPort:      uint16 & >=1024 | *51820
-	// One /24 overlay pool: the node holds the first host address, devices
-	// receive one /32 each from the rest of the pool.
-	addressPool:                "10.8.0.0/24"
-	nodeAddress:                "10.8.0.1"
-	persistentKeepaliveSeconds: int & >=10 & <=120 | *25
-	peers: {
-		source:     "enrolled-home-devices"
-		identity:   "device-key-thumbprint"
-		allowedIPs: "single-host"
-		// A revoked or expired device enrollment drops the peer at the next render.
-		removal: "on-revoke-or-expiry"
-	}
-	routing: {
-		routeScope:        "declared-services-only"
-		allowDefaultRoute: false
-		allowBroadLAN:     false
-	}
-	keyCustody: {
-		nodePrivateKey:   "node-generated-local-custody"
-		devicePrivateKey: "device-generated-never-transferred"
-		renderedOutput:   "public-keys-only"
-	}
-	// Device sessions keep the custody sessionTTLSeconds; the overlay carries
-	// no session of its own.
-	sessionPolicy:     "custody-session-ttl"
-	endpointDiscovery: "owner-declared"
 }
 
 _servicePublicationShape: {
@@ -3433,12 +3630,6 @@ _servicePublicationShape: {
 	certificateIssuers: [...#CertificateIssuerV2] | *[]
 	overlayContracts: [...#OverlayProviderContractV2] | *[]
 	remoteActionContracts: [...#RemoteActionContractV2] | *[]
-	// homeAccessOverlay names the kit-owned transport that realizes the
-	// remote-private exposure; only a private-remote-access provider carries it.
-	homeAccessOverlay?: #HomeWireGuardOverlayContractV1
-	if homeAccessOverlay != _|_ {
-		_homeAccessOverlayCapability: [for capabilityRef in provides if capabilityRef == homeAccessOverlay.capabilityRef {capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
-	}
 	_providesUnique:           list.UniqueItems(provides) & true
 	_workloadRefsUnique:       list.UniqueItems(workloadRefs) & true
 	_runtimeAdapterRefsUnique: list.UniqueItems(runtimeAdapterRefs) & true
@@ -3538,7 +3729,15 @@ _servicePublicationShape: {
 		}
 	})] & list.MinItems(1)
 	dependsOn: [...#ContractID] | *[]
-	networkRefs: [...#ContractID] & list.MinItems(1)
+	networkRefs: [...#ContractID]
+	// hostNetwork runs the component in the host's network namespace, for a
+	// LAN announcer whose mDNS multicast never leaves a bridge network. It
+	// carries no network, published port or listener of its own; renderers
+	// admit it only for their governed announcer component (the SpeechKit
+	// mDNS announcer), never as a generic right.
+	hostNetwork?: true
+	if hostNetwork == _|_ {networkRefs: list.MinItems(1)}
+	if hostNetwork != _|_ {networkRefs: [], egress?: _|_, lanListeners?: _|_, publishedPorts?: _|_, peerNetworks?: _|_}
 	// Outbound access for owner-requested downloads; never publishes a port.
 	egress?: bool
 	// stopSignal replaces the image's stop signal when its PID 1 does not act
@@ -3580,11 +3779,13 @@ _servicePublicationShape: {
 	// acmeTlsAlpnPort receives TLS-ALPN-01 challenges for the route host
 	// through a router passthrough; all other TLS stays with the router.
 	acmeTlsAlpnPort?: int & >=1 & <=65535
-	// Owner-chosen LAN rights. Each stays inert until the owner turns on the
+	// LAN rights. Each listed one stays inert until the owner turns on the
 	// named workload setting; renderers admit each only for its governed
 	// component (a Zigbee adapter, an MQTT listener), never as a generic right.
-	// lanListeners publishes a non-HTTP listener on every host address.
-	lanListeners?: [...{port: int & >=1 & <=65535, protocol: "tcp" | "udp", settingRef: #ContractID}] & list.MinItems(1)
+	// lanListeners publishes a listener on every host address. A listener
+	// without settingRef is on with its module: admitted only where the module
+	// exists to serve the household's LAN devices (the SpeechKit server).
+	lanListeners?: [...{port: int & >=1 & <=65535, protocol: "tcp" | "udp", settingRef?: #ContractID}] & list.MinItems(1)
 	// devicePassthrough passes the owner-chosen serial adapter to target.
 	devicePassthrough?: {settingRef: #ContractID, target: #AbsolutePath}
 	// peerNetworks joins the internal network of another application workload
@@ -4327,22 +4528,10 @@ _servicePublicationShape: {
 #ModuleRenderInputValueTypeV2:   "device-enrollment-public-v1" | "home-device-authority-v1" | "basement-identity-verification-v1" | "cloud-identity-authority-v1" | "modern-home-identity-authority-v1" | "modern-cloud-identity-verification-v1" | "home-access-enforcement-v1" | "local-autonomy-policy-v1" | "authority-bound-service-route-list-v4" | "authority-bound-module-route-v1" | "cloud-host-security-policy-v2" | "host-bootstrap-runtime-v1" | "host-storage-roots-v1" | "local-backup-root-v1" | "local-kopia-backup-source-v1" | "workload-companion-list-v1" | "module-compute-profile-v1"
 #ModuleRenderInputCardinalityV2: "single" | "list"
 
-// This projection renames credentialTTLSeconds to lifetimeSeconds so the
-// compiler-derived public value cannot collide with the recursively closed
-// secret-like key namespace used by #PublicSettings.
-#ModulePublicDeviceEnrollmentV2: {
-	mode:                      "local-only"
-	authoritySiteRef:          #SiteID
-	endpointExposure:          "lan"
-	remoteEnrollment:          false
-	requireOwnerStepUp:        true
-	requireLocalPairingProof:  true
-	requireDeviceGeneratedKey: true
-	requirePossessionProof:    true
-	hardwareBackedKey:         "preferred" | "required"
-	revocationSupported:       true
-	lifetimeSeconds:           int & >=300 & <=86400
-}
+// The public projection is the enrollment policy itself: its key names stay
+// outside the recursively closed secret-like key namespace of
+// #PublicSettings, so no field is renamed on the way to a module.
+#ModulePublicDeviceEnrollmentV2: #DeviceEnrollmentPolicy
 
 // #ModulePublicHomeAccessEnforcementV1 is the complete compiler-owned access
 // decision available to the Home access renderer. Fixed local/default-deny
@@ -4364,12 +4553,12 @@ _servicePublicationShape: {
 		host?:                  string & =~"^.+$"
 		path?:                  string & =~"^/"
 		policyRef:              #ContractID
-		policyExposure:         "private" | "lan"
-		authentication:         "human" | "device" | "human+device" | "workload" | "none"
-		privilege:              "user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
+		policyExposure:         "local-only" | "remote-private"
+		authentication:         #AccessAuthenticationV2 | "workload"
+		privilege:              #AccessPrivilegeV2
 		enrolledDeviceRequired: bool
 		ownerStepUpRequired:    bool
-		lanStepDown:            bool
+		ownerRemoteOptIn:       bool
 		allowedSiteRefs: [...#SiteID] & list.MinItems(1)
 		allowedMethods?: [...#HTTPMethod] & list.MinItems(1)
 		tlsRequired:    bool
@@ -4413,7 +4602,7 @@ _servicePublicationShape: {
 	}
 	identity: {
 		authoritySiteRef: #SiteID
-		enrollmentMode:   "local-only"
+		enrollmentMode:   "person"
 		edgeVerifierSiteRefs: [...#SiteID] | []
 		possessionBoundSessions:  true
 		lanLocationIsIdentity:    false
@@ -5328,12 +5517,12 @@ _servicePublicationShape: {
 		healthGateRef:    #ContractID
 		access: {
 			policyRef:              #ContractID
-			policyExposure:         "private" | "lan"
-			authentication:         "human" | "device" | "human+device" | "workload" | "none"
-			privilege:              "user" | "admin" | "identity" | "secrets" | "vault" | "recovery"
+			policyExposure:         "local-only" | "remote-private"
+			authentication:         #AccessAuthenticationV2 | "workload"
+			privilege:              #AccessPrivilegeV2
 			enrolledDeviceRequired: bool
 			ownerStepUpRequired:    bool
-			lanStepDown:            bool
+			ownerRemoteOptIn:       bool
 			allowedSiteRefs: [...#SiteID] & list.MinItems(1)
 			allowedMethods?: [...#HTTPMethod] & list.MinItems(1)
 			defaultClosed: true
@@ -5384,12 +5573,11 @@ _servicePublicationShape: {
 	_nodeRefsUnique: list.UniqueItems(nodeRefs) & true
 	_routeIDsUnique: list.UniqueItems([for route in routes {route.id}]) & true
 	_exactPrivateRoutes: [for route in routes {
-		exposure: "private"
-		access: {
-			policyExposure:         "private"
+		exposure: route.exposure & "remote-private"
+		access: route.access & {
+			policyExposure:         "remote-private"
 			authentication:         "human+device"
 			enrolledDeviceRequired: true
-			lanStepDown:            false
 			defaultClosed:          true
 		}
 		meshAuthority: [for authority in route.capabilityAuthorities if authority.capabilityRef == capabilityRef && authority.role == "access" {authority.capabilityRef}] & list.MinItems(1) & list.MaxItems(1)
@@ -5401,29 +5589,15 @@ _servicePublicationShape: {
 	bindings: [#SiteID]: [#CapabilityID]:     #ExternalHomeBackupTargetBindingV1
 }
 
-// #ModuleHomeAccessHandoffV1 hands the executor exactly one realization per
-// Site and capability: the external binding (Advanced Mode) or the kit-owned
-// overlay of the owning provider (Standard Mode), never both. The overlay is
-// copied from the hash-bound ResolvedPlan record and carries public overlay
-// parameters only.
+// #ModuleHomeAccessHandoffV1 hands the executor the provider-neutral
+// requirement and, where an external platform realized it, the external
+// binding. A VPN is never the realization of private remote access
+// (D-2026-11-02-12): the reach paths of the homelab identity target §8 realize
+// it, and the optional VPN add-on (#VPNAddOnV1) works at network level beside
+// them.
 #ModuleHomeAccessHandoffV1: {
 	requirements: [#SiteID]: [#CapabilityID]: #HomeAccessRequirementV1
 	bindings: [#SiteID]: [#CapabilityID]:     #ExternalHomeAccessBindingV1
-	overlays: [#SiteID]: [#CapabilityID]:     #HomeAccessOverlayRealizationV1
-	_overlayKeys: [for siteRef, capabilityOverlays in overlays for capabilityRef, overlay in capabilityOverlays {
-		site:       siteRef & overlay.siteRef
-		capability: capabilityRef & overlay.capabilityRef
-		requirementMatches: [
-			for requirementSiteRef, capabilityRequirements in requirements
-			for requirementCapabilityRef, requirement in capabilityRequirements
-			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && overlay.stackId == requirement.stackId && overlay.specHash == requirement.specHash && overlay.contractOwnerRef == requirement.contractOwnerRef && overlay.capabilityContractHash == requirement.capabilityContractHash && overlay.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
-		] & list.MinItems(1) & list.MaxItems(1)
-		externalBindings: [
-			for bindingSiteRef, capabilityBindings in bindings
-			for bindingCapabilityRef, _ in capabilityBindings
-			if bindingSiteRef == siteRef && bindingCapabilityRef == capabilityRef {bindingCapabilityRef},
-		] & list.MaxItems(0)
-	}]
 }
 
 #ModuleCloudOffsiteBackupV1: {
@@ -6998,29 +7172,6 @@ _otlpTransportPostureV1: {
 	bindingHash:            #ContentHash
 }
 
-// #HomeAccessOverlayRealizationV1 is the Standard Mode realization of one
-// private-remote-access requirement by the kit-owned WireGuard overlay of its
-// owning provider. It replaces the external access binding: the node holds
-// the key custody and the fabric lifecycle, no kombify account or Techstack
-// is involved, and no external binding may coexist for the same Site and
-// capability. Advanced Mode never carries it; there the external binding
-// stays the realization. Only public overlay parameters appear here.
-#HomeAccessOverlayRealizationV1: {
-	apiVersion:             "stackkit.home-access-overlay/v1"
-	kind:                   "HomeAccessOverlayRealization"
-	stackId:                #ContractID
-	siteRef:                #SiteID
-	capabilityRef:          "private-remote-access"
-	contractOwnerRef:       #ContractID
-	capabilityContractHash: #ContentHash
-	requirementsHash:       #ContentHash
-	targetNodeRefs: [...#NodeID] & list.MinItems(1)
-	overlay: #HomeWireGuardOverlayContractV1 & {capabilityRef: capabilityRef}
-	specHash:              #ContentHash
-	realizationHash:       #ContentHash
-	_targetNodeRefsUnique: list.UniqueItems(targetNodeRefs) & true
-}
-
 // #BackupTargetRequirementV1 is the StackKits-owned, provider-neutral
 // requirement for one Cloud offsite backup target. It identifies only the
 // governed Site/node/capability scope and custody properties. Provider,
@@ -7370,7 +7521,6 @@ _otlpTransportPostureV1: {
 	certificateIssuers: [...#CertificateIssuerV2] | *[]
 	overlayContracts: [...#OverlayProviderContractV2] | *[]
 	remoteActionContracts: [...#RemoteActionContractV2] | *[]
-	homeAccessOverlay?:        #HomeWireGuardOverlayContractV1
 	_providesUnique:           list.UniqueItems(provides) & true
 	_workloadRefsUnique:       list.UniqueItems(workloadRefs) & true
 	_runtimeAdapterRefsUnique: list.UniqueItems(runtimeAdapterRefs) & true
@@ -8335,6 +8485,9 @@ _otlpTransportPostureV1: {
 	deviceEnrollment?:       #DeviceEnrollmentPolicy
 	possessionBoundSessions: true
 	lanLocationIsIdentity:   false
+	// The identity origin is compiler-derived from network.domain.base, the
+	// homelab's name; it is never caller-selected.
+	origin: #IdentityOriginV1
 }
 
 #ResolvedIdentityIssuerURNV2:   string & =~"^urn:stackkit:[a-z][a-z0-9-]*:issuer:[a-z][a-z0-9-]*$"
@@ -8957,7 +9110,6 @@ _otlpTransportPostureV1: {
 	hostConformanceReceipts: [#NodeID]: #HostConformanceReceiptV1
 	homeAccessRequirements: [#SiteID]: [#CapabilityID]:           #HomeAccessRequirementV1
 	externalHomeAccessBindings: [#SiteID]: [#CapabilityID]:       #ExternalHomeAccessBindingV1
-	homeAccessOverlays: [#SiteID]: [#CapabilityID]:               #HomeAccessOverlayRealizationV1
 	backupTargetRequirements: [#SiteID]: [#CapabilityID]:         #BackupTargetRequirementV1
 	externalBackupTargetBindings: [#SiteID]: [#CapabilityID]:     #ExternalBackupTargetBindingV1
 	homeBackupTargetRequirements: [#SiteID]: [#CapabilityID]:     #HomeBackupTargetRequirementV1
@@ -8991,25 +9143,6 @@ _otlpTransportPostureV1: {
 			for requirementCapabilityRef, requirement in capabilityRequirements
 			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && binding.siteRef == siteRef && binding.capabilityRef == capabilityRef && binding.stackId == stackId && binding.specHash == specHash && binding.contractOwnerRef == requirement.contractOwnerRef && binding.capabilityContractHash == requirement.capabilityContractHash && binding.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
 		] & list.MinItems(1) & list.MaxItems(1)
-	}]
-	// The kit-owned overlay replaces the external binding in Standard Mode:
-	// it realizes exactly one requirement, comes from the owning provider's
-	// declared overlay, and never coexists with an external binding.
-	_homeAccessOverlayKeys: [for siteRef, capabilityOverlays in homeAccessOverlays for capabilityRef, overlay in capabilityOverlays {
-		site:       siteRef
-		capability: capabilityRef
-		standard:   install.mode & ("bootstrapped" | "bare")
-		requirementMatches: [
-			for requirementSiteRef, capabilityRequirements in homeAccessRequirements
-			for requirementCapabilityRef, requirement in capabilityRequirements
-			if requirementSiteRef == siteRef && requirementCapabilityRef == capabilityRef && overlay.siteRef == siteRef && overlay.capabilityRef == capabilityRef && overlay.stackId == stackId && overlay.specHash == specHash && overlay.contractOwnerRef == requirement.contractOwnerRef && overlay.capabilityContractHash == requirement.capabilityContractHash && overlay.requirementsHash == requirement.requirementsHash {requirementCapabilityRef},
-		] & list.MinItems(1) & list.MaxItems(1)
-		providerMatches: [for provider in providers if provider.id == overlay.contractOwnerRef if provider.homeAccessOverlay != _|_ {provider.id}] & list.MinItems(1) & list.MaxItems(1)
-		externalBindings: [
-			for bindingSiteRef, capabilityBindings in externalHomeAccessBindings
-			for bindingCapabilityRef, _ in capabilityBindings
-			if bindingSiteRef == siteRef && bindingCapabilityRef == capabilityRef {bindingCapabilityRef},
-		] & list.MaxItems(0)
 	}]
 	_backupTargetRequirementKeys: [for siteRef, capabilityRequirements in backupTargetRequirements for capabilityRef, requirement in capabilityRequirements {
 		site:       siteRef & requirement.siteRef
@@ -9235,9 +9368,9 @@ _otlpTransportPostureV1: {
 	}
 	addons?: [string]: #ResolvedAddOnSelectionV2
 	access?: [string]: #AccessPolicyV2
-	bridge?:            #ResolvedBridgeContractV2
-	availability:       #ResolvedAvailabilityV2
-	identity:           #ResolvedIdentityPlan
+	bridge?:      #ResolvedBridgeContractV2
+	availability: #ResolvedAvailabilityV2
+	identity: #ResolvedIdentityPlan & {origin: name: network.configuration.domain.base}
 	identityTrust:      #ResolvedIdentityTrustV2
 	data:               #DataPlacementIntent
 	failurePolicy:      #PartitionPolicy
@@ -9268,7 +9401,7 @@ _otlpTransportPostureV1: {
 			if route.exposure == "local"
 			if route.host != _|_
 			if route.host !~ "(?i)(^|\\.)localhost$"
-			if route.access.policyExposure == "lan" {
+			if route.access.policyExposure == "local-only" {
 				serviceRef:      advertisement.serviceRef & route.serviceRef
 				originSiteCount: len(route.originSiteRefs) & 1
 				originSiteRef:   advertisement.originSiteRef & route.originSiteRefs[0]
@@ -11766,10 +11899,6 @@ _otlpTransportPostureV1: {
 				if accessPolicy.exposure == allowed {allowed},
 			] & list.MinItems(1)
 		}]
-		_lanStepDownChecks: [for policyID, accessPolicy in spec.access if accessPolicy.lanStepDown != _|_ if accessPolicy.lanStepDown == true {
-			policy:  policyID
-			allowed: definition.reachability.accessPolicies.lanStepDownAllowed & true
-		}]
 	}
 	if spec.routes != _|_ {
 		_routeReachabilityChecks: [for routeID, serviceRoute in spec.routes {
@@ -11796,8 +11925,8 @@ _otlpTransportPostureV1: {
 			exposureMatches: [
 				for policyID, accessPolicy in spec.access
 				if serviceRoute.accessPolicyRef == policyID
-				if (serviceRoute.exposure == "local" && (accessPolicy.exposure == "private" || accessPolicy.exposure == "lan")) ||
-					(serviceRoute.exposure == "remote-private" && accessPolicy.exposure == "private") ||
+				if (serviceRoute.exposure == "local" && (accessPolicy.exposure == "local-only" || accessPolicy.exposure == "remote-private")) ||
+					(serviceRoute.exposure == "remote-private" && accessPolicy.exposure == "remote-private") ||
 					(serviceRoute.exposure == "public" && accessPolicy.exposure == "public") {accessPolicy.exposure},
 			] & list.MinItems(1) & list.MaxItems(1)
 		}]

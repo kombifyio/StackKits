@@ -28,7 +28,7 @@
   "apps.heading": "Tus aplicaciones",
   "apps.refreshPrompt": "Actualiza el estado para ver las aplicaciones seleccionadas en este workspace.",
   "devices.heading": "Dispositivos del hogar",
-  "devices.note": "Registra un teléfono o portátil en la página de aprobación del Owner. Allí te autenticas con tu passkey, y el código de emparejamiento y el código QR aparecen solo en esa página, nunca en esta conversación.",
+  "devices.note": "Cada persona registra sus propios dispositivos: escanea el código de registro de esa página con el dispositivo e inicia sesión con tu propia passkey. En casa el dispositivo queda registrado al instante; fuera, lo confirma tu propio dispositivo registrado o el Owner.",
   "devices.link": "Abrir registro de dispositivos",
   "apps.checking": "Comprobando el workspace seleccionado…",
   "apps.legacyStatus": "Este conector del servidor ofrece un estado heredado. Conecta la CLI local actual de StackKits para ver las evidencias de las aplicaciones; el diagnóstico del servidor sigue disponible abajo.",

@@ -68,6 +68,8 @@ services:
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
       - --entrypoints.websecure.allowacmebypass=true
+      - --entrypoints.web.forwardedheaders.insecure=false
+      - --entrypoints.websecure.forwardedheaders.insecure=false
       - --certificatesresolvers.stackkits.acme.httpchallenge=true
       - --certificatesresolvers.stackkits.acme.httpchallenge.entrypoint=web
       - --certificatesresolvers.stackkits.acme.storage=/letsencrypt/acme.json
@@ -96,6 +98,7 @@ services:
       - traefik.enable=true
       - traefik.http.routers.pocketid.rule=Host(` + "`id.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.routers.pocketid.entrypoints=websecure
+      - traefik.http.routers.pocketid.middlewares=stackkit-access-gate-remote@docker
       - traefik.http.routers.pocketid.tls=true
       - traefik.http.routers.pocketid.tls.certresolver=stackkits
       - traefik.http.services.pocketid.loadbalancer.server.port=1411
@@ -128,12 +131,10 @@ services:
       - traefik.enable=true
       - traefik.http.routers.tinyauth.rule=Host(` + "`auth.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.routers.tinyauth.entrypoints=websecure
+      - traefik.http.routers.tinyauth.middlewares=stackkit-access-gate-remote@docker
       - traefik.http.routers.tinyauth.tls=true
       - traefik.http.routers.tinyauth.tls.certresolver=stackkits
       - traefik.http.services.tinyauth.loadbalancer.server.port=3000
-      - traefik.http.middlewares.stackkit-forward-auth.forwardauth.address=http://tinyauth:3000/api/auth/traefik
-      - traefik.http.middlewares.stackkit-forward-auth.forwardauth.trustForwardHeader=true
-      - traefik.http.middlewares.stackkit-forward-auth.forwardauth.authResponseHeaders=remote-user,remote-sub,remote-name,remote-email,remote-groups
     networks: [cloud-core]
   coolify-postgres:
     image: docker.io/library/postgres:15-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
@@ -208,7 +209,7 @@ services:
       - traefik.http.routers.coolify.entrypoints=websecure
       - traefik.http.routers.coolify.tls=true
       - traefik.http.routers.coolify.tls.certresolver=stackkits
-      - traefik.http.routers.coolify.middlewares=stackkit-forward-auth@docker
+      - traefik.http.routers.coolify.middlewares=stackkit-access-gate-remote@docker
       - traefik.http.services.coolify.loadbalancer.server.port=8080
     networks: [cloud-core, cloud-control]
   hub:
@@ -236,7 +237,7 @@ services:
       - traefik.http.routers.hub.entrypoints=websecure
       - traefik.http.routers.hub.tls=true
       - traefik.http.routers.hub.tls.certresolver=stackkits
-      - traefik.http.routers.hub.middlewares=stackkit-forward-auth@docker
+      - traefik.http.routers.hub.middlewares=stackkit-access-gate-remote@docker
       - traefik.http.services.hub.loadbalancer.server.port=80
     healthcheck: {test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep '\"status\":\"ok\"'"], interval: 5s, timeout: 2s, retries: 12, start_period: 5s}
     networks: [cloud-core]

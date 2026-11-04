@@ -85,6 +85,9 @@ func Verify(raw []byte, request Request) (Grant, error) {
 	if request.Operation == OperationApplicationTransferRetire && (document.TransferRetirement == nil || *document.TransferRetirement != *request.TransferRetirement) {
 		return Grant{}, deny(ReasonCapabilityScopeMismatch, "transferRetirement", "does not match the authenticated held snapshot, peer outcome and intent transition")
 	}
+	if request.Operation == OperationApplicationTransferReceive && (document.TransferReceive == nil || *document.TransferReceive != *request.TransferReceive) {
+		return Grant{}, deny(ReasonCapabilityScopeMismatch, "transferReceive", "does not match the local receiving intent, source Owner and step")
+	}
 	if document.BackupRenewal != nil {
 		if request.Operation != OperationRestoreDrill || len(document.AllowedOperations) != 1 || expiresAt.Sub(issuedAt) > 15*time.Minute {
 			return Grant{}, deny(ReasonCapabilityScopeMismatch, "backupRenewal", "requires one short-lived restore.drill operation")
@@ -95,6 +98,7 @@ func Verify(raw []byte, request Request) (Grant, error) {
 	}
 	return Grant{
 		TransferRetirement: document.TransferRetirement,
+		TransferReceive:    document.TransferReceive,
 		BackupRenewal:      document.BackupRenewal,
 		CapabilityID:       document.CapabilityID,
 		IssuerID:           document.IssuerID,
@@ -127,6 +131,12 @@ func validateVerificationRequest(request Request) error {
 	}
 	if request.TransferRetirement != nil && request.Operation != OperationApplicationTransferRetire {
 		return deny(ReasonCapabilityScopeMismatch, "transferRetirement", "cannot authorize another operation")
+	}
+	if request.Operation == OperationApplicationTransferReceive && request.TransferReceive == nil {
+		return deny(ReasonCapabilityScopeMismatch, "transferReceive", "authenticated local scope is required")
+	}
+	if request.TransferReceive != nil && request.Operation != OperationApplicationTransferReceive {
+		return deny(ReasonCapabilityScopeMismatch, "transferReceive", "cannot authorize another operation")
 	}
 	if !wire.IsOperation(request.Operation) {
 		return deny(ReasonCapabilityOperationDenied, "operation", "is not an advanced operation")

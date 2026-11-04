@@ -12,7 +12,7 @@
   $: available = useCase.availability === "available" && useCase.alternatives.length > 0;
   $: title = useCase.title === useCase.use_case_id ? words(useCase.title) : useCase.title;
   $: description = useCase.description || useCase.alternatives[0]?.functions.map(words).join(" · ") || "Inspect the declared workload options.";
-  $: defaultId = useCase.default_alternative_id ?? (useCase.alternatives.length === 1 ? useCase.alternatives[0].alternative_id : "");
+  $: defaultId = useCase.default_alternative_id ?? (useCase.alternatives.length === 1 ? useCase.alternatives[0]?.alternative_id ?? "" : "");
 
   function words(value: string): string {
     return value.replace(/[-_]/g, " ").replace(/^./, (letter) => letter.toUpperCase());

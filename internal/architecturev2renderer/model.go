@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/accessgatetable"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
@@ -371,17 +372,19 @@ type rawPublicRouteBackendMemberV2 struct {
 }
 
 type rawPublicRouteAccessV2 struct {
-	Exposure               string   `json:"exposure"`
-	PolicyExposure         string   `json:"policyExposure"`
-	Authentication         string   `json:"authentication"`
-	Privilege              string   `json:"privilege"`
-	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
-	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
-	LANStepDown            bool     `json:"lanStepDown"`
-	AllowedSiteRefs        []string `json:"allowedSiteRefs,omitempty"`
-	AllowedMethods         []string `json:"allowedMethods,omitempty"`
-	DefaultClosed          bool     `json:"defaultClosed"`
-	PolicyRef              string   `json:"policyRef"`
+	Exposure               string                     `json:"exposure"`
+	PolicyExposure         string                     `json:"policyExposure"`
+	Authentication         string                     `json:"authentication"`
+	Privilege              string                     `json:"privilege"`
+	EnrolledDeviceRequired bool                       `json:"enrolledDeviceRequired"`
+	OwnerStepUpRequired    bool                       `json:"ownerStepUpRequired"`
+	OwnerRemoteOptIn       bool                       `json:"ownerRemoteOptIn"`
+	AppAccessAway          bool                       `json:"appAccessAway"`
+	AnonymousRateLimit     *accessgatetable.RateLimit `json:"anonymousRateLimit,omitempty"`
+	AllowedSiteRefs        []string                   `json:"allowedSiteRefs,omitempty"`
+	AllowedMethods         []string                   `json:"allowedMethods,omitempty"`
+	DefaultClosed          bool                       `json:"defaultClosed"`
+	PolicyRef              string                     `json:"policyRef"`
 }
 
 type rawPublicRouteTLSV2 struct {
@@ -2207,7 +2210,7 @@ func parseServiceEndpoints(values []json.RawMessage, placement rawRenderUnitPlac
 		if endpoint.TargetPort < 1 || endpoint.TargetPort > 65535 {
 			return nil, nil, fail(ErrInvalidPlan, endpointPath+".targetPort", "must be between 1 and 65535")
 		}
-		if !oneOf(endpoint.RequiredPrivilege, "user", "admin", "identity", "secrets", "vault", "recovery") {
+		if !oneOf(endpoint.RequiredPrivilege, "user", "sign-in", "admin", "identity", "secrets", "vault", "recovery") {
 			return nil, nil, fail(ErrInvalidPlan, endpointPath+".requiredPrivilege", "unsupported service privilege %q", endpoint.RequiredPrivilege)
 		}
 		if endpoint.IngressAuth == "" {

@@ -20,7 +20,7 @@ The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`,
 packaged OpenTofu, packaged Terramate, and the public kit catalog under
 `~/.stackkits`, so `stackkit init basement-kit` works from a clean directory
 without a repo checkout. Basement Kit is the verified standalone path; Cloud Kit
-exposes the same account-free intent bootstrap with an explicit domain and ships
+exposes the same kombify-account-free intent bootstrap with an explicit domain and ships
 as a preview, while Modern Homelab is alpha scaffolding. The installer also adds a
 short `sk -> stackkit` symlink when the `sk` name is free — it never overwrites
 an existing `sk` (e.g. `skim`). Opt out with `STACKKIT_SKIP_SK_SYMLINK=1`.
@@ -50,13 +50,14 @@ env STACKKIT_RELEASE_VERSION=v0.17.0-beta.1 sh -c 'curl -sSL https://base.stackk
 
 For local-server beta tests, run the command in the shell of the target server
 itself, for example through SSH, the server console, or an on-server agent. The
-default generated URLs are Owner-CA HTTPS at `*.home`. The access manifest gives
+default generated URLs are Owner-CA HTTPS at `*.lab.home`. The access manifest gives
 a compatible device client the exact scoped resolver and public Owner-CA root;
 the client applies them after explicit OS approval. The user is never asked to
 edit router/DHCP DNS, a hosts file, or a parallel `.local`/`.localhost` alias.
-Optional remote access uses the same URLs through the governed
-`private-remote-access` split-tunnel capability. Manifest presence alone does
-not prove that another device completed enrollment.
+Remote reach needs no VPN; the optional VPN add-on (`stackkit vpn`) adds network-level
+reach to the site address beside the standard reach paths, is never a default and never
+realizes `private-remote-access`. Manifest presence alone does not prove that another
+device completed enrollment.
 
 For the full process taxonomy, including website prompting, one-line install,
 direct CLI, on-server agents, SSH agents, local MCP fallback, protected remote
@@ -132,6 +133,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
 | `wallet-item` | Import sealed Wallet item deliveries into encrypted local custody, remove them on a signed removal, and list them by reference and version. |
 | `user` | Invite, list, and remove PocketID household users. Mutations require `--owner-approve`. |
+| `vpn` | Switch the optional VPN add-on on with WireGuard, Headscale, Tailscale or Pangolin, list its peers, reconcile and switch it off (never a default). |
 | `network` | Move this server to another network: status, signed LAN re-bind, WiFi pre-staging and the self-re-binding watcher. |
 | `relocate` | Plan, check, drain, send and receive Coolify workloads moving to another server, with the pinned coolify-mirror engine and a Wallet-delivered transfer secret. |
 | `completion` | Generate shell completions. |
@@ -588,7 +590,7 @@ fails the command. `drift detect` never mutates the runtime.
 
 ### `stackkit advanced trust`
 
-Advanced operations remain optional and account-free. They trust no network
+Advanced operations remain optional and kombify-account-free. They trust no network
 service at execution time. The local Owner explicitly imports an exact public
 issuer bundle:
 
@@ -1130,15 +1132,31 @@ Native builds reject raw v1 operational commands and have no v1 generator; after
 
 `stackkit addon list` reads only the CUE-bound catalog embedded in the CLI. With a validated canonical v2 StackSpec it is filtered to the spec's `kit.slug` and shows enabled selections; without a spec it shows the product-wide catalog. Catalog presence is not evidence that mutation, planning, generation, apply or runtime execution is ready. `addon add` and `addon remove` fail before reading or writing a spec (the HA add-on needs a coordinated topology and availability transition).
 
+### `stackkit vpn`
+
+The Owner's console of the optional VPN add-on at the Authority (root; `addons/vpn/README.md`). It is never a default: nothing VPN-related runs until `vpn enable`.
+
+- `vpn enable --tool wireguard --endpoint <host:port>`, `--tool headscale --endpoint <host:port>`, `--tool tailscale --tailnet <name> --oauth-client-file <file>` or `--tool pangolin --pangolin-endpoint <origin> --pangolin-api <url> --pangolin-org <id> --pangolin-site <n> --newt-id <id> --newt-secret-file <file> --api-key-file <file> [--ca-file <pem>]` starts the tool, registers the Authority as its node for the site address only and starts `stackkit-vpn.service` (the peer service on port 9444 and the reconciler). Secrets come from files and are never printed. A first enable that cannot reach its coordination path leaves the add-on off.
+- Enrolled devices receive their peer from the peer service with their device credential right after enrollment and confirm it with a probe through the VPN; revoking a device, undoing its enrollment or removing its person removes the peer within seconds.
+- `vpn status` shows the tool, the peer ledger and the tool's live device nodes; `vpn reconcile` applies the device registry once; `vpn disable` removes every peer, the tool's runtime and the service.
+- `device overlay bind|render|up` remains the WireGuard tool's low-level console and fails closed unless the add-on is on with WireGuard.
+
 ### `stackkit break-glass`
 
-Subcommands:
+Owner recovery at the Authority (`IDENTITY-STACKKITS.md` "Recovery Boundary"):
 
-- `break-glass list`
-- `break-glass show-bundle <node>`
-- `break-glass rotate`
+- `break-glass setup --owner-approve [--rotate] [--target <dir>] [--backup-target] [--json]` creates the recovery key and recovery code, prints both once, and writes the first recovery set.
+- `break-glass write [--target <dir>] [--backup-target] [--json]` writes a new recovery set.
+- `break-glass restore --from <set> --owner-approve [--key-file <file>]` restores a set onto a replacement Authority before `generate` and `apply`.
+- `break-glass redeem --owner-approve [--code-file <file>]` redeems the recovery code at the console for a 20-minute Owner passkey link.
+- `break-glass code --owner-approve` replaces the recovery code; `break-glass cancel --owner-approve` cancels a pending Owner device recovery. `code` and `setup --rotate` are custody changes: they wait up to five minutes for the Owner's passkey step-up on an enrolled Owner device in the Hub (Owner approvals) and verify it before they act.
+- `break-glass status`, `break-glass notices`, `break-glass list` and `break-glass show-bundle <node>` read state, notices and local sets.
 
-Rotation is marked as a later phase in the command help.
+Keys and codes are read from a file or standard input, never from an argument. Scheduled backups write a new recovery set after each snapshot.
+
+### `stackkit setup identity`
+
+`setup identity --owner-approve [--target <dir>] [--backup-target] [--wait 15m] [--json]` finishes the identity bootstrap of an applied Authority in order: the Owner passkey on the identity origin `stackkit init` fixed (it prints the activation link and waits), the Home trust, the recovery key and code shown once with the first recovery set, and the Owner's first device enrolled at home in the Hub (`https://base.<domain>/device/`). Steps that are done are skipped, so it can be rerun after an interruption. `stackkit init` refuses a reserved domain (for example `home.lan`) as identity origin; without `--domain` a Basement Kit is the local-only `lab.home`.
 
 ### `stackkit cluster`
 

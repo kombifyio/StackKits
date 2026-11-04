@@ -51,6 +51,11 @@ __pycache__/
 
 # Dependency directories (remove the comment below to include it)
 vendor/
+# Vendored private @kombiverselabs packages (SECRETS-ACCESS-STANDARD §6d) are tracked.
+!mcp-use/stackkits-app/vendor/
+!mcp-use/stackkits-app/vendor/npm/
+!website/vendor/
+!website/vendor/npm/
 node_modules/
 
 # Go workspace file

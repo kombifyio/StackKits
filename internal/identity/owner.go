@@ -1,4 +1,5 @@
-// Package identity provisions PocketID owner and break-glass accounts.
+// Package identity provisions the PocketID owner, the device credential and
+// the Owner recovery (recovery set and recovery code) at the Authority.
 //
 // PocketID v2 is passkey-only: there is no password field on user creation.
 // The owner-activation flow is therefore three calls:

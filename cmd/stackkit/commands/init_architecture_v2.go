@@ -15,6 +15,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -96,6 +97,11 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			if domain == "" {
 				return fmt.Errorf("%s requires a non-empty --domain authoring override", stackkitName)
 			}
+		}
+		// The identity origin is decided here, after any prompt and before
+		// any passkey can bind to it.
+		if err := admitArchitectureV2IdentityOrigin(domain); err != nil {
+			return err
 		}
 		if !initNonInteractive && !commandFlagChanged(cmd, "use-case") {
 			selected, picked, pickErr := pickKitOptionalUseCasesIfTerminal(os.Stderr)
@@ -304,6 +310,9 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	printInfo("StackKit: %s", stackkitName)
 	if document, readErr := stackspecmigration.Read(validation.CanonicalStackSpec); readErr == nil && document.Version == stackspecmigration.SourceVersionV2Alpha1 {
 		printWarning("Explicit v2alpha1 compatibility adapter: install.computeTier selects the legacy kit graph. Native v2alpha2 uses module-local profiles.")
+	}
+	if host, source := architectureV2CanonicalIdentityOrigin(validation.CanonicalStackSpec); host != "" {
+		printInfo("Identity origin: https://%s (%s); the Owner passkey binds to it at setup, and changing it later re-registers passkeys (stackkit user migrate-domain)", host, source)
 	}
 	printInfo("Spec hash: %s", result.SpecHash)
 	if authoring.Status == "preview" {
@@ -535,4 +544,31 @@ func printArchitectureV2InitSummary(specPath string) {
 	printInfo("Next: validate your choices with stackkit validate --spec %s", shellArgument(specPath))
 	printInfo("Then prepare the deployment with stackkit generate --spec %s", shellArgument(specPath))
 	printInfo("Keep this directory: it holds your configuration and local lifecycle evidence.")
+}
+
+// admitArchitectureV2IdentityOrigin decides the identity origin before the
+// Owner passkey exists (homelab identity target §5, §14.2): a kombify.me name
+// or an own domain serves id.<name> with publicly trusted certificates, and
+// lab.home is the local-only origin. Any other special-use or reserved name
+// can never carry a publicly trusted certificate, so it is refused here,
+// before a passkey could bind to it. An empty domain keeps the kit default.
+func admitArchitectureV2IdentityOrigin(domain string) error {
+	domain = strings.ToLower(strings.Trim(strings.TrimSpace(domain), "."))
+	if domain == "" {
+		return nil
+	}
+	if _, source := resolvedplan.IdentityOriginOf(domain); source == "reserved-name" {
+		return fmt.Errorf("%s cannot be the identity origin: passkeys bind to id.%s, and a reserved name never carries a publicly trusted certificate. Use a kombify.me name or your own domain, or omit --domain for the local-only lab.home", domain, domain)
+	}
+	return nil
+}
+
+// architectureV2CanonicalIdentityOrigin reads the identity origin init fixed
+// from the canonical StackSpec, the way the compiler derives it.
+func architectureV2CanonicalIdentityOrigin(canonicalStackSpec []byte) (host, source string) {
+	address, err := architectureV2CanonicalAddress(canonicalStackSpec)
+	if err != nil {
+		return "", ""
+	}
+	return resolvedplan.IdentityOriginOf(address.Domain)
 }

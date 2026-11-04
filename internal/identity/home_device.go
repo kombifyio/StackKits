@@ -2,17 +2,14 @@ package identity
 
 import (
 	"bytes"
-	"context"
-	"crypto"
-	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"io"
 	"io/fs"
 	"net"
+	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -22,94 +19,155 @@ import (
 const (
 	homeDeviceRegistryPath     = ".stackkit/custody/home-verifier/devices.json"
 	homeDeviceRegistryMaxBytes = 512 << 10
-	homeDeviceRegistrySchema   = "stackkit.home-device-registry/v1"
+	// homeDeviceRegistryGrowthBytes is the size an enrollment may grow the
+	// registry to; the rest stays free for revocations, renewals and
+	// confirmations, so the registry can never become unreadable.
+	homeDeviceRegistryGrowthBytes = 448 << 10
+	homeDeviceRegistrySchema      = "stackkit.home-device-registry/v3"
+	// A revoked entry becomes a tombstone (its key thumbprint only) once
+	// every credential it could hold has expired; a lapsed entry is dropped a
+	// week after it lapsed.
+	homeRevokedTombstoneAfter = 24 * time.Hour
+	homeLapsedRetention       = 7 * 24 * time.Hour
+)
+
+// HomeDeviceRegistryFile is the device registry below the workspace root;
+// the VPN add-on resync watches it for revocations.
+const HomeDeviceRegistryFile = homeDeviceRegistryPath
+
+// Approval modes of a registry entry (#DeviceEnrollmentPolicy): approved
+// automatically at home, confirmed away by a step-up from the person's own
+// enrolled device or by the Owner at the Authority, or still pending.
+const (
+	HomeApprovalHome      = "home"
+	HomeApprovalOwnDevice = "own-device"
+	HomeApprovalOwner     = "owner"
+	HomeApprovalPending   = "pending"
+)
+
+// Custody classes of a device key (#DeviceCustodyClassV1, Connect D4).
+const (
+	HomeCustodyHardware    = "hardware"
+	HomeCustodyOSProtected = "os-protected"
+	HomeCustodySoftware    = "software"
 )
 
 var (
+	// ErrHomeRegistryFull refuses a change that would grow the registry past
+	// its bound; revoking devices still works.
+	ErrHomeRegistryFull   = errors.New("identity: the device registry is full; revoke unused devices first")
 	ErrHomeDeviceRevoked  = errors.New("identity: this device key was revoked and cannot enroll again; generate a new key")
-	ErrHomeDeviceConflict = errors.New("identity: another active device already uses this name")
+	ErrHomeDeviceConflict = errors.New("identity: this device key is already enrolled or pending, or another device of this account uses this name")
 	ErrHomeDeviceNotFound = errors.New("identity: no enrolled device has this id")
 )
 
-// HomeDeviceIssuer turns an admitted device CSR into a certificate chain
-// through the step-ca device provisioner. Production uses
-// localevidence.IssueHomeDeviceCertificate.
-type HomeDeviceIssuer func(ctx context.Context, csrPEM []byte, ttlSeconds int) ([]byte, error)
-
-// HomeDevice is the public registry record of one enrolled device key. It
-// holds no private key, pairing code or certificate body.
+// HomeDevice is the registry entry of one device key at the Authority. ID is
+// the RFC 7638 thumbprint of the device-generated public key; the entry binds
+// to one Homelab account (the Pocket ID subject of the person who enrolled
+// it) and expires 180 days after its last use. It holds no private key or
+// credential.
 type HomeDevice struct {
-	ID           string     `json:"id"`
-	Name         string     `json:"name"`
-	OwnerSubject string     `json:"ownerSubject"`
-	SerialNumber string     `json:"serialNumber"`
-	EnrolledAt   time.Time  `json:"enrolledAt"`
-	NotAfter     time.Time  `json:"notAfter"`
-	Revoked      bool       `json:"revoked"`
-	RevokedAt    *time.Time `json:"revokedAt,omitempty"`
+	ID                 string             `json:"id"`
+	Name               string             `json:"name"`
+	AccountSubject     string             `json:"accountSubject"`
+	Custody            string             `json:"custody"`
+	PublicKey          jose.JSONWebKey    `json:"publicKey"`
+	EnrolledAt         time.Time          `json:"enrolledAt"`
+	LastUsedAt         time.Time          `json:"lastUsedAt"`
+	LastUserVerifiedAt time.Time          `json:"lastUserVerifiedAt"`
+	Approval           HomeDeviceApproval `json:"approval"`
+	Revoked            bool               `json:"revoked"`
+	RevokedAt          *time.Time         `json:"revokedAt,omitempty"`
+	RevokedBy          string             `json:"revokedBy,omitempty"`
 }
 
+// HomeDeviceApproval records how an entry was admitted. A pending entry
+// (an away enrollment) has PendingUntil and no credential until it is
+// confirmed; By is the confirming device ID or the Owner subject.
+type HomeDeviceApproval struct {
+	Mode         string     `json:"mode"`
+	By           string     `json:"by,omitempty"`
+	At           *time.Time `json:"at,omitempty"`
+	PendingUntil *time.Time `json:"pendingUntil,omitempty"`
+}
+
+// ExpiresAt is when the entry lapses without another use.
+func (d HomeDevice) ExpiresAt() time.Time {
+	return d.LastUsedAt.Add(HomeDeviceRegistryEntryUnused)
+}
+
+// Active reports whether the entry is approved, not revoked and not lapsed.
+func (d HomeDevice) Active(now time.Time) bool {
+	return !d.Revoked && d.ID != "" && d.AccountSubject != "" && d.Approval.Mode != HomeApprovalPending &&
+		d.Approval.Mode != "" && now.Before(d.ExpiresAt())
+}
+
+// Pending reports whether the entry is an away enrollment awaiting its
+// confirmation.
+func (d HomeDevice) Pending(now time.Time) bool {
+	return !d.Revoked && d.Approval.Mode == HomeApprovalPending && d.Approval.PendingUntil != nil && now.Before(*d.Approval.PendingUntil)
+}
+
+// holdsSlot reports whether the entry counts against the account's device cap
+// and its device names.
+func (d HomeDevice) holdsSlot(now time.Time) bool {
+	return d.Active(now) || d.Pending(now)
+}
+
+// homeDeviceRegistry is the Authority's one device registry. RevokedKeys are
+// the tombstones of revoked entries: key thumbprints that never enroll
+// again. RemovedAccounts are the Homelab accounts the removal chain ended;
+// they never enroll again and every Home trust refresh carries them as
+// revoked accounts.
 type homeDeviceRegistry struct {
-	Schema  string       `json:"schema"`
-	Devices []HomeDevice `json:"devices"`
+	Schema          string                  `json:"schema"`
+	Devices         []HomeDevice            `json:"devices"`
+	Notices         []HomeEnrollmentNotice  `json:"notices"`
+	Attempts        []homeEnrollmentAttempt `json:"attempts"`
+	RevokedKeys     []string                `json:"revokedKeys"`
+	RemovedAccounts []string                `json:"removedAccounts"`
 }
 
-// EnrollHomeDeviceWithPairing completes the shared enrollment ceremony used by
-// the State Console code and the CLI token fallback: it redeems the single-use
-// pairing (Owner step-up, LAN, proof of possession), refuses a revoked key or a
-// name held by another active device, has the device provisioner issue a
-// certificate bounded by credentialTTLSeconds, and records the device.
-func EnrollHomeDeviceWithPairing(ctx context.Context, root string, request HomeEnrollmentRequest, issue HomeDeviceIssuer, now time.Time) (HomeDevice, []byte, error) {
-	now = now.UTC()
-	if issue == nil {
-		return HomeDevice{}, nil, errors.New("identity: no device provisioner is bound")
-	}
-	grant, err := RedeemHomePairing(root, request, now)
-	if err != nil {
-		return HomeDevice{}, nil, err
-	}
-	if !localevidence.ValidHomeDeviceName(grant.DeviceCommonName) || grant.CredentialTTLSeconds < 300 || grant.CredentialTTLSeconds > 86400 {
-		return HomeDevice{}, nil, ErrHomePairingDenied
-	}
-	registry, err := loadHomeDeviceRegistry(root)
-	if err != nil {
-		return HomeDevice{}, nil, err
-	}
-	for _, device := range registry.Devices {
-		if device.ID == grant.DeviceKeyThumbprint && device.Revoked {
-			return HomeDevice{}, nil, ErrHomeDeviceRevoked
-		}
-		if device.Name == grant.DeviceCommonName && device.ID != grant.DeviceKeyThumbprint && !device.Revoked && now.Before(device.NotAfter) {
-			return HomeDevice{}, nil, ErrHomeDeviceConflict
-		}
-	}
-	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: grant.CSRDER})
-	chain, err := issue(ctx, csrPEM, grant.CredentialTTLSeconds)
-	if err != nil {
-		return HomeDevice{}, nil, err
-	}
-	leaf, err := homeDeviceLeaf(chain, grant.DeviceKeyThumbprint, grant.CredentialTTLSeconds)
-	if err != nil {
-		return HomeDevice{}, nil, err
-	}
-	device := HomeDevice{
-		ID: grant.DeviceKeyThumbprint, Name: grant.DeviceCommonName, OwnerSubject: grant.OwnerSubject,
-		SerialNumber: leaf.SerialNumber.Text(16), EnrolledAt: now, NotAfter: leaf.NotAfter.UTC(),
-	}
+// compactHomeRegistry turns revoked entries into tombstones once their
+// credentials have expired, drops entries a week after they lapsed unused,
+// and drops the notices of entries it removes.
+func compactHomeRegistry(registry *homeDeviceRegistry, now time.Time) {
+	removed := map[string]bool{}
 	kept := registry.Devices[:0]
-	for _, existing := range registry.Devices {
-		if existing.ID != device.ID {
-			kept = append(kept, existing)
+	for _, device := range registry.Devices {
+		switch {
+		case device.Revoked && device.RevokedAt != nil && now.Sub(*device.RevokedAt) > homeRevokedTombstoneAfter:
+			if !slices.Contains(registry.RevokedKeys, device.ID) {
+				registry.RevokedKeys = append(registry.RevokedKeys, device.ID)
+			}
+			removed[device.ID] = true
+		case !device.Revoked && device.Approval.Mode != HomeApprovalPending && now.Sub(device.ExpiresAt()) > homeLapsedRetention:
+			removed[device.ID] = true
+		default:
+			kept = append(kept, device)
 		}
 	}
-	registry.Devices = append(kept, device)
-	if err := writeHomeDeviceRegistry(root, registry); err != nil {
-		return HomeDevice{}, nil, err
+	registry.Devices = kept
+	if len(removed) == 0 {
+		return
 	}
-	return device, chain, nil
+	notices := registry.Notices[:0]
+	for _, notice := range registry.Notices {
+		if !removed[notice.DeviceID] {
+			notices = append(notices, notice)
+		}
+	}
+	registry.Notices = notices
 }
 
-// ListHomeDevices returns enrolled and revoked devices, newest first.
+// homeEnrollmentAttempt is one verified enrollment submission of an account,
+// kept for the #DeviceEnrollmentPolicy rate limit.
+type homeEnrollmentAttempt struct {
+	Account string    `json:"account"`
+	At      time.Time `json:"at"`
+}
+
+// ListHomeDevices returns every registry entry, newest first.
 func ListHomeDevices(root string) ([]HomeDevice, error) {
 	registry, err := loadHomeDeviceRegistry(root)
 	if err != nil {
@@ -120,66 +178,66 @@ func ListHomeDevices(root string) ([]HomeDevice, error) {
 	return devices, nil
 }
 
-// RevokeHomeDevice permanently revokes a device key. Revocation only removes
-// access, so it is a local Owner operation without a fresh step-up; the key
-// can never enroll again.
-func RevokeHomeDevice(root, id string, now time.Time) (HomeDevice, error) {
-	registry, err := loadHomeDeviceRegistry(root)
-	if err != nil {
-		return HomeDevice{}, err
-	}
-	for index := range registry.Devices {
-		device := &registry.Devices[index]
-		if device.ID != id {
-			continue
-		}
-		if !device.Revoked {
-			at := now.UTC()
-			device.Revoked, device.RevokedAt = true, &at
-			if err := writeHomeDeviceRegistry(root, registry); err != nil {
-				return HomeDevice{}, err
-			}
-		}
-		return *device, nil
-	}
-	return HomeDevice{}, ErrHomeDeviceNotFound
-}
-
 // ObservedLANAddress classifies a transport peer address the server observed
-// (a connection RemoteAddr or the SSH client address of a node-local CLI). It
-// admits loopback, private (RFC 1918 / ULA) and link-local peers only; it is
-// never read from a request header or body.
+// (a connection RemoteAddr): private (RFC 1918 / ULA) or link-local peers
+// only, never loopback, never read from a request header or body. It narrows
+// who may use the LAN enrollment listener; it never establishes home on its
+// own, which only the listener the connection arrived on does.
 func ObservedLANAddress(address string) bool {
 	host := address
 	if h, _, err := net.SplitHostPort(address); err == nil {
 		host = h
 	}
 	ip := net.ParseIP(host)
-	return ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast())
+	return ip != nil && !ip.IsLoopback() && !ip.IsUnspecified() && (ip.IsPrivate() || ip.IsLinkLocalUnicast())
 }
 
-func homeDeviceLeaf(chain []byte, thumbprint string, ttl int) (*x509.Certificate, error) {
-	block, _ := pem.Decode(chain)
-	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, errors.New("identity: device provisioner returned no certificate")
+// ValidHomeDeviceName bounds the name a person gives a device: a lowercase
+// DNS-label-like name, never a URL or principal.
+func ValidHomeDeviceName(value string) bool {
+	if value == "" || len(value) > 63 || value[0] == '-' || value[len(value)-1] == '-' {
+		return false
 	}
-	leaf, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return nil, errors.New("identity: device provisioner returned an unreadable certificate")
+	for _, r := range value {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+			return false
+		}
 	}
-	issued, err := homeKeyThumbprint(leaf.PublicKey)
-	if err != nil || issued != thumbprint || leaf.NotAfter.Sub(leaf.NotBefore) > time.Duration(ttl)*time.Second {
-		return nil, errors.New("identity: device certificate does not match the enrolled key and credential lifetime")
-	}
-	return leaf, nil
+	return true
 }
 
-func homeKeyThumbprint(key any) (string, error) {
-	thumb, err := (&jose.JSONWebKey{Key: key}).Thumbprint(crypto.SHA256)
-	if err != nil {
-		return "", err
+func validHomeCustody(value string) bool {
+	return value == HomeCustodyHardware || value == HomeCustodyOSProtected || value == HomeCustodySoftware
+}
+
+func validHomeApproval(approval HomeDeviceApproval) bool {
+	switch approval.Mode {
+	case HomeApprovalHome, HomeApprovalOwnDevice, HomeApprovalOwner:
+		return approval.PendingUntil == nil
+	case HomeApprovalPending:
+		return approval.PendingUntil != nil
 	}
-	return base64.RawURLEncoding.EncodeToString(thumb), nil
+	return false
+}
+
+// updateHomeDeviceRegistry serializes every read-modify-write of the registry
+// across goroutines and processes, so a renewal can never write back an entry
+// a concurrent revocation just revoked.
+func updateHomeDeviceRegistry(root string, mutate func(*homeDeviceRegistry) error) error {
+	release, err := localevidence.AcquireCustodyLock(root, homeDeviceRegistryPath, 101)
+	if err != nil {
+		return err
+	}
+	defer release()
+	registry, err := loadHomeDeviceRegistry(root)
+	if err != nil {
+		return err
+	}
+	if err := mutate(&registry); err != nil {
+		return err
+	}
+	compactHomeRegistry(&registry, time.Now().UTC())
+	return writeHomeDeviceRegistry(root, registry)
 }
 
 func loadHomeDeviceRegistry(root string) (homeDeviceRegistry, error) {
@@ -191,12 +249,46 @@ func loadHomeDeviceRegistry(root string) (homeDeviceRegistry, error) {
 	if err != nil {
 		return registry, err
 	}
+	unreadable := errors.New("identity: unreadable device registry")
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&registry) != nil || decoder.Decode(new(any)) != io.EOF || registry.Schema != homeDeviceRegistrySchema {
-		return registry, errors.New("identity: unreadable device registry")
+		return registry, unreadable
+	}
+	seen := map[string]bool{}
+	for _, device := range registry.Devices {
+		thumbprint, thumbErr := homeKeyThumbprint(device.PublicKey.Key)
+		if device.ID == "" || seen[device.ID] || thumbErr != nil || thumbprint != device.ID || !validHomeDeviceKey(device.PublicKey, device.PublicKey.Algorithm) ||
+			!validHomeCustody(device.Custody) || !validHomeApproval(device.Approval) {
+			return registry, unreadable
+		}
+		seen[device.ID] = true
+	}
+	notices := map[string]bool{}
+	for _, notice := range registry.Notices {
+		if notice.ID == "" || notices[notice.ID] || !seen[notice.DeviceID] {
+			return registry, unreadable
+		}
+		notices[notice.ID] = true
+	}
+	tombstones := map[string]bool{}
+	for _, key := range registry.RevokedKeys {
+		if len(key) != 43 || tombstones[key] || seen[key] || strings.Trim(key, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") != "" {
+			return registry, unreadable
+		}
+		tombstones[key] = true
 	}
 	return registry, nil
+}
+
+// homeRegistrySize is the encoded size of the registry.
+func homeRegistrySize(registry homeDeviceRegistry) int {
+	registry.Schema = homeDeviceRegistrySchema
+	raw, err := json.Marshal(registry)
+	if err != nil {
+		return homeDeviceRegistryMaxBytes + 1
+	}
+	return len(raw)
 }
 
 func writeHomeDeviceRegistry(root string, registry homeDeviceRegistry) error {
@@ -204,6 +296,9 @@ func writeHomeDeviceRegistry(root string, registry homeDeviceRegistry) error {
 	raw, err := json.Marshal(registry)
 	if err != nil {
 		return err
+	}
+	if len(raw) > homeDeviceRegistryMaxBytes {
+		return ErrHomeRegistryFull
 	}
 	return writeHomePrivate(root, homeDeviceRegistryPath, raw, false)
 }

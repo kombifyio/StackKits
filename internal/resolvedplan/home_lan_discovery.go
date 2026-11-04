@@ -140,8 +140,8 @@ func projectHomeLANAdvertisement(routeRef string, route map[string]any, homeSite
 	if err != nil {
 		return nil, err
 	}
-	if policyExposure != "lan" {
-		return nil, fail(ErrProfileMismatch, path+".access.policyExposure", "LAN discovery requires effective LAN access policy, got %q", policyExposure)
+	if policyExposure != "local-only" {
+		return nil, fail(ErrProfileMismatch, path+".access.policyExposure", "LAN discovery requires a local-only access policy, got %q", policyExposure)
 	}
 	defaultClosed, err := requiredBoolField(access, path+".access", "defaultClosed")
 	if err != nil {

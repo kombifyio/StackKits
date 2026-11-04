@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
@@ -68,8 +69,13 @@ func EnsureStackKitServerCredentials(workspaceRoot string) (StackKitServerCreden
 // credential owner's uid:gid.
 const StackKitServerUserEnv = "STACKKIT_SERVER_USER"
 
-// StackKitServerComposeEnvironment returns the credential owner as Compose
-// interpolation. The server container runs as that uid:gid, so it reads the
+// StackKitServerWorkspaceEnv names the Compose interpolation that carries the
+// workspace root, from which the Basement core mounts the applied plan and the
+// owner runtime binding read-only into the Authority's identity workspace.
+const StackKitServerWorkspaceEnv = "STACKKIT_WORKSPACE_DIR"
+
+// StackKitServerComposeEnvironment returns the credential owner and the
+// workspace root as Compose interpolation. The server container runs as that uid:gid, so it reads the
 // owner-only files without any added capability. Before Apply has minted the
 // credentials it returns nothing, and a Compose file that needs the value
 // fails closed with guidance.
@@ -82,7 +88,33 @@ func StackKitServerComposeEnvironment(workspaceRoot string) []string {
 	if !ok {
 		return nil
 	}
-	return []string{StackKitServerUserEnv + "=" + owner}
+	absolute, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return nil
+	}
+	return []string{StackKitServerUserEnv + "=" + owner, StackKitServerWorkspaceEnv + "=" + absolute}
+}
+
+// StackKitServerOwner is the uid and gid the core's stackkit-server runs as
+// (the owner of its credentials, the account that ran Apply and owns the
+// custody). The host-side identity signer runs as this account too and
+// answers only it (and root).
+func StackKitServerOwner(workspaceRoot string) (uid, gid int, err error) {
+	directory, err := confinedCustodyPath(workspaceRoot, stackKitServerCustodyRelDir)
+	if err != nil {
+		return -1, -1, err
+	}
+	owner, ok := stackKitServerCredentialOwner(directory)
+	if !ok {
+		return -1, -1, errors.New("localevidence: the stackkit-server credentials are missing; run stackkit apply")
+	}
+	rawUID, rawGID, _ := strings.Cut(owner, ":")
+	uid, uidErr := strconv.Atoi(rawUID)
+	gid, gidErr := strconv.Atoi(rawGID)
+	if uidErr != nil || gidErr != nil || uid < 0 || gid < 0 {
+		return -1, -1, errors.New("localevidence: the stackkit-server credential owner is not a uid:gid")
+	}
+	return uid, gid, nil
 }
 
 // StackKitServerMCPTokenPath returns the MCP token location for owner-facing

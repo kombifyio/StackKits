@@ -23787,7 +23787,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:2489edf0ac17ca7c7439affc1010881dcb8e596b89d07878e49ff51c0c88f92b",
+          "contractHash": "sha256:8b0ae9a7c07114d4911fc22afb230bd73bf2abe2e672c8254b51cb69bcb33b66",
           "id": "compose",
           "inputBindings": [
             {
@@ -23937,7 +23937,7 @@
               "healthRef": "cloud-pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -23954,7 +23954,7 @@
               "healthRef": "cloud-tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -23985,7 +23985,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:6b245aa7ba15ba268baa422b84b2c549e83fd960ebaa2b351e65fe399847e614",
+          "contractHash": "sha256:a7eec5c8cb1ff06fbbdc32bb320497eb93dade31026292eb169d2bfbc744c953",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -24135,7 +24135,7 @@
               "healthRef": "cloud-pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -24152,7 +24152,7 @@
               "healthRef": "cloud-tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -24183,7 +24183,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:4dcd7068652e6e9ec38a7a4a6cfb6f3b727f244b8a48f673f75bac0948e1f68c",
+          "contractHash": "sha256:7538dfcbab66cfa811b0e305f24372fd3f8a4bd110ed968136041590fd3f9a4e",
           "id": "terramate",
           "inputBindings": [
             {
@@ -24334,7 +24334,7 @@
               "healthRef": "cloud-pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -24351,7 +24351,7 @@
               "healthRef": "cloud-tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -25133,7 +25133,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:cd226436f4b09d3eaa1cfcd44a10a23ed3200959ec960131e37eee210b839b03",
+          "contractHash": "sha256:52695046c8ca7429aed12240eb7df4a8fa7ea244c04bc41f20d4fda74e93d231",
           "id": "compose",
           "inputBindings": [
             {
@@ -25280,7 +25280,7 @@
               "healthRef": "cloud-pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -25297,7 +25297,7 @@
               "healthRef": "cloud-tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -25311,7 +25311,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:1932aec8c4e643a6ab9f18d22d9f2923133e5ef4cf102aa64f594747cb5acfc2",
+          "contractHash": "sha256:f90ae9e53785d39e172e9b27d8b8e219d41cab4be6cf294f5328eebef64cb8e7",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -25458,7 +25458,7 @@
               "healthRef": "cloud-pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -25475,7 +25475,7 @@
               "healthRef": "cloud-tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -25489,7 +25489,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:7ffd53d94ef7e7f0b0bb558fcb2df12137e5b6e46c19314350f450492797ac35",
+          "contractHash": "sha256:73356970f8be98153810cd7d05c71ae7f71a88c6bb4b92376dd8487476e67861",
           "id": "terramate",
           "inputBindings": [
             {
@@ -25637,7 +25637,7 @@
               "healthRef": "cloud-pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -25654,7 +25654,7 @@
               "healthRef": "cloud-tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -26075,6 +26075,7 @@
         "high": {
           "components": [
             "router",
+            "router-remote",
             "socket-proxy",
             "pocketid",
             "tinyauth",
@@ -26117,6 +26118,7 @@
         "standard": {
           "components": [
             "router",
+            "router-remote",
             "socket-proxy",
             "pocketid",
             "tinyauth",
@@ -26412,7 +26414,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:9433c6abb3e74f7402537bedb18a281b9b202806e5db459afacd7ce4f861d00c",
+          "contractHash": "sha256:f538b599459150d6441e0383d30197abf10023a3a08a55334397ea1aa5bf317c",
           "id": "compose",
           "inputBindings": [
             {
@@ -26606,7 +26608,7 @@
               "healthRef": "pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -26623,7 +26625,7 @@
               "healthRef": "tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -26654,7 +26656,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:66a1a1c29541a8ab44d4e9aede2eb0c31abcba363c337c2cef48a9cd8505c22d",
+          "contractHash": "sha256:0e2fe4118fffd6da64f64e3e320be956df0d100ecfeed25a626fc684382122fa",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -26848,7 +26850,7 @@
               "healthRef": "pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -26865,7 +26867,7 @@
               "healthRef": "tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -26896,7 +26898,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:83151892402d0fcada116a4f7bf2dd6278dff3b2119b9927c4017b668d00d823",
+          "contractHash": "sha256:38d73099a8e2d7eca87bc99d6a320fae38d79b33a87adb4a4f8a6c0af1468626",
           "id": "terramate",
           "inputBindings": [
             {
@@ -27091,7 +27093,7 @@
               "healthRef": "pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -27108,7 +27110,7 @@
               "healthRef": "tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -27294,6 +27296,32 @@
             ],
             "resources": {
               "memoryLimit": "256m"
+            },
+            "role": "application"
+          },
+          {
+            "dependsOn": [
+              "socket-proxy",
+              "stackkit-server"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/ping",
+              "port": 8080
+            },
+            "id": "router-remote",
+            "image": {
+              "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+              "ref": "ghcr.io/traefik/traefik:v3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core",
+              "basement-control",
+              "remote-connector"
+            ],
+            "resources": {
+              "memoryLimit": "128m"
             },
             "role": "application"
           },
@@ -27754,6 +27782,7 @@
           ],
           "componentRefs": [
             "router",
+            "router-remote",
             "socket-proxy",
             "step-ca",
             "kopia-agent",
@@ -27776,6 +27805,7 @@
         "high": {
           "components": [
             "router",
+            "router-remote",
             "socket-proxy",
             "pocketid",
             "tinyauth",
@@ -27817,6 +27847,7 @@
         "low": {
           "components": [
             "router",
+            "router-remote",
             "socket-proxy",
             "pocketid",
             "tinyauth",
@@ -27858,6 +27889,7 @@
         "standard": {
           "components": [
             "router",
+            "router-remote",
             "socket-proxy",
             "pocketid",
             "tinyauth",
@@ -28140,7 +28172,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:e087d7b3f9e0a909408e41a3797bd3fbc8d551620bedf79daa222ced933498a5",
+          "contractHash": "sha256:4e0f689bd53d4840f312d560b2ef162909879529fc12c8ef90ff9b330552f7e5",
           "id": "compose",
           "inputBindings": [
             {
@@ -28323,7 +28355,7 @@
               "healthRef": "pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -28340,7 +28372,7 @@
               "healthRef": "tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -28354,7 +28386,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:43461242567cffc9d268b46f527fc3c745f1ab59b9ce4f3b04e7e7215d50de73",
+          "contractHash": "sha256:33be1a01238854abf7bd71fb1d5bcb56471bf6858cefe63b7193834041f13ad1",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -28537,7 +28569,7 @@
               "healthRef": "pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -28554,7 +28586,7 @@
               "healthRef": "tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -28568,7 +28600,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:beb28123a7cea7426d20afdf297072f625311951c8341535c973fad10e1c22db",
+          "contractHash": "sha256:faa5ff07766637584fe27c0c156b1749fd2845c9be4448643e2be65907d5886d",
           "id": "terramate",
           "inputBindings": [
             {
@@ -28752,7 +28784,7 @@
               "healthRef": "pocketid-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "id",
               "targetPort": 1411,
               "upstreamProtocol": "http"
@@ -28769,7 +28801,7 @@
               "healthRef": "tinyauth-http",
               "ingressAuth": "none",
               "originSelector": "control-authority-site",
-              "requiredPrivilege": "identity",
+              "requiredPrivilege": "sign-in",
               "serviceRef": "auth",
               "targetPort": 3000,
               "upstreamProtocol": "http"
@@ -28938,6 +28970,32 @@
             ],
             "resources": {
               "memoryLimit": "256m"
+            },
+            "role": "application"
+          },
+          {
+            "dependsOn": [
+              "socket-proxy",
+              "stackkit-server"
+            ],
+            "health": {
+              "kind": "http",
+              "path": "/ping",
+              "port": 8080
+            },
+            "id": "router-remote",
+            "image": {
+              "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+              "ref": "ghcr.io/traefik/traefik:v3"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "basement-core",
+              "basement-control",
+              "remote-connector"
+            ],
+            "resources": {
+              "memoryLimit": "128m"
             },
             "role": "application"
           },
@@ -29225,6 +29283,7 @@
           ],
           "componentRefs": [
             "router",
+            "router-remote",
             "socket-proxy",
             "step-ca",
             "kopia-agent",
@@ -35717,10 +35776,11 @@
         "high": {
           "components": [
             "speechkit",
-            "speechkit-whisper",
-            "speechkit-tts"
+            "speechkit-stt",
+            "speechkit-tts",
+            "speechkit-discovery"
           ],
-          "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+          "description": "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -35746,10 +35806,11 @@
         "standard": {
           "components": [
             "speechkit",
-            "speechkit-whisper",
-            "speechkit-tts"
+            "speechkit-stt",
+            "speechkit-tts",
+            "speechkit-discovery"
           ],
-          "description": "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama.",
+          "description": "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama.",
           "executable": true,
           "hostFloor": {
             "minCpuCores": 2,
@@ -35791,7 +35852,7 @@
         }
       ],
       "metadata": {
-        "description": "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a whisper.cpp whisper-server sidecar for speech-to-text, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth) and the bearer token comes from custody. Only the server joins the private AI network; the sidecars stay on the workload network.",
+        "description": "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a Parakeet speech-to-text sidecar from the same image, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth, LAN device pairing) and the bearer token comes from custody. The server joins the private AI network and listens on the LAN at port 8080; a host-network announcer advertises it over mDNS as _speechkit._tcp. The sidecars stay on the workload network.",
         "id": "stackkits-speechkit-runtime",
         "version": "1.0.0"
       },
@@ -35879,7 +35940,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:92fa34b8a326bc36d296f9585aab41d46d66ff66731058b04e270448b75a62fb",
+          "contractHash": "sha256:3a904eb5e109b4197f1a93a4a474f31695af0881b48e779052366b3cdd30fd18",
           "id": "speechkit",
           "inputBindings": [
             {
@@ -36035,9 +36096,12 @@
         "components": [
           {
             "dependsOn": [
-              "speechkit-tts",
-              "speechkit-whisper"
+              "speechkit-stt",
+              "speechkit-tts"
             ],
+            "environment": {
+              "SPEECHKIT_ALLOW_EMPTY_ORIGIN": "1"
+            },
             "health": {
               "kind": "http",
               "path": "/healthz",
@@ -36048,6 +36112,12 @@
               "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
               "ref": "ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder"
             },
+            "lanListeners": [
+              {
+                "port": 8080,
+                "protocol": "tcp"
+              }
+            ],
             "lifecycle": "daemon",
             "networkRefs": [
               "speechkit-internal"
@@ -36087,17 +36157,17 @@
             "entrypoint": [
               "/bin/sh",
               "-ec",
-              "mkdir -p /models/whisper; test -s /models/whisper/ggml-small.bin || { curl -fsSL --retry 5 -o /models/whisper/ggml-small.bin.part https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin \u0026\u0026 echo '1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b  /models/whisper/ggml-small.bin.part' | sha256sum -c - \u0026\u0026 mv /models/whisper/ggml-small.bin.part /models/whisper/ggml-small.bin; }; exec /app/build/bin/whisper-server --host 0.0.0.0 --port 8080 --model /models/whisper/ggml-small.bin --inference-path /v1/audio/transcriptions"
+              "mkdir -p /var/lib/speechkit/models/parakeet-ultra-int8; test -s /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/encoder.int8.onnx \u0026\u0026 echo 'f4d06712d32431b1718eceba2153c314ac4425e8fe708a3534f5e56c5ad53697  /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part' | sha256sum -c - \u0026\u0026 mv /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/decoder.int8.onnx \u0026\u0026 echo '94373c6405c8149d1c9d1e9862514e0e3e88dab1c7de18fac9d5df9c6ba5efdd  /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part' | sha256sum -c - \u0026\u0026 mv /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/joiner.int8.onnx \u0026\u0026 echo '8a71aaccfdba3d451775507a889afd2257d2e754463fd81095a8c8f290f924c2  /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part' | sha256sum -c - \u0026\u0026 mv /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/tokens.txt \u0026\u0026 echo 'd58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d  /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part' | sha256sum -c - \u0026\u0026 mv /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt; }; exec /app/speechkit-stt-sherpa --host 0.0.0.0 --port 8080 --model /var/lib/speechkit/models/parakeet-ultra-int8 --inference-path /v1/audio/transcriptions"
             ],
             "health": {
               "kind": "http",
-              "path": "/",
+              "path": "/health",
               "port": 8080
             },
-            "id": "speechkit-whisper",
+            "id": "speechkit-stt",
             "image": {
-              "digest": "sha256:fd7ca21c83126b08f610d02a50f68878a66388a4b96e90e2637ced84397013b5",
-              "ref": "ghcr.io/ggml-org/whisper.cpp:main"
+              "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+              "ref": "ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -36113,7 +36183,7 @@
                 "backup": false,
                 "class": "cache",
                 "id": "models",
-                "target": "/models"
+                "target": "/var/lib/speechkit/models"
               }
             ]
           },
@@ -36138,6 +36208,42 @@
               "memoryReservation": "512m"
             },
             "role": "machine-learning"
+          },
+          {
+            "command": [
+              "--discovery-only",
+              "--discovery-port",
+              "8080",
+              "--discovery-modes",
+              "dictation,assist,voiceagent"
+            ],
+            "dependsOn": [
+              "speechkit"
+            ],
+            "entrypoint": [
+              "/app/speechkit-server"
+            ],
+            "health": {
+              "command": [
+                "/app/speechkit-server",
+                "--discovery-only",
+                "--probe"
+              ],
+              "kind": "command"
+            },
+            "hostNetwork": true,
+            "id": "speechkit-discovery",
+            "image": {
+              "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+              "ref": "ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [],
+            "resources": {
+              "memoryLimit": "64m",
+              "memoryReservation": "16m"
+            },
+            "role": "application"
           }
         ],
         "delivery": "application-adapter",
@@ -54031,36 +54137,6 @@
           "timeoutSeconds": 30
         }
       ],
-      "homeAccessOverlay": {
-        "accountRequired": false,
-        "addressPool": "10.8.0.0/24",
-        "capabilityRef": "private-remote-access",
-        "endpointDiscovery": "owner-declared",
-        "implementation": "wireguard",
-        "interfaceName": "wg-stackkit",
-        "keyCustody": {
-          "devicePrivateKey": "device-generated-never-transferred",
-          "nodePrivateKey": "node-generated-local-custody",
-          "renderedOutput": "public-keys-only"
-        },
-        "listenPort": 51820,
-        "nodeAddress": "10.8.0.1",
-        "ownership": "kit-owned",
-        "peers": {
-          "allowedIPs": "single-host",
-          "identity": "device-key-thumbprint",
-          "removal": "on-revoke-or-expiry",
-          "source": "enrolled-home-devices"
-        },
-        "persistentKeepaliveSeconds": 25,
-        "routing": {
-          "allowBroadLAN": false,
-          "allowDefaultRoute": false,
-          "routeScope": "declared-services-only"
-        },
-        "sessionPolicy": "custody-session-ttl",
-        "transport": "udp"
-      },
       "metadata": {
         "id": "stackkits-home-private-remote-access",
         "version": "1.0.0"
@@ -61297,9 +61373,9 @@
                 {
                   "backup": false,
                   "class": "cache",
-                  "componentRef": "speechkit-whisper",
+                  "componentRef": "speechkit-stt",
                   "dataClasses": [],
-                  "target": "/models",
+                  "target": "/var/lib/speechkit/models",
                   "volumeRef": "models"
                 }
               ],
@@ -61369,7 +61445,7 @@
       ],
       "kind": "application",
       "metadata": {
-        "description": "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own.",
+        "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
         "id": "ai-speech",
         "version": "1.0.0"
       },

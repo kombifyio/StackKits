@@ -43,6 +43,7 @@ func configureApplicationTransferCommands() {
 		importCmd.Flags().String(f, "", "Required exact transfer admission value")
 	}
 	importCmd.Flags().Bool("owner-approve", false, "Approve selected destination application replacement")
+	importCmd.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving import")
 	importCmd.Flags().Bool("recover", false, "Recover the original signed transfer activation journal")
 	importCmd.Flags().Bool("json", false, "Output destination activation receipt")
 	importCmd.Flags().Int64("max-bytes", 512<<30, "Maximum decompressed bytes")
@@ -51,6 +52,7 @@ func configureApplicationTransferCommands() {
 		prepare.Flags().String(f, "", "Required exact transfer admission value")
 	}
 	prepare.Flags().Bool("owner-approve", false, "Approve selected new application credential adoption")
+	prepare.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving preparation")
 	prepare.Flags().Int64("max-bytes", 512<<30, "Maximum decompressed bytes")
 	backupCmd.AddCommand(export, importCmd, prepare)
 	recoverCmd := &cobra.Command{Use: "transfer-recover", Short: "Recover the original typed transfer activation through its existing journal", Args: machineAwareNoArgs, RunE: runApplicationTransferImport}
@@ -60,10 +62,12 @@ func configureApplicationTransferCommands() {
 	recoverCmd.Flags().Bool("recover", true, "Recover original transfer activation")
 	_ = recoverCmd.Flags().MarkHidden("recover")
 	recoverCmd.Flags().Bool("owner-approve", false, "Authorize original selected activation recovery")
+	recoverCmd.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving import")
 	recoverCmd.Flags().Bool("json", false, "Output recovery outcome")
 	recoverCmd.Flags().Int64("max-bytes", 512<<30, "Maximum decompressed archive bytes")
 	backupCmd.AddCommand(recoverCmd)
 	configureApplicationTransferControlCommands()
+	configureApplicationTransferTransportCommands()
 }
 
 func newNativeV2ApplicationBackupService(authority nativeV2BackupAuthority, workloads []string, exportWhileQuiesced func(context.Context) error, holdID ...func() string) (nativeV2BackupService, error) {
@@ -243,14 +247,11 @@ func runApplicationTransferExport(cmd *cobra.Command, _ []string) error {
 }
 
 func runApplicationTransferImport(cmd *cobra.Command, _ []string) error {
-	if err := requireApplicationTransferDestinationMode(getWorkDir()); err != nil {
-		return err
-	}
 	recovering, _ := cmd.Flags().GetBool("recover")
 	values := map[string]string{}
 	for _, f := range []string{"archive", "archive-sha256", "identity-file", "source-receipt", "source-owner", "source-fingerprint", "transfer-id", "expected-plan-hash"} {
 		values[f], _ = cmd.Flags().GetString(f)
-		if values[f] == "" && !(recovering && (f == "archive" || f == "identity-file")) {
+		if values[f] == "" && f != "archive" && f != "identity-file" {
 			return fmt.Errorf("--%s is required", f)
 		}
 	}
@@ -266,6 +267,14 @@ func runApplicationTransferImport(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	if !recovering {
+		if values["archive"], err = applicationTransferArchiveFile(getWorkDir(), values["archive"], values["archive-sha256"]); err != nil {
+			return err
+		}
+		if values["identity-file"], err = applicationTransferIdentityFile(getWorkDir(), values["identity-file"], admittedReceipt.Export.Manifest.ApplicationTransfer.Destination.Nonce); err != nil {
+			return err
+		}
+	}
 	ctx, cancel := context.WithTimeout(cmd.Context(), backupLongOperationTimeout)
 	defer cancel()
 	authority, err := inspectNativeV2BackupAuthorityForRequest(ctx, getWorkDir(), specFile)
@@ -275,8 +284,21 @@ func runApplicationTransferImport(cmd *cobra.Command, _ []string) error {
 	if err = authority.Plan.RequireExpectedPlanHash(values["expected-plan-hash"]); err != nil {
 		return err
 	}
+	receivingStackID, err := applicationTransferPlanStackID(authority.Plan.Canonical())
+	if err != nil {
+		return err
+	}
+	admitReceive := func(workspace string) error {
+		return admitApplicationTransferReceive(cmd, workspace, receivingStackID, applicationTransferReceiveImport, values["source-owner"], authority.Plan.Binding().SpecHash)
+	}
+	if err = admitReceive(authority.WorkspaceRoot); err != nil {
+		return err
+	}
 	admittedTransfer := *admittedReceipt.Export.Manifest.ApplicationTransfer
 	if err = verifyApplicationTransferIssuedAdmission(authority.WorkspaceRoot, admittedTransfer, !recovering); err != nil {
+		return err
+	}
+	if err = requireApplicationTransferAdmittedSource(authority.WorkspaceRoot, admittedTransfer.Destination.Nonce, values["source-owner"]); err != nil {
 		return err
 	}
 	if _, exists, e := readStoredApplicationTransferOutcome(authority.WorkspaceRoot, admittedTransfer, "stopped"); e != nil {
@@ -402,7 +424,7 @@ func runApplicationTransferImport(cmd *cobra.Command, _ []string) error {
 	}
 	activationInput := restoreactivation.ActivateInput{Transfer: &admission, WorkspaceRoot: authority.WorkspaceRoot, OperationID: operation, ExpectedPlanHash: values["expected-plan-hash"], OwnerApproved: true, Plan: plan, Manifest: manifest, CurrentLineage: authority.Lineage,
 		PrepareMutation: func(read context.Context) (func() error, error) {
-			if e := requireApplicationTransferDestinationMode(authority.WorkspaceRoot); e != nil {
+			if e := admitReceive(authority.WorkspaceRoot); e != nil {
 				return nil, e
 			}
 			if _, stopped, e := readStoredApplicationTransferOutcome(authority.WorkspaceRoot, transfer, "stopped"); e != nil {
@@ -475,6 +497,7 @@ func runApplicationTransferImport(cmd *cobra.Command, _ []string) error {
 	if err = persistApplicationTransferOutcome(authority.WorkspaceRoot, outcome); err != nil {
 		return err
 	}
+	cleanupApplicationTransferCustody(cmd, authority.WorkspaceRoot, transfer.Destination.Nonce, values["archive-sha256"])
 	return json.NewEncoder(cmd.OutOrStdout()).Encode(outcome)
 }
 

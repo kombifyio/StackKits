@@ -405,8 +405,8 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 	if err != nil {
 		return nil, err
 	}
-	homeAccessRequirements, homeAccessOverlays, externalHomeAccessBindings, err := buildHomeAccessProjection(
-		spec, hashes.spec, deployment.install, topology.sites, topology.nodes, contracts.capabilities, contracts.modules, contracts.providers,
+	homeAccessRequirements, externalHomeAccessBindings, err := buildHomeAccessProjection(
+		spec, hashes.spec, topology.sites, topology.nodes, contracts.capabilities, contracts.modules,
 	)
 	if err != nil {
 		return nil, err
@@ -439,7 +439,6 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		backupPolicy: backupPolicy, driftPolicy: driftPolicy, observability: spec.observability,
 		localReachability: localReachability, homeLANDiscovery: homeLANDiscovery,
 		homeAccessRequirements: homeAccessRequirements, externalHomeAccessBindings: externalHomeAccessBindings,
-		homeAccessOverlays:       homeAccessOverlays,
 		backupTargetRequirements: backupTargetRequirements, externalBackupTargetBindings: externalBackupTargetBindings,
 		homeBackupTargetRequirements: homeBackupTargetRequirements, externalHomeBackupTargetBindings: externalHomeBackupTargetBindings,
 		federationLinkRequirements: federationLinkRequirements, externalFederationLinkBindings: externalFederationLinkBindings,
@@ -495,7 +494,6 @@ func (c *Compiler) buildPlan(profile *profileView, spec *specView, resolved *res
 		"hostConformanceReceipts":          hostConformanceReceipts,
 		"homeAccessRequirements":           homeAccessRequirements,
 		"externalHomeAccessBindings":       externalHomeAccessBindings,
-		"homeAccessOverlays":               homeAccessOverlays,
 		"backupTargetRequirements":         backupTargetRequirements,
 		"externalBackupTargetBindings":     externalBackupTargetBindings,
 		"homeBackupTargetRequirements":     homeBackupTargetRequirements,
@@ -898,7 +896,7 @@ func (c *Compiler) buildProvider(spec *specView, resolved *resolution, id string
 		}
 		entry["certificateIssuers"] = cloned["certificateIssuers"]
 	}
-	for _, field := range []string{"overlayContracts", "remoteActionContracts", "homeAccessOverlay"} {
+	for _, field := range []string{"overlayContracts", "remoteActionContracts"} {
 		if rawContracts, exists := contract[field]; exists {
 			cloned, err := cloneObject(map[string]any{field: rawContracts}, true)
 			if err != nil {
@@ -1523,10 +1521,19 @@ func buildPlacement(workloads []any) ([]any, error) {
 }
 
 func buildIdentity(profile *profileView, spec *specView) (map[string]any, error) {
+	domain, err := objectField(spec.network, "spec.network", "domain")
+	if err != nil {
+		return nil, err
+	}
+	domainBase, err := stringField(domain, "spec.network.domain", "base")
+	if err != nil {
+		return nil, err
+	}
 	identity := map[string]any{
 		"humanAuthoritySiteRef":   spec.authoritySiteRef,
 		"possessionBoundSessions": true,
 		"lanLocationIsIdentity":   false,
+		"origin":                  identityOrigin(domainBase),
 	}
 	if spec.deviceEnrollment != nil {
 		device, err := cloneObject(spec.deviceEnrollment, true)
@@ -1550,6 +1557,47 @@ func buildIdentity(profile *profileView, spec *specView) (map[string]any, error)
 		identity["edgeVerifierSiteRefs"] = stringSliceAny(edgeRefs)
 	}
 	return identity, nil
+}
+
+// identityOrigin derives the Pocket ID host, and with it the passkey relying
+// party, from the homelab's name (#IdentityOriginV1, homelab identity target
+// §5): a kombify.me name or an own domain serves id.<name> with publicly
+// trusted certificates; lab.home exists only for a homelab declared
+// local-only and uses the homelab root; a special-use or reserved name never
+// carries a publicly trusted certificate.
+func identityOrigin(domainBase string) map[string]any {
+	origin := map[string]any{"name": domainBase, "host": "id." + domainBase}
+	lower := strings.ToLower(domainBase)
+	switch {
+	case lower == "lab.home":
+		origin["source"], origin["certificates"] = "local-only", "homelab-root"
+	case identityOriginReservedName(lower):
+		origin["source"], origin["certificates"] = "reserved-name", "homelab-root"
+	case strings.HasSuffix(lower, ".kombify.me"):
+		origin["source"], origin["certificates"] = "kombify-me", "publicly-trusted"
+	default:
+		origin["source"], origin["certificates"] = "own-domain", "publicly-trusted"
+	}
+	return origin
+}
+
+// IdentityOriginOf is the identity origin a homelab name gives: the Pocket ID
+// host and its source (kombify-me, own-domain, local-only or reserved-name),
+// exactly as the compiler derives it (#IdentityOriginV1). Init uses it to
+// decide the origin before any passkey binds to it.
+func IdentityOriginOf(domainBase string) (host, source string) {
+	origin := identityOrigin(domainBase)
+	return origin["host"].(string), origin["source"].(string)
+}
+
+// identityOriginReservedName mirrors #IdentityOriginReservedNamePattern.
+func identityOriginReservedName(lower string) bool {
+	for _, suffix := range []string{"localhost", "local", "internal", "arpa", "test", "invalid", "example", "home", "lan"} {
+		if lower == suffix || strings.HasSuffix(lower, "."+suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Compiler) buildData(profile *profileView, spec *specView, resolved *resolution) (map[string]any, error) {

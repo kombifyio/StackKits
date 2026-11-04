@@ -18,6 +18,11 @@
         "ref": "ghcr.io/traefik/traefik:v3"
       },
       {
+        "component": "router-remote",
+        "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+        "ref": "ghcr.io/traefik/traefik:v3"
+      },
+      {
         "component": "socket-proxy",
         "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
         "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
@@ -103,6 +108,11 @@
         "ref": "ghcr.io/traefik/traefik:v3"
       },
       {
+        "component": "router-remote",
+        "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+        "ref": "ghcr.io/traefik/traefik:v3"
+      },
+      {
         "component": "socket-proxy",
         "digest": "sha256:1f3a6f303320723d199d2316a3e82b2e2685d86c275d5e3deeaf182573b47476",
         "ref": "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
@@ -165,6 +175,11 @@
     "images": [
       {
         "component": "router",
+        "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
+        "ref": "ghcr.io/traefik/traefik:v3"
+      },
+      {
+        "component": "router-remote",
         "digest": "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8",
         "ref": "ghcr.io/traefik/traefik:v3"
       },

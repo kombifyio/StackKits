@@ -163,8 +163,14 @@ func authorRetainedIntent(cmd *cobra.Command, o intentChangeOptions, author func
 	if err := json.Unmarshal(current.CanonicalStackSpec, &document); err != nil {
 		return err
 	}
-	if o.output == "" && (document.Install.Mode == "advanced" || len(document.Nodes) != 1 || len(document.Sites) != 1) {
-		return errors.New("managed or multi-node intent requires --output <candidate.json>; retain the baseline and execute through Techstack Advanced dispatch")
+	if o.output == "" {
+		advanced, err := advancedManagedIntent(wd, document.Install.Mode)
+		if err != nil {
+			return err
+		}
+		if advanced || len(document.Nodes) != 1 || len(document.Sites) != 1 {
+			return errors.New("managed or multi-node intent requires --output <candidate.json>; retain the baseline and execute through Techstack Advanced dispatch")
+		}
 	}
 	candidate, err := author(service, current.CanonicalStackSpec)
 	if err != nil {

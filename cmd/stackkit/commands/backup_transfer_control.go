@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
 	"github.com/kombifyio/stackkits/internal/advancedtrust"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
@@ -76,6 +77,7 @@ func runApplicationTransferAbort(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	var outcome backuplifecycle.ApplicationTransferOutcome
+	targetAbsent, rerun, retired := false, false, false
 	err = lifecyclemutation.WithSnapshotMutationContext(ctx, getWorkDir(), join, operation, func(lease context.Context) error {
 		if _, exists, e := readStoredApplicationTransferOutcome(getWorkDir(), t, "activated"); e != nil {
 			return e
@@ -96,8 +98,21 @@ func runApplicationTransferAbort(cmd *cobra.Command, _ []string) error {
 		if prior, exists, e := readStoredApplicationTransferOutcome(getWorkDir(), t, "stopped"); e != nil {
 			return e
 		} else if exists {
-			outcome = prior
+			outcome, rerun = prior, true
 			return nil
+		}
+		// A withdrawn admission was never consumed (withdraw refuses a consumed
+		// one and preparation refuses a withdrawn one): nothing was received
+		// here, so the stop is signed without the receiving plan it replaced.
+		if withdrawn, e := applicationTransferAdmissionWithdrawn(getWorkDir(), t.Destination.Nonce); e != nil {
+			return e
+		} else if withdrawn {
+			stopped, e := pendingApplicationTransferStoppedOutcome(getWorkDir(), t)
+			if e != nil {
+				return e
+			}
+			outcome = stopped
+			return persistApplicationTransferOutcome(getWorkDir(), outcome)
 		}
 		// Resume the exact CAS terminalization after a crash without requiring a
 		// stale pre-retirement generation to match the already retired spec.
@@ -126,6 +141,7 @@ func runApplicationTransferAbort(cmd *cobra.Command, _ []string) error {
 				if e = journal.CompleteApplicationTransferAbortRetirement(operation, t.ID, planned); e != nil {
 					return e
 				}
+				retired = true
 				outcome, e = pendingApplicationTransferStoppedOutcome(getWorkDir(), t)
 				if e != nil {
 					return e
@@ -229,6 +245,9 @@ func runApplicationTransferAbort(cmd *cobra.Command, _ []string) error {
 			if e = retireAbortedApplicationTransferTarget(lease, cmd, operation, t, workloads, generated.Plan.Binding().SpecHash, journal); e != nil {
 				return e
 			}
+			retired = true
+		} else {
+			targetAbsent = true
 		}
 		if outcome.TransferID == "" {
 			outcome, e = pendingApplicationTransferStoppedOutcome(getWorkDir(), t)
@@ -241,6 +260,22 @@ func runApplicationTransferAbort(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	// No receiving runtime ever existed: a managed admit's candidate leaves
+	// the desired intent again. A rerun keeps whatever the first abort settled.
+	if targetAbsent || rerun {
+		if _, e := restoreApplicationTransferAdmittedIntent(ctx, getWorkDir(), t.Destination.Nonce); e != nil && !rerun {
+			return e
+		}
+	}
+	if retired {
+		// The retired receiving intent gets its own generated plan; the held
+		// receiving runtime and its data stay.
+		if e := generateApplicationTransferIntent(ctx, getWorkDir()); e != nil {
+			return fmt.Errorf("receiving intent is retired and held stopped; regenerate its plan: %w", e)
+		}
+	}
+	archiveDigest, _ := cmd.Flags().GetString("archive-sha256")
+	cleanupApplicationTransferCustody(cmd, getWorkDir(), t.Destination.Nonce, archiveDigest)
 	return json.NewEncoder(cmd.OutOrStdout()).Encode(outcome)
 }
 
@@ -272,6 +307,10 @@ func retireAbortedApplicationTransferTarget(ctx context.Context, cmd *cobra.Comm
 	if err = json.Unmarshal(current.CanonicalStackSpec, &intent); err != nil {
 		return err
 	}
+	advanced, err := advancedManagedIntent(getWorkDir(), intent.Install.Mode)
+	if err != nil {
+		return err
+	}
 	inventoryPath, _ := cmd.Flags().GetString("inventory")
 	inventory, err := readArchitectureV2Inventory(getWorkDir(), inventoryPath)
 	if err != nil {
@@ -296,10 +335,10 @@ func retireAbortedApplicationTransferTarget(ctx context.Context, cmd *cobra.Comm
 	if _, err = authority.Resolve(architecturev2.ResolveInput{StackSpec: candidate.CanonicalStackSpec, Inventory: inventory}); err != nil {
 		return err
 	}
-	if err = journal.PrepareApplicationTransferRetirement(operation, t.ID, candidate.SpecHash, intent.Install.Mode == "advanced"); err != nil {
+	if err = journal.PrepareApplicationTransferRetirement(operation, t.ID, candidate.SpecHash, advanced); err != nil {
 		return err
 	}
-	if intent.Install.Mode == "advanced" {
+	if advanced {
 		stopped, e := pendingApplicationTransferStoppedOutcome(getWorkDir(), t)
 		if e != nil {
 			return e
@@ -428,9 +467,13 @@ func runApplicationTransferResume(cmd *cobra.Command, _ []string) error {
 }
 
 func configureApplicationTransferControlCommands() {
-	target := &cobra.Command{Use: "transfer-target", Short: "Issue a signed receiving-node admission for an existing private age identity", Args: machineAwareNoArgs, RunE: runApplicationTransferTarget}
-	target.Flags().String("identity-file", "", "Existing private receiving age identity")
+	target := &cobra.Command{Use: "transfer-target", Short: "Issue a signed receiving-node admission for a private age identity", Args: machineAwareNoArgs, RunE: runApplicationTransferTarget}
+	target.Flags().String("identity-file", "", "Existing private receiving age identity (default: a new node-held identity)")
 	target.Flags().String("expected-plan-hash", "", "Exact receiving candidate Plan hash")
+	target.Flags().String("candidate-spec", "", "Managed node: the Techstack-approved receiving candidate StackSpec to persist and generate")
+	target.Flags().String("source-owner", "", "Managed node: the source Owner the Techstack receive capability names")
+	target.Flags().String("expected-spec-hash", "", "Managed node: the exact current intent the receiving candidate was authored from")
+	target.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving admission")
 	finish := &cobra.Command{Use: "transfer-finish", Short: "Retire selected source intent after signed destination activation and retain all source data", Args: machineAwareNoArgs, RunE: runApplicationTransferFinish}
 	for _, f := range []string{"source-receipt", "target-outcome", "target-fingerprint", "candidate-output", "inventory"} {
 		finish.Flags().String(f, "", "Exact existing transfer/source retirement input")
@@ -455,57 +498,105 @@ func configureApplicationTransferControlCommands() {
 }
 
 func runApplicationTransferTarget(cmd *cobra.Command, _ []string) error {
-	if err := requireApplicationTransferDestinationMode(getWorkDir()); err != nil {
-		return err
-	}
+	workspace := getWorkDir()
 	identityFile, _ := cmd.Flags().GetString("identity-file")
 	expected, _ := cmd.Flags().GetString("expected-plan-hash")
-	if identityFile == "" || expected == "" {
-		return errors.New("receiving admission requires --identity-file and --expected-plan-hash")
-	}
-	identities, err := backuplifecycle.ReadEmergencyIdentities(identityFile)
+	candidatePath, _ := cmd.Flags().GetString("candidate-spec")
+	sourceOwner, _ := cmd.Flags().GetString("source-owner")
+	expectedSpec, _ := cmd.Flags().GetString("expected-spec-hash")
+	managed, err := applicationTransferManaged(workspace)
 	if err != nil {
-		return err
-	}
-	if len(identities) != 1 {
-		return errors.New("receiving admission requires exactly one private X25519 identity")
-	}
-	identity, ok := identities[0].(*age.X25519Identity)
-	if !ok {
-		return errors.New("receiving admission requires X25519 identity")
-	}
-	current, err := inspectNativeV2GeneratedAuthority(cmd.Context(), getWorkDir(), specFile)
-	if err != nil {
-		return err
-	}
-	if err = current.Plan.RequireExpectedPlanHash(expected); err != nil {
-		return err
-	}
-	var plan struct {
-		StackID string `json:"stackId"`
-	}
-	if err = json.Unmarshal(current.Plan.Canonical(), &plan); err != nil {
 		return err
 	}
 	var nonce [32]byte
 	if _, err = rand.Read(nonce[:]); err != nil {
 		return err
 	}
+	nonceHex := hex.EncodeToString(nonce[:])
+	// A managed node receives only the exact Techstack-approved candidate:
+	// the grant names its bytes and the source Owner. A standalone node keeps
+	// its operator-authored, already generated receiving plan.
+	// Every failure after a managed admit changed the desired intent returns
+	// the node to the intent the admit recorded before it persisted.
+	admitted := false
+	fail := func(cause error) error {
+		if !admitted {
+			return cause
+		}
+		if _, restoreErr := restoreApplicationTransferAdmittedIntent(cmd.Context(), workspace, nonceHex); restoreErr != nil {
+			return errors.Join(cause, fmt.Errorf("restore the prior receiving intent: %w", restoreErr))
+		}
+		return cause
+	}
+	if managed {
+		if candidatePath == "" || sourceOwner == "" || expectedSpec == "" {
+			return errors.New("managed receiving admission requires --candidate-spec, --expected-spec-hash, --source-owner and --capability")
+		}
+		planHash, e := admitManagedApplicationTransferCandidate(cmd, workspace, candidatePath, sourceOwner, expectedSpec, nonceHex)
+		if e != nil {
+			return e
+		}
+		admitted = true
+		if expected != "" && expected != planHash {
+			return fail(errors.New("generated receiving plan differs from --expected-plan-hash"))
+		}
+		expected = planHash
+	} else if candidatePath != "" || sourceOwner != "" || expectedSpec != "" {
+		return errors.New("--candidate-spec, --expected-spec-hash and --source-owner admit a managed node only; author and generate the receiving intent first")
+	}
+	if expected == "" {
+		return errors.New("receiving admission requires --expected-plan-hash")
+	}
+	var identity *age.X25519Identity
+	if identityFile != "" {
+		identities, e := backuplifecycle.ReadEmergencyIdentities(identityFile)
+		if e != nil {
+			return fail(e)
+		}
+		if len(identities) != 1 {
+			return fail(errors.New("receiving admission requires exactly one private X25519 identity"))
+		}
+		x, ok := identities[0].(*age.X25519Identity)
+		if !ok {
+			return fail(errors.New("receiving admission requires X25519 identity"))
+		}
+		identity = x
+	} else if identity, err = newApplicationTransferIdentity(); err != nil {
+		return fail(err)
+	}
+	current, err := inspectNativeV2GeneratedAuthority(cmd.Context(), workspace, specFile)
+	if err != nil {
+		return fail(err)
+	}
+	if err = current.Plan.RequireExpectedPlanHash(expected); err != nil {
+		return fail(err)
+	}
+	var plan struct {
+		StackID string `json:"stackId"`
+	}
+	if err = json.Unmarshal(current.Plan.Canonical(), &plan); err != nil {
+		return fail(err)
+	}
 	key, err := localevidence.LoadOwnerKey(current.WorkspaceRoot)
 	if err != nil {
-		return err
+		return fail(err)
 	}
-	admission := applicationTransferDestinationAdmission{APIVersion: "stackkit.application-transfer-destination/v1", Destination: backuplifecycle.ApplicationTransferDestination{OwnerRef: current.OwnerRef, SigningFingerprint: localevidence.ApplicationTransferFingerprint(key.Public()), StackID: plan.StackID, SiteRef: current.Owner.Binding.SiteRef, NodeRef: current.Owner.Binding.NodeRef, PlanHash: expected, Recipient: identity.Recipient().String(), Nonce: hex.EncodeToString(nonce[:]), ExpiresAt: time.Now().UTC().Add(12 * time.Hour)}}
+	admission := applicationTransferDestinationAdmission{APIVersion: "stackkit.application-transfer-destination/v1", Destination: backuplifecycle.ApplicationTransferDestination{OwnerRef: current.OwnerRef, SigningFingerprint: localevidence.ApplicationTransferFingerprint(key.Public()), StackID: plan.StackID, SiteRef: current.Owner.Binding.SiteRef, NodeRef: current.Owner.Binding.NodeRef, PlanHash: expected, Recipient: identity.Recipient().String(), Nonce: nonceHex, ExpiresAt: time.Now().UTC().Add(12 * time.Hour)}}
 	canonical, err := json.Marshal(admission)
 	if err != nil {
-		return err
+		return fail(err)
 	}
 	admission.Signature, err = localevidence.SignApplicationTransfer(current.WorkspaceRoot, canonical)
 	if err != nil {
-		return err
+		return fail(err)
+	}
+	if identityFile == "" {
+		if err = persistApplicationTransferIdentity(current.WorkspaceRoot, admission.Destination.Nonce, identity); err != nil {
+			return fail(err)
+		}
 	}
 	if err = persistApplicationTransferAdmission(current.WorkspaceRoot, admission); err != nil {
-		return err
+		return fail(err)
 	}
 	return json.NewEncoder(cmd.OutOrStdout()).Encode(admission)
 }
@@ -612,6 +703,9 @@ func runApplicationTransferFinish(cmd *cobra.Command, _ []string) error {
 		if e != nil {
 			return e
 		}
+		if e = generateApplicationTransferIntent(cmd.Context(), getWorkDir()); e != nil {
+			return fmt.Errorf("source intent is retired with its data retained; regenerate its plan: %w", e)
+		}
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"transferId": t.ID, "sourceState": "retired-stopped-data-retained", "retiredSpecHash": current.SpecHash})
 	}
 	var intent struct {
@@ -620,6 +714,10 @@ func runApplicationTransferFinish(cmd *cobra.Command, _ []string) error {
 		} `json:"install"`
 	}
 	if err = json.Unmarshal(current.CanonicalStackSpec, &intent); err != nil {
+		return err
+	}
+	advanced, err := advancedManagedIntent(getWorkDir(), intent.Install.Mode)
+	if err != nil {
 		return err
 	}
 	inventoryPath, _ := cmd.Flags().GetString("inventory")
@@ -660,10 +758,10 @@ func runApplicationTransferFinish(cmd *cobra.Command, _ []string) error {
 		if e := journalService.RecordApplicationTransferOutcome(source.SourceOperationID, t.ID, outcomeDigest, "activated"); e != nil {
 			return e
 		}
-		if e := journalService.PrepareApplicationTransferRetirement(source.SourceOperationID, t.ID, candidate.SpecHash, intent.Install.Mode == "advanced"); e != nil {
+		if e := journalService.PrepareApplicationTransferRetirement(source.SourceOperationID, t.ID, candidate.SpecHash, advanced); e != nil {
 			return e
 		}
-		if intent.Install.Mode == "advanced" {
+		if advanced {
 			scope := advancedcapability.TransferRetirement{BaselineSpecHash: current.SpecHash, CandidateSpecHash: candidate.SpecHash, OperationID: source.SourceOperationID, OutcomeDigest: outcomeDigest, Role: "source", TransferID: t.ID}
 			if e := admitApplicationTransferRetirement(cmd, candidate.CanonicalStackSpec, scope, plan); e != nil {
 				return e
@@ -678,6 +776,11 @@ func runApplicationTransferFinish(cmd *cobra.Command, _ []string) error {
 	})
 	if err != nil {
 		return err
+	}
+	// The retired intent gets its own generated plan, so the node's later
+	// lifecycle operations admit it; the stopped runtime and its data stay.
+	if err = generateApplicationTransferIntent(cmd.Context(), getWorkDir()); err != nil {
+		return fmt.Errorf("source intent is retired with its data retained; regenerate its plan: %w", err)
 	}
 	return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{"apiVersion": "stackkit.application-transfer-source-finish/v1", "transferId": t.ID, "sourceState": "retired-stopped-data-retained", "retiredSpecHash": retiredHash, "destinationOutcomeDigest": outcomeDigest, "workloads": workloads})
 }
@@ -765,6 +868,11 @@ type applicationTransferAdmissionConsumption struct {
 }
 
 func consumeApplicationTransferAdmission(workspace string, t backuplifecycle.ApplicationTransfer, sourceFingerprint, ciphertextDigest string) error {
+	if withdrawn, err := applicationTransferAdmissionWithdrawn(workspace, t.Destination.Nonce); err != nil {
+		return err
+	} else if withdrawn {
+		return errors.New("the receiving admission was withdrawn; nothing is adopted")
+	}
 	record := applicationTransferAdmissionConsumption{TransferID: t.ID, SourceOwner: t.SourceOwner, SourceFingerprint: sourceFingerprint, CiphertextDigest: strings.TrimPrefix(ciphertextDigest, "sha256:"), Destination: t.Destination}
 	canonical, err := json.Marshal(record)
 	if err != nil {
@@ -913,38 +1021,4 @@ func writeApplicationTransferFile(output string, data []byte) error {
 		return errors.New("transfer evidence was not durably installed")
 	}
 	return root.VerifyPathIdentity()
-}
-
-// Advanced receiving activation needs its own exact Techstack grant. Until
-// that wire/dispatch step exists, refuse before issuing an admission or
-// decrypting/adopting credentials. Aborting a prior admission stays available.
-func requireApplicationTransferDestinationMode(workspace string) error {
-	specPath, _, _, err := config.NewLoader(workspace).ResolveStackSpecPathForRead(specFile)
-	if err != nil {
-		return err
-	}
-	raw, err := os.ReadFile(specPath)
-	if err != nil {
-		return err
-	}
-	author, err := architecturev2.NewEmbeddedService(architecturev2.StackKitsV2Contract(version))
-	if err != nil {
-		return err
-	}
-	current, err := author.ValidateStackSpec(raw)
-	if err != nil {
-		return err
-	}
-	var intent struct {
-		Install struct {
-			Mode string `json:"mode"`
-		} `json:"install"`
-	}
-	if err = json.Unmarshal(current.CanonicalStackSpec, &intent); err != nil {
-		return err
-	}
-	if intent.Install.Mode == "advanced" {
-		return errors.New("Advanced receiving transfer activation requires its exact Techstack capability dispatch; no receiving admission was issued")
-	}
-	return nil
 }

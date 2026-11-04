@@ -70,7 +70,7 @@ _architectureV2CloudStandaloneCoreComputeProfiles: {
 
 _architectureV2BasementCoreComputeProfile: _architectureV2CoreComputeProfile & {
 	description: "Local routing, owner identity, internal certificates, the site resolver, application management, backup agent, the hub and the StackKits server with its MCP endpoint. Standard and high have the same declared components and resource envelope; high does not claim additional capacity or availability."
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "kopia-agent", "hub", "stackkit-server"]
+	components: ["router", "router-remote", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "coolify", "coolify-postgres", "coolify-redis", "coolify-realtime", "kopia-agent", "hub", "stackkit-server"]
 }
 _architectureV2BasementCoreComputeProfiles: {
 	standard: _architectureV2BasementCoreComputeProfile
@@ -83,7 +83,7 @@ _architectureV2BasementStandaloneCoreComputeProfile: #ModuleComputeProfileV2 & {
 	platformManagement: "standalone"
 	hostFloor: {minCpuCores: 2, minRamGB: 2, minStorageGB: 10}
 	recommended: {cpuCores: 2, ramGB: 2, storageGB: 10}
-	components: ["router", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "kopia-agent", "hub", "stackkit-server"]
+	components: ["router", "router-remote", "socket-proxy", "pocketid", "tinyauth", "step-ca", "lan-dns", "kopia-agent", "hub", "stackkit-server"]
 	degradations: ["paas-management-omitted"]
 	provenance: {
 		hostFloor:   _architectureV2PolicyFloorProvenance
@@ -689,16 +689,16 @@ _architectureV2HermesComputeProfile: #ModuleComputeProfileV2 & {
 }
 _architectureV2HermesComputeProfiles: {standard: _architectureV2HermesComputeProfile, high: _architectureV2HermesComputeProfile}
 
-// Private AI speech (kombify SpeechKit with local providers). The server is
-// light; the whisper.cpp small model (CPU) and the Kokoro-82M CPU runtime
-// carry the memory. Assist uses the node's Ollama, whose profile holds the
-// model memory.
+// Private AI speech (kombify SpeechKit with local providers). The server and
+// its mDNS announcer are light; the Parakeet int8 model (CPU) and the
+// Kokoro-82M CPU runtime carry the memory. Assist uses the node's Ollama,
+// whose profile holds the model memory.
 _architectureV2SpeechKitComputeProfile: #ModuleComputeProfileV2 & {
-	description: "kombify SpeechKit server with a whisper.cpp small-model sidecar (about 1 GB, up to 3 GB while transcribing) and a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB). Assist runs on the inference module's Ollama."
+	description: "kombify SpeechKit server with a Parakeet int8 speech-to-text sidecar (about 1 GB, up to 3 GB while transcribing), a Kokoro-FastAPI CPU sidecar (about 512 MB, up to 2 GB) and a small mDNS announcer. Assist runs on the inference module's Ollama."
 	maturity:    "beta", executable: true, realization: "apply-ready"
 	hostFloor:   _architectureV2CoreComputeProfile.hostFloor
 	reservation: ramGB: 2
-	components: ["speechkit", "speechkit-whisper", "speechkit-tts"]
+	components: ["speechkit", "speechkit-stt", "speechkit-tts", "speechkit-discovery"]
 	provenance: {
 		hostFloor:   _architectureV2PolicyFloorProvenance
 		reservation: _architectureV2PolicyReservationProvenance

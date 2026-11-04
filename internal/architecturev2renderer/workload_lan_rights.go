@@ -28,6 +28,38 @@ var governedLANRights = map[string]struct {
 		component: "zigbee2mqtt",
 		device:    &selectedPaaSDevicePassthrough{SettingRef: "usb-device", Target: "/dev/zigbee"},
 	},
+	// The speech module exists to serve the household's devices on the LAN
+	// (Box, phones, desktop), each with its own device token or the server
+	// token, so its listener is on with the module (platform-eu2nt.8).
+	speechKitWorkloadModuleID: {
+		component: "speechkit",
+		listeners: []selectedPaaSLANListener{{Port: speechKitPort, Protocol: "tcp"}},
+	},
+}
+
+// governedHostNetwork names the only component per module that may run in
+// the host's network namespace: a LAN announcer whose mDNS multicast never
+// leaves a bridge network. It publishes nothing and joins no other network.
+var governedHostNetwork = map[string]string{
+	speechKitWorkloadModuleID: speechKitDiscoveryComponentID,
+}
+
+// validateHostNetwork admits hostNetwork only for the governed announcer,
+// which then carries no network, port, listener, peer network or egress.
+func validateHostNetwork(moduleRef string, component selectedPaaSRuntimeComponent, path string) error {
+	if !component.HostNetwork {
+		return nil
+	}
+	if governedHostNetwork[moduleRef] != component.ID {
+		return fail(ErrInvalidPlan, path+".hostNetwork", "host networking is admitted only for the governed LAN announcer")
+	}
+	if len(component.NetworkRefs) != 0 || len(component.PublishedPorts) != 0 || len(component.LANListeners) != 0 ||
+		len(component.PeerNetworks) != 0 || component.Egress || len(component.Volumes) != 0 ||
+		len(component.SecretEnvironment) != 0 || len(component.SecretFiles) != 0 || len(component.Devices) != 0 ||
+		component.DevicePassthrough != nil || component.Accelerator != nil {
+		return fail(ErrInvalidPlan, path+".hostNetwork", "a host-network announcer carries no network, port, volume, secret or device")
+	}
+	return nil
 }
 
 // hostDevicePattern admits stable serial adapter paths only: a by-id link
@@ -71,6 +103,10 @@ func materializeLANRights(component *selectedPaaSRuntimeComponent, values map[st
 	listeners := component.LANListeners
 	component.LANListeners = nil
 	for _, listener := range listeners {
+		if listener.SettingRef == "" {
+			component.LANListeners = append(component.LANListeners, listener)
+			continue
+		}
 		raw, set := values[listener.SettingRef]
 		if !set {
 			continue

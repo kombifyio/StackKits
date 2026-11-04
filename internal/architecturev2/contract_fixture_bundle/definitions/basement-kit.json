@@ -1,8 +1,9 @@
 {
   "accessDefaults": {
     "deviceBoundSessions": true,
-    "deviceEnrollment": "local-only",
+    "deviceEnrollment": "person",
     "lanLocationIsIdentity": false,
+    "privilegedRemoteReach": "owner-opt-in",
     "privilegedStepUpRequired": true,
     "publicRoutesDefaultClosed": true
   },
@@ -166,7 +167,7 @@
     "authorityKinds": [
       "home"
     ],
-    "mode": "local-only",
+    "mode": "person",
     "required": true
   },
   "evidenceScenarios": [
@@ -493,19 +494,20 @@
   "partitionPolicy": {
     "cloudEdge": "not-applicable",
     "denyNewCrossSiteSessions": true,
+    "issuedSessions": "valid-to-lifetime-against-last-known-revocation",
     "localIdentityAuthorityAvailable": true,
     "maxStaleVerificationSeconds": 0,
+    "newSessions": "fail-closed",
     "onCloudLoss": "not-applicable",
     "onLinkLoss": "local-continues"
   },
   "reachability": {
     "accessPolicies": {
       "allowedExposures": [
-        "private",
-        "lan",
+        "local-only",
+        "remote-private",
         "public"
-      ],
-      "lanStepDownAllowed": true
+      ]
     },
     "routes": {
       "local": {

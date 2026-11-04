@@ -132,7 +132,7 @@
     useCaseSelections = (chosenKit?.use_cases ?? [])
       .filter((useCase) => useCase.required || useCase.selected_by_default)
       .flatMap((useCase) => {
-        const id = useCase.default_alternative_id ?? (useCase.alternatives.length === 1 ? useCase.alternatives[0].alternative_id : "");
+        const id = useCase.default_alternative_id ?? (useCase.alternatives.length === 1 ? useCase.alternatives[0]?.alternative_id ?? "" : "");
         return useCase.availability === "available" && id ? [{ use_case_id: useCase.use_case_id, alternative_id: id }] : [];
       });
     moduleProfileSelections = defaultProfiles(chosenKit, useCaseSelections);
@@ -167,10 +167,10 @@
     return chosenKit.modules.filter((module) => activeIds.has(module.module_id)).flatMap((module) => {
       const previous = existing.find((entry) => entry.module_id === module.module_id);
       if (previous) return [previous];
-      const compute = module.default_compute_profile ?? (module.compute_profiles.length === 1 ? module.compute_profiles[0].id : undefined);
+      const compute = module.default_compute_profile ?? (module.compute_profiles.length === 1 ? module.compute_profiles[0]?.id : undefined);
       if (!compute) return [];
-      const storage = module.default_storage_profile ?? (module.storage_profiles.length === 1 ? module.storage_profiles[0].id : undefined);
-      const accelerator = module.default_accelerator_profile ?? (module.accelerator_profiles.length === 1 ? module.accelerator_profiles[0].id : undefined);
+      const storage = module.default_storage_profile ?? (module.storage_profiles.length === 1 ? module.storage_profiles[0]?.id : undefined);
+      const accelerator = module.default_accelerator_profile ?? (module.accelerator_profiles.length === 1 ? module.accelerator_profiles[0]?.id : undefined);
       return [{ module_id: module.module_id, compute_profile: compute, ...(storage ? { storage_profile: storage } : {}), ...(accelerator ? { accelerator_profile: accelerator } : {}) }];
     });
   }

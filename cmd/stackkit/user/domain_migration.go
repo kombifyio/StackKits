@@ -17,6 +17,9 @@ type domainMigrationAPI interface {
 type householdActivationAPI interface {
 	ActivateHouseholdUser(context.Context, string) (localowner.HouseholdUser, error)
 }
+type householdPasskeyResetAPI interface {
+	ResetHouseholdPasskey(context.Context, string) (localowner.HouseholdUser, error)
+}
 
 func newDomainMigrationCommand(api householdAPI) *cobra.Command {
 	command := &cobra.Command{
@@ -67,6 +70,9 @@ func newDomainMigrationCommand(api householdAPI) *cobra.Command {
 func newHouseholdActivateCommand(api householdAPI) *cobra.Command {
 	command := &cobra.Command{
 		Use: "activate <username>", Short: "Reissue passkey enrollment for an existing household member", Args: cobra.ExactArgs(1),
+		Long: "Reissue a one-time passkey registration link for a household member who has no passkey yet. With --reset the Owner resets the passkey of a member who lost every usable passkey: the link is issued although Pocket ID still lists the lost ones, which the member then removes in their account settings. The Owner recovers their own account with the recovery code (stackkit break-glass redeem).",
+		Example: `  # Reset the passkey of a member who lost their phone
+  stackkit user activate alex --reset --owner-approve`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			approved, _ := cmd.Flags().GetBool("owner-approve")
 			if !approved {
@@ -76,11 +82,20 @@ func newHouseholdActivateCommand(api householdAPI) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			activator, ok := service.(householdActivationAPI)
-			if !ok {
-				return errors.New("household activation is unavailable")
+			var user localowner.HouseholdUser
+			if reset, _ := cmd.Flags().GetBool("reset"); reset {
+				resetter, ok := service.(householdPasskeyResetAPI)
+				if !ok {
+					return errors.New("household passkey reset is unavailable")
+				}
+				user, err = resetter.ResetHouseholdPasskey(cmd.Context(), args[0])
+			} else {
+				activator, ok := service.(householdActivationAPI)
+				if !ok {
+					return errors.New("household activation is unavailable")
+				}
+				user, err = activator.ActivateHouseholdUser(cmd.Context(), args[0])
 			}
-			user, err := activator.ActivateHouseholdUser(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -92,6 +107,7 @@ func newHouseholdActivateCommand(api householdAPI) *cobra.Command {
 		},
 	}
 	command.Flags().Bool("owner-approve", false, "Explicitly approve reissuing household passkey enrollment")
+	command.Flags().Bool("reset", false, "Reset the passkey of a member who lost every usable passkey")
 	return command
 }
 
@@ -116,6 +132,19 @@ func (h liveHousehold) ActivateHouseholdUser(ctx context.Context, username strin
 			return err
 		}
 		result, err = service.ActivateHouseholdUser(ctx, username)
+		return err
+	})
+	return result, err
+}
+
+func (h liveHousehold) ResetHouseholdPasskey(ctx context.Context, username string) (localowner.HouseholdUser, error) {
+	var result localowner.HouseholdUser
+	err := lifecyclemutation.WithIdleMutation(h.workspace, lifecyclemutation.JoinRequest{Command: "user activate --reset"}, func() error {
+		service, err := localowner.NewService(h.workspace)
+		if err != nil {
+			return err
+		}
+		result, err = service.ResetHouseholdPasskey(ctx, username)
 		return err
 	})
 	return result, err

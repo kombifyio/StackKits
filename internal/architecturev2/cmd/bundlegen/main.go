@@ -216,7 +216,6 @@ var rendererWorkloadImages = []rendererWorkloadImage{
 	{moduleID: "stackkits-paperclip-runtime", goPrefix: "paperclipPostgres", componentRef: "paperclip-postgres"},
 	{moduleID: "stackkits-hermes-runtime", goPrefix: "hermes"},
 	{moduleID: "stackkits-speechkit-runtime", goPrefix: "speechkit"},
-	{moduleID: "stackkits-speechkit-runtime", goPrefix: "speechkitWhisper", componentRef: "speechkit-whisper"},
 	{moduleID: "stackkits-speechkit-runtime", goPrefix: "speechkitTTS", componentRef: "speechkit-tts"},
 	{moduleID: "stackkits-immich-power-tools-runtime", goPrefix: "immichPowerTools"},
 	{moduleID: "stackkits-searxng-runtime", goPrefix: "searxng"},

@@ -2,12 +2,45 @@
 package foundation
 
 _accessAdminCheck: #AccessPolicyV2 & {
-	exposure:       "lan"
 	privilege:      "admin"
 	authentication: "human+device"
 }
-_assertAccessAdminDevice: true & _accessAdminCheck.enrolledDeviceRequired
-_assertAccessAdminStepUp: true & _accessAdminCheck.ownerStepUpRequired
+_assertAccessAdminDevice:   true & _accessAdminCheck.enrolledDeviceRequired
+_assertAccessAdminStepUp:   true & _accessAdminCheck.ownerStepUpRequired
+_assertAccessAdminLANBound: "local-only" & _accessAdminCheck.exposure
+_assertAccessDefaultLANOnly: "local-only" & (#AccessPolicyV2 & {}).exposure
+
+// An anonymous public route serves content only.
+_accessAnonymousPublicCheck: #AccessPolicyV2 & {
+	exposure:       "public"
+	authentication: "none"
+}
+_assertAnonymousPublicUser: "user" & _accessAnonymousPublicCheck.privilege
+_assertAnonymousNoDevice:   false & _accessAnonymousPublicCheck.enrolledDeviceRequired
+
+// The Owner allows a service's third-party apps away from home: a person's
+// own user route reachable through the remote listener with an app pass.
+// Refused, as the negative fixtures app-access-away-* in
+// internal/cue/testdata/architecture_v2_invalid prove: on a local-only route,
+// with device proof, agent or no login, and on a sign-in or privileged route.
+_accessAppAccessAwayCheck: #AccessPolicyV2 & {
+	exposure:      "remote-private"
+	appAccessAway: true
+}
+_assertAppAccessAwayUser:     "user" & _accessAppAccessAwayCheck.privilege
+_assertAppAccessAwayHuman:    "human" & _accessAppAccessAwayCheck.authentication
+_assertAppAccessAwayNoDevice: false & _accessAppAccessAwayCheck.enrolledDeviceRequired
+_assertAppAccessAwayDefault:  false & (#AccessPolicyV2 & {}).appAccessAway
+
+// The Owner's opt-in is the only way a LAN-bound privileged route leaves the
+// LAN listener.
+_accessVaultRemoteOptInCheck: #AccessPolicyV2 & {
+	exposure:         "remote-private"
+	privilege:        "vault"
+	authentication:   "human+device"
+	ownerRemoteOptIn: true
+}
+_assertVaultRemoteStepUp: true & _accessVaultRemoteOptInCheck.ownerStepUpRequired
 
 _quorumCheck: #ControlPlaneIntent & {
 	mode:             "quorum"
@@ -36,20 +69,25 @@ _assertBridgeDefaultDeny:  true & _bridgeCheck.policy.defaultDeny
 _assertBridgeNoLANTransit: false & _bridgeCheck.policy.allowRFC1918Transit
 
 _deviceEnrollmentCheck: #DeviceEnrollmentPolicy & {
-	mode:                      "local-only"
-	authoritySiteRef:          "home"
-	endpointExposure:          "lan"
-	remoteEnrollment:          false
-	requireOwnerStepUp:        true
-	requireLocalPairingProof:  true
-	requireDeviceGeneratedKey: true
-	requirePossessionProof:    true
-	hardwareBackedKey:         "preferred"
-	revocationSupported:       true
-	credentialTTLSeconds:      3600
+	authoritySiteRef: "home"
 }
-_assertDeviceGeneratedKey: true & _deviceEnrollmentCheck.requireDeviceGeneratedKey
-_assertDevicePossession:   true & _deviceEnrollmentCheck.requirePossessionProof
+_assertDeviceGeneratedKey:    true & _deviceEnrollmentCheck.requireDeviceGeneratedKey
+_assertDevicePossession:      true & _deviceEnrollmentCheck.requirePossessionProof
+_assertDeviceHomeAttestation: "authority-lan-listener" & _deviceEnrollmentCheck.homeAttestation
+_assertDeviceAtHomeUndo:      86400 & _deviceEnrollmentCheck.atHome.undoWindowSeconds
+_assertDeviceAwayConfirmers: ["own-enrolled-device", "owner"] & _deviceEnrollmentCheck.away.confirmers
+_assertDeviceLifetime: 3600 & _deviceEnrollmentCheck.lifetimes.deviceLifetimeSeconds
+
+_identityOriginKombifyMeCheck: #IdentityOriginV1 & {name: "smith.kombify.me"}
+_assertIdentityOriginKombifyMe: {host: "id.smith.kombify.me", source: "kombify-me", certificates: "publicly-trusted"} & {
+	host:         _identityOriginKombifyMeCheck.host
+	source:       _identityOriginKombifyMeCheck.source
+	certificates: _identityOriginKombifyMeCheck.certificates
+}
+_identityOriginLocalCheck: #IdentityOriginV1 & {name: "lab.home"}
+_assertIdentityOriginLocal: "local-only" & _identityOriginLocalCheck.source
+
+_assertVPNAddOnOffByDefault: false & (#VPNAddOnV1 & {tool: "wireguard"}).enabled
 
 _assertPhotosCapabilityRetired: [for capability in ArchitectureV2Catalog.capabilities if capability.metadata.id == "photos" {capability.metadata.id}] & []
 
@@ -152,9 +190,9 @@ _assertVaultComputeTierAlternatives: [
 _assertMediaComputeTierAlternatives: [
 	for workload in ArchitectureV2Catalog.workloads
 	if workload.metadata.id == "media" {
-		lowIncluded:      workload.computeTiers.low.included
-		standard:         workload.computeTiers.standard.alternativeID
-		high:             workload.computeTiers.high.alternativeID
+		lowIncluded: workload.computeTiers.low.included
+		standard:    workload.computeTiers.standard.alternativeID
+		high:        workload.computeTiers.high.alternativeID
 	},
 ] & [{
 	lowIncluded: false

@@ -31,7 +31,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/auth"
 	"github.com/kombifyio/stackkits/internal/federationcontrol"
 	"github.com/kombifyio/stackkits/internal/identity"
-	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localorigin"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
@@ -69,7 +68,11 @@ func main() {
 	originListen := flag.String("origin-listen", "", "Optional loopback socket for owner-bound origin mTLS; disabled by default")
 	controlListen := flag.String("federation-control-listen", "", "Optional owner-bound Cloud mTLS receiver socket for Home plan/verify actions")
 	edgeListen := flag.String("bridge-edge-listen", "", "Optional Cloud edge listener serving only the Owner-signed bridge publication route table; disabled by default")
-	homeEnrollListen := flag.String("home-enroll-listen", "", "Optional Home LAN device enrollment listener (TLS 1.3, step-ca server certificate); admits only LAN peers with a valid pairing code; disabled by default")
+	homeEnrollListen := flag.String("home-enroll-listen", "", "Optional Home LAN device enrollment listener (TLS 1.3, step-ca server certificate); enrolls a person's device at once only for a direct peer on the site network; disabled by default")
+	accessGateListen := flag.String("access-gate-listen", "", "Optional Access Gate forward-auth listener for the core routers (route table from STACKKIT_ACCESS_GATE_ROUTES); disabled by default")
+	hubListen := flag.String("hub-listen", "", "Optional Homelab Hub listener for the core routers: the Hub PWA and the device-facing identity routes; disabled by default")
+	identityBaseDir := flag.String("identity-base-dir", "", "Workspace that holds the Authority's verification custody, device registry and applied plan for the enrollment listener, the Access Gate verifier and the Hub (default: --base-dir)")
+	identitySignerSocket := flag.String("identity-signer-socket", "", "Unix socket of the host-side identity signer (stackkit device signer), which holds the Owner custody: the enrollment listener's certificate and the Owner recovery routes; without it both fail closed")
 	flag.Parse()
 
 	setupLogging(*logLevel)
@@ -90,6 +93,25 @@ func main() {
 	defer otelShutdown()
 
 	srv := api.NewServer(cfg)
+	identityRoot := cfg.BaseDir
+	if strings.TrimSpace(*identityBaseDir) != "" {
+		identityRoot = filepath.Clean(*identityBaseDir)
+	}
+	// The verifier refuses proofs and passkey sign-ins dated before its start
+	// (replay across restarts), so it starts with the process, not with the
+	// first request: otherwise the first enrollment after every restart fails.
+	if _, err := identity.HomeVerifierFor(identityRoot); err != nil {
+		slog.Error("identity verifier unavailable", "error", err)
+		os.Exit(1)
+	}
+	serverContext, stopServerContext := context.WithCancel(context.Background())
+	defer stopServerContext()
+	// The Owner custody stays on the host: the host-side identity signer keeps
+	// the Home trust current and answers what needs the Owner key.
+	var signer identity.HomeAuthoritySigner
+	if path := strings.TrimSpace(*identitySignerSocket); path != "" {
+		signer = identity.NewHomeAuthoritySignerClient(path)
+	}
 
 	httpServer := newHTTPServer(cfg, srv.Handler())
 
@@ -121,14 +143,34 @@ func main() {
 	}
 	var enrollServer *http.Server
 	if *homeEnrollListen != "" {
-		root := cfg.BaseDir
-		enrollServer, cfgErr = identity.NewHomeEnrollmentServer(root, *homeEnrollListen, func(ctx context.Context, csrPEM []byte, ttl int) ([]byte, error) {
-			return localevidence.IssueHomeDeviceCertificate(ctx, root, csrPEM, ttl)
-		}, identity.HomeEnrollmentCertificateSource(root))
+		enrollServer, cfgErr = identity.NewHomeEnrollmentServer(identityRoot, *homeEnrollListen, identity.HomeEnrollmentCertificateSource(identityRoot, signer))
 		if cfgErr != nil {
 			slog.Error("home enrollment listener configuration rejected", "error", cfgErr)
 			os.Exit(1)
 		}
+	}
+	appHosts, launchHosts := []string{}, []string{}
+	if *accessGateListen != "" {
+		table, tableErr := loadAccessGateTable()
+		if tableErr != nil {
+			slog.Error("access gate configuration rejected", "error", tableErr)
+			os.Exit(1)
+		}
+		appHosts, launchHosts = accessGateAppHosts(table), accessGateLaunchHosts(table)
+		gateServer, gateErr := newAccessGateServer(identityRoot, *accessGateListen, table)
+		if gateErr != nil {
+			slog.Error("access gate configuration rejected", "error", gateErr)
+			os.Exit(1)
+		}
+		serveAccessGate(gateServer)
+	}
+	if *hubListen != "" {
+		hubServer, hubErr := identity.NewHomeHubServer(serverContext, identityRoot, *hubListen, identity.HomeHubOptions{Signer: signer, AppHosts: appHosts, LaunchHosts: launchHosts})
+		if hubErr != nil {
+			slog.Error("hub listener configuration rejected", "error", hubErr)
+			os.Exit(1)
+		}
+		servePlainListener("hub", hubServer)
 	}
 	runServer(httpServer, originServer, controlServer, edgeServer, enrollServer)
 }

@@ -85,7 +85,7 @@
             <div class="command-header">
               <span class="step-number" aria-hidden="true">{index + 1}</span>
               <div class="command-description"><h4>{id}</h4><p>{mutation ? "Writes local files" : "Read only"} · {idempotent ? "Idempotent" : "Not idempotent"} · {ownerApproval ? "Owner approval required" : "No approval required"}</p></div>
-              <button aria-label={`Copy ${id} command`} onclick={() => copy(output.commands[index], id)}>
+              <button aria-label={`Copy ${id} command`} onclick={() => copy(output.commands[index] ?? "", id)}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h12v12H8zM16 4H4v12" /></svg>
                 {copiedTarget === id ? "Copied" : "Copy command"}
               </button>

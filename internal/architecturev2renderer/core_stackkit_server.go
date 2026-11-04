@@ -3,7 +3,9 @@ package architecturev2renderer
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
+	"github.com/kombifyio/stackkits/internal/accessgatetable"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"gopkg.in/yaml.v3"
 )
@@ -132,7 +134,7 @@ const (
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
 `
-	stackKitServerComposeServiceEnvironment = `    environment:
+	stackKitServerComposeServiceEnvironmentHead = `    environment:
       STACKKITS_RUNTIME_PROFILE: production
       # Credentials arrive as files, never as environment values that
       # container inspection would expose.
@@ -144,7 +146,8 @@ const (
       STACKKITS_RATE_LIMIT: "0"
       # Tools serve only the configured workspace, never a caller path.
       STACKKIT_MCP_PIN_BASE_DIR: "true"
-    volumes:
+`
+	stackKitServerComposeServiceVolumes = `    volumes:
       - type: bind
         source: ./stackkit-server
         target: /usr/local/bin/stackkit-server
@@ -153,9 +156,51 @@ const (
         source: ${STACKKIT_CUSTODY_DIR:?}/stackkit-server
         target: /run/stackkit-server
         read_only: true
-    tmpfs: [/var/lib/stackkit-server, /tmp]
 `
-	stackKitServerComposeServiceTail = `    healthcheck:
+	stackKitServerComposeServiceEnvironment = stackKitServerComposeServiceEnvironmentHead + stackKitServerComposeServiceVolumes +
+		"    tmpfs: [/var/lib/stackkit-server, /tmp]\n"
+	// The Basement core is the Authority (homelab identity target §4). Its
+	// enrollment listener, Access Gate verifier and Hub work on the
+	// Authority's verification custody only (StackKits enpy): the device
+	// registry, device issuer, Home trust, sessions and app passes the host
+	// CLI shares (read-write), and the public Authority record (read-only).
+	// The Owner key, the step-ca root, the Pocket ID admin key and the
+	// recovery state stay on the host with the identity signer, which the
+	// core reaches only through its socket (read-only mount; the signer
+	// answers the core server's account only). The applied plan (device
+	// enrollment policy) is read-only. Pocket ID is reached on the core
+	// network for the Hub's code exchange. The API and MCP keep their empty
+	// workspace.
+	basementStackKitServerIdentityEnvironment = `      STACKKIT_POCKETID_LOCAL_API: http://pocketid:1411
+`
+	basementStackKitServerIdentityVolumes = `      - type: bind
+        source: ${STACKKIT_CUSTODY_DIR:?}/home-verifier
+        target: /var/lib/stackkit-identity/.stackkit/custody/home-verifier
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${STACKKIT_CUSTODY_DIR:?}/home-authority
+        target: /var/lib/stackkit-identity/.stackkit/custody/home-authority
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${STACKKIT_WORKSPACE_DIR:?}/.stackkit/identity-signer
+        target: /run/stackkit-identity-signer
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${STACKKIT_WORKSPACE_DIR:?}/deploy/.stackkit
+        target: /var/lib/stackkit-identity/deploy/.stackkit
+        read_only: true
+        bind:
+          create_host_path: false
+    tmpfs: [/var/lib/stackkit-server, /var/lib/stackkit-identity, /tmp]
+`
+	basementStackKitServerComposeServiceEnvironment = stackKitServerComposeServiceEnvironmentHead + basementStackKitServerIdentityEnvironment +
+		stackKitServerComposeServiceVolumes + basementStackKitServerIdentityVolumes
+	stackKitServerComposeServiceTailHead = `    healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8082/health"]
       interval: 5s
       timeout: 3s
@@ -168,24 +213,78 @@ const (
       - traefik.http.routers.stackkit-mcp.entrypoints=websecure
       - traefik.http.routers.stackkit-mcp.tls=true
       - traefik.http.routers.stackkit-mcp.tls.certresolver=stackkits
-      - traefik.http.routers.stackkit-mcp.middlewares=stackkit-mcp-ratelimit@docker
-      - traefik.http.middlewares.stackkit-mcp-ratelimit.ratelimit.average=5
+      - traefik.http.routers.stackkit-mcp.service=stackkit-mcp
+`
+	stackKitServerComposeServiceTailRest = `      - traefik.http.middlewares.stackkit-mcp-ratelimit.ratelimit.average=5
       - traefik.http.middlewares.stackkit-mcp-ratelimit.ratelimit.burst=20
       - traefik.http.services.stackkit-mcp.loadbalancer.server.port=8082
+      # The Access Gate (homelab identity target §7). Each listener calls its
+      # own gate path; trustForwardHeader is off, so the gate reads the method,
+      # host and URI of the request itself, and every authResponseHeaders name
+      # is removed from the request before the gate's value is copied, so
+      # neither identity nor listener class can be spoofed.
+      - traefik.http.middlewares.stackkit-access-gate-remote.forwardauth.address=http://stackkit-server:8083/v1/gate/remote
+      - traefik.http.middlewares.stackkit-access-gate-remote.forwardauth.trustForwardHeader=false
+      - traefik.http.middlewares.stackkit-access-gate-remote.forwardauth.authResponseHeaders=` + accessGateResponseHeaders + `
 `
+	// Only a Home core has a LAN listener: a Cloud core defines no LAN gate,
+	// and its gate refuses the LAN path as well.
+	stackKitServerComposeServiceTailLAN = `      - traefik.http.middlewares.stackkit-access-gate-lan.forwardauth.address=http://stackkit-server:8083/v1/gate/lan
+      - traefik.http.middlewares.stackkit-access-gate-lan.forwardauth.trustForwardHeader=false
+      - traefik.http.middlewares.stackkit-access-gate-lan.forwardauth.authResponseHeaders=` + accessGateResponseHeaders + `
+      # Relay and tunnel paths end TLS at the edge; the remote listener sets
+      # the scheme itself instead of trusting a forwarded one.
+      - traefik.http.middlewares.stackkit-remote-scheme.headers.customrequestheaders.X-Forwarded-Proto=https
+      # The Homelab Hub (the device client PWA) and the device-facing
+      # identity routes on the Hub host. They are a sign-in surface: the shell
+      # grants nothing and every identity route verifies the device proof or
+      # the passkey sign-in itself, so neither TinyAuth nor a device proof
+      # stands before them; the gate still enforces the listener and exposure.
+      - traefik.http.routers.stackkit-hub.rule=` + "Host(`base.{{STACKKIT_DOMAIN}}`) && (PathPrefix(`/device/`) || PathPrefix(`/api/v1/identity/`))" + `
+      - traefik.http.routers.stackkit-hub.priority=900
+      - traefik.http.routers.stackkit-hub.entrypoints=websecure
+      - traefik.http.routers.stackkit-hub.tls=true
+      - traefik.http.routers.stackkit-hub.tls.certresolver=stackkits
+      - traefik.http.routers.stackkit-hub.middlewares=stackkit-access-gate-lan@docker
+      - traefik.http.routers.stackkit-hub.service=stackkit-hub
+      - traefik.http.routers.stackkit-hub-remote.rule=` + "Host(`base.{{STACKKIT_DOMAIN}}`) && (PathPrefix(`/device/`) || PathPrefix(`/api/v1/identity/`))" + `
+      - traefik.http.routers.stackkit-hub-remote.priority=900
+      - traefik.http.routers.stackkit-hub-remote.entrypoints=remote
+      - traefik.http.routers.stackkit-hub-remote.service=stackkit-hub
+      - traefik.http.services.stackkit-hub.loadbalancer.server.port=8084
+      # The remote router reads the gate middlewares from this container.
+      - io.stackkit.remote-listener=true
+`
+	// accessGateResponseHeaders is accessgatetable.ResponseHeaders; init proves it.
+	accessGateResponseHeaders = "Stackkit-Access-Listener,Stackkit-Access-Subject,Stackkit-Access-Device,Authorization,DPoP,Stackkit-Agent-Envelope,Stackkit-App-Pass,Remote-User,Remote-Sub,Remote-Name,Remote-Email,Remote-Groups"
+	// The Basement /mcp router is on the LAN listener, where a native
+	// endpoint authenticates itself. On a Cloud Kit the listener is public,
+	// so the remote gate is in front of it as of every other route.
+	basementStackKitServerComposeServiceTail = stackKitServerComposeServiceTailHead +
+		"      - traefik.http.routers.stackkit-mcp.middlewares=stackkit-mcp-ratelimit@docker\n" + stackKitServerComposeServiceTailRest +
+		stackKitServerComposeServiceTailLAN
+	cloudStackKitServerComposeServiceTail = stackKitServerComposeServiceTailHead +
+		"      - traefik.http.routers.stackkit-mcp.middlewares=stackkit-mcp-ratelimit@docker,stackkit-access-gate-remote@docker\n" + stackKitServerComposeServiceTailRest
 )
+
+func init() {
+	if accessGateResponseHeaders != strings.Join(accessgatetable.ResponseHeaders, ",") {
+		panic("architecturev2renderer: the Access Gate middlewares must list accessgatetable.ResponseHeaders")
+	}
+}
 
 // The Cloud Core serves only the loopback API. The Basement Core adds the Home
 // device enrollment listener (catalog listener stackkit-server-home-enroll):
 // TLS 1.3 on port 9443, published only on the node site address, which the
-// renderer substitutes for 0.0.0.0 from the verified plan.
+// renderer substitutes for 0.0.0.0 from the verified plan. Both run the Access
+// Gate on port 8083 inside the core network only; no host port publishes it.
 const (
 	cloudStackKitServerComposeService = stackKitServerComposeServiceHead +
-		`    command: ["/usr/local/bin/stackkit-server", "--port", "8082", "--base-dir", "/var/lib/stackkit-server"]
+		`    command: ["/usr/local/bin/stackkit-server", "--port", "8082", "--base-dir", "/var/lib/stackkit-server", "--access-gate-listen", "0.0.0.0:8083"]
 ` + stackKitServerComposeServiceEnvironment + `    ports: ["127.0.0.1:8082:8082"]
-` + stackKitServerComposeServiceTail + "    networks: [cloud-core]\n"
+` + cloudStackKitServerComposeServiceTail + "    networks: [cloud-core]\n"
 	basementStackKitServerComposeService = stackKitServerComposeServiceHead +
-		`    command: ["/usr/local/bin/stackkit-server", "--port", "8082", "--base-dir", "/var/lib/stackkit-server", "--home-enroll-listen", "0.0.0.0:9443"]
-` + stackKitServerComposeServiceEnvironment + `    ports: ["127.0.0.1:8082:8082", "0.0.0.0:9443:9443"]
-` + stackKitServerComposeServiceTail + "    networks: [basement-core]\n"
+		`    command: ["/usr/local/bin/stackkit-server", "--port", "8082", "--base-dir", "/var/lib/stackkit-server", "--identity-base-dir", "/var/lib/stackkit-identity", "--identity-signer-socket", "/run/stackkit-identity-signer/signer.sock", "--home-enroll-listen", "0.0.0.0:9443", "--access-gate-listen", "0.0.0.0:8083", "--hub-listen", "0.0.0.0:8084"]
+` + basementStackKitServerComposeServiceEnvironment + `    ports: ["127.0.0.1:8082:8082", "0.0.0.0:9443:9443"]
+` + basementStackKitServerComposeServiceTail + "    networks: [basement-core]\n"
 )

@@ -215,7 +215,7 @@ func runApplicationReleaseForward(cmd *cobra.Command, slug string, o useCaseUpgr
 	if o.expectedHash != "" && o.expectedHash != current.SpecHash {
 		return fmt.Errorf("expected spec hash does not match current intent; current spec hash: %s", current.SpecHash)
 	}
-	if err := requireStandardSingleNodeIntent(current.CanonicalStackSpec); err != nil {
+	if err := requireStandardSingleNodeIntent(wd, current.CanonicalStackSpec); err != nil {
 		return err
 	}
 	candidate, err := service.MaterializeUseCaseChange(current.CanonicalStackSpec, selected.workload, architecturev2.UseCaseChange{Settings: map[string]any{"release": target.Release}}, false)
@@ -364,7 +364,7 @@ func persistApplicationReleaseIntent(wd string, service *architecturev2.Service,
 	return err
 }
 
-func requireStandardSingleNodeIntent(canonical []byte) error {
+func requireStandardSingleNodeIntent(workspace string, canonical []byte) error {
 	var document struct {
 		Install struct {
 			Mode string `json:"mode"`
@@ -375,7 +375,11 @@ func requireStandardSingleNodeIntent(canonical []byte) error {
 	if err := json.Unmarshal(canonical, &document); err != nil {
 		return err
 	}
-	if document.Install.Mode == "advanced" || len(document.Nodes) != 1 || len(document.Sites) != 1 {
+	advanced, err := advancedManagedIntent(workspace, document.Install.Mode)
+	if err != nil {
+		return err
+	}
+	if advanced || len(document.Nodes) != 1 || len(document.Sites) != 1 {
 		return errors.New("a scoped release change runs on a Standard single-node installation; managed intent changes through Techstack Advanced dispatch")
 	}
 	return nil

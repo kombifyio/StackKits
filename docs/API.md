@@ -96,7 +96,7 @@ Set `STACKKIT_OWNER_STEP_UP_ORIGIN` to the explicit HTTPS origin of the existing
 local StackKits server, without a path or trailing slash. The server must also
 have its API key configured. Route that origin to this server using the existing
 local TLS ingress. PocketID and the established Home Owner custody must already
-be available. This flow is account-free and uses no hosted Kombify identity.
+be available. This flow needs no kombify account and uses no hosted Kombify identity.
 Host names and the default HTTPS port are canonicalized before registration.
 Invalid origins (including trailing-dot hosts) stop server startup with a
 configuration error.

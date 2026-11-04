@@ -379,7 +379,7 @@ import "github.com/kombifyio/stackkits/foundation"
 	// Subdomain prefix; resolved against the StackKit's domain at apply time.
 	subdomain: string | *"backups"
 
-	// Always behind login-gateway (TinyAuth + PocketID forward-auth).
+	// Always behind the Access Gate and TinyAuth forward-auth (PocketID).
 	// Hard-wired to true; we never expose Kopia directly.
 	authRequired: true
 }
@@ -453,7 +453,7 @@ import "github.com/kombifyio/stackkits/foundation"
 		enabled: true
 		// Subdomain comes from #WebUIConfig at template time.
 		rule: "Host(`{{.backup.webUI.subdomain}}.{{.domain}}`)"
-		// login-gateway middleware is appended automatically by the platform
+		// The Access Gate and TinyAuth middlewares are appended by the platform
 		// because #WebUIConfig.authRequired is true.
 	}
 }

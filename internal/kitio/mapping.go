@@ -24,11 +24,8 @@ var ApplicationToGroup = map[string]string{
 }
 
 // FoundationToGroup maps stackkit.yaml `foundation.<key>` to sk_service_group.slug.
-//
-// Note (migration 000085): `login-gateway` was previously here. Per
-// ARCHITECTURE_V6 §4, login-gateway (TinyAuth + PocketID) is L2 Platform,
-// not L1 Foundation — the admin bootstrap step is Foundation, the identity
-// service itself is Platform. login-gateway moved to PlatformToGroup.
+// The admin bootstrap step is Foundation; the Access Gate and the identity
+// services are Platform.
 var FoundationToGroup = map[string]string{
 	"security-baseline": "security-baseline",
 	"admin-bootstrap":   "admin-bootstrap",
@@ -36,18 +33,18 @@ var FoundationToGroup = map[string]string{
 
 // PlatformToGroup maps stackkit.yaml `platform.<key>` to sk_service_group.slug.
 var PlatformToGroup = map[string]string{
-	"traefik":       "reverse-proxy",
-	"tinyauth":      "forward-auth",
-	"login-gateway": "forward-auth",
-	"pocketid":      "oidc-provider",
-	"paas":          "paas",
-	"monitoring":    "uptime-monitoring",
-	"dashboard":     "dashboard",
-	"dozzle":        "container-logs",
-	"socket-proxy":  "docker-socket-proxy",
-	"unbound":       "dns-resolver",
-	"adguard-home":  "dns-filter",
-	"crowdsec":      "intrusion-detection",
+	"traefik":      "reverse-proxy",
+	"tinyauth":     "forward-auth",
+	"access-gate":  "forward-auth",
+	"pocketid":     "oidc-provider",
+	"paas":         "paas",
+	"monitoring":   "uptime-monitoring",
+	"dashboard":    "dashboard",
+	"dozzle":       "container-logs",
+	"socket-proxy": "docker-socket-proxy",
+	"unbound":      "dns-resolver",
+	"adguard-home": "dns-filter",
+	"crowdsec":     "intrusion-detection",
 }
 
 // SectionKind identifies which yaml section a service-group belongs to.
@@ -85,7 +82,7 @@ func init() {
 
 // GroupReverseMappings returns the section/key pairs that map to a given
 // service-group slug. Some groups (e.g. "forward-auth") have multiple sources
-// (foundation.login-gateway + platform.tinyauth) — both are returned.
+// (platform.access-gate + platform.tinyauth) — both are returned.
 func GroupReverseMappings(groupSlug string) []ReverseMapping {
 	if m, ok := reverseMap[groupSlug]; ok {
 		out := make([]ReverseMapping, len(m))
@@ -98,13 +95,8 @@ func GroupReverseMappings(groupSlug string) []ReverseMapping {
 // PreferredSection picks the canonical section for a group when multiple
 // sources exist. Rule: foundation > platform > application. Within the
 // same section, we prefer the SHORTER key, then lexicographically earlier
-// — this keeps `login-gateway` (the documented canonical) winning over
-// `tinyauth` (the legacy alias) for forward-auth, deterministically.
-//
-// Migration 000086 (P1-2 fix): login-gateway moved from foundation to
-// platform per ARCHITECTURE_V6 §4. Both login-gateway and tinyauth are
-// now in platform; the deterministic-within-section rule keeps the
-// canonical pair stable.
+// — this keeps `access-gate` (the Access Gate, homelab identity target §7)
+// winning over `tinyauth` for forward-auth, deterministically.
 func PreferredSection(groupSlug string) (SectionKind, string, bool) {
 	mappings := GroupReverseMappings(groupSlug)
 	if len(mappings) == 0 {
@@ -122,9 +114,8 @@ func PreferredSection(groupSlug string) (SectionKind, string, bool) {
 				best = &mappings[i]
 				continue
 			}
-			// Prefer shorter key, then lexicographic. login-gateway (13 chars)
-			// loses to tinyauth (8 chars) on length alone, so override:
-			// `forward-auth` group canonically uses `login-gateway` per V6 docs.
+			// Prefer the canonical key, then lexicographic: the `forward-auth`
+			// group canonically uses `access-gate`.
 			// Use the explicit canonical-preference list instead of relying
 			// on length, since length is a fragile heuristic.
 			if comparePreferred(m.Key, best.Key) < 0 {
@@ -141,9 +132,9 @@ func PreferredSection(groupSlug string) (SectionKind, string, bool) {
 // comparePreferred returns <0 if a should win over b within the same section.
 // Canonical names from ARCHITECTURE_V6 §4 always win; otherwise lex order.
 var canonicalKeyPriority = map[string]int{
-	"login-gateway": -100, // V6-canonical for forward-auth
-	"traefik":       -90,  // V6-canonical for reverse-proxy
-	"pocketid":      -80,  // V6-canonical for oidc-provider
+	"access-gate": -100, // canonical for forward-auth
+	"traefik":     -90,  // V6-canonical for reverse-proxy
+	"pocketid":    -80,  // V6-canonical for oidc-provider
 }
 
 func comparePreferred(a, b string) int {

@@ -127,13 +127,12 @@ Definition: foundation.#ProductKitDefinition & {
 		publicRoutesDefaultClosed: true
 		lanLocationIsIdentity:     false
 		privilegedStepUpRequired:  true
-		deviceEnrollment:          "local-only"
+		deviceEnrollment:          "person"
 		deviceBoundSessions:       true
 	}
 	reachability: {
 		accessPolicies: {
-			allowedExposures: ["private", "lan", "public"]
-			lanStepDownAllowed: true
+			allowedExposures: ["local-only", "remote-private", "public"]
 		}
 		routes: {
 			local: {
@@ -161,7 +160,7 @@ Definition: foundation.#ProductKitDefinition & {
 	}
 	deviceEnrollment: {
 		required: true
-		mode:     "local-only"
+		mode:     "person"
 		authorityKinds: ["home"]
 	}
 	partitionPolicy: {
@@ -262,11 +261,9 @@ Definition: foundation.#ProductKitDefinition & {
 			enableCapabilities: ["internal-pki"]
 			route: {exposure: "local", protocol: "https", port: 443, path: "/"}
 			accessPolicies: {
-				user: {exposure: "private", authentication: "human", privilege: "user"}
-				vault: {
-					exposure: "private", authentication: "human+device", privilege: "vault"
-					enrolledDeviceRequired: true, ownerStepUpRequired: true
-				}
+				user: {exposure: "local-only", authentication: "human", privilege: "user"}
+				// The vault stays on the LAN listener unless the Owner opts in.
+				vault: {exposure: "local-only", authentication: "human+device", privilege: "vault"}
 			}
 		}
 		standaloneOwner: {
@@ -355,26 +352,13 @@ Definition: foundation.#ProductKitDefinition & {
 				"stackkits-federation-control-agent-runtime": computeProfile: "standard"
 			}
 			availability: {}
-			deviceEnrollment: {
-				mode:                      "local-only"
-				authoritySiteRef:          "home"
-				endpointExposure:          "lan"
-				remoteEnrollment:          false
-				requireOwnerStepUp:        true
-				requireLocalPairingProof:  true
-				requireDeviceGeneratedKey: true
-				requirePossessionProof:    true
-				hardwareBackedKey:         "required"
-				revocationSupported:       true
-				credentialTTLSeconds:      3600
-			}
+			deviceEnrollment: {mode: "person", authoritySiteRef: "home"}
 			access: "owner-device": {
 				exposure:               "public"
 				privilege:              "user"
 				authentication:         "human+device"
 				enrolledDeviceRequired: true
 				ownerStepUpRequired:    false
-				lanStepDown:            false
 				allowedMethods: ["GET", "HEAD"]
 			}
 			partitionPolicy: {

@@ -157,26 +157,13 @@ type modernFederationControlPlane struct {
 }
 
 type modernFederationIdentity struct {
-	HumanAuthoritySiteRef   string                           `json:"humanAuthoritySiteRef"`
-	DeviceAuthoritySiteRef  string                           `json:"deviceAuthoritySiteRef"`
-	EdgeVerifierSiteRefs    []string                         `json:"edgeVerifierSiteRefs"`
-	DeviceEnrollment        modernFederationDeviceEnrollment `json:"deviceEnrollment"`
-	PossessionBoundSessions bool                             `json:"possessionBoundSessions"`
-	LANLocationIsIdentity   bool                             `json:"lanLocationIsIdentity"`
-}
-
-type modernFederationDeviceEnrollment struct {
-	Mode                      string `json:"mode"`
-	AuthoritySiteRef          string `json:"authoritySiteRef"`
-	EndpointExposure          string `json:"endpointExposure"`
-	RemoteEnrollment          bool   `json:"remoteEnrollment"`
-	RequireOwnerStepUp        bool   `json:"requireOwnerStepUp"`
-	RequireLocalPairingProof  bool   `json:"requireLocalPairingProof"`
-	RequireDeviceGeneratedKey bool   `json:"requireDeviceGeneratedKey"`
-	RequirePossessionProof    bool   `json:"requirePossessionProof"`
-	HardwareBackedKey         string `json:"hardwareBackedKey"`
-	RevocationSupported       bool   `json:"revocationSupported"`
-	CredentialTTLSeconds      int    `json:"credentialTTLSeconds"`
+	HumanAuthoritySiteRef   string                  `json:"humanAuthoritySiteRef"`
+	DeviceAuthoritySiteRef  string                  `json:"deviceAuthoritySiteRef"`
+	EdgeVerifierSiteRefs    []string                `json:"edgeVerifierSiteRefs"`
+	DeviceEnrollment        homelabDeviceEnrollment `json:"deviceEnrollment"`
+	PossessionBoundSessions bool                    `json:"possessionBoundSessions"`
+	LANLocationIsIdentity   bool                    `json:"lanLocationIsIdentity"`
+	Origin                  homelabIdentityOrigin   `json:"origin"`
 }
 
 type modernFederationFailurePolicy struct {
@@ -186,6 +173,8 @@ type modernFederationFailurePolicy struct {
 	LocalIdentityAuthorityAvailable bool   `json:"localIdentityAuthorityAvailable"`
 	MaxStaleVerificationSeconds     int    `json:"maxStaleVerificationSeconds"`
 	DenyNewCrossSiteSessions        bool   `json:"denyNewCrossSiteSessions"`
+	IssuedSessions                  string `json:"issuedSessions"`
+	NewSessions                     string `json:"newSessions"`
 }
 
 type modernFederationBridge struct {
@@ -274,7 +263,8 @@ type modernFederationPublicationAccess struct {
 	Privilege              string   `json:"privilege"`
 	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
 	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
-	LANStepDown            bool     `json:"lanStepDown"`
+	OwnerRemoteOptIn       bool     `json:"ownerRemoteOptIn"`
+	AppAccessAway          bool     `json:"appAccessAway"`
 	AllowedMethods         []string `json:"allowedMethods"`
 	DefaultClosed          bool     `json:"defaultClosed"`
 }
@@ -637,8 +627,9 @@ func validateModernFederationPublication(publication modernFederationPublication
 		return fail(ErrInvalidPlan, path+".upstreamProtocol", "publication requires an exact supported origin protocol and port")
 	}
 	access := publication.Access
-	if access.PolicyRef != publication.Auth.PolicyRef || access.Exposure != "public" || access.PolicyExposure != "public" || access.LANStepDown || access.Authentication != "human+device" ||
-		!stringListContains([]string{"user", "admin", "identity", "secrets"}, access.Privilege) || !access.EnrolledDeviceRequired || !access.DefaultClosed || len(access.AllowedMethods) == 0 {
+	if access.PolicyRef != publication.Auth.PolicyRef || access.Exposure != "public" || access.PolicyExposure != "public" || access.Authentication != "human+device" ||
+		!stringListContains([]string{"user", "admin", "identity", "secrets"}, access.Privilege) || !access.EnrolledDeviceRequired || !access.DefaultClosed || len(access.AllowedMethods) == 0 ||
+		access.AppAccessAway {
 		return fail(ErrInvalidPlan, path+".access", "public bridge publication requires human+device, enrolled-device, explicit-method, default-closed access")
 	}
 	if access.Privilege != "user" && !access.OwnerStepUpRequired {

@@ -3,6 +3,7 @@ package localowner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -225,35 +226,53 @@ func (s *Service) ListHouseholdUsers(ctx context.Context) ([]HouseholdUser, erro
 	return result, nil
 }
 
-// RemoveHouseholdUser deletes one household subject. Owner and admin
-// identities are refused.
-func (s *Service) RemoveHouseholdUser(ctx context.Context, username string) error {
+// HouseholdRemovalChain revokes everything a Homelab account holds on this
+// Authority besides its Pocket ID user (devices, their credentials, sessions,
+// app credentials and VPN peers). It receives the account's Pocket ID subject.
+type HouseholdRemovalChain func(ctx context.Context, subject string) error
+
+// RemoveHouseholdUser removes one household member: it resolves and checks
+// the exact Pocket ID subject, runs the local removal chain for that subject
+// first, so a failed Pocket ID deletion never leaves a device able to renew,
+// and then deletes the Pocket ID user, which ends its passkeys and Pocket ID
+// sessions. Owner and admin identities are refused before anything changes.
+// It returns the removed subject.
+func (s *Service) RemoveHouseholdUser(ctx context.Context, username string, chain HouseholdRemovalChain) (string, error) {
+	if chain == nil {
+		return "", errors.New("localowner: household removal needs the local removal chain")
+	}
 	owner, client, err := s.ready(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := verifyPocketIDAdmin(ctx, client); err != nil {
-		return err
+		return "", err
 	}
 	username = strings.TrimSpace(username)
 	if username == "" || username == owner.PocketID.Username {
-		return errors.New("localowner: household remove requires a non-owner username")
+		return "", errors.New("localowner: household remove requires a non-owner username")
 	}
 	matches, err := client.FindUsersByUsername(ctx, username)
 	if err != nil {
-		return errors.New("localowner: household user lookup failed")
+		return "", errors.New("localowner: household user lookup failed")
 	}
 	if len(matches) != 1 {
-		return errors.New("localowner: household user is absent")
+		return "", errors.New("localowner: household user is absent")
 	}
 	user := matches[0]
-	if user.IsAdmin || !householdMember(user) || hasRequiredGroups(user.UserGroups) {
-		return errors.New("localowner: refusing to remove an owner or admin identity")
+	if user.IsAdmin || !householdMember(user) || hasRequiredGroups(user.UserGroups) || strings.TrimSpace(user.ID) == "" {
+		return "", errors.New("localowner: refusing to remove an owner or admin identity")
+	}
+	if binding, bindErr := localevidence.LoadOwnerRuntimeBinding(s.workspaceRoot); bindErr == nil && binding.PocketIDSubject == user.ID {
+		return "", errors.New("localowner: refusing to remove an owner or admin identity")
+	}
+	if err := chain(ctx, user.ID); err != nil {
+		return "", fmt.Errorf("localowner: household removal chain: %w", err)
 	}
 	if err := client.DeleteUser(ctx, user.ID); err != nil {
-		return errors.New("localowner: household user deletion failed")
+		return "", errors.New("localowner: household user deletion failed; the member's devices are already revoked, retry the removal")
 	}
-	return nil
+	return user.ID, nil
 }
 
 func householdMember(user pocketid.User) bool {
@@ -272,6 +291,20 @@ func slicesContainsName(groups []pocketid.UserGroup, name string) bool {
 // ActivateHouseholdUser reissues enrollment for the same non-owner subject.
 // It preserves memberships and data and refuses owner/admin identity changes.
 func (s *Service) ActivateHouseholdUser(ctx context.Context, username string) (HouseholdUser, error) {
+	return s.activateHouseholdUser(ctx, username, false)
+}
+
+// ResetHouseholdPasskey is the Owner's passkey reset for a member who lost
+// every usable passkey (homelab identity target §9): it issues the one-time
+// registration link even though Pocket ID still lists the lost passkeys,
+// which the member then removes in their account settings. Owner and admin
+// accounts are not household members and are refused here; the Owner
+// recovers with the recovery code (stackkit break-glass redeem).
+func (s *Service) ResetHouseholdPasskey(ctx context.Context, username string) (HouseholdUser, error) {
+	return s.activateHouseholdUser(ctx, username, true)
+}
+
+func (s *Service) activateHouseholdUser(ctx context.Context, username string, reset bool) (HouseholdUser, error) {
 	owner, client, err := s.ready(ctx)
 	if err != nil {
 		return HouseholdUser{}, err
@@ -299,7 +332,7 @@ func (s *Service) ActivateHouseholdUser(ctx context.Context, username string) (H
 		return HouseholdUser{}, err
 	}
 	result := HouseholdUser{Username: user.Username, Email: user.Email, DisplayName: effectiveDisplayName(user), Status: "active"}
-	if active {
+	if active && !reset {
 		return result, nil
 	}
 	if err := s.beginDomainReenrollment(ctx, client, user.ID); err != nil {

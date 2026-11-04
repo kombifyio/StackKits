@@ -17,7 +17,7 @@ layer), ADR-0049 (Marketplace and platform scope).
 
 ## Decision
 
-Standard Mode is the complete, account-free, standalone product. Docker
+Standard Mode is the complete, kombify-account-free, standalone product. Docker
 Compose is its default workload payload on an admitted physical or virtual
 host; OpenTofu executes and tracks every deployment and Terramate orchestrates
 Techstack-managed deployments (ADR-0045), with containers running as Compose

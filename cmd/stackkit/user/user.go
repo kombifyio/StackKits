@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/actionableerror"
+	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/spf13/cobra"
 )
@@ -24,7 +25,7 @@ type householdAPI interface {
 	AddHouseholdUser(context.Context, localowner.HouseholdUserSpec) (localowner.HouseholdUser, error)
 	ListHouseholdUsers(context.Context) ([]localowner.HouseholdUser, error)
 	SetHouseholdUserApps(context.Context, string, localowner.HouseholdAppAccess) (localowner.HouseholdUser, error)
-	RemoveHouseholdUser(context.Context, string) error
+	RemoveHouseholdUser(context.Context, string) (identity.HomeRevocation, error)
 	OwnerActivationStatus(context.Context) (localowner.OwnerActivation, error)
 	IssueOwnerActivation(context.Context) (localowner.OwnerActivation, error)
 }
@@ -52,22 +53,28 @@ type commandResult struct {
 	Data          any    `json:"data"`
 }
 
+// OverlayResync applies the current VPN add-on peers to a running overlay
+// interface; the root command package owns the host interface. It reports
+// what it did.
+type OverlayResync func(ctx context.Context, root string, now time.Time) (string, error)
+
 // NewCommand returns the public `stackkit user` command tree.
 func NewCommand() *cobra.Command {
-	return newCommandWithFiles(nil, nil)
+	return newCommandWithFiles(nil, nil, nil)
 }
 
 func newCommand(api householdAPI) *cobra.Command {
-	return newCommandWithFiles(api, nil)
+	return newCommandWithFiles(api, nil, nil)
 }
 
 // NewCommandWithFilesProvisioner returns the public user tree with the native
-// Files account hook supplied by the root command package.
-func NewCommandWithFilesProvisioner(provisioner FilesProvisioner) *cobra.Command {
-	return newCommandWithFiles(nil, provisioner)
+// Files account hook and the VPN add-on overlay resync supplied by the root
+// command package.
+func NewCommandWithFilesProvisioner(provisioner FilesProvisioner, resync OverlayResync) *cobra.Command {
+	return newCommandWithFiles(nil, provisioner, resync)
 }
 
-func newCommandWithFiles(api householdAPI, provisioner FilesProvisioner) *cobra.Command {
+func newCommandWithFiles(api householdAPI, provisioner FilesProvisioner, resync OverlayResync) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "user",
 		Short: "Invite and manage household users in local PocketID",
@@ -143,12 +150,18 @@ Owner and admin identities cannot be created or removed here.`,
 
 	remove := &cobra.Command{
 		Use:   "remove <username>",
-		Short: "Remove a household user from local PocketID",
+		Short: "Remove a household user and everything they hold on this Authority",
+		Long: `Remove one household member with the local removal chain: every device of
+the member is revoked (with its credentials, VPN add-on peer, sessions and app
+credentials), the member's account joins the revoked accounts of the
+Owner-signed Home trust and can never enroll again, and then the PocketID user
+is deleted, which ends the member's passkeys and PocketID sessions. The output
+lists each revocation-registry artifact and what the chain did for it.`,
 		Example: `  # Remove a household user
   stackkit user remove alex --owner-approve`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUserRemove(cmd, api, args[0])
+			return runUserRemove(cmd, api, resync, args[0])
 		},
 	}
 	remove.Flags().Bool("owner-approve", false, "Explicitly approve removing this household user")
@@ -521,7 +534,7 @@ func runUserList(cmd *cobra.Command, api householdAPI) error {
 	return nil
 }
 
-func runUserRemove(cmd *cobra.Command, api householdAPI, username string) error {
+func runUserRemove(cmd *cobra.Command, api householdAPI, resync OverlayResync, username string) error {
 	approved, err := cmd.Flags().GetBool("owner-approve")
 	if err != nil {
 		return err
@@ -534,14 +547,34 @@ func runUserRemove(cmd *cobra.Command, api householdAPI, username string) error 
 		return err
 	}
 	username = strings.TrimSpace(username)
-	if err := service.RemoveHouseholdUser(cmd.Context(), username); err != nil {
+	removal, err := service.RemoveHouseholdUser(cmd.Context(), username)
+	if err != nil {
 		return err
 	}
-	if jsonOutput(cmd) {
-		return writeJSON(cmd, map[string]string{"username": username})
+	// The member's VPN add-on peers are gone from the peer registry; a
+	// running overlay drops them now rather than at its next manual resync.
+	overlay := "not-applicable"
+	if resync != nil {
+		root, rootErr := workspaceRoot(cmd)
+		if rootErr != nil {
+			return rootErr
+		}
+		if overlay, err = resync(cmd.Context(), root, time.Now()); err != nil {
+			return fmt.Errorf("household user removed, but the running VPN add-on overlay still admits their devices: %w", err)
+		}
 	}
-	_, err = fmt.Fprintf(cmd.OutOrStdout(), "Removed household user %s\n", username)
-	return err
+	if jsonOutput(cmd) {
+		return writeJSON(cmd, map[string]any{"username": username, "removal": removal, "overlay": overlay})
+	}
+	if _, err = fmt.Fprintf(cmd.OutOrStdout(), "Removed household user %s (VPN add-on overlay: %s)\n", username, overlay); err != nil {
+		return err
+	}
+	for _, artifact := range removal.Artifacts {
+		if _, err = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s (%s)\n", artifact.ID, artifact.Status, artifact.Detail); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func resolveHousehold(cmd *cobra.Command, api householdAPI) (householdAPI, error) {

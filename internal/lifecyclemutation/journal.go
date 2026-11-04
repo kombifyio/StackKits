@@ -1478,9 +1478,9 @@ func latestHistoryRecord(
 		if err != nil {
 			return Record{}, "", err
 		}
-		return Record{}, "", errors.New(
-			"lifecycle mutation immutable history is missing",
-		)
+		// Callers distinguish an operation that never journaled (for example a
+		// transfer abort before any import) through os.ErrNotExist.
+		return Record{}, "", fmt.Errorf("lifecycle mutation immutable history is missing: %w", os.ErrNotExist)
 	}
 	if !info.IsDir() {
 		return Record{}, "", errors.New(

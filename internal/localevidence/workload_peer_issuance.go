@@ -25,11 +25,7 @@ func basementWorkloadProvisioners(root string) ([]basementStepCAProvisioner, err
 	if err != nil {
 		return nil, err
 	}
-	device, err := basementDeviceProvisioner(root)
-	if err != nil {
-		return nil, err
-	}
-	return []basementStepCAProvisioner{origin, peer, device, basementACMEProvisioner()}, nil
+	return []basementStepCAProvisioner{origin, peer, basementACMEProvisioner()}, nil
 }
 
 func requireBasementWorkloadProvisioners(root string) error {
@@ -39,10 +35,24 @@ func requireBasementWorkloadProvisioners(root string) error {
 	if err := requireBasementWorkloadProvisioner(root, basementPeerProvisionerName, x509.ExtKeyUsageClientAuth); err != nil {
 		return err
 	}
-	if err := requireBasementWorkloadProvisioner(root, basementDeviceProvisionerName, x509.ExtKeyUsageClientAuth); err != nil {
+	return requireBasementProvisioner(root, basementACMEProvisioner())
+}
+
+// basementWorkloadProvisionersCurrent reports ErrBasementOriginProvisionerMissing
+// while a required provisioner is missing or the retired device provisioner is
+// still configured, so the journaled origin upgrade converges the configuration.
+func basementWorkloadProvisionersCurrent(root string) error {
+	if err := requireBasementWorkloadProvisioners(root); err != nil {
 		return err
 	}
-	return requireBasementProvisioner(root, basementACMEProvisioner())
+	retired, err := basementProvisionerConfigured(root, basementRetiredDeviceProvisionerName)
+	if err != nil {
+		return err
+	}
+	if retired {
+		return ErrBasementOriginProvisionerMissing
+	}
+	return nil
 }
 
 // IssueWorkloadPeerCertificate is a local Owner capability, never an HTTP

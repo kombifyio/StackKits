@@ -95,7 +95,8 @@ type bridgePublicationAccess struct {
 	Privilege              string   `json:"privilege"`
 	EnrolledDeviceRequired bool     `json:"enrolledDeviceRequired"`
 	OwnerStepUpRequired    bool     `json:"ownerStepUpRequired"`
-	LANStepDown            bool     `json:"lanStepDown"`
+	OwnerRemoteOptIn       bool     `json:"ownerRemoteOptIn"`
+	AppAccessAway          bool     `json:"appAccessAway"`
 	AllowedMethods         []string `json:"allowedMethods,omitempty"`
 	DefaultClosed          bool     `json:"defaultClosed"`
 	PolicyRef              string   `json:"policyRef"`
@@ -215,10 +216,10 @@ func validateBridgePublication(publication bridgePublication, path string) error
 	}
 	access := publication.Access
 	if access.Exposure != "public" || access.PolicyExposure != "public" ||
-		!containsExecutorBundleString([]string{"human", "device", "human+device", "workload"}, access.Authentication) ||
-		!containsExecutorBundleString([]string{"user", "admin", "identity", "secrets", "vault", "recovery"}, access.Privilege) ||
-		access.LANStepDown || !access.DefaultClosed || access.PolicyRef != publication.Auth.PolicyRef ||
-		len(access.AllowedMethods) == 0 {
+		!containsExecutorBundleString([]string{"human", "human+device", "agent", "workload"}, access.Authentication) ||
+		!containsExecutorBundleString([]string{"user", "sign-in", "admin", "identity", "secrets", "vault", "recovery"}, access.Privilege) ||
+		!access.DefaultClosed || access.PolicyRef != publication.Auth.PolicyRef ||
+		len(access.AllowedMethods) == 0 || access.AppAccessAway {
 		return fail(ErrInvalidPlan, path+".access", "public access policy is incomplete or widened")
 	}
 	for _, method := range access.AllowedMethods {

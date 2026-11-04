@@ -206,6 +206,9 @@ func (o *osBasementCoreOperations) prepareApply() (basementApplyPreparation, err
 	if err != nil {
 		return basementApplyPreparation{}, fmt.Errorf("prepare the Basement core stackkit-server: %w", err)
 	}
+	if err := prepareCoreIdentityCustody(o.workspaceRoot); err != nil {
+		return basementApplyPreparation{}, err
+	}
 	return basementApplyPreparation{originReload: originReload, browserCAReload: browserCAReload, recreateServer: recreateServer}, nil
 }
 
@@ -279,6 +282,10 @@ func (o *osBasementCoreOperations) completeApplyWithIdentity(
 	binding, err := completeIdentity(ctx)
 	if err != nil {
 		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("local PocketID owner %s did not complete: %w", identityAction, err)
+	}
+	// The core verifies the Home trust against the bound Owner subject.
+	if _, err := localevidence.WriteHomeAuthorityPublic(o.workspaceRoot, time.Now()); err != nil {
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("write the public Authority record after the owner %s: %w", identityAction, err)
 	}
 	// Identity completion either realizes or verifies the exact PocketID OIDC
 	// client and its private env override. Reconcile Compose once more so

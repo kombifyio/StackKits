@@ -28,7 +28,7 @@
   "apps.heading": "Deine Anwendungen",
   "apps.refreshPrompt": "Aktualisiere den Status, um die für diesen Workspace ausgewählten Anwendungen zu sehen.",
   "devices.heading": "Haushaltsgeräte",
-  "devices.note": "Registriere ein Smartphone oder Notebook auf der Owner-Freigabeseite. Dort meldest du dich mit deinem Passkey an; Kopplungscode und QR-Code erscheinen nur auf dieser Seite, nie in dieser Unterhaltung.",
+  "devices.note": "Jede Person registriert ihre eigenen Geräte: Scanne den Registrierungscode auf dieser Seite mit dem Gerät und melde dich mit deinem eigenen Passkey an. Zu Hause ist das Gerät sofort registriert; unterwegs bestätigt es dein eigenes registriertes Gerät oder der Owner.",
   "devices.link": "Geräteregistrierung öffnen",
   "apps.checking": "Der ausgewählte Workspace wird geprüft…",
   "apps.legacyStatus": "Dieser Server-Connector liefert nur einen älteren Status. Verbinde die aktuelle lokale StackKits-CLI, um Anwendungsnachweise zu sehen; die Server-Diagnose bleibt unten verfügbar.",

@@ -58,22 +58,30 @@ _architectureV2PaperclipPostgresImage: {ref: "docker.io/library/postgres:17-alpi
 
 // kombify SpeechKit (Apache-2.0) is the speech module of Private AI (owner
 // decision 2026-09-27: on-device speech plus speechkit-server with local
-// providers only). SpeechKit #638 added the OpenAI-compatible
-// /v1/audio/transcriptions and /v1/audio/speech routes, but no released
-// image contains them yet and ghcr.io/kombifyio/speechkit-server is not
-// publicly pullable. PLACEHOLDER: this pin is not a real release. The speech
-// capability option stays realization "recorded" until an organization owner
-// makes the package public and a release with the audio routes exists; the
-// flip replaces this constant and the option (docs/use-case-expansion/ai-agents.md).
+// providers only). PLACEHOLDER: the pin flips only when BOTH hold, and this
+// constant is the single place that changes:
+//   1. ghcr.io/kombifyio/speechkit-server is anonymously pullable. It is
+//      private by design (publish-oss.yml: the server target stays private
+//      until the OSS-sync gate); a fresh homelab cannot log in, so the
+//      digest must also be taken from the release's public-image receipt
+//      (`anonymous_pull: true`).
+//   2. a release contains `speechkit-server --discovery-only`, the announcer
+//      component's only mode. No release up to speechkit-v0.78.16 has it; any
+//      earlier pin makes that component crash-loop.
+// The replacement is the release image by image-index digest (linux/amd64;
+// it carries the speechkit-stt-sherpa Parakeet runtime and the sherpa-onnx
+// libraries but no model).
 _architectureV2SpeechKitServerImage: {ref: "ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder", digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"}
-// whisper.cpp whisper-server (MIT; Whisper weights MIT): the same digest that
-// SpeechKit's deploy/docker/docker-compose.local-only.yml pins (a whisper.cpp
-// main build of 2026-05-15; the project publishes no semver tags).
-_architectureV2SpeechKitWhisperImage: {ref: "ghcr.io/ggml-org/whisper.cpp:main", digest: "sha256:fd7ca21c83126b08f610d02a50f68878a66388a4b96e90e2637ced84397013b5"}
 // Kokoro-FastAPI v0.9.0 CPU build (Apache-2.0) with the Kokoro-82M weights
 // (Apache-2.0) baked in; digest of the v0.9.0 tag. It runs espeak-ng
 // (GPL-3.0) as a separate phonemizer program. Kokoro has no German voice.
 _architectureV2SpeechKitTTSImage: {ref: "ghcr.io/remsky/kokoro-fastapi-cpu:v0.9.0", digest: "sha256:ee3111d6a2c903ed62f3b4fa19543c6901205ed39fce3c177e895b34a8386b9c"}
+// Parakeet Ultra int8 in the sherpa-onnx layout (NVIDIA Parakeet TDT 0.6B v3
+// post-trained by Moondream, CC-BY-4.0): the revision and SHA-256 values the
+// SpeechKit download catalog pins for parakeet.ultra-int8. The STT component
+// fetches each file once into its models cache and verifies it before the
+// sidecar starts; a failed check leaves only a .part file.
+_architectureV2SpeechKitSTTEntrypoint: "mkdir -p /var/lib/speechkit/models/parakeet-ultra-int8; test -s /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/encoder.int8.onnx && echo 'f4d06712d32431b1718eceba2153c314ac4425e8fe708a3534f5e56c5ad53697  /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/decoder.int8.onnx && echo '94373c6405c8149d1c9d1e9862514e0e3e88dab1c7de18fac9d5df9c6ba5efdd  /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/joiner.int8.onnx && echo '8a71aaccfdba3d451775507a889afd2257d2e754463fd81095a8c8f290f924c2  /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/tokens.txt && echo 'd58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d  /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt; }; exec /app/speechkit-stt-sherpa --host 0.0.0.0 --port 8080 --model /var/lib/speechkit/models/parakeet-ultra-int8 --inference-path /v1/audio/transcriptions"
 
 // Paperless-ngx is the single application-version authority for every derived
 // module and runtime projection. PostgreSQL and Valkey follow the compatible
@@ -545,14 +553,14 @@ _architectureV2PaperclipInfrastructure: #WorkloadInfrastructureV1 & {
 
 // Private AI speech (kombify SpeechKit): the server's SQLite store (transcripts,
 // vocabulary and other owner customizations) is the backup source. The
-// rendered server profile and the whisper.cpp model cache are reproducible
-// and excluded; Kokoro voices are part of the TTS image.
+// rendered server profile and the Parakeet model cache are reproducible and
+// excluded; Kokoro voices are part of the TTS image.
 _architectureV2SpeechKitInfrastructure: #WorkloadInfrastructureV1 & {
 	dataBinding: {moduleRef: "stackkits-workload-data-binding", bindingRef: "ai-speech", classes: ["personal"], locality: "primary-site"}
 	storageAllocation: {moduleRef: "stackkits-storage-allocation", allocations: [
 		{componentRef: "speechkit", volumeRef: "data", target: "/var/lib/speechkit/data", class: "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "ai-speech"},
 		{componentRef: "speechkit", volumeRef: "config", target: "/etc/speechkit", class: "cache", backup: false, dataClasses: []},
-		{componentRef: "speechkit-whisper", volumeRef: "models", target: "/models", class: "cache", backup: false, dataClasses: []},
+		{componentRef: "speechkit-stt", volumeRef: "models", target: "/var/lib/speechkit/models", class: "cache", backup: false, dataClasses: []},
 	]}
 	backupSource: {moduleRef: "stackkits-backup-source", allocations: [for a in storageAllocation.allocations if a.backup {componentRef: a.componentRef, volumeRef: a.volumeRef, dataClasses: a.dataClasses}]}
 	snapshot: moduleRef: "stackkits-snapshot"
@@ -1496,14 +1504,15 @@ _architectureV2WorkloadContracts: [
 	// SpeechKit server with local providers only, selected with the speech
 	// capability module. Reached by the chat module over the private AI
 	// network through its OpenAI-compatible audio routes; every /v1 route
-	// requires the bearer token from custody. No route of its own in this
-	// slice: SpeechKit device clients need a bearer-token route that the kit's
-	// browser forward-auth cannot serve, which is a follow-up.
+	// requires the bearer token from custody or a paired device's own token.
+	// Household devices cannot pass the kit's browser forward-auth, so they
+	// use the server's governed LAN listener (port 8080), which the
+	// host-network announcer advertises over mDNS (platform-eu2nt.8).
 	#WorkloadContractV2 & {
 		metadata: {
 			id:          "ai-speech"
 			version:     "1.0.0"
-			description: "kombify SpeechKit server with local speech providers (whisper.cpp STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves OpenAI-compatible audio routes to the chat module on the node's private AI network behind its bearer token and has no route of its own."
+			description: "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token."
 		}
 		kind:       "application"
 		useCaseRef: "ai"
@@ -1526,7 +1535,7 @@ _architectureV2WorkloadContracts: [
 					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
 				]
 			}
-			// The whisper.cpp sidecar fetches its MIT-licensed model file at
+			// The STT component fetches its CC-BY-4.0 Parakeet model files at
 			// first start; no owner setup action exists.
 			setup: {mode: "manual", owner: "operator", actionRefs: []}
 			inputs: {
@@ -2934,7 +2943,6 @@ _architectureV2Providers: list.Concat([[
 		supportedSiteKinds: ["home"]
 		realization: {kind: "modules", moduleRefs: {required: ["stackkits-home-private-remote-access-runtime"], optional: []}}
 		selection: defaultForSiteKinds: ["home"]
-		homeAccessOverlay: #HomeWireGuardOverlayContractV1
 		health: [{id: "home-private-remote-access-contract", kind: "contract"}]
 		evidence: ["home-private-remote-access-contract"]
 	},
@@ -5942,7 +5950,7 @@ _basementCoreServiceEndpoints: [
 	},
 	{
 		serviceRef:        "id", upstreamProtocol: "http", targetPort: 1411
-		requiredPrivilege: "identity"
+		requiredPrivilege: "sign-in"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["local", "remote-private"]
@@ -5951,7 +5959,7 @@ _basementCoreServiceEndpoints: [
 	},
 	{
 		serviceRef:        "auth", upstreamProtocol: "http", targetPort: 3000
-		requiredPrivilege: "identity"
+		requiredPrivilege: "sign-in"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["local", "remote-private"]
@@ -5981,7 +5989,7 @@ _cloudCoreServiceEndpoints: [
 	},
 	{
 		serviceRef:        "id", upstreamProtocol: "http", targetPort: 1411
-		requiredPrivilege: "identity"
+		requiredPrivilege: "sign-in"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["remote-private", "public"]
@@ -5990,7 +5998,7 @@ _cloudCoreServiceEndpoints: [
 	},
 	{
 		serviceRef:        "auth", upstreamProtocol: "http", targetPort: 3000
-		requiredPrivilege: "identity"
+		requiredPrivilege: "sign-in"
 		ingressAuth:       "none"
 		allowedIngressProtocols: ["http", "https"]
 		allowedExposures: ["remote-private", "public"]
@@ -6082,7 +6090,7 @@ _cloudCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
 ]])
 
 _basementCoreServiceControls: list.Concat([_sharedCoreServiceControls, [
-	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "socket-proxy", "step-ca", "kopia-agent", "hub", "lan-dns", "stackkit-server"], allowedActions: ["start", "restart", "logs"], critical: true},
+	{key: "base", serviceRef: "basement-hub", adapter: "compose", runtimeRef: "cloud-core", componentRefs: ["router", "router-remote", "socket-proxy", "step-ca", "kopia-agent", "hub", "lan-dns", "stackkit-server"], allowedActions: ["start", "restart", "logs"], critical: true},
 ]])
 
 _architectureV2LocalKopiaComponent: {
@@ -7325,7 +7333,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:              "compose", kind:                                 "compose", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core/compose/v1.yaml", version: "1.0.0"
-			contractHash:    "sha256:2489edf0ac17ca7c7439affc1010881dcb8e596b89d07878e49ff51c0c88f92b"
+			contractHash:    "sha256:8b0ae9a7c07114d4911fc22afb230bd73bf2abe2e672c8254b51cb69bcb33b66"
 			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
 			inputBindings: _architectureV2TinyAuthRouteACLInputs.inputBindings
 			outputs: ["platform/cloud-core/compose.yaml"]
@@ -7335,7 +7343,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "opentofu", kind:                               "opentofu", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core/opentofu/v1.tf", version: "1.0.0"
-			contractHash:    "sha256:6b245aa7ba15ba268baa422b84b2c549e83fd960ebaa2b351e65fe399847e614"
+			contractHash:    "sha256:a7eec5c8cb1ff06fbbdc32bb320497eb93dade31026292eb169d2bfbc744c953"
 			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
 			inputBindings: _architectureV2TinyAuthRouteACLInputs.inputBindings
 			outputs: ["platform/cloud-core/main.tf"]
@@ -7345,7 +7353,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "terramate", kind:                            "terramate", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core/terramate/v1", version: "1.0.0"
-			contractHash:    "sha256:4dcd7068652e6e9ec38a7a4a6cfb6f3b727f244b8a48f673f75bac0948e1f68c"
+			contractHash:    "sha256:7538dfcbab66cfa811b0e305f24372fd3f8a4bd110ed968136041590fd3f9a4e"
 			publicInputRefs: _architectureV2TinyAuthRouteACLInputs.publicInputRefs, secretInputRefs: [], planInputRefs: []
 			inputBindings: _architectureV2TinyAuthRouteACLInputs.inputBindings
 			outputs: ["platform/cloud-core/main.tf", "platform/cloud-core/stack.tm.hcl"]
@@ -7439,7 +7447,7 @@ _architectureV2Modules: list.Concat([[
 		renderUnits: [{
 			id:              "compose", kind:                                            "compose", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/compose/v1.yaml", version: "1.0.0"
-			contractHash:    "sha256:cd226436f4b09d3eaa1cfcd44a10a23ed3200959ec960131e37eee210b839b03"
+			contractHash:    "sha256:52695046c8ca7429aed12240eb7df4a8fa7ea244c04bc41f20d4fda74e93d231"
 			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7451,7 +7459,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "opentofu", kind:                                          "opentofu", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/opentofu/v1.tf", version: "1.0.0"
-			contractHash:    "sha256:1932aec8c4e643a6ab9f18d22d9f2923133e5ef4cf102aa64f594747cb5acfc2"
+			contractHash:    "sha256:f90ae9e53785d39e172e9b27d8b8e219d41cab4be6cf294f5328eebef64cb8e7"
 			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7463,7 +7471,7 @@ _architectureV2Modules: list.Concat([[
 		}, {
 			id:              "terramate", kind:                                       "terramate", rendererRef: "stackkit"
 			templateRef:     "builtin://cloud/core-standalone/terramate/v1", version: "1.0.0"
-			contractHash:    "sha256:7ffd53d94ef7e7f0b0bb558fcb2df12137e5b6e46c19314350f450492797ac35"
+			contractHash:    "sha256:73356970f8be98153810cd7d05c71ae7f71a88c6bb4b92376dd8487476e67861"
 			publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 			secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 			planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7564,6 +7572,19 @@ _architectureV2Modules: list.Concat([[
 					dependsOn: ["socket-proxy"], networkRefs: ["basement-core", "basement-control"]
 					health: {kind: "http", path: "/ping", port: 8080}
 					resources: {memoryLimit: "256m"}
+				},
+				{
+					// The remote listener (homelab identity target §7): its only
+					// entrypoint binds the Access Gate; relay and tunnel connectors
+					// reach it only on the remote-connector network.
+					id: "router-remote", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/traefik/traefik:v3"
+						digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"
+					}
+					dependsOn: ["socket-proxy", "stackkit-server"], networkRefs: ["basement-core", "basement-control", "remote-connector"]
+					health: {kind: "http", path: "/ping", port: 8080}
+					resources: {memoryLimit: "128m"}
 				},
 				{
 					id: "socket-proxy", role: "application", lifecycle: "daemon"
@@ -7708,7 +7729,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:9433c6abb3e74f7402537bedb18a281b9b202806e5db459afacd7ce4f861d00c"
+				contractHash:    "sha256:f538b599459150d6441e0383d30197abf10023a3a08a55334397ea1aa5bf317c"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7721,7 +7742,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:66a1a1c29541a8ab44d4e9aede2eb0c31abcba363c337c2cef48a9cd8505c22d"
+				contractHash:    "sha256:0e2fe4118fffd6da64f64e3e320be956df0d100ecfeed25a626fc684382122fa"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7734,7 +7755,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:83151892402d0fcada116a4f7bf2dd6278dff3b2119b9927c4017b668d00d823"
+				contractHash:    "sha256:38d73099a8e2d7eca87bc99d6a320fae38d79b33a87adb4a4f8a6c0af1468626"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7904,6 +7925,19 @@ _architectureV2Modules: list.Concat([[
 					resources: {memoryLimit: "256m"}
 				},
 				{
+					// The remote listener (homelab identity target §7): its only
+					// entrypoint binds the Access Gate; relay and tunnel connectors
+					// reach it only on the remote-connector network.
+					id: "router-remote", role: "application", lifecycle: "daemon"
+					image: {
+						ref:    "ghcr.io/traefik/traefik:v3"
+						digest: "sha256:652929a140a32d7cafafb13c6cdfab5376cfeff800f51397b87b524501ed02a8"
+					}
+					dependsOn: ["socket-proxy", "stackkit-server"], networkRefs: ["basement-core", "basement-control", "remote-connector"]
+					health: {kind: "http", path: "/ping", port: 8080}
+					resources: {memoryLimit: "128m"}
+				},
+				{
 					id: "socket-proxy", role: "application", lifecycle: "daemon"
 					image: {
 						ref:    "ghcr.io/tecnativa/docker-socket-proxy:v0.4.2"
@@ -7990,7 +8024,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:e087d7b3f9e0a909408e41a3797bd3fbc8d551620bedf79daa222ced933498a5"
+				contractHash:    "sha256:4e0f689bd53d4840f312d560b2ef162909879529fc12c8ef90ff9b330552f7e5"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -8003,7 +8037,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:43461242567cffc9d268b46f527fc3c745f1ab59b9ce4f3b04e7e7215d50de73"
+				contractHash:    "sha256:33be1a01238854abf7bd71fb1d5bcb56471bf6858cefe63b7193834041f13ad1"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -8016,7 +8050,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:beb28123a7cea7426d20afdf297072f625311951c8341535c973fad10e1c22db"
+				contractHash:    "sha256:faa5ff07766637584fe27c0c156b1749fd2845c9be4448643e2be65907d5886d"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -9974,7 +10008,7 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-speechkit-runtime"
 			version:     "1.0.0"
-			description: "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a whisper.cpp whisper-server sidecar for speech-to-text, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth) and the bearer token comes from custody. Only the server joins the private AI network; the sidecars stay on the workload network."
+			description: "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a Parakeet speech-to-text sidecar from the same image, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth, LAN device pairing) and the bearer token comes from custody. The server joins the private AI network and listens on the LAN at port 8080; a host-network announcer advertises it over mDNS as _speechkit._tcp. The sidecars stay on the workload network."
 		}
 		role:        "workload"
 		providerRef: "stackkits-speechkit"
@@ -9995,11 +10029,20 @@ _architectureV2Modules: list.Concat([[
 			components: [{
 				id:    "speechkit", role: "application", lifecycle: "daemon"
 				image: _architectureV2SpeechKitServerImage
-				dependsOn: ["speechkit-tts", "speechkit-whisper"]
+				dependsOn: ["speechkit-stt", "speechkit-tts"]
 				networkRefs: ["speechkit-internal"]
 				// Ollama (Assist) and the chat module are reached on the private AI
 				// network. No egress: every provider is local.
 				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
+				// The household's devices (Box, phones, desktop) reach the server
+				// on the LAN at http://<host>:8080 with their own device token or
+				// the server token (platform-eu2nt.8). Selecting the speech module
+				// is the owner's choice of a LAN voice server, so this governed
+				// listener is on with the module.
+				lanListeners: [{port: 8080, protocol: "tcp"}]
+				// The Box sends no Origin header on its ticketed Voice Agent
+				// WebSocket; every other client still has to send one.
+				environment: {SPEECHKIT_ALLOW_EMPTY_ORIGIN: "1"}
 				// The governed server profile is rendered into the config volume
 				// at /etc/speechkit/config.toml, the path the image's CMD names.
 				// The server has no token-file mode (SpeechKit origin/main), so the
@@ -10011,19 +10054,23 @@ _architectureV2Modules: list.Concat([[
 				health: {kind: "http", path: "/healthz", port: 8080}
 				resources: {memoryLimit: "1g", memoryReservation: "256m"}
 			}, {
-				id:    "speechkit-whisper", role: "machine-learning", lifecycle: "daemon"
-				image: _architectureV2SpeechKitWhisperImage
+				// Local speech-to-text: the server image's speechkit-stt-sherpa
+				// runs NVIDIA Parakeet TDT 0.6B v3 (Parakeet Ultra, int8, 25
+				// European languages, CC-BY-4.0) behind the OpenAI-compatible
+				// transcription route.
+				id:    "speechkit-stt", role: "machine-learning", lifecycle: "daemon"
+				image: _architectureV2SpeechKitServerImage
 				dependsOn: []
 				networkRefs: ["speechkit-internal"]
-				// Egress serves one download: the MIT-licensed ggml-small model
-				// (488 MB) from the whisper.cpp Hugging Face repository, verified
-				// by SHA-256 and kept in the models cache volume.
+				// Egress serves one download: the four Parakeet Ultra int8 files
+				// (about 670 MB) from their pinned Hugging Face revision, each
+				// verified by SHA-256 and kept in the models cache volume.
 				egress: true
-				entrypoint: ["/bin/sh", "-ec", "mkdir -p /models/whisper; test -s /models/whisper/ggml-small.bin || { curl -fsSL --retry 5 -o /models/whisper/ggml-small.bin.part https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin && echo '1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b  /models/whisper/ggml-small.bin.part' | sha256sum -c - && mv /models/whisper/ggml-small.bin.part /models/whisper/ggml-small.bin; }; exec /app/build/bin/whisper-server --host 0.0.0.0 --port 8080 --model /models/whisper/ggml-small.bin --inference-path /v1/audio/transcriptions"]
-				volumes: [for allocation in _architectureV2SpeechKitInfrastructure.storageAllocation.allocations if allocation.componentRef == "speechkit-whisper" {
+				entrypoint: ["/bin/sh", "-ec", _architectureV2SpeechKitSTTEntrypoint]
+				volumes: [for allocation in _architectureV2SpeechKitInfrastructure.storageAllocation.allocations if allocation.componentRef == "speechkit-stt" {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 				}]
-				health: {kind: "http", path: "/", port: 8080}
+				health: {kind: "http", path: "/health", port: 8080}
 				resources: {memoryLimit: "3g", memoryReservation: "1g"}
 			}, {
 				id:    "speechkit-tts", role: "machine-learning", lifecycle: "daemon"
@@ -10032,6 +10079,19 @@ _architectureV2Modules: list.Concat([[
 				networkRefs: ["speechkit-internal"]
 				health: {kind: "http", path: "/health", port: 8880}
 				resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			}, {
+				// LAN discovery: mDNS multicast never leaves a bridge network, so
+				// the same image announces _speechkit._tcp from the host network
+				// and does nothing else (no listener, store, token or provider).
+				id:    "speechkit-discovery", role: "application", lifecycle: "daemon"
+				image: _architectureV2SpeechKitServerImage
+				dependsOn: ["speechkit"]
+				networkRefs: []
+				hostNetwork: true
+				entrypoint: ["/app/speechkit-server"]
+				command: ["--discovery-only", "--discovery-port", "8080", "--discovery-modes", "dictation,assist,voiceagent"]
+				health: {kind: "command", command: ["/app/speechkit-server", "--discovery-only", "--probe"]}
+				resources: {memoryLimit: "64m", memoryReservation: "16m"}
 			}]
 		}
 		renderUnits: [{
@@ -10041,7 +10101,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/speechkit/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:92fa34b8a326bc36d296f9585aab41d46d66ff66731058b04e270448b75a62fb"
+			contractHash: "sha256:3a904eb5e109b4197f1a93a4a474f31695af0881b48e779052366b3cdd30fd18"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"

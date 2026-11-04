@@ -1155,6 +1155,12 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 			document.Networks[key] = standaloneComposeNetwork{Name: "stackkit-" + peer.WorkloadRef + "-" + bundle.NodeRef + "_" + peer.NetworkRef, External: true}
 			service.Networks = append(service.Networks, key)
 		}
+		// The governed LAN announcer runs in the host's network namespace so
+		// its mDNS multicast reaches the household; it joins no network.
+		if component.HostNetwork {
+			service.NetworkMode = "host"
+			service.Networks = nil
+		}
 		sort.Strings(service.Networks)
 		sort.SliceStable(service.Volumes, func(i, j int) bool {
 			return fmt.Sprint(service.Volumes[i]) < fmt.Sprint(service.Volumes[j])
@@ -1278,8 +1284,28 @@ func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDelive
 			labels["traefik.http.routers."+router+".tls.certresolver"] = "stackkits"
 		}
 	}
+	if !standaloneComposeHomeCore(route.CoreModuleRef) {
+		// A Cloud core has no LAN listener: its public listener is the remote
+		// one, so the remote Access Gate is in front of every route and
+		// TinyAuth's parent-domain cookie is never consulted.
+		labels["traefik.http.routers."+router+".middlewares"] = "stackkit-access-gate-remote@docker"
+		return labels
+	}
+	// LAN listener: the Access Gate decides first, then TinyAuth checks the
+	// session and the route's groups. A native endpoint authenticates itself.
 	if route.IngressAuth == "forward-auth" {
-		labels["traefik.http.routers."+router+".middlewares"] = "stackkit-forward-auth@docker"
+		labels["traefik.http.routers."+router+".middlewares"] = "stackkit-access-gate-lan@docker,stackkit-forward-auth@docker"
+	}
+	// Remote listener: the remote router binds the Access Gate to its only
+	// entrypoint for every route, native endpoints included. Only a host
+	// rule is published there: a host-less path rule could outrank another
+	// host's router. The remote router reads only labelled containers.
+	if route.Host != "" && (route.Exposure == "remote-private" || route.Exposure == "public") {
+		remote := router + "-remote"
+		labels[standaloneComposeRemoteListenerLabel] = "true"
+		labels["traefik.http.routers."+remote+".entrypoints"] = "remote"
+		labels["traefik.http.routers."+remote+".rule"] = rule
+		labels["traefik.http.routers."+remote+".service"] = router
 	}
 	return labels
 }
@@ -1656,12 +1682,20 @@ func validateStandaloneComposeRouteReadback(
 	return nil
 }
 
+// standaloneComposeCSVMap parses the comma-joined labels `docker compose ps`
+// reports. A label value may itself hold commas (a router's middleware chain,
+// "stackkit-access-gate-lan@docker,stackkit-forward-auth@docker"): a field
+// without "=" continues the previous value.
 func standaloneComposeCSVMap(raw string) map[string]string {
 	result := map[string]string{}
+	previous := ""
 	for _, field := range strings.Split(raw, ",") {
 		key, value, found := strings.Cut(strings.TrimSpace(field), "=")
-		if found && key != "" {
-			result[key] = value
+		switch {
+		case found && key != "":
+			result[key], previous = value, key
+		case !found && previous != "" && key != "":
+			result[previous] += "," + key
 		}
 	}
 	return result

@@ -26,6 +26,11 @@ func coreFullLocalNetworkFragment(policy runtimeprofile.LocalNetwork, network st
 
 var fullLocalCoreNetworks = hostsecurity.CoreContainerNetworks()
 
+const (
+	fullLocalRemoteConnectorAnchor   = "    name: " + hostsecurity.RemoteConnectorNetwork + "\n"
+	fullLocalRemoteConnectorInternal = "    internal: true\n"
+)
+
 func coreDNSServices(compose []byte) ([]string, error) {
 	var document struct {
 		Services map[string]struct{} `yaml:"services"`
@@ -62,6 +67,12 @@ func renderFullLocalCoreNetwork(unit RenderUnit, compose []byte) ([]byte, error)
 		}
 		compose = bytes.Replace(compose, []byte(anchor), []byte(anchor+coreFullLocalNetworkFragment(*policy, network)), 1)
 	}
+	// Full Local has no reach path: the remote listener's connector network
+	// carries no egress either.
+	if bytes.Count(compose, []byte(fullLocalRemoteConnectorAnchor)) != 1 {
+		return nil, fail(ErrOutputChanged, "core.network", "missing unique remote connector network")
+	}
+	compose = bytes.Replace(compose, []byte(fullLocalRemoteConnectorAnchor), []byte(fullLocalRemoteConnectorAnchor+fullLocalRemoteConnectorInternal), 1)
 	services, err := coreDNSServices(compose)
 	if err != nil {
 		return nil, err
@@ -110,6 +121,11 @@ func stripFullLocalCoreNetwork(compose []byte) ([]byte, bool) {
 		}
 		compose = bytes.Replace(compose, []byte(block), []byte(anchor), 1)
 	}
+	connector := fullLocalRemoteConnectorAnchor + fullLocalRemoteConnectorInternal
+	if bytes.Count(compose, []byte(connector)) != 1 {
+		return nil, false
+	}
+	compose = bytes.Replace(compose, []byte(connector), []byte(fullLocalRemoteConnectorAnchor), 1)
 	services, err := coreDNSServices(compose)
 	if err != nil {
 		return nil, false

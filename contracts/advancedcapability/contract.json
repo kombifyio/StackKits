@@ -15,9 +15,11 @@
     {"go": "MaxLogicalReferenceBytes", "value": 256, "doc": "MaxLogicalReferenceBytes bounds uiManagerRef and rilRef."},
     {"go": "BackupRenewalMaxLifetimeSeconds", "value": 900, "doc": "BackupRenewalMaxLifetimeSeconds bounds a capability that carries a backup renewal (15 minutes)."},
     {"go": "BackupRenewalMaxMeasurementAgeSeconds", "value": 300, "doc": "BackupRenewalMaxMeasurementAgeSeconds bounds how long before issuedAt the renewal usage may have been measured."},
-    {"go": "TransferRetirementMaxLifetimeSeconds", "value": 900, "doc": "TransferRetirementMaxLifetimeSeconds bounds a capability for one held transfer retirement (15 minutes)."}
+    {"go": "TransferRetirementMaxLifetimeSeconds", "value": 900, "doc": "TransferRetirementMaxLifetimeSeconds bounds a capability for one held transfer retirement (15 minutes)."},
+    {"go": "TransferReceiveMaxLifetimeSeconds", "value": 900, "doc": "TransferReceiveMaxLifetimeSeconds bounds a capability for one receiving transfer step (15 minutes)."}
   ],
   "operations": [
+    {"go": "OperationApplicationTransferReceive", "value": "application-transfer.receive"},
     {"go": "OperationApplicationTransferRetire", "value": "application-transfer.retire"},
     {"go": "OperationDriftReconcileAdvanced", "value": "drift.reconcile.advanced"},
     {"go": "OperationOriginCertificateInstall", "value": "public-tls.origin-certificate.install"},
@@ -40,7 +42,8 @@
     {"name": "custodyAttestationRef", "regexp": "^backup-custody-attestation://sha256/[0-9a-f]{64}$"},
     {"name": "decimalInt64", "regexp": "^(0|[1-9][0-9]{0,18})$"},
     {"name": "transferOperationId", "regexp": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
-    {"name": "transferRetirementRole", "regexp": "^(source|destination)$"}
+    {"name": "transferRetirementRole", "regexp": "^(source|destination)$"},
+    {"name": "transferReceiveStep", "regexp": "^(admit|prepare|import)$"}
   ],
   "documents": [
     {
@@ -61,6 +64,7 @@
         {"json": "schemaVersion", "go": "SchemaVersion", "type": "string", "const": "SchemaVersion"},
         {"json": "signature", "go": "Signature", "type": "string", "signature": true, "format": "ed25519-signature", "doc": "Signature is the unpadded standard-Base64 Ed25519 signature over SigningDigest of the unsigned canonical bytes."},
         {"json": "stackId", "go": "StackID", "type": "string", "pattern": "stackId"},
+        {"json": "transferReceive", "go": "TransferReceive", "type": "object:TransferReceive", "optional": true, "doc": "TransferReceive binds a short-lived receiving step to the exact receiving desired intent and the one source Owner Techstack admitted for this move."},
         {"json": "transferRetirement", "go": "TransferRetirement", "type": "object:TransferRetirement", "optional": true, "doc": "TransferRetirement binds a short-lived retirement to the exact existing held snapshot, signed peer outcome and canonical desired-intent transition."},
         {"json": "uiManagerRef", "go": "UIManagerRef", "type": "string", "format": "logical-reference"}
       ]
@@ -82,6 +86,15 @@
         {"json": "targetRef", "go": "TargetRef", "type": "string", "pattern": "backupTargetRef"},
         {"json": "tenantId", "go": "TenantID", "type": "string", "pattern": "renewalIdentity"},
         {"json": "usedBytes", "go": "UsedBytes", "type": "string", "pattern": "decimalInt64"}
+      ]
+    },
+    {
+      "go": "TransferReceive",
+      "doc": "TransferReceive authorizes one receiving step of a native application transfer on an Advanced destination: admit (issue the destination admission for the staged receiving candidate), prepare (adopt the transferred credentials before the first Apply) or import (activate the transferred data). It names the exact receiving desired intent and the source Owner; it grants no source, retirement, deletion, server or provider authority. The consumer reconstructs every field from its own workspace and the authenticated transfer.",
+      "fields": [
+        {"json": "candidateSpecHash", "go": "CandidateSpecHash", "type": "string", "pattern": "sha256Digest"},
+        {"json": "sourceOwnerRef", "go": "SourceOwnerRef", "type": "string", "pattern": "ownerRef"},
+        {"json": "step", "go": "Step", "type": "string", "pattern": "transferReceiveStep"}
       ]
     },
     {
@@ -188,6 +201,28 @@
         "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
         "stackId": "cloud-stack",
         "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1"
+      }
+    },
+    {
+      "name": "transfer-receive-v1",
+      "seedHex": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+      "capability": {
+        "allowedOperations": [
+          "application-transfer.receive"
+        ],
+        "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8e",
+        "expiresAt": "2026-09-27T12:15:00Z",
+        "issuedAt": "2026-09-27T12:00:00Z",
+        "issuerId": "techstack",
+        "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
+        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8e",
+        "stackId": "cloud-stack",
+        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1",
+        "transferReceive": {
+          "candidateSpecHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "sourceOwnerRef": "owner/local/ffeeddccbbaa99887766554433221100",
+          "step": "import"
+        }
       }
     },
     {

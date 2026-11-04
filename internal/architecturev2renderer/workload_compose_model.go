@@ -51,11 +51,14 @@ type WorkloadComposeService struct {
 	DependsOn   map[string]WorkloadComposeDependency `yaml:"depends_on,omitempty"`
 	Environment map[string]string                    `yaml:"environment,omitempty"`
 	Volumes     []any                                `yaml:"volumes,omitempty"`
-	Networks    []string                             `yaml:"networks"`
-	Ports       []string                             `yaml:"ports,omitempty"`
-	Devices     []string                             `yaml:"devices,omitempty"`
-	ExtraHosts  []string                             `yaml:"extra_hosts,omitempty"`
-	StopSignal  string                               `yaml:"stop_signal,omitempty"`
+	// NetworkMode is "host" only for the governed LAN announcer, which then
+	// joins no network; every other service names at least one network.
+	NetworkMode string   `yaml:"network_mode,omitempty"`
+	Networks    []string `yaml:"networks,omitempty"`
+	Ports       []string `yaml:"ports,omitempty"`
+	Devices     []string `yaml:"devices,omitempty"`
+	ExtraHosts  []string `yaml:"extra_hosts,omitempty"`
+	StopSignal  string   `yaml:"stop_signal,omitempty"`
 	// User overrides the image user; set only for a governed game-node
 	// bootstrap that writes into the root-owned Wings data (ADR-0048).
 	User        string                         `yaml:"user,omitempty"`

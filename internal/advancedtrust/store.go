@@ -112,6 +112,28 @@ func Import(workspace string, raw []byte, expectedSHA256 string, now time.Time) 
 	return Load(workspace)
 }
 
+// Present reports whether a local Advanced trust record exists, without
+// verifying it and without changing the workspace. A caller that changes
+// behaviour on its presence still Loads it and fails closed when it does not
+// verify; absence alone is the standalone case.
+func Present(workspace string) (bool, error) {
+	root, err := confinedfs.Open(workspace)
+	if err != nil {
+		return false, fmt.Errorf("advancedtrust: open workspace: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	transaction, err := root.BeginTransaction()
+	if err != nil {
+		return false, fmt.Errorf("advancedtrust: begin read transaction: %w", err)
+	}
+	defer func() { _ = transaction.Close() }()
+	exists, _, err := transaction.Exists(recordRelativePath)
+	if err != nil {
+		return false, fmt.Errorf("advancedtrust: inspect local trust record: %w", err)
+	}
+	return exists, nil
+}
+
 // Load returns only after strict wire, SHA-256, local Owner binding, signature,
 // private permission, and stable-read verification succeeds.
 func Load(workspace string) (Record, error) {

@@ -707,26 +707,13 @@ type executorBundleNetworkPolicy struct {
 }
 
 type executorBundleIdentity struct {
-	HumanAuthoritySiteRef   string                          `json:"humanAuthoritySiteRef"`
-	DeviceAuthoritySiteRef  string                          `json:"deviceAuthoritySiteRef,omitempty"`
-	EdgeVerifierSiteRefs    []string                        `json:"edgeVerifierSiteRefs,omitempty"`
-	DeviceEnrollment        *executorBundleDeviceEnrollment `json:"deviceEnrollment,omitempty"`
-	PossessionBoundSessions bool                            `json:"possessionBoundSessions"`
-	LANLocationIsIdentity   bool                            `json:"lanLocationIsIdentity"`
-}
-
-type executorBundleDeviceEnrollment struct {
-	Mode                      string `json:"mode"`
-	AuthoritySiteRef          string `json:"authoritySiteRef"`
-	EndpointExposure          string `json:"endpointExposure"`
-	RemoteEnrollment          bool   `json:"remoteEnrollment"`
-	RequireOwnerStepUp        bool   `json:"requireOwnerStepUp"`
-	RequireLocalPairingProof  bool   `json:"requireLocalPairingProof"`
-	RequireDeviceGeneratedKey bool   `json:"requireDeviceGeneratedKey"`
-	RequirePossessionProof    bool   `json:"requirePossessionProof"`
-	HardwareBackedKey         string `json:"hardwareBackedKey"`
-	RevocationSupported       bool   `json:"revocationSupported"`
-	CredentialTTLSeconds      int    `json:"credentialTTLSeconds"`
+	HumanAuthoritySiteRef   string                   `json:"humanAuthoritySiteRef"`
+	DeviceAuthoritySiteRef  string                   `json:"deviceAuthoritySiteRef,omitempty"`
+	EdgeVerifierSiteRefs    []string                 `json:"edgeVerifierSiteRefs,omitempty"`
+	DeviceEnrollment        *homelabDeviceEnrollment `json:"deviceEnrollment,omitempty"`
+	PossessionBoundSessions bool                     `json:"possessionBoundSessions"`
+	LANLocationIsIdentity   bool                     `json:"lanLocationIsIdentity"`
+	Origin                  homelabIdentityOrigin    `json:"origin"`
 }
 
 type executorBundleCloudCopyPolicy struct {
@@ -756,6 +743,8 @@ type executorBundleFailurePolicy struct {
 	LocalIdentityAuthorityAvailable bool   `json:"localIdentityAuthorityAvailable"`
 	MaxStaleVerificationSeconds     int    `json:"maxStaleVerificationSeconds"`
 	DenyNewCrossSiteSessions        bool   `json:"denyNewCrossSiteSessions"`
+	IssuedSessions                  string `json:"issuedSessions"`
+	NewSessions                     string `json:"newSessions"`
 }
 
 type coreRuntimeExecutorPlan struct {
@@ -1010,13 +999,16 @@ func validateExecutorBundleIdentity(identity executorBundleIdentity, sites []exe
 	if siteKinds[identity.HumanAuthoritySiteRef] == "" || !identity.PossessionBoundSessions || identity.LANLocationIsIdentity {
 		return fail(ErrInvalidPlan, path, "identity policy must retain an existing authority, possession binding, and no LAN identity")
 	}
+	if !validHomelabIdentityOrigin(identity.Origin) {
+		return fail(ErrInvalidPlan, path+".origin", "identity origin must be id.<homelab name> with its certificate class")
+	}
 	if identity.DeviceAuthoritySiteRef != "" && siteKinds[identity.DeviceAuthoritySiteRef] == "" {
 		return fail(ErrInvalidPlan, path+".deviceAuthoritySiteRef", "device authority Site does not exist")
 	}
 	if identity.DeviceEnrollment != nil {
 		device := identity.DeviceEnrollment
-		if device.Mode != "local-only" || device.EndpointExposure != "lan" || device.RemoteEnrollment || !device.RequireOwnerStepUp || !device.RequireLocalPairingProof || !device.RequireDeviceGeneratedKey || !device.RequirePossessionProof || !device.RevocationSupported || siteKinds[device.AuthoritySiteRef] != "home" {
-			return fail(ErrInvalidPlan, path+".deviceEnrollment", "device enrollment widened beyond the local possession-bound contract")
+		if !validHomelabDeviceEnrollment(*device) || siteKinds[device.AuthoritySiteRef] != "home" {
+			return fail(ErrInvalidPlan, path+".deviceEnrollment", "device enrollment widened beyond enrollment by the person at the Home Authority")
 		}
 	}
 	return nil
@@ -1045,7 +1037,7 @@ func validateExecutorBundleData(data executorBundleData, sites []executorBundleS
 }
 
 func validateExecutorBundleFailurePolicy(policy executorBundleFailurePolicy, path string) error {
-	if !containsExecutorBundleString([]string{"fail-closed", "local-continues", "not-applicable"}, policy.OnCloudLoss) || !containsExecutorBundleString([]string{"cloud-continues", "fail-closed", "local-continues", "not-applicable"}, policy.OnLinkLoss) || !containsExecutorBundleString([]string{"fail-closed", "not-applicable"}, policy.CloudEdge) || !policy.DenyNewCrossSiteSessions || policy.MaxStaleVerificationSeconds < 0 {
+	if !containsExecutorBundleString([]string{"fail-closed", "local-continues", "not-applicable"}, policy.OnCloudLoss) || !containsExecutorBundleString([]string{"cloud-continues", "fail-closed", "local-continues", "not-applicable"}, policy.OnLinkLoss) || !containsExecutorBundleString([]string{"fail-closed", "not-applicable"}, policy.CloudEdge) || !policy.DenyNewCrossSiteSessions || policy.MaxStaleVerificationSeconds < 0 || !validPartitionSessionTerms(policy.IssuedSessions, policy.NewSessions) {
 		return fail(ErrInvalidPlan, path, "failure policy widens the generation-only contract")
 	}
 	return nil
