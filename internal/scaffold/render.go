@@ -3,6 +3,7 @@ package scaffold
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -49,6 +50,17 @@ func Render(f *Facts) (map[string]string, error) {
 func renderTemplate(file string, rm *renderModel) (string, error) {
 	t, err := template.New(file).Funcs(template.FuncMap{
 		"quote": func(s string) string { return "\"" + strings.ReplaceAll(s, "\"", "\\\"") + "\"" },
+		// cuestr emits a JSON string literal, which CUE reads unchanged
+		// (backslashes, quotes and control characters escaped).
+		"cuestr": func(s string) (string, error) {
+			b, err := json.Marshal(s)
+			return string(b), err
+		},
+		// yamlq emits a single-quoted YAML scalar with Compose
+		// interpolation disabled ($ doubled).
+		"yamlq": func(s string) string {
+			return "'" + strings.ReplaceAll(strings.ReplaceAll(s, "$", "$$"), "'", "''") + "'"
+		},
 	}).ParseFS(templatesFS, "templates/"+file)
 	if err != nil {
 		return "", err
@@ -74,6 +86,10 @@ type renderModel struct {
 	Requires    *reqModel
 	Placement   placementModel
 	Services    []svcModel
+	// ComposeServices are the services the reference compose starts;
+	// SmokeExcluded names the others.
+	ComposeServices []svcModel
+	SmokeExcluded   []svcModel
 	// Test harness coordinates (derived).
 	PrimaryContainer   string
 	HealthHost         string
@@ -121,31 +137,38 @@ type placementModel struct {
 }
 
 type svcModel struct {
-	Name          string
-	Type          string
-	Image         string
-	Tag           string
-	Required      bool
-	Needs         []string
-	Routed        bool
-	TraefikRule   string
-	TraefikPort   int
-	Networks      []string
-	OuterAuth     string
-	AppAuth       string
-	HasAccess     bool
-	AccessReason  string
-	AccessOwner   string
-	HC            hcModel
-	Resources     *FactsResources
-	Security      secModel
-	Volumes       []FactsVolume
-	Environment   []kv
-	Upstream      *upstreamModel
-	Subdomain     *FactsSubdomain
-	ContainerName string
-	IsDB          bool
-	OutputDesc    string
+	Name        string
+	Type        string
+	Image       string
+	Tag         string
+	Required    bool
+	Needs       []string
+	Routed      bool
+	TraefikRule string
+	TraefikPort int
+	Networks    []string
+	// NetworkMode "host" is decided once in buildServiceModel: no networks,
+	// and SmokeExcluded keeps the service out of the reference compose.
+	NetworkMode       string
+	NetworkModeReason string
+	SmokeExcluded     bool
+	Entrypoint        []string
+	Command           []string
+	OuterAuth         string
+	AppAuth           string
+	HasAccess         bool
+	AccessReason      string
+	AccessOwner       string
+	HC                hcModel
+	Resources         *FactsResources
+	Security          secModel
+	Volumes           []FactsVolume
+	Environment       []kv
+	Upstream          *upstreamModel
+	Subdomain         *FactsSubdomain
+	ContainerName     string
+	IsDB              bool
+	OutputDesc        string
 	// Compose-derived (test reference-compose.yml)
 	ComposeNetworks []string
 	MemLimit        string
@@ -171,6 +194,7 @@ type secModel struct {
 	CapDrop         []string
 	ReadOnly        bool
 	Tmpfs           []string
+	PidsLimit       int
 }
 
 type upstreamModel struct {
@@ -241,6 +265,11 @@ func buildRenderModel(f *Facts) *renderModel {
 		s := &f.Services[i]
 		sm := buildServiceModel(f, s)
 		rm.Services = append(rm.Services, sm)
+		if sm.SmokeExcluded {
+			rm.SmokeExcluded = append(rm.SmokeExcluded, sm)
+			continue
+		}
+		rm.ComposeServices = append(rm.ComposeServices, sm)
 
 		// harness coordinates
 		healthy = append(healthy, sm.ContainerName)
@@ -261,9 +290,9 @@ func buildRenderModel(f *Facts) *renderModel {
 		}
 	}
 
-	if rm.PrimaryContainer == "" && len(rm.Services) > 0 {
-		rm.PrimaryContainer = rm.Services[0].ContainerName
-		rm.RouterName = rm.Services[0].Name
+	if rm.PrimaryContainer == "" && len(rm.ComposeServices) > 0 {
+		rm.PrimaryContainer = rm.ComposeServices[0].ContainerName
+		rm.RouterName = rm.ComposeServices[0].Name
 	}
 	if rm.HealthHost == "" {
 		rm.HealthHost = rm.Slug + ".test.local"
@@ -346,6 +375,15 @@ func buildServiceModel(f *Facts, s *FactsService) svcModel {
 		HC:            buildHealthCheck(s.HealthCheck),
 		Security:      buildSecurity(s.Security),
 		Environment:   sortedEnv(s.Environment),
+		Entrypoint:    s.Entrypoint,
+		Command:       s.Command,
+	}
+	// Host networking is settled here, once: the service joins no network,
+	// and it never starts on the shared smoke runner, where it would act on
+	// the runner's own LAN (an announcer would advertise a server that is
+	// not there).
+	if s.NetworkMode != "" {
+		sm.NetworkMode, sm.NetworkModeReason, sm.SmokeExcluded = s.NetworkMode, s.NetworkModeReason, true
 	}
 	for _, v := range s.Volumes {
 		if v.Type == "" {
@@ -363,6 +401,7 @@ func buildServiceModel(f *Facts, s *FactsService) svcModel {
 		sm.TraefikPort = s.Traefik.Port
 	}
 	switch {
+	case sm.SmokeExcluded:
 	case len(s.Networks) > 0:
 		sm.Networks = s.Networks
 	case sm.IsDB:
@@ -410,6 +449,7 @@ func buildSecurity(sec *FactsSecurity) secModel {
 	if sec != nil {
 		out.ReadOnly = sec.ReadOnly
 		out.Tmpfs = sec.Tmpfs
+		out.PidsLimit = sec.PidsLimit
 		if len(sec.CapDrop) > 0 && !containsFold(sec.CapDrop, "ALL") {
 			out.CapDrop = append([]string{"ALL"}, sec.CapDrop...)
 		}
@@ -452,8 +492,8 @@ func buildUpstream(s *FactsService) *upstreamModel {
 // deriveComposeFields fills the reference-compose-only fields on each service
 // (needs HealthHost + HasDBNet, so it runs after the first pass).
 func deriveComposeFields(rm *renderModel) {
-	for i := range rm.Services {
-		s := &rm.Services[i]
+	for i := range rm.ComposeServices {
+		s := &rm.ComposeServices[i]
 		for _, n := range s.Networks {
 			if n == "base_net_db" {
 				s.ComposeNetworks = appendUnique(s.ComposeNetworks, "test-db-net")

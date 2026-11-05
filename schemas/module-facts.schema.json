@@ -58,6 +58,7 @@
         }
       }
     },
+    "catalogExact": { "type": "boolean", "description": "Every imageSource service is an exact projection of its catalog component: entrypoint and command come from the catalog; host networking, environment, volume targets, needs and the HTTP health port must agree." },
     "placement": {
       "type": "object",
       "additionalProperties": false,
@@ -83,6 +84,12 @@
         { "required": ["image", "tag"], "not": { "required": ["imageSource"] } },
         { "required": ["imageSource"], "not": { "anyOf": [{ "required": ["image"] }, { "required": ["tag"] }] } }
       ],
+      "if": { "required": ["networkMode"] },
+      "then": {
+        "required": ["networkModeReason"],
+        "not": { "anyOf": [{ "required": ["networks"] }, { "required": ["routed"], "properties": { "routed": { "const": true } } }] }
+      },
+      "else": { "not": { "required": ["networkModeReason"] } },
       "properties": {
         "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]+$" },
         "type": { "type": "string" },
@@ -106,6 +113,10 @@
           }
         },
         "networks": { "type": "array", "items": { "type": "string" } },
+        "networkMode": { "type": "string", "enum": ["host"], "description": "Run in the host's network namespace (an mDNS announcer); excludes networks and routing, needs networkModeReason, and stays out of the reference compose." },
+        "networkModeReason": { "type": "string", "minLength": 1, "pattern": "^[^\\r\\n]+$", "description": "One line: why this service needs the host network." },
+        "entrypoint": { "type": "array", "items": { "type": "string" }, "description": "Image entrypoint; an imageSource service in a catalogExact module takes it from the catalog." },
+        "command": { "type": "array", "items": { "type": "string" }, "description": "Image command; an imageSource service in a catalogExact module takes it from the catalog." },
         "accessPolicy": {
           "type": "object",
           "additionalProperties": false,
@@ -146,7 +157,8 @@
             "noNewPrivileges": { "type": "boolean" },
             "capDrop": { "type": "array", "items": { "type": "string" } },
             "readOnly": { "type": "boolean" },
-            "tmpfs": { "type": "array", "items": { "type": "string" } }
+            "tmpfs": { "type": "array", "items": { "type": "string" } },
+            "pidsLimit": { "type": "integer", "minimum": 1 }
           }
         },
         "volumes": {

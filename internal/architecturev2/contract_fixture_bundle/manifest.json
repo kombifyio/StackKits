@@ -15,7 +15,7 @@
     "foundation/architecture_v2.cue": "sha256:5c3087bf0976784157dd78c18ffbebbca6eeb62ca86079dc3152460a3c3bbcf6",
     "foundation/architecture_v2_adguard_home.cue": "sha256:b50f0c5eb0769992be391a4d91a73af219dd26203e6b502087f20e5cb31c9072",
     "foundation/architecture_v2_backup.cue": "sha256:73dfa6982480000ad2fff19b3d1d8a352b3b92d6ca30bce2c94d86e38a4245a0",
-    "foundation/architecture_v2_catalog.cue": "sha256:3eebbe9ccb86b08d6184c17dd2a4a7009f12d51185d550ba181f0071113bd9a4",
+    "foundation/architecture_v2_catalog.cue": "sha256:190a2880c73fb9cd1d3abdc34e5bb0b8ddbe4b616fc99b038b033c09d26c395d",
     "foundation/architecture_v2_cloud_core.cue": "sha256:e62ffb36ef1305078274022932bf41bf7e0737b0402254fcdbe8c1f3f1e5500a",
     "foundation/architecture_v2_definition_binding.cue": "sha256:c037e589af6d42f7462425e4141da7102d791c14679044096f0df4593288b347",
     "foundation/architecture_v2_dokploy.cue": "sha256:94cb91bd95450128ffa257bed6dd49253e5372393de9280f4d04328ae98fffa3",

@@ -107,8 +107,8 @@ var governedCompanionEnvironments = map[string]struct {
 		// custody secret of the ai-speech workload; companion wiring carries
 		// no secret, so AUDIO_*_OPENAI_API_KEY stays a documented gap.
 		{WorkloadRef: "ai-speech", AlternativeRef: "speechkit", Environment: map[string]string{
-			"AUDIO_STT_ENGINE": "openai", "AUDIO_STT_OPENAI_API_BASE_URL": "http://speechkit:8080/v1", "AUDIO_STT_MODEL": "whisper-1",
-			"AUDIO_TTS_ENGINE": "openai", "AUDIO_TTS_OPENAI_API_BASE_URL": "http://speechkit:8080/v1", "AUDIO_TTS_MODEL": "tts-1", "AUDIO_TTS_VOICE": "af_bella",
+			"AUDIO_STT_ENGINE": "openai", "AUDIO_STT_OPENAI_API_BASE_URL": "http://speechkit:18080/v1", "AUDIO_STT_MODEL": "whisper-1",
+			"AUDIO_TTS_ENGINE": "openai", "AUDIO_TTS_OPENAI_API_BASE_URL": "http://speechkit:18080/v1", "AUDIO_TTS_MODEL": "tts-1", "AUDIO_TTS_VOICE": "af_bella",
 		}},
 		// Open WebUI v0.11.3 image generation through ComfyUI. Private AI runs
 		// with ENABLE_PERSISTENT_CONFIG=false, so these values apply at every
@@ -149,9 +149,9 @@ var governedCompanionEnvironments = map[string]struct {
 		// GenericOpenAiWhisper for uploaded audio (WHISPER_*). The *_KEY
 		// values are the ai-speech custody token the owner enters in Settings.
 		{WorkloadRef: "ai-speech", AlternativeRef: "speechkit", Environment: map[string]string{
-			"STT_PROVIDER": "generic-openai", "STT_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:8080/v1", "STT_OPEN_AI_COMPATIBLE_MODEL": "whisper-1",
-			"WHISPER_PROVIDER": "generic-openai", "WHISPER_GENERIC_OPEN_AI_BASE_URL": "http://speechkit:8080/v1", "WHISPER_GENERIC_OPEN_AI_MODEL": "whisper-1",
-			"TTS_PROVIDER": "generic-openai", "TTS_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:8080/v1", "TTS_OPEN_AI_COMPATIBLE_MODEL": "tts-1", "TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL": "af_bella",
+			"STT_PROVIDER": "generic-openai", "STT_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:18080/v1", "STT_OPEN_AI_COMPATIBLE_MODEL": "whisper-1",
+			"WHISPER_PROVIDER": "generic-openai", "WHISPER_GENERIC_OPEN_AI_BASE_URL": "http://speechkit:18080/v1", "WHISPER_GENERIC_OPEN_AI_MODEL": "whisper-1",
+			"TTS_PROVIDER": "generic-openai", "TTS_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:18080/v1", "TTS_OPEN_AI_COMPATIBLE_MODEL": "tts-1", "TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL": "af_bella",
 		}},
 	}},
 }

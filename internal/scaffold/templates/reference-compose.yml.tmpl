@@ -2,6 +2,10 @@
 # Boots the module against a Traefik baseline for the single-module smoke
 # (scripts/ci/module-smoke.sh). Scaffolded by `stackkit module scaffold`;
 # refine env/secrets/ports for a bootable test before opt-in promotion.
+{{- range .SmokeExcluded}}
+# {{.Name}} is not started here: it runs in the host network ({{.NetworkModeReason}}),
+# which on the smoke runner would be the runner's own LAN.
+{{- end}}
 services:
   traefik:
     image: traefik:v3.6
@@ -31,10 +35,22 @@ services:
       - ALL
     cap_add:
       - NET_BIND_SERVICE
-{{range .Services}}
+{{range .ComposeServices}}
   {{.Name}}:
     image: {{.Image}}:{{.Tag}}
     container_name: {{.ContainerName}}
+{{- if .Entrypoint}}
+    entrypoint:
+{{- range .Entrypoint}}
+      - {{yamlq .}}
+{{- end}}
+{{- end}}
+{{- if .Command}}
+    command:
+{{- range .Command}}
+      - {{yamlq .}}
+{{- end}}
+{{- end}}
 {{- if .Environment}}
     environment:
 {{- range .Environment}}
@@ -75,6 +91,9 @@ services:
 {{- range .Security.Tmpfs}}
       - {{.}}
 {{- end}}
+{{- end}}
+{{- if .Security.PidsLimit}}
+    pids_limit: {{.Security.PidsLimit}}
 {{- end}}
     mem_limit: {{.MemLimit}}
     cpus: {{.CPUs}}

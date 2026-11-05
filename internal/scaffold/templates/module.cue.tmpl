@@ -73,6 +73,12 @@ Contract: foundation.#ModuleContract & {
 {{- if .Needs}}
 			needs: [{{range $i, $n := .Needs}}{{if $i}}, {{end}}{{quote $n}}{{end}}]
 {{- end}}
+{{- if .Entrypoint}}
+			entrypoint: [{{range $i, $a := .Entrypoint}}{{if $i}}, {{end}}{{cuestr $a}}{{end}}]
+{{- end}}
+{{- if .Command}}
+			command: [{{range $i, $a := .Command}}{{if $i}}, {{end}}{{cuestr $a}}{{end}}]
+{{- end}}
 
 			network: {
 {{- if .Routed}}
@@ -82,7 +88,12 @@ Contract: foundation.#ModuleContract & {
 					port:    {{.TraefikPort}}
 				}
 {{- end}}
+{{- if .NetworkMode}}
+				// {{.NetworkModeReason}}
+				mode: {{quote .NetworkMode}}
+{{- else}}
 				networks: [{{range $i, $n := .Networks}}{{if $i}}, {{end}}{{quote $n}}{{end}}]
+{{- end}}
 			}
 {{- if .HasAccess}}
 
@@ -177,6 +188,9 @@ Contract: foundation.#ModuleContract & {
 {{- end}}
 {{- if .Security.Tmpfs}}
 				tmpfs: [{{range $i, $t := .Security.Tmpfs}}{{if $i}}, {{end}}{{quote $t}}{{end}}]
+{{- end}}
+{{- if .Security.PidsLimit}}
+				pidsLimit: {{.Security.PidsLimit}}
 {{- end}}
 			}
 {{- if .Subdomain}}

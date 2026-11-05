@@ -13,7 +13,7 @@
 # token of a device paired with this server.
 #
 # The household's devices (Box, phones, desktop) reach the server on the LAN
-# at http://<host>:8080. A host-network announcer component advertises it over
+# at http://<host>:18080. A host-network announcer component advertises it over
 # mDNS as _speechkit._tcp; the server process itself announces nothing
 # (multicast never leaves a bridge network). See [server.discovery].
 
@@ -25,7 +25,7 @@ network_scope = "local_network"
 allow_setup_traffic = false
 
 [server]
-listen_addr      = ":8080"
+listen_addr      = ":18080"
 modes            = ["dictation", "assist", "voiceagent"]
 auth_mode        = "bearer"
 bearer_token_env = "SPEECHKIT_SERVER_TOKEN"
@@ -53,7 +53,7 @@ enabled = false
 # bridge network and announces nothing.
 [server.discovery]
 enabled        = false
-advertise_port = 8080
+advertise_port = 18080
 
 [store]
 backend     = "sqlite"

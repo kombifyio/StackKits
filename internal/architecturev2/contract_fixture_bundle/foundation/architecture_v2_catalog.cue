@@ -1512,7 +1512,7 @@ _architectureV2WorkloadContracts: [
 		metadata: {
 			id:          "ai-speech"
 			version:     "1.0.0"
-			description: "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token."
+			description: "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 18080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token."
 		}
 		kind:       "application"
 		useCaseRef: "ai"
@@ -9161,10 +9161,10 @@ _architectureV2Modules: list.Concat([[
 					// through companionSecretEnvironment.
 					{workloadRef: "ai-speech", alternativeRef: "speechkit", environment: {
 						AUDIO_STT_ENGINE:              "openai"
-						AUDIO_STT_OPENAI_API_BASE_URL: "http://speechkit:8080/v1"
+						AUDIO_STT_OPENAI_API_BASE_URL: "http://speechkit:18080/v1"
 						AUDIO_STT_MODEL:               "whisper-1"
 						AUDIO_TTS_ENGINE:              "openai"
-						AUDIO_TTS_OPENAI_API_BASE_URL: "http://speechkit:8080/v1"
+						AUDIO_TTS_OPENAI_API_BASE_URL: "http://speechkit:18080/v1"
 						AUDIO_TTS_MODEL:               "tts-1"
 						AUDIO_TTS_VOICE:               "af_bella"
 					}},
@@ -9377,13 +9377,13 @@ _architectureV2Modules: list.Concat([[
 					// secret, bound below through companionSecretEnvironment.
 					{workloadRef: "ai-speech", alternativeRef: "speechkit", environment: {
 						STT_PROVIDER:                       "generic-openai"
-						STT_OPEN_AI_COMPATIBLE_ENDPOINT:    "http://speechkit:8080/v1"
+						STT_OPEN_AI_COMPATIBLE_ENDPOINT:    "http://speechkit:18080/v1"
 						STT_OPEN_AI_COMPATIBLE_MODEL:       "whisper-1"
 						WHISPER_PROVIDER:                   "generic-openai"
-						WHISPER_GENERIC_OPEN_AI_BASE_URL:   "http://speechkit:8080/v1"
+						WHISPER_GENERIC_OPEN_AI_BASE_URL:   "http://speechkit:18080/v1"
 						WHISPER_GENERIC_OPEN_AI_MODEL:      "whisper-1"
 						TTS_PROVIDER:                       "generic-openai"
-						TTS_OPEN_AI_COMPATIBLE_ENDPOINT:    "http://speechkit:8080/v1"
+						TTS_OPEN_AI_COMPATIBLE_ENDPOINT:    "http://speechkit:18080/v1"
 						TTS_OPEN_AI_COMPATIBLE_MODEL:       "tts-1"
 						TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL: "af_bella"
 					}},
@@ -10008,7 +10008,7 @@ _architectureV2Modules: list.Concat([[
 		metadata: {
 			id:          "stackkits-speechkit-runtime"
 			version:     "1.0.0"
-			description: "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a Parakeet speech-to-text sidecar from the same image, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth, LAN device pairing) and the bearer token comes from custody. The server joins the private AI network and listens on the LAN at port 8080; a host-network announcer advertises it over mDNS as _speechkit._tcp. The sidecars stay on the workload network."
+			description: "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a Parakeet speech-to-text sidecar from the same image, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth, LAN device pairing) and the bearer token comes from custody. The server joins the private AI network and listens on the LAN at port 18080; a host-network announcer advertises it over mDNS as _speechkit._tcp. The sidecars stay on the workload network."
 		}
 		role:        "workload"
 		providerRef: "stackkits-speechkit"
@@ -10035,11 +10035,11 @@ _architectureV2Modules: list.Concat([[
 				// network. No egress: every provider is local.
 				peerNetworks: [{workloadRef: "ai", networkRef: "private-ai-internal"}]
 				// The household's devices (Box, phones, desktop) reach the server
-				// on the LAN at http://<host>:8080 with their own device token or
+				// on the LAN at http://<host>:18080 with their own device token or
 				// the server token (platform-eu2nt.8). Selecting the speech module
 				// is the owner's choice of a LAN voice server, so this governed
 				// listener is on with the module.
-				lanListeners: [{port: 8080, protocol: "tcp"}]
+				lanListeners: [{port: 18080, protocol: "tcp"}]
 				// The Box sends no Origin header on its ticketed Voice Agent
 				// WebSocket; every other client still has to send one.
 				environment: {SPEECHKIT_ALLOW_EMPTY_ORIGIN: "1"}
@@ -10051,7 +10051,7 @@ _architectureV2Modules: list.Concat([[
 				volumes: [for allocation in _architectureV2SpeechKitInfrastructure.storageAllocation.allocations if allocation.componentRef == "speechkit" {
 					id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
 				}]
-				health: {kind: "http", path: "/healthz", port: 8080}
+				health: {kind: "http", path: "/healthz", port: 18080}
 				resources: {memoryLimit: "1g", memoryReservation: "256m"}
 			}, {
 				// Local speech-to-text: the server image's speechkit-stt-sherpa
@@ -10089,7 +10089,7 @@ _architectureV2Modules: list.Concat([[
 				networkRefs: []
 				hostNetwork: true
 				entrypoint: ["/app/speechkit-server"]
-				command: ["--discovery-only", "--discovery-port", "8080", "--discovery-modes", "dictation,assist,voiceagent"]
+				command: ["--discovery-only", "--discovery-port", "18080", "--discovery-modes", "dictation,assist,voiceagent"]
 				health: {kind: "command", command: ["/app/speechkit-server", "--discovery-only", "--probe"]}
 				resources: {memoryLimit: "64m", memoryReservation: "16m"}
 			}]
@@ -10101,7 +10101,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/speechkit/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:9afc654d99e41cd5d9bc40e0f185e399b5f288d0b5b118df4ddcd767c7b1bd3c"
+			contractHash: "sha256:cf393df0ae21079be84778732281991a256e229245823a37729c75029b5d1495"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
@@ -10118,7 +10118,7 @@ _architectureV2Modules: list.Concat([[
 			serviceEndpoints: [{
 				serviceRef:        "ai-speech"
 				upstreamProtocol:  "http"
-				targetPort:        8080
+				targetPort:        18080
 				requiredPrivilege: "user"
 				ingressAuth:       "forward-auth"
 				allowedIngressProtocols: ["https"]
@@ -10158,7 +10158,7 @@ _architectureV2Modules: list.Concat([[
 			phase:          "continuous"
 			kind:           "http"
 			path:           "/healthz"
-			port:           8080
+			port:           18080
 			timeoutSeconds: 10
 			expectedStatuses: [200]
 		}]

@@ -22,7 +22,7 @@ import (
 // chat module and the household's devices use, requires a bearer token: the
 // server token from custody or a paired device's own token.
 //
-// The server listens on the LAN at port 8080 so the Box, phones and the
+// The server listens on the LAN at port 18080 so the Box, phones and the
 // desktop find it, and a host-network announcer advertises it over mDNS as
 // _speechkit._tcp (multicast never leaves a bridge network). The chat module
 // still reaches it on the private AI network; the kit's browser forward-auth
@@ -34,7 +34,7 @@ const (
 	speechKitWorkloadTemplateRef  = "builtin://workloads/speechkit/bundle/v2.json"
 	speechKitWorkloadVersion      = "2.0.0"
 	speechKitWorkloadOutputRef    = "workloads/speechkit/bundle.json"
-	speechKitPort                 = 8080
+	speechKitPort                 = 18080
 	speechKitSTTComponentID       = "speechkit-stt"
 	speechKitSTTPort              = 8080
 	speechKitTTSComponentID       = "speechkit-tts"
@@ -305,7 +305,7 @@ func speechKitSTTEntrypoint() []string {
 
 // speechKitDiscoveryCommand is the announce-only mode of the server image: it
 // binds nothing but mDNS and announces the server that listens on the host's
-// port 8080. The probe is its health check and makes no network call.
+// port 18080. The probe is its health check and makes no network call.
 func speechKitDiscoveryCommand() []string {
 	return []string{"--discovery-only", "--discovery-port", strconv.Itoa(speechKitPort),
 		"--discovery-modes", "dictation,assist,voiceagent"}

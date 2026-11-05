@@ -33174,10 +33174,10 @@
                 "environment": {
                   "AUDIO_STT_ENGINE": "openai",
                   "AUDIO_STT_MODEL": "whisper-1",
-                  "AUDIO_STT_OPENAI_API_BASE_URL": "http://speechkit:8080/v1",
+                  "AUDIO_STT_OPENAI_API_BASE_URL": "http://speechkit:18080/v1",
                   "AUDIO_TTS_ENGINE": "openai",
                   "AUDIO_TTS_MODEL": "tts-1",
-                  "AUDIO_TTS_OPENAI_API_BASE_URL": "http://speechkit:8080/v1",
+                  "AUDIO_TTS_OPENAI_API_BASE_URL": "http://speechkit:18080/v1",
                   "AUDIO_TTS_VOICE": "af_bella"
                 },
                 "workloadRef": "ai-speech"
@@ -33907,14 +33907,14 @@
               {
                 "alternativeRef": "speechkit",
                 "environment": {
-                  "STT_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:8080/v1",
+                  "STT_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:18080/v1",
                   "STT_OPEN_AI_COMPATIBLE_MODEL": "whisper-1",
                   "STT_PROVIDER": "generic-openai",
-                  "TTS_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:8080/v1",
+                  "TTS_OPEN_AI_COMPATIBLE_ENDPOINT": "http://speechkit:18080/v1",
                   "TTS_OPEN_AI_COMPATIBLE_MODEL": "tts-1",
                   "TTS_OPEN_AI_COMPATIBLE_VOICE_MODEL": "af_bella",
                   "TTS_PROVIDER": "generic-openai",
-                  "WHISPER_GENERIC_OPEN_AI_BASE_URL": "http://speechkit:8080/v1",
+                  "WHISPER_GENERIC_OPEN_AI_BASE_URL": "http://speechkit:18080/v1",
                   "WHISPER_GENERIC_OPEN_AI_MODEL": "whisper-1",
                   "WHISPER_PROVIDER": "generic-openai"
                 },
@@ -35847,12 +35847,12 @@
           "kind": "http",
           "path": "/healthz",
           "phase": "continuous",
-          "port": 8080,
+          "port": 18080,
           "timeoutSeconds": 10
         }
       ],
       "metadata": {
-        "description": "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a Parakeet speech-to-text sidecar from the same image, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth, LAN device pairing) and the bearer token comes from custody. The server joins the private AI network and listens on the LAN at port 8080; a host-network announcer advertises it over mDNS as _speechkit._tcp. The sidecars stay on the workload network.",
+        "description": "kombify SpeechKit server (Dictation, Assist, Voice Agent and the OpenAI-compatible /v1/audio routes) with local providers only: a Parakeet speech-to-text sidecar from the same image, a Kokoro-FastAPI sidecar for text-to-speech and the node's Ollama for Assist. StackKits renders the local-only server profile (every cloud provider off, bearer auth, LAN device pairing) and the bearer token comes from custody. The server joins the private AI network and listens on the LAN at port 18080; a host-network announcer advertises it over mDNS as _speechkit._tcp. The sidecars stay on the workload network.",
         "id": "stackkits-speechkit-runtime",
         "version": "1.0.0"
       },
@@ -35940,7 +35940,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:9afc654d99e41cd5d9bc40e0f185e399b5f288d0b5b118df4ddcd767c7b1bd3c",
+          "contractHash": "sha256:cf393df0ae21079be84778732281991a256e229245823a37729c75029b5d1495",
           "id": "speechkit",
           "inputBindings": [
             {
@@ -35993,7 +35993,7 @@
               "originSelector": "control-authority-site",
               "requiredPrivilege": "user",
               "serviceRef": "ai-speech",
-              "targetPort": 8080,
+              "targetPort": 18080,
               "upstreamProtocol": "http"
             }
           ],
@@ -36105,7 +36105,7 @@
             "health": {
               "kind": "http",
               "path": "/healthz",
-              "port": 8080
+              "port": 18080
             },
             "id": "speechkit",
             "image": {
@@ -36114,7 +36114,7 @@
             },
             "lanListeners": [
               {
-                "port": 8080,
+                "port": 18080,
                 "protocol": "tcp"
               }
             ],
@@ -36213,7 +36213,7 @@
             "command": [
               "--discovery-only",
               "--discovery-port",
-              "8080",
+              "18080",
               "--discovery-modes",
               "dictation,assist,voiceagent"
             ],
@@ -61445,7 +61445,7 @@
       ],
       "kind": "application",
       "metadata": {
-        "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
+        "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 18080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
         "id": "ai-speech",
         "version": "1.0.0"
       },

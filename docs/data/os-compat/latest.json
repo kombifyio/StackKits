@@ -1,11 +1,11 @@
 {
   "schemaVersion": 3,
   "stackkitsVersion": "v0.54.4",
-  "requestedStackkitsVersion": "v0.55.11",
+  "requestedStackkitsVersion": "v0.55.17",
   "testedStackkitsVersion": "v0.54.4",
   "referenceBinding": {
     "scope": "product-artifact",
-    "requestedRelease": "v0.55.11"
+    "requestedRelease": "v0.55.17"
   },
   "currentResult": "NOT_RUN",
   "generatedAt": "2026-10-21T18:16:12Z",

@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "f5811830cf2d03ac32c7988c2e18ae9d0b193709",
-  "authority_bundle_sha256": "4c5d7226dac749a2bde01ed7a7bacd62b7a584a2839a00aaf5152f3da841c73e",
+  "source_sha": "78f1c3412684c06abe4d5d39b835cdf88aec7d02",
+  "authority_bundle_sha256": "1633c29b4cf870a1a840e07fbdad89ddc56680df3c3e8ad0c70698f3c9520e21",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -4965,7 +4965,7 @@
         {
           "use_case_id": "ai-speech",
           "title": "ai-speech",
-          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
+          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 18080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "speechkit",
@@ -10650,7 +10650,7 @@
         {
           "use_case_id": "ai-speech",
           "title": "ai-speech",
-          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
+          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 18080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "speechkit",
@@ -15971,7 +15971,7 @@
         {
           "use_case_id": "ai-speech",
           "title": "ai-speech",
-          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 8080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
+          "description": "kombify SpeechKit server with local speech providers (Parakeet STT, Kokoro TTS, the node's Ollama for Assist), selected with the Private AI speech module. It serves the chat module on the node's private AI network and the household's devices on the LAN (port 18080, announced over mDNS as _speechkit._tcp), each behind its bearer or device token.",
           "required": false,
           "selected_by_default": false,
           "default_alternative_id": "speechkit",
@@ -18085,5 +18085,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "0fa9cf91ffe56ada6a343cffee45a00708ba43a4da2822ed882b81849348046a"
+  "catalog_sha256": "a808f973fbde0268a9feb343adc2d71a9f0fe9f0490014dc17730590ee8edaf7"
 }

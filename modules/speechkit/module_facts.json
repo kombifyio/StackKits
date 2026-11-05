@@ -1,9 +1,10 @@
 {
   "facts_schema_version": "1.0.0",
   "layer": "L3-application",
+  "catalogExact": true,
   "slug": "speechkit",
   "displayName": "kombify SpeechKit",
-  "description": "kombify SpeechKit server with local speech providers only (a Parakeet speech-to-text sidecar from the same image, Kokoro text-to-speech, the node's Ollama for Assist); OpenAI-compatible audio routes for the chat module on the private AI network and for the household's devices on the LAN at port 8080, each behind a bearer or device token, announced over mDNS as _speechkit._tcp.",
+  "description": "kombify SpeechKit server with local speech providers only (a Parakeet speech-to-text sidecar from the same image, Kokoro text-to-speech, the node's Ollama for Assist) and no cloud key; OpenAI-compatible audio routes for the chat module on the private AI network and for the household's devices on the LAN at port 18080, each behind a bearer or device token, announced over mDNS as _speechkit._tcp by a host-network announcer from the same image.",
   "rationale": "Private AI speech capability module (default); the homelab's first-class SpeechKit target for the Box, phones and the desktop (platform-eu2nt.8).",
   "requires": {
     "infrastructure": {
@@ -17,13 +18,18 @@
       "name": "speechkit",
       "type": "application",
       "required": false,
+      "needs": [
+        "speechkit-stt",
+        "speechkit-tts"
+      ],
       "networks": [
+        "speechkit-internal",
         "private-ai-internal"
       ],
       "healthCheck": {
         "type": "http",
         "path": "/healthz",
-        "port": 8080
+        "port": 18080
       },
       "resources": {
         "memory": "256m",
@@ -37,13 +43,31 @@
       "imageSource": {
         "moduleRef": "stackkits-speechkit-runtime",
         "componentRef": "speechkit"
-      }
+      },
+      "environment": {
+        "SPEECHKIT_ALLOW_EMPTY_ORIGIN": "1"
+      },
+      "volumes": [
+        {
+          "source": "speechkit-data",
+          "target": "/var/lib/speechkit/data",
+          "backup": true,
+          "description": "SQLite store: transcripts, vocabulary, paired devices"
+        },
+        {
+          "source": "speechkit-config",
+          "target": "/etc/speechkit",
+          "description": "Rendered local-only server profile"
+        }
+      ]
     },
     {
       "name": "speechkit-stt",
       "type": "backend",
       "required": false,
-      "networks": [],
+      "networks": [
+        "speechkit-internal"
+      ],
       "healthCheck": {
         "type": "http",
         "path": "/health",
@@ -61,13 +85,22 @@
       "imageSource": {
         "moduleRef": "stackkits-speechkit-runtime",
         "componentRef": "speechkit-stt"
-      }
+      },
+      "volumes": [
+        {
+          "source": "speechkit-models",
+          "target": "/var/lib/speechkit/models",
+          "description": "Parakeet Ultra int8 model cache, downloaded once from the pinned Hugging Face revision and checked by SHA-256"
+        }
+      ]
     },
     {
       "name": "speechkit-tts",
       "type": "backend",
       "required": false,
-      "networks": [],
+      "networks": [
+        "speechkit-internal"
+      ],
       "healthCheck": {
         "type": "http",
         "path": "/health",
@@ -85,6 +118,40 @@
       "imageSource": {
         "moduleRef": "stackkits-speechkit-runtime",
         "componentRef": "speechkit-tts"
+      }
+    },
+    {
+      "name": "speechkit-discovery",
+      "type": "application",
+      "required": false,
+      "needs": [
+        "speechkit"
+      ],
+      "networkMode": "host",
+      "networkModeReason": "mDNS announcer: multicast for _speechkit._tcp never leaves a bridge network; it binds no port and serves nothing",
+      "healthCheck": {
+        "type": "command",
+        "command": "/app/speechkit-server --discovery-only --probe"
+      },
+      "resources": {
+        "memory": "16m",
+        "memoryMax": "64m"
+      },
+      "security": {
+        "readOnly": true,
+        "tmpfs": [
+          "/tmp"
+        ],
+        "pidsLimit": 32
+      },
+      "upstream": {
+        "github": "kombifyio/SpeechKit",
+        "registryImage": "ghcr.io/kombifyio/speechkit-server"
+      },
+      "routed": false,
+      "imageSource": {
+        "moduleRef": "stackkits-speechkit-runtime",
+        "componentRef": "speechkit-discovery"
       }
     }
   ]

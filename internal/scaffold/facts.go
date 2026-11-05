@@ -8,7 +8,9 @@ package scaffold
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -31,7 +33,12 @@ type Facts struct {
 	ToolClass          string          `json:"tool_class,omitempty"`
 	Requires           *FactsRequires  `json:"requires,omitempty"`
 	Placement          *FactsPlacement `json:"placement,omitempty"`
-	Services           []FactsService  `json:"services"`
+	// CatalogExact makes every imageSource service an exact projection of
+	// its catalog component: entrypoint and command come from the catalog,
+	// and host networking, environment, volume targets, needs and the HTTP
+	// health port must agree with it, or rendering fails.
+	CatalogExact bool           `json:"catalogExact,omitempty"`
+	Services     []FactsService `json:"services"`
 }
 
 // FactsRequires declares dependency + infrastructure needs.
@@ -67,16 +74,26 @@ type FactsPlacement struct {
 
 // FactsService is one container the module deploys.
 type FactsService struct {
-	Name         string             `json:"name"`
-	Type         string             `json:"type"`
-	Image        string             `json:"image"`
-	Tag          string             `json:"tag,omitempty"`
-	ImageSource  *FactsImageSource  `json:"imageSource,omitempty"`
-	Required     *bool              `json:"required,omitempty"`
-	Needs        []string           `json:"needs,omitempty"`
-	Routed       bool               `json:"routed,omitempty"`
-	Traefik      *FactsTraefik      `json:"traefik,omitempty"`
-	Networks     []string           `json:"networks,omitempty"`
+	Name        string            `json:"name"`
+	Type        string            `json:"type"`
+	Image       string            `json:"image"`
+	Tag         string            `json:"tag,omitempty"`
+	ImageSource *FactsImageSource `json:"imageSource,omitempty"`
+	Required    *bool             `json:"required,omitempty"`
+	Needs       []string          `json:"needs,omitempty"`
+	Routed      bool              `json:"routed,omitempty"`
+	Traefik     *FactsTraefik     `json:"traefik,omitempty"`
+	Networks    []string          `json:"networks,omitempty"`
+	// NetworkMode "host" runs the service in the host's network namespace
+	// (for example an mDNS announcer, whose multicast never leaves a bridge
+	// network). It excludes networks and routing, needs NetworkModeReason,
+	// and keeps the service out of the shared smoke run.
+	NetworkMode       string `json:"networkMode,omitempty"`
+	NetworkModeReason string `json:"networkModeReason,omitempty"`
+	// Entrypoint and Command replace the image's own. A service with an
+	// imageSource takes both from its catalog component instead.
+	Entrypoint   []string           `json:"entrypoint,omitempty"`
+	Command      []string           `json:"command,omitempty"`
 	AccessPolicy *FactsAccessPolicy `json:"accessPolicy,omitempty"`
 	HealthCheck  *FactsHealthCheck  `json:"healthCheck,omitempty"`
 	Resources    *FactsResources    `json:"resources,omitempty"`
@@ -137,6 +154,7 @@ type FactsSecurity struct {
 	CapDrop         []string `json:"capDrop,omitempty"`
 	ReadOnly        bool     `json:"readOnly,omitempty"`
 	Tmpfs           []string `json:"tmpfs,omitempty"`
+	PidsLimit       int      `json:"pidsLimit,omitempty"`
 }
 
 // FactsVolume is a mount with a backup classification.
@@ -214,6 +232,9 @@ func (f *Facts) validate() error {
 	if len(f.Services) == 0 {
 		return fmt.Errorf("at least one service is required")
 	}
+	if !slices.ContainsFunc(f.Services, func(s FactsService) bool { return s.NetworkMode == "" }) {
+		return fmt.Errorf("at least one service must run outside the host network (the smoke run starts only those)")
+	}
 	seen := map[string]bool{}
 	for i := range f.Services {
 		s := &f.Services[i]
@@ -236,6 +257,15 @@ func (f *Facts) validate() error {
 		if p := s.AccessPolicy; p != nil && (p.OuterAuth == "none-explicit" || p.AppAuth == "none") && p.Reason == "" {
 			return fmt.Errorf("service %q: accessPolicy needs a reason for outerAuth none-explicit or appAuth none", s.Name)
 		}
+		if s.NetworkMode != "" && (s.NetworkMode != "host" || len(s.Networks) > 0 || s.Routed) {
+			return fmt.Errorf("service %q: networkMode accepts only \"host\", without networks or routing", s.Name)
+		}
+		if s.NetworkMode != "" && strings.TrimSpace(s.NetworkModeReason) == "" {
+			return fmt.Errorf("service %q: networkMode host needs a networkModeReason", s.Name)
+		}
+		if s.NetworkModeReason != "" && (s.NetworkMode == "" || strings.ContainsAny(s.NetworkModeReason, "\r\n")) {
+			return fmt.Errorf("service %q: networkModeReason is one line and only for networkMode host", s.Name)
+		}
 		if s.Routed && s.Traefik == nil {
 			return fmt.Errorf("service %q: routed service needs traefik {rule, port}", s.Name)
 		}
@@ -250,13 +280,7 @@ func (f *Facts) resolveImages(data []byte) error {
 				ID string `json:"id"`
 			} `json:"metadata"`
 			Runtime struct {
-				Components []struct {
-					ID    string `json:"id"`
-					Image struct {
-						Ref    string `json:"ref"`
-						Digest string `json:"digest"`
-					} `json:"image"`
-				} `json:"components"`
+				Components []catalogComponent `json:"components"`
 			} `json:"runtime"`
 		} `json:"modules"`
 	}
@@ -268,6 +292,9 @@ func (f *Facts) resolveImages(data []byte) error {
 		}
 		if s.Image != "" || s.Tag != "" || s.ImageSource.ModuleRef == "" || s.ImageSource.ComponentRef == "" {
 			return fmt.Errorf("service %q: imageSource requires exact references and excludes image/tag overrides", s.Name)
+		}
+		if len(s.Entrypoint) > 0 || len(s.Command) > 0 {
+			return fmt.Errorf("service %q: imageSource takes entrypoint and command from the catalog component; remove them from the facts", s.Name)
 		}
 		if !loaded {
 			if err := json.Unmarshal(data, &catalog); err != nil {
@@ -291,11 +318,81 @@ func (f *Facts) resolveImages(data []byte) error {
 					return fmt.Errorf("service %q: catalog image must have an exact tag and digest", s.Name)
 				}
 				s.Image, s.Tag = ref[:colon], ref[colon+1:]+"@"+component.Image.Digest
+				if !f.CatalogExact {
+					continue
+				}
+				s.Entrypoint, s.Command = component.Entrypoint, component.Command
+				if err := component.agrees(s); err != nil {
+					return fmt.Errorf("service %q: facts disagree with catalog component %s/%s: %w", s.Name, s.ImageSource.ModuleRef, s.ImageSource.ComponentRef, err)
+				}
 			}
 		}
 		if matches != 1 {
 			return fmt.Errorf("service %q: imageSource must resolve exactly once", s.Name)
 		}
+	}
+	return nil
+}
+
+// catalogComponent is the part of a compiled CUE runtime component that a
+// module projection must reproduce exactly.
+type catalogComponent struct {
+	ID    string `json:"id"`
+	Image struct {
+		Ref    string `json:"ref"`
+		Digest string `json:"digest"`
+	} `json:"image"`
+	Entrypoint  []string          `json:"entrypoint"`
+	Command     []string          `json:"command"`
+	HostNetwork bool              `json:"hostNetwork"`
+	Environment map[string]string `json:"environment"`
+	DependsOn   []string          `json:"dependsOn"`
+	Volumes     []struct {
+		Target string `json:"target"`
+	} `json:"volumes"`
+	Health struct {
+		Kind string `json:"kind"`
+		Port int    `json:"port"`
+	} `json:"health"`
+}
+
+// agrees fails when the facts restate a runtime fact differently from the
+// catalog component they project: host networking, environment, volume
+// targets, start dependencies and the HTTP health port.
+func (c catalogComponent) agrees(s *FactsService) error {
+	if c.HostNetwork != (s.NetworkMode == "host") {
+		return fmt.Errorf("host networking is %t in the catalog", c.HostNetwork)
+	}
+	env := s.Environment
+	if env == nil {
+		env = map[string]string{}
+	}
+	want := c.Environment
+	if want == nil {
+		want = map[string]string{}
+	}
+	if !maps.Equal(env, want) {
+		return fmt.Errorf("environment differs from the catalog")
+	}
+	targets := make([]string, 0, len(s.Volumes))
+	for _, v := range s.Volumes {
+		targets = append(targets, v.Target)
+	}
+	wantTargets := make([]string, 0, len(c.Volumes))
+	for _, v := range c.Volumes {
+		wantTargets = append(wantTargets, v.Target)
+	}
+	slices.Sort(targets)
+	slices.Sort(wantTargets)
+	if !slices.Equal(targets, wantTargets) {
+		return fmt.Errorf("volume targets %v differ from the catalog's %v", targets, wantTargets)
+	}
+	needs := slices.Sorted(slices.Values(s.Needs))
+	if !slices.Equal(needs, slices.Sorted(slices.Values(c.DependsOn))) {
+		return fmt.Errorf("needs %v differ from the catalog's dependsOn %v", needs, c.DependsOn)
+	}
+	if c.Health.Kind == "http" && s.HealthCheck != nil && s.HealthCheck.Port != c.Health.Port {
+		return fmt.Errorf("health port %d differs from the catalog's %d", s.HealthCheck.Port, c.Health.Port)
 	}
 	return nil
 }
