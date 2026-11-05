@@ -418,6 +418,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.55.19 (2026-11-05)
+
+### Added
+
+* **rack-android:** ephemeral Android emulator runner VM 9001 on rack-pve
+
+### Fixed
+
+* **ci:** Guard release R2 steps also require the workflow_dispatch event
+* **techstack:** governed decommission for leases of a deleted account
+
 ## 0.55.18 (2026-11-05)
 
 ### Added
