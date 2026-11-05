@@ -3,6 +3,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,9 +12,12 @@ import (
 	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/literal"
+	"cuelang.org/go/cue/load"
 	"cuelang.org/go/cue/parser"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	skcue "github.com/kombifyio/stackkits/internal/cue"
@@ -124,7 +128,79 @@ func bumpString(expression ast.Expr) (string, bool) {
 	return text, err == nil
 }
 
-func bumpFoundationImage(cmd *cobra.Command, moduleDirectory string, before skcue.ModuleContract, owner foundationOwnedImage) error {
+// Facts-backed modules are generated projections: their literal tag is not the owner.
+func factsImageOwner(moduleDirectory, service string) (*foundationOwnedImage, error) {
+	path, err := confinedfs.ResolveModuleArtifactPath(moduleDirectory, "module_facts.json")
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var facts struct {
+		Services []struct {
+			Name        string `json:"name"`
+			ImageSource *struct {
+				ModuleRef    string `json:"moduleRef"`
+				ComponentRef string `json:"componentRef"`
+			} `json:"imageSource"`
+		} `json:"services"`
+	}
+	if err := json.Unmarshal(data, &facts); err != nil {
+		return nil, fmt.Errorf("read module facts: %w", err)
+	}
+	var owner *foundationOwnedImage
+	seen := false
+	for _, item := range facts.Services {
+		if item.Name != service {
+			continue
+		}
+		if seen {
+			return nil, fmt.Errorf("module facts contain duplicate service %q", service)
+		}
+		seen = true
+		if item.ImageSource != nil {
+			if item.ImageSource.ModuleRef == "" || item.ImageSource.ComponentRef == "" {
+				return nil, fmt.Errorf("module facts have incomplete image source for %q", service)
+			}
+			owner = &foundationOwnedImage{module: item.ImageSource.ModuleRef, component: item.ImageSource.ComponentRef}
+		}
+	}
+	return owner, nil
+}
+
+func validateFoundationProjection(root string, owner foundationOwnedImage, image, tag string) error {
+	instances := load.Instances([]string{"./foundation"}, &load.Config{Dir: root, ModuleRoot: root})
+	if len(instances) != 1 {
+		return fmt.Errorf("could not load Foundation package")
+	}
+	if instances[0].Err != nil {
+		return fmt.Errorf("load Foundation: %w", instances[0].Err)
+	}
+	value := cuecontext.New().BuildInstance(instances[0])
+	if err := value.Validate(); err != nil {
+		return fmt.Errorf("validate Foundation: %w", err)
+	}
+	projection := value.LookupPath(cue.MakePath(cue.Str("ArchitectureV2ModuleImages"), cue.Str(owner.module), cue.Str(owner.component)))
+	actualImage, err := projection.LookupPath(cue.MakePath(cue.Str("image"))).String()
+	if err != nil {
+		return fmt.Errorf("read Foundation image: %w", err)
+	}
+	actualTag, err := projection.LookupPath(cue.MakePath(cue.Str("tag"))).String()
+	if err != nil {
+		return fmt.Errorf("read Foundation tag: %w", err)
+	}
+	if actualImage != image || actualTag != tag {
+		return fmt.Errorf("Foundation projection differs from expected image %s:%s", image, tag)
+	}
+	return nil
+}
+
+func bumpFoundationImage(cmd *cobra.Command, moduleDirectory string, before skcue.ModuleContract, owner foundationOwnedImage, projected bool) error {
 	if err := validateObservedImage(moduleBumpTag, moduleBumpDigest); err != nil {
 		return err
 	}
@@ -153,9 +229,18 @@ func bumpFoundationImage(cmd *cobra.Command, moduleDirectory string, before skcu
 		return fmt.Errorf("current Foundation projection has no immutable image digest")
 	}
 	newTag := moduleBumpTag + "@" + moduleBumpDigest
+	if projected {
+		if err := validateFoundationProjection(root, owner, service.Image, service.Tag); err != nil {
+			return err
+		}
+	}
 	if service.Tag == newTag {
 		printInfo("%s/%s already at image %s:%s", before.Metadata.Name, moduleBumpService, service.Image, newTag)
 		return nil
+	}
+	journey, err := prepareJourneyImageUpdate(moduleDirectory, moduleBumpService, service.Image+":"+service.Tag, service.Image+":"+newTag)
+	if err != nil {
+		return err
 	}
 	rewritten, err := rewriteFoundationImage(path, source, owner, service.Image+":"+oldTag, oldDigest, service.Image+":"+moduleBumpTag, moduleBumpDigest)
 	if err != nil {
@@ -178,20 +263,34 @@ func bumpFoundationImage(cmd *cobra.Command, moduleDirectory string, before skcu
 		}
 		return cause
 	}
-	after, err := skcue.NewModuleReader().ReadModule(moduleDirectory)
-	if err != nil {
-		return restore(err)
-	}
-	hashAfter, err := skcue.ContractHash(moduleContractToCanonicalMap(after))
-	if err != nil || hashBefore != hashAfter || after.Services[moduleBumpService].Image != service.Image || after.Services[moduleBumpService].Tag != newTag {
-		return restore(fmt.Errorf("Foundation rewrite changed the module contract or did not propagate the exact image: %v", err))
+	if projected {
+		if err := validateFoundationProjection(root, owner, service.Image, newTag); err != nil {
+			return restore(err)
+		}
+	} else {
+		after, err := skcue.NewModuleReader().ReadModule(moduleDirectory)
+		if err != nil {
+			return restore(err)
+		}
+		hashAfter, err := skcue.ContractHash(moduleContractToCanonicalMap(after))
+		if err != nil || hashBefore != hashAfter || after.Services[moduleBumpService].Image != service.Image || after.Services[moduleBumpService].Tag != newTag {
+			return restore(fmt.Errorf("Foundation rewrite changed the module contract or did not propagate the exact image: %v", err))
+		}
 	}
 	if moduleBumpDryRun {
 		if err := restore(nil); err != nil {
 			return err
 		}
+		if journey != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "custom journey %s: %s:%s -> %s:%s\n", journey.path, service.Image, service.Tag, service.Image, newTag)
+		}
 		_, err := cmd.OutOrStdout().Write(rewritten)
 		return err
+	}
+	if journey != nil {
+		if err := writeJourneyImage(journey); err != nil {
+			return restore(fmt.Errorf("write custom journey: %w", err))
+		}
 	}
 	printSuccess("bumped Foundation %s/%s to %s:%s; regenerate with mise run generate:architecture-v2", owner.module, owner.component, service.Image, newTag)
 	return nil

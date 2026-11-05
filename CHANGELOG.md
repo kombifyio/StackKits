@@ -418,6 +418,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.55.17 (2026-11-04)
+
+### Added
+
+* **rack-kvm:** Workbench Linux host guest cell for journey E1 (install, reboot, desktop-off Connect session)
+* **techstack:** reach, security repair, auto-repair and outcome release as agent tools for the person's acting agent
+
+### Fixed
+
+* **ci:** adopt fail-closed internal dependency updater
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **generator:** preserve custom module journeys
+* **speechkit:** keep the hosted origin out of the public CLI
+* **techstack:** publish Kombify.Client.Shell 0.1.0-alpha.4 from current source
+* **techstack:** sign Early Access notifications calls with a scoped Ed25519 key
+
 ## 0.55.16 (2026-11-04)
 
 ### Added

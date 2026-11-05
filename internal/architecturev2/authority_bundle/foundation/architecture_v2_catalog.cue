@@ -10101,7 +10101,7 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/speechkit/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:3a904eb5e109b4197f1a93a4a474f31695af0881b48e779052366b3cdd30fd18"
+			contractHash: "sha256:9afc654d99e41cd5d9bc40e0f185e399b5f288d0b5b118df4ddcd767c7b1bd3c"
 			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"

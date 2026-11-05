@@ -1794,7 +1794,51 @@ func writeReferencedModuleScaffolds(repoRoot, bundleRoot string) error {
 		if err != nil {
 			return err
 		}
+		// The marker travels with a module-owned journey. Public export removes
+		// tests; a later go generate there may create the scaffold baseline.
+		testDir := filepath.Join(filepath.Dir(path), "tests")
+		if err := ensureProjectedDirectory(repoRoot, testDir); err != nil {
+			return err
+		}
+		marker := filepath.Join(testDir, ".custom-journey")
+		customJourney := false
+		if info, err := os.Lstat(marker); err == nil {
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("custom journey marker is not a regular file: %s", marker)
+			}
+			customJourney = true
+			for _, name := range []string{"reference-compose.yml", "integration_test.sh"} {
+				journey := filepath.Join(filepath.Dir(marker), name)
+				info, err := os.Lstat(journey)
+				if err != nil || !info.Mode().IsRegular() {
+					return fmt.Errorf("custom journey requires a regular %s", journey)
+				}
+			}
+			composePath := filepath.Join(testDir, "reference-compose.yml")
+			composeData, err := os.ReadFile(composePath)
+			if err != nil {
+				return err
+			}
+			var compose struct {
+				Services map[string]struct {
+					Image string `yaml:"image"`
+				} `yaml:"services"`
+			}
+			if err := yaml.Unmarshal(composeData, &compose); err != nil {
+				return fmt.Errorf("read custom journey compose %s: %w", composePath, err)
+			}
+			for _, service := range facts.Services {
+				if service.ImageSource != nil && compose.Services[service.Name].Image != service.Image+":"+service.Tag {
+					return fmt.Errorf("custom journey %s service %s image differs from catalog", composePath, service.Name)
+				}
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
 		for name, content := range artifacts {
+			if customJourney && (name == "tests/reference-compose.yml" || name == "tests/integration_test.sh") {
+				continue
+			}
 			if err := writeProjectedSource(repoRoot, filepath.Join("modules", facts.Slug, name), []byte(content)); err != nil {
 				return err
 			}
