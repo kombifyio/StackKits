@@ -418,6 +418,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.56.2 (2026-11-06)
+
+### Added
+
+* **lab:** two-guest native application transfer mode for proxmox-lab
+* **techstack:** choose another server per use case, re-solved and re-verified
+* **techstack:** Guard window lane techstack-connected-free for Journey C
+* **techstack:** review Builder plans in creation
+
+### Fixed
+
+* **delivery:** call the schema-expand producer that derives the fixture baseline
+* **test-window:** route the managed Cloud Advanced Core's Stage database through the fixed egress
+
 ## 0.56.1 (2026-11-06)
 
 ### Added
