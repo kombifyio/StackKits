@@ -448,16 +448,56 @@ var operatorOperations = []Contract{
 	},
 	{ID: "stackkit.registry.info", ToolName: "stackkit_registry_info", Title: "Registry info", Description: "Summarize the embedded StackKits registry snapshot.", Command: []string{"registry", "info"}, Idempotent: true},
 
-	// Secret custody, without secret values.
+	// Use-case authoring and scoped application release changes. Authoring
+	// changes intent only by spec-hash CAS; normal generate/plan/apply executes.
 	{
 		ID: "stackkit.use-cases.add", ToolName: "stackkit_use_cases_add", Title: "Add use case",
-		Description: "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS and materialize its local secret slots without deploying services.",
-		Command:     []string{"use-cases", "add"}, Mutation: true, Idempotent: true, OwnerApproval: true,
-		Arguments: []Argument{
+		Description: "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS, retaining the Foundation and every other application, and materialize its local secret slots without deploying services.",
+		Command:     []string{"use-cases", "add", "--json"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true,
+		Arguments: append([]Argument{
 			positionalArg("slug", "use case declared by the installed kit"),
-			flagArg("expected_spec_hash", ArgumentString, "--expected-spec-hash", "require this canonical current intent hash; omitted uses the hash read before authoring"),
+			flagArg("alternative", ArgumentString, "--alternative", "catalog alternative; omission uses the CUE default"),
+			flagArg("platform", ArgumentString, "--platform", "runtime adapter; omission uses the CUE default"),
+			flagArg("node", ArgumentString, "--node", "existing enabled node; required when the intent has several nodes"),
+		}, useCaseChangeArguments...),
+	},
+	{
+		ID: "stackkit.use-cases.configure", ToolName: "stackkit_use_cases_configure", Title: "Configure use case",
+		Description: "Merge public settings, references to existing local custody and module profiles into one selected application by spec-hash CAS; omitted settings, data, routes, placement, adapter and unrelated applications are retained, and no services change until apply.",
+		Command:     []string{"use-cases", "configure", "--json"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true,
+		Arguments: append([]Argument{positionalArg("slug", "selected use case")}, useCaseChangeArguments...),
+	},
+	{
+		ID: "stackkit.use-cases.upgrade", ToolName: "stackkit_use_cases_upgrade", Title: "Change application release",
+		Description: "Move one selected application to another admitted release with retained-data rollback: to stops it, checkpoints its governed volumes and selects the target release for the next apply; rollback returns the prior release and its checkpointed data; finalize removes the retained data. Unrelated applications are untouched.",
+		Command:     []string{"use-cases", "upgrade", "--json", "--owner-approve"}, Mutation: true, Destructive: true, OwnerApproval: true,
+		Arguments: []Argument{
+			optionalPositionalArg("slug", "selected use case; required with to"),
+			flagArg("to", ArgumentString, "--to", "admitted target release; exactly one of to, rollback or finalize"),
+			flagArg("rollback", ArgumentString, "--rollback", "release operation ID to return to its prior release and data"),
+			flagArg("finalize", ArgumentString, "--finalize", "release operation ID whose retained data is removed"),
+			flagArg("resume_operation_id", ArgumentString, "--operation-id", "resume this interrupted checkpoint with the same slug and to"),
+			flagArg("expected_spec_hash", ArgumentString, "--expected-spec-hash", "require this canonical current intent hash for to"),
 		},
 	},
+	{
+		ID: "stackkit.use-cases.upgrade.status", ToolName: "stackkit_use_cases_upgrade_status", Title: "Application release status",
+		Description: "Read one owner-signed application release operation record: state, prior and target release, retained volumes and their checkpoint read-back.",
+		Command:     []string{"use-cases", "upgrade", "--json"}, Idempotent: true,
+		Arguments: []Argument{requiredFlagArg("operation_id", ArgumentString, "--status", "release operation ID")},
+	},
+	{
+		ID: "stackkit.capabilities.configure", ToolName: "stackkit_capabilities_configure", Title: "Configure capability",
+		Description: "Enable or configure one kit-declared Foundation capability by spec-hash CAS with public settings, a CUE provider and references to existing local custody; applications and storage are retained and no runtime changes until apply.",
+		Command:     []string{"capabilities", "configure", "--json"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true,
+		Arguments: append([]Argument{
+			positionalArg("capability", "kit-declared capability ID"),
+			flagArg("enable", ArgumentBoolean, "--enable", "explicitly enable this optional capability"),
+			flagArg("provider", ArgumentString, "--provider", "CUE provider; omission retains the selection"),
+		}, intentChangeArguments...),
+	},
+
+	// Secret custody, without secret values.
 	{ID: "stackkit.secrets.materialize", ToolName: "stackkit_secrets_materialize", Title: "Materialize secret custody", Description: "Establish or reuse owner-bound local custody for every secret the current StackSpec declares; never returns values.", Command: []string{"secrets", "materialize"}, Mutation: true, Idempotent: true, OwnerApproval: true},
 
 	// Plan-declared services.
@@ -511,6 +551,22 @@ var operatorOperations = []Contract{
 		Arguments: []Argument{positionalArg("username", "household username")},
 	},
 }
+
+// intentChangeArguments are the retained-intent authoring inputs shared by
+// use-case and capability changes. Secret inputs are secret:// references to
+// existing local custody, never secret material.
+var intentChangeArguments = []Argument{
+	flagArg("settings", ArgumentStringList, "--setting", "public setting key=JSON; merged by name"),
+	flagArg("custody_refs", ArgumentStringList, "--secret-ref", "input key=reference to existing local custody, never secret material"),
+	flagArg("expected_spec_hash", ArgumentString, "--expected-spec-hash", "require this canonical current intent hash; omitted uses the hash read before authoring"),
+	flagArg("output", ArgumentString, "--output", "new candidate file that retains the active baseline; required for Advanced or multi-node intent"),
+}
+
+var useCaseChangeArguments = append([]Argument{
+	flagArg("compute_profile", ArgumentString, "--compute-profile", "module-local low, standard or high; omission retains the selection"),
+	flagArg("storage_profile", ArgumentString, "--storage-profile", "catalog module storage profile; omission retains the selection"),
+	flagArg("accelerator_profile", ArgumentString, "--accelerator-profile", "catalog module accelerator profile; omission retains the selection"),
+}, intentChangeArguments...)
 
 func flagArg(name string, kind ArgumentKind, flag, description string) Argument {
 	return Argument{Name: name, Kind: kind, Flag: flag, Description: description}

@@ -766,15 +766,19 @@ type architectureV2StalePlan struct {
 	Finding      string `json:"finding"`
 }
 
-// writeArchitectureV2StaleStatus describes an installation whose saved plan an
-// older compiler produced. The plan cannot be authority-verified, so only its
-// declared identity and workloads are reported, never runtime or Apply claims.
+// writeArchitectureV2StaleStatus describes an installation whose saved plan
+// another compiler release produced. The plan cannot be authority-verified, so
+// only its declared identity and workloads are reported, never runtime or
+// Apply claims.
 func writeArchitectureV2StaleStatus(cmd *cobra.Command, raw []byte, stale *resolvedplan.CompilerVersionMismatchError) error {
 	var plan map[string]any
 	if err := json.Unmarshal(raw, &plan); err != nil {
 		return fmt.Errorf("status: decode stale ResolvedPlan: %w", err)
 	}
-	finding := fmt.Sprintf("The saved plan was compiled by %s but this CLI is %s; regenerate and redeploy the plan. Apply and upgrade refuse it until then.", stale.PlanCompiler, stale.AuthorityCompiler)
+	finding := fmt.Sprintf("The saved plan was compiled by %s but this CLI is %s; run lifecycle operations with the release that compiled the plan, and move releases only through `stackkit upgrade --to <release>`.", stale.PlanCompiler, stale.AuthorityCompiler)
+	if older, comparable := stale.PlanCompilerOlder(); older && comparable {
+		finding = fmt.Sprintf("The saved plan was compiled by the older %s but this CLI is %s; run `stackkit generate` and then `stackkit apply` with this CLI; Apply and upgrade refuse the saved plan until generate replaces it.", stale.PlanCompiler, stale.AuthorityCompiler)
+	}
 	output := architectureV2StatusResult{
 		APIVersion: "stackkit.status/v2", StackID: plan["stackId"], Kit: plan["kit"],
 		ExecutionReadiness: plan["executionReadiness"], Workloads: plan["workloads"],

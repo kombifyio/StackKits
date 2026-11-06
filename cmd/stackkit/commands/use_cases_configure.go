@@ -11,6 +11,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/spf13/cobra"
 )
@@ -128,6 +129,19 @@ func runUseCaseChange(cmd *cobra.Command, slug string, o useCaseChangeOptions, a
 	change := architecturev2.UseCaseChange{Alternative: o.alternative, RuntimeAdapterRef: o.platform, NodeRef: o.node,
 		Profiles: architecturev2.ModuleProfileOverride{ComputeProfile: o.compute, StorageProfile: o.storage, AcceleratorProfile: o.accelerator}, Settings: settings, SecretRefs: refs}
 	return authorRetainedIntent(cmd, o.intentChangeOptions, func(service *architecturev2.Service, raw []byte) (architecturev2.StackSpecValidation, error) {
+		if _, release := settings[resolvedplan.ComponentReleaseSetting]; release {
+			var current struct {
+				Workloads map[string]json.RawMessage `json:"workloads"`
+			}
+			if err := json.Unmarshal(raw, &current); err != nil {
+				return architecturev2.StackSpecValidation{}, err
+			}
+			// A selected application changes release only through the
+			// checkpoint that retains its data for a rollback.
+			if _, selected := current.Workloads[strings.TrimSpace(slug)]; selected {
+				return architecturev2.StackSpecValidation{}, fmt.Errorf("%s is selected; change its release with stackkit use-cases upgrade %s --to <release> --owner-approve", strings.TrimSpace(slug), strings.TrimSpace(slug))
+			}
+		}
 		return service.MaterializeUseCaseChange(raw, slug, change, add)
 	}, strings.TrimSpace(slug), refs)
 }

@@ -133,11 +133,12 @@ Use [../INSTALLATION_PROCESSES.md](../INSTALLATION_PROCESSES.md) to decide wheth
 ## Native standalone tools
 
 Every server rolled out with StackKits runs this connector, and the `stackkit`
-CLI is controllable through it: each public CLI command is either projected as
-an MCP tool from the shared operation catalog or recorded as an explicit
-exception with reason, scope and removal criterion. The regression test
-`TestEveryPublicCLICommandIsAnMCPToolOrAnExplicitException` walks the real
-Cobra command tree and fails on any command that is neither.
+CLI is controllable through it: each public CLI command is meant to be either
+projected as an MCP tool from the shared operation catalog or recorded as an
+explicit exception with reason, scope and removal criterion. No check walks the
+command tree for unclassified commands today. The CLI binds every
+catalog contract to its Cobra command at startup and refuses to start when a
+contract names a command that does not exist.
 
 Built-in read-only and diagnostic tools:
 
@@ -189,6 +190,38 @@ lifecycle tools (`stackkit_init`, `stackkit_resolve`, `stackkit_generate`,
 typed adapters. `stackkit_remove` requires one exact `workload_ref`; it invokes
 native v2 workload-removal authority and never the legacy whole-deployment
 cleanup.
+
+A CLI command has one contract, with one exception: a read-only mode of a
+mutating command, selected by a required flag the mutation does not declare,
+may be its own read-only tool, so reading never needs Owner approval.
+
+### Use-case authoring and application release changes
+
+The modular lifecycle of selected use cases runs through the same CLI code as
+`stackkit use-cases`, with the same approval gate as `stackkit_remove`:
+
+| Tool | CLI | Effect |
+| --- | --- | --- |
+| `stackkit_use_cases_add` | `use-cases add <slug> --json` | Adds one catalog use case to the intent; `alternative`, `platform`, `node` and the profiles choose a non-default selection. |
+| `stackkit_use_cases_configure` | `use-cases configure <slug> --json` | Merges `settings`, `custody_refs` and module profiles into one selected application. |
+| `stackkit_capabilities_configure` | `capabilities configure <id> --json` | Enables or configures one kit-declared Foundation capability. |
+| `stackkit_use_cases_upgrade` | `use-cases upgrade --json --owner-approve` | Exactly one of `slug` with `to`, `rollback` or `finalize`: moves one application to an admitted release with a retained-data checkpoint, returns it to the prior release and data, or removes the retained data. |
+| `stackkit_use_cases_upgrade_status` | `use-cases upgrade --json --status <id>` | Reads one release operation record; read-only. |
+
+Authoring tools change intent only, by spec-hash compare-and-swap
+(`expected_spec_hash`), and report `stackkit.intent-change/v1` with
+`runtimeApplied: false`; services change only through the normal
+`stackkit_generate`, `stackkit_plan` and `stackkit_apply`. Standard Mode
+writes the active StackSpec and needs existing local Owner custody; Advanced or
+multi-node intent requires `output`, a new candidate file for the
+capability-gated Advanced change set. `custody_refs` are `key=secret://`
+references to existing local custody, never secret material. A selected
+application never changes release through `settings`: add and configure refuse
+a `release` setting for it, so a release moves only through the checkpointed
+release tool. The release tool
+reports `stackkit.application-release-result/v1` and starts from the exact
+applied plan; it stops only the selected application while its data is copied,
+and the next apply starts the selected release.
 
 ### Secret values never cross MCP
 

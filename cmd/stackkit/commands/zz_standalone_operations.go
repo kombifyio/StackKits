@@ -65,8 +65,11 @@ func init() {
 		if command.Annotations == nil {
 			command.Annotations = map[string]string{}
 		}
-		if existing := command.Annotations[standaloneOperationAnnotation]; existing != "" && existing != string(operation.ID) {
-			panic(fmt.Sprintf("CLI command %q already belongs to standalone operation %q", command.CommandPath(), existing))
+		// ValidateCatalog admits a second contract on one command only as the
+		// read-only mode of its mutation, so the annotation lists both.
+		if existing := command.Annotations[standaloneOperationAnnotation]; existing != "" {
+			command.Annotations[standaloneOperationAnnotation] = existing + "," + string(operation.ID)
+			continue
 		}
 		command.Annotations[standaloneOperationAnnotation] = string(operation.ID)
 	}

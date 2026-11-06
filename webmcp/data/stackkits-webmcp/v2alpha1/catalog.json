@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "c763878fcf500a1b5f3b25d16b9406af397449c1",
-  "authority_bundle_sha256": "1633c29b4cf870a1a840e07fbdad89ddc56680df3c3e8ad0c70698f3c9520e21",
+  "source_sha": "8e97f7a9ebd0365915e8a5a0634abb29a1e149a6",
+  "authority_bundle_sha256": "233f5569bda852bb7df9aadeb1a4a2b08c217a9b8701907f27676b604d121088",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -17118,6 +17118,21 @@
       "owner_approval": false
     },
     {
+      "id": "stackkit.capabilities.configure",
+      "tool_name": "stackkit_capabilities_configure",
+      "title": "Configure capability",
+      "description": "Enable or configure one kit-declared Foundation capability by spec-hash CAS with public settings, a CUE provider and references to existing local custody; applications and storage are retained and no runtime changes until apply.",
+      "command": [
+        "capabilities",
+        "configure",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.capacity",
       "tool_name": "stackkit_assess_capacity",
       "title": "Capacity",
@@ -18000,15 +18015,62 @@
       "id": "stackkit.use-cases.add",
       "tool_name": "stackkit_use_cases_add",
       "title": "Add use case",
-      "description": "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS and materialize its local secret slots without deploying services.",
+      "description": "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS, retaining the Foundation and every other application, and materialize its local secret slots without deploying services.",
       "command": [
         "use-cases",
-        "add"
+        "add",
+        "--json"
       ],
       "mutation": true,
-      "destructive": false,
+      "destructive": true,
       "idempotent": true,
       "owner_approval": true
+    },
+    {
+      "id": "stackkit.use-cases.configure",
+      "tool_name": "stackkit_use_cases_configure",
+      "title": "Configure use case",
+      "description": "Merge public settings, references to existing local custody and module profiles into one selected application by spec-hash CAS; omitted settings, data, routes, placement, adapter and unrelated applications are retained, and no services change until apply.",
+      "command": [
+        "use-cases",
+        "configure",
+        "--json"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.use-cases.upgrade",
+      "tool_name": "stackkit_use_cases_upgrade",
+      "title": "Change application release",
+      "description": "Move one selected application to another admitted release with retained-data rollback: to stops it, checkpoints its governed volumes and selects the target release for the next apply; rollback returns the prior release and its checkpointed data; finalize removes the retained data. Unrelated applications are untouched.",
+      "command": [
+        "use-cases",
+        "upgrade",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": false,
+      "owner_approval": true
+    },
+    {
+      "id": "stackkit.use-cases.upgrade.status",
+      "tool_name": "stackkit_use_cases_upgrade_status",
+      "title": "Application release status",
+      "description": "Read one owner-signed application release operation record: state, prior and target release, retained volumes and their checkpoint read-back.",
+      "command": [
+        "use-cases",
+        "upgrade",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
     },
     {
       "id": "stackkit.user.list",
@@ -18085,5 +18147,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "dbf7b2b6ab3fdddda3f20124d0c51f96e9f98a1f6234e7d4c3c45d1c55cbb2fc"
+  "catalog_sha256": "4665ddf5b3988b17e098e5a653547b1bcb47895545026cd7886ac2edcedb492b"
 }

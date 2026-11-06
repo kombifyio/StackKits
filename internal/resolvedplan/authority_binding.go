@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 // expectedAuthorityBinding is an immutable projection of the exact CUE-owned
@@ -878,4 +881,40 @@ type CompilerVersionMismatchError struct {
 
 func (e *CompilerVersionMismatchError) Error() string {
 	return fmt.Sprintf("resolvedPlan.compilerVersion %q does not match authority compiler %q", e.PlanCompiler, e.AuthorityCompiler)
+}
+
+// PlanCompilerOlder reports whether an older release of the same compiler
+// produced the plan, which only regenerating under this release resolves.
+// Releases are ordered by their major.minor.patch core: a local or dev build
+// carries the last release's core with a prerelease suffix that does not order
+// it against that release. comparable is false when either identity names
+// another compiler namespace, no semantic version or a development build, or
+// when both share one release core.
+func (e *CompilerVersionMismatchError) PlanCompilerOlder() (older, comparable bool) {
+	if e == nil {
+		return false, false
+	}
+	planNamespace, planVersion, planOK := strings.Cut(e.PlanCompiler, "/")
+	authorityNamespace, authorityVersion, authorityOK := strings.Cut(e.AuthorityCompiler, "/")
+	if !planOK || !authorityOK || planNamespace != authorityNamespace {
+		return false, false
+	}
+	planCore, planOK := compilerReleaseCore(planVersion)
+	authorityCore, authorityOK := compilerReleaseCore(authorityVersion)
+	if !planOK || !authorityOK {
+		return false, false
+	}
+	order := semver.Compare(planCore, authorityCore)
+	return order < 0, order != 0
+}
+
+// compilerReleaseCore returns the vMAJOR.MINOR.PATCH core of a compiler
+// version; a dev build has no release core.
+func compilerReleaseCore(version string) (string, bool) {
+	version = "v" + strings.TrimPrefix(version, "v")
+	if !semver.IsValid(version) || strings.HasPrefix(semver.Prerelease(version), "-dev") {
+		return "", false
+	}
+	core := strings.TrimSuffix(strings.TrimSuffix(version, semver.Build(version)), semver.Prerelease(version))
+	return core, semver.Canonical(core) == core
 }

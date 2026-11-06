@@ -418,6 +418,100 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.56.0 (2026-11-06)
+
+### Added
+
+* **identity:** access contracts for the homelab identity target; WireGuard overlay out of the default
+* **identity:** enrollment by the person with LAN-listener home, step-up classes and the local removal chain
+* **identity:** homelab identity and access P0 (..igti.7)
+* **identity:** host-side identity signer, browser sessions, app passes and away confirmation (, )
+* **identity:** key-bound device credential with DPoP renewal and verifier rework; retire the X.509 device certificate
+* **lifecycle:** scoped application release change with retained-data rollback
+* **mcp:** use-case add, configure and scoped release change tools
+* **paas:** Coolify restore activation, removal and drift; Files on Runtipi
+* **paas:** Dokploy Layer-2 platform on Basement with bootstrap, login, data operations and removal
+* **rack-android:** ephemeral Android emulator runner VM 9001 on rack-pve
+* **rack-kvm:** released Files, Photos and Vault restore cells with native receipts
+* **rack-kvm:** Workbench Linux host guest cell for journey E1 (install, reboot, desktop-off Connect session)
+* **runtipi:** shared backup, restore and removal for Runtipi workloads and the Runtipi Marketplace
+* **speechkit:** Parakeet STT, LAN listener and mDNS announcer for the homelab speech module
+* **speechkit:** the module describes the real homelab voice runtime and listens on 18080 (, )
+* **techstack:** plan layouts across every server of the homelab
+* **techstack:** reach, security repair, auto-repair and outcome release as agent tools for the person's acting agent
+* **techstack:** StackKits update setting, proposal with highlights and security patches without approval (, )
+* **transfer:** managed native application move with Techstack receive grants and verified destination readback
+* **vpn:** optional VPN add-on with WireGuard, Headscale, Tailscale and Pangolin; peers at enrollment, removed on revocation
+* **window-lanes:** lane runs the Workbench M06 performance proof on the EliteDesk G6
+* **window:** Dokploy and Runtipi platform restore suites on rack-kvm, shared test-window 7b662ab8 (, )
+
+### Fixed
+
+* **b3:** the cleanup proof proves a retired Techstack run and accepts the owner's product readback after a refused removal
+* **ci:** adopt fail-closed internal dependency updater
+* **ci:** B3 LAN runner jobs install pnpm with a toolcache Node, not the runner's damaged bundled npm
+* **ci:** Guard release R2 steps also require the workflow_dispatch event
+* **ci:** integration lane dispatch script regex escapes
+* **ci:** integration lane dispatches with the CI App token
+* **ci:** reuse shared publisher App for Techstack
+* **cli:** name generate+apply when the stored plan is older than the CLI
+* **consolidation:** live StackKits code stops acting on archived repositories
+* **coolify:** workloads fail fast when the Marketplace fails; released Vault lanes leave main
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **delivery:** Techstack Render fallback uses the admission carrying the contract
+* **delivery:** the Render runner dispatches with the controller revision's dispatcher
+* **delivery:** the Techstack Render fallback reads Techstack's own version declaration in the monorepo
+* **delivery:** the Techstack Render fallback uses the admission that carries the re-qualified contract
+* **deps:** update internal products
+* **deps:** update internal products
+* **docs:** regenerate stale CLI reference so mise run check exits 0
+* **dokploy:** quiesce backup writers through the Compose process contract
+* **dokploy:** UI route behind TinyAuth, bound for verify through the Dokploy service control
+* **early-access:** pin the workspace authority that carries the re-qualified Techstack Render contract
+* **generator:** preserve custom module journeys
+* **guard-qualification:** read the durable outcome_unknown revision behind the operator escalation
+* **guard:** adopt an update trial whose supervisor a reboot or failure ended
+* **guard:** back off a persistent server fault on result redelivery to 5 min
+* include the native window proof import in sparse checkout
+* **lifecycle:** selected Vaultwarden release in the executor and a non-nested release checkpoint lock
+* **localowner:** refuse either admin group and re-judge the CAS snapshot before a legacy delete
+* **localowner:** the legacy replacement lists household custody through the transaction walk
+* **rack-kvm:** runner checksum from the asset digest, public DNS in the runner VM, smart-plug wake
+* **rack-kvm:** Vault setup gets a non-delivering SMTP sink and Coolify control readiness is bounded with named causes
+* **release-guard:** admit the release volume probe in the closed Compose runner
+* **release:** Guard release reads techstack/.kombify so the Techstack service Delivery is dispatched again
+* **release:** unblock StackKits CLI Delivery: SpeechKit service type, VPN add-on in the export, public doc refs
+* **remove:** keep a Techstack-managed workspace's intent so every destroy removal resolves the applied plan
+* **speechkit:** keep the hosted origin out of the public CLI
+* **techstack:** admit Proxmox substrate absence observations
+* **techstack:** end the RIL key refresh cleanly on a host without a hosted profile
+* **techstack:** governed decommission for leases of a deleted account
+* **techstack:** let a key-bound Guard booted offline observe without a grant
+* **techstack:** let agents acting for the person pass fresh-MFA step-ups per §5e
+* **techstack:** measure guard-disconnect stale/offline from the last heartbeat
+* **techstack:** name the lease's own provider in managed decommission refusals
+* **techstack:** publish Kombify.Client.Shell 0.1.0-alpha.4 from current source
+* **techstack:** qualify public mirror App access
+* **techstack:** release-authored seeds and spec templates follow the identity origin rule
+* **techstack:** sign Early Access notifications calls with a scoped Ed25519 key
+* **techstack:** Techstack manages StackKits updates, the Guard never moves the CLI under a stored plan
+* **upgrade:** an upgrade interrupted after target Apply recovers: claimant proof and owner-approved forward completion
+* **upgrade:** an upgrade stopped at prepared is released by explicit recovery without replaying the prior Apply
+* **upgrade:** forward recovery can finish with a newer verified release when the signed target cannot
+* **window:** a cleanup proof reads back a run without a live gate report
+* **window:** B3 binds the Techstack product source, not the monorepo head
+* **window:** pin the shared test-window admission at 6b5cc2b2 so Techstack kit lanes pass in StackKits (, )
+* **window:** StackKits consumers bind the one-repository window model; J3 builds from techstack/ and speechkit/
+* **window:** the cleanup readback reads its files from the workspace root
+* **window:** the journey workflows upload what their techstack/ steps write
+* **window:** the paid journeys read the served checkout from the workspace root
+
+
+
 ## 0.55.19 (2026-11-05)
 
 ### Added

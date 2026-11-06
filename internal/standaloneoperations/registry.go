@@ -168,6 +168,7 @@ func ValidateCatalog() error {
 	ids := make([]string, 0, len(catalog))
 	tools := make([]string, 0, len(catalog))
 	projected := make(map[string]ID, len(catalog))
+	bound := make(map[string]Contract, len(catalog))
 	for index, operation := range catalog {
 		if strings.TrimSpace(string(operation.ID)) == "" ||
 			strings.TrimSpace(operation.ToolName) == "" ||
@@ -186,10 +187,11 @@ func ValidateCatalog() error {
 			return err
 		}
 		path := strings.Join(operation.Path(), " ")
-		if existing, ok := projected[path]; ok {
-			return fmt.Errorf("standalone operations %q and %q bind the same CLI command %q", existing, operation.ID, path)
+		if existing, ok := bound[path]; !ok {
+			projected[path], bound[path] = operation.ID, operation
+		} else if !readOnlyMode(existing, operation) {
+			return fmt.Errorf("standalone operations %q and %q bind the same CLI command %q", existing.ID, operation.ID, path)
 		}
-		projected[path] = operation.ID
 		ids = append(ids, string(operation.ID))
 		tools = append(tools, operation.ToolName)
 	}
@@ -215,6 +217,31 @@ func (operation Contract) Path() []string {
 // FixedFlags returns the flags every invocation of the operation passes.
 func (operation Contract) FixedFlags() []string {
 	return slices.Clone(operation.Command[len(operation.Path()):])
+}
+
+// readOnlyMode reports whether second is the read-only mode of the mutating
+// first on the same CLI command: a later contract that selects the mode with a
+// required flag the mutation does not declare and that passes no fixed flag
+// beyond the mutation's own minus its approval flag, so neither tool can reach
+// the other's behavior.
+func readOnlyMode(first, second Contract) bool {
+	if !first.Mutation || second.Mutation {
+		return false
+	}
+	for _, flag := range second.FixedFlags() {
+		if flag == "--owner-approve" || !slices.Contains(first.FixedFlags(), flag) {
+			return false
+		}
+	}
+	for _, selector := range second.Arguments {
+		if selector.Flag == "" || !selector.Required {
+			continue
+		}
+		if !slices.ContainsFunc(first.Arguments, func(argument Argument) bool { return argument.Flag == selector.Flag }) {
+			return true
+		}
+	}
+	return false
 }
 
 func validToolName(name string) bool {

@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:17fc1d7f6d6e086d025207971a095a1fc4d4e6b7ba3db632f690b9cc206e7072",
+  "contentDigest": "sha256:d8b2552a9807ff21c1b415e00e6e291502898cc70fc72eb4962c7a9dfe0e4120",
   "operations": [
     {
       "command": [
@@ -858,6 +858,66 @@
       "ownerApproval": false,
       "title": "Show break-glass bundle",
       "toolName": "stackkit_break_glass_show_bundle"
+    },
+    {
+      "arguments": [
+        {
+          "description": "kit-declared capability ID",
+          "kind": "string",
+          "name": "capability",
+          "required": true
+        },
+        {
+          "description": "explicitly enable this optional capability",
+          "flag": "--enable",
+          "kind": "boolean",
+          "name": "enable"
+        },
+        {
+          "description": "CUE provider; omission retains the selection",
+          "flag": "--provider",
+          "kind": "string",
+          "name": "provider"
+        },
+        {
+          "description": "public setting key=JSON; merged by name",
+          "flag": "--setting",
+          "kind": "string-list",
+          "name": "settings"
+        },
+        {
+          "description": "input key=reference to existing local custody, never secret material",
+          "flag": "--secret-ref",
+          "kind": "string-list",
+          "name": "custody_refs"
+        },
+        {
+          "description": "require this canonical current intent hash; omitted uses the hash read before authoring",
+          "flag": "--expected-spec-hash",
+          "kind": "string",
+          "name": "expected_spec_hash"
+        },
+        {
+          "description": "new candidate file that retains the active baseline; required for Advanced or multi-node intent",
+          "flag": "--output",
+          "kind": "string",
+          "name": "output"
+        }
+      ],
+      "command": [
+        "capabilities",
+        "configure",
+        "--json"
+      ],
+      "description": "Enable or configure one kit-declared Foundation capability by spec-hash CAS with public settings, a CUE provider and references to existing local custody; applications and storage are retained and no runtime changes until apply.",
+      "destructive": true,
+      "id": "stackkit.capabilities.configure",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Configure capability",
+      "toolName": "stackkit_capabilities_configure"
     },
     {
       "arguments": [
@@ -2454,18 +2514,73 @@
           "required": true
         },
         {
+          "description": "catalog alternative; omission uses the CUE default",
+          "flag": "--alternative",
+          "kind": "string",
+          "name": "alternative"
+        },
+        {
+          "description": "runtime adapter; omission uses the CUE default",
+          "flag": "--platform",
+          "kind": "string",
+          "name": "platform"
+        },
+        {
+          "description": "existing enabled node; required when the intent has several nodes",
+          "flag": "--node",
+          "kind": "string",
+          "name": "node"
+        },
+        {
+          "description": "module-local low, standard or high; omission retains the selection",
+          "flag": "--compute-profile",
+          "kind": "string",
+          "name": "compute_profile"
+        },
+        {
+          "description": "catalog module storage profile; omission retains the selection",
+          "flag": "--storage-profile",
+          "kind": "string",
+          "name": "storage_profile"
+        },
+        {
+          "description": "catalog module accelerator profile; omission retains the selection",
+          "flag": "--accelerator-profile",
+          "kind": "string",
+          "name": "accelerator_profile"
+        },
+        {
+          "description": "public setting key=JSON; merged by name",
+          "flag": "--setting",
+          "kind": "string-list",
+          "name": "settings"
+        },
+        {
+          "description": "input key=reference to existing local custody, never secret material",
+          "flag": "--secret-ref",
+          "kind": "string-list",
+          "name": "custody_refs"
+        },
+        {
           "description": "require this canonical current intent hash; omitted uses the hash read before authoring",
           "flag": "--expected-spec-hash",
           "kind": "string",
           "name": "expected_spec_hash"
+        },
+        {
+          "description": "new candidate file that retains the active baseline; required for Advanced or multi-node intent",
+          "flag": "--output",
+          "kind": "string",
+          "name": "output"
         }
       ],
       "command": [
         "use-cases",
-        "add"
+        "add",
+        "--json"
       ],
-      "description": "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS and materialize its local secret slots without deploying services.",
-      "destructive": false,
+      "description": "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS, retaining the Foundation and every other application, and materialize its local secret slots without deploying services.",
+      "destructive": true,
       "id": "stackkit.use-cases.add",
       "idempotent": true,
       "mutation": true,
@@ -2473,6 +2588,151 @@
       "ownerApproval": true,
       "title": "Add use case",
       "toolName": "stackkit_use_cases_add"
+    },
+    {
+      "arguments": [
+        {
+          "description": "selected use case",
+          "kind": "string",
+          "name": "slug",
+          "required": true
+        },
+        {
+          "description": "module-local low, standard or high; omission retains the selection",
+          "flag": "--compute-profile",
+          "kind": "string",
+          "name": "compute_profile"
+        },
+        {
+          "description": "catalog module storage profile; omission retains the selection",
+          "flag": "--storage-profile",
+          "kind": "string",
+          "name": "storage_profile"
+        },
+        {
+          "description": "catalog module accelerator profile; omission retains the selection",
+          "flag": "--accelerator-profile",
+          "kind": "string",
+          "name": "accelerator_profile"
+        },
+        {
+          "description": "public setting key=JSON; merged by name",
+          "flag": "--setting",
+          "kind": "string-list",
+          "name": "settings"
+        },
+        {
+          "description": "input key=reference to existing local custody, never secret material",
+          "flag": "--secret-ref",
+          "kind": "string-list",
+          "name": "custody_refs"
+        },
+        {
+          "description": "require this canonical current intent hash; omitted uses the hash read before authoring",
+          "flag": "--expected-spec-hash",
+          "kind": "string",
+          "name": "expected_spec_hash"
+        },
+        {
+          "description": "new candidate file that retains the active baseline; required for Advanced or multi-node intent",
+          "flag": "--output",
+          "kind": "string",
+          "name": "output"
+        }
+      ],
+      "command": [
+        "use-cases",
+        "configure",
+        "--json"
+      ],
+      "description": "Merge public settings, references to existing local custody and module profiles into one selected application by spec-hash CAS; omitted settings, data, routes, placement, adapter and unrelated applications are retained, and no services change until apply.",
+      "destructive": true,
+      "id": "stackkit.use-cases.configure",
+      "idempotent": true,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Configure use case",
+      "toolName": "stackkit_use_cases_configure"
+    },
+    {
+      "arguments": [
+        {
+          "description": "selected use case; required with to",
+          "kind": "string",
+          "name": "slug"
+        },
+        {
+          "description": "admitted target release; exactly one of to, rollback or finalize",
+          "flag": "--to",
+          "kind": "string",
+          "name": "to"
+        },
+        {
+          "description": "release operation ID to return to its prior release and data",
+          "flag": "--rollback",
+          "kind": "string",
+          "name": "rollback"
+        },
+        {
+          "description": "release operation ID whose retained data is removed",
+          "flag": "--finalize",
+          "kind": "string",
+          "name": "finalize"
+        },
+        {
+          "description": "resume this interrupted checkpoint with the same slug and to",
+          "flag": "--operation-id",
+          "kind": "string",
+          "name": "resume_operation_id"
+        },
+        {
+          "description": "require this canonical current intent hash for to",
+          "flag": "--expected-spec-hash",
+          "kind": "string",
+          "name": "expected_spec_hash"
+        }
+      ],
+      "command": [
+        "use-cases",
+        "upgrade",
+        "--json",
+        "--owner-approve"
+      ],
+      "description": "Move one selected application to another admitted release with retained-data rollback: to stops it, checkpoints its governed volumes and selects the target release for the next apply; rollback returns the prior release and its checkpointed data; finalize removes the retained data. Unrelated applications are untouched.",
+      "destructive": true,
+      "id": "stackkit.use-cases.upgrade",
+      "idempotent": false,
+      "mutation": true,
+      "openWorld": false,
+      "ownerApproval": true,
+      "title": "Change application release",
+      "toolName": "stackkit_use_cases_upgrade"
+    },
+    {
+      "arguments": [
+        {
+          "description": "release operation ID",
+          "flag": "--status",
+          "kind": "string",
+          "name": "operation_id",
+          "required": true
+        }
+      ],
+      "command": [
+        "use-cases",
+        "upgrade",
+        "--json"
+      ],
+      "description": "Read one owner-signed application release operation record: state, prior and target release, retained volumes and their checkpoint read-back.",
+      "destructive": false,
+      "id": "stackkit.use-cases.upgrade.status",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Application release status",
+      "toolName": "stackkit_use_cases_upgrade_status"
     },
     {
       "command": [

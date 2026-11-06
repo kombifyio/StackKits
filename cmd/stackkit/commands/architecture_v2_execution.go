@@ -507,6 +507,9 @@ func (g architectureV2ExecutionGate) preflightV2(wd string, rawSpec []byte, mode
 			var planError *generationartifact.Error
 			var stale *resolvedplan.CompilerVersionMismatchError
 			if errors.As(err, &stale) {
+				if older, comparable := stale.PlanCompilerOlder(); older && comparable {
+					return actionableerror.WithDiagnostic("stored_plan_regenerate_required", err)
+				}
 				return actionableerror.WithDiagnostic("stored_plan_upgrade_required", err)
 			}
 			if errors.As(err, &planError) && planError.Code == generationartifact.ErrInvalidPlan {
