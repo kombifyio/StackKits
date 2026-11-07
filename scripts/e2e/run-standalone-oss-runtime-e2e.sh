@@ -550,7 +550,7 @@ if [ "$stable_day2_proof" = "1" ]; then
   }
   export STACKKIT_RELEASE_FIXTURE_URL="$candidate_fixture_url"
 
-  timeout 600 "$candidate_stackkit" upgrade --to "$candidate_version" --json \
+  timeout 600 "$candidate_stackkit" upgrade --to "$candidate_version" --json --owner-approve \
     >"$stable_day2_dir/upgrade.json"
   jq -e --arg version "$candidate_version" '
     .schemaVersion == "stackkit.command-result/v1"

@@ -33,7 +33,7 @@ const phaseContract = [
   {
     id: 'day2',
     commands: [
-      'stackkit upgrade --to latest',
+      'stackkit upgrade --to latest --owner-approve',
       'stackkit drift detect --json',
       'stackkit rollback',
       'stackkit verify --json'

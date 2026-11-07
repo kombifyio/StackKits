@@ -28,6 +28,7 @@ var (
 	publicUpgradeJSON              bool
 	publicUpgradeRecover           string
 	publicUpgradeForward           bool
+	publicUpgradeOwnerApprove      bool
 	newUpgradeInspectionRunner     = func() upgradelifecycle.Runner { return upgradelifecycle.ExecRunner{} }
 	newCurrentUpgradeInspection    = currentUpgradeInspection
 	inspectPublishedV012Current    = inspectPublishedV012CurrentGeneration
@@ -69,8 +70,21 @@ type releaseCommandResult struct {
 	Inspection    *upgradelifecycle.Inspection `json:"inspection,omitempty"`
 	Checkpoint    *publicUpgradeCheckpoint     `json:"checkpoint,omitempty"`
 	Transaction   *publicUpgradeTransaction    `json:"transaction,omitempty"`
+	Policy        *publicUpgradePolicy         `json:"upgradePolicy,omitempty"`
 	DryRun        bool                         `json:"dryRun"`
 	ApplyInvoked  bool                         `json:"applyInvoked"`
+}
+
+// publicUpgradePolicy is the admitted CUE-owned upgradePolicy of the
+// workspace kit. A preview policy names the protections the transaction
+// takes before target Apply: the Kopia snapshot anchor and the executor-state
+// rollback anchor, behind explicit Owner approval.
+type publicUpgradePolicy struct {
+	Support                    string `json:"support"`
+	OwnerApprovalRequired      bool   `json:"ownerApprovalRequired"`
+	SnapshotRequired           bool   `json:"snapshotRequired"`
+	RollbackAnchorRequired     bool   `json:"rollbackAnchorRequired"`
+	LiveVolumeCutoverAvailable bool   `json:"liveVolumeCutoverAvailable"`
 }
 
 func newPublicUpgradeCmd(deprecatedAlias bool) *cobra.Command {
@@ -98,16 +112,18 @@ forward: it reruns the exact signed target Apply and Verify, then commits.
 Add --to with a newer release when the signed target cannot finish: that
 verified release becomes the target and regenerates, applies and verifies.
 A completed target commit keeps its success proof for explicit finalization.
-Fresh upgrades require support in the embedded CUE Kit policy; recovery of an
-existing operation follows its signed journal and checkpoint.`,
+Fresh upgrades require support in the embedded CUE Kit policy, and a kit whose
+policy requires Owner approval upgrades only with --owner-approve (--dry-run
+needs none); recovery of an existing operation follows its signed journal and
+checkpoint.`,
 		Example: `  # Verify the newest stable release and preview its plan and artifact diff without applying it
   stackkit upgrade --dry-run
 
   # Upgrade to the newest stable release
-  stackkit upgrade
+  stackkit upgrade --owner-approve
 
   # Upgrade to the newest beta prerelease
-  stackkit upgrade --to channel:beta
+  stackkit upgrade --to channel:beta --owner-approve
 
   # Recover an interrupted upgrade by its lifecycle operation ID
   stackkit upgrade --recover <operation-id>
@@ -128,6 +144,10 @@ existing operation follows its signed journal and checkpoint.`,
 	command.Flags().StringVar(
 		&publicUpgradeRecover, "recover", "",
 		"Explicitly recover one exact interrupted lifecycle operation ID.",
+	)
+	command.Flags().BoolVar(
+		&publicUpgradeOwnerApprove, "owner-approve", false,
+		"Approve this fresh upgrade; required when the kit's upgrade policy requires Owner approval.",
 	)
 	command.Flags().BoolVar(
 		&publicUpgradeForward, "forward", false,
@@ -185,7 +205,8 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("load StackKit identity before upgrade admission: %w", err)
 	}
-	if err := admitPublicUpgradeKit(kit); err != nil {
+	policy, err := admitPublicUpgradeKit(kit, publicUpgradeDryRun, publicUpgradeOwnerApprove)
+	if err != nil {
 		return machineAwareCommandError(cmd, err)
 	}
 	source := newPublicReleaseSource()
@@ -201,6 +222,7 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		Kit: kit, Version: resolution.Asset.Version, Channel: resolution.Asset.Channel,
 		Platform: resolution.Asset.Platform, Asset: resolution.Asset.Archive.Name,
 		ArchiveSHA256: resolution.Asset.Archive.SHA256, DryRun: publicUpgradeDryRun,
+		Policy: &policy,
 	}
 	bridge, bridgeErr := inspectPublicUpgradeBridge(
 		ctx, workspace, specFile, kit, resolution,
@@ -477,9 +499,10 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 		return writeCommandResult(cmd, cmd.CommandPath(), result)
 	}
 	if publicUpgradeDryRun {
-		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Inspected verified %s %s (%s, %s/%s)\nAsset: %s\nSHA-256: %s\nPlan changed: %t\nArtifacts: %d\nApply: not invoked\n",
+		_, err = fmt.Fprintf(cmd.OutOrStdout(), "Inspected verified %s %s (%s, %s/%s)\nAsset: %s\nSHA-256: %s\nPlan changed: %t\nArtifacts: %d\nUpgrade policy: %s (Owner approval required: %t, Kopia snapshot anchor required: %t, executor-state rollback anchor required: %t)\nApply: not invoked\n",
 			result.Kit, result.Version, result.Channel, result.Platform.OS, result.Platform.Arch,
-			result.Asset, result.ArchiveSHA256, result.Inspection.Plan.Changed, len(result.Inspection.Artifacts))
+			result.Asset, result.ArchiveSHA256, result.Inspection.Plan.Changed, len(result.Inspection.Artifacts),
+			policy.Support, policy.OwnerApprovalRequired, policy.SnapshotRequired, policy.RollbackAnchorRequired)
 		return err
 	}
 	_, err = fmt.Fprintf(cmd.OutOrStdout(), "Upgraded and verified %s %s from %s\nRollback checkpoint: %s (Kopia %s)\nApply: completed\n",
@@ -489,29 +512,51 @@ func runPublicUpgrade(cmd *cobra.Command, _ []string) error {
 }
 
 // admitPublicUpgradeKit enforces the CUE-owned kit upgrade policy before any
-// release resolution or lifecycle mutation. Recovery of an already-authorized
-// operation is handled before this fresh-upgrade admission.
-func admitPublicUpgradeKit(kit string) error {
+// release resolution or lifecycle mutation: the kit must support a fresh
+// upgrade, and a mutating upgrade of a kit that requires Owner approval needs
+// --owner-approve. Recovery of an already-authorized operation is handled
+// before this fresh-upgrade admission.
+func admitPublicUpgradeKit(kit string, dryRun, ownerApproved bool) (publicUpgradePolicy, error) {
 	definition, err := architecturev2.EmbeddedKitDefinition(strings.TrimSpace(kit))
 	if err != nil {
-		return fmt.Errorf("load CUE-owned upgrade policy for %q: %w", kit, err)
+		return publicUpgradePolicy{}, fmt.Errorf("load CUE-owned upgrade policy for %q: %w", kit, err)
 	}
-	policy, ok := definition["upgradePolicy"].(map[string]any)
+	raw, ok := definition["upgradePolicy"].(map[string]any)
 	if !ok {
-		return fmt.Errorf("CUE-owned upgrade policy for %q is missing", kit)
+		return publicUpgradePolicy{}, fmt.Errorf("CUE-owned upgrade policy for %q is missing", kit)
 	}
-	support, ok := policy["support"].(string)
+	support, ok := raw["support"].(string)
 	if !ok || strings.TrimSpace(support) == "" {
-		return fmt.Errorf("CUE-owned upgrade policy for %q has no support level", kit)
+		return publicUpgradePolicy{}, fmt.Errorf("CUE-owned upgrade policy for %q has no support level", kit)
 	}
-	switch strings.TrimSpace(support) {
+	policy := publicUpgradePolicy{Support: strings.TrimSpace(support)}
+	for field, value := range map[string]*bool{
+		"ownerApprovalRequired":      &policy.OwnerApprovalRequired,
+		"snapshotRequired":           &policy.SnapshotRequired,
+		"rollbackAnchorRequired":     &policy.RollbackAnchorRequired,
+		"liveVolumeCutoverAvailable": &policy.LiveVolumeCutoverAvailable,
+	} {
+		if *value, ok = raw[field].(bool); !ok {
+			return publicUpgradePolicy{}, fmt.Errorf("CUE-owned upgrade policy for %q has no %s", kit, field)
+		}
+	}
+	switch policy.Support {
 	case "preview":
-		return nil
+		// The transaction always takes both recovery anchors; a preview
+		// policy that waived either is not the governed transaction.
+		if !policy.SnapshotRequired || !policy.RollbackAnchorRequired {
+			return publicUpgradePolicy{}, fmt.Errorf("CUE-owned preview upgrade policy for %q must require the snapshot and rollback anchors", kit)
+		}
+		if policy.OwnerApprovalRequired && !dryRun && !ownerApproved {
+			return publicUpgradePolicy{}, actionableerror.WithDiagnostic("upgrade_owner_approval_required",
+				fmt.Errorf("StackKit %q upgrades only with explicit Owner approval (--owner-approve)", kit))
+		}
+		return policy, nil
 	case "unsupported":
-		return actionableerror.WithDiagnostic("upgrade_kit_unsupported",
+		return publicUpgradePolicy{}, actionableerror.WithDiagnostic("upgrade_kit_unsupported",
 			fmt.Errorf("StackKit %q does not support public upgrades (upgradePolicy.support=%q)", kit, support))
 	default:
-		return fmt.Errorf("CUE-owned upgrade policy for %q has unsupported support level %q", kit, support)
+		return publicUpgradePolicy{}, fmt.Errorf("CUE-owned upgrade policy for %q has unsupported support level %q", kit, support)
 	}
 }
 

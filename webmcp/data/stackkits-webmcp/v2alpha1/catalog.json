@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "6a8f6778483824ab69ecb9cf46b558ac1fa4b6c2",
-  "authority_bundle_sha256": "233f5569bda852bb7df9aadeb1a4a2b08c217a9b8701907f27676b604d121088",
+  "source_sha": "446ea3036d9820f2620ebd070a4eeabdb9d54b7a",
+  "authority_bundle_sha256": "72c895c9c3ea200ff8a26fcc92575d96351eee7cfeae0c4435d603844c8f9d1d",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -18004,7 +18004,8 @@
       "description": "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.",
       "command": [
         "upgrade",
-        "--json"
+        "--json",
+        "--owner-approve"
       ],
       "mutation": true,
       "destructive": true,
@@ -18147,5 +18148,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "1d3b4fa9aca6573cb5e55ae3dddf14fc655872ea6671fd8230368fab37d38a26"
+  "catalog_sha256": "eac991cf6587f4dda67b65cd9f44b5cbd257ef8017e228e80f20b1a1554b9de2"
 }

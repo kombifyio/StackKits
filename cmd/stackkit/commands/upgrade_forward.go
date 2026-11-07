@@ -148,7 +148,8 @@ func installForwardRetargetRelease(
 	if err != nil {
 		return releaseindex.Receipt{}, fmt.Errorf("load StackKit identity before forward retarget: %w", err)
 	}
-	if err := admitPublicUpgradeKit(kit); err != nil {
+	// --recover --forward is the owner's approval of this retarget.
+	if _, err := admitPublicUpgradeKit(kit, false, true); err != nil {
 		return releaseindex.Receipt{}, err
 	}
 	source := newPublicReleaseSource()

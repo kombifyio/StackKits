@@ -1491,8 +1491,12 @@ retired.
 `stackkit upgrade` is the canonical public command for a verified whole-Kit
 release. It does not independently upgrade one tool or module.
 Fresh attempts use the embedded CUE `upgradePolicy.support` before public
-release resolution. Basement is preview; Cloud and Modern are unsupported,
-including dry-run. Explicit recovery of an already-authorized operation uses
+release resolution. Basement and Cloud are preview; Modern is unsupported,
+including dry-run. A preview policy requires Owner approval: a fresh upgrade
+without `--dry-run` runs only with `--owner-approve` and otherwise stops with
+`upgrade_owner_approval_required` before anything changes. The result's
+`upgradePolicy` names the required Kopia snapshot and executor-state rollback
+anchors. Explicit recovery of an already-authorized operation uses
 its signed lifecycle journal and checkpoint instead of fresh-upgrade admission.
 
 ### `stackkit-publisher module` (Publisher-only)

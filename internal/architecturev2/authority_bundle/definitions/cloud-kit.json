@@ -881,10 +881,10 @@
   },
   "upgradePolicy": {
     "liveVolumeCutoverAvailable": false,
-    "ownerApprovalRequired": false,
-    "rollbackAnchorRequired": false,
-    "snapshotRequired": false,
-    "support": "unsupported"
+    "ownerApprovalRequired": true,
+    "rollbackAnchorRequired": true,
+    "snapshotRequired": true,
+    "support": "preview"
   },
   "workloads": {
     "defaults": [],

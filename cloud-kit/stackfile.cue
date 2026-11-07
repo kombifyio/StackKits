@@ -223,10 +223,10 @@ Definition: foundation.#ProductKitDefinition & {
 		}
 	}
 	upgradePolicy: {
-		support:                    "unsupported"
-		ownerApprovalRequired:      false
-		snapshotRequired:           false
-		rollbackAnchorRequired:     false
+		support:                    "preview"
+		ownerApprovalRequired:      true
+		snapshotRequired:           true
+		rollbackAnchorRequired:     true
 		liveVolumeCutoverAvailable: false
 	}
 	network: {

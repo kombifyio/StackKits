@@ -56,7 +56,7 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 	result := DomainMigration{From: "home", To: "lab.home", Status: "runtime-quiesced", Next: []string{
 		"The authenticated prior-release Core containers were gracefully stopped and removed without deleting volumes, networks or images.",
 		"Use the preserved prior-release CLI and its packaged tools for generate, apply, then verify; do not use this target CLI for that rollout.",
-		"After the prior release verifies on lab.home, use the target CLI: stackkit upgrade --to <exact-target-release>.",
+		"After the prior release verifies on lab.home, use the target CLI: stackkit upgrade --to <exact-target-release> --owner-approve.",
 		"The release-upgrade checkpoint covers the migrated prior release on lab.home, not the original home installation. The v0.47.4 bridge is awaiting real-host qualification; see basement-kit/README.md.",
 		"Enroll client DNS for lab.home using the existing Owner CA.",
 		"Run stackkit user owner activate --owner-approve; household members use stackkit user activate <username> --owner-approve.",

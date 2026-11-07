@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:d8b2552a9807ff21c1b415e00e6e291502898cc70fc72eb4962c7a9dfe0e4120",
+  "contentDigest": "sha256:00241f9f6c1f5931697bf2f3a16b564d42d62dddabeed56baad1470bd261a150",
   "operations": [
     {
       "command": [
@@ -2493,7 +2493,8 @@
     {
       "command": [
         "upgrade",
-        "--json"
+        "--json",
+        "--owner-approve"
       ],
       "description": "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.",
       "destructive": true,

@@ -155,7 +155,7 @@
             "id": { "const": "day2" },
             "commands": {
               "const": [
-                "stackkit upgrade --to latest",
+                "stackkit upgrade --to latest --owner-approve",
                 "stackkit drift detect --json",
                 "stackkit rollback",
                 "stackkit verify --json"

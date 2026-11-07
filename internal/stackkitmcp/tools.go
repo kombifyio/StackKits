@@ -861,7 +861,7 @@ func (a *App) stackkitRestoreAbandonV2(ctx context.Context, req *mcp.CallToolReq
 }
 
 func (a *App) stackkitUpgradeV2(ctx context.Context, req *mcp.CallToolRequest, in upgradeOperationInput) (*mcp.CallToolResult, any, error) {
-	args := []string{"upgrade", "--json"}
+	args := []string{"upgrade", "--json", "--owner-approve"}
 	args = appendOptionalFlag(args, "--to", firstNonEmpty(in.Target, "latest"))
 	return a.runApprovedStackkitTool(ctx, standaloneoperations.Upgrade, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
