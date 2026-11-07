@@ -141,8 +141,11 @@ func (r *osNativeComposeRuntime) PrepareCompose(ctx context.Context, request Nat
 		if err != nil {
 			return NativeComposePreparation{}, err
 		}
-		if err := pocketidruntime.PrepareApply(ctx, r.workspaceRoot, project, request.Definition); err != nil {
-			return NativeComposePreparation{}, err
+		// A joined core runs no Pocket ID of its own.
+		if !basementCoreJoined(r.workspaceRoot) {
+			if err := pocketidruntime.PrepareApply(ctx, r.workspaceRoot, project, request.Definition); err != nil {
+				return NativeComposePreparation{}, err
+			}
 		}
 		return NativeComposePreparation{moduleRef: moduleRef, originReload: preparation.originReload, browserCAReload: preparation.browserCAReload, recreateServer: preparation.recreateServer}, nil
 	case isCloudCoreModule(moduleRef):

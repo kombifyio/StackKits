@@ -38,6 +38,9 @@ const (
 // new trust carries every account the previous trust revoked and every
 // account the removal chain recorded, so a refresh never readmits one.
 func RefreshHomePublicTrust(ctx context.Context, root string, now time.Time) (HomePublicTrust, error) {
+	if homeJoined(root) {
+		return HomePublicTrust{}, errors.New("identity: this server joined an Authority; the Home trust is bound there")
+	}
 	service, err := localowner.NewService(root)
 	if err != nil {
 		return HomePublicTrust{}, err
@@ -105,7 +108,7 @@ func KeepHomePublicTrustCurrent(ctx context.Context, root string) {
 			return
 		case <-time.After(delay):
 		}
-		if _, err := localevidence.LoadOwnerCustody(root); err != nil {
+		if _, err := localevidence.LoadOwnerCustody(root); err != nil || homeJoined(root) {
 			delay = homeTrustIdleInterval
 			continue
 		}

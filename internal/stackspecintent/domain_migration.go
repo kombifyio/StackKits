@@ -15,10 +15,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// BasementDomainMigrationCandidate admits only the retired Basement domain.
-// It changes the domain and explicit route hosts, then validates every field
-// against current CUE. It does not generally admit invalid current intent.
-func BasementDomainMigrationCandidate(raw []byte) ([]byte, error) {
+// BasementDomainMigrationCandidate admits the retired Basement domain home
+// (to lab.home) and a local-only zone (to a public name). It changes the domain
+// and explicit route hosts, then validates every field against current CUE:
+// the identity origin is derived from the domain, so the record follows it. It
+// does not generally admit invalid current intent.
+func BasementDomainMigrationCandidate(raw []byte, from, to string) ([]byte, error) {
 	var spec map[string]any
 	if err := yaml.Unmarshal(raw, &spec); err != nil {
 		return nil, err
@@ -26,16 +28,16 @@ func BasementDomainMigrationCandidate(raw []byte) ([]byte, error) {
 	kit, _ := spec["kit"].(map[string]any)
 	network, _ := spec["network"].(map[string]any)
 	domain, _ := network["domain"].(map[string]any)
-	if kit["slug"] != "basement-kit" || domain["base"] != "home" || (domain["subdomainPrefix"] != nil && domain["subdomainPrefix"] != "") {
-		return nil, errors.New("domain migration requires native Basement intent with the unprefixed legacy home domain")
+	if kit["slug"] != "basement-kit" || domain["base"] != from || (domain["subdomainPrefix"] != nil && domain["subdomainPrefix"] != "") {
+		return nil, errors.New("domain migration requires native Basement intent with the unprefixed source domain " + from)
 	}
-	domain["base"] = "lab.home"
+	domain["base"] = to
 	routes, _ := spec["routes"].(map[string]any)
 	for _, rawRoute := range routes {
 		route, _ := rawRoute.(map[string]any)
 		host, _ := route["host"].(string)
-		if strings.HasSuffix(host, ".home") {
-			route["host"] = strings.TrimSuffix(host, ".home") + ".lab.home"
+		if strings.HasSuffix(host, "."+from) {
+			route["host"] = strings.TrimSuffix(host, "."+from) + "." + to
 		}
 	}
 	candidate, err := json.Marshal(spec)
@@ -57,8 +59,8 @@ func BasementDomainMigrationCandidate(raw []byte) ([]byte, error) {
 // Persist. The frozen original bytes serve as the CAS token because current
 // CUE deliberately rejects home. The candidate must be exactly the validated
 // narrow transform of those bytes. Interrupted retries accept that same result.
-func PersistBasementDomainMigration(workspace, specPath string, before, after []byte) error {
-	if err := validateBasementDomainMigration(before, after); err != nil {
+func PersistBasementDomainMigration(workspace, specPath, from, to string, before, after []byte) error {
+	if err := validateBasementDomainMigration(before, after, from, to); err != nil {
 		return err
 	}
 	return lifecyclemutation.WithIdleMutation(workspace, lifecyclemutation.JoinRequest{}, func() error {
@@ -66,15 +68,15 @@ func PersistBasementDomainMigration(workspace, specPath string, before, after []
 	})
 }
 
-func persistBasementDomainMigration(workspace, specPath string, before, after []byte) error {
-	if err := validateBasementDomainMigration(before, after); err != nil {
+func persistBasementDomainMigration(workspace, specPath, from, to string, before, after []byte) error {
+	if err := validateBasementDomainMigration(before, after, from, to); err != nil {
 		return err
 	}
 	return persistValidatedBasementDomainMigration(workspace, specPath, before, after)
 }
 
-func validateBasementDomainMigration(before, after []byte) error {
-	candidate, err := BasementDomainMigrationCandidate(before)
+func validateBasementDomainMigration(before, after []byte, from, to string) error {
+	candidate, err := BasementDomainMigrationCandidate(before, from, to)
 	if err != nil {
 		return err
 	}
@@ -154,10 +156,10 @@ func WithBasementDomainMigrator(
 	})
 }
 
-func (BasementDomainMigrator) Candidate(raw []byte) ([]byte, error) {
-	return BasementDomainMigrationCandidate(raw)
+func (BasementDomainMigrator) Candidate(raw []byte, from, to string) ([]byte, error) {
+	return BasementDomainMigrationCandidate(raw, from, to)
 }
-func (m BasementDomainMigrator) Persist(workspace, specPath string, before, after []byte) error {
+func (m BasementDomainMigrator) Persist(workspace, specPath, from, to string, before, after []byte) error {
 	absolute, err := filepath.Abs(workspace)
 	if err != nil {
 		return err
@@ -165,5 +167,5 @@ func (m BasementDomainMigrator) Persist(workspace, specPath string, before, afte
 	if m.guard == nil || !m.guard.active.Load() || filepath.Clean(absolute) != m.guard.workspace {
 		return errors.New("domain migration persistence requires the active migration lock")
 	}
-	return persistBasementDomainMigration(m.guard.workspace, specPath, before, after)
+	return persistBasementDomainMigration(m.guard.workspace, specPath, from, to, before, after)
 }

@@ -251,6 +251,7 @@ func init() {
 	rootCmd.AddCommand(newRelocateCommand())
 	rootCmd.AddCommand(newDeviceCommand())
 	rootCmd.AddCommand(newVPNCommand())
+	rootCmd.AddCommand(newReachCommand())
 	rootCmd.AddCommand(outputTransactionCmd)
 	rootCmd.AddCommand(user.NewCommandWithFilesProvisioner(nativeFilesHouseholdProvisioner{}, resyncHomeOverlayIfActive))
 }

@@ -26,7 +26,24 @@ func discoverSiteAddress() (netip.Addr, error) { return siteaddress.DiscoverSite
 type LANDNSOptions struct {
 	FullLocal bool
 	Upstream  []string
+	// Zone holds the other servers of the homelab (identity target §4): each
+	// name is a redirect zone to that server's LAN address, so every member
+	// device that asks this resolver reaches every server.
+	Zone []LANDNSZoneRecord
 }
+
+// LANDNSZoneRecord is one name of the homelab zone and the LAN address of the
+// server that answers it.
+type LANDNSZoneRecord struct {
+	Name    string     `json:"name"`
+	Address netip.Addr `json:"address"`
+}
+
+const (
+	lanDNSZoneMarker      = "# stackkit-homelab-zone"
+	lanDNSFullLocalMarker = "# stackkit-full-local-dns"
+	lanDNSZoneMaxRecords  = 256
+)
 
 func buildLANDNSRecords(domain string, address netip.Addr, options ...LANDNSOptions) ([]byte, error) {
 	if !validBasementRuntimeDomain(domain) && domain != LegacyBasementDomain {
@@ -44,11 +61,25 @@ func buildLANDNSRecords(domain string, address netip.Addr, options ...LANDNSOpti
 	zone.WriteString("server:\n")
 	fmt.Fprintf(&zone, "  local-zone: %q redirect\n", domain+".")
 	fmt.Fprintf(&zone, "  local-data: \"%s. IN %s %s\"\n", domain, recordType, address.String())
+	if len(options) > 0 && len(options[0].Zone) > 0 {
+		if err := validLANDNSZone(domain, options[0].Zone); err != nil {
+			return nil, err
+		}
+		zone.WriteString(lanDNSZoneMarker + "\n")
+		for _, record := range options[0].Zone {
+			kind := "A"
+			if record.Address.Is6() {
+				kind = "AAAA"
+			}
+			fmt.Fprintf(&zone, "  local-zone: %q redirect\n", record.Name+".")
+			fmt.Fprintf(&zone, "  local-data: \"%s. IN %s %s\"\n", record.Name, kind, record.Address.String())
+		}
+	}
 	if len(options) > 0 && options[0].FullLocal {
 		if err := runtimeprofile.ValidateLocalDNS(options[0].Upstream); err != nil {
 			return nil, err
 		}
-		zone.WriteString("# stackkit-full-local-dns\n")
+		zone.WriteString(lanDNSFullLocalMarker + "\n")
 		if len(options[0].Upstream) == 0 {
 			zone.WriteString("  local-zone: \".\" refuse\n")
 		} else {
@@ -66,16 +97,90 @@ func buildLANDNSRecords(domain string, address netip.Addr, options ...LANDNSOpti
 
 func lanDNSOptions(raw []byte) LANDNSOptions {
 	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
-	if len(lines) <= 4 || lines[4] != "# stackkit-full-local-dns" {
-		return LANDNSOptions{}
-	}
-	options := LANDNSOptions{FullLocal: true}
-	for _, line := range lines[5:] {
-		if value, ok := strings.CutPrefix(line, "  forward-addr: "); ok {
-			options.Upstream = append(options.Upstream, value)
+	options := LANDNSOptions{}
+	section := ""
+	for index, line := range lines {
+		if index < 4 {
+			continue
+		}
+		switch line {
+		case lanDNSZoneMarker, lanDNSFullLocalMarker:
+			section = line
+			options.FullLocal = options.FullLocal || line == lanDNSFullLocalMarker
+			continue
+		}
+		switch section {
+		case lanDNSZoneMarker:
+			// The record lines follow their redirect lines; the canonical
+			// rebuild in parseLANDNSRecords rejects anything else.
+			record := strings.TrimPrefix(strings.TrimSuffix(line, `"`), `  local-data: "`)
+			fields := strings.Fields(record)
+			if len(fields) == 4 && fields[1] == "IN" {
+				if address, err := netip.ParseAddr(fields[3]); err == nil {
+					options.Zone = append(options.Zone, LANDNSZoneRecord{Name: strings.TrimSuffix(fields[0], "."), Address: address})
+				}
+			}
+		case lanDNSFullLocalMarker:
+			if value, ok := strings.CutPrefix(line, "  forward-addr: "); ok {
+				options.Upstream = append(options.Upstream, value)
+			}
 		}
 	}
 	return options
+}
+
+// validLANDNSZone admits sorted, unique homelab names other than this
+// server's own domain, each with a LAN address.
+func validLANDNSZone(domain string, records []LANDNSZoneRecord) error {
+	if len(records) > lanDNSZoneMaxRecords {
+		return errors.New("localevidence: the homelab zone is too large")
+	}
+	for index, record := range records {
+		if !validBasementRuntimeDomain(record.Name) || record.Name == domain ||
+			(index > 0 && records[index-1].Name >= record.Name) {
+			return errors.New("localevidence: the homelab zone needs sorted, unique names other than this server's own domain")
+		}
+		if !record.Address.IsValid() || record.Address.IsLoopback() || record.Address.IsUnspecified() || record.Address.IsMulticast() || record.Address != record.Address.Unmap() {
+			return errors.New("localevidence: a homelab zone record needs a LAN address")
+		}
+	}
+	return nil
+}
+
+// InstallBasementLANDNSZone replaces the homelab zone this server's LAN
+// resolver serves (its own domain record is unchanged). The caller has
+// verified every record against the join trust; the lan-dns container reads
+// the new file at its next start.
+func InstallBasementLANDNSZone(workspaceRoot string, records []LANDNSZoneRecord) (bool, error) {
+	if err := ReplayBasementRuntimeRewrites(workspaceRoot); err != nil {
+		return false, err
+	}
+	raw, custody, err := readBasementRuntimeFile(workspaceRoot, lanDNSRecordsPath)
+	if err != nil {
+		return false, err
+	}
+	address, err := parseLANDNSRecords(custody.Domain, raw)
+	if err != nil {
+		return false, err
+	}
+	options := lanDNSOptions(raw)
+	options.Zone = append([]LANDNSZoneRecord(nil), records...)
+	after, err := buildLANDNSRecords(custody.Domain, address, options)
+	if err != nil {
+		return false, err
+	}
+	return rewriteBasementRuntimeFiles(workspaceRoot, lanDNSZoneJournal, map[string][]byte{lanDNSRecordsPath: after})
+}
+
+// BasementLANDNSSite returns this server's own domain and the LAN address its
+// resolver answers for it, both from verified custody.
+func BasementLANDNSSite(workspaceRoot string) (string, netip.Addr, error) {
+	raw, custody, err := readBasementRuntimeFile(workspaceRoot, lanDNSRecordsPath)
+	if err != nil {
+		return "", netip.Addr{}, err
+	}
+	address, err := parseLANDNSRecords(custody.Domain, raw)
+	return custody.Domain, address, err
 }
 
 func VerifyBasementLANDNSPolicy(workspace string, expected LANDNSOptions) error {
@@ -87,6 +192,8 @@ func VerifyBasementLANDNSPolicy(workspace string, expected LANDNSOptions) error 
 	if err != nil {
 		return err
 	}
+	// The homelab zone is installed separately; the policy covers the rest.
+	expected.Zone = lanDNSOptions(raw).Zone
 	want, err := buildLANDNSRecords(custody.Domain, address, expected)
 	if err != nil {
 		return err

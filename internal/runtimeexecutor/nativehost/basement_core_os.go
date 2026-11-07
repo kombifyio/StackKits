@@ -101,7 +101,8 @@ type basementOwnerIdentity interface {
 }
 
 type localBasementOwnerIdentity struct {
-	service *localowner.Service
+	service       *localowner.Service
+	workspaceRoot string
 }
 
 // NewOSBasementCoreOperations explicitly grants the local workspace's fixed
@@ -124,8 +125,8 @@ func NewOSBasementCoreOperations(workspaceRoot string) (BasementCoreOperations, 
 	return &osBasementCoreOperations{
 		workspaceRoot: filepath.Clean(absolute),
 		runner:        osBasementCoreProcessRunner{},
-		prober:        osBasementCoreProber{},
-		ownerIdentity: localBasementOwnerIdentity{service: ownerIdentity},
+		prober:        joinedAwareProber{workspaceRoot: filepath.Clean(absolute), local: osBasementCoreProber{}},
+		ownerIdentity: localBasementOwnerIdentity{service: ownerIdentity, workspaceRoot: filepath.Clean(absolute)},
 		serverBinary:  releaseStackKitServerBinary,
 	}, nil
 }
@@ -149,8 +150,11 @@ func (o *osBasementCoreOperations) ApplyProject(ctx context.Context, project Bas
 	if err != nil {
 		return BasementCoreApplyObservation{}, err
 	}
-	if err := pocketidruntime.PrepareApply(ctx, o.workspaceRoot, "stackkit-basement-core", project.Definition); err != nil {
-		return BasementCoreApplyObservation{}, err
+	joined := basementCoreJoined(o.workspaceRoot)
+	if !joined {
+		if err := pocketidruntime.PrepareApply(ctx, o.workspaceRoot, "stackkit-basement-core", project.Definition); err != nil {
+			return BasementCoreApplyObservation{}, err
+		}
 	}
 	composePath, err := o.persistCompose(project)
 	if err != nil {
@@ -185,6 +189,9 @@ type basementApplyPreparation struct {
 // prepareApply runs the steps that must precede the Compose project: the
 // custody-owned origin provisioner upgrade check and stackkit-server staging.
 func (o *osBasementCoreOperations) prepareApply() (basementApplyPreparation, error) {
+	if err := localevidence.ReplayBasementRuntimeRewrites(o.workspaceRoot); err != nil {
+		return basementApplyPreparation{}, fmt.Errorf("finish an interrupted joined-core or homelab-zone custody rewrite: %w", err)
+	}
 	_, _, browserCAReload, err := localevidence.BasementBrowserCAMigrationChain(o.workspaceRoot)
 	if err != nil {
 		return basementApplyPreparation{}, fmt.Errorf("verify explicit browser CA transition: %w", err)
@@ -283,6 +290,14 @@ func (o *osBasementCoreOperations) completeApplyWithIdentity(
 	if err != nil {
 		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("local PocketID owner %s did not complete: %w", identityAction, err)
 	}
+	if basementCoreJoined(o.workspaceRoot) {
+		// A joined core is no Authority: it writes no public Authority record
+		// and has no local Pocket ID incarnation to complete.
+		if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
+			return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("the joined core's TinyAuth binding did not complete: %w", err)
+		}
+		return binding, nil
+	}
 	// The core verifies the Home trust against the bound Owner subject.
 	if _, err := localevidence.WriteHomeAuthorityPublic(o.workspaceRoot, time.Now()); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("write the public Authority record after the owner %s: %w", identityAction, err)
@@ -346,7 +361,11 @@ func (o *osBasementCoreOperations) observeProject(ctx context.Context, project B
 			project.ProjectRef, "runtime-status-unavailable", err,
 		)
 	}
-	services, err := parseBasementCoreComposeStatus(raw, project.Services)
+	expectedServices := project.Services
+	if basementCoreJoined(o.workspaceRoot) {
+		expectedServices = joinedBasementCoreServices(expectedServices)
+	}
+	services, err := parseBasementCoreComposeStatus(raw, expectedServices)
 	if err != nil {
 		return BasementCoreVerifyObservation{}, basementCoreObservationDrift(
 			project.ProjectRef, "runtime-service-set-changed", err,
@@ -389,7 +408,7 @@ func (o *osBasementCoreOperations) observeProject(ctx context.Context, project B
 		ProjectRef: project.ProjectRef, ArtifactDigest: project.ArtifactDigest,
 		OwnerRef: binding.OwnerRef, PocketIDSubject: binding.PocketIDSubject,
 		OwnerBindingDigest: localevidence.OwnerRuntimeBindingDigest(binding),
-		Status:             "ready", Services: services, Probes: probes,
+		Status:             "ready", Services: services, Probes: probes, Joined: len(expectedServices) != len(project.Services),
 	}, nil
 }
 
@@ -710,11 +729,19 @@ var (
 	_ basementOwnerIdentity     = localBasementOwnerIdentity{}
 )
 
+// Realize and Verify complete the core's owner identity in its own Pocket
+// ID, or, on a joined server, check the Authority's client is bound.
 func (i localBasementOwnerIdentity) Realize(ctx context.Context) (localevidence.OwnerRuntimeBinding, error) {
+	if i.workspaceRoot != "" && basementCoreJoined(i.workspaceRoot) {
+		return joinedBasementOwnerIdentity(i.workspaceRoot)
+	}
 	result, err := i.service.Realize(ctx)
 	return result.Binding, err
 }
 
 func (i localBasementOwnerIdentity) Verify(ctx context.Context) (localevidence.OwnerRuntimeBinding, error) {
+	if i.workspaceRoot != "" && basementCoreJoined(i.workspaceRoot) {
+		return joinedBasementOwnerIdentity(i.workspaceRoot)
+	}
 	return i.service.Verify(ctx)
 }

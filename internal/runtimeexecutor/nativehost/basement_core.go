@@ -167,6 +167,9 @@ type BasementCoreVerifyObservation struct {
 	Status             string                           `json:"status"`
 	Services           []BasementCoreServiceObservation `json:"services"`
 	Probes             []BasementCoreProbeObservation   `json:"probes"`
+	// Joined reports a core joined to the homelab's Authority: it runs every
+	// pinned service except Pocket ID (identity target §4).
+	Joined bool `json:"joined,omitempty"`
 }
 
 type BasementCoreOperations interface {
@@ -495,6 +498,9 @@ func exactClosedLocalCoreHealth(input []runtimeexecutor.HealthTarget, target run
 }
 
 func validateBasementCoreVerification(project BasementCoreProject, observation BasementCoreVerifyObservation) error {
+	if observation.Joined {
+		project.Services = joinedBasementCoreServices(project.Services)
+	}
 	if observation.ProjectRef != project.ProjectRef || observation.ArtifactDigest != project.ArtifactDigest ||
 		observation.OwnerRef == "" || observation.PocketIDSubject == "" ||
 		!validCoreHostBootstrapDigest(observation.OwnerBindingDigest) ||

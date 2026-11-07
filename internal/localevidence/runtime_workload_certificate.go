@@ -86,20 +86,17 @@ func issueBasementWorkloadCertificate(ctx context.Context, workspaceRoot string,
 	if err := requireBasementWorkloadProvisioner(workspaceRoot, provisioner, usage); err != nil {
 		return nil, err
 	}
-	owner, err := LoadOwnerCustody(workspaceRoot)
-	if err != nil {
-		return nil, err
-	}
 	key, err := LoadOwnerKey(workspaceRoot)
 	if err != nil {
 		return nil, err
 	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM([]byte(owner.StepCARootCertificatePEM)) {
+	roots, serverName, err := StepCALocalTrust(workspaceRoot)
+	if err != nil {
 		return nil, errors.New("localevidence: origin issuance has no established trust root")
 	}
+	signURL := basementStepCASignURL(serverName)
 	now := time.Now().UTC().Truncate(time.Second)
-	token, err := basementWorkloadToken(key, csr, now, provisioner)
+	token, err := basementWorkloadToken(key, csr, now, provisioner, signURL)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +110,7 @@ func issueBasementWorkloadCertificate(ctx context.Context, workspaceRoot string,
 		transport = t
 	}
 	client := &http.Client{Transport: transport, Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, basementOriginSignURL, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, signURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -202,22 +199,18 @@ func VerifyBasementOriginProvisioner(ctx context.Context, workspaceRoot string) 
 	if err := requireBasementWorkloadProvisioners(workspaceRoot); err != nil {
 		return err
 	}
-	owner, err := LoadOwnerCustody(workspaceRoot)
-	if err != nil {
-		return err
-	}
 	expected, err := basementWorkloadProvisioners(workspaceRoot)
 	if err != nil {
 		return err
 	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM([]byte(owner.StepCARootCertificatePEM)) {
+	roots, serverName, err := StepCALocalTrust(workspaceRoot)
+	if err != nil {
 		return errors.New("localevidence: missing provisioner trust root")
 	}
 	transport := basementOriginHTTPTransport(roots)
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://localhost:9000/provisioners", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+serverName+":9000/provisioners", nil)
 	if err != nil {
 		return err
 	}
@@ -334,7 +327,16 @@ func requireBasementProvisioner(workspaceRoot string, expected basementStepCAPro
 	return ErrBasementOriginProvisionerMissing
 }
 
-func basementWorkloadToken(key OwnerKey, csr *x509.CertificateRequest, now time.Time, provisioner string) (string, error) {
+// basementStepCASignURL is the local step-ca's sign endpoint under the TLS
+// name it serves; step-ca checks the token audience against that name.
+func basementStepCASignURL(serverName string) string {
+	if serverName == "localhost" {
+		return basementOriginSignURL
+	}
+	return "https://" + serverName + ":9000/1.0/sign"
+}
+
+func basementWorkloadToken(key OwnerKey, csr *x509.CertificateRequest, now time.Time, provisioner, audience string) (string, error) {
 	nonce := make([]byte, 32)
 	if _, err := rand.Read(nonce); err != nil {
 		return "", err
@@ -347,7 +349,7 @@ func basementWorkloadToken(key OwnerKey, csr *x509.CertificateRequest, now time.
 		sans = append(sans, address.String())
 	}
 	header, _ := json.Marshal(map[string]string{"alg": "EdDSA", "kid": key.KeyID, "typ": "JWT"})
-	claims, err := json.Marshal(map[string]any{"iss": provisioner, "sub": csr.Subject.CommonName, "aud": []string{basementOriginSignURL}, "iat": now.Unix(), "nbf": now.Unix(), "exp": now.Add(time.Minute).Unix(), "jti": base64.RawURLEncoding.EncodeToString(nonce), "sans": sans, "cnf": map[string]string{"x5rt#S256": base64.RawURLEncoding.EncodeToString(fingerprint[:])}})
+	claims, err := json.Marshal(map[string]any{"iss": provisioner, "sub": csr.Subject.CommonName, "aud": []string{audience}, "iat": now.Unix(), "nbf": now.Unix(), "exp": now.Add(time.Minute).Unix(), "jti": base64.RawURLEncoding.EncodeToString(nonce), "sans": sans, "cnf": map[string]string{"x5rt#S256": base64.RawURLEncoding.EncodeToString(fingerprint[:])}})
 	if err != nil {
 		return "", err
 	}

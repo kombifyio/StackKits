@@ -20,6 +20,9 @@ import (
 const accessGateRoutesEnvironment = "STACKKIT_ACCESS_GATE_ROUTES"
 
 func init() {
+	if accessgate.DBSCRegisterPath != identity.HomeDBSCRegisterPath || accessgate.DBSCRefreshPath != identity.HomeDBSCRefreshPath {
+		panic("stackkit-server: the Access Gate and the identity verifier must agree on the DBSC paths")
+	}
 	if accessgate.LaunchPath != identity.HomeLaunchPath || accessgate.HeaderAppPass != identity.HomeAppPassHeader {
 		panic("stackkit-server: the Access Gate and the identity verifier must agree on the launch path and the app pass header")
 	}
@@ -81,6 +84,10 @@ func newAccessGateServer(baseDir, listen string, table accessgate.Table) (*http.
 	mux := http.NewServeMux()
 	mux.Handle(accessgate.PathLAN, gate)
 	mux.Handle(accessgate.PathRemote, gate)
+	// The DBSC endpoints answer 2xx bodies, which a forward-auth call cannot
+	// carry; a router per gated host sends them here (identity.HomeDBSCHandler).
+	mux.Handle(identity.HomeDBSCRegisterPath, identity.HomeDBSCHandler(baseDir))
+	mux.Handle(identity.HomeDBSCRefreshPath, identity.HomeDBSCHandler(baseDir))
 	return &http.Server{
 		Addr: listen, Handler: mux,
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
@@ -191,6 +198,12 @@ func (l identityLauncher) CompleteLaunch(_ context.Context, launch accessgate.La
 	return value, session.ExpiresAt.Sub(now), nil
 }
 
+// SessionRegistration offers a browser-native device-bound session for the
+// launch cookie just issued (DBSC); the browser may ignore it.
+func (l identityLauncher) SessionRegistration(session string) string {
+	return identity.HomeDBSCRegistration(l.root, session, time.Now())
+}
+
 // identityAppPasses verifies app passes against the Authority's records.
 type identityAppPasses struct{ root string }
 
@@ -204,4 +217,15 @@ func (a identityAppPasses) VerifyAppPass(_ context.Context, host, pass string) (
 		return accessgate.Principal{}, err
 	}
 	return withHouseholdGroups(a.root, accessgate.Principal{Subject: record.Account, Device: record.Device, ExpiresAt: record.ExpiresAt}), nil
+}
+
+// accessGateHosts are every host of the route table.
+func accessGateHosts(table accessgate.Table) []string {
+	hosts := []string{}
+	for _, route := range table.Routes {
+		if !slices.Contains(hosts, route.Host) {
+			hosts = append(hosts, route.Host)
+		}
+	}
+	return hosts
 }

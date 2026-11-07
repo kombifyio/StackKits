@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -98,6 +99,7 @@ type HomeHubOptions struct {
 // exchange, and every device-facing identity route on mux.
 func RegisterHomeHubRoutes(mux *http.ServeMux, root string, options HomeHubOptions) {
 	assets, _ := fs.Sub(homeHubAssets, "hub")
+	registerHomeJoinedStateRoute(mux, root)
 	mux.HandleFunc("GET "+homeHubConfigPath, func(w http.ResponseWriter, _ *http.Request) {
 		config, err := loadHomeHubConfig(root, options)
 		if err != nil {
@@ -155,12 +157,10 @@ func RegisterHomeHubRoutes(mux *http.ServeMux, root string, options HomeHubOptio
 	if options.Signer != nil {
 		recovery = options.Signer.RecoveryHandler()
 	}
-	for _, route := range []string{RecoveryRequestPath, RecoveryCompletePath, RecoveryCancelPath} {
+	for _, route := range []string{RecoveryRequestPath, RecoveryCompletePath, RecoveryCancelPath, RecoveryOwnerDevicePath} {
 		mux.Handle("POST "+route, homeLANListenerOnly(recovery))
 	}
-	mux.Handle("GET "+RecoveryDeviceNoticesPath, homeLANListenerOnly(RecoveryDeviceHandler(root, func(context.Context, string) (RecoveryPasskeyLink, error) {
-		return RecoveryPasskeyLink{}, ErrRecoveryDenied
-	})))
+	mux.Handle("GET "+RecoveryDeviceNoticesPath, homeLANListenerOnly(recovery))
 	registerHomePushRoutes(mux, root)
 	registerHomeAppPassRoutes(mux, root, options.AppHosts)
 	approvals := http.NewServeMux()
@@ -182,6 +182,10 @@ func homeLANListenerOnly(next http.Handler) http.Handler {
 }
 
 func loadHomeHubConfig(root string, options HomeHubOptions) (homeHubConfig, error) {
+	// The Hub lives on the Authority; a joined server serves none.
+	if homeJoined(root) {
+		return homeHubConfig{}, errors.New("identity: this server joined an Authority; its Hub is the Authority's")
+	}
 	address, err := homeIdentityAddress(root)
 	if err != nil {
 		return homeHubConfig{}, err
@@ -202,6 +206,12 @@ func loadHomeHubConfig(root string, options HomeHubOptions) (homeHubConfig, erro
 		config.HomeEnrollment = bootstrap.HubEnrollmentURL
 	}
 	config.LaunchHosts, config.AppHosts = append([]string{}, options.LaunchHosts...), append([]string{}, options.AppHosts...)
+	// A joined server's hosts open browser sessions from this Hub too.
+	for _, host := range homeJoinedLaunchHosts(root, time.Now()) {
+		if !slices.Contains(config.LaunchHosts, host) {
+			config.LaunchHosts = append(config.LaunchHosts, host)
+		}
+	}
 	if key, keyErr := loadHomePushVAPIDPublicKey(root); keyErr == nil {
 		config.VAPIDPublicKey = key
 	}

@@ -106,6 +106,9 @@ func main() {
 	}
 	serverContext, stopServerContext := context.WithCancel(context.Background())
 	defer stopServerContext()
+	// A server that joined an Authority reads its verification state toward
+	// the 60 s revocation target; on any other server this idles.
+	go identity.KeepHomeJoinedStateCurrent(serverContext, identityRoot)
 	// The Owner custody stays on the host: the host-side identity signer keeps
 	// the Home trust current and answers what needs the Owner key.
 	var signer identity.HomeAuthoritySigner
@@ -157,6 +160,10 @@ func main() {
 			os.Exit(1)
 		}
 		appHosts, launchHosts = accessGateAppHosts(table), accessGateLaunchHosts(table)
+		// A join never hands another server a certificate scope over these hosts.
+		if err := identity.RecordHomeAuthorityHosts(identityRoot, accessGateHosts(table)); err != nil {
+			slog.Warn("the Access Gate hosts were not recorded for joins", "error", err)
+		}
 		gateServer, gateErr := newAccessGateServer(identityRoot, *accessGateListen, table)
 		if gateErr != nil {
 			slog.Error("access gate configuration rejected", "error", gateErr)

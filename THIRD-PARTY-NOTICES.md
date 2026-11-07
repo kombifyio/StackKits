@@ -51,6 +51,7 @@ installations retain their selected pin until an admitted transition.
 | Coolify in the legacy Full core | 4.1.2 (Architecture v2 core catalog) | Apache-2.0 | [Source](https://github.com/coollabsio/coolify/tree/v4.1.2), [LICENSE](https://github.com/coollabsio/coolify/blob/v4.1.2/LICENSE) |
 | Headscale (VPN add-on, Headscale tool) | 0.29.7 (exact container digest in `addons/vpn/tools.cue`) | BSD-3-Clause | [Source](https://github.com/juanfont/headscale/tree/v0.29.7), [LICENSE](https://github.com/juanfont/headscale/blob/v0.29.7/LICENSE) |
 | Tailscale node (VPN add-on, Headscale and Tailscale tools) | 1.104.4 (exact container digest in `addons/vpn/tools.cue`) | BSD-3-Clause | [Source](https://github.com/tailscale/tailscale/tree/v1.104.4), [LICENSE](https://github.com/tailscale/tailscale/blob/v1.104.4/LICENSE) |
+| cloudflared (remote reach connector of `stackkit reach`; the same pin as the kombify AI connector) | 2026.9.3 (exact container digest in the CUE catalog) | Apache-2.0 | [Source](https://github.com/cloudflare/cloudflared/tree/2026.9.3), [LICENSE](https://github.com/cloudflare/cloudflared/blob/2026.9.3/LICENSE) |
 | Newt (VPN add-on, Pangolin tool) | 1.19.1 (exact container digest in `addons/vpn/tools.cue`) | AGPL-3.0-only | [Source](https://github.com/fosrl/newt/tree/1.19.1), [LICENSE](https://github.com/fosrl/newt/blob/1.19.1/LICENSE); run unmodified, its source is the pinned upstream tag |
 
 The VPN add-on runs these images unmodified, each with its base image's own

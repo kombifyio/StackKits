@@ -208,7 +208,7 @@ lists each revocation-registry artifact and what the chain did for it.`,
 		},
 	}
 	ownerActivate.Flags().Bool("owner-approve", false, "Explicitly approve reissuing the owner activation link")
-	owner.AddCommand(ownerStatus, ownerActivate, newOwnerReconcileCommand(api), newDomainMigrationCommand(api))
+	owner.AddCommand(ownerStatus, ownerActivate, newOwnerSetupCommand(api), newOwnerReconcileCommand(api), newDomainMigrationCommand(api))
 
 	command.AddCommand(add, list, apps, remove, newProjectionCommand(api), owner, newHouseholdActivateCommand(api), newFilesCommand(api, provisioner))
 	return command

@@ -60,6 +60,7 @@ type HomeLaunch struct {
 
 // HomeBrowserSession is a verified session of one device on one host.
 type HomeBrowserSession struct {
+	ID        string
 	Account   string
 	Device    string
 	Host      string
@@ -77,6 +78,9 @@ type homeBrowserSessionClaims struct {
 	Home     bool   `json:"home"`
 	IssuedAt int64  `json:"iat"`
 	Expires  int64  `json:"exp"`
+	// DBSC marks the short-lived cookie of a device-bound session, which the
+	// browser renews with its own key (home_dbsc.go).
+	DBSC bool `json:"dbsc,omitempty"`
 }
 
 // AuthenticateLaunch admits one launch proof: signed by the key of an active
@@ -107,6 +111,11 @@ func (v *HomeVerifier) AuthenticateLaunch(launch HomeLaunch) (HomeAuthentication
 	if err != nil || claims.Confirmation.JWKThumbprint != proof.Thumbprint || device.AccountSubject != claims.Account {
 		return deny()
 	}
+	// A joined server opens a session only while the Authority's state is
+	// current: during a partition new sign-ins fail closed.
+	if v.snapshot.joined && now.Sub(v.snapshot.stateAt) > homeJoinedStateFresh {
+		return deny()
+	}
 	if !v.rememberLocked(proof.Thumbprint, "launch\x00"+proof.ID, proof.IssuedAt.Add(homeLaunchReplayRetention), now) {
 		return deny()
 	}
@@ -119,10 +128,6 @@ func (v *HomeVerifier) AuthenticateLaunch(launch HomeLaunch) (HomeAuthentication
 // IssueHomeBrowserSession mints the session value for a launch the Gate
 // admitted: home when the launch came through the LAN listener.
 func IssueHomeBrowserSession(root string, caller HomeAuthentication, host string, home bool, now time.Time) (string, HomeBrowserSession, error) {
-	key, err := homeBrowserSessionKey(root, true)
-	if err != nil {
-		return "", HomeBrowserSession{}, err
-	}
 	id, err := homeRandomID()
 	if err != nil {
 		return "", HomeBrowserSession{}, err
@@ -134,13 +139,11 @@ func IssueHomeBrowserSession(root string, caller HomeAuthentication, host string
 	}
 	claims := homeBrowserSessionClaims{Version: 1, ID: id, Host: host, Account: caller.Subject, Device: caller.Device, Home: home,
 		IssuedAt: now.Unix(), Expires: now.Add(lifetime).Unix()}
-	payload, err := json.Marshal(claims)
+	value, err := signHomeBrowserSession(root, claims)
 	if err != nil {
 		return "", HomeBrowserSession{}, err
 	}
-	encoded := base64.RawURLEncoding.EncodeToString(payload)
-	value := encoded + "." + base64.RawURLEncoding.EncodeToString(homeBrowserSessionMAC(key, encoded))
-	return value, HomeBrowserSession{Account: caller.Subject, Device: caller.Device, Host: host, Home: home, IssuedAt: now, ExpiresAt: now.Add(lifetime)}, nil
+	return value, HomeBrowserSession{ID: id, Account: caller.Subject, Device: caller.Device, Host: host, Home: home, IssuedAt: now, ExpiresAt: now.Add(lifetime)}, nil
 }
 
 // VerifyHomeBrowserSession admits a session value only for the host it was
@@ -150,24 +153,8 @@ func IssueHomeBrowserSession(root string, caller HomeAuthentication, host string
 // lifetime.
 func (v *HomeVerifier) VerifyHomeBrowserSession(value, host string, remote bool) (HomeBrowserSession, error) {
 	deny := func() (HomeBrowserSession, error) { return HomeBrowserSession{}, ErrHomeAccessDenied }
-	encoded, mac, ok := strings.Cut(value, ".")
-	if !ok || len(value) > homeBrowserSessionMaxBytes || encoded == "" {
-		return deny()
-	}
-	key, err := homeBrowserSessionKey(v.root, false)
-	if err != nil {
-		return deny()
-	}
-	got, err := base64.RawURLEncoding.DecodeString(mac)
-	if err != nil || !hmac.Equal(got, homeBrowserSessionMAC(key, encoded)) {
-		return deny()
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil {
-		return deny()
-	}
-	var claims homeBrowserSessionClaims
-	if json.Unmarshal(payload, &claims) != nil || claims.Version != 1 || claims.Host != host || claims.Account == "" || claims.Device == "" {
+	claims, err := parseHomeBrowserSessionClaims(v.root, value)
+	if err != nil || claims.Host != host {
 		return deny()
 	}
 	now := v.now().UTC()
@@ -178,10 +165,47 @@ func (v *HomeVerifier) VerifyHomeBrowserSession(value, host string, remote bool)
 	if !now.Before(expires) || issued.After(now.Add(HomeClockLeeway)) {
 		return deny()
 	}
-	if !v.activeDevice(claims.Device, claims.Account, now) {
+	if !v.activeDevice(claims.Device, claims.Account, now) || !checkHomeDBSCSession(v.root, claims, now) {
 		return deny()
 	}
-	return HomeBrowserSession{Account: claims.Account, Device: claims.Device, Host: claims.Host, Home: claims.Home, IssuedAt: issued, ExpiresAt: expires}, nil
+	return HomeBrowserSession{ID: claims.ID, Account: claims.Account, Device: claims.Device, Host: claims.Host, Home: claims.Home, IssuedAt: issued, ExpiresAt: expires}, nil
+}
+
+// parseHomeBrowserSessionClaims checks the session MAC and shape of a cookie
+// value and returns its claims; lifetimes and the device are the caller's.
+func parseHomeBrowserSessionClaims(root, value string) (homeBrowserSessionClaims, error) {
+	var claims homeBrowserSessionClaims
+	encoded, mac, ok := strings.Cut(value, ".")
+	if !ok || len(value) > homeBrowserSessionMaxBytes || encoded == "" {
+		return claims, ErrHomeAccessDenied
+	}
+	key, err := homeBrowserSessionKey(root, false)
+	if err != nil {
+		return claims, ErrHomeAccessDenied
+	}
+	got, err := base64.RawURLEncoding.DecodeString(mac)
+	if err != nil || !hmac.Equal(got, homeBrowserSessionMAC(key, encoded)) {
+		return claims, ErrHomeAccessDenied
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil || json.Unmarshal(payload, &claims) != nil || claims.Version != 1 || claims.Host == "" || claims.Account == "" || claims.Device == "" || claims.ID == "" {
+		return homeBrowserSessionClaims{}, ErrHomeAccessDenied
+	}
+	return claims, nil
+}
+
+// signHomeBrowserSession encodes and MACs claims into a cookie value.
+func signHomeBrowserSession(root string, claims homeBrowserSessionClaims) (string, error) {
+	key, err := homeBrowserSessionKey(root, true)
+	if err != nil {
+		return "", err
+	}
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(payload)
+	return encoded + "." + base64.RawURLEncoding.EncodeToString(homeBrowserSessionMAC(key, encoded)), nil
 }
 
 // activeDevice reports whether id is an active registry entry of account in
@@ -192,6 +216,9 @@ func (v *HomeVerifier) activeDevice(id, account string, now time.Time) bool {
 	v.refreshLocked(now, now.Sub(v.attempted) >= homeRevocationRefresh)
 	if v.snapshot == nil {
 		return false
+	}
+	if v.snapshot.joined {
+		return v.snapshot.joinedActive(id, account)
 	}
 	device, ok := v.snapshot.devices[id]
 	return ok && device.Active(now) && device.AccountSubject == account

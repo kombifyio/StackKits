@@ -52,6 +52,9 @@ func (g *Gate) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, cookie := range decision.Cookies {
 			http.SetCookie(w, cookie)
 		}
+		for name, values := range decision.Response {
+			w.Header()[name] = values
+		}
 		w.Header().Set("Location", decision.Redirect)
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.WriteHeader(http.StatusFound)

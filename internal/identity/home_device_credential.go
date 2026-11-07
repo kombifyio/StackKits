@@ -118,6 +118,10 @@ type homeDeviceIssuer struct {
 // or generates it into local custody on first use. It is separate from the
 // Owner key and from every step-ca key.
 func ensureHomeDeviceIssuer(root string, now time.Time) (homeDeviceIssuer, error) {
+	// A joined server enrolls nobody: devices enroll at the Authority.
+	if homeJoined(root) {
+		return homeDeviceIssuer{}, ErrHomeAccessDenied
+	}
 	issuer, err := loadHomeDeviceIssuer(root)
 	if err == nil || !errors.Is(err, fs.ErrNotExist) {
 		return issuer, err

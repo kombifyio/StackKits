@@ -79,20 +79,25 @@ const StackKitServerWorkspaceEnv = "STACKKIT_WORKSPACE_DIR"
 // owner-only files without any added capability. Before Apply has minted the
 // credentials it returns nothing, and a Compose file that needs the value
 // fails closed with guidance.
+//
+// It also carries the core's identity placement (JoinedCoreComposeEnvironment)
+// so every Compose call of the core, Apply and service control alike, starts
+// the same service set.
 func StackKitServerComposeEnvironment(workspaceRoot string) []string {
+	placement := JoinedCoreComposeEnvironment(workspaceRoot)
 	directory, err := confinedCustodyPath(workspaceRoot, stackKitServerCustodyRelDir)
 	if err != nil {
-		return nil
+		return placement
 	}
 	owner, ok := stackKitServerCredentialOwner(directory)
 	if !ok {
-		return nil
+		return placement
 	}
 	absolute, err := filepath.Abs(workspaceRoot)
 	if err != nil {
-		return nil
+		return placement
 	}
-	return []string{StackKitServerUserEnv + "=" + owner, StackKitServerWorkspaceEnv + "=" + absolute}
+	return append([]string{StackKitServerUserEnv + "=" + owner, StackKitServerWorkspaceEnv + "=" + absolute}, placement...)
 }
 
 // StackKitServerOwner is the uid and gid the core's stackkit-server runs as

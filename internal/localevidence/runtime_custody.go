@@ -247,7 +247,15 @@ func LoadBasementRuntimeCustody(workspaceRoot string) (BasementRuntimeCustody, e
 	if err := validateBasementRuntimeInventory(directory, record.Files, key); err != nil {
 		return BasementRuntimeCustody{}, err
 	}
-	if err := validateBasementStepCA(directory, owner); err != nil {
+	joined, joinedErr := LoadJoinedCore(workspaceRoot)
+	if joinedErr != nil && !errors.Is(joinedErr, ErrJoinedCoreMissing) {
+		return BasementRuntimeCustody{}, joinedErr
+	}
+	var anchor *JoinedCore
+	if joinedErr == nil {
+		anchor = &joined
+	}
+	if err := validateBasementStepCA(directory, owner, anchor); err != nil {
 		return BasementRuntimeCustody{}, err
 	}
 	return record, nil
@@ -733,14 +741,18 @@ func validateBasementRuntimeDiskTree(directory string) error {
 	})
 }
 
-func validateBasementStepCA(directory string, owner OwnerCustody) error {
+// validateBasementStepCA checks the runtime step-ca chain: under this
+// server's own root, or, on a joined server, under the Authority root and the
+// exact intermediate its Owner-signed joined-core anchor names.
+func validateBasementStepCA(directory string, owner OwnerCustody, joined *JoinedCore) error {
 	rootPath := filepath.Join(directory, "step-ca", "certs", "root_ca.crt")
 	intermediatePath := filepath.Join(directory, "step-ca", "certs", "intermediate_ca.crt")
 	rootRaw, err := os.ReadFile(rootPath) //nolint:gosec // closed signed inventory
 	if err != nil {
 		return err
 	}
-	if !bytes.Equal(rootRaw, []byte(owner.StepCARootCertificatePEM)) {
+	underAuthority := joined != nil && bytes.Equal(rootRaw, []byte(joined.AuthorityRootPEM))
+	if !bytes.Equal(rootRaw, []byte(owner.StepCARootCertificatePEM)) && !underAuthority {
 		return errors.New("localevidence: Basement runtime step-ca root differs from owner custody")
 	}
 	rootCertificate, err := parseCertificatePEM(string(rootRaw), "runtime step-ca root")
@@ -757,6 +769,9 @@ func validateBasementStepCA(directory string, owner OwnerCustody) error {
 	}
 	if err := intermediateCertificate.CheckSignatureFrom(rootCertificate); err != nil {
 		return fmt.Errorf("localevidence: verify Basement runtime step-ca intermediate: %w", err)
+	}
+	if underAuthority && !bytes.Equal(intermediateRaw, []byte(joined.IntermediatePEM)) {
+		return errors.New("localevidence: Basement runtime step-ca intermediate differs from the joined-core anchor")
 	}
 	password, err := os.ReadFile(filepath.Join(directory, "step-ca", "secrets", "password")) //nolint:gosec // closed signed inventory
 	if err != nil {

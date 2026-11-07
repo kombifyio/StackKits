@@ -36,8 +36,8 @@ const (
 	basementCoreOpenTofuResourcePrefix = "basement_core"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:32|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:35|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:35|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped,cf-stripped-remote|remote-listener-alias:stackkit-remote-listener.internal|lan-name-tls:custody-mount-read-only|identity-placement:authority-profile-pocketid,joined-tinyauth-authority-issuer-lan-host,step-ca-ca-host-alias|gate-launch-router:per-host-well-known`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:38|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped,cf-stripped-remote|remote-listener-alias:stackkit-remote-listener.internal|lan-name-tls:custody-mount-read-only|identity-placement:authority-profile-pocketid,joined-tinyauth-authority-issuer-lan-host,step-ca-ca-host-alias|gate-launch-router:per-host-well-known`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -104,7 +104,9 @@ services:
       - --entrypoints.websecure.address=:443
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
-      - --certificatesresolvers.stackkits.acme.caserver=https://step-ca:9000/acme/acme/directory
+      # step-ca serves its own TLS name ca.<domain>: on a joined server its
+      # intermediate permits only this server's names.
+      - --certificatesresolvers.stackkits.acme.caserver=https://ca.{{STACKKIT_DOMAIN}}:9000/acme/acme/directory
       # Resolved from owner custody by the runtime executor; never a placeholder.
       - --certificatesresolvers.stackkits.acme.email=${STACKKIT_OWNER_EMAIL:?}
       - --certificatesresolvers.stackkits.acme.certificatesduration=24
@@ -160,8 +162,18 @@ services:
       timeout: 3s
       retries: 12
       start_period: 5s
-    networks: [basement-core, basement-control, remote-connector]
+    # Every relay and tunnel ingress names this alias on the connector
+    # network (kombify.me tunnel mode: http://stackkit-remote-listener.internal:8000).
+    networks:
+      basement-core: {}
+      basement-control: {}
+      remote-connector:
+        aliases: ["stackkit-remote-listener.internal"]
+  # Pocket ID runs only on the homelab's Authority (identity target §4): a
+  # joined server's core leaves the identity-authority profile inactive and
+  # its TinyAuth signs in against the Authority's Pocket ID.
   pocketid:
+    profiles: ["identity-authority"]
     image: ghcr.io/kombifyio/stackkits:pocketid-cas-v0.54.16-ge69395ae48ceb1bb0d68afad9c056d1ab197672f@sha256:29cea360af1927520af5d5ee545ccbafb4ea1fb76060c52a067201148c905e9c
     restart: unless-stopped
     logging:
@@ -204,7 +216,12 @@ services:
         max-file: "3"
     oom_score_adj: -500
     mem_limit: 256m
-    depends_on: [pocketid]
+    # No depends_on Pocket ID: a joined core has no Pocket ID service, and
+    # TinyAuth reaches its provider only at sign-in.
+    # On a joined server the Authority's Pocket ID host answers at the
+    # Owner-signed LAN address of its trust bundle; an Authority maps nothing.
+    extra_hosts:
+      - "${STACKKIT_IDENTITY_AUTHORITY_HOST:-authority.invalid}=${STACKKIT_IDENTITY_AUTHORITY_ADDRESS:-127.0.0.1}"
     env_file:
       - path: "${STACKKIT_CUSTODY_DIR:?}/basement-runtime/tinyauth.env"
       - path: "${STACKKIT_CUSTODY_DIR:?}/tinyauth-pocketid/tinyauth.env"
@@ -264,7 +281,9 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
-    networks: [basement-core]
+    networks:
+      basement-core:
+        aliases: ["ca.{{STACKKIT_DOMAIN}}"]
   lan-dns:
     image: docker.io/klutchell/unbound:1.26.1@sha256:9a3939ca33d6d3b42b81a70391bb8e43f0a08d2bd7a3fdffb43d427493345c36
     restart: unless-stopped

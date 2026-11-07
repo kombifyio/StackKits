@@ -47,6 +47,10 @@ type homeAccountGroupsRecord struct {
 // device entry from the Authority's Pocket ID (host only: it needs the admin
 // key) and writes the projection. A removed or disabled account has none.
 func RefreshHomeAccountGroups(ctx context.Context, root string, now time.Time) error {
+	// A joined server takes the groups from the Authority's verification state.
+	if homeJoined(root) {
+		return nil
+	}
 	key, err := localevidence.ReadBasementRuntimePocketIDAdminKey(root)
 	if err != nil {
 		return err

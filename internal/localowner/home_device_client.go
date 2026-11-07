@@ -23,6 +23,10 @@ const (
 	// HomeDeviceCallbackPath is the device client's redirect on the Hub
 	// origin (the base host of the identity runtime address).
 	HomeDeviceCallbackPath = "/device/callback"
+	// HomeDeviceKombifyCallback is the kombify app's own redirect: a person
+	// with a linked kombify account reaches the homelab through the kombify
+	// app's OIDC page, and the same public PKCE client serves it.
+	HomeDeviceKombifyCallback = "https://kombify.io/app/homelab-oidc"
 
 	homeDeviceClientLockPath = ".stackkit/custody/home-verifier/pocketid-device-client"
 )
@@ -56,10 +60,11 @@ func (s *Service) PrepareHomeDeviceTrust(ctx context.Context) (HomeDeviceTrust, 
 	if err != nil {
 		return HomeDeviceTrust{}, err
 	}
-	callback, err := HomeDeviceCallbackURL(s.workspaceRoot)
+	hubCallback, err := HomeDeviceCallbackURL(s.workspaceRoot)
 	if err != nil {
 		return HomeDeviceTrust{}, err
 	}
+	callbacks := []string{hubCallback, HomeDeviceKombifyCallback}
 	// The lock lives in the custody directory, so the host CLI and the core
 	// server (which sees custody through a bind mount) exclude each other.
 	release, err := localevidence.AcquireCustodyLock(s.workspaceRoot, homeDeviceClientLockPath, 1)
@@ -74,11 +79,24 @@ func (s *Service) PrepareHomeDeviceTrust(ctx context.Context) (HomeDeviceTrust, 
 	registered, err := client.GetOIDCClient(ctx, HomeDeviceClientID)
 	if errors.Is(err, pocketid.ErrNotFound) {
 		registered, err = client.RegisterOIDCClient(ctx, pocketid.RegisterClientRequest{
-			ID: HomeDeviceClientID, Name: "StackKits device sign-in", CallbackURLs: []string{callback},
+			ID: HomeDeviceClientID, Name: "StackKits device sign-in", CallbackURLs: callbacks,
 			IsPublic: true, PkceEnabled: true, RequiresReauthentication: true, IsGroupRestricted: true,
 		})
 		if err != nil {
 			return HomeDeviceTrust{}, ErrStepUpRejected
+		}
+	}
+	// A client registered before the kombify app callback existed carries
+	// exactly the Hub redirect: converge it to the current set. Any other
+	// callback list is foreign and stays refused below.
+	if updater, ok := client.(interface {
+		UpdateOIDCClient(context.Context, string, pocketid.RegisterClientRequest) (*pocketid.OIDCClient, error)
+	}); ok && err == nil && registered != nil && slices.Equal(registered.CallbackURLs, []string{hubCallback}) {
+		registered, err = updater.UpdateOIDCClient(ctx, HomeDeviceClientID, pocketid.RegisterClientRequest{
+			Name: registered.Name, CallbackURLs: callbacks, IsPublic: true, PkceEnabled: true, RequiresReauthentication: true, IsGroupRestricted: true,
+		})
+		if err == nil {
+			registered, err = client.GetOIDCClient(ctx, HomeDeviceClientID)
 		}
 	}
 	if err == nil && registered != nil && len(registered.AllowedUserGroups) == 0 {
@@ -88,7 +106,7 @@ func (s *Service) PrepareHomeDeviceTrust(ctx context.Context) (HomeDeviceTrust, 
 	}
 	if err != nil || registered == nil || registered.ID != HomeDeviceClientID || !registered.IsPublic ||
 		len(registered.Credentials.FederatedIdentities) != 0 || !registered.PkceEnabled || !registered.RequiresReauthentication ||
-		!registered.IsGroupRestricted || !slices.Equal(registered.CallbackURLs, []string{callback}) ||
+		!registered.IsGroupRestricted || !slices.Equal(registered.CallbackURLs, callbacks) ||
 		!samePocketIDGroupIDs(registered.AllowedUserGroups, groups) {
 		return HomeDeviceTrust{}, ErrStepUpRejected
 	}

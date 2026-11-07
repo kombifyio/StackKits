@@ -236,7 +236,9 @@ type HouseholdRemovalChain func(ctx context.Context, subject string) error
 // first, so a failed Pocket ID deletion never leaves a device able to renew,
 // and then deletes the Pocket ID user, which ends its passkeys and Pocket ID
 // sessions. Owner and admin identities are refused before anything changes.
-// It returns the removed subject.
+// It returns the removed subject. It is idempotent: the chain runs before the
+// Pocket ID user is deleted, so a user that is absent was already removed with
+// its chain complete; that is a success with an empty subject.
 func (s *Service) RemoveHouseholdUser(ctx context.Context, username string, chain HouseholdRemovalChain) (string, error) {
 	if chain == nil {
 		return "", errors.New("localowner: household removal needs the local removal chain")
@@ -256,8 +258,11 @@ func (s *Service) RemoveHouseholdUser(ctx context.Context, username string, chai
 	if err != nil {
 		return "", errors.New("localowner: household user lookup failed")
 	}
+	if len(matches) == 0 {
+		return "", nil
+	}
 	if len(matches) != 1 {
-		return "", errors.New("localowner: household user is absent")
+		return "", errors.New("localowner: household user lookup is ambiguous")
 	}
 	user := matches[0]
 	if user.IsAdmin || !householdMember(user) || hasRequiredGroups(user.UserGroups) || strings.TrimSpace(user.ID) == "" {

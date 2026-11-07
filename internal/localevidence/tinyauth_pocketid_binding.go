@@ -40,16 +40,21 @@ type TinyAuthPocketIDBindingRequest struct {
 // private TinyAuth OAuth environment installed after PocketID creates the
 // client secret. The secret itself is only represented by an owner-keyed MAC.
 type TinyAuthPocketIDBinding struct {
-	APIVersion  string    `json:"apiVersion"`
-	Kind        string    `json:"kind"`
-	OwnerRef    string    `json:"ownerRef"`
-	KeyID       string    `json:"keyId"`
-	ClientID    string    `json:"clientId"`
-	CallbackURL string    `json:"callbackUrl"`
-	GroupIDs    []string  `json:"groupIds"`
-	EnvMAC      string    `json:"envMac"`
-	BoundAt     time.Time `json:"boundAt"`
-	Signature   string    `json:"signature"`
+	APIVersion  string   `json:"apiVersion"`
+	Kind        string   `json:"kind"`
+	OwnerRef    string   `json:"ownerRef"`
+	KeyID       string   `json:"keyId"`
+	ClientID    string   `json:"clientId"`
+	CallbackURL string   `json:"callbackUrl"`
+	GroupIDs    []string `json:"groupIds"`
+	// Issuer, TenantRef and ItemRef are set only on a joined server: the
+	// Authority's Pocket ID and the Wallet item that delivered the secret.
+	Issuer    string    `json:"issuer,omitempty"`
+	TenantRef string    `json:"tenantRef,omitempty"`
+	ItemRef   string    `json:"itemRef,omitempty"`
+	EnvMAC    string    `json:"envMac"`
+	BoundAt   time.Time `json:"boundAt"`
+	Signature string    `json:"signature"`
 }
 
 func BindBasementTinyAuthPocketID(

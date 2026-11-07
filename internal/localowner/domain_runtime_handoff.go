@@ -62,7 +62,7 @@ type domainRuntimeHandoff struct {
 }
 
 type domainRuntimeHandoffRuntime interface {
-	Capture(context.Context, string) (domainRuntimeHandoff, error)
+	Capture(ctx context.Context, workspace, sourceDomain string) (domainRuntimeHandoff, error)
 	VerifySource(context.Context, string, domainRuntimeHandoff) error
 	Quiesce(context.Context, string, domainRuntimeHandoff) error
 }
@@ -99,9 +99,9 @@ func newDomainRuntimeHost() domainRuntimeHandoffRuntime {
 	}
 }
 
-func (h *domainRuntimeHost) Capture(ctx context.Context, workspace string) (domainRuntimeHandoff, error) {
+func (h *domainRuntimeHost) Capture(ctx context.Context, workspace, sourceDomain string) (domainRuntimeHandoff, error) {
 	result := domainRuntimeHandoff{
-		Phase: "captured", SourceDomain: localevidence.LegacyBasementDomain,
+		Phase: "captured", SourceDomain: sourceDomain,
 		Project: domainRuntimeProject, RuntimeDir: domainRuntimeDir,
 	}
 	if h == nil || h.docker == nil || h.compose == nil {
@@ -319,7 +319,7 @@ func normalizedDomainRuntimeMounts(mounts []stackdocker.ContainerMount) []domain
 }
 
 func validateDomainRuntimeHandoff(handoff domainRuntimeHandoff) error {
-	if handoff.SourceDomain != localevidence.LegacyBasementDomain || handoff.Project != domainRuntimeProject ||
+	if handoff.SourceDomain == "" || handoff.Project != domainRuntimeProject ||
 		handoff.RuntimeDir != domainRuntimeDir || len(handoff.ComposeSHA256) != 64 || len(handoff.Containers) == 0 {
 		return errors.New("localowner: signed source runtime handoff is incomplete")
 	}

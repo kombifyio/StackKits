@@ -97,6 +97,9 @@ type Decision struct {
 	Headers  http.Header
 	Redirect string
 	Cookies  []*http.Cookie
+	// Response are extra headers of the launch answer (the DBSC registration
+	// offer).
+	Response http.Header
 }
 
 // Gate decides per route from the compiler-owned table.
@@ -167,9 +170,12 @@ func (g *Gate) Decide(ctx context.Context, request Request) Decision {
 			return deny(http.StatusForbidden, "header_alias_refused")
 		}
 	}
-	// The router drops X-Forwarded-* from an untrusted peer but passes the
-	// RFC 7239 Forwarded header; on the remote listener it is refused.
-	if request.Listener == ListenerRemote && len(request.Header.Values("Forwarded")) != 0 {
+	// On the remote listener the router overwrites the forwarding headers it
+	// manages from an untrusted peer (X-Forwarded-For and -Proto among them,
+	// which a Cloudflare edge always adds) and passes every other one; those
+	// are refused. Cloudflare's own CF-* headers are not forwarding claims the
+	// gate reads: the remote router strips them before any backend.
+	if request.Listener == ListenerRemote && refusedForwardingHeader(request.Header) {
 		return deny(http.StatusForbidden, "forwarded_header_refused")
 	}
 	host, ok := canonicalHost(request.Host)
@@ -188,6 +194,12 @@ func (g *Gate) Decide(ctx context.Context, request Request) Decision {
 	// The launch exchange is the gate's own route, decided by the host's
 	// routes as a whole: only a host with a user route a browser session can
 	// open on this listener takes one, whatever route covers the path.
+	if (path == DBSCRegisterPath || path == DBSCRefreshPath) && method == http.MethodPost {
+		if !g.hostTakesBrowserSessions(host, remote) {
+			return deny(http.StatusForbidden, "launch_host_refused")
+		}
+		return Decision{Allow: true, Reason: "dbsc_endpoint", Headers: http.Header{HeaderListener: {request.Listener}}}
+	}
 	if path == LaunchPath && method == http.MethodGet {
 		if !g.hostTakesBrowserSessions(host, remote) {
 			return deny(http.StatusForbidden, "launch_host_refused")
@@ -421,6 +433,44 @@ func canonicalPath(uri string) (string, bool) {
 type anonymousWindow struct {
 	start time.Time
 	count int
+}
+
+// managedForwardingHeaders are the forwarding headers the router itself
+// writes on the remote entrypoint: it drops a peer's copies (no trusted
+// proxy) and sets its own values from the connection, so the gate sees only
+// the router's.
+var managedForwardingHeaders = map[string]bool{
+	"X-Forwarded-For": true, "X-Forwarded-Proto": true, "X-Forwarded-Host": true, "X-Forwarded-Port": true,
+	"X-Forwarded-Server": true, "X-Forwarded-Uri": true, "X-Forwarded-Method": true, "X-Forwarded-Prefix": true,
+	"X-Forwarded-Tls-Client-Cert": true, "X-Forwarded-Tls-Client-Cert-Info": true, "X-Real-Ip": true,
+}
+
+// refusedForwardingNames claim a client address, host or URL on behalf of an
+// intermediary. None of them reaches the remote listener legitimately: kombify
+// Me removes the visitor's copies before the tunnel and a Cloudflare edge adds
+// none of them.
+var refusedForwardingNames = map[string]bool{
+	"Forwarded": true, "X-Forwarded": true, "X-Original-Url": true, "X-Rewrite-Url": true, "X-Original-Host": true,
+	"X-Host": true, "X-Client-Ip": true, "Client-Ip": true, "X-Cluster-Client-Ip": true, "X-Proxyuser-Ip": true,
+}
+
+// refusedForwardingHeader reports a forwarding header on the remote listener
+// that the router does not overwrite: an RFC 7239 Forwarded header, any other
+// X-Forwarded-* name, another client-address or URL-override claim, and an
+// underscore spelling of any forwarding name (the router overwrites only the
+// canonical one, and a backend that reads headers CGI-style treats both alike).
+func refusedForwardingHeader(header http.Header) bool {
+	for name := range header {
+		canonical := http.CanonicalHeaderKey(strings.ReplaceAll(name, "_", "-"))
+		forwarding := refusedForwardingNames[canonical] || managedForwardingHeaders[canonical] || strings.HasPrefix(canonical, "X-Forwarded-")
+		if strings.Contains(name, "_") && forwarding {
+			return true
+		}
+		if refusedForwardingNames[canonical] || strings.HasPrefix(canonical, "X-Forwarded-") && !managedForwardingHeaders[canonical] {
+			return true
+		}
+	}
+	return false
 }
 
 // anonymousLimiter is one fixed window per route. Behind a relay every

@@ -39,7 +39,9 @@ const (
 // enrollment listener would have no certificate, device recovery would be
 // gone and the Home trust would lapse within a day.
 func prepareCoreIdentityCustody(workspaceRoot string) error {
-	for _, directory := range []string{".stackkit/custody/home-verifier", localevidence.HomeAuthorityCustodyRelDir, CoreIdentitySignerSocketDir} {
+	// lan-tls/live holds the LAN-name certificate once `stackkit reach
+	// lan-certificate issue` obtained it; the core mounts it read-only.
+	for _, directory := range []string{".stackkit/custody/home-verifier", localevidence.HomeAuthorityCustodyRelDir, CoreIdentitySignerSocketDir, ".stackkit/custody/lan-tls/live"} {
 		if err := os.MkdirAll(filepath.Join(workspaceRoot, filepath.FromSlash(directory)), 0o700); err != nil {
 			return fmt.Errorf("create %s for the Basement core: %w", directory, err)
 		}

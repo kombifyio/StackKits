@@ -219,6 +219,21 @@ type homeDeviceSnapshot struct {
 	issuer   homeDeviceIssuerPublic
 	devices  map[string]HomeDevice
 	loadedAt time.Time
+
+	// A joined server's snapshot (home_join_state.go) holds no registry: a
+	// credential of the Authority's issuer is current unless the Authority's
+	// last verified state revokes its device or account. stateAt is when the
+	// Authority signed that state.
+	joined          bool
+	stateAt         time.Time
+	revokedDevices  map[string]bool
+	revokedAccounts map[string]bool
+}
+
+// joinedActive reports a device of account as not revoked in a joined
+// server's snapshot.
+func (s *homeDeviceSnapshot) joinedActive(id, account string) bool {
+	return id != "" && account != "" && !s.revokedDevices[id] && !s.revokedAccounts[account]
 }
 
 var homeVerifiers sync.Map
@@ -381,6 +396,14 @@ func (v *HomeVerifier) credentialLocked(raw string, now time.Time) (homeDeviceCr
 		if err != nil {
 			return claims, HomeDevice{}, err
 		}
+		if v.snapshot.joined {
+			// Partition rule: the last verified state of the Authority stands
+			// while no newer one can be read.
+			if !v.snapshot.joinedActive(claims.Subject, claims.Account) {
+				return claims, HomeDevice{}, ErrHomeAccessDenied
+			}
+			return claims, HomeDevice{ID: claims.Subject, AccountSubject: claims.Account}, nil
+		}
 		if device, ok := v.snapshot.devices[claims.Subject]; ok {
 			if !device.Active(now) {
 				return claims, HomeDevice{}, ErrHomeAccessDenied
@@ -453,6 +476,12 @@ func (v *HomeVerifier) afterStart(issued time.Time) bool {
 }
 
 func loadHomeAuthoritySnapshot(root string) (homeDeviceSnapshot, error) {
+	// A joined server verifies the Authority's credentials, never its own.
+	if bundle, err := LoadHomeJoinedTrust(root); err == nil {
+		return loadHomeJoinedSnapshot(root, bundle)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return homeDeviceSnapshot{}, err
+	}
 	issuer, err := loadHomeDeviceIssuer(root)
 	if err != nil {
 		return homeDeviceSnapshot{}, err

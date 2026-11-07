@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"net"
 	"slices"
 )
 
@@ -39,6 +40,22 @@ func HomeEnrollmentListenerNames(hubHost string) []string {
 	return []string{HomeEnrollmentServerName, hubHost}
 }
 
+// HomeEnrollmentListenerAddresses are exactly the IP addresses of the LAN
+// enrollment listener's certificate: the node site address from custody, which
+// the enrollment URL a native client pins carries as its host. The certificate
+// names that address so the client verifies the host it dialled. Without a LAN
+// site address there is none.
+func HomeEnrollmentListenerAddresses(root string) []net.IP {
+	authority, err := CurrentHomeAuthority(root)
+	if err != nil || authority.LANSiteAddress == "" {
+		return nil
+	}
+	if address := net.ParseIP(authority.LANSiteAddress); address != nil {
+		return []net.IP{address}
+	}
+	return nil
+}
+
 // IssueHomeEnrollmentListenerCertificate is the host side of the listener
 // certificate (homelab identity target §4, StackKits enpy): the core server
 // generates the key and sends only its CSR; this side, which holds Owner
@@ -59,7 +76,8 @@ func IssueHomeEnrollmentListenerCertificate(ctx context.Context, root string, cs
 	key, ok := csr.PublicKey.(*ecdsa.PublicKey)
 	if !ok || key.Curve != elliptic.P256() || csr.Subject.CommonName != HomeEnrollmentServerName ||
 		!slices.Equal(csr.DNSNames, HomeEnrollmentListenerNames(hub)) ||
-		len(csr.IPAddresses)+len(csr.URIs)+len(csr.EmailAddresses) != 0 || len(csr.Extensions) > 1 {
+		!sameIPAddresses(csr.IPAddresses, HomeEnrollmentListenerAddresses(root)) ||
+		len(csr.URIs)+len(csr.EmailAddresses) != 0 || len(csr.Extensions) > 1 {
 		return nil, errors.New("localevidence: the listener certificate request names more than the enrollment listener")
 	}
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrDER})

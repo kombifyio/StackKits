@@ -21,6 +21,12 @@ import (
 const (
 	// LaunchPath is reserved on every gated host for the launch exchange.
 	LaunchPath = "/.well-known/stackkit/launch"
+	// DBSCRegisterPath and DBSCRefreshPath are the browser-native device-bound
+	// session endpoints (identity.HomeDBSCHandler), reserved on every gated host.
+	// They answer 2xx bodies a forward-auth call cannot carry, so the gate only
+	// lets them through to the Gate listener, which authenticates them itself.
+	DBSCRegisterPath = "/.well-known/stackkit/dbsc/register"
+	DBSCRefreshPath  = "/.well-known/stackkit/dbsc/refresh"
 	// SessionCookie is the gate's per-host browser session.
 	SessionCookie = "__Host-stackkit-session"
 	// LaunchStateCookie binds a launch to the browser the gate sent to the Hub.
@@ -48,6 +54,18 @@ type LaunchRequest struct {
 	Target     string
 	Home       bool
 }
+
+// SessionRegistrar is an optional seam of the launcher: the browser-native
+// device-bound session offer (DBSC, "Secure-Session-Registration") for a
+// session value the launch just issued. A browser that supports DBSC registers
+// a key and renews a short-lived cookie with it; any other browser ignores the
+// header and keeps the launch session.
+type SessionRegistrar interface {
+	SessionRegistration(session string) string
+}
+
+// SessionRegistrationHeader is the DBSC offer header.
+const SessionRegistrationHeader = "Secure-Session-Registration"
 
 // AppPassVerifier verifies an app pass for one host.
 type AppPassVerifier interface {
@@ -82,10 +100,16 @@ func (g *Gate) completeLaunch(ctx context.Context, request Request, host string,
 	if err != nil || session == "" || lifetime <= 0 {
 		return deny(http.StatusUnauthorized, "launch_refused")
 	}
-	return Decision{Status: http.StatusFound, Reason: "browser_session_started", Redirect: values["target"], Cookies: []*http.Cookie{
+	decision := Decision{Status: http.StatusFound, Reason: "browser_session_started", Redirect: values["target"], Cookies: []*http.Cookie{
 		hostCookie(SessionCookie, session, lifetime),
 		hostCookie(LaunchStateCookie, "", -1),
 	}}
+	if registrar, ok := g.launcher.(SessionRegistrar); ok {
+		if offer := registrar.SessionRegistration(session); offer != "" {
+			decision.Response = http.Header{SessionRegistrationHeader: {offer}}
+		}
+	}
+	return decision
 }
 
 // hostTakesBrowserSessions reports whether host has a user route a browser

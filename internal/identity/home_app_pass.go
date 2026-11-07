@@ -68,12 +68,14 @@ type homeAppPasses struct {
 	Passes []homeAppPassRecord `json:"passes"`
 }
 
+// App passes are records of the Authority's Hub: a joined server issues and
+// accepts none.
 // IssueHomeAppPass issues a pass for host to the calling device, whose last
 // passkey user verification must be at most 10 minutes old. host must be one
 // the Owner opened to app passes. The secret is returned once.
 func IssueHomeAppPass(root string, caller HomeAuthentication, host, name string, appHosts []string, now time.Time) (string, HomeAppPass, error) {
 	now = now.UTC()
-	if !slices.Contains(appHosts, host) || !ValidHomeDeviceName(name) {
+	if homeJoined(root) || !slices.Contains(appHosts, host) || !ValidHomeDeviceName(name) {
 		return "", HomeAppPass{}, ErrHomeNoticeNotFound
 	}
 	if now.Sub(caller.UserVerifiedAt) > homeAppPassFreshPasskey {
@@ -167,7 +169,7 @@ func revokeHomeAppPassesOfDevices(root string, devices []string, now time.Time) 
 // before its end, unrevoked, and while its device is an active registry entry
 // of its account.
 func (v *HomeVerifier) VerifyHomeAppPass(secret, host string) (HomeAppPass, error) {
-	if !strings.HasPrefix(secret, homeAppPassPrefix) || len(secret) > 128 {
+	if homeJoined(v.root) || !strings.HasPrefix(secret, homeAppPassPrefix) || len(secret) > 128 {
 		return HomeAppPass{}, ErrHomeAccessDenied
 	}
 	now := v.now().UTC()

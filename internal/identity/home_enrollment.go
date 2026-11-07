@@ -18,9 +18,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/lancert"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
@@ -56,7 +58,10 @@ type HomeEnrollmentBootstrap struct {
 	HubEnrollmentURL string `json:"hubEnrollmentUrl,omitempty"`
 	TLSServerName    string `json:"tlsServerName"`
 	CARootSHA256     string `json:"caRootSha256"`
-	URI              string `json:"uri"`
+	// CARootPEM is the step-ca root certificate itself (public): a native client
+	// pins it for EnrollmentURL, whose host the listener certificate names.
+	CARootPEM string `json:"caRootPem"`
+	URI       string `json:"uri"`
 	// VPN is the VPN add-on's peer service while the Owner has it on.
 	VPN *HomeVPNAnnouncement `json:"vpn,omitempty"`
 }
@@ -87,10 +92,20 @@ func LoadHomeEnrollmentBootstrap(root string) (HomeEnrollmentBootstrap, error) {
 		EnrollmentURL: "https://" + net.JoinHostPort(address, strconv.Itoa(HomeEnrollmentPort)) + HomeEnrollmentPath,
 		TLSServerName: HomeEnrollmentServerName, CARootSHA256: fingerprint,
 	}
-	if hub, hubErr := authority.HubHost(); hubErr == nil {
+	// A homelab with a public name serves the listener under its LAN name,
+	// which public DNS resolves to the node's private address and which
+	// carries a publicly trusted certificate (homelab identity target §5);
+	// a router that refuses that answer leaves the Hub on the away flow. A
+	// local-only homelab keeps the Hub host, which its devices reach through
+	// the OS trust profile (DNS scope and root).
+	if name := homeEnrollmentLANName(root); name != "" {
+		bootstrap.HubEnrollmentURL = "https://" + net.JoinHostPort(name, strconv.Itoa(HomeEnrollmentPort)) + HomeEnrollmentPath
+	} else if hub, hubErr := authority.HubHost(); hubErr == nil {
 		bootstrap.HubEnrollmentURL = "https://" + net.JoinHostPort(hub, strconv.Itoa(HomeEnrollmentPort)) + HomeEnrollmentPath
 	}
 	bootstrap.VPN = homeVPNAnnouncement(root)
+
+	bootstrap.CARootPEM = authority.StepCARootCertificatePEM
 	values := url.Values{"url": {bootstrap.EnrollmentURL}, "sni": {bootstrap.TLSServerName}, "ca": {bootstrap.CARootSHA256}}
 	bootstrap.URI = HomeEnrollmentURIScheme + ":v2?" + values.Encode()
 	return bootstrap, nil
@@ -339,7 +354,17 @@ func HomeEnrollmentCertificateSource(root string, signer HomeAuthoritySigner) fu
 	var current *tls.Certificate
 	var failedAt time.Time
 	var failure error
+	lan := &lancert.Source{Workspace: root}
 	return func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+		// The LAN name (homelab identity target §5) carries the node's
+		// publicly trusted certificate, so the installed Hub PWA reaches this
+		// listener from home without an installed root. Every other name
+		// keeps the step-ca certificate native clients pin.
+		if name := homeEnrollmentLANName(root); name != "" && strings.EqualFold(hello.ServerName, name) {
+			if certificate := lan.Certificate(); certificate != nil {
+				return certificate, nil
+			}
+		}
 		mu.Lock()
 		defer mu.Unlock()
 		if current != nil && time.Until(current.Leaf.NotAfter) > time.Hour {
@@ -384,7 +409,8 @@ func issueHomeEnrollmentListenerCertificate(ctx context.Context, root string, si
 	if err != nil {
 		return tls.Certificate{}, err
 	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: HomeEnrollmentServerName}, DNSNames: names}, key)
+	addresses := localevidence.HomeEnrollmentListenerAddresses(root)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{Subject: pkix.Name{CommonName: HomeEnrollmentServerName}, DNSNames: names, IPAddresses: addresses}, key)
 	if err != nil {
 		return tls.Certificate{}, err
 	}
@@ -417,7 +443,8 @@ func issueHomeEnrollmentListenerCertificate(ctx context.Context, root string, si
 	}
 	leaf := certificate.Leaf
 	public, ok := leaf.PublicKey.(*ecdsa.PublicKey)
-	if !ok || !public.Equal(&key.PublicKey) || !slices.Equal(leaf.DNSNames, names) {
+	if !ok || !public.Equal(&key.PublicKey) || !slices.Equal(leaf.DNSNames, names) ||
+		len(leaf.IPAddresses) != len(addresses) || slices.ContainsFunc(addresses, func(a net.IP) bool { return !slices.ContainsFunc(leaf.IPAddresses, a.Equal) }) {
 		return tls.Certificate{}, errors.New("identity: the signer returned a certificate for another key or name")
 	}
 	if _, err := leaf.Verify(x509.VerifyOptions{Roots: roots, Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {

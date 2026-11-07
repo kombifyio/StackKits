@@ -12,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/pocketid"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
 const (
@@ -26,8 +27,12 @@ type domainEnrollment struct {
 }
 
 type domainMigrationState struct {
-	Version     string                                  `json:"version"`
-	SpecPath    string                                  `json:"specPath"`
+	Version  string `json:"version"`
+	SpecPath string `json:"specPath"`
+	// From and To are the identity domains of the move. A state written before
+	// the public-origin move carries neither: it is home to lab.home.
+	From        string                                  `json:"from,omitempty"`
+	To          string                                  `json:"to,omitempty"`
 	BeforeSpec  []byte                                  `json:"beforeSpec,omitempty"`
 	AfterSpec   []byte                                  `json:"afterSpec,omitempty"`
 	Prepared    bool                                    `json:"prepared"`
@@ -48,12 +53,15 @@ type DomainMigration struct {
 // lifecycle mutation lock. All local writes are authenticated and replayable.
 // The existing user subjects, client secrets, CA and signing keys stay intact.
 type DomainMigrationIntent interface {
-	Candidate([]byte) ([]byte, error)
-	Persist(workspace, specPath string, before, after []byte) error
+	Candidate(raw []byte, from, to string) ([]byte, error)
+	Persist(workspace, specPath, from, to string, before, after []byte) error
 }
 
-func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, intent DomainMigrationIntent, quiesceRuntime bool) (DomainMigration, error) {
-	result := DomainMigration{From: "home", To: "lab.home", Status: "runtime-quiesced", Next: []string{
+func (s *Service) MigrateBasementDomain(ctx context.Context, specPath, to string, intent DomainMigrationIntent, quiesceRuntime bool) (DomainMigration, error) {
+	if to == "" {
+		to = localevidence.MigratedBasementDomain
+	}
+	result := DomainMigration{From: localevidence.LegacyBasementDomain, To: to, Status: "runtime-quiesced", Next: []string{
 		"The authenticated prior-release Core containers were gracefully stopped and removed without deleting volumes, networks or images.",
 		"Use the preserved prior-release CLI and its packaged tools for generate, apply, then verify; do not use this target CLI for that rollout.",
 		"After the prior release verifies on lab.home, use the target CLI: stackkit upgrade --to <exact-target-release> --owner-approve.",
@@ -61,6 +69,9 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 		"Enroll client DNS for lab.home using the existing Owner CA.",
 		"Run stackkit user owner activate --owner-approve; household members use stackkit user activate <username> --owner-approve.",
 	}}
+	if to != localevidence.MigratedBasementDomain {
+		result.Next = publicDomainNext(to)
+	}
 	specPath = filepath.ToSlash(filepath.Clean(specPath))
 	if !quiesceRuntime {
 		return result, errors.New("localowner: domain migration requires explicit source runtime quiescence")
@@ -88,16 +99,18 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 		if err != nil {
 			return result, err
 		}
-		candidate, err := intent.Candidate(raw)
-		if err != nil {
-			return result, err
-		}
 		custody, err := localevidence.LoadBasementRuntimeCustody(s.workspaceRoot)
 		if err != nil {
 			return result, err
 		}
-		if custody.Domain != localevidence.LegacyBasementDomain {
-			return result, errors.New("localowner: domain migration requires established home custody")
+		from := custody.Domain
+		if err := validateDomainMove(from, to); err != nil {
+			return result, err
+		}
+		result.From = from
+		candidate, err := intent.Candidate(raw, from, to)
+		if err != nil {
+			return result, err
 		}
 		_, client, err := s.ready(ctx)
 		if err != nil {
@@ -110,11 +123,11 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 		if s.domainRuntime == nil {
 			return result, errors.New("localowner: domain runtime handoff is unavailable")
 		}
-		runtimeHandoff, err := s.domainRuntime.Capture(ctx, s.workspaceRoot)
+		runtimeHandoff, err := s.domainRuntime.Capture(ctx, s.workspaceRoot, from)
 		if err != nil {
 			return result, err
 		}
-		state = domainMigrationState{Version: domainMigrationStateV2, SpecPath: specPath, BeforeSpec: raw, AfterSpec: candidate, Enrollments: map[string]domainEnrollment{}, Runtime: &runtimeHandoff}
+		state = domainMigrationState{Version: domainMigrationStateV2, SpecPath: specPath, From: from, To: to, BeforeSpec: raw, AfterSpec: candidate, Enrollments: map[string]domainEnrollment{}, Runtime: &runtimeHandoff}
 		for _, user := range users {
 			credentials, err := client.ListUserWebAuthnCredentials(ctx, user.ID)
 			if err != nil {
@@ -131,6 +144,11 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 	if state.SpecPath != specPath {
 		return result, errors.New("localowner: resume domain migration with the original StackSpec path")
 	}
+	from, target := state.moveDomains()
+	if target != to {
+		return result, errors.New("localowner: resume domain migration with the original target domain " + target)
+	}
+	result.From = from
 	if state.Version != domainMigrationStateV2 || state.Runtime == nil {
 		return result, errors.New("localowner: existing domain migration has no authenticated source runtime capture and cannot be quiesced retroactively")
 	}
@@ -139,7 +157,7 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 		if err != nil {
 			return result, err
 		}
-		if custody.Domain != localevidence.MigratedBasementDomain {
+		if custody.Domain != target {
 			return result, errors.New("localowner: prepared domain migration no longer matches runtime custody")
 		}
 		if state.Runtime.Phase != "quiesced" {
@@ -155,7 +173,7 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 		if err != nil {
 			return result, err
 		}
-		if custody.Domain != localevidence.MigratedBasementDomain {
+		if custody.Domain != target {
 			return result, errors.New("localowner: runtime quiescence requires migrated runtime custody")
 		}
 		if err := s.domainRuntime.Quiesce(ctx, s.workspaceRoot, *state.Runtime); err != nil {
@@ -175,13 +193,13 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 	if err := s.domainRuntime.VerifySource(ctx, s.workspaceRoot, *state.Runtime); err != nil {
 		return result, err
 	}
-	if err := localevidence.MigrateBasementRuntimeDomain(s.workspaceRoot); err != nil {
+	if err := localevidence.MigrateBasementRuntimeDomain(s.workspaceRoot, target); err != nil {
 		return result, err
 	}
-	if err := intent.Persist(s.workspaceRoot, state.SpecPath, state.BeforeSpec, state.AfterSpec); err != nil {
+	if err := intent.Persist(s.workspaceRoot, state.SpecPath, from, target, state.BeforeSpec, state.AfterSpec); err != nil {
 		return result, err
 	}
-	if err := s.convergeMigratedTinyAuth(ctx); err != nil {
+	if err := s.convergeMigratedTinyAuth(ctx, from); err != nil {
 		return result, err
 	}
 	state.Runtime.Phase = "quiescing"
@@ -202,7 +220,51 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath string, in
 	return result, nil
 }
 
-func (s *Service) convergeMigratedTinyAuth(ctx context.Context) error {
+// moveDomains are the source and target domain of a stored migration.
+func (state domainMigrationState) moveDomains() (string, string) {
+	from, to := state.From, state.To
+	if from == "" {
+		from = localevidence.LegacyBasementDomain
+	}
+	if to == "" {
+		to = localevidence.MigratedBasementDomain
+	}
+	return from, to
+}
+
+// validateDomainMove admits the retired home to lab.home move and a move from
+// a local-only zone to a public identity origin (id.<name> under a kombify.me
+// name or an own domain). Passkeys are bound to the Pocket ID host: none of
+// them works under the new origin, and the status stays inactive until a new
+// one is registered there; nothing is deleted.
+func validateDomainMove(from, to string) error {
+	if !localevidence.ValidBasementDomainMove(from, to) {
+		return errors.New("localowner: unsupported identity domain move " + from + " to " + to)
+	}
+	if from == localevidence.LegacyBasementDomain {
+		return nil
+	}
+	_, fromSource := resolvedplan.IdentityOriginOf(from)
+	_, toSource := resolvedplan.IdentityOriginOf(to)
+	if fromSource != "local-only" || (toSource != "kombify-me" && toSource != "own-domain") {
+		return errors.New("localowner: domain migration moves a local-only identity origin to a public one (a kombify.me name or an own domain)")
+	}
+	return nil
+}
+
+// publicDomainNext is what remains after the local half of a move to a public
+// identity origin.
+func publicDomainNext(to string) []string {
+	return []string{
+		"The Pocket ID, TinyAuth, LAN DNS and step-ca inputs, the StackSpec domain and the identity origin record now name " + to + "; the source Core containers were stopped without deleting volumes.",
+		"Publish DNS for id." + to + " and the service hosts (a wildcard record under the name covers them), then run stackkit generate and stackkit apply: the Core restarts on the new origin and the local step-ca issues the certificates for the new names (publicly trusted certificates for LAN names are a later phase).",
+		"Passkeys are bound to the old Pocket ID host and do not work at https://id." + to + ". They are kept, not deleted, and count as inactive until a new passkey is registered there.",
+		"Owner: run stackkit user owner activate --owner-approve for a new one-time link; if that cannot be used, redeem the recovery code at the console (stackkit break-glass redeem). Members: stackkit user activate <username> --owner-approve.",
+		"Replace the recovery set under the new origin (stackkit break-glass write --owner-approve): the old one binds the old origin. Check progress with stackkit user owner setup.",
+	}
+}
+
+func (s *Service) convergeMigratedTinyAuth(ctx context.Context, from string) error {
 	owner, client, err := s.ready(ctx)
 	if err != nil {
 		return err
@@ -222,7 +284,7 @@ func (s *Service) convergeMigratedTinyAuth(ctx context.Context) error {
 	if current == nil || current.ID != binding.ClientID || current.Name != tinyAuthClientName || current.IsPublic || !current.IsGroupRestricted || !samePocketIDGroupIDs(current.AllowedUserGroups, groups) {
 		return errors.New("localowner: migration refuses a changed TinyAuth client identity or policy")
 	}
-	if slices.Equal(current.CallbackURLs, []string{"https://auth.home/api/oauth/callback/pocketid"}) ||
+	if slices.Equal(current.CallbackURLs, []string{"https://auth." + from + "/api/oauth/callback/pocketid"}) ||
 		(slices.Equal(current.CallbackURLs, []string{binding.CallbackURL}) && !current.PkceEnabled) {
 		updater, ok := client.(oidcClientUpdater)
 		if !ok {
@@ -364,9 +426,10 @@ func (s *Service) beginDomainReenrollment(ctx context.Context, client pocketIDOw
 	if !ok {
 		return errors.New("localowner: cannot verify the running PocketID issuer")
 	}
+	_, target := state.moveDomains()
 	issuer, err := reader.OIDCIssuer(ctx)
-	if err != nil || strings.TrimSuffix(issuer, "/") != "https://id.lab.home" {
-		return errors.New("localowner: apply the migrated runtime before enrolling a lab.home passkey")
+	if err != nil || strings.TrimSuffix(issuer, "/") != "https://id."+target {
+		return errors.New("localowner: apply the migrated runtime before enrolling a " + target + " passkey")
 	}
 	enrollment := state.Enrollments[subject]
 	if enrollment.Started {

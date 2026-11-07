@@ -163,6 +163,9 @@ type RecoveryDeviceRequest struct {
 	Method string
 	Proof  string
 	Code   string
+	// IDToken is the Owner's passkey sign-in that pins the proof's key
+	// (RecoveryOwnerDevicePath only).
+	IDToken string
 }
 
 type recoveryCodeRecord struct {
@@ -516,13 +519,14 @@ func LocalRecoveryPasskeyIssuer(root string) RecoveryPasskeyIssuer {
 
 // RecoveryDeviceHandler serves the device recovery routes. The DPoP proof in
 // the "DPoP" header is the authentication (no node API key); the body is
-// {"code": "..."} for request and complete, empty for cancel, and the notices
-// route is a GET.
+// {"code": "..."} for request and complete, {"idToken": "..."} for the Owner
+// device pin, empty for cancel, and the notices route is a GET.
 func RecoveryDeviceHandler(root string, issue RecoveryPasskeyIssuer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proofs := r.Header.Values("DPoP")
 		var body struct {
-			Code string `json:"code"`
+			Code    string `json:"code"`
+			IDToken string `json:"idToken"`
 		}
 		method := http.MethodPost
 		if r.URL.Path == RecoveryDeviceNoticesPath {
@@ -533,7 +537,7 @@ func RecoveryDeviceHandler(root string, issue RecoveryPasskeyIssuer) http.Handle
 			denyHomeIdentity(w, http.StatusBadRequest, "invalid_recovery_request", false)
 			return
 		}
-		request := RecoveryDeviceRequest{Method: r.Method, Proof: proofs[0], Code: body.Code}
+		request := RecoveryDeviceRequest{Method: r.Method, Proof: proofs[0], Code: body.Code, IDToken: body.IDToken}
 		now := time.Now()
 		var result any
 		var err error
@@ -542,6 +546,10 @@ func RecoveryDeviceHandler(root string, issue RecoveryPasskeyIssuer) http.Handle
 			var notices []RecoveryNotice
 			notices, err = DeviceRecoveryNotices(root, request, now)
 			result = map[string]any{"notices": notices}
+		case RecoveryOwnerDevicePath:
+			var pin ownerDevicePin
+			pin, err = PinOwnerDevice(root, request, now)
+			result = map[string]any{"pinned": err == nil, "device": pin.ID, "verifiedAt": pin.VerifiedAt}
 		case RecoveryRequestPath:
 			result, err = RequestDeviceRecovery(root, request, now)
 		case RecoveryCompletePath:
@@ -728,14 +736,10 @@ func verifyRecoveryDeviceProof(root string, request RecoveryDeviceRequest, metho
 	if err != nil {
 		return deny()
 	}
-	registry, err := loadHomeDeviceRegistry(root)
-	if err != nil {
-		return deny()
-	}
-	index := slices.IndexFunc(registry.Devices, func(device HomeDevice) bool {
-		return device.ID == proof.Thumbprint && device.AccountSubject == subject && device.Active(now)
-	})
-	if index < 0 {
+	// The Owner-device pin is the signer's own (home_owner_device_pin.go); the
+	// core-writable registry can only take a pinned device away.
+	pin, pinned := ownerDevicePinFor(root, proof.Thumbprint, subject, now)
+	if !pinned {
 		return deny()
 	}
 	verifier.mu.Lock()
@@ -744,7 +748,7 @@ func verifyRecoveryDeviceProof(root string, request RecoveryDeviceRequest, metho
 	if !fresh {
 		return deny()
 	}
-	return registry.Devices[index], subject, nil
+	return HomeDevice{ID: pin.ID, AccountSubject: pin.Account, PublicKey: pin.PublicKey}, subject, nil
 }
 
 // recoveryOwnerSubject is the Pocket ID subject bound to the local Owner: the
@@ -767,13 +771,7 @@ func addRecoveryNotice(root string, state *recoveryState, kind, origin string, r
 	notice.ID, _ = randomRecoveryID()
 	if subject, err := recoveryOwnerSubject(root); err == nil {
 		notice.Account = subject
-		if registry, err := loadHomeDeviceRegistry(root); err == nil {
-			for _, device := range registry.Devices {
-				if device.AccountSubject == subject && device.Active(now) {
-					notice.Devices = append(notice.Devices, device.ID)
-				}
-			}
-		}
+		notice.Devices = ownerDevicePinIDs(root, subject, now)
 	}
 	if request != nil {
 		eligible := request.EligibleAt

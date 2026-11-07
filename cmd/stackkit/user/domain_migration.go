@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localowner"
@@ -12,7 +13,7 @@ import (
 )
 
 type domainMigrationAPI interface {
-	MigrateBasementDomain(context.Context, string, bool) (localowner.DomainMigration, error)
+	MigrateBasementDomain(ctx context.Context, specPath, to string, quiesceRuntime bool) (localowner.DomainMigration, error)
 }
 type householdActivationAPI interface {
 	ActivateHouseholdUser(context.Context, string) (localowner.HouseholdUser, error)
@@ -23,7 +24,7 @@ type householdPasskeyResetAPI interface {
 
 func newDomainMigrationCommand(api householdAPI) *cobra.Command {
 	command := &cobra.Command{
-		Use: "migrate-domain", Short: "Prepare the owner-approved home to lab.home identity migration", Args: cobra.NoArgs,
+		Use: "migrate-domain", Short: "Prepare the owner-approved identity domain migration (home to lab.home, or lab.home to a public id.<name>)", Args: cobra.NoArgs,
 		Long: "Preserve the existing owner, CA, service secrets and users while migrating Basement intent and runtime custody from home to lab.home. Preserve the prior-release CLI, packaged tools and provider mirror before using an isolated target CLI for this command. --quiesce-runtime authorizes the command to capture the exact source Core container identities, converge the identity callback while PocketID is available, then gracefully stop and remove only those containers without deleting volumes, networks or images. Use the prior CLI for generate, apply and verify, then use the target CLI for upgrade --to <exact-release>. The upgrade checkpoint covers the migrated prior release on lab.home; this command creates no original-domain rollback checkpoint. The v0.47.4 bridge awaits real-host qualification. After rollout, enroll client DNS and new passkeys at id.lab.home.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			approved, _ := cmd.Flags().GetBool("owner-approve")
@@ -43,14 +44,15 @@ func newDomainMigrationCommand(api householdAPI) *cobra.Command {
 			if !ok {
 				return errors.New("domain migration is unavailable")
 			}
-			result, err := migrator.MigrateBasementDomain(cmd.Context(), specPath, quiesceRuntime)
+			to, _ := cmd.Flags().GetString("to")
+			result, err := migrator.MigrateBasementDomain(cmd.Context(), specPath, strings.ToLower(strings.TrimSpace(to)), quiesceRuntime)
 			if err != nil {
 				return err
 			}
 			if jsonOutput(cmd) {
 				return writeJSON(cmd, result)
 			}
-			if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Prepared home -> lab.home and quiesced the authenticated source Core runtime. Prior-release rollout and passkey reenrollment are still required."); err != nil {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Prepared %s -> %s and quiesced the authenticated source Core runtime. Rollout and passkey reenrollment are still required.\n", result.From, result.To); err != nil {
 				return err
 			}
 			for _, step := range result.Next {
@@ -64,6 +66,7 @@ func newDomainMigrationCommand(api householdAPI) *cobra.Command {
 	command.Flags().Bool("owner-approve", false, "Explicitly approve domain migration and new passkey enrollment")
 	command.Flags().Bool("quiesce-runtime", false, "Gracefully stop and remove the authenticated source Core containers without deleting persistent resources")
 	command.Flags().String("spec", "stack-spec.yaml", "Workspace-relative StackSpec to migrate")
+	command.Flags().String("to", "lab.home", "Target identity domain: lab.home for the retired home default, or a public name (a kombify.me name or an own domain, giving https://id.<name>) for a local-only install")
 	return command
 }
 
@@ -111,14 +114,14 @@ func newHouseholdActivateCommand(api householdAPI) *cobra.Command {
 	return command
 }
 
-func (h liveHousehold) MigrateBasementDomain(ctx context.Context, specPath string, quiesceRuntime bool) (localowner.DomainMigration, error) {
+func (h liveHousehold) MigrateBasementDomain(ctx context.Context, specPath, to string, quiesceRuntime bool) (localowner.DomainMigration, error) {
 	var result localowner.DomainMigration
 	err := stackspecintent.WithBasementDomainMigrator(h.workspace, lifecyclemutation.JoinRequest{Command: "user owner migrate-domain"}, func(intent stackspecintent.BasementDomainMigrator) error {
 		service, err := localowner.NewService(h.workspace)
 		if err != nil {
 			return err
 		}
-		result, err = service.MigrateBasementDomain(ctx, specPath, intent, quiesceRuntime)
+		result, err = service.MigrateBasementDomain(ctx, specPath, to, intent, quiesceRuntime)
 		return err
 	})
 	return result, err

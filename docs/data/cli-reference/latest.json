@@ -6353,9 +6353,273 @@
       "examples": [],
       "flags": [],
       "subcommands": [
+        "stackkit identity join",
         "stackkit identity projection",
         "stackkit identity workload-peer"
       ]
+    },
+    {
+      "path": "stackkit identity join",
+      "name": "join",
+      "parent": "stackkit identity",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join [flags]",
+      "short": "Join this server to the homelab's Authority, or approve and manage joined servers at the Authority",
+      "description": "Several servers of one homelab share one Authority, the server that runs Pocket ID. A further server prepares a join request, the Owner approves it with a passkey step-up at the Authority, which signs a trust bundle and an intermediate CA for the server's hostnames, and the joining server installs the bundle after the Owner confirmed its root fingerprint there. Techstack only carries the request and the bundle.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit identity join approve",
+        "stackkit identity join client",
+        "stackkit identity join install",
+        "stackkit identity join leave",
+        "stackkit identity join remove",
+        "stackkit identity join request",
+        "stackkit identity join status",
+        "stackkit identity join zone"
+      ]
+    },
+    {
+      "path": "stackkit identity join approve",
+      "name": "approve",
+      "parent": "stackkit identity join",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join approve [flags]",
+      "short": "At the Authority: approve a join request with the Owner's passkey and write the trust bundle",
+      "description": "Raise an Owner step-up of class join for exactly this request; the Hub shows the server, every hostname and the request code the joining server printed, and the Owner approves it there with a passkey on an enrolled Owner device within five minutes. Then the root signs the server's intermediate CA (its hostnames only, server authentication only, every IP range and the identity names excluded, path length 0, 90 days) and the Owner key signs the trust bundle the joining server installs.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "out",
+          "type": "string",
+          "description": "Write the trust bundle to this file instead of standard output",
+          "required": false
+        },
+        {
+          "name": "request",
+          "type": "string",
+          "description": "The join request file the joining server wrote",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join client",
+      "name": "client",
+      "parent": "stackkit identity join",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join client [flags]",
+      "short": "Register a joined server's sign-in client at the Authority and bind it on the joined server",
+      "description": "A joined server's TinyAuth signs in against the Authority's Pocket ID. The Authority registers its OIDC client under an Owner step-up and seals the secret to a key the carrier generated; the secret then reaches the joined server only as a Wallet item by host delivery (stackkit wallet-item import), and client bind points TinyAuth at it.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit identity join client bind",
+        "stackkit identity join client register"
+      ]
+    },
+    {
+      "path": "stackkit identity join client bind",
+      "name": "bind",
+      "parent": "stackkit identity join client",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join client bind [flags]",
+      "short": "On a joined server: bind TinyAuth to the Authority's client with the secret of an imported Wallet item",
+      "description": "The binding names the client, the Authority's Pocket ID issuer and the Wallet item this server imported (stackkit wallet-item import). TinyAuth's private environment is written from the item in encrypted custody; the record keeps only an Owner-signed reference.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "binding",
+          "type": "string",
+          "description": "The client binding (stackkit.homelab-oidc-client-binding/v1)",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join client register",
+      "name": "register",
+      "parent": "stackkit identity join client",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join client register [flags]",
+      "short": "At the Authority: register a joined server's TinyAuth client with the Owner's passkey; the secret leaves sealed only",
+      "description": "Raise an Owner step-up of class client-registration for exactly this server, TinyAuth host and carrier key. After the Owner approved it in the Hub, the Authority's Pocket ID registers (or converges) the server's confidential PKCE client, restricted to the household groups, sets a fresh secret and writes it sealed with HPKE to the carrier key. The document holds no readable secret.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "out",
+          "type": "string",
+          "description": "Write the sealed client to this file instead of standard output",
+          "required": false
+        },
+        {
+          "name": "request",
+          "type": "string",
+          "description": "The client request (stackkit.homelab-oidc-client-request/v1) the carrier wrote",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join install",
+      "name": "install",
+      "parent": "stackkit identity join",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join install [flags]",
+      "short": "On the joining server: install the Authority's trust bundle under the root pinned at request",
+      "description": "Install the bundle only when it answers this server's pending request, carries the root the Owner pinned with join request, is signed by the Owner of that root and its intermediate CA has exactly the requested scope. Then read the Authority's verification state once.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "bundle",
+          "type": "string",
+          "description": "The trust bundle file the Authority wrote",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join leave",
+      "name": "leave",
+      "parent": "stackkit identity join",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join leave [flags]",
+      "short": "On a joined server: remove the Authority's trust; its credentials stop verifying here at once",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join remove",
+      "name": "remove",
+      "parent": "stackkit identity join",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join remove <server-ref> [flags]",
+      "short": "At the Authority: end a joined server's trust",
+      "description": "Refuse the server's verification-state reads at once: it opens no new browser session, and every credential it still accepts expires within the one hour credential lifetime.",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join request",
+      "name": "request",
+      "parent": "stackkit identity join",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join request [flags]",
+      "short": "On the joining server: pin the Authority's root and create the join request (public keys only)",
+      "description": "Enter the Authority's root fingerprint as the Authority shows it (stackkit device bootstrap there, or the Hub): only a trust bundle under that root ever installs here. Generate this server's intermediate CA key (kept in host custody) and its verification-state key, and write the join request: this server's owner, site and node references, the hostnames it serves, the pinned root and the two public keys. The request holds no secret. The request code it prints is the one the Owner sees again in the Hub before approving.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "authority-root",
+          "type": "string",
+          "description": "The Authority's root fingerprint (SHA-256, hex) the Owner read at the Authority",
+          "required": true
+        },
+        {
+          "name": "hostname",
+          "type": "strings",
+          "description": "A hostname this server serves inside the homelab domain (repeatable); its intermediate CA may name only these DNS subtrees",
+          "required": true
+        },
+        {
+          "name": "out",
+          "type": "string",
+          "description": "Write the request to this file instead of standard output",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join status",
+      "name": "status",
+      "parent": "stackkit identity join",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join status [flags]",
+      "short": "Show the joined Authority (on a joined server) or the joined servers (at the Authority)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join zone",
+      "name": "zone",
+      "parent": "stackkit identity join",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join zone [flags]",
+      "short": "Report this server's place in the homelab DNS zone, or install the zone Techstack assembled",
+      "description": "Techstack assembles the homelab zone from every server's zone site and carries it to each server. A server installs only what its join trust vouches for: the Authority the names the Owner approved for each joined server, a joined server the Authority at its bundle's LAN address and other servers as the Authority's signed verification state lists them. DNS answers are never identity: TLS verifies each name under the root.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit identity join zone install",
+        "stackkit identity join zone site"
+      ]
+    },
+    {
+      "path": "stackkit identity join zone install",
+      "name": "install",
+      "parent": "stackkit identity join zone",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join zone install [flags]",
+      "short": "Install the homelab zone into this server's LAN resolver, as far as its join trust vouches for it",
+      "description": "Refuses a zone that names another homelab domain or Authority address, names for a server the Owner did not approve, or an identity name. The LAN resolver restarts when it already runs.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "zone",
+          "type": "string",
+          "description": "The homelab zone (stackkit.homelab-dns-zone/v1) Techstack assembled",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity join zone site",
+      "name": "site",
+      "parent": "stackkit identity join zone",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity join zone site [flags]",
+      "short": "Show this server's role, domain and LAN address for the homelab zone",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
     },
     {
       "path": "stackkit identity projection",
@@ -8726,6 +8990,245 @@
       "subcommands": []
     },
     {
+      "path": "stackkit reach",
+      "name": "reach",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach [flags]",
+      "short": "Remote reach of this home server: kombify.me tunnel mode, the Owner's own Cloudflare Tunnel and the LAN-name certificate",
+      "description": "Runs the Cloudflare Tunnel connector of this home server in its own network, which reaches only the remote listener (stackkit-remote-listener.internal:8000): every request through it passes the Access Gate's remote checks and is never home. TLS ends at the Cloudflare edge, which can read the traffic; device proof and session are verified here. A local-only homelab (lab.home) has no reach path.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit reach disable",
+        "stackkit reach enable",
+        "stackkit reach lan-certificate",
+        "stackkit reach registration",
+        "stackkit reach status"
+      ]
+    },
+    {
+      "path": "stackkit reach disable",
+      "name": "disable",
+      "parent": "stackkit reach",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach disable [flags]",
+      "short": "Stop the reach connector and, in kombify.me tunnel mode, remove the tunnel and its DNS records at Me",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach enable",
+      "name": "enable",
+      "parent": "stackkit reach",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach enable [flags]",
+      "short": "Start the reach connector (requires root on the home server)",
+      "description": "Exactly one source of the tunnel token:\n  --kombify-me                  tunnel mode of this homelab's kombify.me base with its Me registration; the token is\n                                rotated and sealed to a fresh key of this node's local custody\n  --wallet-item <tenant>/<item> a token the kombify Wallet delivered to this node (kombify-account tunnel mode, or a\n                                tunnel Techstack provisioned in the Owner's Cloudflare account)\n  --owner-token-file <file>     a tunnel token of the Owner's own Cloudflare account (Standard Mode); its ingress stays\n                                in the Owner's dashboard and must lead every public hostname to http://stackkit-remote-listener.internal:8000",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "kombify-me",
+          "type": "bool",
+          "description": "kombify.me tunnel mode with this homelab's Me registration",
+          "required": false
+        },
+        {
+          "name": "owner-token-file",
+          "type": "string",
+          "description": "file holding a tunnel token of the Owner's own Cloudflare account",
+          "required": false
+        },
+        {
+          "name": "wallet-item",
+          "type": "string",
+          "description": "Wallet item in this node's custody holding the tunnel token, as <tenant-ref>/<item-ref>",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach lan-certificate",
+      "name": "lan-certificate",
+      "parent": "stackkit reach",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach lan-certificate [flags]",
+      "short": "The publicly trusted certificate of this homelab's LAN names (lan.<domain>)",
+      "description": "kombify Me publishes lan.<domain> as one DNS-only record holding this node's private site address; a router that refuses private answers (DNS rebind protection) leaves the Hub on the away flow. A local-only homelab (lab.home) reaches the Authority through the OS trust profile instead ('stackkit verify client-trust --export').",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit reach lan-certificate issue",
+        "stackkit reach lan-certificate remove",
+        "stackkit reach lan-certificate status"
+      ]
+    },
+    {
+      "path": "stackkit reach lan-certificate issue",
+      "name": "issue",
+      "parent": "stackkit reach lan-certificate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach lan-certificate issue [flags]",
+      "short": "Obtain or renew the LAN certificate through kombify Me's DNS-01 responder (requires root)",
+      "description": "First publishes this node's site address (RFC 1918 or IPv6 ULA, never a public address) for lan.<domain> at kombify Me and orders nothing unless Me reads it back DNS-only with that address. Issuers: zerossl and gts need external account binding (--eab-kid and --eab-hmac-file) for a new ACME account; letsencrypt-staging serves tests only. The key never leaves this node.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "eab-hmac-file",
+          "type": "string",
+          "description": "file holding the external account binding HMAC key (base64url)",
+          "required": false
+        },
+        {
+          "name": "eab-kid",
+          "type": "string",
+          "description": "external account binding key id (zerossl, gts)",
+          "required": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "description": "ACME account contact address (Google Trust Services and ZeroSSL refuse an account without one)",
+          "required": false
+        },
+        {
+          "name": "issuer",
+          "type": "string",
+          "default": "zerossl",
+          "description": "ACME issuer: zerossl, gts or letsencrypt-staging (tests only)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach lan-certificate remove",
+      "name": "remove",
+      "parent": "stackkit reach lan-certificate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach lan-certificate remove [flags]",
+      "short": "Delete the LAN certificate, its key and the ACME account key, and have kombify Me remove the LAN address",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach lan-certificate status",
+      "name": "status",
+      "parent": "stackkit reach lan-certificate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach lan-certificate status [flags]",
+      "short": "Show the installed LAN certificate (names, issuer, expiry; never the key)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach registration",
+      "name": "registration",
+      "parent": "stackkit reach",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach registration [flags]",
+      "short": "The homelab's own kombify Me registration (no kombify account needed)",
+      "description": "",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit reach registration remove",
+        "stackkit reach registration set"
+      ]
+    },
+    {
+      "path": "stackkit reach registration remove",
+      "name": "remove",
+      "parent": "stackkit reach registration",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach registration remove [flags]",
+      "short": "Delete the Me registration key from Owner custody",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach registration set",
+      "name": "set",
+      "parent": "stackkit reach registration",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach registration set [flags]",
+      "short": "Store the Me registration key of this homelab's base in Owner custody",
+      "description": "Reads the kbi_ registration key Me answered once from a file (never an argument) and keeps it 0600 in Owner custody. The base is the label of this homelab's name <base>.kombify.me.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "api",
+          "type": "string",
+          "default": "https://kombify.me/_kombify/api/v1",
+          "description": "kombify Me API root",
+          "required": false
+        },
+        {
+          "name": "base",
+          "type": "string",
+          "description": "the base label of <base>.kombify.me",
+          "required": true
+        },
+        {
+          "name": "key-file",
+          "type": "string",
+          "description": "file holding the kbi_ registration key",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach status",
+      "name": "status",
+      "parent": "stackkit reach",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach status [flags]",
+      "short": "Show the reach connector and, in kombify.me tunnel mode, Me's Cloudflare read-back",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit registry",
       "name": "registry",
       "parent": "stackkit",
@@ -11043,6 +11546,7 @@
         "stackkit user owner activate",
         "stackkit user owner migrate-domain",
         "stackkit user owner reconcile",
+        "stackkit user owner setup",
         "stackkit user owner status"
       ]
     },
@@ -11081,7 +11585,7 @@
       "aliases": [],
       "group": "care",
       "usage": "stackkit user owner migrate-domain [flags]",
-      "short": "Prepare the owner-approved home to lab.home identity migration",
+      "short": "Prepare the owner-approved identity domain migration (home to lab.home, or lab.home to a public id.<name>)",
       "description": "Preserve the existing owner, CA, service secrets and users while migrating Basement intent and runtime custody from home to lab.home. Preserve the prior-release CLI, packaged tools and provider mirror before using an isolated target CLI for this command. --quiesce-runtime authorizes the command to capture the exact source Core container identities, converge the identity callback while PocketID is available, then gracefully stop and remove only those containers without deleting volumes, networks or images. Use the prior CLI for generate, apply and verify, then use the target CLI for upgrade --to <exact-release>. The upgrade checkpoint covers the migrated prior release on lab.home; this command creates no original-domain rollback checkpoint. The v0.47.4 bridge awaits real-host qualification. After rollout, enroll client DNS and new passkeys at id.lab.home.",
       "runnable": true,
       "examples": [],
@@ -11103,6 +11607,13 @@
           "type": "string",
           "default": "stack-spec.yaml",
           "description": "Workspace-relative StackSpec to migrate",
+          "required": false
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "default": "lab.home",
+          "description": "Target identity domain: lab.home for the retired home default, or a public name (a kombify.me name or an own domain, giving https://id.<name>) for a local-only install",
           "required": false
         },
         {
@@ -11133,6 +11644,28 @@
           "description": "Explicitly approve PKCE-only convergence of the existing verified identity binding",
           "required": false
         },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit stackkit.command-result/v1 JSON",
+          "required": false,
+          "inheritedFrom": "stackkit user"
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit user owner setup",
+      "name": "setup",
+      "parent": "stackkit user owner",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit user owner setup [flags]",
+      "short": "Show the ordered Owner setup: identity origin, Owner passkey, recovery key and code, first Owner device",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
         {
           "name": "json",
           "type": "bool",

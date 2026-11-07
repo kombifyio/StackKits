@@ -133,6 +133,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
 | `wallet-item` | Import sealed Wallet item deliveries into encrypted local custody, remove them on a signed removal, and list them by reference and version. |
 | `user` | Invite, list, and remove PocketID household users. Mutations require `--owner-approve`. |
+| `reach` | Remote reach of a home server: kombify.me tunnel mode with the homelab's own Me registration, a Cloudflare Tunnel token from the kombify Wallet or the Owner, and the LAN-name certificate (never in local-only). |
 | `vpn` | Switch the optional VPN add-on on with WireGuard, Headscale, Tailscale or Pangolin, list its peers, reconcile and switch it off (never a default). |
 | `network` | Move this server to another network: status, signed LAN re-bind, WiFi pre-staging and the self-re-binding watcher. |
 | `relocate` | Plan, check, drain, send and receive Coolify workloads moving to another server, with the pinned coolify-mirror engine and a Wallet-delivered transfer secret. |
@@ -1131,6 +1132,15 @@ Native builds reject raw v1 operational commands and have no v1 generator; after
 ### `stackkit addon`
 
 `stackkit addon list` reads only the CUE-bound catalog embedded in the CLI. With a validated canonical v2 StackSpec it is filtered to the spec's `kit.slug` and shows enabled selections; without a spec it shows the product-wide catalog. Catalog presence is not evidence that mutation, planning, generation, apply or runtime execution is ready. `addon add` and `addon remove` fail before reading or writing a spec (the HA add-on needs a coordinated topology and availability transition).
+
+### `stackkit reach`
+
+Remote reach of a home server's Basement core (root; `IDENTITY-STACKKITS.md` "Remote reach and LAN names"). A local-only homelab (`lab.home`) has none.
+
+- `reach registration set --base <base> --key-file <file>` keeps the homelab's own kombify Me registration key in Owner custody; `reach registration remove` deletes it.
+- `reach enable --kombify-me | --wallet-item <tenant>/<item> | --owner-token-file <file>` runs the Cloudflare Tunnel connector on `stackkit-remote-connector`, which reaches only `http://stackkit-remote-listener.internal:8000`. It refuses to start unless that network holds only the remote router and the Home firewall isolates its bridge. With `--kombify-me` Me's tunnel must lead exactly to the remote listener, and the token arrives sealed to this node.
+- `reach status [--json]` shows the connector and Me's Cloudflare read-back; `reach disable` stops the connector, deletes its token and, in tunnel mode, has Me remove tunnel and DNS records; a node that holds the LAN certificate then publishes its LAN address again.
+- `reach lan-certificate issue --issuer zerossl|gts --eab-kid <kid> --eab-hmac-file <file>` first publishes the node's private site address for `lan.<base>.kombify.me` at Me (DNS-only, read back before anything is ordered; never a public address), then obtains the certificate through Me's DNS-01 responder, with the key generated and kept on the node. `status` shows it; `remove` deletes it and has Me remove the LAN address. The identity signer renews it and republishes the address, which Me removes with every tunnel teardown and with the base; a refused or unpublished address stops issuance and renewal before anything is ordered.
 
 ### `stackkit vpn`
 

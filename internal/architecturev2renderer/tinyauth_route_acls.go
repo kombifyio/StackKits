@@ -148,7 +148,11 @@ func renderTinyAuthRouteACLs(unit RenderUnit, compose []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return renderAccessGateRoutes(unit, compose)
+	compose, err = renderAccessGateRoutes(unit, compose)
+	if err != nil {
+		return nil, err
+	}
+	return renderGateLaunchRouters(unit, compose)
 }
 
 func renderTinyAuthGroupACLs(unit RenderUnit, compose []byte) ([]byte, error) {
@@ -196,7 +200,11 @@ func renderTinyAuthGroupACLs(unit RenderUnit, compose []byte) ([]byte, error) {
 }
 
 func stripTinyAuthRouteACLs(content []byte) ([]byte, bool) {
-	content, ok := stripAccessGateRoutes(content)
+	content, ok := stripGateLaunchRouters(content)
+	if !ok {
+		return nil, false
+	}
+	content, ok = stripAccessGateRoutes(content)
 	if !ok {
 		return nil, false
 	}

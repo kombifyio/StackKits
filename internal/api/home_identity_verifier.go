@@ -11,7 +11,7 @@ func (s *Server) registerHomeIdentityVerifierRoutes() {
 	s.mux.Handle("POST "+identity.HomeEnrollmentPath, identity.HomeEnrollmentHandler(s.config.BaseDir))
 	s.mux.Handle("POST "+identity.HomeDeviceRenewalPath, identity.HomeDeviceRenewalHandler(s.config.BaseDir))
 	recovery := identity.RecoveryDeviceHandler(s.config.BaseDir, identity.LocalRecoveryPasskeyIssuer(s.config.BaseDir))
-	for _, path := range []string{identity.RecoveryRequestPath, identity.RecoveryCompletePath, identity.RecoveryCancelPath} {
+	for _, path := range []string{identity.RecoveryRequestPath, identity.RecoveryCompletePath, identity.RecoveryCancelPath, identity.RecoveryOwnerDevicePath} {
 		s.mux.Handle("POST "+path, recovery)
 	}
 	s.mux.Handle("GET "+identity.RecoveryDeviceNoticesPath, recovery)
@@ -30,7 +30,7 @@ func isDeviceProofAuthenticatedRoute(r *http.Request) bool {
 		return false
 	}
 	switch r.URL.Path {
-	case identity.HomeDeviceRenewalPath, identity.RecoveryRequestPath, identity.RecoveryCompletePath, identity.RecoveryCancelPath:
+	case identity.HomeDeviceRenewalPath, identity.RecoveryRequestPath, identity.RecoveryCompletePath, identity.RecoveryCancelPath, identity.RecoveryOwnerDevicePath:
 		return true
 	}
 	return false

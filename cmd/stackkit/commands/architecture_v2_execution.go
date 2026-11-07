@@ -1058,10 +1058,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	}
 	canonicalPlan, err := resolvedplan.DecodeCanonicalPlan(persisted.Canonical())
 	if err != nil {
-		return fmt.Errorf("decode verified canonical plan for kombify.me access: %w", err)
-	}
-	if err := prepareKombifyMeAccess(canonicalPlan); err != nil {
-		return err
+		return fmt.Errorf("decode verified canonical plan: %w", err)
 	}
 	stopProgress := startApplyProgressHeartbeat(0)
 	defer stopProgress()

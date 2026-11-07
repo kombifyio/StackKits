@@ -196,6 +196,12 @@ const (
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ${STACKKIT_CUSTODY_DIR:?}/lan-tls/live
+        target: /var/lib/stackkit-identity/.stackkit/custody/lan-tls/live
+        read_only: true
+        bind:
+          create_host_path: false
     tmpfs: [/var/lib/stackkit-server, /var/lib/stackkit-identity, /tmp]
 `
 	basementStackKitServerComposeServiceEnvironment = stackKitServerComposeServiceEnvironmentHead + basementStackKitServerIdentityEnvironment +
@@ -235,6 +241,10 @@ const (
       # Relay and tunnel paths end TLS at the edge; the remote listener sets
       # the scheme itself instead of trusting a forwarded one.
       - traefik.http.middlewares.stackkit-remote-scheme.headers.customrequestheaders.X-Forwarded-Proto=https
+      # A Cloudflare edge adds its CF-* headers to every tunneled request (and
+      # True-Client-IP where enabled); no backend behind the remote listener
+      # receives one (the gate answers none, so a match only removes them).
+      - traefik.http.middlewares.stackkit-access-gate-remote.forwardauth.authResponseHeadersRegex=^(?i)(cf-|true-client-ip$)
       # The Homelab Hub (the device client PWA) and the device-facing
       # identity routes on the Hub host. They are a sign-in surface: the shell
       # grants nothing and every identity route verifies the device proof or
@@ -252,6 +262,12 @@ const (
       - traefik.http.routers.stackkit-hub-remote.entrypoints=remote
       - traefik.http.routers.stackkit-hub-remote.service=stackkit-hub
       - traefik.http.services.stackkit-hub.loadbalancer.server.port=8084
+      # The Gate's own paths (the launch exchange and the browser-native
+      # session endpoints under /.well-known/stackkit/) on every gated host:
+      # one router per host and listener, inserted by the compiler below,
+      # reaches the Gate listener whatever routes the host's workloads own.
+      - traefik.http.services.stackkit-gate.loadbalancer.server.port=8083
+      # stackkit-gate-launch-routers
       # The remote router reads the gate middlewares from this container.
       - io.stackkit.remote-listener=true
 `

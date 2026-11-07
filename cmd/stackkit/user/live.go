@@ -88,6 +88,9 @@ func (h liveHousehold) RemoveHouseholdUser(ctx context.Context, username string)
 			removal.Artifacts[index].Detail = "PocketID user deleted (passkeys and PocketID sessions end); " + removal.Artifacts[index].Detail
 		}
 	}
+	if len(removal.Artifacts) == 0 {
+		removal.Artifacts = []identity.HomeRevokedArtifact{{ID: identity.HomeArtifactAccount, Status: "removed", Detail: "the household user was already absent; its local access ended when it was first removed"}}
+	}
 	return removal, nil
 }
 

@@ -16,10 +16,24 @@ import (
 
 const basementDomainMigrationPath = ".stackkit/custody/basement-domain-migration.json"
 
-// This transition is deliberately restricted to the retired Basement default.
-// Arbitrary identity-domain changes need their own explicit migration contract.
+// A Basement identity domain moves in exactly two ways: the retired default
+// "home" to "lab.home", or a local-only zone to a public name (id.<name> under a
+// kombify.me name or an own domain). The caller classifies the origin of both
+// names; this package only keeps the signed, replayable custody rewrite.
 const LegacyBasementDomain = "home"
 const MigratedBasementDomain = "lab.home"
+
+// ValidBasementDomainMove reports whether from to is a domain pair the custody
+// rewrite supports structurally.
+func ValidBasementDomainMove(from, to string) bool {
+	if from == to || !validBasementRuntimeDomain(to) || !validBasementRuntimeDomain(from) && from != LegacyBasementDomain {
+		return false
+	}
+	if from == LegacyBasementDomain {
+		return to == MigratedBasementDomain
+	}
+	return true
+}
 
 type domainMigrationFile struct {
 	Before []byte `json:"before"`
@@ -33,7 +47,8 @@ type basementDomainMigration struct {
 	Signature OwnerPolicyStateSignature      `json:"signature"`
 }
 
-// MigrateBasementRuntimeDomain moves the legacy home runtime inputs to lab.home.
+// MigrateBasementRuntimeDomain moves the runtime inputs from the established
+// domain to the given one.
 // The caller must hold the lifecycle mutation session and obtain explicit Owner
 // approval. It does not alter users, passkeys, secrets, certificate authorities,
 // volumes or application data. A signed private journal makes partial writes
@@ -41,7 +56,7 @@ type basementDomainMigration struct {
 //
 // The caller still owns StackSpec migration, PocketID callback convergence and
 // rollout. Success here describes only the authenticated local configuration.
-func MigrateBasementRuntimeDomain(workspaceRoot string) error {
+func MigrateBasementRuntimeDomain(workspaceRoot, to string) error {
 	_, err := withDomainMigrationLock(workspaceRoot, func(tx *confinedfs.Transaction, view confinedfs.View) (bool, error) {
 		journal, err := loadBasementDomainMigration(workspaceRoot, tx)
 		if errors.Is(err, os.ErrNotExist) {
@@ -49,10 +64,10 @@ func MigrateBasementRuntimeDomain(workspaceRoot string) error {
 			if loadErr != nil {
 				return false, loadErr
 			}
-			if custody.Domain == MigratedBasementDomain {
+			if custody.Domain == to {
 				return false, nil
 			}
-			journal, err = prepareBasementDomainMigration(workspaceRoot, tx)
+			journal, err = prepareBasementDomainMigration(workspaceRoot, tx, to)
 			if err != nil {
 				return false, err
 			}
@@ -87,14 +102,15 @@ func MigrateBasementRuntimeDomain(workspaceRoot string) error {
 	return err
 }
 
-func prepareBasementDomainMigration(root string, tx *confinedfs.Transaction) (basementDomainMigration, error) {
-	journal := basementDomainMigration{From: LegacyBasementDomain, To: MigratedBasementDomain, Files: map[string]domainMigrationFile{}}
+func prepareBasementDomainMigration(root string, tx *confinedfs.Transaction, to string) (basementDomainMigration, error) {
 	custody, err := LoadBasementRuntimeCustody(root)
 	if err != nil {
-		return journal, err
+		return basementDomainMigration{}, err
 	}
-	if custody.Domain != LegacyBasementDomain {
-		return journal, errors.New("localevidence: domain migration requires the established legacy home domain")
+	from := custody.Domain
+	journal := basementDomainMigration{From: from, To: to, Files: map[string]domainMigrationFile{}}
+	if !ValidBasementDomainMove(from, to) {
+		return journal, errors.New("localevidence: unsupported domain migration")
 	}
 	if _, _, err := tx.ReadStableBounded(originUpgradePath, 4<<20); !errors.Is(err, os.ErrNotExist) {
 		return journal, errors.New("localevidence: finish the pending origin provisioner transition before domain migration")
@@ -120,19 +136,19 @@ func prepareBasementDomainMigration(root string, tx *confinedfs.Transaction) (ba
 		after := append([]byte(nil), before...)
 		switch file.Path {
 		case "pocketid.env":
-			after, err = migrateDomainEnvironment(before, map[string]string{"APP_URL": "https://id.home"})
+			after, err = migrateDomainEnvironment(before, from, to, map[string]string{"APP_URL": "https://id." + from})
 		case "tinyauth.env":
-			after, err = migrateDomainEnvironment(before, map[string]string{
-				"TINYAUTH_APPURL": "https://auth.home",
-				"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL":     "https://id.home/authorize",
-				"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL": "https://auth.home/api/oauth/callback/pocketid",
+			after, err = migrateDomainEnvironment(before, from, to, map[string]string{
+				"TINYAUTH_APPURL": "https://auth." + from,
+				"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL":     "https://id." + from + "/authorize",
+				"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL": "https://auth." + from + "/api/oauth/callback/pocketid",
 			})
 		case lanDNSRecordsPath:
-			address, parseErr := parseLANDNSRecords(LegacyBasementDomain, before)
+			address, parseErr := parseLANDNSRecords(from, before)
 			if parseErr != nil {
 				return journal, parseErr
 			}
-			after, err = buildLANDNSRecords(MigratedBasementDomain, address, lanDNSOptions(before))
+			after, err = buildLANDNSRecords(to, address, lanDNSOptions(before))
 		case originConfigPath:
 			var config map[string]json.RawMessage
 			if err = json.Unmarshal(before, &config); err == nil {
@@ -140,8 +156,8 @@ func prepareBasementDomainMigration(root string, tx *confinedfs.Transaction) (ba
 				err = json.Unmarshal(config["dnsNames"], &names)
 				found := false
 				for n, name := range names {
-					if name == "ca.home" {
-						names[n], found = "ca.lab.home", true
+					if name == "ca."+from {
+						names[n], found = "ca."+to, true
 					}
 				}
 				if err == nil && !found {
@@ -163,7 +179,7 @@ func prepareBasementDomainMigration(root string, tx *confinedfs.Transaction) (ba
 		journal.Files[path] = domainMigrationFile{Before: before, After: after}
 		custody.Files[i].MAC = basementRuntimeFileMAC(key, file.Path, after)
 	}
-	custody.Domain, custody.Signature = MigratedBasementDomain, ""
+	custody.Domain, custody.Signature = to, ""
 	signing, err := basementRuntimeSigningBytes(custody)
 	if err != nil {
 		return journal, err
@@ -186,14 +202,14 @@ func prepareBasementDomainMigration(root string, tx *confinedfs.Transaction) (ba
 		if err != nil {
 			return journal, err
 		}
-		env, err = migrateDomainEnvironment(env, map[string]string{
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL":     "https://id.home/authorize",
-			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL": "https://auth.home/api/oauth/callback/pocketid",
+		env, err = migrateDomainEnvironment(env, from, to, map[string]string{
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_AUTHURL":     "https://id." + from + "/authorize",
+			"TINYAUTH_OAUTH_PROVIDERS_POCKETID_REDIRECTURL": "https://auth." + from + "/api/oauth/callback/pocketid",
 		})
 		if err != nil {
 			return journal, err
 		}
-		binding.CallbackURL = TinyAuthPocketIDCallbackURL(IdentityRuntimeAddress{Domain: MigratedBasementDomain})
+		binding.CallbackURL = TinyAuthPocketIDCallbackURL(IdentityRuntimeAddress{Domain: to})
 		binding.EnvMAC = basementRuntimeFileMAC(key, tinyAuthPocketIDEnvRelPath, env)
 		binding.Signature = ""
 		signing, err := tinyAuthPocketIDSigningBytes(binding)
@@ -222,7 +238,7 @@ func prepareBasementDomainMigration(root string, tx *confinedfs.Transaction) (ba
 	return journal, err
 }
 
-func migrateDomainEnvironment(raw []byte, expected map[string]string) ([]byte, error) {
+func migrateDomainEnvironment(raw []byte, from, to string, expected map[string]string) ([]byte, error) {
 	lines := strings.Split(string(raw), "\n")
 	seen := map[string]bool{}
 	for i, line := range lines {
@@ -235,7 +251,7 @@ func migrateDomainEnvironment(raw []byte, expected map[string]string) ([]byte, e
 			return nil, fmt.Errorf("localevidence: unexpected legacy domain setting %s", name)
 		}
 		seen[name] = true
-		lines[i] = name + "=" + strings.Replace(value, ".home", ".lab.home", 1)
+		lines[i] = name + "=" + strings.Replace(value, "."+from, "."+to, 1)
 	}
 	for name := range expected {
 		if !seen[name] {
@@ -264,7 +280,7 @@ func loadBasementDomainMigration(root string, tx *confinedfs.Transaction) (basem
 	if err := VerifyOwnerPolicyState(root, signing, signature); err != nil {
 		return journal, err
 	}
-	if journal.From != LegacyBasementDomain || journal.To != MigratedBasementDomain {
+	if !ValidBasementDomainMove(journal.From, journal.To) {
 		return journal, errors.New("localevidence: unsupported domain migration")
 	}
 	return journal, nil

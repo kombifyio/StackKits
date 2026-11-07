@@ -71,6 +71,7 @@ func ServeHomeAuthoritySigner(ctx context.Context, root, socketPath string, peer
 	go keepHomeAuthorityPublicCurrent(ctx, absolute)
 	go KeepHomePublicTrustCurrent(ctx, absolute)
 	go keepHomeAccountGroupsCurrent(ctx, absolute)
+	go keepHomeLANCertificateCurrent(ctx, absolute)
 	if err := SyncRecoveryNoticeProjection(absolute); err != nil {
 		slog.Warn("recovery notices were not projected", "error", err)
 	}
@@ -150,9 +151,12 @@ func homeSignerHandler(root string) http.Handler {
 		_, _ = w.Write(chain)
 	})
 	recovery := RecoveryDeviceHandler(root, LocalRecoveryPasskeyIssuer(root))
-	for _, route := range []string{RecoveryRequestPath, RecoveryCompletePath, RecoveryCancelPath} {
+	for _, route := range []string{RecoveryRequestPath, RecoveryCompletePath, RecoveryCancelPath, RecoveryOwnerDevicePath} {
 		mux.Handle("POST "+route, recovery)
 	}
+	// The device notices are the signer's too: the pin that addresses them is
+	// host custody the core cannot read.
+	mux.Handle("GET "+RecoveryDeviceNoticesPath, recovery)
 	return mux
 }
 
