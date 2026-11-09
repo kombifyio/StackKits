@@ -35,6 +35,29 @@ const (
 	lockStale          = 30 * time.Second
 )
 
+// GatewayAgentPrefix marks a delegated kombify agent that reached the node
+// /mcp with a Gateway-signed envelope the Access Gate verified (homelab
+// identity target §7). It holds no credential in this store; its mutating
+// calls still need the owner's approval of each exact call, recorded here
+// under its agent instance.
+const GatewayAgentPrefix = "gateway:"
+
+// gatewayAgentDisplay renders <link>:<agent instance>/<account> as "<link>:<agent
+// instance> for <account>"; the account never contains a slash, the agent
+// instance may.
+func gatewayAgentDisplay(id string) string {
+	rest := strings.TrimPrefix(id, GatewayAgentPrefix)
+	if index := strings.LastIndex(rest, "/"); index >= 0 {
+		return rest[:index] + " for " + rest[index+1:]
+	}
+	return rest
+}
+
+// IsGatewayAgent reports an envelope agent's ID.
+func IsGatewayAgent(id string) bool {
+	return strings.HasPrefix(id, GatewayAgentPrefix) && len(id) > len(GatewayAgentPrefix) && len(id) <= len(GatewayAgentPrefix)+300
+}
+
 // Agent is the public record of one credential; it never carries the token.
 type Agent struct {
 	ID        string     `json:"id"`
@@ -226,7 +249,7 @@ func (s *Store) Request(agentID, operation, callDigest, summary string) (Approva
 	var out Approval
 	err := s.update(func(doc *document) error {
 		r := find(doc, agentID)
-		if r == nil || !r.Active() {
+		if (r == nil || !r.Active()) && !IsGatewayAgent(agentID) {
 			return fmt.Errorf("agent credential %q is not active", agentID)
 		}
 		now := s.now().UTC()
@@ -285,7 +308,13 @@ func (s *Store) Pending(id string) (Approval, Agent, error) {
 			continue
 		}
 		r := find(&doc, a.AgentID)
-		if a.State != ApprovalPending || !a.ExpiresAt.After(s.now()) || r == nil || !r.Active() {
+		if a.State != ApprovalPending || !a.ExpiresAt.After(s.now()) {
+			break
+		}
+		if r == nil && IsGatewayAgent(a.AgentID) {
+			return a, Agent{ID: a.AgentID, Name: "kombify agent " + gatewayAgentDisplay(a.AgentID), CreatedAt: a.CreatedAt}, nil
+		}
+		if r == nil || !r.Active() {
 			break
 		}
 		return a, r.Agent, nil
@@ -324,7 +353,7 @@ func (s *Store) Consume(agentID, operation, callDigest string) (bool, error) {
 	granted := false
 	err := s.update(func(doc *document) error {
 		r := find(doc, agentID)
-		if r == nil || !r.Active() {
+		if (r == nil || !r.Active()) && !IsGatewayAgent(agentID) {
 			return nil
 		}
 		for i := range doc.Approvals {

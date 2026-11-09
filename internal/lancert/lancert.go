@@ -70,20 +70,73 @@ var Issuers = map[string]string{
 // untrustedDirectories issue chains no browser trusts.
 var untrustedDirectories = map[string]bool{Issuers["letsencrypt-staging"]: true}
 
-// accountRelPath is the ACME account record; its custody lock serializes
-// every issuance and renewal (the root CLI and the identity signer).
-const accountRelPath = ".stackkit/custody/" + custodyDirName + "/" + accountName
+// Profile selects which certificate an Issuer obtains and where it lives. The
+// LAN profile is the lan.<domain> certificate the Authority's LAN listener
+// serves. The Public profile is the certificate of a public identity origin's
+// router: *.<domain> and <domain> (id.<name>, base.<name>, ...), obtained by
+// DNS-01 through kombify Me (a kombify.me name) or the owner's DNS provider (an
+// own domain); the Basement core router mounts its live directory read-only.
+type Profile struct {
+	// Custody is the directory under .stackkit/custody that holds the ACME
+	// account and the live directory.
+	Custody string
+	// Names are the certificate's DNS names for a domain.
+	Names func(domain string) []string
+	// PublishAddress publishes the node's private site address for the LAN name.
+	PublishAddress bool
+	agent          string
+}
+
+// LAN is the lan.<domain> profile (the zero Issuer profile).
+var LAN = Profile{Custody: custodyDirName, Names: func(domain string) []string { return []string{LANName(domain)} }, PublishAddress: true, agent: "stackkit-lan-certificate"}
+
+// Public is the public-names profile.
+var Public = Profile{
+	Custody: "public-tls",
+	Names:   func(domain string) []string { return []string{"*." + domain, domain} }, agent: "stackkit-public-certificate",
+}
+
+func (p Profile) orLAN() Profile {
+	if p.Names == nil {
+		return LAN
+	}
+	return p
+}
+
+func (p Profile) custodyDir(workspace string) string {
+	return filepath.Join(workspace, ".stackkit", "custody", p.orLAN().Custody)
+}
+
+func (p Profile) liveDir(workspace string) string {
+	return filepath.Join(p.custodyDir(workspace), liveDirName)
+}
+
+// accountRel is the ACME account record; its custody lock serializes every
+// issuance and renewal (the root CLI and the identity signer).
+func (p Profile) accountRel() string {
+	return ".stackkit/custody/" + p.orLAN().Custody + "/" + accountName
+}
+
+// checkName is a host the certificate must cover for the profile to count as installed.
+func (p Profile) checkName(domain string) string {
+	if p.orLAN().PublishAddress {
+		return LANName(domain)
+	}
+	return "id." + domain
+}
+
+// LiveDirOf and CustodyDirOf expose a profile's directories.
+func LiveDirOf(workspace string, p Profile) string    { return p.liveDir(workspace) }
+func CustodyDirOf(workspace string, p Profile) string { return p.custodyDir(workspace) }
 
 // LANName is the LAN name of a homelab domain.
 func LANName(domain string) string { return LANLabel + "." + domain }
 
 // CustodyDir is the Owner custody directory of the LAN certificate.
-func CustodyDir(workspace string) string {
-	return filepath.Join(workspace, ".stackkit", "custody", custodyDirName)
-}
+func CustodyDir(workspace string) string { return LAN.custodyDir(workspace) }
 
 // LiveDir holds the certificate and its key; the Basement core mounts it.
-func LiveDir(workspace string) string { return filepath.Join(CustodyDir(workspace), liveDirName) }
+func LiveDir(workspace string) string { return LAN.liveDir(workspace) }
 
 // State is the public identity of the installed certificate.
 type State struct {
@@ -96,8 +149,15 @@ type State struct {
 }
 
 // Load parses the installed certificate; os.ErrNotExist when none is.
-func Load(workspace string) (State, *x509.Certificate, error) {
-	raw, err := readLimited(filepath.Join(LiveDir(workspace), certName))
+func Load(workspace string) (State, *x509.Certificate, error) { return loadProfile(workspace, LAN) }
+
+// LoadPublic parses the installed public-names certificate.
+func LoadPublic(workspace string) (State, *x509.Certificate, error) {
+	return loadProfile(workspace, Public)
+}
+
+func loadProfile(workspace string, profile Profile) (State, *x509.Certificate, error) {
+	raw, err := readLimited(filepath.Join(profile.liveDir(workspace), certName))
 	if err != nil {
 		return State{}, nil, err
 	}
@@ -120,20 +180,30 @@ func Load(workspace string) (State, *x509.Certificate, error) {
 // Covers reports whether the installed key pair matches and its certificate
 // is valid for host for at least another hour.
 func Covers(workspace, host string, now time.Time) bool {
-	_, leaf, err := Load(workspace)
+	return CoversProfile(workspace, LAN, host, now)
+}
+
+// CoversProfile is Covers for a profile.
+func CoversProfile(workspace string, profile Profile, host string, now time.Time) bool {
+	_, leaf, err := loadProfile(workspace, profile)
 	if err != nil || leaf.VerifyHostname(strings.ToLower(host)) != nil ||
 		!now.After(leaf.NotBefore) || !now.Add(minimumLifetime).Before(leaf.NotAfter) {
 		return false
 	}
-	_, err = tls.LoadX509KeyPair(filepath.Join(LiveDir(workspace), certName), filepath.Join(LiveDir(workspace), keyName))
+	_, err = tls.LoadX509KeyPair(filepath.Join(profile.liveDir(workspace), certName), filepath.Join(profile.liveDir(workspace), keyName))
 	return err == nil
 }
 
 // NeedsRenewal reports a missing certificate, one that does not cover the
 // domain's names, and one within 30 days of expiry.
 func NeedsRenewal(workspace, domain string, now time.Time) bool {
-	_, leaf, err := Load(workspace)
-	if err != nil || leaf.VerifyHostname(LANName(domain)) != nil {
+	return NeedsRenewalProfile(workspace, LAN, domain, now)
+}
+
+// NeedsRenewalProfile is NeedsRenewal for a profile.
+func NeedsRenewalProfile(workspace string, profile Profile, domain string, now time.Time) bool {
+	_, leaf, err := loadProfile(workspace, profile)
+	if err != nil || leaf.VerifyHostname(profile.checkName(domain)) != nil {
 		return true
 	}
 	return now.Add(renewBefore).After(leaf.NotAfter)
@@ -223,7 +293,7 @@ func PublishAddress(ctx context.Context, workspace, domain string, publisher Pub
 // publishHeld republishes the LAN name's address under the custody lock while
 // a certificate is installed, so it never races Remove.
 func publishHeld(ctx context.Context, workspace, domain string, publisher Publisher) error {
-	unlock, err := localevidence.AcquireCustodyLock(workspace, accountRelPath, 6000)
+	unlock, err := localevidence.AcquireCustodyLock(workspace, LAN.accountRel(), 6000)
 	if err != nil {
 		return fmt.Errorf("lancert: another issuance holds the LAN certificate custody: %w", err)
 	}
@@ -237,6 +307,8 @@ func publishHeld(ctx context.Context, workspace, domain string, publisher Publis
 
 // Issuer obtains the LAN certificate.
 type Issuer struct {
+	// Profile is the certificate to obtain; the zero value is the LAN name.
+	Profile   Profile
 	Workspace string
 	Domain    string
 	// Directory is the ACME directory URL of the issuer.
@@ -271,23 +343,26 @@ func (i Issuer) Issue(ctx context.Context) (State, error) {
 	if i.Publisher == nil || i.Domain == "" || !slices.Contains(slices.Collect(maps.Values(Issuers)), i.Directory) {
 		return State{}, errors.New("lancert: issuance needs a domain, a listed ACME issuer and a DNS-01 publisher")
 	}
-	if err := os.MkdirAll(CustodyDir(i.Workspace), 0o700); err != nil {
+	profile := i.Profile.orLAN()
+	if err := os.MkdirAll(profile.custodyDir(i.Workspace), 0o700); err != nil {
 		return State{}, err
 	}
-	unlock, err := localevidence.AcquireCustodyLock(i.Workspace, accountRelPath, 6000)
+	unlock, err := localevidence.AcquireCustodyLock(i.Workspace, profile.accountRel(), 6000)
 	if err != nil {
-		return State{}, fmt.Errorf("lancert: another issuance holds the LAN certificate custody: %w", err)
+		return State{}, fmt.Errorf("lancert: another issuance holds the certificate custody: %w", err)
 	}
 	defer unlock()
-	if _, err := PublishAddress(ctx, i.Workspace, i.Domain, i.Publisher); err != nil {
-		return State{}, err
+	if profile.PublishAddress {
+		if _, err := PublishAddress(ctx, i.Workspace, i.Domain, i.Publisher); err != nil {
+			return State{}, err
+		}
 	}
 	client, err := i.client(ctx)
 	if err != nil {
 		return State{}, err
 	}
-	name := LANName(i.Domain)
-	order, err := client.AuthorizeOrder(ctx, acme.DomainIDs(name))
+	names := profile.Names(i.Domain)
+	order, err := client.AuthorizeOrder(ctx, acme.DomainIDs(names...))
 	if err != nil {
 		return State{}, fmt.Errorf("lancert: the issuer refused the order: %w", err)
 	}
@@ -303,7 +378,7 @@ func (i Issuer) Issue(ctx context.Context) (State, error) {
 	if err != nil {
 		return State{}, err
 	}
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{DNSNames: []string{name}}, key)
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{DNSNames: names}, key)
 	if err != nil {
 		return State{}, err
 	}
@@ -314,7 +389,7 @@ func (i Issuer) Issue(ctx context.Context) (State, error) {
 	if err := i.install(chain, key); err != nil {
 		return State{}, err
 	}
-	state, _, err := Load(i.Workspace)
+	state, _, err := loadProfile(i.Workspace, profile)
 	return state, err
 }
 
@@ -332,16 +407,23 @@ func (i Issuer) authorize(ctx context.Context, client *acme.Client, authzURL str
 			challenge = candidate
 		}
 	}
-	identifier := LANName(i.Domain)
-	if challenge == nil || authz.Wildcard || authz.Identifier.Value != identifier {
-		return errors.New("lancert: the issuer offered no DNS-01 challenge for the LAN name")
+	profile := i.Profile.orLAN()
+	identifier := authz.Identifier.Value
+	allowed := false
+	for _, name := range profile.Names(i.Domain) {
+		if strings.TrimPrefix(name, "*.") == identifier && strings.HasPrefix(name, "*.") == authz.Wildcard {
+			allowed = true
+		}
+	}
+	if challenge == nil || !allowed {
+		return errors.New("lancert: the issuer offered no DNS-01 challenge for the certificate's names")
 	}
 	value, err := client.DNS01ChallengeRecord(challenge.Token)
 	if err != nil {
 		return err
 	}
 	if err := i.Publisher.SetChallenge(ctx, identifier, value); err != nil {
-		return fmt.Errorf("lancert: kombify Me did not publish the DNS-01 value: %w", err)
+		return fmt.Errorf("lancert: the DNS provider did not publish the DNS-01 value: %w", err)
 	}
 	defer func() {
 		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
@@ -366,7 +448,7 @@ func (i Issuer) authorize(ctx context.Context, client *acme.Client, authzURL str
 
 // client loads the node's ACME account for this directory or registers one.
 func (i Issuer) client(ctx context.Context) (*acme.Client, error) {
-	path := filepath.Join(CustodyDir(i.Workspace), accountName)
+	path := filepath.Join(i.Profile.custodyDir(i.Workspace), accountName)
 	var stored account
 	if raw, err := readLimited(path); err == nil {
 		if json.Unmarshal(raw, &stored) != nil || stored.APIVersion != accountVersion {
@@ -384,7 +466,7 @@ func (i Issuer) client(ctx context.Context) (*acme.Client, error) {
 		if err != nil {
 			return nil, err
 		}
-		client := &acme.Client{Key: key, DirectoryURL: i.Directory, UserAgent: "stackkit-lan-certificate"}
+		client := &acme.Client{Key: key, DirectoryURL: i.Directory, UserAgent: i.Profile.orLAN().agent}
 		if _, err := client.GetReg(ctx, stored.URI); err != nil {
 			return nil, fmt.Errorf("lancert: the ACME account in custody is not usable at the issuer: %w", err)
 		}
@@ -394,7 +476,7 @@ func (i Issuer) client(ctx context.Context) (*acme.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := &acme.Client{Key: key, DirectoryURL: i.Directory, UserAgent: "stackkit-lan-certificate"}
+	client := &acme.Client{Key: key, DirectoryURL: i.Directory, UserAgent: i.Profile.orLAN().agent}
 	registration := &acme.Account{ExternalAccountBinding: i.EAB}
 	if i.Contact != "" {
 		if strings.ContainsAny(i.Contact, " ,?;:/\\") || !strings.Contains(i.Contact, "@") {
@@ -417,10 +499,10 @@ func (i Issuer) client(ctx context.Context) (*acme.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(CustodyDir(i.Workspace), 0o700); err != nil {
+	if err := os.MkdirAll(i.Profile.custodyDir(i.Workspace), 0o700); err != nil {
 		return nil, err
 	}
-	return client, writeAtomic(path, raw, 0o600, -1, -1)
+	return client, writeAtomic(i.Profile.custodyDir(i.Workspace), accountName, raw, 0o600, -1, -1)
 }
 
 // install verifies the chain (against the system roots, for server
@@ -434,9 +516,14 @@ func (i Issuer) install(chain [][]byte, key *ecdsa.PrivateKey) error {
 	if err != nil {
 		return err
 	}
+	profile := i.Profile.orLAN()
+	wantNames := slices.Clone(profile.Names(i.Domain))
+	gotNames := slices.Clone(leaf.DNSNames)
+	slices.Sort(wantNames)
+	slices.Sort(gotNames)
 	public, ok := leaf.PublicKey.(*ecdsa.PublicKey)
-	if !ok || !public.Equal(key.Public()) || !slices.Equal(leaf.DNSNames, []string{LANName(i.Domain)}) {
-		return errors.New("lancert: the issued certificate does not match the node's key and LAN name")
+	if !ok || !public.Equal(key.Public()) || !slices.Equal(gotNames, wantNames) {
+		return errors.New("lancert: the issued certificate does not match the node's key and names")
 	}
 	if !untrustedDirectories[i.Directory] {
 		intermediates := x509.NewCertPool()
@@ -447,8 +534,8 @@ func (i Issuer) install(chain [][]byte, key *ecdsa.PrivateKey) error {
 			}
 			intermediates.AddCert(certificate)
 		}
-		if _, err := leaf.Verify(x509.VerifyOptions{DNSName: LANName(i.Domain), Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {
-			return fmt.Errorf("lancert: the issued chain is not publicly trusted for the LAN name: %w", err)
+		if _, err := leaf.Verify(x509.VerifyOptions{DNSName: profile.checkName(i.Domain), Intermediates: intermediates, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {
+			return fmt.Errorf("lancert: the issued chain is not publicly trusted for the certificate's names: %w", err)
 		}
 	}
 	keyDER, err := x509.MarshalECPrivateKey(key)
@@ -462,14 +549,14 @@ func (i Issuer) install(chain [][]byte, key *ecdsa.PrivateKey) error {
 	if _, err := tls.X509KeyPair(certPEM, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})); err != nil {
 		return err
 	}
-	live := LiveDir(i.Workspace)
-	if err := os.MkdirAll(live, 0o755); err != nil {
+	custody := profile.custodyDir(i.Workspace)
+	if err := mkdirCustody(custody, liveDirName, 0o755); err != nil {
 		return err
 	}
-	if err := writeAtomic(filepath.Join(live, keyName), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600, i.KeyUID, i.KeyGID); err != nil {
+	if err := writeAtomic(custody, liveDirName+"/"+keyName, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}), 0o600, i.KeyUID, i.KeyGID); err != nil {
 		return err
 	}
-	return writeAtomic(filepath.Join(live, certName), certPEM, 0o644, -1, -1)
+	return writeAtomic(custody, liveDirName+"/"+certName, certPEM, 0o644, -1, -1)
 }
 
 // Renew renews an issued LAN certificate within 30 days of its expiry with
@@ -478,7 +565,12 @@ func (i Issuer) install(chain [][]byte, key *ecdsa.PrivateKey) error {
 // every tunnel teardown, and the site address can move. A node that never
 // issued one has nothing to renew or publish.
 func Renew(ctx context.Context, workspace, domain string, publisher Publisher, keyUID, keyGID int) (bool, error) {
-	raw, err := readLimited(filepath.Join(CustodyDir(workspace), accountName))
+	return RenewProfile(ctx, workspace, LAN, domain, publisher, keyUID, keyGID)
+}
+
+// RenewProfile is Renew for a profile.
+func RenewProfile(ctx context.Context, workspace string, profile Profile, domain string, publisher Publisher, keyUID, keyGID int) (bool, error) {
+	raw, err := readLimited(filepath.Join(profile.custodyDir(workspace), accountName))
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -490,34 +582,31 @@ func Renew(ctx context.Context, workspace, domain string, publisher Publisher, k
 		!slices.Contains(slices.Collect(maps.Values(Issuers)), stored.Directory) {
 		return false, errors.New("lancert: the ACME account in custody is invalid or names an unlisted issuer")
 	}
-	if !NeedsRenewal(workspace, domain, time.Now()) {
+	if !NeedsRenewalProfile(workspace, profile, domain, time.Now()) {
+		if !profile.orLAN().PublishAddress {
+			return false, nil
+		}
 		return false, publishHeld(ctx, workspace, domain, publisher)
 	}
-	_, err = Issuer{Workspace: workspace, Domain: domain, Directory: stored.Directory, Publisher: publisher, KeyUID: keyUID, KeyGID: keyGID}.Issue(ctx)
+	_, err = Issuer{Profile: profile, Workspace: workspace, Domain: domain, Directory: stored.Directory, Publisher: publisher, KeyUID: keyUID, KeyGID: keyGID}.Issue(ctx)
 	return err == nil, err
 }
 
 // Remove deletes the certificate, its key and the ACME account key under the
 // custody lock. The live directory itself stays: the Basement core mounts it.
-func Remove(workspace string) error {
-	if err := os.MkdirAll(CustodyDir(workspace), 0o700); err != nil {
+func Remove(workspace string) error { return RemoveProfile(workspace, LAN) }
+
+// RemoveProfile is Remove for a profile.
+func RemoveProfile(workspace string, profile Profile) error {
+	if err := os.MkdirAll(profile.custodyDir(workspace), 0o700); err != nil {
 		return err
 	}
-	unlock, err := localevidence.AcquireCustodyLock(workspace, accountRelPath, 6000)
+	unlock, err := localevidence.AcquireCustodyLock(workspace, profile.accountRel(), 6000)
 	if err != nil {
-		return fmt.Errorf("lancert: another issuance holds the LAN certificate custody: %w", err)
+		return fmt.Errorf("lancert: another issuance holds the certificate custody: %w", err)
 	}
 	defer unlock()
-	var errs []error
-	for _, path := range []string{
-		filepath.Join(LiveDir(workspace), certName), filepath.Join(LiveDir(workspace), keyName),
-		filepath.Join(CustodyDir(workspace), accountName),
-	} {
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
+	return RemoveConfined(profile.custodyDir(workspace), liveDirName+"/"+certName, liveDirName+"/"+keyName, accountName)
 }
 
 // AuthoritativeTXT waits until every authoritative name server of the zone
@@ -585,26 +674,79 @@ func readLimited(path string) ([]byte, error) {
 	return raw, nil
 }
 
-func writeAtomic(path string, raw []byte, mode os.FileMode, uid, gid int) error {
-	temp, err := os.CreateTemp(filepath.Dir(path), ".lan-tls-*")
+// A profile's custody directory (and the router policy directory) is handed to
+// the identity signer's account after the first issuance, while root keeps
+// writing into it (issue, remove, apply). Every write and removal there goes
+// through an os.Root opened on that directory, whose own entry stays in a
+// root-owned parent: a symlink planted inside (live, a file name) cannot
+// redirect a root write or removal out of it.
+
+// WriteConfined writes name under dir atomically (a new temporary file beside
+// it, fsync, rename), confined to dir. A uid of -1 keeps the writer's owner.
+func WriteConfined(dir, name string, raw []byte, mode os.FileMode, uid, gid int) error {
+	return writeAtomic(dir, name, raw, mode, uid, gid)
+}
+
+// RemoveConfined removes the named files under dir, confined to dir; a
+// missing file or directory is no error.
+func RemoveConfined(dir string, names ...string) error {
+	root, err := os.OpenRoot(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	defer os.Remove(temp.Name())
-	if err = temp.Chmod(mode); err == nil {
-		_, err = temp.Write(raw)
+	defer root.Close()
+	var errs []error
+	for _, name := range names {
+		if err := root.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func mkdirCustody(dir, name string, mode os.FileMode) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return root.MkdirAll(name, mode)
+}
+
+func writeAtomic(dir, name string, raw []byte, mode os.FileMode, uid, gid int) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	var suffix [8]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		return err
+	}
+	// O_EXCL: an entry planted under the temporary name fails the write.
+	temp := filepath.Join(filepath.Dir(filepath.FromSlash(name)), ".custody-"+hex.EncodeToString(suffix[:]))
+	file, err := root.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Remove(temp) }()
+	if err = file.Chmod(mode); err == nil {
+		_, err = file.Write(raw)
 	}
 	if err == nil && uid >= 0 {
-		err = temp.Chown(uid, gid)
+		err = file.Chown(uid, gid)
 	}
 	if err == nil {
-		err = temp.Sync()
+		err = file.Sync()
 	}
-	if closeErr := temp.Close(); err == nil {
+	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}
 	if err != nil {
 		return err
 	}
-	return os.Rename(temp.Name(), path)
+	return root.Rename(temp, filepath.FromSlash(name))
 }

@@ -35,7 +35,7 @@ func newReachCommand() *cobra.Command {
 			"session are verified here. A local-only homelab (lab.home) has no reach path.",
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	}
-	command.AddCommand(newReachRegistrationCommand(), newReachEnableCommand(), newReachDisableCommand(), newReachStatusCommand(), newReachLANCertificateCommand())
+	command.AddCommand(newReachRegistrationCommand(), newReachEnableCommand(), newReachDisableCommand(), newReachStatusCommand(), newReachLANCertificateCommand(), newReachPublicCertificateCommand())
 	return command
 }
 

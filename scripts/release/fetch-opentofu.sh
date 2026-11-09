@@ -16,10 +16,29 @@ sha256_of() {
   fi
 }
 
+download() {
+  url="$1"
+  destination="$2"
+  phase="$3"
+  echo "Downloading OpenTofu ${TOFU_VERSION} ${phase}: ${url}"
+  # A stalled upstream transfer must fail before the archive job expires.
+  # Curl retries transient HTTP/transport failures, retaining the same asset.
+  if curl -fsSL --connect-timeout 15 --max-time 120 \
+    --speed-limit 1024 --speed-time 30 \
+    --retry 2 --retry-delay 2 --retry-max-time 180 --retry-connrefused \
+    "$url" -o "$destination"; then
+    echo "Downloaded OpenTofu ${TOFU_VERSION} ${phase}"
+  else
+    status="$?"
+    echo "OpenTofu download failed (${phase}, curl exit ${status}): ${url}" >&2
+    return "$status"
+  fi
+}
+
 # Every archive is checked against the upstream SHA256SUMS of the pinned
 # release before it is unpacked.
 SUMS="${DOWNLOAD_DIR}/tofu_${TOFU_VERSION}_SHA256SUMS"
-curl -fsSL "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS" -o "$SUMS"
+download "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_SHA256SUMS" "$SUMS" checksums
 
 verify_archive() {
   archive="$1"
@@ -50,7 +69,7 @@ fetch_one() {
 
   mkdir -p "$target_dir"
   echo "Fetching OpenTofu ${TOFU_VERSION} for ${os}/${arch}"
-  curl -fsSL "$url" -o "$archive"
+  download "$url" "$archive" "${os}/${arch} archive"
   verify_archive "$archive"
   tar -xzf "$archive" -C "$target_dir" "$binary"
   chmod 755 "${target_dir}/${binary}"

@@ -50,8 +50,10 @@ type BrowserSessionVerifier interface {
 	VerifyBrowserSession(ctx context.Context, host string, request *http.Request) (Principal, error)
 }
 
-// AgentRequest is what the gate can bind an agent envelope to. Forward-auth
-// carries no body, so the body hash is verified by the endpoint.
+// AgentRequest is what the gate can bind an agent envelope to: the method and
+// the target from the route origin of the gate's own table and the request
+// path. Forward-auth carries no body, so the body hash is verified by the
+// endpoint.
 type AgentRequest struct {
 	Method   string
 	Target   string
@@ -280,11 +282,7 @@ func (g *Gate) Decide(ctx context.Context, request Request) Decision {
 		}
 		return Decision{Allow: true, Status: http.StatusOK, Headers: headers}
 	case AuthenticationAgent:
-		principal, err := g.agents.VerifyAgentEnvelope(ctx, AgentRequest{Method: method, Target: target, Envelope: request.Header.Get(HeaderAgentEnvelope)})
-		if err != nil {
-			return deny(http.StatusUnauthorized, "agent_envelope_unverified")
-		}
-		return g.admit(route, principal, headers, false)
+		return g.agent(ctx, route, method, target, remote, request.Header, headers)
 	case AuthenticationHuman:
 		if !remote {
 			// On the LAN listener TinyAuth, the next forward-auth in the
@@ -324,6 +322,33 @@ func (g *Gate) Decide(ctx context.Context, request Request) Decision {
 		return g.admit(route, principal, headers, !remote && route.IngressAuth == IngressForwardAuth)
 	}
 	return deny(http.StatusForbidden, "authentication_unknown")
+}
+
+// agent decides an agent route (homelab identity target §7). The envelope
+// is verified against the Gateway key pinned at linking and mapped to the
+// Homelab account it acts for; that account's groups are the ceiling. On
+// allow the verified envelope goes to the endpoint, which checks the body
+// hash and consumes the gate's admission. On the LAN listener a request
+// without an envelope reaches an endpoint with native authentication (the
+// node /mcp token of the Owner's local agents); on the remote listener an
+// agent route needs the envelope.
+func (g *Gate) agent(ctx context.Context, route Route, method, target string, remote bool, request, headers http.Header) Decision {
+	envelopes := request.Values(HeaderGatewayAgentEnvelope)
+	if len(envelopes) == 0 && !remote && route.IngressAuth == IngressNative {
+		return Decision{Allow: true, Status: http.StatusOK, Headers: headers}
+	}
+	if len(envelopes) != 1 {
+		return deny(http.StatusUnauthorized, "agent_envelope_unverified")
+	}
+	principal, err := g.agents.VerifyAgentEnvelope(ctx, AgentRequest{Method: method, Target: target, Envelope: envelopes[0]})
+	if err != nil || principal.Device != "" {
+		return deny(http.StatusUnauthorized, "agent_envelope_unverified")
+	}
+	decision := g.admit(route, principal, headers, false)
+	if decision.Allow {
+		decision.Headers.Set(HeaderAgentEnvelope, envelopes[0])
+	}
+	return decision
 }
 
 // remoteHuman accepts only a per-request device proof, an app pass on a

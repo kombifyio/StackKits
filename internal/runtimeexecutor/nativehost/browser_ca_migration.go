@@ -11,8 +11,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
@@ -59,7 +61,26 @@ func RebindBasementBrowserCAIngress(ctx context.Context, workspace string) error
 		return err
 	}
 	defer tx.Close()
-	before, _, err := tx.ReadStableBounded("acme.json", 4<<20)
+	// Both ACME stores the router may hold, the active one first: leaves in
+	// the inactive one (acme-public.json exists only once the public-names
+	// certificate served the node) are loaded again when the router switches
+	// back to it.
+	for _, store := range localevidence.RouterACMEStoreNames(workspace) {
+		if err := rebindBrowserCAStore(ctx, workspace, root, tx, volume.Name, store, previous, next); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// rebindBrowserCAStore rebinds the leaves of one ACME store and journals the
+// original generation beside the runtime; a store not created yet is skipped.
+func rebindBrowserCAStore(ctx context.Context, workspace string, root *confinedfs.Root, tx *confinedfs.Transaction, volumeName, store string, previous, next []byte) error {
+	before, _, err := tx.ReadStableBounded(store, 4<<20)
+	if errors.Is(err, os.ErrNotExist) {
+		// No leaf was ordered into this store yet: nothing to rebind.
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -92,7 +113,7 @@ func RebindBasementBrowserCAIngress(ctx context.Context, workspace string) error
 		Volume   string `json:"volume"`
 		Previous []byte `json:"previous"`
 		Updated  []byte `json:"updated"`
-	}{volume.Name, before, after}
+	}{volumeName, before, after}
 	evidence, err := json.Marshal(record)
 	if err != nil {
 		return err
@@ -108,21 +129,21 @@ func RebindBasementBrowserCAIngress(ctx context.Context, workspace string) error
 	if err != nil {
 		return err
 	}
-	if _, err := privateView.WriteAtomic0600(".stackkit/runtime/basement-core/browser-ca-acme-recovery.json", journal); err != nil {
+	if _, err := privateView.WriteAtomic0600(".stackkit/runtime/basement-core/browser-ca-"+strings.TrimSuffix(store, ".json")+"-recovery.json", journal); err != nil {
 		return err
 	}
 	view, err := root.View(".")
 	if err != nil {
 		return err
 	}
-	current, _, err := tx.ReadStableBounded("acme.json", 4<<20)
+	current, _, err := tx.ReadStableBounded(store, 4<<20)
 	if err != nil {
 		return err
 	}
 	if !bytes.Equal(current, before) {
 		return errors.New("native ACME custody changed after router stop")
 	}
-	_, err = view.WriteAtomic0600("acme.json", after)
+	_, err = view.WriteAtomic0600(store, after)
 	return err
 }
 

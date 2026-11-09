@@ -31,6 +31,10 @@ type homeAssistantConnectorExport struct {
 	ReceiptBase64          string                                                `json:"receiptBase64"`
 	ReceiptDigest          string                                                `json:"receiptDigest"`
 	CurrentLocalDeployment applicationlifecycle.HomeAssistantConnectorDeployment `json:"currentLocalDeployment"`
+	// CurrentIssuer is Owner-signed issuer evidence of the credential
+	// generation the node holds now (an active connector only); the signed
+	// receipt keeps the generation of setup.
+	CurrentIssuer *appsetup.HomeAssistantConnectorEvidence `json:"currentIssuer,omitempty"`
 }
 
 // These private dependencies isolate daemon observation in the public CLI
@@ -80,7 +84,7 @@ func newHomeAssistantConnectorCommand(dependencies *homeAssistantConnectorDepend
 	command.Flags().StringVar(&requestFile, "request-file", "", "Workspace-relative private metadata-only connector request JSON; never contains credentials")
 	command.Flags().StringVar(&operationID, "operation-id", "", "Exact stable connector setup operation identity")
 	command.Flags().BoolVar(&approved, "owner-approve", false, "Approve this exact connector ensure or revoke request")
-	command.Flags().BoolVar(&verifyOnly, "verify-only", false, "Read and verify a retained receipt against current local binding without issuing or revoking")
+	command.Flags().BoolVar(&verifyOnly, "verify-only", false, "Read and verify a retained receipt against current local binding without issuing or revoking; an active credential is rotated at half-life")
 	command.Flags().BoolVar(&outputJSON, "json", false, "Emit the authenticated exact signed receipt bytes and current local facts")
 	return command
 }
@@ -159,6 +163,14 @@ func verifyHomeAssistantConnectorSetup(ctx context.Context, workspace, workload,
 			})
 			return appsetup.HomeAssistantOwnerResult{UserID: result.AccountRef, Version: result.ApplicationVersion, Connector: &result.HomeAssistantConnector.Issuer}, err
 		})
+		var currentIssuer *appsetup.HomeAssistantConnectorEvidence
+		if err == nil && result.HomeAssistantConnector.Issuer.Status == "active" {
+			err = withHTTP(ctx, workspace, deployment, func(_ *http.Client, origin string) error {
+				evidence, evidenceErr := appsetup.CurrentHomeAssistantConnectorEvidence(request, origin, deployment.Release)
+				currentIssuer = evidence
+				return evidenceErr
+			})
+		}
 		if err != nil {
 			return err
 		}
@@ -176,7 +188,7 @@ func verifyHomeAssistantConnectorSetup(ctx context.Context, workspace, workload,
 			return errors.New("connector signed receipt exceeds 64 KiB")
 		}
 		digest := sha256.Sum256(raw)
-		exported = homeAssistantConnectorExport{SchemaVersion: homeAssistantConnectorResultSchema, SignatureVerified: true, ReceiptBase64: base64.StdEncoding.EncodeToString(raw), ReceiptDigest: "sha256:" + hex.EncodeToString(digest[:]), CurrentLocalDeployment: verified.VerifiedLocalDeployment}
+		exported = homeAssistantConnectorExport{SchemaVersion: homeAssistantConnectorResultSchema, SignatureVerified: true, ReceiptBase64: base64.StdEncoding.EncodeToString(raw), ReceiptDigest: "sha256:" + hex.EncodeToString(digest[:]), CurrentLocalDeployment: verified.VerifiedLocalDeployment, CurrentIssuer: currentIssuer}
 		return nil
 	})
 	return exported, err

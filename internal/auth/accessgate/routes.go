@@ -56,6 +56,8 @@ const (
 	HeaderAuthorization = accessgatetable.HeaderAuthorization
 	HeaderDPoP          = accessgatetable.HeaderDPoP
 	HeaderAgentEnvelope = accessgatetable.HeaderAgentEnvelope
+	// HeaderGatewayAgentEnvelope carries the agent's Gateway-signed envelope.
+	HeaderGatewayAgentEnvelope = accessgatetable.HeaderGatewayAgentEnvelope
 	// HeaderAppPass carries an app pass; the router strips it before the backend.
 	HeaderAppPass = accessgatetable.HeaderAppPass
 )

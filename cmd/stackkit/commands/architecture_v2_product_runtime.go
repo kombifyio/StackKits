@@ -662,6 +662,14 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 			}
 		}
 	} else {
+		// A standalone Home core realizes private-remote-access through the
+		// standard reach paths; an Inventory-backed channel keeps the
+		// process-dispatched owner of its orchestrator.
+		remoteAccess, err := architecturev2.NewProductHomePrivateRemoteAccessRegistration(runtimeVersion, nativehost.NewOSHomePrivateRemoteAccessOperations(workspaceRoot))
+		if err != nil {
+			return nil, fmt.Errorf("register the local private-remote-access owner: %w", err)
+		}
+		registrations = append(registrations, remoteAccess)
 		komodo, err := architectureV2LocalKomodoRegistrations(workspaceRoot, runtimeVersion)
 		if err != nil {
 			return nil, fmt.Errorf("register local Komodo application owners: %w", err)

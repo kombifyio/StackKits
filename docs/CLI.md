@@ -33,13 +33,8 @@ export STACKKIT_RELEASE_VERSION=v0.17.0-beta.1
 curl -sSL https://base.stackkit.cc | sh
 ```
 
-To get builds the StackKits team switched live before the next stable release,
-choose the Early Access channel (`stable` is the default); `stackkit channel set
-stable` returns later:
-
-```bash
-curl -sSL https://install.stackkit.cc | sh -s -- --channel early-access
-```
+StackKits ships Stable only, through the release train; there is no Early
+Access or Nightly channel (D-2026-11-07-07).
 
 For a single copy/paste command, pass the pin to the shell that executes the
 installer:
@@ -139,7 +134,6 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `relocate` | Plan, check, drain, send and receive Coolify workloads moving to another server, with the pinned coolify-mirror engine and a Wallet-delivered transfer secret. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
-| `channel` | Show or set the release channel, `stable` (default) or `early-access`. |
 
 Publisher-only Git/CUE `module`, Kit artifact, and strict parity operations are
 not part of this public command tree. They compile only into the private
@@ -1619,19 +1613,6 @@ Generates shell completion scripts from Cobra.
 ### `stackkit version`
 
 Prints version, commit, build date, Go version, and target OS/arch.
-
-### `stackkit channel [set stable|early-access]`
-
-Without arguments shows the release channel (default `stable`); `stackkit
-channel set <stable|early-access>` stores the choice in `~/.stackkits/channel`.
-The installer reads that file (or `install.sh --channel`, or `STACKKIT_CHANNEL`)
-and fetches the newest release of the channel. `early-access` installs the
-newest unsigned Early Access prerelease the team switched live, or the newest
-stable release when that is newer (`docs/RELEASE.md`, "Release channels"); a
-withdrawn Early Access build is rolled back on the next install. Returning to
-`stable` never downgrades a running prerelease, it waits for a stable release
-at least as new. An unknown value fails closed. `stackkit upgrade` stays on the
-signed stable/beta/edge releases and does not follow Early Access.
 
 ## Files Created by the CLI
 

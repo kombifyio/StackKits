@@ -70,8 +70,10 @@ func ServeHomeAuthoritySigner(ctx context.Context, root, socketPath string, peer
 	}
 	go keepHomeAuthorityPublicCurrent(ctx, absolute)
 	go KeepHomePublicTrustCurrent(ctx, absolute)
+	go KeepHomeEnrollmentTrustCurrent(ctx, absolute)
 	go keepHomeAccountGroupsCurrent(ctx, absolute)
 	go keepHomeLANCertificateCurrent(ctx, absolute)
+	go keepHomePublicCertificateCurrent(ctx, absolute)
 	if err := SyncRecoveryNoticeProjection(absolute); err != nil {
 		slog.Warn("recovery notices were not projected", "error", err)
 	}

@@ -247,6 +247,14 @@ func WriteRecoverySet(root string, volumes []RecoveryVolumeSource, out io.Writer
 	if err := encrypted.Close(); err != nil {
 		return RecoverySetManifest{}, err
 	}
+	// The Owner setup re-evaluates the recovery step against the current
+	// identity origin: after a domain move only a set of the new origin counts.
+	if err := updateRecoveryState(root, false, func(state *recoveryState, _ bool) error {
+		state.LastSet = &recoverySetRecord{WrittenAt: manifest.CreatedAt, IdentityOrigin: manifest.IdentityOrigin}
+		return nil
+	}); err != nil {
+		return RecoverySetManifest{}, fmt.Errorf("identity: record the written recovery set: %w", err)
+	}
 	return manifest, nil
 }
 

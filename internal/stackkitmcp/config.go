@@ -31,7 +31,11 @@ type Options struct {
 	// mutating call, so every write of that agent needs per-call owner
 	// approval and a revoke takes effect on its next call.
 	AgentToken string
-	BaseDir    string
+	// AgentEnvelopes verifies the agent envelopes the Access Gate admitted
+	// (stackkit-server with the identity workspace). Without it a request
+	// that carries one is refused.
+	AgentEnvelopes AgentEnvelopeVerifier
+	BaseDir        string
 	// PinBaseDir confines every tool to BaseDir. A remote caller then cannot
 	// point base_dir at other paths of the host or container.
 	PinBaseDir bool

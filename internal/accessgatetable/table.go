@@ -35,6 +35,11 @@ const (
 	HeaderAuthorization = "Authorization"
 	HeaderDPoP          = "DPoP"
 	HeaderAgentEnvelope = "Stackkit-Agent-Envelope"
+	// HeaderGatewayAgentEnvelope is where an agent sends the Gateway-signed
+	// envelope (Gateway ADR 0042). The gate reads it and, on allow, hands the
+	// verified envelope to the endpoint as HeaderAgentEnvelope, the name the
+	// router replaces; the endpoint never reads this one.
+	HeaderGatewayAgentEnvelope = "X-Kombify-Agent-Envelope"
 	// HeaderAppPass carries a device's app pass (homelab identity target
 	// §6.3); the gate never returns it, so the router strips it.
 	HeaderAppPass = "Stackkit-App-Pass"
@@ -264,8 +269,9 @@ func (r Route) validate() error {
 		return errors.New("a privileged route needs human+device or agent")
 	case r.Authentication == AuthenticationWorkload && r.IngressAuth != IngressNative:
 		return errors.New("a workload credential is verified natively by its endpoint")
-	case r.Privilege != PrivilegeUser && r.Privilege != PrivilegeSignIn && r.Authentication == AuthenticationHumanDevice && len(r.Groups) == 0:
-		return errors.New("a privileged route a person reaches needs its group ceiling")
+	case r.Privilege != PrivilegeUser && r.Privilege != PrivilegeSignIn &&
+		(r.Authentication == AuthenticationHumanDevice || r.Authentication == AuthenticationAgent) && len(r.Groups) == 0:
+		return errors.New("a privileged route a person or an agent reaches needs its group ceiling")
 	case r.IdentityAdministration != "" && (r.IdentityAdministration != IdentityAdministrationPocketID || r.Privilege != PrivilegeSignIn):
 		return errors.New("identity administration is classified only on the Pocket ID sign-in surface")
 	case r.AdministrationRemoteOptIn && r.IdentityAdministration == "":

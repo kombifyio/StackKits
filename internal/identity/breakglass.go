@@ -73,6 +73,10 @@ const (
 	RecoveryNoticeCodeRotated  = "recovery-code-rotated"
 	RecoveryNoticeRotated      = "recovery-rotated"
 	RecoveryNoticeRestored     = "recovery-restored"
+	// RecoveryNoticePublicCertificateRenewalFailing tells the Owner devices
+	// that the public-names certificate expires within 14 days because its
+	// renewals keep failing (kombify-StackKits-igti.15); one per certificate.
+	RecoveryNoticePublicCertificateRenewalFailing = "public-certificate-renewal-failing"
 
 	recoveryStatePath   = ".stackkit/custody/recovery/state.json"
 	recoveryStateSchema = "stackkit.identity-recovery-state/v1"
@@ -133,7 +137,10 @@ type RecoveryNotice struct {
 	Origin     string     `json:"origin"`
 	RequestID  string     `json:"requestId,omitempty"`
 	EligibleAt *time.Time `json:"eligibleAt,omitempty"`
-	CreatedAt  time.Time  `json:"createdAt"`
+	// CertificateExpiresAt is the expiry of the public-names certificate a
+	// renewal-failing notice warns about.
+	CertificateExpiresAt *time.Time `json:"certificateExpiresAt,omitempty"`
+	CreatedAt            time.Time  `json:"createdAt"`
 }
 
 // RecoveryStatus is the secret-free recovery state of the Authority.
@@ -144,6 +151,11 @@ type RecoveryStatus struct {
 	CodeIssuedAt time.Time        `json:"codeIssuedAt,omitzero"`
 	CodeConsumed bool             `json:"codeConsumed"`
 	Pending      *RecoveryRequest `json:"pending,omitempty"`
+	// SetWrittenAt and SetIdentityOrigin describe the last recovery set this
+	// Authority wrote: a set binds the identity origin it was written under,
+	// so after a domain move only a set of the new origin restores it.
+	SetWrittenAt      time.Time `json:"setWrittenAt,omitzero"`
+	SetIdentityOrigin string    `json:"setIdentityOrigin,omitempty"`
 }
 
 // RecoveryPasskeyLink is the Pocket ID one-time link a redeemed code yields.
@@ -185,6 +197,14 @@ type recoveryState struct {
 	Pending        *RecoveryRequest   `json:"pending,omitempty"`
 	DeviceFailures []time.Time        `json:"deviceFailures,omitempty"`
 	Notices        []RecoveryNotice   `json:"notices"`
+	// LastSet records the last recovery set written (its time and identity
+	// origin); it holds no secret.
+	LastSet *recoverySetRecord `json:"lastSet,omitempty"`
+}
+
+type recoverySetRecord struct {
+	WrittenAt      time.Time `json:"writtenAt"`
+	IdentityOrigin string    `json:"identityOrigin"`
 }
 
 // SetupRecovery creates the recovery key and code once and returns both for a
@@ -259,10 +279,14 @@ func LoadRecoveryStatus(root string) (RecoveryStatus, error) {
 	if err != nil {
 		return RecoveryStatus{}, err
 	}
-	return RecoveryStatus{
+	status := RecoveryStatus{
 		Configured: true, Recipient: state.Recipient, ConfiguredAt: state.ConfiguredAt,
 		CodeIssuedAt: state.Code.IssuedAt, CodeConsumed: state.Code.ConsumedAt != nil, Pending: state.Pending,
-	}, nil
+	}
+	if state.LastSet != nil {
+		status.SetWrittenAt, status.SetIdentityOrigin = state.LastSet.WrittenAt, state.LastSet.IdentityOrigin
+	}
+	return status, nil
 }
 
 // ListRecoveryNotices returns the recovery notices, newest first. This is the

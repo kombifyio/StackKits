@@ -3748,45 +3748,6 @@
       "subcommands": []
     },
     {
-      "path": "stackkit channel",
-      "name": "channel",
-      "parent": "stackkit",
-      "aliases": [],
-      "group": "reference",
-      "usage": "stackkit channel [flags]",
-      "short": "Show or set the release channel (stable or early-access)",
-      "description": "Show which release channel this machine follows.\n\nstable is the default. early-access is the opt-in channel: it gets builds the\nStackKits team switched live before they become the next stable release, and\nthe newest stable release whenever that is newer. Early Access builds are\nunsigned prereleases. The choice is stored in ~/.stackkits/channel and read by\nthe installer (install.sh), which fetches the newest release of that channel.",
-      "runnable": true,
-      "examples": [
-        {
-          "command": "stackkit channel",
-          "description": "Show the current channel"
-        },
-        {
-          "command": "stackkit channel set early-access",
-          "description": "Follow Early Access, then re-run the installer"
-        }
-      ],
-      "flags": [],
-      "subcommands": [
-        "stackkit channel set"
-      ]
-    },
-    {
-      "path": "stackkit channel set",
-      "name": "set",
-      "parent": "stackkit channel",
-      "aliases": [],
-      "group": "reference",
-      "usage": "stackkit channel set <stable|early-access> [flags]",
-      "short": "Choose the release channel",
-      "description": "",
-      "runnable": true,
-      "examples": [],
-      "flags": [],
-      "subcommands": []
-    },
-    {
       "path": "stackkit cluster",
       "name": "cluster",
       "parent": "stackkit",
@@ -3960,7 +3921,7 @@
       "group": "reference",
       "usage": "stackkit device bootstrap [flags]",
       "short": "Print the LAN enrollment bootstrap a device client scans (listener URL, TLS name, root fingerprint)",
-      "description": "Print where the LAN enrollment listener is, which server name its certificate carries and the step-ca root fingerprint a device pins, as JSON and as the stackkit-enroll URI. It contains no secret: a device enrolls only with its person's own passkey sign-in.",
+      "description": "Print where the LAN enrollment listener is, which server name its certificate carries and the step-ca root fingerprint a device pins, as JSON and as the stackkit-enroll URI, and the Companion enrollment address: the Hub origin with the Owner key fingerprint (#okf=), which a person enters in the Companion so it trusts the Owner-signed listener and root even when the Hub is reached through an edge. It contains no secret: a device enrolls only with its person's own passkey sign-in.",
       "runnable": true,
       "examples": [],
       "flags": [],
@@ -6353,10 +6314,116 @@
       "examples": [],
       "flags": [],
       "subcommands": [
+        "stackkit identity agent-link",
         "stackkit identity join",
         "stackkit identity projection",
         "stackkit identity workload-peer"
       ]
+    },
+    {
+      "path": "stackkit identity agent-link",
+      "name": "agent-link",
+      "parent": "stackkit identity",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity agent-link [flags]",
+      "short": "Pin, show or remove the Gateway key that kombify agent envelopes are verified against",
+      "description": "A kombify agent reaches this node's /mcp with a Gateway-signed envelope that the Access Gate verifies against the key pinned here at linking and maps through the D10 reference to a Homelab account. Techstack delivers the link over the Guard when the server is registered as a Connect node and whenever the key or the linked members change. install pins the key document for this node's own Guard enrollment and maps the owner's kombify subject to the Owner of this node's custody and each linked member to their account. Pinning a key, re-keying and changing the owner need the Owner's passkey step-up in the Hub (the request waits up to --wait and stays open for five minutes; a later dispatch picks up the approval); a change of the linked members under the pinned key does not. A higher binding generation or a new Gateway key id replaces the pin; an unchanged request changes nothing. remove deletes the pin when the node is unlinked, status shows what is pinned.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit identity agent-link install",
+        "stackkit identity agent-link remove",
+        "stackkit identity agent-link status"
+      ]
+    },
+    {
+      "path": "stackkit identity agent-link install",
+      "name": "install",
+      "parent": "stackkit identity agent-link",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity agent-link install [flags]",
+      "short": "Pin the Gateway agent envelope key and the D10 references of this node",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "expect-sha256",
+          "type": "string",
+          "description": "Required: the sha256:<hex> digest of the file's exact bytes (the request Techstack dispatched)",
+          "required": false
+        },
+        {
+          "name": "file",
+          "type": "string",
+          "description": "Workspace-relative stackkit.home-agent-link-request/v1 JSON (no secret: the public key, the owner's kombify subject and the linked members' kombify subjects and Pocket ID usernames)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the pinned link as a command result",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve pinning this key for agent access to this node (a new key or owner also needs the Owner's passkey step-up)",
+          "required": false
+        },
+        {
+          "name": "wait",
+          "type": "duration",
+          "default": "5m0s",
+          "description": "How long to wait for the Owner's passkey step-up when one is needed; the request stays open after a shorter wait",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity agent-link remove",
+      "name": "remove",
+      "parent": "stackkit identity agent-link",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity agent-link remove [flags]",
+      "short": "Delete the pinned Gateway key; every agent envelope is refused afterwards",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the result as a command result",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve removing agent access to this node",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit identity agent-link status",
+      "name": "status",
+      "parent": "stackkit identity agent-link",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit identity agent-link status [flags]",
+      "short": "Show the pinned node, server, key thumbprint, generation and mapped accounts",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
     },
     {
       "path": "stackkit identity join",
@@ -9005,6 +9072,7 @@
         "stackkit reach disable",
         "stackkit reach enable",
         "stackkit reach lan-certificate",
+        "stackkit reach public-certificate",
         "stackkit reach registration",
         "stackkit reach status"
       ]
@@ -9136,6 +9204,114 @@
       "group": "reference",
       "usage": "stackkit reach lan-certificate status [flags]",
       "short": "Show the installed LAN certificate (names, issuer, expiry; never the key)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach public-certificate",
+      "name": "public-certificate",
+      "parent": "stackkit reach",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach public-certificate [flags]",
+      "short": "The publicly trusted certificate of a public identity origin (*.<name>) the router serves",
+      "description": "Without it, the router of a public identity origin serves certificates of the node's own step-ca, which only a device with the Owner root trusts. With it, id.<name>, base.<name> and every other host are served with a publicly trusted certificate, so a browser on the LAN needs no installed root. The identity signer renews it. A local-only homelab (lab.home) keeps step-ca.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit reach public-certificate issue",
+        "stackkit reach public-certificate remove",
+        "stackkit reach public-certificate status"
+      ]
+    },
+    {
+      "path": "stackkit reach public-certificate issue",
+      "name": "issue",
+      "parent": "stackkit reach public-certificate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach public-certificate issue [flags]",
+      "short": "Obtain or renew the public-names certificate through ACME DNS-01 (requires root)",
+      "description": "kombify.me names use kombify Me's responder (the Me registration is in custody). An own domain uses Cloudflare with a token limited to the domain's zone, Zone:Read and DNS:Edit (Zone:Read finds the zone): --dns-token-file copies it into Owner custody, --dns-wallet-item copies a Wallet item already delivered to this node (stackkit wallet-item import) the same way. A later issue without a token flag reuses the recorded provider. Issuers: zerossl and gts need external account binding (--eab-kid and --eab-hmac-file) for a new ACME account; letsencrypt-staging serves tests only (its chain is not trusted). The key stays on this node.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit reach public-certificate issue --issuer gts --email owner@example.org --eab-kid KID --eab-hmac-file eab.key\nsudo stackkit reach public-certificate issue --dns-token-file cf-dns.token --issuer zerossl --eab-kid KID --eab-hmac-file eab.key"
+        }
+      ],
+      "flags": [
+        {
+          "name": "dns-provider",
+          "type": "string",
+          "description": "DNS-01 provider: kombify-me (the default for a kombify.me name) or cloudflare (the default for an own domain)",
+          "required": false
+        },
+        {
+          "name": "dns-token-file",
+          "type": "string",
+          "description": "file holding the Cloudflare API token (Zone:Read and DNS:Edit on the zone); copied into Owner custody",
+          "required": false
+        },
+        {
+          "name": "dns-wallet-item",
+          "type": "string",
+          "description": "Wallet item in this node's custody holding the Cloudflare API token, as <tenant-ref>/<item-ref>; copied into Owner custody",
+          "required": false
+        },
+        {
+          "name": "eab-hmac-file",
+          "type": "string",
+          "description": "file holding the external account binding HMAC key (base64url)",
+          "required": false
+        },
+        {
+          "name": "eab-kid",
+          "type": "string",
+          "description": "external account binding key id (zerossl, gts)",
+          "required": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "description": "ACME account contact address (Google Trust Services and ZeroSSL refuse an account without one)",
+          "required": false
+        },
+        {
+          "name": "issuer",
+          "type": "string",
+          "default": "zerossl",
+          "description": "ACME issuer: zerossl, gts or letsencrypt-staging (tests only)",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach public-certificate remove",
+      "name": "remove",
+      "parent": "stackkit reach public-certificate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach public-certificate remove [flags]",
+      "short": "Delete the public certificate, its key, the ACME account and the DNS token copy (requires root)",
+      "description": "The routes the certificate covered fall back to the router's step-ca certificates at once, without an apply. A Wallet item holding the DNS token stays in the node's Wallet custody.",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit reach public-certificate status",
+      "name": "status",
+      "parent": "stackkit reach public-certificate",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit reach public-certificate status [flags]",
+      "short": "Show the installed public-names certificate (names, issuer, expiry; never the key)",
       "description": "",
       "runnable": true,
       "examples": [],
@@ -10667,7 +10843,7 @@
         {
           "name": "verify-only",
           "type": "bool",
-          "description": "Read and verify a retained receipt against current local binding without issuing or revoking",
+          "description": "Read and verify a retained receipt against current local binding without issuing or revoking; an active credential is rotated at half-life",
           "required": false
         },
         {

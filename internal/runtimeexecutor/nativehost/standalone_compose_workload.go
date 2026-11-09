@@ -1276,7 +1276,8 @@ func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDelive
 	if route.TLSRequired {
 		labels["traefik.http.routers."+router+".tls"] = "true"
 		// A managed kombify.me route served by the delivered Origin CA
-		// certificate (ADR-0047) requests no ACME certificate.
+		// certificate (ADR-0047), or a Home route the serving public-names
+		// certificate covers, requests no ACME certificate.
 		if route.TLSIssuerRef != "" && !originServed {
 			// The plan carries provider-neutral issuer/profile identities. All
 			// supported Compose core owners expose that authority to Traefik
@@ -1903,8 +1904,15 @@ func standaloneComposeComponent(
 
 var _ SelectedPaaSWorkloadOperations = (*osStandaloneComposeWorkloadOperations)(nil)
 
-// originServes reports whether the node holds an installed origin certificate
-// for a TLS route's host.
+// originServes reports whether a certificate the router already holds serves
+// a TLS route's host, so the route names no ACME resolver: an installed origin
+// certificate, or on a Home core the serving public-names certificate of a
+// public identity origin, which a step-ca leaf ordered for the exact host
+// would otherwise shadow whenever the router's Docker provider loads first.
 func (o *osStandaloneComposeWorkloadOperations) originServes(route architecturev2renderer.ApplicationDeliveryRouteDescriptor) bool {
-	return route.TLSRequired && route.Host != "" && originca.Covers(o.workspaceRoot, route.Host)
+	if !route.TLSRequired || route.Host == "" {
+		return false
+	}
+	return originca.Covers(o.workspaceRoot, route.Host) ||
+		standaloneComposeHomeCore(route.CoreModuleRef) && localevidence.PublicRouterCertificateCovers(o.workspaceRoot, route.Host)
 }

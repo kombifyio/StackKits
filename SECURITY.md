@@ -21,8 +21,7 @@ These are targets, not contractual promises.
 
 ## Supported versions
 
-Fixes go to the latest release of each release channel (Stable and Early
-Access).
+Fixes go to the latest stable release; StackKits ships Stable only.
 
 ## Security baseline
 

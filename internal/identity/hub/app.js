@@ -289,8 +289,14 @@ function item(text, actions) {
   return li;
 }
 async function render() {
-  const credential = await stored('credential');
+  let credential = await stored('credential');
   const pending = await stored('pending');
+  if (!credential && pending) {
+    // An away enrollment waits for a confirmation. Once an enrolled device or
+    // the Owner confirmed it, the device's own DPoP-signed renewal returns
+    // its first credential; until then the Authority refuses and the Hub waits.
+    credential = await renew().catch(() => undefined);
+  }
   $('#connect').hidden = Boolean(credential);
   $('#connected').hidden = !credential;
   if (pending && !credential) status('Waiting for the confirmation of this device.');

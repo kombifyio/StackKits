@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
@@ -62,6 +63,12 @@ type HomeEnrollmentBootstrap struct {
 	// pins it for EnrollmentURL, whose host the listener certificate names.
 	CARootPEM string `json:"caRootPem"`
 	URI       string `json:"uri"`
+	// Trust is the Owner-signed statement of EnrollmentURL, TLSServerName and
+	// the root. The public origin may end TLS at an edge that rewrites every
+	// other field, so a native client takes the listener and root only from a
+	// statement that verifies against an Owner key it holds from elsewhere.
+	// It is absent until the host signed the current values.
+	Trust *localevidence.HomeEnrollmentTrust `json:"trust,omitempty"`
 	// VPN is the VPN add-on's peer service while the Owner has it on.
 	VPN *HomeVPNAnnouncement `json:"vpn,omitempty"`
 }
@@ -79,6 +86,12 @@ func (b HomeEnrollmentBootstrap) targets() []string {
 // established step-ca root. It fails closed when either is missing or the
 // address is not a LAN address.
 func LoadHomeEnrollmentBootstrap(root string) (HomeEnrollmentBootstrap, error) {
+	return loadHomeEnrollmentBootstrapAt(root, time.Now())
+}
+
+// loadHomeEnrollmentBootstrapAt serves the stored statement only while it is
+// unexpired at now and still names the current values.
+func loadHomeEnrollmentBootstrapAt(root string, now time.Time) (HomeEnrollmentBootstrap, error) {
 	authority, err := homeAuthority(root)
 	if err != nil || !ObservedLANAddress(authority.LANSiteAddress) {
 		return HomeEnrollmentBootstrap{}, errors.New("identity: no LAN site address is bound for device enrollment")
@@ -108,7 +121,90 @@ func LoadHomeEnrollmentBootstrap(root string) (HomeEnrollmentBootstrap, error) {
 	bootstrap.CARootPEM = authority.StepCARootCertificatePEM
 	values := url.Values{"url": {bootstrap.EnrollmentURL}, "sni": {bootstrap.TLSServerName}, "ca": {bootstrap.CARootSHA256}}
 	bootstrap.URI = HomeEnrollmentURIScheme + ":v2?" + values.Encode()
+	if trust, loadErr := localevidence.LoadHomeEnrollmentTrust(root); loadErr == nil {
+		if statement, verifyErr := authority.VerifyHomeEnrollmentTrust(trust, now); verifyErr == nil && statement == homeEnrollmentStatement(bootstrap, authority.SiteRef, statement.IssuedAt, statement.ExpiresAt) {
+			bootstrap.Trust = &trust
+		}
+	}
 	return bootstrap, nil
+}
+
+// homeEnrollmentStatement is the part of the bootstrap the Owner signs.
+func homeEnrollmentStatement(b HomeEnrollmentBootstrap, siteRef string, issued, expires time.Time) localevidence.HomeEnrollmentTrustStatement {
+	return localevidence.HomeEnrollmentTrustStatement{
+		Schema: localevidence.HomeEnrollmentTrustSchema, HomeSiteRef: siteRef, EnrollmentURL: b.EnrollmentURL,
+		HubEnrollmentURL: b.HubEnrollmentURL, TLSServerName: b.TLSServerName, CARootSHA256: b.CARootSHA256, CARootPEM: b.CARootPEM,
+		IssuedAt: issued, ExpiresAt: expires,
+	}
+}
+
+// HomeCompanionEnrollmentAddress is what the Owner's local console gives a
+// person for the Companion: the Hub origin with the Owner key fingerprint as
+// `#okf=`. The phone takes the Owner-signed listener and root from the public
+// bootstrap only for that fingerprint, so an edge that ends TLS for the Hub
+// origin cannot substitute its own key; without it the phone enrolls away.
+func HomeCompanionEnrollmentAddress(root string) (string, error) {
+	authority, err := homeAuthority(root)
+	if err != nil {
+		return "", err
+	}
+	hub, ok := homeHubOrigin(root)
+	if !ok {
+		return "", errors.New("identity: no Hub origin")
+	}
+	fingerprint, err := authority.OwnerKeyFingerprint()
+	if err != nil {
+		return "", err
+	}
+	return hub + "#okf=" + fingerprint, nil
+}
+
+// homeEnrollmentTrustInterval is how often the host compares the signed
+// statement with the live listener and root. The check reads local files only,
+// so a changed address or root is re-signed within it.
+const homeEnrollmentTrustInterval = 30 * time.Second
+
+// KeepHomeEnrollmentTrustCurrent has the host sign the current LAN listener and
+// root with the Owner key and re-sign when they change or half the lifetime has
+// passed, until ctx ends. Only where the Owner custody is.
+func KeepHomeEnrollmentTrustCurrent(ctx context.Context, root string) {
+	for {
+		if err := refreshHomeEnrollmentTrust(root, time.Now()); err != nil {
+			slog.Warn("the Home enrollment trust was not kept current; native clients fall back to away enrollment", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(homeEnrollmentTrustInterval):
+		}
+	}
+}
+
+func refreshHomeEnrollmentTrust(root string, now time.Time) error {
+	if _, err := localevidence.LoadOwnerCustody(root); err != nil {
+		return nil
+	}
+	authority, err := homeAuthority(root)
+	if err != nil {
+		return nil
+	}
+	// The same clock decides whether the stored statement is served and whether it is due.
+	current, err := loadHomeEnrollmentBootstrapAt(root, now)
+	if err != nil {
+		return nil // no LAN address bound yet
+	}
+	if current.Trust != nil {
+		if statement, verifyErr := authority.VerifyHomeEnrollmentTrust(*current.Trust, now); verifyErr == nil &&
+			statement.ExpiresAt.Sub(now) > localevidence.HomeEnrollmentTrustLifetime/2 {
+			return nil
+		}
+	}
+	issued := now.UTC().Truncate(time.Second)
+	trust, err := localevidence.SignHomeEnrollmentTrust(root, homeEnrollmentStatement(current, authority.SiteRef, issued, issued.Add(localevidence.HomeEnrollmentTrustLifetime)))
+	if err != nil {
+		return err
+	}
+	return localevidence.WriteHomeEnrollmentTrust(root, trust)
 }
 
 type homeEnrollmentPeerKey struct{}

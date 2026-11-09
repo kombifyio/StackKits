@@ -23,16 +23,6 @@ body:
       description: "Output of `stackkit version`."
     validations:
       required: true
-  - type: dropdown
-    id: channel
-    attributes:
-      label: Release channel
-      options:
-        - Stable
-        - Early Access
-        - I don't know
-    validations:
-      required: true
   - type: input
     id: environment
     attributes:

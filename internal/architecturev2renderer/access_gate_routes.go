@@ -162,12 +162,18 @@ func accessGateRoutes(unit RenderUnit) (accessgatetable.Table, error) {
 	if hubRoute == nil {
 		return accessgatetable.Table{}, fail(ErrInvalidPlan, path, "core has no hub endpoint for the StackKits MCP route")
 	}
-	// The node /mcp authenticates its dedicated token natively; until the
-	// agent class reaches it (igti.12) the gate enforces only its reach.
+	// The node /mcp of a Home core is behind the gate's agent class (homelab
+	// identity target §7, §10): a Gateway-signed envelope mapped to an Owner
+	// or admin Homelab account, and on the LAN listener the Owner's local
+	// agents with the dedicated MCP token, which the endpoint verifies. A
+	// Cloud core has no LAN listener; its /mcp keeps the native token only.
 	mcp := accessgatetable.Route{
 		ID: "core-mcp", Host: hubRoute.Host, Path: "/mcp", ExactPath: true,
 		Exposure: hubRoute.Exposure, Privilege: hubRoute.Privilege, Authentication: accessgatetable.AuthenticationWorkload,
 		IngressAuth: accessgatetable.IngressNative, OwnerRemoteOptIn: hubRoute.OwnerRemoteOptIn,
+	}
+	if isHomeCoreModule(unit.ModuleID()) {
+		mcp.Authentication, mcp.Groups = accessgatetable.AuthenticationAgent, []string{"owners", "admins"}
 	}
 	table.Routes = append(table.Routes, mcp)
 	// The Homelab Hub on a Home core: the device client PWA and the

@@ -28,8 +28,22 @@ const (
 
 var gateLaunchRouterLinePattern = regexp.MustCompile("^      - traefik\\.http\\.routers\\.stackkit-gate-[0-9a-f]{16}(-remote)?\\.(" +
 	"rule=Host\\(`[a-z0-9.-]+`\\) && PathPrefix\\(`/\\.well-known/stackkit/`\\)|" +
-	"priority=2000|entrypoints=(websecure|remote)|tls=true|tls\\.certresolver=stackkits|" +
+	"priority=2000|entrypoints=(websecure|remote)|tls=true|tls\\.certresolver=(stackkits|\\$\\{STACKKIT_ROUTER_CERT_RESOLVER\\?\\})|" +
 	"middlewares=stackkit-access-gate-lan@docker|service=stackkit-gate)$")
+
+// PublicNameCovers reports whether a public-names certificate for *.<domain>
+// and <domain> covers host: the domain itself or exactly one label under it.
+func PublicNameCovers(domain, host string) bool {
+	host, domain = strings.ToLower(host), strings.ToLower(domain)
+	if domain == "" {
+		return false
+	}
+	if host == domain {
+		return true
+	}
+	label, ok := strings.CutSuffix(host, "."+domain)
+	return ok && label != "" && !strings.Contains(label, ".")
+}
 
 // gateLaunchHosts are the hosts with a user route a browser session opens.
 func gateLaunchHosts(table accessgatetable.Table) []string {
@@ -62,6 +76,7 @@ func renderGateLaunchRouters(unit RenderUnit, compose []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	domain, _ := unit.NetworkDomainBase()
 	var lines []string
 	for _, host := range gateLaunchHosts(table) {
 		if !basementDomainPattern.MatchString(host) || host != strings.ToLower(host) {
@@ -70,13 +85,19 @@ func renderGateLaunchRouters(unit RenderUnit, compose []byte) ([]byte, error) {
 		sum := sha256.Sum256([]byte(host))
 		id := "stackkit-gate-" + hex.EncodeToString(sum[:])[:16]
 		rule := fmt.Sprintf("Host(`%s`) && PathPrefix(`%s`)", host, gateLaunchPathPrefix)
+		// A host the public-names certificate covers names the core resolver
+		// (none while that certificate serves); any other host keeps step-ca.
+		resolver := "stackkits"
+		if PublicNameCovers(domain, host) {
+			resolver = basementCoreRouteCertResolver
+		}
 		if table.LANListener {
 			lines = append(lines,
 				fmt.Sprintf("      - traefik.http.routers.%s.rule=%s", id, rule),
 				fmt.Sprintf("      - traefik.http.routers.%s.priority=%d", id, gateLaunchPriority),
 				fmt.Sprintf("      - traefik.http.routers.%s.entrypoints=websecure", id),
 				fmt.Sprintf("      - traefik.http.routers.%s.tls=true", id),
-				fmt.Sprintf("      - traefik.http.routers.%s.tls.certresolver=stackkits", id),
+				fmt.Sprintf("      - traefik.http.routers.%s.tls.certresolver=%s", id, resolver),
 				fmt.Sprintf("      - traefik.http.routers.%s.middlewares=stackkit-access-gate-lan@docker", id),
 				fmt.Sprintf("      - traefik.http.routers.%s.service=stackkit-gate", id),
 			)

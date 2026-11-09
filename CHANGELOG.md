@@ -1,8 +1,16 @@
 # Changelog
 
+- Added: publicly trusted certificates for a public identity origin (kombify-StackKits-igti.7). `sudo stackkit reach public-certificate issue` obtains one certificate for `*.<name>` and `<name>` by ACME DNS-01 with the `reach lan-certificate` client: kombify Me answers for a kombify.me name; an own domain uses the Owner's Cloudflare token (Zone:Read and DNS:Edit on the zone) from custody (`--dns-token-file` or `--dns-wallet-item <tenant>/<item>`). After `stackkit apply` the Basement core router serves `id.<name>` and every other host with it: the routes it covers name no step-ca resolver, whatever order the router loads its providers in, and any remaining step-ca leaves go to a separate ACME store, so an older leaf cannot shadow it; the identity signer renews it on its 12-hour cadence. A local-only homelab keeps step-ca. `status` and `remove` complete the command.
+- Added: a public-names certificate that stops serving no longer leaves the routes it covered without a certificate until the next `stackkit apply` (kombify-StackKits-igti.15). When renewals kept failing until it expired, when it no longer covers `id.<name>`, or after `reach public-certificate remove`, the identity signer adds a router in `router-tls/` that names the step-ca resolver for exactly those hosts (read from the router API), so the router serves step-ca certificates for them again without an apply or a restart; the next apply with a serving certificate gives the router a fresh ACME store, so these step-ca leaves cannot shadow it. Within 14 days of its expiry a certificate that is still not renewed raises one Owner notice (`public-certificate-renewal-failing`, pushed to the Owner devices by the Hub). `reach public-certificate remove` no longer asks for an apply.
+- Fix: after `stackkit user owner migrate-domain`, `stackkit user owner setup` re-evaluates the Owner steps against the new origin: the recovery step stays pending until a recovery set is written under the new origin (the recovery state now records the origin of the last set), the first-device step counts only an Owner device enrolled after the move, and an unreachable Pocket ID shows the passkey step as next instead of failing.
+- Fix: prepared Techstack Database Delivery can recover one diagnosed failure before SQL effects after unrelated main commits, with exact native intent/ACK evidence. The service child signs Guard with authenticated prepared-source and output provenance. Unknown effects remain held (kombify-StackKits-y8le).
+
 - Security: device recovery from an Owner device no longer trusts the device registry the Basement core can write. The host-side identity signer keeps its own Owner-device pin in host custody and adds a key only from the Owner's passkey sign-in, which it verifies itself against the Owner-signed Home trust (`POST /api/v1/identity/recovery/owner-device` with a DPoP proof and `{"idToken"}`, bound to that key and that proof, fresh within 60 seconds). Recovery requests, completion, cancellation, the recovery notices and `GET /api/v1/identity/recovery/device-notices` check and address that pin, and the signer answers all of them; a forged registry entry is refused. An Owner device must pin its key once before it can start a recovery (kombify-StackKits-4vhd).
 - Added: browser-native device-bound sessions (DBSC, W3C Editor's Draft; kombify-StackKits-igti.14). The launch answer offers registration; a browser that supports DBSC registers a key it never exports, then renews a ten-minute bound cookie at `/.well-known/stackkit/dbsc/refresh` with that key instead of a Hub launch, and the launch cookie stops working at registration. The session stays recorded against its device, keeps its one-hour away and four-hour home end, and ends at the device's revocation. Browsers without DBSC keep the Hub launch session.
 - Fix: every gated host of a Basement core gets its own Gate routers for `/.well-known/stackkit/` (one on the LAN entrypoint, one on the remote entrypoint), so the Hub launch exchange and the DBSC endpoints work on hosts whose routes do not cover `/`; before, such a host answered 404 at the router and a browser could neither launch nor refresh (kombify-StackKits-pd4v). The Gate lets the two DBSC paths through on hosts that take browser sessions.
+- Fix: a device that enrolled away and was then confirmed now becomes connected. The Hub only showed "Waiting for the confirmation of this device" and nothing asked the Authority for the device's first credential; it now renews (DPoP-signed) when it opens with a pending enrollment, and the confirmed device is connected.
+- Added: a standalone Home core realizes the `private-remote-access` capability through the standard reach paths (kombify.me tunnel mode, your own Cloudflare Tunnel, the public edge). The service-owned runtime `stackkits-home-private-remote-access-runtime` now exists on a standalone node, so a route with exposure `remote-private` applies and is served on the remote listener behind the Access Gate (never anonymous: an unauthenticated request answers `401 remote_proof_required`). Without a reach path Apply fails closed with the way to enable one (`stackkit reach registration set` and `sudo stackkit reach enable`) instead of a missing-owner error. A Techstack-dispatched channel keeps its process-dispatched owner.
+- Added: the Access Gate's `agent` class (homelab identity P3). A kombify agent reaches a node's `/mcp` with the Gateway-signed envelope of Gateway ADR 0042 in `X-Kombify-Agent-Envelope`; the gate verifies it against the key pinned at linking (`stackkit identity agent-link install|remove|status`, `stackkit.home-agent-link/v1` in the identity workspace), maps the kombify subject through the D10 reference to the Homelab account, applies that account's household groups as the ceiling and hands the envelope to `/mcp`, which checks the body hash and spends the gate's single admission. Techstack delivers the link over the Guard (`AGENT_LINK_INSTALL` with the exact request bytes and a required `--expect-sha256`, Guard capability `stackkit.agent-link.v1`) when it registers the server as a Connect node and whenever the key or the linked members change, with no Owner console step. The first pin, a new key and a change of the owner's subject need the Owner's passkey step-up (class `agent-link`) in the Hub: the node answers `pending: owner_step_up`, keeps the request open for five minutes and pins on the next dispatch after the approval; a change of the linked members under the pinned key does not. The link is bound to this node's own Guard enrollment, the owner's kombify subject maps only to the Owner of this node's custody and no member reference can reach the Owner's account; a higher binding generation or a new Gateway master key id replaces the pin, the same key id only the members, and a retired key never returns. The endpoint admits for an envelope only allowlisted documentation and StackSpec tools and catalog operations (every federation operation and application owner accounts now count as identity), and an admission is bound to the account and link the gate checked; an envelope issued before the stackkit-server process started is refused. The Home core's `/mcp` route is now an `agent` route for owners and admins; on the LAN listener the dedicated MCP token keeps working. The lease capability maps to operations: identity, secrets, vault and recovery operations are refused to every envelope, a read lease reaches read-only tools, `techstack.server.maintenance` maintenance operations and `techstack.inventory.operate` the other mutations, each mutating call with the Owner's approval of that exact call. Changed: the Home Assistant connector credential is a seven-day token rotated at half-life and bound to the node's Guard identity; the request loses `lifespanDays`, the receipt gains `guardIdentity` and the connector result `currentIssuer`, Owner-signed evidence of the current generation. A connector record of the old schema can only be revoked, which deletes its token.
 - Added: remote reach for home servers (`stackkit reach`). A Basement home server behind NAT now uses its kombify.me name: `stackkit reach registration set` stores the homelab's own Me registration (no kombify account needed) and `sudo stackkit reach enable --kombify-me` turns on kombify.me tunnel mode and runs the Cloudflare Tunnel connector in its own network, which reaches only the remote listener; the token arrives sealed to this node and never appears in a log or receipt. `--wallet-item` runs a token the kombify Wallet delivered (kombify account, or a tunnel in your own Cloudflare account) and `--owner-token-file` a tunnel token of your own Cloudflare account. A local-only homelab (`lab.home`) has no reach path. The refusal of kombify.me behind NAT is gone.
 - Added: `sudo stackkit reach lan-certificate issue` obtains a publicly trusted certificate for exactly `lan.<base>.kombify.me` (ZeroSSL or Google Trust Services) with the key generated and kept on the node; kombify Me only publishes the DNS-01 value and, before anything is ordered, the node's private site address as the DNS-only record of `lan.<base>.kombify.me` (read back, never a public address). The Hub then enrolls at home through `https://lan.<base>.kombify.me:9443` without an installed root, and the identity signer renews it.
 - Security: the remote listener refuses every forwarding header it does not overwrite itself (`X-Original-URL`, `X-Client-IP`, any other `X-Forwarded-*` name and more, besides `Forwarded`) and removes every `CF-*` header before a backend.
@@ -272,6 +280,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+- Fix: keep the verified public release receipt when optional stale R2 object cleanup fails; report pending cleanup without hiding asset or index publication errors (kombify-StackKits-v237).
+
 - Native authoring catalogs expose CUE-owned public configuration descriptors and exact module profile choices for installed-use-case configuration. Candidate receipts include the canonical previous spec alongside its native hash; no-change inspection retains that spec exactly. Declared scalar types and options are checked while other existing CLI inputs keep their original contract. Active intent and custody are unchanged with a separate output candidate.
 
 - `plan --json` reports the local Owner's verified public identity and host binding for the exact inspected StackInstance and plan. Missing or member-only custody is explicitly unavailable; invalid custody fails inspection. No signing key is exposed and no executor is invoked.
@@ -425,6 +435,93 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.57.4 (2026-11-09)
+
+### Fixed
+
+* **ci:** bind each Local fixture dispatch to its authority
+* **release:** bind observer to prepared Techstack source
+* **release:** bound pinned OpenTofu downloads
+
+## 0.57.3 (2026-11-09)
+
+### Fixed
+
+* **delivery:** reconcile database recovery and bind Guard signing provenance (rebuild of )
+
+## 0.57.2 (2026-11-08)
+
+### Fixed
+
+* **ci:** repin shared workflows to the merged .github producer c1681812
+* **ci:** retire broad personal workflow token consumers
+* **release:** serialize release merges per repository and retry the base-branch race
+* **security:** build OSV with the supported repository Go compiler
+
+## 0.57.1 (2026-11-08)
+
+### Added
+
+* **installer:** serve install.ps1 from private R2
+* **techstack:** server-side creation draft that continues across Cloud and Techstack
+
+### Fixed
+
+* **integration:** remove the integration-lane hold model
+* **techstack:** lab lanes run their Core on the self-hosted embedded storage, not Stage
+* **techstack:** record the reserved-guest absence of a failed Proxmox substrate provision
+* **techstack:** terminalize a failed Proxmox substrate provision on definitive reserved-guest absence
+* **techstack:** terminalize resource-free Proxmox substrate teardown without a capacity release
+
+## 0.57.0 (2026-11-07)
+
+### ⚠ BREAKING CHANGES
+
+* **release:** StackKits ships Stable only, without Early Access or Nightly
+
+### Added
+
+* **household:** member removal ends homelab access on every server
+* **identity:** one Authority across servers: Owner-approved join, constrained intermediate CA and the joined verification state
+* **identity:** public-name certificates for public identity origins and recovery re-evaluation after a domain move
+* **identity:** signer-held Owner-device pin for recovery and DBSC browser-native device-bound sessions (, )
+* **identity:** strip edge headers at the remote listener, idempotent household removal, kombify app callback, owner setup order (igti.7)
+* **identity:** the bootstrap carries the LAN listener and root in an Owner-signed enrollment statement
+* **identity:** the LAN enrollment certificate names the site address and the bootstrap carries the root PEM
+* **lab:** two-guest native application transfer mode for proxmox-lab
+* **reach:** kombify.me tunnel mode, own Cloudflare Tunnels and LAN-name certificates on home servers (, )
+* **reach:** the private-remote-access runtime owner for standalone Home cores (igti.9, igti.10)
+* **release:** StackKits ships Stable only, without Early Access or Nightly
+* **techstack:** a connected bare server joins an existing deployment as a node
+* **techstack:** choose another server per use case, re-solved and re-verified
+* **techstack:** Guard window lane techstack-connected-free for Journey C
+* **techstack:** review Builder plans in creation
+* **test-window:** cleanup proof for a failed managed Cloud Advanced window run
+* **upgrade:** Cloud Kit public upgrade preview with owner approval, snapshot and rollback anchors
+
+### Fixed
+
+* **issue tracker:** project bounded authenticated context reads
+* **ci:** use scoped app for candidate sources
+* **ci:** use scoped app for scanner modules
+* **company:** preserve structural diagnostics in Techstack custody receipts
+* **delivery:** admit exact native children and retain dispatch acknowledgements
+* **delivery:** call the schema-expand producer that carries the reviewed fixture pins
+* **delivery:** call the schema-expand producer that derives the fixture baseline
+* **delivery:** call the schema-expand producer whose fixture pins name migration 187
+* **deps:** bind private package updater reader
+* **early-access:** let the company bundle carry Techstack's Ed25519 service key
+* **early-access:** pin the Delivery authority that carries the current Render contract
+* **hub:** a confirmed away device receives its first credential (igti.10)
+* **identity:** address the igti.12 review
+* **release:** retain publication when stale mirror cleanup fails
+* **security:** build Go scanners with each scanned module toolchain
+* **techstack:** consume the canonical delivery authority
+* **test-window:** retain recheck causes and migrated authority
+* **test-window:** route the managed Cloud Advanced Core's Stage database through the fixed egress
+
+
 
 ## 0.56.4 (2026-11-07)
 

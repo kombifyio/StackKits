@@ -55,6 +55,9 @@ type ServerConfig struct {
 	// MCPPinBaseDir rejects MCP tool calls that name a workspace other
 	// than BaseDir; the routed Core endpoint sets it.
 	MCPPinBaseDir bool
+	// MCPAgentEnvelopes verifies, at /mcp, the agent envelopes the Access
+	// Gate of this process admitted (homelab identity target §7).
+	MCPAgentEnvelopes stackkitmcp.AgentEnvelopeVerifier
 	// ArchitectureV2ResolveConcurrency limits concurrent governed CUE
 	// resolutions per server. Values <= 0 use the fail-safe default.
 	ArchitectureV2ResolveConcurrency int
@@ -225,6 +228,7 @@ func (s *Server) registerMCPRoutes() {
 		PinBaseDir:        s.config.MCPPinBaseDir,
 		JSONResponse:      true,
 		Agents:            mcpagents.Open(s.config.BaseDir),
+		AgentEnvelopes:    s.config.MCPAgentEnvelopes,
 		BaseDir:           s.config.BaseDir,
 		Binary:            cliBinary,
 		Version:           s.config.Version,

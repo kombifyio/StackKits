@@ -969,6 +969,9 @@ func (a *App) runRegisteredReadOnlyTool(
 		out := errorOutput(string(id), fmt.Errorf("registered standalone operation is unavailable"))
 		return errorJSONResult(out), out, nil
 	}
+	if denial := envelopeOperationDenial(ctx, operation.ToolName, string(operation.ID), false); denial != nil {
+		return errorJSONResult(denial), denial, nil
+	}
 	if operation.Mutation {
 		out := errorOutput(operation.ToolName, fmt.Errorf("registered operation is not read-only"))
 		return errorJSONResult(out), out, nil
@@ -1219,6 +1222,16 @@ func truncateOutput(value string) string {
 // the write switch plus the caller-supplied owner approval. It returns the
 // effective owner approval, or a denial output.
 func (a *App) admitMutation(ctx context.Context, tool, operation, confirmation string, ownerApproved bool, summary string, digestParts ...string) (bool, map[string]any) {
+	// A kombify agent's lease is its ceiling (agent_ceiling.go): its
+	// capability names the operations it reaches, never identity, secrets,
+	// vault or recovery; within it every call still needs the owner's
+	// approval of that exact call below (the passkey step-up page).
+	if denial := envelopeOperationDenial(ctx, tool, operation, true); denial != nil {
+		return false, denial
+	}
+	if _, ok := EnvelopeAgentFromContext(ctx); ok && a.opts.Agents == nil {
+		return false, errorOutput(tool, errors.New("no approval store is available for agent calls"))
+	}
 	agent, isAgent := AgentFromContext(ctx)
 	if !isAgent && a.opts.AgentToken != "" {
 		// A directly attached agent never falls back to the write switch: an

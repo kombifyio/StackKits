@@ -36,6 +36,7 @@ self.addEventListener('fetch', (event) => {
 const TEXT = {
   'enrolled-at-home': (n) => ['New device at home', `${n.deviceName || 'A device'} was connected at home. Open the Hub to undo it within 24 hours.`],
   'enrollment-pending': (n) => ['Confirm a new device', `${n.deviceName || 'A device'} asks to join your account. Open the Hub to confirm or decline it.`],
+  'recovery-public-certificate-renewal-failing': () => ['Public certificate not renewed', 'The public certificate of your homelab expires within 14 days and its renewal keeps failing. Check the DNS token, then run stackkit reach public-certificate issue.'],
 };
 self.addEventListener('push', (event) => {
   let notice = {};

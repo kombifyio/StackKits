@@ -130,8 +130,9 @@ func (a *App) runCatalogOperation(ctx context.Context, operation standaloneopera
 		CorrelationID:  stringInput(in, "correlation_id"),
 		TimeoutSeconds: int(integerInput(in, "timeout_seconds")),
 	}
-	if !operation.Mutation {
-		confined, err := a.confineFileArguments(operation, in)
+	_, envelopeAgent := EnvelopeAgentFromContext(ctx)
+	if !operation.Mutation || envelopeAgent {
+		confined, err := a.confineFileArguments(operation, in, envelopeAgent)
 		if err != nil {
 			out := errorOutput(operation.ToolName, err)
 			return errorJSONResult(out), out, nil
@@ -153,10 +154,14 @@ func (a *App) runCatalogOperation(ctx context.Context, operation standaloneopera
 // confineFileArguments keeps every file argument (*_file) of a read-only
 // operation inside the workspace, so a remote caller cannot make a read-only
 // tool open another path of the host. Symlinks that lead out are refused too.
-func (a *App) confineFileArguments(operation standaloneoperations.Contract, in map[string]any) (map[string]any, error) {
+// For a kombify agent (paths too) it also confines the file and directory
+// arguments (file, dir, *_dir) of every operation, mutations included.
+func (a *App) confineFileArguments(operation standaloneoperations.Contract, in map[string]any, paths bool) (map[string]any, error) {
 	var names []string
 	for _, argument := range operation.Arguments {
-		if argument.Kind == standaloneoperations.ArgumentString && strings.HasSuffix(argument.Name, "_file") && strings.TrimSpace(stringInput(in, argument.Name)) != "" {
+		pathArgument := strings.HasSuffix(argument.Name, "_file") ||
+			(paths && (argument.Name == "file" || argument.Name == "dir" || strings.HasSuffix(argument.Name, "_dir")))
+		if argument.Kind == standaloneoperations.ArgumentString && pathArgument && strings.TrimSpace(stringInput(in, argument.Name)) != "" {
 			names = append(names, argument.Name)
 		}
 	}

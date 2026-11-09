@@ -36,8 +36,8 @@ const (
 	basementCoreOpenTofuResourcePrefix = "basement_core"
 )
 
-const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:35|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped,cf-stripped-remote|remote-listener-alias:stackkit-remote-listener.internal|lan-name-tls:custody-mount-read-only|identity-placement:authority-profile-pocketid,joined-tinyauth-authority-issuer-lan-host,step-ca-ca-host-alias|gate-launch-router:per-host-well-known`
-const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:38|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped,cf-stripped-remote|remote-listener-alias:stackkit-remote-listener.internal|lan-name-tls:custody-mount-read-only|identity-placement:authority-profile-pocketid,joined-tinyauth-authority-issuer-lan-host,step-ca-ca-host-alias|gate-launch-router:per-host-well-known`
+const basementCoreComposeSchema = `stackkit.basement-core-compose/v1|artifact-revision:37|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|services:router,socket-proxy,pocketid,tinyauth,step-ca,lan-dns,coolify,coolify-postgres,coolify-redis,coolify-realtime,kopia-agent,hub,stackkit-server|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|hub-endpoints:healthz,verification|healthchecks:container-and-module|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped,cf-stripped-remote|remote-listener-alias:stackkit-remote-listener.internal|lan-name-tls:custody-mount-read-only|public-name-tls:custody-mount-read-only,acme-store-after-public-certificate,core-routes-no-step-ca-resolver-while-public-certificate,router-policy-directory-atomic|identity-placement:authority-profile-pocketid,joined-tinyauth-authority-issuer-lan-host,step-ca-ca-host-alias|gate-launch-router:per-host-well-known|access-gate-mcp:agent-class-lan-remote`
+const basementCoreOpenTofuSchema = `stackkit.basement-core-opentofu/v1|artifact-revision:40|compose-payload:byte-identical,runtime-dir-root,up-replace-without-down,down-on-destroy-only,project-stackkit-basement-core,local-provider-2.5.3,opentofu-1.12|resolved-network-domain:required|runtime-listeners:catalog-bound,direct-loopback-only-except-router-lan-dns-and-home-enroll|local-file:compose|terraform-data:docker-compose-up-wait|networks:basement-core-host-reachable,basement-control-internal,basement-backup-internal-no-peer|coolify-control-plane:owner-signed-local-hub-404|coolify-hosts:closed-dual-stack-sinkholes|kopia:idle-owner-command,deterministic-source-hostname,read-only-managed-volume-allowlist,owner-local-repository,isolated-restore-staging,internal-no-peer|healthchecks:docker-compose-wait|credentials:service-scoped-owner-signed-runtime-custody|step-ca:owner-rooted-online-intermediate,lan-dns-resolved-acme-challenges|trust:step-ca-root-for-tinyauth|contact:owner-custody-email|ingress:forward-auth-bound,websecure-step-ca|mcp:base-host-path-native-token-file,router-ratelimit,file-credentials,pinned-workspace|service-lifecycle:stackkits-local|server-provider-lifecycle:not-owned|mem-limit:catalog-resources|listener-site-address:inventory-bound|acme-leaf-duration:24h-renew-before6h-health-grace10m|komodo-control:private8443,tls13,kit-ca|home-device-enroll:lan9443,tls13,step-ca-server-leaf|access-gate:lan-gate-before-tinyauth,remote-router-entrypoint-gate,connector-network-remote-listener-only|identity-workspace:verification-custody,site-network-recorded,core-network-pocketid,hub-device-client-8084|identity-signer:host-unix-socket,peer-uid,listener-csr-own-names,recovery-forward|access-gate-headers:app-pass-stripped,cf-stripped-remote|remote-listener-alias:stackkit-remote-listener.internal|lan-name-tls:custody-mount-read-only|public-name-tls:custody-mount-read-only,acme-store-after-public-certificate,core-routes-no-step-ca-resolver-while-public-certificate,router-policy-directory-atomic|identity-placement:authority-profile-pocketid,joined-tinyauth-authority-issuer-lan-host,step-ca-ca-host-alias|gate-launch-router:per-host-well-known|access-gate-mcp:agent-class-lan-remote`
 
 // basementCoreComponentsJSON is the closed component graph accepted by both
 // target-specific renderers. It mirrors the CUE catalog and intentionally
@@ -58,6 +58,15 @@ const basementCoreComponentsJSON = `[
 {"id":"hub","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/library/nginx:alpine","digest":"sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"},"dependsOn":["tinyauth"],"networkRefs":["basement-core"],"health":{"kind":"http","path":"/healthz","port":80},"resources":{"memoryLimit":"256m"}},
 {"id":"stackkit-server","role":"application","lifecycle":"daemon","image":{"ref":"docker.io/library/alpine:3.24","digest":"sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"},"dependsOn":[],"networkRefs":["basement-core"],"health":{"kind":"http","path":"/health","port":8082},"resources":{"memoryLimit":"256m"}}
 ]`
+
+// basementCoreRouteCertResolver is the ACME resolver the Basement core routes
+// name: the runtime executor interpolates "stackkits" (step-ca), or nothing
+// while the public-names certificate of a public identity origin serves the
+// node. That certificate covers every core host (one label under the domain),
+// and a route without a resolver orders no exact-name leaf that would shadow
+// it, whichever of the router's providers loads first. Set but empty is
+// allowed; unset fails the interpolation.
+const basementCoreRouteCertResolver = "${STACKKIT_ROUTER_CERT_RESOLVER?}"
 
 const basementCoreCompose = `name: stackkit-basement-core
 services:
@@ -97,7 +106,9 @@ services:
       - --ping=true
       - --providers.docker.endpoint=tcp://socket-proxy:2375
       - --providers.docker.exposedbydefault=false
-      - --providers.file.filename=/stackkits-security/tls-options.yaml
+      # The policy directory, not the file: tls-options.yaml is replaced
+      # atomically, and a single-file mount would keep the old inode.
+      - --providers.file.directory=/stackkits-security
       - --providers.file.watch=true
       - --entrypoints.komodo-control.address=:8443
       - --entrypoints.web.address=:80
@@ -110,13 +121,21 @@ services:
       # Resolved from owner custody by the runtime executor; never a placeholder.
       - --certificatesresolvers.stackkits.acme.email=${STACKKIT_OWNER_EMAIL:?}
       - --certificatesresolvers.stackkits.acme.certificatesduration=24
-      - --certificatesresolvers.stackkits.acme.storage=/letsencrypt/acme.json
+      # acme.json, or acme-public.json once the public-names certificate of a
+      # public identity origin serves the node: leaves ordered before it would
+      # shadow it for their exact names (runtime executor decides). The same
+      # decision drops this resolver from the core routes (it covers all of
+      # them), so no provider start order lets a step-ca leaf shadow it.
+      - --certificatesresolvers.stackkits.acme.storage=/letsencrypt/${STACKKIT_ROUTER_ACME_STORE:?}
       - --certificatesresolvers.stackkits.acme.httpchallenge=true
       - --certificatesresolvers.stackkits.acme.httpchallenge.entrypoint=web
       - --certificatesresolvers.stackkits.acme.caCertificates=/step-ca/root.crt
     volumes:
       - ${STACKKIT_CUSTODY_DIR:?}/basement-runtime/step-ca/certs/root_ca.crt:/step-ca/root.crt:ro
-      - ./tls-options.yaml:/stackkits-security/tls-options.yaml:ro
+      - ./router-tls:/stackkits-security:ro
+      # The public-names certificate (stackkit reach public-certificate);
+      # tls-options.yaml lists it only while it serves the identity host.
+      - ${STACKKIT_CUSTODY_DIR:?}/public-tls/live:/public-tls:ro
       - basement-tls-acme:/letsencrypt
     ports: ["0.0.0.0:80:80", "0.0.0.0:443:443", "127.0.0.1:8080:8080"]
     healthcheck:
@@ -197,7 +216,7 @@ services:
       - traefik.http.routers.pocketid.rule=Host(` + "`id.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.routers.pocketid.entrypoints=websecure
       - traefik.http.routers.pocketid.tls=true
-      - traefik.http.routers.pocketid.tls.certresolver=stackkits
+      - traefik.http.routers.pocketid.tls.certresolver=` + basementCoreRouteCertResolver + `
       # The sign-in surface on the remote listener; the Access Gate keeps
       # the identity administration on this host LAN-bound.
       - traefik.http.routers.pocketid-remote.rule=Host(` + "`id.{{STACKKIT_DOMAIN}}`" + `)
@@ -250,7 +269,7 @@ services:
       - traefik.http.routers.tinyauth.rule=Host(` + "`auth.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.routers.tinyauth.entrypoints=websecure
       - traefik.http.routers.tinyauth.tls=true
-      - traefik.http.routers.tinyauth.tls.certresolver=stackkits
+      - traefik.http.routers.tinyauth.tls.certresolver=` + basementCoreRouteCertResolver + `
       - traefik.http.services.tinyauth.loadbalancer.server.port=3000
       # TinyAuth runs on the LAN listener only, after the Access Gate; its
       # parent-domain cookie is never a remote credential.
@@ -406,7 +425,7 @@ services:
       - traefik.http.routers.coolify.rule=Host(` + "`coolify.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.routers.coolify.entrypoints=websecure
       - traefik.http.routers.coolify.tls=true
-      - traefik.http.routers.coolify.tls.certresolver=stackkits
+      - traefik.http.routers.coolify.tls.certresolver=` + basementCoreRouteCertResolver + `
       - traefik.http.routers.coolify.middlewares=stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
       - traefik.http.services.coolify.loadbalancer.server.port=8080
     networks: [basement-core, basement-control]
@@ -470,7 +489,7 @@ services:
       - traefik.http.routers.hub.rule=Host(` + "`base.{{STACKKIT_DOMAIN}}`" + `)
       - traefik.http.routers.hub.entrypoints=websecure
       - traefik.http.routers.hub.tls=true
-      - traefik.http.routers.hub.tls.certresolver=stackkits
+      - traefik.http.routers.hub.tls.certresolver=` + basementCoreRouteCertResolver + `
       - traefik.http.routers.hub.middlewares=stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
       - traefik.http.services.hub.loadbalancer.server.port=80
     healthcheck:

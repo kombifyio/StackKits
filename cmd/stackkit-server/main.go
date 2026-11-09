@@ -92,11 +92,14 @@ func main() {
 	otelShutdown := initServerTelemetry(Version)
 	defer otelShutdown()
 
-	srv := api.NewServer(cfg)
 	identityRoot := cfg.BaseDir
 	if strings.TrimSpace(*identityBaseDir) != "" {
 		identityRoot = filepath.Clean(*identityBaseDir)
 	}
+	// The node /mcp verifies the agent envelopes this process's Access Gate
+	// admitted, against the Gateway key pinned in the identity workspace.
+	cfg.MCPAgentEnvelopes = identityMCPAgentEnvelopes{root: identityRoot}
+	srv := api.NewServer(cfg)
 	// The verifier refuses proofs and passkey sign-ins dated before its start
 	// (replay across restarts), so it starts with the process, not with the
 	// first request: otherwise the first enrollment after every restart fails.

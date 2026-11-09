@@ -81,7 +81,7 @@ Capture user IDs, policy outcomes and digests without logging credentials/tokens
 
 For the admitted native Standard Mode Home Assistant workload, the existing
 private owner setup JSON can also contain an explicit `connector` object with
-`action` (`ensure` or `revoke`), `lifespanDays` (1–365), and `binding`:
+`action` (`ensure` or `revoke`) and `binding`:
 `resourceId`, `containerId` (64 lowercase hexadecimal characters), `imageDigest`,
 `serviceRevision` (positive), and `node` (`siteRef`, `nodeRef`,
 `executionChannelRef`). Keep the existing username/password/display-name/language
@@ -125,7 +125,6 @@ owner credential file:
   "schemaVersion": "stackkit.home-assistant-connector-request/v1",
   "connector": {
     "action": "ensure",
-    "lifespanDays": 30,
     "binding": {
       "resourceId": "owned-service-reference",
       "containerId": "<current full 64-character container identity>",
@@ -189,8 +188,8 @@ agent equipment.
 The local `appsetup.BootstrapHomeAssistantOwner` API accepts an optional
 `HomeAssistantOwnerRequest.Connector`. Ordinary owner/OIDC setup does not issue
 an agent credential. An authorized local caller explicitly selects `ensure`
-or `revoke`, a lifetime of 1–365 days, and the requested resource/container/image/
-service-revision tuple and established local node binding. The API admits only
+or `revoke` and the requested resource/container/image/service-revision tuple
+and established local node binding; nobody chooses a lifetime. The API admits only
 the existing StackKits HA pin, currently 2026.9.4; this is credential setup
 compatibility, **not qualification of that release's native MCP tools**.
 
@@ -201,6 +200,37 @@ user's authority; it is not a scoped read-only key. The existing native local
 relay and current Gateway read/write lease remain the use-policy boundary.
 The upstream implementation is
 [HA 2026.9.4 auth](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/auth/__init__.py).
+
+**Rotating credential bound to the Guard identity** (homelab identity target
+§10). The connector credential is no 30-day bearer: every token lives seven
+days and is replaced at half-life. Rotation runs under the lifecycle lock
+whenever the credential is ensured or opened (`WithHomeAssistantConnectorCredential`,
+which `setup connector --verify-only` also calls): a new token is issued under
+a durable intent (the record's `next` generation), found by its client name
+and creation time, verified with an owner/admin readback, stored as current,
+and only then is the old token deleted (the record's `retired` generation
+until deletion is confirmed). An interrupted rotation's token is deleted on
+the next call, never used and never issued again under the same name. The
+record (schema `stackkit.home-assistant-connector/v2`) binds the Guard
+identity the node reads from its own Guard enrollment
+(`/etc/techstack/agent-enrollment.json`: `guard:<server>/<worker>`), never
+from a request; `ensure` and opening the credential refuse on a node without a
+Guard enrollment or under another Guard identity
+(`home_assistant_connector_guard_changed`), while `revoke` still works. The
+signed receipt carries `guardIdentity` and the expiry of the generation of
+setup; `stackkit.home-assistant-connector-result/v1` adds `currentIssuer`,
+Owner-signed issuer evidence of the generation the node holds now (Techstack
+takes the current expiry from it only when owner, user, version, binding,
+Guard identity and secret reference equal the receipt's). Verification
+(`--verify-only`) rotates too and is the periodic driver until the local
+consumer exists: it issues no first credential, revokes nothing and changes
+no binding, owner or state, and its read-only HTTP session means no Compose
+identity mutation of the application. A record of the retired v1 schema
+(caller-chosen lifespan of up to 365 days) is opened only by `revoke`, which
+deletes its token and keeps a v2 tombstone; `ensure` and verification refuse
+it with `home_assistant_connector_legacy_record`. When the current token has
+disappeared, the whole record is revoked, its pending and retired tokens
+included.
 
 Credential lifecycle uses the existing `secret://` local issued-secret store.
 The additive encrypted record kind uses the established Owner key, a distinct

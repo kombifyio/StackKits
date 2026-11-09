@@ -43,4 +43,5 @@ func (s *Server) keepHomeTrustCurrent() {
 		return
 	}
 	go identity.KeepHomePublicTrustCurrent(s.ctx, s.config.BaseDir)
+	go identity.KeepHomeEnrollmentTrustCurrent(s.ctx, s.config.BaseDir)
 }

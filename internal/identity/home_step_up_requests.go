@@ -79,13 +79,47 @@ func RequestHomeOwnerStepUp(root string, action HomeStepUpAction, summary string
 // client, for exactly this action and challenge, at most 60 seconds old and
 // never used before. The request is removed whatever the outcome.
 func AwaitHomeOwnerStepUp(ctx context.Context, root string, request HomeOwnerStepUpRequest, poll time.Duration) (string, error) {
-	defer removeHomeOwnerStepUpRequest(root, request.ID)
+	return awaitHomeOwnerStepUp(ctx, root, request, poll, false)
+}
+
+// WaitHomeOwnerStepUp is AwaitHomeOwnerStepUp for a caller that is dispatched
+// again (the Guard's agent link delivery): when ctx ends before the Owner
+// answered, the request stays open for the rest of its life, so the Owner can
+// still approve it and the next dispatch verifies the approval.
+func WaitHomeOwnerStepUp(ctx context.Context, root string, request HomeOwnerStepUpRequest, poll time.Duration) (string, error) {
+	return awaitHomeOwnerStepUp(ctx, root, request, poll, true)
+}
+
+// OpenHomeOwnerStepUpRequest returns the open request for exactly this
+// action, so a repeated dispatch waits on the request the Owner sees instead
+// of raising another one.
+func OpenHomeOwnerStepUpRequest(root string, action HomeStepUpAction, now time.Time) (HomeOwnerStepUpRequest, bool) {
+	requests, err := listHomeOwnerStepUpRequests(root, now)
+	if err != nil {
+		return HomeOwnerStepUpRequest{}, false
+	}
+	for _, request := range requests {
+		if request.Action == action {
+			return request, true
+		}
+	}
+	return HomeOwnerStepUpRequest{}, false
+}
+
+func awaitHomeOwnerStepUp(ctx context.Context, root string, request HomeOwnerStepUpRequest, poll time.Duration, keepOpen bool) (string, error) {
+	answered := false
+	defer func() {
+		if answered || !keepOpen || !time.Now().Before(request.ExpiresAt) {
+			removeHomeOwnerStepUpRequest(root, request.ID)
+		}
+	}()
 	for {
 		current, err := loadHomeOwnerStepUpRequest(root, request.ID)
 		if err != nil {
 			return "", err
 		}
 		if current.IDToken != "" {
+			answered = true
 			trust, trustErr := loadCurrentHomeTrust(root, time.Now())
 			if trustErr != nil {
 				return "", ErrHomeStepUpDenied

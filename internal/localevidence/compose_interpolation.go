@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ComposeInterpolationEnvironment is the process environment docker compose
@@ -19,9 +20,14 @@ func ComposeInterpolationEnvironment(workspaceRoot string) ([]string, error) {
 	if email == "" {
 		return nil, errors.New("owner custody carries no contact email for Compose interpolation")
 	}
+	// One decision moves the router's ACME store and drops the step-ca
+	// resolver from the core routes the public certificate covers.
+	serves := PublicRouterCertificateServes(workspaceRoot, time.Now())
 	return append([]string{
 		"LANG=C", "LC_ALL=C",
 		"STACKKIT_CUSTODY_DIR=" + filepath.Join(workspaceRoot, ".stackkit", "custody"),
 		"STACKKIT_OWNER_EMAIL=" + email,
+		"STACKKIT_ROUTER_ACME_STORE=" + routerACMEStoreFor(workspaceRoot, serves),
+		"STACKKIT_ROUTER_CERT_RESOLVER=" + routerCertResolverFor(serves),
 	}, StackKitServerComposeEnvironment(workspaceRoot)...), nil
 }

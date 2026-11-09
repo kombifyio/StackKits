@@ -23,9 +23,7 @@ permissions:
 jobs:
   publish-image:
     name: Publish StackKit Server image
-    # Channel prereleases (internal Nightly vX.Y.Z-preview.<date>.<sha> and
-    # Early Access vX.Y.Z-early-access.<date>.<sha>) publish no image.
-    if: github.repository == 'kombifyio/StackKits' && !contains(github.event.release.tag_name || inputs.tag, '-preview.') && !contains(github.event.release.tag_name || inputs.tag, '-early-access.')
+    if: github.repository == 'kombifyio/StackKits'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -83,7 +81,7 @@ jobs:
   pocketid-platform:
     name: Build and qualify PocketID CAS (${{ matrix.arch }})
     needs: publish-image
-    if: github.repository == 'kombifyio/StackKits' && !contains(github.event.release.tag_name || inputs.tag, '-preview.')
+    if: github.repository == 'kombifyio/StackKits'
     strategy:
       max-parallel: 1
       fail-fast: false

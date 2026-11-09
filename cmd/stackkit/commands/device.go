@@ -32,8 +32,10 @@ func newDeviceBootstrapCommand() *cobra.Command {
 		Use:   "bootstrap",
 		Short: "Print the LAN enrollment bootstrap a device client scans (listener URL, TLS name, root fingerprint)",
 		Long: "Print where the LAN enrollment listener is, which server name its certificate carries and the step-ca root " +
-			"fingerprint a device pins, as JSON and as the stackkit-enroll URI. It contains no secret: a device enrolls only " +
-			"with its person's own passkey sign-in.",
+			"fingerprint a device pins, as JSON and as the stackkit-enroll URI, and the Companion enrollment address: the " +
+			"Hub origin with the Owner key fingerprint (#okf=), which a person enters in the Companion so it trusts the " +
+			"Owner-signed listener and root even when the Hub is reached through an edge. It contains no secret: a device " +
+			"enrolls only with its person's own passkey sign-in.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.NoArgs,
@@ -42,7 +44,11 @@ func newDeviceBootstrapCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDeviceJSON(cmd.OutOrStdout(), map[string]any{"bootstrap": bootstrap})
+			result := map[string]any{"bootstrap": bootstrap}
+			if address, addressErr := identity.HomeCompanionEnrollmentAddress(getWorkDir()); addressErr == nil {
+				result["companionAddress"] = address
+			}
+			return writeDeviceJSON(cmd.OutOrStdout(), result)
 		},
 	}
 }

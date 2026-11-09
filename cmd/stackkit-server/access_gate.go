@@ -13,6 +13,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/auth/accessgate"
 	"github.com/kombifyio/stackkits/internal/identity"
+	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 )
 
 // accessGateRoutesEnvironment is the compiler-owned route table the core
@@ -75,8 +76,7 @@ func newAccessGateServer(baseDir, listen string, table accessgate.Table) (*http.
 		Browsers:  identityBrowserSessions{root: baseDir},
 		Launcher:  identityLauncher{root: baseDir},
 		AppPasses: identityAppPasses{root: baseDir},
-		// No Gateway key is pinned at linking yet (igti.12).
-		Agents: accessgate.PinnedGatewayKeyMissing{},
+		Agents:    identityAgentEnvelopes{root: baseDir},
 	})
 	if err != nil {
 		return nil, err
@@ -217,6 +217,44 @@ func (a identityAppPasses) VerifyAppPass(_ context.Context, host, pass string) (
 		return accessgate.Principal{}, err
 	}
 	return withHouseholdGroups(a.root, accessgate.Principal{Subject: record.Account, Device: record.Device, ExpiresAt: record.ExpiresAt}), nil
+}
+
+// identityAgentEnvelopes verifies a Gateway-signed agent envelope against the
+// key pinned at linking (identity.VerifyHomeAgentEnvelope) and maps it to the
+// Homelab account it acts for, whose household groups are its ceiling. The
+// envelope is never logged; its subject, agent instance, lease and jti are.
+type identityAgentEnvelopes struct{ root string }
+
+func (a identityAgentEnvelopes) VerifyAgentEnvelope(_ context.Context, request accessgate.AgentRequest) (accessgate.Principal, error) {
+	principal, err := identity.VerifyHomeAgentEnvelope(a.root, identity.HomeAgentRequest{
+		Method: request.Method, Target: request.Target, Envelope: request.Envelope,
+	}, time.Now())
+	if err != nil {
+		slog.Info("agent envelope refused", "target", request.Target)
+		return accessgate.Principal{}, err
+	}
+	slog.Info("agent envelope admitted", "sub", principal.CloudSubject, "act", principal.AgentInstance, "lid", principal.LeaseID,
+		"jti", principal.JTI, "cap", principal.Capability, "target", request.Target)
+	// The verifier accepts an envelope until exp plus the leeway; the gate's
+	// admission uses the same limit, so an ID is never spent and then refused.
+	return withHouseholdGroups(a.root, accessgate.Principal{Subject: principal.Account, ExpiresAt: principal.ExpiresAt.Add(identity.HomeAgentEnvelopeLeeway)}), nil
+}
+
+// identityMCPAgentEnvelopes is the /mcp side of the agent class: it verifies
+// the envelope the gate admitted with the exact body and spends the gate's
+// admission (identity.ConsumeHomeAgentEnvelope).
+type identityMCPAgentEnvelopes struct{ root string }
+
+func (a identityMCPAgentEnvelopes) ConsumeAgentEnvelope(envelope, method, path string, body []byte) (stackkitmcp.AgentEnvelopePrincipal, error) {
+	principal, err := identity.ConsumeHomeAgentEnvelope(a.root, envelope, method, path, body, time.Now())
+	if err != nil {
+		return stackkitmcp.AgentEnvelopePrincipal{}, err
+	}
+	slog.Info("agent call reached /mcp", "sub", principal.CloudSubject, "act", principal.AgentInstance, "lid", principal.LeaseID, "jti", principal.JTI)
+	return stackkitmcp.AgentEnvelopePrincipal{
+		Account: principal.Account, AgentInstance: principal.AgentInstance, LeaseID: principal.LeaseID, Capability: principal.Capability,
+		LinkRef: principal.LinkRef,
+	}, nil
 }
 
 // accessGateHosts are every host of the route table.

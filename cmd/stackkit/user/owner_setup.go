@@ -3,9 +3,11 @@ package user
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +64,9 @@ func newOwnerSetupCommand(api householdAPI) *cobra.Command {
 				case errors.Is(activationErr, localevidence.ErrOwnerRuntimeBindingMissing):
 					mark(&steps[1], false, "", "run stackkit apply: Pocket ID must run before the Owner registers a passkey")
 				case activationErr != nil:
-					return activationErr
+					// Pocket ID is not reachable (a move quiesced the Core): the passkey
+					// step is the next one, once the StackKit is applied again.
+					mark(&steps[1], false, "", "Pocket ID cannot be read ("+activationErr.Error()+"); run stackkit apply")
 				default:
 					mark(&steps[1], activation.Status == "active" && activation.Origin == origin, activation.Origin, activation.Status+"; run stackkit user owner activate --owner-approve")
 				}
@@ -74,7 +78,22 @@ func newOwnerSetupCommand(api householdAPI) *cobra.Command {
 				if recoveryErr != nil {
 					return recoveryErr
 				}
-				mark(&steps[2], recovery.Configured, "recovery set written, code issued "+recovery.CodeIssuedAt.UTC().Format("2006-01-02"), "run stackkit break-glass setup --owner-approve (the key and code are shown once)")
+				movedAt, moved := time.Time{}, false
+				if service, serviceErr := localowner.NewService(root); serviceErr == nil {
+					movedAt, moved = service.IdentityOriginMovedAt()
+				}
+				// A recovery set binds the identity origin it was written under:
+				// after a move only a set of the current origin counts.
+				recoveryDone, recoveryNext := recovery.Configured, "run stackkit break-glass setup --owner-approve (the key and code are shown once)"
+				recoveryDetail := "recovery key and code set up, code issued " + recovery.CodeIssuedAt.UTC().Format("2006-01-02")
+				if recovery.SetIdentityOrigin != "" {
+					recoveryDetail += "; recovery set for " + recovery.SetIdentityOrigin + " written " + recovery.SetWrittenAt.UTC().Format("2006-01-02")
+				}
+				if recovery.Configured && moved && recovery.SetIdentityOrigin != origin {
+					recoveryDone = false
+					recoveryNext = "the identity origin moved to " + origin + " on " + movedAt.UTC().Format("2006-01-02") + ": write a recovery set that binds it (stackkit break-glass write)"
+				}
+				mark(&steps[2], recoveryDone, recoveryDetail, recoveryNext)
 				binding, bindingErr := localevidence.LoadOwnerRuntimeBinding(root)
 				if bindingErr != nil && !errors.Is(bindingErr, localevidence.ErrOwnerRuntimeBindingMissing) {
 					return bindingErr
@@ -83,12 +102,12 @@ func newOwnerSetupCommand(api householdAPI) *cobra.Command {
 				ownerDevice := false
 				if devicesErr == nil && bindingErr == nil {
 					for _, device := range devices {
-						if device.AccountSubject == binding.PocketIDSubject && !device.Revoked && device.Approval.PendingUntil == nil {
+						if device.AccountSubject == binding.PocketIDSubject && !device.Revoked && device.Approval.PendingUntil == nil && (!moved || device.EnrolledAt.After(movedAt)) {
 							ownerDevice = true
 						}
 					}
 				}
-				mark(&steps[3], ownerDevice, "an Owner device is enrolled", "sign in to the Homelab Hub on the LAN with the Owner passkey (stackkit device bootstrap prints where)")
+				mark(&steps[3], ownerDevice, "an Owner device is enrolled", "sign in to the Homelab Hub with the Owner passkey (a device enrolled before an identity origin move belongs to the old origin; stackkit device bootstrap prints where)")
 			}
 			return writeOwnerSetup(cmd, steps)
 		},

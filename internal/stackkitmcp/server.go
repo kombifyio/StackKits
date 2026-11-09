@@ -95,8 +95,13 @@ func (a *App) StreamableHTTPHandler() http.Handler {
 // ProtectedStreamableHTTPHandler requires the dedicated MCP token on every
 // request. Without a configured token it denies every request; it never falls
 // back to an open endpoint or to another credential.
+//
+// A request the Access Gate admitted with a Gateway-signed agent envelope is
+// admitted only through the envelope verifier (AgentEnvelopes), never through
+// another credential.
 func (a *App) ProtectedStreamableHTTPHandler() http.Handler {
-	return RequireMCPCredential(a.opts.MCPToken, a.opts.Agents, a.StreamableHTTPHandler())
+	handler := a.StreamableHTTPHandler()
+	return requireAgentEnvelopeOrCredential(a.opts.AgentEnvelopes, handler, RequireMCPCredential(a.opts.MCPToken, a.opts.Agents, handler))
 }
 
 // OpenMCP returns agent-native discovery metadata for the local MCP surface.

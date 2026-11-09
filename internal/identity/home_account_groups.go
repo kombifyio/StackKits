@@ -61,11 +61,16 @@ func RefreshHomeAccountGroups(ctx context.Context, root string, now time.Time) e
 	}
 	client := pocketid.NewClient(localowner.PocketIDLocalAPI(), key)
 	record := homeAccountGroupsRecord{Schema: homeAccountGroupsSchema, RefreshedAt: now.UTC().Truncate(time.Second), Accounts: map[string][]string{}}
+	// Accounts an agent acts for through the agent link need their groups as
+	// well: they are the ceiling of every agent call.
+	accounts := []string{}
 	for _, device := range registry.Devices {
-		account := device.AccountSubject
-		if device.Revoked || account == "" {
-			continue
+		if !device.Revoked && device.AccountSubject != "" {
+			accounts = append(accounts, device.AccountSubject)
 		}
+	}
+	accounts = append(accounts, HomeAgentLinkAccounts(root)...)
+	for _, account := range accounts {
 		if _, done := record.Accounts[account]; done {
 			continue
 		}

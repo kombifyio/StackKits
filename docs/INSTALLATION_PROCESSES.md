@@ -142,9 +142,7 @@ Important environment variables (each pre-seeds one decision):
 | `STACKKIT_PLATFORM` / `STACKKIT_PAAS` | Explicit compatibility workload-adapter selection (`coolify`/`komodo`); does not select Marketplace or define native defaults. |
 | `STACKKIT_SERVER_IMAGE` | stackkit-server image override (skips the local build). |
 | `STACKKIT_INSTALL_URL` | Alternate published release-installer endpoint for fixtures or mirrors. |
-| `STACKKIT_RELEASE_VERSION` | Exact release tag consumed by the shared installer when testing a candidate. |
-| `STACKKIT_CHANNEL` | Release channel, `stable` (default) or `preview` ("Nightly", unsigned). Same as `install.sh --channel`; `stackkit channel set` saves it in `~/.stackkits/channel`. An unknown value fails closed. |
-| `STACKKIT_ALLOW_DOWNGRADE` | `1` lets the stable channel replace a newer running preview build; otherwise the installer keeps it until a stable release at least as new exists. |
+| `STACKKIT_RELEASE_VERSION` | Exact release tag consumed by the shared installer when testing a candidate. Without it the installer takes the newest stable release; StackKits ships Stable only, with no Early Access or Nightly channel (D-2026-11-07-07). |
 
 Standard Mode without a kombify account, core only, with all decisions supplied:
 

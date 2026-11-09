@@ -236,7 +236,6 @@ func init() {
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(contractProofCmd)
 	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(newChannelCommand())
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(appCmd)
 	rootCmd.AddCommand(compatCmd)

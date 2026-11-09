@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -31,8 +32,12 @@ type domainMigrationState struct {
 	SpecPath string `json:"specPath"`
 	// From and To are the identity domains of the move. A state written before
 	// the public-origin move carries neither: it is home to lab.home.
-	From        string                                  `json:"from,omitempty"`
-	To          string                                  `json:"to,omitempty"`
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
+	// MovedAt is when the local half of the move completed: what the Owner
+	// registered or wrote before it (a recovery set, a device) belongs to the
+	// old origin.
+	MovedAt     time.Time                               `json:"movedAt,omitzero"`
 	BeforeSpec  []byte                                  `json:"beforeSpec,omitempty"`
 	AfterSpec   []byte                                  `json:"afterSpec,omitempty"`
 	Prepared    bool                                    `json:"prepared"`
@@ -181,6 +186,7 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath, to string
 		}
 		state.Runtime.Phase = "quiesced"
 		state.Prepared = true
+		state.MovedAt = s.now().UTC()
 		state.BeforeSpec, state.AfterSpec = nil, nil
 		if err := s.saveDomainMigration(state); err != nil {
 			return result, err
@@ -211,6 +217,7 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath, to string
 	}
 	state.Runtime.Phase = "quiesced"
 	state.Prepared = true
+	state.MovedAt = s.now().UTC()
 	// Retire exact-byte constraints only after the captured Core identities have
 	// been removed. A signed quiescing retry still needs the original evidence.
 	state.BeforeSpec, state.AfterSpec = nil, nil
@@ -218,6 +225,16 @@ func (s *Service) MigrateBasementDomain(ctx context.Context, specPath, to string
 		return result, err
 	}
 	return result, nil
+}
+
+// IdentityOriginMovedAt reports when the identity origin last moved. Setup
+// steps recorded before that belong to the old origin and are pending again.
+func (s *Service) IdentityOriginMovedAt() (time.Time, bool) {
+	state, err := s.loadDomainMigration()
+	if err != nil || !state.Prepared || state.MovedAt.IsZero() {
+		return time.Time{}, false
+	}
+	return state.MovedAt, true
 }
 
 // moveDomains are the source and target domain of a stored migration.
@@ -257,10 +274,10 @@ func validateDomainMove(from, to string) error {
 func publicDomainNext(to string) []string {
 	return []string{
 		"The Pocket ID, TinyAuth, LAN DNS and step-ca inputs, the StackSpec domain and the identity origin record now name " + to + "; the source Core containers were stopped without deleting volumes.",
-		"Publish DNS for id." + to + " and the service hosts (a wildcard record under the name covers them), then run stackkit generate and stackkit apply: the Core restarts on the new origin and the local step-ca issues the certificates for the new names (publicly trusted certificates for LAN names are a later phase).",
+		"Publish DNS for id." + to + " and the service hosts (a wildcard record under the name covers them), obtain the public certificate (sudo stackkit reach public-certificate issue: kombify Me answers DNS-01 for a kombify.me name, an own domain needs --dns-token-file or --dns-wallet-item with a Cloudflare DNS token), then run stackkit generate and stackkit apply: the Core restarts on the new origin and the router serves id." + to + " and the other hosts with the publicly trusted certificate; without it the local step-ca issues certificates only an Owner root trusts.",
 		"Passkeys are bound to the old Pocket ID host and do not work at https://id." + to + ". They are kept, not deleted, and count as inactive until a new passkey is registered there.",
 		"Owner: run stackkit user owner activate --owner-approve for a new one-time link; if that cannot be used, redeem the recovery code at the console (stackkit break-glass redeem). Members: stackkit user activate <username> --owner-approve.",
-		"Replace the recovery set under the new origin (stackkit break-glass write --owner-approve): the old one binds the old origin. Check progress with stackkit user owner setup.",
+		"Replace the recovery set under the new origin (stackkit break-glass write): the old one binds the old origin. Check progress with stackkit user owner setup.",
 	}
 }
 

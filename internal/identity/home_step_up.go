@@ -31,6 +31,10 @@ const (
 	// HomeStepUpCustodyChange approves a change of identity custody (recovery
 	// set, recovery code, Owner passkey reset).
 	HomeStepUpCustodyChange HomeStepUpClass = "custody-change"
+	// HomeStepUpAgentLink approves pinning, re-keying or remapping the
+	// Gateway agent link of a node (P3): which key kombify agent envelopes are
+	// verified against and which Homelab accounts they act for.
+	HomeStepUpAgentLink HomeStepUpClass = "agent-link"
 
 	// HomeStepUpWindow is #HomelabIdentityLifetimesV1.ownerStepUpSeconds: the
 	// passkey authentication must be at most this old when it is presented.
@@ -256,7 +260,7 @@ func loadCurrentHomeTrust(root string, now time.Time) (HomePublicTrust, error) {
 
 func validHomeStepUpClass(class HomeStepUpClass) bool {
 	switch class {
-	case HomeStepUpEnrollConfirm, HomeStepUpJoin, HomeStepUpClientRegistration, HomeStepUpCustodyChange:
+	case HomeStepUpEnrollConfirm, HomeStepUpJoin, HomeStepUpClientRegistration, HomeStepUpCustodyChange, HomeStepUpAgentLink:
 		return true
 	}
 	return false

@@ -218,9 +218,8 @@ const (
       - traefik.http.routers.stackkit-mcp.priority=1000
       - traefik.http.routers.stackkit-mcp.entrypoints=websecure
       - traefik.http.routers.stackkit-mcp.tls=true
-      - traefik.http.routers.stackkit-mcp.tls.certresolver=stackkits
-      - traefik.http.routers.stackkit-mcp.service=stackkit-mcp
 `
+	stackKitServerMCPRouterService       = "      - traefik.http.routers.stackkit-mcp.service=stackkit-mcp\n"
 	stackKitServerComposeServiceTailRest = `      - traefik.http.middlewares.stackkit-mcp-ratelimit.ratelimit.average=5
       - traefik.http.middlewares.stackkit-mcp-ratelimit.ratelimit.burst=20
       - traefik.http.services.stackkit-mcp.loadbalancer.server.port=8082
@@ -254,7 +253,7 @@ const (
       - traefik.http.routers.stackkit-hub.priority=900
       - traefik.http.routers.stackkit-hub.entrypoints=websecure
       - traefik.http.routers.stackkit-hub.tls=true
-      - traefik.http.routers.stackkit-hub.tls.certresolver=stackkits
+      - traefik.http.routers.stackkit-hub.tls.certresolver=` + basementCoreRouteCertResolver + `
       - traefik.http.routers.stackkit-hub.middlewares=stackkit-access-gate-lan@docker
       - traefik.http.routers.stackkit-hub.service=stackkit-hub
       - traefik.http.routers.stackkit-hub-remote.rule=` + "Host(`base.{{STACKKIT_DOMAIN}}`) && (PathPrefix(`/device/`) || PathPrefix(`/api/v1/identity/`))" + `
@@ -273,13 +272,26 @@ const (
 `
 	// accessGateResponseHeaders is accessgatetable.ResponseHeaders; init proves it.
 	accessGateResponseHeaders = "Stackkit-Access-Listener,Stackkit-Access-Subject,Stackkit-Access-Device,Authorization,DPoP,Stackkit-Agent-Envelope,Stackkit-App-Pass,Remote-User,Remote-Sub,Remote-Name,Remote-Email,Remote-Groups"
-	// The Basement /mcp router is on the LAN listener, where a native
-	// endpoint authenticates itself. On a Cloud Kit the listener is public,
-	// so the remote gate is in front of it as of every other route.
+	// The Basement /mcp is behind the Access Gate's agent class (homelab
+	// identity target §7, §10) on both listeners: the LAN router calls the
+	// LAN gate, where a request without an agent envelope reaches the
+	// endpoint's own MCP token check, and the remote router (its entrypoint
+	// binds the remote gate) admits only a Gateway-signed agent envelope. On
+	// a Cloud Kit the listener is public, so the remote gate is in front of
+	// it as of every other route. The Basement LAN router names the step-ca
+	// resolver through the Compose interpolation (none while the public-names
+	// certificate serves the node); a Cloud core always names it.
 	basementStackKitServerComposeServiceTail = stackKitServerComposeServiceTailHead +
-		"      - traefik.http.routers.stackkit-mcp.middlewares=stackkit-mcp-ratelimit@docker\n" + stackKitServerComposeServiceTailRest +
+		"      - traefik.http.routers.stackkit-mcp.tls.certresolver=" + basementCoreRouteCertResolver + "\n" + stackKitServerMCPRouterService +
+		"      - traefik.http.routers.stackkit-mcp.middlewares=stackkit-mcp-ratelimit@docker,stackkit-access-gate-lan@docker\n" +
+		"      - traefik.http.routers.stackkit-mcp-remote.rule=Host(`base.{{STACKKIT_DOMAIN}}`) && Path(`/mcp`)\n" +
+		"      - traefik.http.routers.stackkit-mcp-remote.priority=1000\n" +
+		"      - traefik.http.routers.stackkit-mcp-remote.entrypoints=remote\n" +
+		"      - traefik.http.routers.stackkit-mcp-remote.middlewares=stackkit-mcp-ratelimit@docker\n" +
+		"      - traefik.http.routers.stackkit-mcp-remote.service=stackkit-mcp\n" + stackKitServerComposeServiceTailRest +
 		stackKitServerComposeServiceTailLAN
 	cloudStackKitServerComposeServiceTail = stackKitServerComposeServiceTailHead +
+		"      - traefik.http.routers.stackkit-mcp.tls.certresolver=stackkits\n" + stackKitServerMCPRouterService +
 		"      - traefik.http.routers.stackkit-mcp.middlewares=stackkit-mcp-ratelimit@docker,stackkit-access-gate-remote@docker\n" + stackKitServerComposeServiceTailRest
 )
 
