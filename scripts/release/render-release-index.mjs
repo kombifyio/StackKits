@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { renderReleaseNotes } from './release-notes.mjs'
 
 const schemaVersion = 'stackkits-release-index/v1'
 const githubOIDCIssuer = 'https://token.actions.githubusercontent.com'
@@ -172,6 +173,9 @@ export function main(argv = process.argv.slice(2)) {
     attestation: options.attestation,
     certificateIdentity: options['certificate-identity']
   })
+  const notes = renderReleaseNotes(readFileSync(new URL('../../CHANGELOG.md', import.meta.url), 'utf8'), options.tag)
+  writeFileSync(path.join(path.dirname(path.resolve(options.output)), 'stackkits-release-notes-v1.json'),
+    `${JSON.stringify(notes, null, 2)}\n`, { mode: 0o600 })
   writeFileSync(path.resolve(options.output), `${JSON.stringify(index, null, 2)}\n`, { mode: 0o600 })
 }
 

@@ -1,5 +1,7 @@
 # Changelog
 
+- Added: a native application move keeps the moved applications' configuration. The source projects their portable public settings and effective module profiles (`stackkit backup transfer-configuration`); the destination authors the receiving candidate from exactly that document (`stackkit backup transfer-candidate`) instead of starting from its own catalog defaults. The destination admission names the canonical configuration digest, the source refuses to hold its applications for another configuration, the signed export receipt must carry the same configuration, and the activated outcome names the digest the destination verified. Secret material still travels only inside the sealed transfer custody; no secret, placement or route enters the portable configuration.
+
 - Added: publicly trusted certificates for a public identity origin (kombify-StackKits-igti.7). `sudo stackkit reach public-certificate issue` obtains one certificate for `*.<name>` and `<name>` by ACME DNS-01 with the `reach lan-certificate` client: kombify Me answers for a kombify.me name; an own domain uses the Owner's Cloudflare token (Zone:Read and DNS:Edit on the zone) from custody (`--dns-token-file` or `--dns-wallet-item <tenant>/<item>`). After `stackkit apply` the Basement core router serves `id.<name>` and every other host with it: the routes it covers name no step-ca resolver, whatever order the router loads its providers in, and any remaining step-ca leaves go to a separate ACME store, so an older leaf cannot shadow it; the identity signer renews it on its 12-hour cadence. A local-only homelab keeps step-ca. `status` and `remove` complete the command.
 - Added: a public-names certificate that stops serving no longer leaves the routes it covered without a certificate until the next `stackkit apply` (kombify-StackKits-igti.15). When renewals kept failing until it expired, when it no longer covers `id.<name>`, or after `reach public-certificate remove`, the identity signer adds a router in `router-tls/` that names the step-ca resolver for exactly those hosts (read from the router API), so the router serves step-ca certificates for them again without an apply or a restart; the next apply with a serving certificate gives the router a fresh ACME store, so these step-ca leaves cannot shadow it. Within 14 days of its expiry a certificate that is still not renewed raises one Owner notice (`public-certificate-renewal-failing`, pushed to the Owner devices by the Hub). `reach public-certificate remove` no longer asks for an apply.
 - Fix: after `stackkit user owner migrate-domain`, `stackkit user owner setup` re-evaluates the Owner steps against the new origin: the recovery step stays pending until a recovery set is written under the new origin (the recovery state now records the origin of the last set), the first-device step counts only an Owner device enrolled after the move, and an unreachable Pocket ID shows the passkey step as next instead of failing.
@@ -435,6 +437,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.57.6 (2026-11-09)
+
+### Added
+
+* **guard:** publish authenticated StackKits update metadata
+* **transfer:** carry portable application configuration into the receiving candidate
+
+### Fixed
+
+* **deps:** update internal products
+* select Techstack release artifacts by changed inputs
+* **techstack:** read the company App session instead of the personal PAT custody
 
 ## 0.57.5 (2026-11-09)
 

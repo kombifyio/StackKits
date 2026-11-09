@@ -242,12 +242,15 @@ jobs:
             dist/stackkits-release-assets.intoto.jsonl \
             dist/sigstore-trusted-root.jsonl \
             dist/stackkits-release-index-v1.json \
+            dist/stackkits-release-notes-v1.json \
             --clobber
 
       - name: Attest the release index
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
-          subject-path: dist/stackkits-release-index-v1.json
+          subject-path: |
+            dist/stackkits-release-index-v1.json
+            dist/stackkits-release-notes-v1.json
           create-storage-record: false
           show-summary: false
 
@@ -277,6 +280,10 @@ jobs:
             -R "$GITHUB_REPOSITORY" \
             --bundle dist/stackkits-release-index-v1.json.intoto.jsonl \
             --custom-trusted-root dist/sigstore-trusted-root.jsonl
+          gh attestation verify dist/stackkits-release-notes-v1.json \
+            -R "$GITHUB_REPOSITORY" \
+            --bundle dist/stackkits-release-index-v1.json.intoto.jsonl \
+            --custom-trusted-root dist/sigstore-trusted-root.jsonl
           gh release upload "$TAG" \
             dist/stackkits-release-index-v1.json.intoto.jsonl \
             --clobber
@@ -289,6 +296,7 @@ jobs:
             dist/stackkits-release-assets.intoto.jsonl
             dist/sigstore-trusted-root.jsonl
             dist/stackkits-release-index-v1.json
+            dist/stackkits-release-notes-v1.json
             dist/stackkits-release-index-v1.json.intoto.jsonl
           if-no-files-found: error
           compression-level: 0

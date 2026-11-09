@@ -44,6 +44,10 @@ const (
 
 var applicationTransferSHA256Pattern = regexp.MustCompile(`^(sha256:)?[0-9a-f]{64}$`)
 
+// The portable configuration digest is always the compiler's prefixed form;
+// a bare hex value can never equal a projection digest.
+var applicationTransferConfigurationDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
 func configureApplicationTransferTransportCommands() {
 	serve := &cobra.Command{Use: "transfer-serve", Short: "Serve one exported transfer archive once to the admitted receiving node", Args: machineAwareNoArgs, RunE: runApplicationTransferServe}
 	serve.Flags().String("target", "", "Export directory transfer-export wrote")

@@ -1534,6 +1534,8 @@
         "stackkit backup status",
         "stackkit backup target",
         "stackkit backup transfer-abort",
+        "stackkit backup transfer-candidate",
+        "stackkit backup transfer-configuration",
         "stackkit backup transfer-export",
         "stackkit backup transfer-fetch",
         "stackkit backup transfer-finish",
@@ -2374,6 +2376,60 @@
       "subcommands": []
     },
     {
+      "path": "stackkit backup transfer-candidate",
+      "name": "transfer-candidate",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-candidate [flags]",
+      "short": "Author the receiving candidate of one native application transfer from the source configuration",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "output",
+          "type": "string",
+          "description": "New receiving candidate StackSpec path",
+          "required": false
+        },
+        {
+          "name": "portable-configuration",
+          "type": "string",
+          "description": "Source portable application configuration document",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-configuration",
+      "name": "transfer-configuration",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-configuration [flags]",
+      "short": "Project one selected application's portable public configuration for a receiving candidate",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "use-case",
+          "type": "string",
+          "description": "Project every currently selected member of this catalog use case",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "stringArray",
+          "description": "Exact selected application to project; repeat",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit backup transfer-export",
       "name": "transfer-export",
       "parent": "stackkit backup",
@@ -2937,6 +2993,12 @@
           "name": "identity-file",
           "type": "string",
           "description": "Existing private receiving age identity (default: a new node-held identity)",
+          "required": false
+        },
+        {
+          "name": "portable-configuration-digest",
+          "type": "string",
+          "description": "Managed node: the canonical digest of the portable application configuration the receiving candidate carries",
           "required": false
         },
         {

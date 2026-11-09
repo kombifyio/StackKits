@@ -15,9 +15,11 @@ import (
 	"github.com/kombifyio/stackkits/internal/advancedcapability"
 	"github.com/kombifyio/stackkits/internal/advancedtrust"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/spf13/cobra"
 )
@@ -312,7 +314,7 @@ func readApplicationTransferAdmittedIntent(workspace, nonce string) (application
 // runtime is applied: the receiving application's first Apply follows the
 // credential adoption (transfer-prepare). The grant binds the exact candidate
 // bytes and the source Owner; the candidate must keep this node's stack.
-func admitManagedApplicationTransferCandidate(cmd *cobra.Command, workspace, candidatePath, sourceOwner, expectedSpec, nonce string) (string, error) {
+func admitManagedApplicationTransferCandidate(cmd *cobra.Command, workspace, candidatePath, sourceOwner, expectedSpec, portableDigest, nonce string) (string, error) {
 	candidateRaw, err := readAdvancedRegular(resolvePathFromWorkDir(workspace, candidatePath), maxAdvancedCandidateBytes, "receiving candidate StackSpec")
 	if err != nil {
 		return "", err
@@ -369,6 +371,25 @@ func admitManagedApplicationTransferCandidate(cmd *cobra.Command, workspace, can
 	generatedStackID, err := applicationTransferPlanStackID(generated.Plan.Canonical())
 	if err != nil || generated.Plan.Binding().SpecHash != candidate.SpecHash || generatedStackID != stackID {
 		return "", restore(errors.Join(err, errors.New("generated receiving plan differs from the admitted candidate or this node's stack")))
+	}
+	// The generated receiving plan must carry exactly the source portable
+	// configuration the candidate was authored from; a candidate whose settings
+	// or profiles the compiler resolved differently is refused before the
+	// source is held.
+	added, err := addedTransferWorkloads(baseline.Canonical, candidate.CanonicalStackSpec)
+	if err != nil {
+		return "", restore(err)
+	}
+	configuration, err := restoreactivation.ApplicationTransferConfiguration(generated.Plan, added)
+	if err != nil {
+		return "", restore(err)
+	}
+	digest, err := backuplifecycle.ApplicationTransferConfigurationDigest(configuration)
+	if err != nil {
+		return "", restore(err)
+	}
+	if digest != portableDigest {
+		return "", restore(errors.New("the generated receiving plan's portable application configuration differs from the source configuration (a different pinned StackKits release or a source configuration changed since the candidate was authored); nothing was received"))
 	}
 	return generated.Plan.Binding().PlanHash, nil
 }

@@ -130,6 +130,11 @@
       "description": "Exact selected application workload."
     },
     {
+      "name": "useCase",
+      "description": "Exact selected catalog use case.",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    {
       "name": "containerId",
       "description": "Exact immutable Docker container ID.",
       "pattern": "^[0-9a-f]{64}$"
@@ -328,6 +333,55 @@
       }
     },
     {
+      "operation": "application-transfer.configuration",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Project one installed application selection's portable public settings and effective module profiles for a receiving transfer candidate. No secret material, placement, route or Foundation identity leaves the source.",
+      "command": "stackkit backup transfer-configuration",
+      "argv": [
+        "backup",
+        "transfer-configuration"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--use-case",
+            "{useCase}"
+          ],
+          "description": "Every currently selected member of this catalog use case."
+        },
+        {
+          "argv": [
+            "--workload",
+            "{workloadRef}"
+          ],
+          "description": "One selected application; repeat for a partial selection."
+        }
+      ],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.application-transfer-configuration/v1",
+          "schema": "cmd/stackkit/commands/backup_transfer_configuration.go",
+          "description": "Command-result data with the selected workloads, their public settings, effective module profiles and the canonical portable configuration digest."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
       "operation": "application-transfer.receive",
       "status": "available",
       "sinceRelease": "pending",
@@ -381,7 +435,7 @@
           "status": "success",
           "schemaVersion": "stackkit.application-transfer-outcome/v1",
           "schema": "internal/backuplifecycle/application_transfer_receipt.go",
-          "description": "Raw signed activated outcome with the destination data readback digest (no command-result envelope)."
+          "description": "Raw signed activated outcome with the destination data readback digest and the verified portable application configuration digest (no command-result envelope)."
         },
         {
           "status": "denied",

@@ -424,7 +424,7 @@ func New() Catalog {
 				Events: []EventPhase{changeSetPrepareEvents},
 				Modes:  capabilityModes,
 			},
-		}, append(applicationOperations(), applicationTransferReceiveEntry())...),
+		}, append(applicationOperations(), applicationTransferReceiveEntry(), applicationTransferConfigurationEntry())...),
 	}
 	slices.SortFunc(catalog.Operations, func(a, b Operation) int { return cmp.Compare(a.Operation, b.Operation) })
 	return catalog
@@ -470,6 +470,7 @@ func placeholders() []Placeholder {
 	sha := `^sha256:[0-9a-f]{64}$`
 	return []Placeholder{
 		{Name: "workloadRef", Description: "Exact selected application workload."},
+		{Name: "useCase", Description: "Exact selected catalog use case.", Pattern: `^[a-z0-9][a-z0-9-]{0,62}$`},
 		{Name: "containerId", Description: "Exact immutable Docker container ID.", Pattern: `^[0-9a-f]{64}$`},
 		{Name: "planDigest", Description: "Reviewed source-bound application adoption digest.", Pattern: sha},
 		{Name: "applicationAction", Description: "Admitted adopted-container power action.", Pattern: `^(start|stop|restart)$`},

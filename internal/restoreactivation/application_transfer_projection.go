@@ -269,7 +269,14 @@ func ApplicationTransferConfiguration(plan generationartifact.VerifiedPlan, sele
 		result[ref] = config
 	}
 	if len(result) != len(selected) {
-		return nil, errors.New("selected configuration closure incomplete")
+		missing := []string{}
+		for _, ref := range selected {
+			if _, ok := result[ref]; !ok {
+				missing = append(missing, ref)
+			}
+		}
+		slices.Sort(missing)
+		return nil, fmt.Errorf("selected configuration closure incomplete; the verified plan does not select %v", missing)
 	}
 	return result, nil
 }

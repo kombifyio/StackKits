@@ -117,7 +117,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `migrate [v1-spec-file]` | Classify v1, reconcile one explicit v2 draft, and optionally persist canonical migrated-v1 intent. |
 | `addon` | List add-ons from the embedded CUE catalog (read-only). |
 | `break-glass` | Inspect and rotate break-glass recovery bundles. |
-| `backup` | Configure, inspect, run, verify, restore, and migrate Kopia backups. |
+| `backup` | Configure, inspect, run, verify, restore, and migrate Kopia backups, and on managed nodes move selected native applications to another node: the receiving candidate is authored from the source's portable public settings and module profiles, while secrets travel only inside the sealed transfer custody. |
 | `cluster` | Manage multi-node cluster membership. |
 | `compat` | Show published OS support evidence and run non-destructive host prerequisite diagnostics. |
 | `support export` | Write one bounded, redacted local support artifact from an existing rollout log and its run receipts. |

@@ -63,14 +63,18 @@ func VerifyApplicationTransferExportReceipt(receipt ApplicationTransferExportRec
 }
 
 type ApplicationTransferOutcome struct {
-	APIVersion     string                                     `json:"apiVersion"`
-	TransferID     string                                     `json:"transferId"`
-	Destination    ApplicationTransferDestination             `json:"destination"`
-	State          string                                     `json:"state"`
-	ActivationID   string                                     `json:"activationId,omitempty"`
-	ReadbackDigest string                                     `json:"readbackDigest,omitempty"`
-	CreatedAt      time.Time                                  `json:"createdAt"`
-	Signature      localevidence.ApplicationTransferSignature `json:"signature"`
+	APIVersion     string                         `json:"apiVersion"`
+	TransferID     string                         `json:"transferId"`
+	Destination    ApplicationTransferDestination `json:"destination"`
+	State          string                         `json:"state"`
+	ActivationID   string                         `json:"activationId,omitempty"`
+	ReadbackDigest string                         `json:"readbackDigest,omitempty"`
+	// PortableConfigurationDigest is the canonical digest of the receiving
+	// applications' configuration the activation verified against the signed
+	// source export; an activated outcome without it is refused.
+	PortableConfigurationDigest string                                     `json:"portableConfigurationDigest,omitempty"`
+	CreatedAt                   time.Time                                  `json:"createdAt"`
+	Signature                   localevidence.ApplicationTransferSignature `json:"signature"`
 }
 
 func SignApplicationTransferOutcome(workspace string, outcome ApplicationTransferOutcome) (ApplicationTransferOutcome, error) {
@@ -97,6 +101,15 @@ func VerifyApplicationTransferOutcome(outcome ApplicationTransferOutcome, t Appl
 	}
 	if outcome.State == "activated" && (!validDigest(outcome.ReadbackDigest) || outcome.ActivationID == "") {
 		return errors.New("destination success has no activation/data readback")
+	}
+	if outcome.State == "activated" {
+		want, err := ApplicationTransferConfigurationDigest(t.PortableConfiguration)
+		if err != nil {
+			return err
+		}
+		if outcome.PortableConfigurationDigest != want {
+			return errors.New("destination success has no verified portable application configuration")
+		}
 	}
 	signature := outcome.Signature
 	outcome.Signature = localevidence.ApplicationTransferSignature{}

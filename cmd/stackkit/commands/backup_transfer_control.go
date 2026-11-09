@@ -473,6 +473,7 @@ func configureApplicationTransferControlCommands() {
 	target.Flags().String("candidate-spec", "", "Managed node: the Techstack-approved receiving candidate StackSpec to persist and generate")
 	target.Flags().String("source-owner", "", "Managed node: the source Owner the Techstack receive capability names")
 	target.Flags().String("expected-spec-hash", "", "Managed node: the exact current intent the receiving candidate was authored from")
+	target.Flags().String("portable-configuration-digest", "", "Managed node: the canonical digest of the portable application configuration the receiving candidate carries")
 	target.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving admission")
 	finish := &cobra.Command{Use: "transfer-finish", Short: "Retire selected source intent after signed destination activation and retain all source data", Args: machineAwareNoArgs, RunE: runApplicationTransferFinish}
 	for _, f := range []string{"source-receipt", "target-outcome", "target-fingerprint", "candidate-output", "inventory"} {
@@ -504,9 +505,13 @@ func runApplicationTransferTarget(cmd *cobra.Command, _ []string) error {
 	candidatePath, _ := cmd.Flags().GetString("candidate-spec")
 	sourceOwner, _ := cmd.Flags().GetString("source-owner")
 	expectedSpec, _ := cmd.Flags().GetString("expected-spec-hash")
+	portableDigest, _ := cmd.Flags().GetString("portable-configuration-digest")
 	managed, err := applicationTransferManaged(workspace)
 	if err != nil {
 		return err
+	}
+	if portableDigest != "" && !applicationTransferConfigurationDigestPattern.MatchString(portableDigest) {
+		return errors.New("portable application configuration digest is invalid")
 	}
 	var nonce [32]byte
 	if _, err = rand.Read(nonce[:]); err != nil {
@@ -529,10 +534,10 @@ func runApplicationTransferTarget(cmd *cobra.Command, _ []string) error {
 		return cause
 	}
 	if managed {
-		if candidatePath == "" || sourceOwner == "" || expectedSpec == "" {
-			return errors.New("managed receiving admission requires --candidate-spec, --expected-spec-hash, --source-owner and --capability")
+		if candidatePath == "" || sourceOwner == "" || expectedSpec == "" || portableDigest == "" {
+			return errors.New("managed receiving admission requires --candidate-spec, --expected-spec-hash, --source-owner, --portable-configuration-digest and --capability")
 		}
-		planHash, e := admitManagedApplicationTransferCandidate(cmd, workspace, candidatePath, sourceOwner, expectedSpec, nonceHex)
+		planHash, e := admitManagedApplicationTransferCandidate(cmd, workspace, candidatePath, sourceOwner, expectedSpec, portableDigest, nonceHex)
 		if e != nil {
 			return e
 		}
@@ -541,8 +546,8 @@ func runApplicationTransferTarget(cmd *cobra.Command, _ []string) error {
 			return fail(errors.New("generated receiving plan differs from --expected-plan-hash"))
 		}
 		expected = planHash
-	} else if candidatePath != "" || sourceOwner != "" || expectedSpec != "" {
-		return errors.New("--candidate-spec, --expected-spec-hash and --source-owner admit a managed node only; author and generate the receiving intent first")
+	} else if candidatePath != "" || sourceOwner != "" || expectedSpec != "" || portableDigest != "" {
+		return errors.New("--candidate-spec, --expected-spec-hash, --source-owner and --portable-configuration-digest admit a managed node only; author and generate the receiving intent first")
 	}
 	if expected == "" {
 		return errors.New("receiving admission requires --expected-plan-hash")
@@ -581,7 +586,7 @@ func runApplicationTransferTarget(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fail(err)
 	}
-	admission := applicationTransferDestinationAdmission{APIVersion: "stackkit.application-transfer-destination/v1", Destination: backuplifecycle.ApplicationTransferDestination{OwnerRef: current.OwnerRef, SigningFingerprint: localevidence.ApplicationTransferFingerprint(key.Public()), StackID: plan.StackID, SiteRef: current.Owner.Binding.SiteRef, NodeRef: current.Owner.Binding.NodeRef, PlanHash: expected, Recipient: identity.Recipient().String(), Nonce: nonceHex, ExpiresAt: time.Now().UTC().Add(12 * time.Hour)}}
+	admission := applicationTransferDestinationAdmission{APIVersion: "stackkit.application-transfer-destination/v1", Destination: backuplifecycle.ApplicationTransferDestination{OwnerRef: current.OwnerRef, SigningFingerprint: localevidence.ApplicationTransferFingerprint(key.Public()), StackID: plan.StackID, SiteRef: current.Owner.Binding.SiteRef, NodeRef: current.Owner.Binding.NodeRef, PlanHash: expected, Recipient: identity.Recipient().String(), Nonce: nonceHex, PortableConfigurationDigest: portableDigest, ExpiresAt: time.Now().UTC().Add(12 * time.Hour)}}
 	canonical, err := json.Marshal(admission)
 	if err != nil {
 		return fail(err)

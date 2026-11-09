@@ -66,6 +66,8 @@ func configureApplicationTransferCommands() {
 	recoverCmd.Flags().Bool("json", false, "Output recovery outcome")
 	recoverCmd.Flags().Int64("max-bytes", 512<<30, "Maximum decompressed archive bytes")
 	backupCmd.AddCommand(recoverCmd)
+	configureApplicationTransferConfigurationCommand()
+	configureApplicationTransferCandidateCommand()
 	configureApplicationTransferControlCommands()
 	configureApplicationTransferTransportCommands()
 }
@@ -184,6 +186,17 @@ func runApplicationTransferExport(cmd *cobra.Command, _ []string) error {
 	portable, err := restoreactivation.ApplicationTransferConfiguration(authority.Plan, workloads)
 	if err != nil {
 		return err
+	}
+	// The destination admitted one exact portable configuration; a source
+	// never holds its applications for another one.
+	if destination.PortableConfigurationDigest != "" {
+		digest, digestErr := backuplifecycle.ApplicationTransferConfigurationDigest(portable)
+		if digestErr != nil {
+			return digestErr
+		}
+		if digest != destination.PortableConfigurationDigest {
+			return errors.New("the receiving admission carries another portable application configuration; author the receiving candidate from this source configuration and issue a new admission")
+		}
 	}
 	var exported backuplifecycle.EmergencyExportResult
 	execute := func(ctx context.Context) error {
@@ -490,7 +503,18 @@ func runApplicationTransferImport(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	readbackSum := sha256.Sum256(readback)
-	outcome, err := backuplifecycle.SignApplicationTransferOutcome(authority.WorkspaceRoot, backuplifecycle.ApplicationTransferOutcome{TransferID: transfer.ID, Destination: transfer.Destination, State: "activated", ActivationID: result.OperationID, ReadbackDigest: "sha256:" + hex.EncodeToString(readbackSum[:])})
+	// The outcome names the configuration the destination actually activated,
+	// not only the value it received; the signature verifier still requires it
+	// to equal the signed source export.
+	activatedConfiguration, err := restoreactivation.ApplicationTransferConfiguration(plan, workloads)
+	if err != nil {
+		return err
+	}
+	configurationDigest, err := backuplifecycle.ApplicationTransferConfigurationDigest(activatedConfiguration)
+	if err != nil {
+		return err
+	}
+	outcome, err := backuplifecycle.SignApplicationTransferOutcome(authority.WorkspaceRoot, backuplifecycle.ApplicationTransferOutcome{TransferID: transfer.ID, Destination: transfer.Destination, State: "activated", ActivationID: result.OperationID, ReadbackDigest: "sha256:" + hex.EncodeToString(readbackSum[:]), PortableConfigurationDigest: configurationDigest})
 	if err != nil {
 		return err
 	}

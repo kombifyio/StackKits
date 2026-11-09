@@ -44,15 +44,19 @@ type ApplicationTransfer struct {
 }
 
 type ApplicationTransferDestination struct {
-	OwnerRef           string    `json:"ownerRef"`
-	SigningFingerprint string    `json:"signingFingerprint"`
-	StackID            string    `json:"stackId"`
-	SiteRef            string    `json:"siteRef"`
-	NodeRef            string    `json:"nodeRef"`
-	PlanHash           string    `json:"planHash"`
-	Recipient          string    `json:"recipient"`
-	Nonce              string    `json:"nonce"`
-	ExpiresAt          time.Time `json:"expiresAt"`
+	OwnerRef           string `json:"ownerRef"`
+	SigningFingerprint string `json:"signingFingerprint"`
+	StackID            string `json:"stackId"`
+	SiteRef            string `json:"siteRef"`
+	NodeRef            string `json:"nodeRef"`
+	PlanHash           string `json:"planHash"`
+	Recipient          string `json:"recipient"`
+	Nonce              string `json:"nonce"`
+	// PortableConfigurationDigest is the canonical digest of the receiving
+	// applications' portable configuration the destination admitted. A source
+	// exports only when its own projection has the very same digest.
+	PortableConfigurationDigest string    `json:"portableConfigurationDigest,omitempty"`
+	ExpiresAt                   time.Time `json:"expiresAt"`
 }
 
 type ApplicationTransferWorkloadConfiguration struct {
@@ -60,6 +64,18 @@ type ApplicationTransferWorkloadConfiguration struct {
 	ModuleRef      string         `json:"moduleRef"`
 	Settings       map[string]any `json:"settings"`
 	Profiles       map[string]any `json:"profiles"`
+}
+
+// ApplicationTransferConfigurationDigest is the one canonical digest of a
+// selection's portable configuration. The source's export admission, the
+// destination's receiving admission and the activated outcome all carry this
+// same value, so a configuration that changed in transit is refused before the
+// source is held or before a destination activation is signed.
+func ApplicationTransferConfigurationDigest(config map[string]ApplicationTransferWorkloadConfiguration) (string, error) {
+	if len(config) == 0 {
+		return "", errors.New("portable application configuration is empty")
+	}
+	return resolvedplan.CanonicalSHA256(config)
 }
 
 type ApplicationTransferExportInput struct {
