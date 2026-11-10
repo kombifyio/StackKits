@@ -90,7 +90,7 @@ var reservedArgumentNames = []string{
 var secretArgumentMarkers = []string{"password", "passphrase", "token", "secret", "api_key", "private_key", "credential"}
 
 var catalog = append([]Contract{
-	{ID: Init, ToolName: "stackkit_init", Title: "Init", Description: "Materialize a native StackSpec from the embedded CUE authoring contract.", Command: []string{"init"}, Mutation: true, Idempotent: false, OwnerApproval: true},
+	{ID: Init, ToolName: "stackkit_init", Title: "Init", Description: "Materialize a native StackSpec from the embedded CUE authoring contract. A fresh workspace needs the email address of the person who becomes the first owner of the homelab.", Command: []string{"init"}, Mutation: true, Idempotent: false, OwnerApproval: true},
 	{ID: Validate, ToolName: "stackkit_validate", Title: "Validate", Description: "Validate desired StackSpec intent without mutating lifecycle state.", Command: []string{"validate"}, Idempotent: true},
 	{ID: Resolve, ToolName: "stackkit_resolve", Title: "Resolve", Description: "Resolve StackSpec and observed Inventory into the canonical ResolvedPlan.", Command: []string{"resolve"}, Mutation: true, Idempotent: true, OwnerApproval: true},
 	{ID: Generate, ToolName: "stackkit_generate", Title: "Generate", Description: "Generate rollout artifacts from the exact persisted ResolvedPlan.", Command: []string{"generate"}, Mutation: true, Idempotent: true, OwnerApproval: true},

@@ -20,6 +20,7 @@
   "step.rollout.hint": "प्रमाण",
   "workspace.heading": "वर्कस्पेस और Stack पहचान",
   "workspace.stackName": "Stack का नाम",
+  "workspace.ownerEmail": "पहले Owner का ईमेल पता",
   "workspace.workspace": "वर्कस्पेस",
   "workspace.specPath": "Spec पथ",
   "workspace.readSpec": "Spec पढ़ें",

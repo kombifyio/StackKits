@@ -185,6 +185,37 @@ its capability have been admitted; they do not introduce a standalone Advanced
 executor. Current source qualification does not activate a Gateway grant or
 agent equipment.
 
+## Home graph sync
+
+`stackkit setup home-graph --workload smart-home --request-file <relative-file>
+--operation-id <connector-operation-id> --graph-file <relative-file> --json`
+projects the household home graph (`kombify.home_graph.v1`) onto the exact local
+Home Assistant. It runs under the same authority as `setup connector
+--verify-only` (signed Apply, retained receipt, independently observed
+container, node custody) and opens the node's connector credential only
+inside the command; the credential never reaches the request, the result or a
+log. `--request-file` is the connector `ensure` request, `--graph-file` a
+`stackkit.home-graph-sync-request/v1` document of at most 512 KiB: the graph and
+an optional `restore` list (at most 256 `kind`, `kombifyId`, `field` items)
+naming drifted fields whose kombify value overwrites Home Assistant in this
+run.
+
+With `leading_system: kombify` the command plans the floors, areas (labelled
+`kombify`) and device placement, applies them and keeps the kombify-to-Home
+Assistant id mapping on the node in `.stackkit/home-graph/home-graph-mapping.json`
+(mode 0600, written atomically). A field that changed in Home Assistant since
+the last sync is reported as drift and left alone unless it is in `restore`.
+Nothing is ever deleted in Home Assistant. With `leading_system:
+home_assistant` the command only reads the registries and writes nothing.
+
+The command-result data uses `stackkit.home-graph-sync-result/v1`: `revision`,
+`leadingSystem`, `status` (`applied` or `observed`), `operations`, `links`,
+`drift`, a bounded `inventory` of floors and areas with a count of unmapped
+devices, and `syncedAt`. Failures carry the stable reason codes
+`home_graph_connector_unavailable`, `home_graph_request_invalid` and
+`home_graph_apply_failed`. The release catalog exposes the operation as
+`application.home-graph.sync`.
+
 The local `appsetup.BootstrapHomeAssistantOwner` API accepts an optional
 `HomeAssistantOwnerRequest.Connector`. Ordinary owner/OIDC setup does not issue
 an agent credential. An authorized local caller explicitly selects `ensure`

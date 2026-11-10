@@ -315,7 +315,7 @@ curl -sSL https://base.stackkit.cc | sh
 curl -sSL https://install.stackkit.cc | sh
 stackkit agent install-plan --json
 stackkit agent self-check --json
-stackkit init basement-kit --owner-source=local --non-interactive \
+stackkit init basement-kit --owner-source=local --owner-email you@example.com --non-interactive \
   --use-case-alternative basement-core=standalone \
   --module-compute-profile stackkits-basement-core-runtime=standard
 stackkit validate

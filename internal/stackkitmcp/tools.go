@@ -23,6 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/config"
 	cuepkg "github.com/kombifyio/stackkits/internal/cue"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
@@ -103,6 +104,9 @@ type architectureV2InitInput struct {
 	DataCapacityDemands   map[string]architecturev2.DataCapacityIntent    `json:"data_capacity,omitempty" jsonschema:"explicit new-data budget inputs per selected data binding; CUE computes the requirement"`
 	UseCaseAlternatives   map[string]string                               `json:"use_case_alternatives,omitempty" jsonschema:"explicit alternative for every selected and required use case"`
 	Platform              string                                          `json:"platform,omitempty" jsonschema:"declared workload runtime adapter"`
+	OwnerEmail            string                                          `json:"owner_email,omitempty" jsonschema:"email address of the person who becomes the first owner of the homelab; required on a fresh workspace, optional only when this workspace already has an established owner"`
+	OwnerUsername         string                                          `json:"owner_username,omitempty" jsonschema:"login name for that first owner; derived from the email address when omitted"`
+	OwnerDisplayName      string                                          `json:"owner_display_name,omitempty" jsonschema:"display name of that first owner; optional"`
 }
 
 type architectureV2ResolveInput struct {
@@ -255,7 +259,7 @@ func (a *App) applicationDeliveryCompatibility(
 func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	steps := []map[string]any{
 		{"command": "stackkit version", "purpose": "require the exact candidate bundle and its packaged definitions", "mutation": false},
-		{"command": "stackkit init basement-kit --api-version stackkit/v2alpha2 --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard --non-interactive --owner-source=local", "purpose": "materialize explicit module-local intent and local owner custody from embedded CUE authority", "mutation": true},
+		{"command": "stackkit init basement-kit --api-version stackkit/v2alpha2 --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard --non-interactive --owner-source=local --owner-email <owner-email>", "purpose": "materialize explicit module-local intent and local owner custody from embedded CUE authority; <owner-email> is the email address of the person who becomes the first owner of the homelab", "mutation": true, "requires_inputs": []string{"owner_email"}},
 		{"command": "stackkit validate", "purpose": "validate desired StackSpec v2 intent only", "mutation": false},
 		{"command": "stackkit generate", "purpose": "resolve, persist, and render the exact authorized ResolvedPlan", "mutation": true},
 		{"command": "stackkit plan", "purpose": "preview the exact persisted plan", "mutation": false},
@@ -265,13 +269,19 @@ func (a *App) installPlan(ctx context.Context, req *mcp.CallToolRequest, _ struc
 	out := map[string]any{
 		"scenario": "architecture-v2-basement-rollout", "kit": "basement-kit", "source_version": stackspecmigration.SourceVersionV2Alpha2,
 		"steps": steps,
+		"required_inputs": []map[string]any{
+			{"name": "owner_email", "placeholder": "<owner-email>", "required": true, "description": "The email address of the person who becomes the first owner of the homelab. Ask for it; a placeholder address is refused. Not needed only when the workspace already has an established owner."},
+			{"name": "owner_username", "flag": "--owner-username", "required": false, "description": "Login name for that first owner; derived from the email address when omitted."},
+			{"name": "owner_display_name", "flag": "--owner-display-name", "required": false, "description": "Display name of that first owner."},
+		},
 		"reference_vertical": map[string]any{
 			"id": "family-photo-vault", "kit": "modern-homelab",
 			"source_version": stackspecmigration.SourceVersionV2Alpha1,
-			"init_command":   "stackkit init modern-homelab --api-version stackkit/v2alpha1 --domain <domain-base> --non-interactive --owner-source=local",
+			"init_command":   "stackkit init modern-homelab --api-version stackkit/v2alpha1 --domain <domain-base> --non-interactive --owner-source=local --owner-email <owner-email>",
 			"operations":     standaloneoperations.All(),
 		},
 		"notes": []string{
+			"Creating the homelab needs the email address of the person who becomes its first owner (owner_email, <owner-email> in the init command). Without it init stops with an error and writes no StackSpec, on every standalone init including stackkit_init.",
 			"Native v2alpha2 selects every module profile and workload alternative explicitly. The older Family Photo Vault example is labeled v2alpha1 compatibility; use https://stackkit.cc/planner for native authoring.",
 			"StackSpec never contains provider lifecycle, credentials, management addresses, or observed host facts.",
 			"Spec validation is not generation or apply readiness; the Inventory-bound ResolvedPlan is authoritative.",
@@ -704,7 +714,23 @@ func (a *App) stackkitInitV2(ctx context.Context, req *mcp.CallToolRequest, in a
 		out := errorOutput("stackkit_init", fmt.Errorf("kit_profile is required for native Architecture v2 authoring"))
 		return errorJSONResult(out), out, nil
 	}
+	// A fresh workspace has no owner to resume from. Name the missing input
+	// before the command starts, using the command's own owner resolution.
+	baseDir, err := a.workspaceDir(in.BaseDir)
+	if err != nil {
+		out := errorOutput("stackkit_init", err)
+		return errorJSONResult(out), out, nil
+	}
+	ownerEmail, _, _ := localevidence.ResumeOwnerIdentity(baseDir, in.OwnerEmail, in.OwnerUsername, in.OwnerDisplayName)
+	if ownerEmail == "" || localevidence.IsPlaceholderOwnerEmail(ownerEmail) {
+		out := errorOutput("stackkit_init", fmt.Errorf("owner_email is required: this workspace has no established owner, so give the email address of the person who becomes the first owner of the homelab; a placeholder address is refused"))
+		out["missing_input"] = "owner_email"
+		return errorJSONResult(out), out, nil
+	}
 	args := []string{"init", kit, "--api-version", in.APIVersion, "--non-interactive", "--owner-source=local"}
+	args = appendOptionalValueFlag(args, "--owner-email", in.OwnerEmail)
+	args = appendOptionalValueFlag(args, "--owner-username", in.OwnerUsername)
+	args = appendOptionalValueFlag(args, "--owner-display-name", in.OwnerDisplayName)
 	args = appendOptionalFlag(args, "--name", in.Name)
 	args = appendOptionalFlag(args, "--domain", in.DomainBase)
 	args = appendOptionalFlag(args, "--platform", in.Platform)
@@ -1169,6 +1195,15 @@ func commandEnv(extra, forced map[string]string) []string {
 		env = append(env, key+"="+value)
 	}
 	return env
+}
+
+// appendOptionalValueFlag joins the value to its flag, so free text such as a
+// display name can never be read as another flag.
+func appendOptionalValueFlag(args []string, flagName, value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return args
+	}
+	return append(args, flagName+"="+strings.TrimSpace(value))
 }
 
 func appendOptionalFlag(args []string, flagName, value string) []string {

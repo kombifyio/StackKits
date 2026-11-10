@@ -20,6 +20,7 @@
   "step.rollout.hint": "证据",
   "workspace.heading": "工作区与 Stack 标识",
   "workspace.stackName": "Stack 名称",
+  "workspace.ownerEmail": "首位 Owner 的电子邮件地址",
   "workspace.workspace": "工作区",
   "workspace.specPath": "Spec 路径",
   "workspace.readSpec": "读取 Spec",

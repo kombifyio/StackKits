@@ -57,7 +57,7 @@ backup engine.
 First materialize and verify the standalone Basement deployment:
 
 ```bash
-stackkit init --owner-source=local
+stackkit init --catalog-defaults --owner-source=local --owner-email you@example.com
 stackkit validate
 stackkit generate
 stackkit apply

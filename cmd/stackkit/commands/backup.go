@@ -328,7 +328,7 @@ func runBackupInit(cmd *cobra.Command, args []string) error {
 	printInfo("Local backup CLI (Kopia engine) — readiness checklist")
 	fmt.Println()
 	fmt.Println("  1. Materialize and verify the standalone Basement core:")
-	fmt.Println("       stackkit init --owner-source=local")
+	fmt.Println("       stackkit init --catalog-defaults --owner-source=local --owner-email you@example.com")
 	fmt.Println("       stackkit validate")
 	fmt.Println("       stackkit generate")
 	fmt.Println("       stackkit apply")

@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:00241f9f6c1f5931697bf2f3a16b564d42d62dddabeed56baad1470bd261a150",
+  "contentDigest": "sha256:3dd10082c55f4f86b12ffb2f7c9c01c531e45caef6d044455dee401d53a974d4",
   "operations": [
     {
       "command": [
@@ -1899,7 +1899,7 @@
       "command": [
         "init"
       ],
-      "description": "Materialize a native StackSpec from the embedded CUE authoring contract.",
+      "description": "Materialize a native StackSpec from the embedded CUE authoring contract. A fresh workspace needs the email address of the person who becomes the first owner of the homelab.",
       "destructive": false,
       "id": "stackkit.init",
       "idempotent": false,

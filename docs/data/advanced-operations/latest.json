@@ -154,6 +154,10 @@
       "description": "Workspace-relative private metadata-only Home Assistant connector request."
     },
     {
+      "name": "homeGraphFile",
+      "description": "Workspace-relative private home graph sync request (stackkit.home-graph-sync-request/v1, at most 512 KiB)."
+    },
+    {
       "name": "ownerFile",
       "description": "Workspace-relative private native application Owner grant file."
     },
@@ -636,6 +640,62 @@
           "schemaVersion": "stackkit.application-adoption/v1",
           "schema": "schemas/stackkit-application-adoption-v1.schema.json",
           "description": "Source and authority-bound adoption evidence."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.home-graph.sync",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Project the household home graph onto the exact local Home Assistant (kombify leading) or read its floors and areas (Home Assistant leading); the credential stays on the node, nothing is deleted in Home Assistant. Dispatched without a fresh owner approval: the owner's edit of the home graph in kombify is the approval.",
+      "command": "stackkit setup home-graph",
+      "argv": [
+        "setup",
+        "home-graph",
+        "--workload",
+        "smart-home",
+        "--request-file",
+        "{connectorRequestFile}",
+        "--operation-id",
+        "{operationId}",
+        "--graph-file",
+        "{homeGraphFile}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "connectorRequestFile",
+          "schemaVersion": "stackkit.home-assistant-connector-request/v1",
+          "schema": "schemas/stackkit-home-assistant-connector-request-v1.schema.json",
+          "description": "The ensure request of the active connector; external resource and revision are correlation only."
+        },
+        {
+          "placeholder": "homeGraphFile",
+          "schemaVersion": "stackkit.home-graph-sync-request/v1",
+          "schema": "schemas/stackkit-home-graph-sync-request-v1.schema.json",
+          "description": "The kombify.home_graph.v1 document plus the drift items the owner chose to restore; at most 512 KiB."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.home-graph-sync-result/v1",
+          "schema": "schemas/stackkit-home-graph-sync-result-v1.schema.json",
+          "description": "Links, drift and a bounded Home Assistant floor and area inventory; devices are only counted."
         }
       ],
       "events": [],

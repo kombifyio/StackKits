@@ -5,8 +5,8 @@ You are operating an exact native StackKits candidate using `stackkit/v2alpha2` 
 Follow this contract:
 
 1. Confirm `stackkit version` matches the candidate bundle.
-2. Create a clean workspace.
-3. Run `stackkit init basement-kit --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard --owner-source=local --non-interactive` to materialize the canonical initial StackSpec v2alpha2 and standalone owner custody. This selects the standard Basement core explicitly; additional workloads need their own alternative and module profile selections.
+2. Create a clean workspace and ask the operator for the email address of the person who becomes the first owner of the homelab; init refuses a missing or placeholder address.
+3. Run `stackkit init basement-kit --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard --owner-source=local --owner-email <owner-email> --non-interactive` (through MCP: `stackkit_init` with `owner_email`) to materialize the canonical initial StackSpec v2alpha2 and standalone owner custody. This selects the standard Basement core explicitly; additional workloads need their own alternative and module profile selections.
 4. Run `stackkit validate`; it is read-only and creates no lifecycle state.
 5. Place optional observed Inventory and external host binding/receipt in the canonical workspace locations when the target requires them. Do not place provider lifecycle, credentials, SSH transport, management addresses, or observed host facts in StackSpec.
 6. Run `stackkit generate`; it resolves and atomically persists the canonical ResolvedPlan before rendering.

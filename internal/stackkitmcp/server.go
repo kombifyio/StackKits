@@ -212,7 +212,7 @@ func (a *App) addDocs(server *mcp.Server) {
 	mcp.AddTool(server, mcpTool("stackkit_application_delivery_compatibility", "Return the CUE-owned application compatibility matrix for Coolify, Komodo, and standalone Compose.", true, false, true), a.applicationDeliveryCompatibility)
 	mcp.AddTool(server, mcpTool("stackkit_use_case_compute_tiers", "Legacy v2alpha1 compatibility facts only. Native intent uses stackkit_module_profiles, not a kit-wide tier.", true, false, true), a.useCaseComputeTiers)
 	mcp.AddTool(server, mcpTool("stackkit_module_profiles", "List native module-owned compute, storage and accelerator profile contracts from embedded CUE authority. Missing resource axes stay unknown; no profile is selected or recommended.", true, false, false), a.moduleProfiles)
-	mcp.AddTool(server, mcpTool("stackkit_install_plan", "Return a safe BaseKit install plan for agents.", true, false, true), a.installPlan)
+	mcp.AddTool(server, mcpTool("stackkit_install_plan", "Return a safe BaseKit install plan for agents. Creating the homelab needs the email address of the person who becomes its first owner; the plan names where it goes.", true, false, true), a.installPlan)
 	mcp.AddTool(server, mcpTool("stackkit_self_check_plan", "Return ordered StackKits agent self-check probes.", true, false, true), a.selfCheckPlan)
 	stateConsoleTool := mcpTool("stackkit_state_console", "Return StackKits State Console metadata.", true, false, true)
 	stateConsoleTool.Meta["ui"] = map[string]any{"resourceUri": stateConsoleResourceURI}

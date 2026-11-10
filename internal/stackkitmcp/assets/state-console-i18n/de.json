@@ -20,6 +20,7 @@
   "step.rollout.hint": "Nachweise",
   "workspace.heading": "Workspace und Stack-Identität",
   "workspace.stackName": "Stack-Name",
+  "workspace.ownerEmail": "E-Mail-Adresse des ersten Owners",
   "workspace.workspace": "Workspace",
   "workspace.specPath": "Spec-Pfad",
   "workspace.readSpec": "Spec lesen",

@@ -298,7 +298,7 @@ Native v2 Owner bootstrap is mandatory for the public Basement lifecycle and
 lives outside StackSpec:
 
 ```text
-stackkit init --owner-source=local
+stackkit init --catalog-defaults --owner-source=local --owner-email you@example.com
 ```
 
 This establishes the local `ownerRef`, Ed25519/step-ca custody, PocketID Owner

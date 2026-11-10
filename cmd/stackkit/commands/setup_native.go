@@ -63,7 +63,7 @@ func newSetupCommand() *cobra.Command {
 	command.Flags().BoolVar(&options.ownerApproved, "owner-approve", false, "Approve this Plan-bound application setup")
 	command.Flags().BoolVar(&options.completeOnboarding, "complete-onboarding", false, "Complete the app user and administrator onboarding after verifying the owner login")
 	command.Flags().BoolVar(&options.outputJSON, "json", false, "Emit the secret-free verified setup result")
-	command.AddCommand(newSetupAIConnectCommand(), newSetupAIProviderCommand(), newHomeAssistantConnectorCommand(nil), newSetupIdentityCommand())
+	command.AddCommand(newSetupAIConnectCommand(), newSetupAIProviderCommand(), newHomeAssistantConnectorCommand(nil), newHomeGraphCommand(nil), newSetupIdentityCommand())
 	return command
 }
 
@@ -318,6 +318,13 @@ func beginNativeSetupWithIntent(store applicationlifecycle.Store, contract appli
 }
 
 func readNativeSetupCredentialJSON(workspace, path string, value any) error {
+	return readNativeSetupPrivateJSON(workspace, path, value, 64<<10)
+}
+
+// readNativeSetupPrivateJSON is the confined reader behind every setup input
+// file: workspace-relative, private, stable, closed JSON object, bounded by
+// limit bytes.
+func readNativeSetupPrivateJSON(workspace, path string, value any, limit int) error {
 	root, err := confinedfs.Open(workspace)
 	if err != nil {
 		return err
@@ -334,13 +341,13 @@ func readNativeSetupCredentialJSON(workspace, path string, value any) error {
 	if err := backupcustody.RequirePrivatePath(filepath.Join(root.Name(), path), false); err != nil {
 		return err
 	}
-	raw, _, err := transaction.ReadStable(filepath.ToSlash(path))
+	raw, _, err := transaction.ReadStableBounded(filepath.ToSlash(path), int64(limit)+1)
 	if err != nil {
 		return err
 	}
 	defer clear(raw)
-	if len(raw) > 64<<10 {
-		return errors.New("setup credential file exceeds 64 KiB")
+	if len(raw) > limit {
+		return fmt.Errorf("setup credential file exceeds %d KiB", limit>>10)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()

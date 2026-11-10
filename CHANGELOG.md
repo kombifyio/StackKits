@@ -1,5 +1,6 @@
 # Changelog
 
+- Added: `stackkit setup home-graph` (catalog operation `application.home-graph.sync`) projects the household home graph onto the exact local Home Assistant through the node connector credential, under the same authority checks as `setup connector --verify-only`. With kombify leading it creates and updates floors, areas and device placement, keeps the id mapping on the node and reports drift instead of overwriting it, except for the fields named in `restore`; with Home Assistant leading it only reads. Nothing is deleted in Home Assistant. The home graph library moved from `techstack/pkg/agent/homegraph` to `internal/homegraph` and uses the connector's WebSocket client over the confined Home Assistant transport.
 - Added: a native application move keeps the moved applications' configuration. The source projects their portable public settings and effective module profiles (`stackkit backup transfer-configuration`); the destination authors the receiving candidate from exactly that document (`stackkit backup transfer-candidate`) instead of starting from its own catalog defaults. The destination admission names the canonical configuration digest, the source refuses to hold its applications for another configuration, the signed export receipt must carry the same configuration, and the activated outcome names the digest the destination verified. Secret material still travels only inside the sealed transfer custody; no secret, placement or route enters the portable configuration.
 
 - Added: publicly trusted certificates for a public identity origin (kombify-StackKits-igti.7). `sudo stackkit reach public-certificate issue` obtains one certificate for `*.<name>` and `<name>` by ACME DNS-01 with the `reach lan-certificate` client: kombify Me answers for a kombify.me name; an own domain uses the Owner's Cloudflare token (Zone:Read and DNS:Edit on the zone) from custody (`--dns-token-file` or `--dns-wallet-item <tenant>/<item>`). After `stackkit apply` the Basement core router serves `id.<name>` and every other host with it: the routes it covers name no step-ca resolver, whatever order the router loads its providers in, and any remaining step-ca leaves go to a separate ACME store, so an older leaf cannot shadow it; the identity signer renews it on its 12-hour cadence. A local-only homelab keeps step-ca. `status` and `remove` complete the command.
@@ -437,6 +438,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.57.7 (2026-11-10)
+
+### Added
+
+* **guard:** restore the G10 IONOS image qualification lane
+* **stackkit:** sync the kombify home graph to Home Assistant on the node
+
+### Fixed
+
+* **docs:** print an init command that runs on a fresh workspace
+* **mcp:** pass the owner email through stackkit_init and the install plan
+* **test:** copy the contract bundle into the bundlegen drift test's export
 
 ## 0.57.6 (2026-11-09)
 

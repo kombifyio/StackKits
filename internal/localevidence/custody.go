@@ -201,6 +201,42 @@ func IsPlaceholderOwnerEmail(email string) bool {
 	return strings.EqualFold(strings.TrimSpace(email), "owner@home.test")
 }
 
+// ResumeOwnerIdentity resolves the owner identity of a local init from the
+// explicit inputs and, for omitted fields, from the PocketID projection of an
+// established owner custody in workspaceRoot. A placeholder owner@home.test is
+// not a real account and is never reused; an explicit different identity stays
+// a closed conflict except when replacing that placeholder. An empty email in
+// the result means no real owner is known and local init cannot proceed.
+func ResumeOwnerIdentity(workspaceRoot, explicitEmail, explicitUsername, explicitDisplayName string) (email, username, displayName string) {
+	email = strings.TrimSpace(explicitEmail)
+	username = strings.TrimSpace(explicitUsername)
+	displayName = strings.TrimSpace(explicitDisplayName)
+	if username == "" && email != "" {
+		username = OwnerUsernameFromEmail(email)
+	}
+	if email != "" && username != "" && displayName != "" {
+		return email, username, displayName
+	}
+	existing, err := LoadOwnerCustody(workspaceRoot)
+	if err != nil {
+		return email, username, displayName
+	}
+	placeholder := IsPlaceholderOwnerEmail(existing.PocketID.Email)
+	if email == "" && !placeholder {
+		email = existing.PocketID.Email
+	}
+	if username == "" && !placeholder {
+		username = existing.PocketID.Username
+	}
+	if username == "" && email != "" {
+		username = OwnerUsernameFromEmail(email)
+	}
+	if displayName == "" && !placeholder {
+		displayName = existing.PocketID.DisplayName
+	}
+	return email, username, displayName
+}
+
 // OwnerUsernameFromEmail turns the local part of an email into a login name
 // suitable for PocketID and the Cloud execution-channel account.
 func OwnerUsernameFromEmail(email string) string {

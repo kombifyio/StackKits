@@ -26,7 +26,7 @@ this selects Core Lite without selecting application workloads:
 stackkit init basement-kit --platform standalone-compose \
   --use-case-alternative basement-core=standalone-lite \
   --module-compute-profile stackkits-basement-core-lite-runtime=low \
-  --owner-source=local --non-interactive
+  --owner-source=local --owner-email you@example.com --non-interactive
 ```
 
 The native-v2 Basement seed is materialized from

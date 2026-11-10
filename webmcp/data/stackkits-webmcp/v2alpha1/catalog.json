@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "6afc7fea182d1ec6d76695be88032c6da6c35a8e",
-  "authority_bundle_sha256": "bfb6e632faf7f845548526c7c426583908aea5ad5bea791344c449fc628a9172",
+  "source_sha": "e581314c764e2634a41f9d409ab05d975920f650",
+  "authority_bundle_sha256": "32f1fb2319e3d94c2b6da96a11cacafbcfc75b3eb0e29de84127b19e7753853a",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -17670,7 +17670,7 @@
       "id": "stackkit.init",
       "tool_name": "stackkit_init",
       "title": "Init",
-      "description": "Materialize a native StackSpec from the embedded CUE authoring contract.",
+      "description": "Materialize a native StackSpec from the embedded CUE authoring contract. A fresh workspace needs the email address of the person who becomes the first owner of the homelab.",
       "command": [
         "init"
       ],
@@ -18148,5 +18148,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "81426fb9b75e22f2ef4004a270e18b47df07c2d2ed1bc64c024a82b405eeb179"
+  "catalog_sha256": "d176f78ac6431a25c93efef363c2138b84c1776fa8910f63982f6deb226fa138"
 }

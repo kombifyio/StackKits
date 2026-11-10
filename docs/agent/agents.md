@@ -30,13 +30,15 @@ Default native-v0.7 flow:
 stackkit version
 mkdir my-homelab
 cd my-homelab
-stackkit init basement-kit --owner-source=local --non-interactive
+stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive
 stackkit validate
 stackkit generate
 stackkit plan
 stackkit apply
 stackkit verify --json
 ```
+
+`<owner-email>` is the email of the person who becomes the first owner of the homelab; ask that person for it and never invent one, because a placeholder address is refused.
 
 Do not replace an existing StackSpec blindly. Native CLI replacement requires `--expected-spec-hash`; MCP uses the equivalent `expected_spec_hash`. Both use the same CUE-normalized CAS authority, creation remains no-replace, and retries of an already-applied candidate are idempotent.
 

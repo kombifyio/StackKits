@@ -20,6 +20,7 @@
   "step.rollout.hint": "Evidence",
   "workspace.heading": "Workspace and Stack Identity",
   "workspace.stackName": "Stack name",
+  "workspace.ownerEmail": "Owner email address",
   "workspace.workspace": "Workspace",
   "workspace.specPath": "Spec path",
   "workspace.readSpec": "Read Spec",

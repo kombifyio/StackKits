@@ -32,7 +32,7 @@ func admitArchitectureV2InitPlacement(kit, domain string, detected *netenv.Resul
 	local := domain == "" || models.IsLocalDomain(domain)
 	if kit == "basement-kit" && netenv.IsPublicServer(env) && local {
 		return fmt.Errorf(
-			"this host looks like a public server; Basement Kit local addresses are not reachable from the internet. Use Cloud Kit (`stackkit init cloud-kit --owner-source=local`) or pass a public --domain / kombify.me",
+			"this host looks like a public server; Basement Kit local addresses are not reachable from the internet. Use Cloud Kit (`stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain your-zone.kombify.me`) or pass a public --domain / kombify.me",
 		)
 	}
 	return nil

@@ -99,7 +99,7 @@ contract:
 
 ```bash
 mkdir build/basement-local
-stackkit --chdir build/basement-local init basement-kit --owner-source=local
+stackkit --chdir build/basement-local init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com
 stackkit --chdir build/basement-local validate
 stackkit --chdir build/basement-local generate
 ```

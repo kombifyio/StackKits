@@ -89,12 +89,37 @@ func newHomeAssistantConnectorCommand(dependencies *homeAssistantConnectorDepend
 	return command
 }
 
-func verifyHomeAssistantConnectorSetup(ctx context.Context, workspace, workload, operationID, intent string, request appsetup.HomeAssistantConnectorRequest, dependencies *homeAssistantConnectorDependencies) (homeAssistantConnectorExport, error) {
+// verifiedHomeAssistantConnector is what a caller of
+// runVerifiedHomeAssistantConnector may use while the connector authority is
+// held: the exact deployment, the admitted request, the read-only transport
+// selector and whether the retained receipt is an active issuer.
+type verifiedHomeAssistantConnector struct {
+	deployment nativehost.SelectedPaaSWorkloadDeployment
+	request    appsetup.HomeAssistantConnectorRequest
+	withHTTP   func(context.Context, string, nativehost.SelectedPaaSWorkloadDeployment, func(*http.Client, string) error) error
+	active     bool
+}
+
+// verifiedHomeAssistantConnectorReceipt is the authenticated outcome of the
+// shared verification: the exact signed receipt bytes and the independently
+// observed local deployment.
+type verifiedHomeAssistantConnectorReceipt struct {
+	raw      []byte
+	verified *applicationlifecycle.HomeAssistantConnectorObservation
+}
+
+// runVerifiedHomeAssistantConnector holds the signed-Apply authority and the
+// output lock, proves the retained connector receipt against the current
+// deployment, node custody and container, opens the credential once as a
+// read-only check, and then runs body under the same lock. Both the
+// connector verification and the home graph sync use it, so neither can weaken
+// the other's authority checks.
+func runVerifiedHomeAssistantConnector(ctx context.Context, workspace, workload, operationID, intent string, request appsetup.HomeAssistantConnectorRequest, dependencies *homeAssistantConnectorDependencies, body func(verifiedHomeAssistantConnector) error) (verifiedHomeAssistantConnectorReceipt, error) {
 	initial, err := inspectNativeV2AppliedAuthority(ctx, workspace, specFile)
 	if err != nil {
-		return homeAssistantConnectorExport{}, err
+		return verifiedHomeAssistantConnectorReceipt{}, err
 	}
-	var exported homeAssistantConnectorExport
+	var receipt verifiedHomeAssistantConnectorReceipt
 	err = withArchitectureV2OutputLock(workspace, initial.OutputRoot, func(_ *confinedfs.Transaction, _ *confinedfs.OutputLock) error {
 		current, err := inspectNativeV2AppliedAuthority(ctx, workspace, specFile)
 		if err != nil {
@@ -163,33 +188,59 @@ func verifyHomeAssistantConnectorSetup(ctx context.Context, workspace, workload,
 			})
 			return appsetup.HomeAssistantOwnerResult{UserID: result.AccountRef, Version: result.ApplicationVersion, Connector: &result.HomeAssistantConnector.Issuer}, err
 		})
-		var currentIssuer *appsetup.HomeAssistantConnectorEvidence
-		if err == nil && result.HomeAssistantConnector.Issuer.Status == "active" {
-			err = withHTTP(ctx, workspace, deployment, func(_ *http.Client, origin string) error {
-				evidence, evidenceErr := appsetup.CurrentHomeAssistantConnectorEvidence(request, origin, deployment.Release)
-				currentIssuer = evidence
-				return evidenceErr
-			})
-		}
 		if err != nil {
 			return err
+		}
+		// Every check completes before body runs: the home graph sync writes
+		// to Home Assistant, so no check may follow a mutation.
+		authorityUnchanged := func() error {
+			latest, err := inspectNativeV2AppliedAuthority(ctx, workspace, specFile)
+			if err != nil {
+				return err
+			}
+			if latest.Plan.Binding() != current.Plan.Binding() || latest.Lineage != current.Lineage {
+				return errors.New("connector authority changed during verification")
+			}
+			return nil
 		}
 		if verified.VerifiedLocalDeployment != result.HomeAssistantConnector.VerifiedLocalDeployment {
 			return errors.New("connector receipt local deployment changed")
 		}
-		latest, err := inspectNativeV2AppliedAuthority(ctx, workspace, specFile)
-		if err != nil {
-			return err
-		}
-		if latest.Plan.Binding() != current.Plan.Binding() || latest.Lineage != current.Lineage {
-			return errors.New("connector authority changed during verification")
-		}
 		if len(raw) > 64<<10 {
 			return errors.New("connector signed receipt exceeds 64 KiB")
 		}
-		digest := sha256.Sum256(raw)
-		exported = homeAssistantConnectorExport{SchemaVersion: homeAssistantConnectorResultSchema, SignatureVerified: true, ReceiptBase64: base64.StdEncoding.EncodeToString(raw), ReceiptDigest: "sha256:" + hex.EncodeToString(digest[:]), CurrentLocalDeployment: verified.VerifiedLocalDeployment, CurrentIssuer: currentIssuer}
+		if err := authorityUnchanged(); err != nil {
+			return err
+		}
+		if err := body(verifiedHomeAssistantConnector{deployment: deployment, request: request, withHTTP: withHTTP, active: result.HomeAssistantConnector.Issuer.Status == "active"}); err != nil {
+			return err
+		}
+		// A read-only body (connector verification) still proves the authority
+		// held across it, as before.
+		if err := authorityUnchanged(); err != nil {
+			return err
+		}
+		receipt = verifiedHomeAssistantConnectorReceipt{raw: raw, verified: verified}
 		return nil
 	})
-	return exported, err
+	return receipt, err
+}
+
+func verifyHomeAssistantConnectorSetup(ctx context.Context, workspace, workload, operationID, intent string, request appsetup.HomeAssistantConnectorRequest, dependencies *homeAssistantConnectorDependencies) (homeAssistantConnectorExport, error) {
+	var currentIssuer *appsetup.HomeAssistantConnectorEvidence
+	receipt, err := runVerifiedHomeAssistantConnector(ctx, workspace, workload, operationID, intent, request, dependencies, func(v verifiedHomeAssistantConnector) error {
+		if !v.active {
+			return nil
+		}
+		return v.withHTTP(ctx, workspace, v.deployment, func(_ *http.Client, origin string) error {
+			evidence, evidenceErr := appsetup.CurrentHomeAssistantConnectorEvidence(v.request, origin, v.deployment.Release)
+			currentIssuer = evidence
+			return evidenceErr
+		})
+	})
+	if err != nil {
+		return homeAssistantConnectorExport{}, err
+	}
+	digest := sha256.Sum256(receipt.raw)
+	return homeAssistantConnectorExport{SchemaVersion: homeAssistantConnectorResultSchema, SignatureVerified: true, ReceiptBase64: base64.StdEncoding.EncodeToString(receipt.raw), ReceiptDigest: "sha256:" + hex.EncodeToString(digest[:]), CurrentLocalDeployment: receipt.verified.VerifiedLocalDeployment, CurrentIssuer: currentIssuer}, nil
 }

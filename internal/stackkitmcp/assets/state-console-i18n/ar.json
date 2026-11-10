@@ -20,6 +20,7 @@
   "step.rollout.hint": "الأدلة",
   "workspace.heading": "مساحة العمل وهوية المكدس",
   "workspace.stackName": "اسم المكدس",
+  "workspace.ownerEmail": "البريد الإلكتروني للمالك الأول",
   "workspace.workspace": "مساحة العمل",
   "workspace.specPath": "مسار المواصفة",
   "workspace.readSpec": "قراءة المواصفة",

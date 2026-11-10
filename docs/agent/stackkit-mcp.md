@@ -117,7 +117,7 @@ it does not hand-author StackSpec YAML.
 
 The native v0.7 app flow is:
 
-1. Workspace: collect deployment name, workspace, and spec path.
+1. Workspace: collect deployment name, workspace, spec path, and the email address of the person who becomes the first owner of the homelab.
 2. Explicit Kit configuration: the user chooses Basement Kit, Cloud Kit, or Modern Homelab; the State Console does not score or recommend a Kit.
 3. Resolution inputs: reference externally observed Inventory and the canonical ResolvedPlan output path. Provider lifecycle, credentials, management addresses, host facts, and transports remain outside StackSpec.
 4. Review and plan: create initial v2 intent through the CUE authoring contract, validate it, resolve it against Inventory, then generate and plan from the exact persisted plan.
@@ -260,6 +260,15 @@ authority. Machine commands reserve stdout for a single JSON document, so MCP
 can retain Apply/Status/Verify evidence in `structuredContent` even on a
 non-zero actionable result. MCP also recursively redacts returned structured
 values and text as a defense for legacy log files and subprocess diagnostics.
+
+Creating the homelab needs the email address of the person who becomes its
+first owner. `stackkit_init` takes it as `owner_email` (optional
+`owner_username` and `owner_display_name`) and passes it to `stackkit init`.
+A workspace that already has an established owner needs no email; on a fresh
+workspace the tool refuses before it starts the command and names
+`owner_email` as the missing input (`missing_input` in the result). A
+placeholder address is refused. `stackkit_install_plan` lists the same input
+as `required_inputs` and writes `<owner-email>` into its init step.
 
 Native init and `stackkit_config_set` share one persistence authority: create
 is no-replace, replacement requires the exact current CUE-normalized hash

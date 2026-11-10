@@ -82,7 +82,7 @@ go build -o build/stackkit-mcp ./cmd/stackkit-mcp
 ## Primary Workflow
 
 ```bash
-stackkit init --owner-source=local
+stackkit init --catalog-defaults --owner-source=local --owner-email you@example.com
 stackkit validate
 stackkit generate
 stackkit apply

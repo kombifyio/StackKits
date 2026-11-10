@@ -186,7 +186,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	if strings.TrimSpace(initOwnerSource) == "local" {
 		// Check the owner identity before anything is written: a persisted
 		// StackSpec would turn the retry with --owner-email into a CAS refusal.
-		ownerEmail, ownerUsername, ownerDisplayName = architectureV2ResumeOwnerIdentity(wd)
+		ownerEmail, ownerUsername, ownerDisplayName = localevidence.ResumeOwnerIdentity(wd, initOwnerEmail, initOwnerUsername, initOwnerDisplayName)
 		if err := architectureV2RequireRealOwnerEmail(ownerEmail); err != nil {
 			return err
 		}
@@ -347,40 +347,6 @@ func architectureV2CanonicalOwnerBinding(canonicalStackSpec []byte, authoring *a
 		)
 	}
 	return localevidence.LocalBinding{SiteRef: selected[0].SiteRef, NodeRef: selected[0].ID, ChannelRef: channelRef}, nil
-}
-
-// architectureV2ResumeOwnerIdentity keeps established PocketID projection when
-// repeat/resume omits owner identity flags. Placeholder owner@home.test is not
-// a real account and is not reused. An explicit different identity remains a
-// closed conflict except when replacing that placeholder.
-func architectureV2ResumeOwnerIdentity(workspaceRoot string) (email, username, displayName string) {
-	email = strings.TrimSpace(initOwnerEmail)
-	username = strings.TrimSpace(initOwnerUsername)
-	displayName = strings.TrimSpace(initOwnerDisplayName)
-	if username == "" && email != "" {
-		username = localevidence.OwnerUsernameFromEmail(email)
-	}
-	if email != "" && username != "" && displayName != "" {
-		return email, username, displayName
-	}
-	existing, err := localevidence.LoadOwnerCustody(workspaceRoot)
-	if err != nil {
-		return email, username, displayName
-	}
-	placeholder := localevidence.IsPlaceholderOwnerEmail(existing.PocketID.Email)
-	if email == "" && !placeholder {
-		email = existing.PocketID.Email
-	}
-	if username == "" && !placeholder {
-		username = existing.PocketID.Username
-	}
-	if username == "" && email != "" {
-		username = localevidence.OwnerUsernameFromEmail(email)
-	}
-	if displayName == "" && !placeholder {
-		displayName = existing.PocketID.DisplayName
-	}
-	return email, username, displayName
 }
 
 func architectureV2RequireRealOwnerEmail(email string) error {

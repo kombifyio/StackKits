@@ -12,12 +12,14 @@ Collect or confirm outside StackSpec:
 Then run the provider-free StackKits stages in the workspace:
 
 ```bash
-stackkit init basement-kit --owner-source=local --non-interactive
+stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive
 stackkit validate
 stackkit generate
 stackkit plan
 stackkit apply
 stackkit verify --json
 ```
+
+`<owner-email>` is the email of the person who becomes the first owner of the homelab; ask that person for it and never invent one, because a placeholder address is refused.
 
 The external executor may use SSH or another transport to execute an authorized bundle, but must not write those transport facts back into StackSpec. Stop if observed Inventory, ResolvedPlan hashes, generation authorization, or executor receipt do not bind exactly.

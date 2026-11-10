@@ -585,6 +585,10 @@
             <input id="name" name="name" autocomplete="off" placeholder="my-homelab">
           </label>
           <label class="field">
+            <span data-i18n="workspace.ownerEmail">Owner email address</span>
+            <input id="owner_email" name="owner_email" type="email" autocomplete="email" spellcheck="false" placeholder="you@example.com">
+          </label>
+          <label class="field">
             <span data-i18n="workspace.workspace">Workspace</span>
             <input id="base_dir" name="base_dir" autocomplete="off" spellcheck="false">
           </label>
@@ -787,6 +791,7 @@
         spec_path: "stack-spec.yaml",
         stackkit: "basement-kit",
         domain_base: "",
+        owner_email: "",
         inventory_path: "inventory.json",
         owner_mutations_approved: false,
         apply_reviewed: false,
@@ -1004,7 +1009,8 @@
         api_version: "stackkit/v2alpha1",
         kit_profile: state.form.stackkit,
         name: clean(state.form.name),
-        domain_base: selectedDomain()
+        domain_base: selectedDomain(),
+        owner_email: clean(state.form.owner_email)
       });
     }
 

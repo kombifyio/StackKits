@@ -10763,6 +10763,7 @@
         "stackkit setup ai-connect",
         "stackkit setup ai-provider",
         "stackkit setup connector",
+        "stackkit setup home-graph",
         "stackkit setup identity"
       ]
     },
@@ -10906,6 +10907,51 @@
           "name": "verify-only",
           "type": "bool",
           "description": "Read and verify a retained receipt against current local binding without issuing or revoking; an active credential is rotated at half-life",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact local workload; only smart-home is admitted",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit setup home-graph",
+      "name": "home-graph",
+      "parent": "stackkit setup",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup home-graph [flags]",
+      "short": "Project the household home graph onto the exact local Home Assistant",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "graph-file",
+          "type": "string",
+          "description": "Workspace-relative private stackkit.home-graph-sync-request/v1 JSON (at most 512 KiB)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the stackkit.home-graph-sync-result/v1 result",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Exact stable connector setup operation identity",
+          "required": false
+        },
+        {
+          "name": "request-file",
+          "type": "string",
+          "description": "Workspace-relative private metadata-only connector ensure request JSON; never contains credentials",
           "required": false
         },
         {
