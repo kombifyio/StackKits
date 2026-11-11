@@ -157,3 +157,6 @@ coverage.out
 
 # Go capacity engine and matching runtime are built with the WebMCP package.
 /webmcp/assets/
+
+# Release-bound website support is generated before build and typecheck.
+/website/src/content/kit-support.generated.json

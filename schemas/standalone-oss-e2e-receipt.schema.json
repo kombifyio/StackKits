@@ -125,7 +125,7 @@
             "id": { "const": "authoring" },
             "commands": {
               "const": [
-                "stackkit init --owner-source=local",
+                "stackkit init --catalog-defaults --owner-source=local --owner-email <owner-email>",
                 "stackkit validate",
                 "stackkit generate"
               ]

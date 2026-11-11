@@ -74,7 +74,7 @@ These values are declared policy and upstream minima, not measurements.
 ## Quick Start
 
 ```bash
-stackkit init cloud-kit
+stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com
 stackkit prepare
 stackkit generate
 stackkit plan

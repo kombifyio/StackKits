@@ -11,8 +11,10 @@ import (
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/ownapplication"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
+	"strings"
 )
 
 // nativeBackupApplicationCustody uses the same signed-Apply bundle selector as
@@ -77,12 +79,25 @@ func nativeBackupApplicationDeployments(authority nativeV2BackupAuthority, selec
 	}
 	deployments := make(map[string]nativehost.SelectedPaaSWorkloadDeployment, len(runtimes))
 	for _, graph := range runtimes {
+		if graph.Retained {
+			continue
+		}
 		if graph.WorkloadRef == "marketplace" {
 			continue
 		}
 		var deployment nativehost.SelectedPaaSWorkloadDeployment
 		var err error
-		if authority.AppliedAuthority != nil {
+		if strings.HasPrefix(graph.WorkloadRef, "own-") {
+			state, e := ownapplication.Load(authority.WorkspaceRoot)
+			if e != nil {
+				return nil, e
+			}
+			record, ok := state.Applications[strings.TrimPrefix(graph.WorkloadRef, "own-")]
+			if !ok || record.Operation.Status != "succeeded" {
+				return nil, errors.New("own application backup has no signed successful runtime custody")
+			}
+			deployment, err = nativehost.OwnApplicationDeployment(record.Bundle)
+		} else if authority.AppliedAuthority != nil {
 			deployment, err = nativeAppliedWorkloadDeploymentForBackup(*authority.AppliedAuthority, graph.WorkloadRef)
 		} else {
 			h := authority.HistoricalCustody
@@ -161,6 +176,9 @@ func verifyNativeV2SelectedApplications(ctx context.Context, authority nativeV2B
 		return err
 	}
 	for _, graph := range runtimes {
+		if graph.Retained {
+			continue
+		}
 		if graph.WorkloadRef == "marketplace" {
 			d, err := nativeBackupMarketplaceDocument(ctx, authority)
 			if err != nil {
@@ -183,12 +201,30 @@ func verifyNativeV2SelectedApplications(ctx context.Context, authority nativeV2B
 		return errors.New("selected application restore verifier has no product-owned observation validator")
 	}
 	for _, graph := range runtimes {
+		if graph.Retained {
+			continue
+		}
 		if graph.WorkloadRef == "marketplace" {
 			continue
 		}
 		deployment, exists := deployments[graph.ComposeProject]
 		if !exists {
 			return errors.New("selected application restore verifier has no exact signed deployment")
+		}
+		if strings.HasPrefix(graph.WorkloadRef, "own-") {
+			runtime, e := nativehost.NewOwnApplicationRuntime(authority.WorkspaceRoot)
+			if e != nil {
+				return e
+			}
+			state, e := ownapplication.Load(authority.WorkspaceRoot)
+			if e != nil {
+				return e
+			}
+			record := state.Applications[strings.TrimPrefix(graph.WorkloadRef, "own-")]
+			if _, e = runtime.Read(ctx, record.Bundle, false); e != nil {
+				return e
+			}
+			continue
 		}
 		var selectedOperations interface {
 			ObserveWorkload(context.Context, nativehost.SelectedPaaSWorkloadDeployment) (nativehost.SelectedPaaSWorkloadObservation, error)

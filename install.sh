@@ -16,6 +16,10 @@
 # `cloud.stackkit.cc`) to provide the shared install + kit-download step
 # before the kit-specific flow. The retired `base-kit` name is rejected.
 # STACKKIT_CLI_ONLY=1 keeps this script from launching a kit installer.
+# STACKKIT_PLACEMENT=home|cloud picks the kit for this host instead of the
+# detected network; without it a public server takes Cloud Kit.
+# KOMBIFY_LANG (or LC_ALL, LC_MESSAGES, LANG) sets the language of the
+# installer notices: en, de, es, fr, hi, ar, zh-Hans; default en.
 # =============================================================================
 set -eu
 
@@ -596,6 +600,72 @@ can_prompt() {
   [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]
 }
 
+# Installer notices follow the person's language: KOMBIFY_LANG, then LC_ALL,
+# LC_MESSAGES, LANG, else English. The value is case-insensitive and its
+# language part ends at "_", ".", "-" or "@".
+installer_msg_lang() {
+  _locale=$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')
+  case "$_locale" in
+    zh|zh_cn*|zh_sg*|zh-hans*|zh_hans*) printf 'zh-Hans'; return 0 ;;
+    zh_tw*|zh_hk*|zh_mo*|zh-hant*) printf 'en'; return 0 ;;
+  esac
+  _lang=${_locale%%[_.@-]*}
+  case "$_lang" in
+    en|de|es|fr|hi|ar) printf '%s' "$_lang" ;;
+    *) printf 'en' ;;
+  esac
+}
+KOMBIFY_MSG_LANG=$(installer_msg_lang "${KOMBIFY_LANG:-${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}}")
+
+# kit_placement DETECTED_ENV prints the kit this host gets: an explicit
+# STACKKIT_PLACEMENT wins in both directions, otherwise the detected network
+# decides (public → cloud, home or unknown → home).
+kit_placement() {
+  case "${STACKKIT_PLACEMENT:-}" in
+    home|cloud) printf '%s' "$STACKKIT_PLACEMENT"; return 0 ;;
+    "") ;;
+    *) printf "Unsupported STACKKIT_PLACEMENT '%s'. Expected home or cloud.\n" "$STACKKIT_PLACEMENT" >&2; return 2 ;;
+  esac
+  case "${1:-}" in
+    vps|cloud) printf 'cloud' ;;
+    *) printf 'home' ;;
+  esac
+}
+# t KEY prints one localized installer notice.
+t() {
+  case "$KOMBIFY_MSG_LANG:$1" in
+    de:blueprint_notice) printf 'StackKit Blueprint wird jetzt installiert. Mit STACKKIT_CLI_ONLY=1 wird nur die CLI installiert.' ;;
+    es:blueprint_notice) printf 'Instalando StackKit Blueprint ahora. Define STACKKIT_CLI_ONLY=1 para instalar solo la CLI.' ;;
+    fr:blueprint_notice) printf 'Installation de StackKit Blueprint en cours. Définissez STACKKIT_CLI_ONLY=1 pour n’installer que la CLI.' ;;
+    hi:blueprint_notice) printf 'StackKit Blueprint अभी इंस्टॉल हो रहा है। केवल CLI इंस्टॉल करने के लिए STACKKIT_CLI_ONLY=1 सेट करें।' ;;
+    ar:blueprint_notice) printf 'جارٍ تثبيت StackKit Blueprint الآن. اضبط STACKKIT_CLI_ONLY=1 لتثبيت CLI فقط.' ;;
+    zh-Hans:blueprint_notice) printf '正在安装 StackKit Blueprint。设置 STACKKIT_CLI_ONLY=1 可只安装 CLI。' ;;
+    *:blueprint_notice) printf 'Installing StackKit Blueprint now. Set STACKKIT_CLI_ONLY=1 to install only the CLI.' ;;
+    de:cloud_notice) printf 'Öffentlicher Server: Cloud Kit wird verwendet. Mit STACKKIT_PLACEMENT=home wird stattdessen das Basement Kit verwendet.' ;;
+    es:cloud_notice) printf 'Servidor público: se continúa con Cloud Kit. Define STACKKIT_PLACEMENT=home para usar Basement Kit en su lugar.' ;;
+    fr:cloud_notice) printf 'Serveur public : poursuite avec Cloud Kit. Définissez STACKKIT_PLACEMENT=home pour utiliser Basement Kit à la place.' ;;
+    hi:cloud_notice) printf 'सार्वजनिक सर्वर: Cloud Kit के साथ जारी। Basement Kit के लिए STACKKIT_PLACEMENT=home सेट करें।' ;;
+    ar:cloud_notice) printf 'خادم عام: المتابعة باستخدام Cloud Kit. اضبط STACKKIT_PLACEMENT=home لاستخدام Basement Kit بدلًا منه.' ;;
+    zh-Hans:cloud_notice) printf '公共服务器：继续使用 Cloud Kit。设置 STACKKIT_PLACEMENT=home 可改用 Basement Kit。' ;;
+    *:cloud_notice) printf 'Public server: continuing with Cloud Kit. Set STACKKIT_PLACEMENT=home to use Basement Kit instead.' ;;
+    de:basement_public_notice) printf 'Basement Kit bleibt mit kombify.me für den öffentlichen Zugang. Mit STACKKIT_PLACEMENT=cloud wird stattdessen das Cloud Kit verwendet.' ;;
+    es:basement_public_notice) printf 'Se mantiene Basement Kit con kombify.me para el acceso público. Define STACKKIT_PLACEMENT=cloud para usar Cloud Kit en su lugar.' ;;
+    fr:basement_public_notice) printf 'Basement Kit est conservé avec kombify.me pour l’accès public. Définissez STACKKIT_PLACEMENT=cloud pour utiliser Cloud Kit à la place.' ;;
+    hi:basement_public_notice) printf 'सार्वजनिक पहुँच के लिए Basement Kit और kombify.me बने रहेंगे। Cloud Kit के लिए STACKKIT_PLACEMENT=cloud सेट करें।' ;;
+    ar:basement_public_notice) printf 'يبقى Basement Kit مع kombify.me للوصول العام. اضبط STACKKIT_PLACEMENT=cloud لاستخدام Cloud Kit بدلًا منه.' ;;
+    zh-Hans:basement_public_notice) printf '保留 Basement Kit，并用 kombify.me 提供公开访问。设置 STACKKIT_PLACEMENT=cloud 可改用 Cloud Kit。' ;;
+    *:basement_public_notice) printf 'Keeping Basement Kit with kombify.me for public access. Set STACKKIT_PLACEMENT=cloud to use Cloud Kit instead.' ;;
+    de:basement_notice) printf 'Heimnetz oder VPS konnte nicht erkannt werden: Basement Kit wird verwendet. Mit STACKKIT_PLACEMENT=cloud wird stattdessen das Cloud Kit verwendet.' ;;
+    es:basement_notice) printf 'No se pudo distinguir entre red doméstica y VPS: se continúa con Basement Kit. Define STACKKIT_PLACEMENT=cloud para usar Cloud Kit en su lugar.' ;;
+    fr:basement_notice) printf 'Impossible de distinguer réseau domestique et VPS : poursuite avec Basement Kit. Définissez STACKKIT_PLACEMENT=cloud pour utiliser Cloud Kit à la place.' ;;
+    hi:basement_notice) printf 'होम नेटवर्क या VPS पहचाना नहीं गया: Basement Kit के साथ जारी। Cloud Kit के लिए STACKKIT_PLACEMENT=cloud सेट करें।' ;;
+    ar:basement_notice) printf 'تعذّر تمييز الشبكة المنزلية من VPS: المتابعة باستخدام Basement Kit. اضبط STACKKIT_PLACEMENT=cloud لاستخدام Cloud Kit بدلًا منه.' ;;
+    zh-Hans:basement_notice) printf '无法区分家庭网络和 VPS：继续使用 Basement Kit。设置 STACKKIT_PLACEMENT=cloud 可改用 Cloud Kit。' ;;
+    *:basement_notice) printf 'Could not tell home vs VPS: continuing with Basement Kit. Set STACKKIT_PLACEMENT=cloud to use Cloud Kit instead.' ;;
+    *) printf '' ;;
+  esac
+}
+
 # Kit-specific callers (base.stackkit.cc / cloud.stackkit.cc) only need the
 # CLI + definitions. STACKKIT_CLI_ONLY=1 is the explicit CLI-only path.
 if [ -n "$KIT_NAME" ] || [ "${STACKKIT_CLI_ONLY:-}" = "1" ]; then
@@ -609,27 +679,14 @@ if [ -n "$KIT_NAME" ] || [ "${STACKKIT_CLI_ONLY:-}" = "1" ]; then
   exit 0
 fi
 
-# Website default: confirm the CLI, then ask before installing a StackKit.
+# Website default: confirm the CLI, then hand off to the kit installer.
 if [ "${STACKKIT_SKIP_RELEASE_INSTALL:-}" = "1" ]; then
   echo ""
   echo "StackKit CLI installed successfully."
 fi
 echo ""
-if can_prompt; then
-  printf '  Install StackKit Blueprint now? [Y/n]: ' >/dev/tty
-  read -r _stackkit_continue </dev/tty || _stackkit_continue=""
-  case "$_stackkit_continue" in
-    n|N|no|NO|No)
-      echo ""
-      print_cli_chain basement-kit
-      echo ""
-      exit 0
-      ;;
-  esac
-  echo ""
-else
-  echo "  Installing StackKit Blueprint now."
-fi
+echo "  $(t blueprint_notice)"
+echo ""
 
 # Copy of stop_on_hypervisor_host from install-host-bootstrap.sh: StackKits
 # install into a guest VM on a hypervisor, never onto the hypervisor host.
@@ -637,7 +694,7 @@ stop_on_hypervisor_host() {
   [ -d /etc/pve ] || command -v pveversion >/dev/null 2>&1 || return 0
   [ "${STACKKIT_ALLOW_HYPERVISOR_HOST:-}" = "1" ] && return 0
   printf '\033[1;31m==> %s\033[0m\n' "This host is a Proxmox VE hypervisor. StackKits install into a guest VM, not onto the hypervisor host." >&2
-  echo "  Create an Ubuntu 26.04 LTS VM on this host (or let kombify Techstack create it) and run the installer inside that VM (Ubuntu 24.04 LTS remains supported):" >&2
+  echo "  Create an Ubuntu 26.04 LTS VM on this host (or let kombify Techstack create it) and run the installer inside that VM (Ubuntu 24.04 LTS is the other target; which release has lifecycle evidence on each system is at https://stackkit.cc/compatibility):" >&2
   echo "    curl -sSL https://install.stackkit.cc | sh" >&2
   echo "  To install on the hypervisor host anyway, rerun with STACKKIT_ALLOW_HYPERVISOR_HOST=1." >&2
   exit 1
@@ -692,64 +749,19 @@ refine_home_network_detection
 echo "  Detected network: $DETECTED_ENV"
 
 KIT_INSTALL_URL=""
-case "$DETECTED_ENV" in
-  home)
-    echo "  Home/LAN host → Basement Kit"
-    KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
-    export STACKKIT_PLACEMENT=home
-    ;;
-  vps|cloud)
-    if can_prompt; then
-      echo ""
-      echo "  This host is a public server. Cloud Kit is the product for a VPS;"
-      echo "  Basement Kit is for a home network."
-      printf '  Continue with Cloud Kit? [Y/n]: ' >/dev/tty
-      read -r _stackkit_cloud </dev/tty || _stackkit_cloud=""
-      case "$_stackkit_cloud" in
-        n|N|no|NO|No)
-          echo "  Keeping Basement Kit with kombify.me for public access"
-          KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
-          export STACKKIT_PLACEMENT=home
-          ;;
-        *)
-          echo "  Public server → Cloud Kit"
-          KIT_INSTALL_URL="${STACKKIT_CLOUD_INSTALL_URL:-https://cloud.stackkit.cc}"
-          export STACKKIT_PLACEMENT=cloud
-          ;;
-      esac
-      echo ""
-    else
-      echo "  Public server → Cloud Kit"
-      KIT_INSTALL_URL="${STACKKIT_CLOUD_INSTALL_URL:-https://cloud.stackkit.cc}"
-      export STACKKIT_PLACEMENT=cloud
-    fi
-    ;;
-  *)
-    if can_prompt; then
-      echo ""
-      echo "  Could not tell whether this host is on a home network or a public VPS."
-      echo "    1) Home network — Basement Kit"
-      echo "    2) Public server / VPS — Cloud Kit"
-      printf '  Select [1]: ' >/dev/tty
-      read -r _stackkit_place </dev/tty || _stackkit_place=""
-      case "$_stackkit_place" in
-        2)
-          KIT_INSTALL_URL="${STACKKIT_CLOUD_INSTALL_URL:-https://cloud.stackkit.cc}"
-          export STACKKIT_PLACEMENT=cloud
-          ;;
-        *)
-          KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
-          export STACKKIT_PLACEMENT=home
-          ;;
-      esac
-      echo ""
-    else
-      echo "  Could not tell home vs VPS. Continuing with Basement Kit."
-      KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
-      export STACKKIT_PLACEMENT=home
-    fi
-    ;;
+KIT_PLACEMENT=$(kit_placement "$DETECTED_ENV") || exit 2
+case "$DETECTED_ENV:$KIT_PLACEMENT" in
+  home:home) echo "  Home/LAN host → Basement Kit" ;;
+  vps:home|cloud:home) echo "  $(t basement_public_notice)" ;;
+  vps:cloud|cloud:cloud) echo "  $(t cloud_notice)" ;;
+  unknown:home) echo "  $(t basement_notice)" ;;
 esac
+if [ "$KIT_PLACEMENT" = "cloud" ]; then
+  KIT_INSTALL_URL="${STACKKIT_CLOUD_INSTALL_URL:-https://cloud.stackkit.cc}"
+else
+  KIT_INSTALL_URL="${STACKKIT_BASE_INSTALL_URL:-https://base.stackkit.cc}"
+fi
+export STACKKIT_PLACEMENT="$KIT_PLACEMENT"
 
 echo "  Continuing with the matching kit installer..."
 export STACKKIT_NO_BANNER=1

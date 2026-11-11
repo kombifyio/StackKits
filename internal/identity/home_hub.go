@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/clientsetup"
 	"github.com/kombifyio/stackkits/internal/localowner"
 )
 
@@ -93,6 +94,8 @@ type HomeHubOptions struct {
 	// LaunchHosts are the hosts a browser session opens (user routes of the
 	// Access Gate's table); the Hub signs launch proofs for these only.
 	LaunchHosts []string
+	// AdditionalLaunchHosts supplies signed local application routes at request time.
+	AdditionalLaunchHosts func() ([]string, error)
 }
 
 // RegisterHomeHubRoutes mounts the Hub shell, its configuration and code
@@ -206,6 +209,13 @@ func loadHomeHubConfig(root string, options HomeHubOptions) (homeHubConfig, erro
 		config.HomeEnrollment = bootstrap.HubEnrollmentURL
 	}
 	config.LaunchHosts, config.AppHosts = append([]string{}, options.LaunchHosts...), append([]string{}, options.AppHosts...)
+	if options.AdditionalLaunchHosts != nil {
+		hosts, err := options.AdditionalLaunchHosts()
+		if err != nil {
+			return config, err
+		}
+		config.LaunchHosts = append(config.LaunchHosts, hosts...)
+	}
 	// A joined server's hosts open browser sessions from this Hub too.
 	for _, host := range homeJoinedLaunchHosts(root, time.Now()) {
 		if !slices.Contains(config.LaunchHosts, host) {
@@ -221,7 +231,12 @@ func loadHomeHubConfig(root string, options HomeHubOptions) (homeHubConfig, erro
 // homeHubHost serves only the Hub host. The routers send nothing else here; a
 // request naming another host never reaches the identity routes.
 func homeHubHost(root string, next http.Handler) http.Handler {
+	setup := clientsetup.Handler(root)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == clientsetup.Path || strings.HasPrefix(r.URL.Path, clientsetup.Path+"/") {
+			setup.ServeHTTP(w, r)
+			return
+		}
 		hub, ok := homeHubOrigin(root)
 		host := strings.ToLower(r.Host)
 		if name, _, err := net.SplitHostPort(host); err == nil {

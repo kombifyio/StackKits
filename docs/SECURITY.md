@@ -12,12 +12,13 @@ StackKits is designed around safe defaults and release evidence:
 - GitHub Artifact Attestations must verify before release evidence marks attestation status as passed,
 - at least one trusted-root document must match the reviewed digest allowlist embedded in the public binary before the release index is parsed; unknown documents are not used for verification and the release asset is an offline cache, not its own trust source.
 
-## Supported Security Scope
+## Security Scope
 
-The public OSS scope contains Basement Kit (`basement-kit`, local, supported),
-Cloud Kit (`cloud-kit`, cloud, preview), and Modern Homelab (`modern-homelab`,
-Home plus Cloud, alpha), all built on the shared `foundation/` library. Modern archive
-availability does not graduate incomplete federation runtime owners.
+The public OSS scope contains Basement Kit (`basement-kit`, local),
+Cloud Kit (`cloud-kit`, cloud), and Modern Homelab (`modern-homelab`,
+Home plus Cloud), all built on the shared `foundation/` library. Modern archive
+availability does not graduate incomplete federation runtime owners. The release README
+contains the generated, version-bound public-package support table.
 Unreleased extensions, internal runbooks, provider credentials, and
 operator-only controller paths remain excluded from the public repository and
 release archives.

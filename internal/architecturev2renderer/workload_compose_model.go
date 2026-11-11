@@ -37,9 +37,17 @@ type WorkloadComposeServiceSecret struct {
 
 // WorkloadComposeService is one container of a workload project.
 type WorkloadComposeService struct {
-	DNS     []string `yaml:"dns,omitempty"`
-	Image   string   `yaml:"image"`
-	Restart string   `yaml:"restart,omitempty"`
+	CapDrop      []string `yaml:"cap_drop,omitempty"`
+	CapAdd       []string `yaml:"cap_add,omitempty"`
+	SecurityOpt  []string `yaml:"security_opt,omitempty"`
+	PidsLimit    int      `yaml:"pids_limit,omitempty"`
+	MemLimit     string   `yaml:"mem_limit,omitempty"`
+	MemSwapLimit string   `yaml:"memswap_limit,omitempty"`
+	CPUs         string   `yaml:"cpus,omitempty"`
+	DNS          []string `yaml:"dns,omitempty"`
+	Image        string   `yaml:"image"`
+	PullPolicy   string   `yaml:"pull_policy,omitempty"`
+	Restart      string   `yaml:"restart,omitempty"`
 	// Runtime names a registered OCI runtime other than the daemon default
 	// (gVisor's runsc for the governed agent harness).
 	Runtime     string                               `yaml:"runtime,omitempty"`

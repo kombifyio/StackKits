@@ -20,6 +20,7 @@ type SelectedPaaSApplication string
 const (
 	SelectedPaaSApplicationAdguardHome       SelectedPaaSApplication = "adguard-home"
 	SelectedPaaSApplicationNtfyLive          SelectedPaaSApplication = "ntfy-live"
+	SelectedPaaSApplicationWorkbenchHost     SelectedPaaSApplication = "workbench-host"
 	SelectedPaaSApplicationOpencloud         SelectedPaaSApplication = "opencloud"
 	SelectedPaaSApplicationGuacamole         SelectedPaaSApplication = "guacamole"
 	SelectedPaaSApplicationGitea             SelectedPaaSApplication = "gitea"
@@ -397,6 +398,11 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
+	case SelectedPaaSApplicationWorkbenchHost:
+		return selectedPaaSApplicationSpec{name: "Workbench host", providerRef: "stackkits-workbench-host", moduleRef: "stackkits-workbench-host-runtime", unitRef: "workbench-host", workloadRef: "dev-workbench", artifactRef: "workbench-host-workload-bundle", outputRef: "workloads/workbench-host/bundle.json", healthRef: "workbench-host-http", expectedStatuses: []int{200}, rendererContract: architecturev2renderer.WorkbenchHostWorkloadBundleRendererContract, parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+			d, err := architecturev2renderer.ParseWorkbenchHostWorkloadBundle(content)
+			return selectedPaaSApplicationIdentity{workloadRef: d.WorkloadRef, moduleRef: d.ModuleRef, siteRef: d.SiteRef, nodeRef: d.NodeRef, instanceRef: d.InstanceRef}, err
+		}}, true
 	case SelectedPaaSApplicationNtfyLive:
 		return selectedPaaSApplicationSpec{name: "ntfy live notifications", providerRef: "stackkits-ntfy-live", moduleRef: "stackkits-ntfy-live-runtime", unitRef: "ntfy-live", workloadRef: "automation-notifications", artifactRef: "ntfy-live-workload-bundle", outputRef: "workloads/ntfy-live/bundle.json", healthRef: "ntfy-live-http", expectedStatuses: []int{200}, rendererContract: architecturev2renderer.NtfyLiveWorkloadBundleRendererContract, parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 			d, err := architecturev2renderer.ParseNtfyLiveWorkloadBundle(content)

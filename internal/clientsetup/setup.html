@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect this device to your homelab</title>
+<style>body{font:17px system-ui;line-height:1.6;max-width:52rem;margin:2rem auto;padding:0 1rem;color:#182133}h1{line-height:1.2}summary{cursor:pointer;font-weight:600}details{margin:1.2rem 0;border:1px solid #ccc;padding:1rem;border-radius:12px}pre{overflow:auto;background:#f3f4f6;padding:1rem}code{overflow-wrap:anywhere}a{color:#1749a1}</style>
+<h1>Connect this device to your homelab</h1>
+<p>On your next device open <a href="{{.SetupURL}}">{{.SetupURL}}</a>.</p>
+<p>Keep this phone or laptop on the same home network as the server. This setup page opens by IP without DNS or certificate setup. Your apps use HTTPS and need the two steps below on each new device.</p>
+<p><strong>Before installing trust:</strong> compare this SHA-256 certificate fingerprint with the one printed in the server's install terminal (or its <code>.stackkit/access.json</code>). Stop if they differ. This page uses HTTP and cannot authenticate the server for you.</p>
+<p><code>{{.Fingerprint}}</code></p>
+<p>Your homelab DNS server is <strong>{{.Address}}</strong>; the private name suffix is <strong>{{.Domain}}</strong>. Use the instructions for this device:</p>
+<details><summary>iPhone or iPad (Safari)</summary>
+<ol><li>Open Settings → Wi-Fi → ⓘ beside this network → Configure DNS → Manual. Save the existing entries so you can restore Automatic later. Remove those entries, add <strong>{{.Address}}</strong>, then Save. This changes DNS only for this Wi-Fi network.</li>
+<li><a href="/device/setup/root.cer">Download the public homelab CA certificate</a> in Safari. In Settings → General → VPN &amp; Device Management (or Profile Downloaded), open the downloaded certificate profile, compare its fingerprint above and tap Install. Then Settings → General → About → Certificate Trust Settings → enable full trust for this homelab root. If profile installation is managed by an employer, use an unmanaged device.</li></ol>
+<p>Return to Safari and open the Hub below. To undo: remove this profile and restore Configure DNS → Automatic.</p>
+</details>
+<details><summary>Android (Chrome)</summary>
+<ol><li>Settings → Network &amp; internet → Internet → this Wi-Fi network → Edit → Advanced → IP settings → Static. Keep the current IP address, gateway and prefix length; set DNS 1 to <strong>{{.Address}}</strong> and remove unrelated DNS 2 entries. Save. If a custom Private DNS provider or browser Secure DNS overrides Wi-Fi DNS, turn it off for home use. Menu names vary by manufacturer.</li>
+<li><a href="/device/setup/root.cer">Download the public homelab CA certificate</a>. Open Settings → Security &amp; privacy → More security settings → Encryption &amp; credentials → Install a certificate → CA certificate; select the download and approve only after comparing its SHA-256 fingerprint with the terminal. Android may display a network-monitoring notice because you approved a CA.</li></ol>
+<p>Chrome uses user-installed CAs; some native apps do not. Use the browser Hub first. To undo: remove this CA under Trusted credentials → User and restore Wi-Fi IP settings → DHCP and your previous Private DNS setting.</p>
+</details>
+<details><summary>Windows (Edge or Chrome)</summary>
+<p><a href="/device/setup/root.cer">Download root.cer</a>. Open it → Details → Thumbprint algorithm SHA-256 (or run <code>certutil -hashfile "$HOME\Downloads\root.cer" SHA256</code> in PowerShell). Compare with the terminal. Then open PowerShell as Administrator:</p>
+<pre>Add-DnsClientNrptRule -Namespace ".{{.Domain}}" -NameServers "{{.Address}}" -Comment "StackKits {{.Domain}}"
+Import-Certificate -FilePath "$HOME\Downloads\root.cer" -CertStoreLocation Cert:\LocalMachine\Root</pre>
+<p>This DNS rule applies only to your homelab suffix. Restart the browser. To undo, remove the rule with this comment in <code>Get-DnsClientNrptRule</code> using <code>Remove-DnsClientNrptRule</code>, and remove the matching certificate in <code>certlm.msc</code> → Trusted Root Certification Authorities.</p>
+</details>
+<details><summary>macOS (Safari or Chrome)</summary>
+<p><a href="/device/setup/root.cer">Download root.cer</a>. In Terminal, run <code>shasum -a 256 ~/Downloads/root.cer</code> and compare with the terminal fingerprint above. Then add DNS for this suffix only:</p>
+<pre>sudo mkdir -p /etc/resolver
+printf 'nameserver {{.Address}}\n' | sudo tee /etc/resolver/{{.Domain}}
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/Downloads/root.cer</pre>
+<p>Approve the OS prompts, then restart the browser. To undo: remove <code>/etc/resolver/{{.Domain}}</code> and this certificate from the System keychain in Keychain Access.</p>
+</details>
+<details><summary>Linux desktop (NetworkManager)</summary>
+<p>The existing StackKits trust adapter installs DNS for this suffix and this public CA. It requires NetworkManager, dnsmasq, OpenSSL, update-ca-certificates, NSS certutil and runuser. On Ubuntu/Debian, install missing dependencies with <code>sudo apt install network-manager dnsmasq-base openssl ca-certificates libnss3-tools util-linux</code>.</p>
+<p><a href="/device/setup/enroll-linux.sh">Download enroll-linux.sh</a>. Before executing it, run <code>sha256sum ~/Downloads/enroll-linux.sh</code>. Compare the entire file's SHA-256 with the <strong>Linux adapter SHA-256 printed in the install terminal</strong> (also <code>clientTrust.linuxProfileSha256</code> in the server's access.json). A CA fingerprint alone does not authenticate a shell script. Stop on a mismatch; never use a digest supplied only by this HTTP page as your trust source. The expected file digest shown here for comparison is <code>{{.LinuxSHA256}}</code>. After the independent terminal comparison, approve it from your desktop user's Terminal:</p>
+<pre>cd ~/Downloads
+sudo sh enroll-linux.sh --approve</pre>
+<p>Restart your browser. To undo only this profile: <code>sudo sh enroll-linux.sh --remove</code>. If Firefox uses its own trust store, import root.cer under Settings → Privacy &amp; Security → Certificates → View Certificates → Authorities and allow website identification.</p>
+</details>
+<h2>Open your first app</h2>
+<p>After DNS and CA trust, <a href="https://base.{{.Domain}}/device/">open the Hub</a>. For a new homelab, <a href="https://id.{{.Domain}}/setup">create your Pocket ID owner passkey</a>, then <a href="https://auth.{{.Domain}}">sign in</a> and open your apps from the Hub. DNS and CA approval grant no service session or device credential.</p>
+<p>If names do not resolve, check that this device is on the same network (not guest Wi-Fi with client isolation), and that a VPN, Private DNS or browser Secure DNS is not overriding your home DNS. If HTTPS warns, recheck the installed CA fingerprint; do not bypass the warning. These settings work at home; remote access is a separate, explicit choice.</p>
+</html>

@@ -13,6 +13,9 @@ var governedStopBehavior = map[string]struct {
 	comfyUIWorkloadModuleID: {component: "comfyui", stopSignal: "SIGINT"},
 	// The entrypoint shell has no signal handlers; the engine's init forwards.
 	anythingLLMWorkloadModuleID: {component: "anythingllm", init: true},
+	// t3 runs as PID 1 and spawns shells and agent CLIs; the engine's init reaps
+	// their orphans and forwards SIGTERM.
+	workbenchHostWorkloadModuleID: {component: "workbench-host", init: true},
 }
 
 // validateStopBehavior admits a stop signal or init only as the exact

@@ -80,7 +80,7 @@ func runSecretsMaterialize(_ *cobra.Command, _ []string) error {
 		printInfo("The current StackSpec declares no local secret references")
 		return nil
 	}
-	printSuccess("Owner-bound workload secret custody is ready for %d reference(s)", count)
+	printSuccess("Generated workload secret custody is ready for %d reference(s); external credentials require their explicit setup command", count)
 	return nil
 }
 
@@ -150,9 +150,9 @@ func materializeArchitectureV2LocalSecrets(workspaceRoot string, canonicalStackS
 		return 0, fmt.Errorf("decode canonical StackSpec secret authority: %w", err)
 	}
 	refs := map[string]struct{}{}
-	for _, workload := range spec.Workloads {
-		for _, ref := range workload.SecretRefs {
-			if strings.HasPrefix(strings.TrimSpace(ref), "secret://") {
+	for name, workload := range spec.Workloads {
+		for slot, ref := range workload.SecretRefs {
+			if !externallyIssuedWorkloadSecret(name, slot) && strings.HasPrefix(strings.TrimSpace(ref), "secret://") {
 				refs[strings.TrimSpace(ref)] = struct{}{}
 			}
 		}

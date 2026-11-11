@@ -6601,6 +6601,219 @@
         }
       },
       "metadata": {
+        "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+        "id": "dev-workbench",
+        "version": "1.0.0"
+      },
+      "packageRef": "dev",
+      "useCaseRef": "dev",
+      "workloadRef": "dev-workbench"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
         "id": "network",
         "version": "1.0.0"
@@ -9875,6 +10088,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-workbench-host-runtime"
+        ],
+        "matches": [
+          "stackkits-workbench-host"
+        ],
+        "module": "stackkits-workbench-host-runtime",
+        "provider": "stackkits-workbench-host"
+      },
+      {
+        "governanceMatches": [
           "stackkits-adguard-home-runtime"
         ],
         "matches": [
@@ -10889,6 +11112,12 @@
             "automation-notifications"
           ],
           "providerID": "stackkits-ntfy-live"
+        },
+        {
+          "contracts": [
+            "dev-workbench"
+          ],
+          "providerID": "stackkits-workbench-host"
         },
         {
           "contracts": [
@@ -12076,6 +12305,13 @@
         ],
         "module": "stackkits-ntfy-live-runtime",
         "provider": "stackkits-ntfy-live"
+      },
+      {
+        "matches": [
+          "stackkits-workbench-host-runtime"
+        ],
+        "module": "stackkits-workbench-host-runtime",
+        "provider": "stackkits-workbench-host"
       },
       {
         "matches": [
@@ -13967,6 +14203,34 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-workbench-host"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-workbench-host"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-workbench-host"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-workbench-host"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-adguard-home"
       },
       {
@@ -14730,6 +14994,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-ntfy-live"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-workbench-host"
         },
         {
           "capabilityBindings": [],
@@ -19344,6 +19614,100 @@
             }
           ],
           "workloadID": "automation-notifications"
+        },
+        {
+          "alternativeID": "workbench-host",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-workbench-host-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "workbench-host"
+                  ],
+                  "ref": "release-token"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "dev-workbench",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "workbench-host",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-workbench-host",
+              "workloadOwnership": [
+                "dev-workbench"
+              ]
+            }
+          ],
+          "workloadID": "dev-workbench"
         },
         {
           "alternativeID": "adguard-home",
@@ -26414,7 +26778,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:f98d00734e2ed208a563d0f24b838a28397e20d7116a6a07c0d27a1229fec722",
+          "contractHash": "sha256:ef30e3d277b8e8fa912e70bbc0c1864b2b5de1767e56e0d689b8132f14306d00",
           "id": "compose",
           "inputBindings": [
             {
@@ -26471,17 +26835,6 @@
               "sharing": "virtual-host",
               "sourceServiceRefs": [],
               "targetPort": 443,
-              "transport": "tcp"
-            },
-            {
-              "bindAddress": "127.0.0.1",
-              "componentRef": "router",
-              "exposure": "remote-private",
-              "id": "router-admin",
-              "port": 8080,
-              "sharing": "exclusive",
-              "sourceServiceRefs": [],
-              "targetPort": 8080,
               "transport": "tcp"
             },
             {
@@ -26656,7 +27009,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:582cb7125d119d097dadd5622a8aa7209df5055e436a3e411bc9f9ab307e22c3",
+          "contractHash": "sha256:7466a1844d624eb63aad7cac9a757c6546d63f38cbda0278d2eb354047cd569f",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -26713,17 +27066,6 @@
               "sharing": "virtual-host",
               "sourceServiceRefs": [],
               "targetPort": 443,
-              "transport": "tcp"
-            },
-            {
-              "bindAddress": "127.0.0.1",
-              "componentRef": "router",
-              "exposure": "remote-private",
-              "id": "router-admin",
-              "port": 8080,
-              "sharing": "exclusive",
-              "sourceServiceRefs": [],
-              "targetPort": 8080,
               "transport": "tcp"
             },
             {
@@ -26898,7 +27240,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:03391d7d4bb1a9000b8817f568734ef0ddc3e05f814f68eb21e4ddd50cc6ca1b",
+          "contractHash": "sha256:2d38e6963a40e7c87e3e238ebd77d41dfa22ec6fe688b282acbed6869376a447",
           "id": "terramate",
           "inputBindings": [
             {
@@ -26956,17 +27298,6 @@
               "sharing": "virtual-host",
               "sourceServiceRefs": [],
               "targetPort": 443,
-              "transport": "tcp"
-            },
-            {
-              "bindAddress": "127.0.0.1",
-              "componentRef": "router",
-              "exposure": "remote-private",
-              "id": "router-admin",
-              "port": 8080,
-              "sharing": "exclusive",
-              "sourceServiceRefs": [],
-              "targetPort": 8080,
               "transport": "tcp"
             },
             {
@@ -28172,7 +28503,7 @@
           "compatibleTargets": [
             "compose"
           ],
-          "contractHash": "sha256:8c8c75a3aeedf9d00d78ee2075a45304bb45e9f0c76a929b0b666de65bdac30c",
+          "contractHash": "sha256:24563b4b8ccc72bd77dc6e666553a250b6e7bedc517c5d01f94d7597a5c9d82d",
           "id": "compose",
           "inputBindings": [
             {
@@ -28229,17 +28560,6 @@
               "sharing": "virtual-host",
               "sourceServiceRefs": [],
               "targetPort": 443,
-              "transport": "tcp"
-            },
-            {
-              "bindAddress": "127.0.0.1",
-              "componentRef": "router",
-              "exposure": "remote-private",
-              "id": "router-admin",
-              "port": 8080,
-              "sharing": "exclusive",
-              "sourceServiceRefs": [],
-              "targetPort": 8080,
               "transport": "tcp"
             },
             {
@@ -28386,7 +28706,7 @@
           "compatibleTargets": [
             "opentofu"
           ],
-          "contractHash": "sha256:26a187d4794484b0c9bb4788de09e2cadbb350defc0c87111faec44c37104992",
+          "contractHash": "sha256:fa38a65c626899c5139c8847e8beb6fd8d7af82e7b2fc3926494b51097bcda6a",
           "id": "opentofu",
           "inputBindings": [
             {
@@ -28443,17 +28763,6 @@
               "sharing": "virtual-host",
               "sourceServiceRefs": [],
               "targetPort": 443,
-              "transport": "tcp"
-            },
-            {
-              "bindAddress": "127.0.0.1",
-              "componentRef": "router",
-              "exposure": "remote-private",
-              "id": "router-admin",
-              "port": 8080,
-              "sharing": "exclusive",
-              "sourceServiceRefs": [],
-              "targetPort": 8080,
               "transport": "tcp"
             },
             {
@@ -28600,7 +28909,7 @@
           "compatibleTargets": [
             "terramate"
           ],
-          "contractHash": "sha256:727b7e8a706deef01762973b49eac51f46c2bfc0a2a65b7904f9af8d2cbb4a53",
+          "contractHash": "sha256:19541b6463b0bfefcc9e26af4e87f3d76f6620ae3a29a59970f055f84626dc87",
           "id": "terramate",
           "inputBindings": [
             {
@@ -28658,17 +28967,6 @@
               "sharing": "virtual-host",
               "sourceServiceRefs": [],
               "targetPort": 443,
-              "transport": "tcp"
-            },
-            {
-              "bindAddress": "127.0.0.1",
-              "componentRef": "router",
-              "exposure": "remote-private",
-              "id": "router-admin",
-              "port": 8080,
-              "sharing": "exclusive",
-              "sourceServiceRefs": [],
-              "targetPort": 8080,
               "transport": "tcp"
             },
             {
@@ -52727,6 +53025,373 @@
     },
     {
       "computeProfiles": {
+        "standard": {
+          "components": [
+            "workbench-host"
+          ],
+          "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+          "executable": true,
+          "hostFloor": {
+            "allowedArchitectures": [
+              "amd64"
+            ],
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.5
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "workbench-host-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "workbench-host-http",
+          "kind": "http",
+          "path": "/.well-known/kombify-workbench-host",
+          "phase": "continuous",
+          "port": 3773,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+        "id": "stackkits-workbench-host-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-workbench-host",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "workbench-host-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/workbench-host/bundle.json",
+              "required": true,
+              "unitRef": "workbench-host"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "workbench-host-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/workbench-host/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "workbench-host-workload-bundle",
+              "outputRef": "workloads/workbench-host/bundle.json",
+              "unitRef": "workbench-host"
+            },
+            {
+              "artifactRef": "workbench-host-terramate-stack",
+              "outputRef": "platform/applications/workbench-host/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "workbench-host-workload-bundle",
+            "workbench-host-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "workbench-host-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "release-token"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:efffc38244321c333dc49dba0965fc9053430827fd5471113cde0169aed3d244",
+          "id": "workbench-host",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/workbench-host/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "release-token"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "dev-workbench",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "workbench-host-http",
+              "ingressAuth": "forward-auth",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "admin",
+              "serviceRef": "dev-workbench",
+              "targetPort": 3773,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/workbench-host/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/workbench-host/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "workbench-host-workload-bundle"
+          ],
+          "contractHash": "sha256:66aa1152e7d87b3292a2eefbcca398746546e6499c60b70000a0a7cb34704f02",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "release-token"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "workbench-host"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "workbench-host-workload-bundle"
+          ],
+          "contractHash": "sha256:52e50871398d3f1fc5bca11be237abce135bdb39157fa33bc23b6b3d18bd0e41",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "release-token"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "workbench-host"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "workbench-host-workload-bundle",
+            "workbench-host-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "release-token"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "workbench-host",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "python3",
+              "-c",
+              "exec(\"import hashlib, os, pathlib, platform, tarfile, tempfile, urllib.request\\nif platform.machine() != \\\"x86_64\\\":\\n    raise SystemExit(\\\"Workbench host archive requires linux-x64\\\")\\nclass Redirect(urllib.request.HTTPRedirectHandler):\\n    def redirect_request(self, req, fp, code, msg, headers, newurl):\\n        if not newurl.startswith(\\\"https://\\\"):\\n            raise RuntimeError(\\\"Release redirect must use HTTPS\\\")\\n        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)\\n        redirected.remove_header(\\\"Authorization\\\")\\n        return redirected\\ncache = pathlib.Path(\\\"/var/cache/workbench-host\\\")\\nif cache.is_symlink():\\n    raise RuntimeError(\\\"Archive cache must not be a symlink\\\")\\ncache.mkdir(exist_ok=True, mode=0o700)\\nos.chmod(cache, 0o700)\\ndigest_pin = \\\"1737877513d211db6175c0c1e0537888467d371875e433ea6ada0ee3d9db27df\\\"\\narchive_path = cache / (digest_pin + \\\".tar.gz\\\")\\nif archive_path.is_symlink():\\n    raise RuntimeError(\\\"Archive cache entry must not be a symlink\\\")\\ntoken_path = os.environ.pop(\\\"STACKKIT_RELEASE_TOKEN_FILE\\\")\\ndef verified(path):\\n    if not path.is_file() or path.stat().st_size \u003e 1073741824:\\n        return False\\n    with path.open(\\\"rb\\\") as cached:\\n        return hashlib.file_digest(cached, \\\"sha256\\\").hexdigest() == digest_pin\\nif not verified(archive_path):\\n    for stale in cache.glob(\\\"tmp*\\\"):\\n        if stale.is_file() and not stale.is_symlink():\\n            stale.unlink()\\n    opener = urllib.request.build_opener(Redirect())\\n    req = urllib.request.Request(\\\"https://api.github.com/repositories/1347582990/releases/assets/730476591\\\", headers={\\\"Accept\\\": \\\"application/octet-stream\\\", \\\"Authorization\\\": \\\"Bearer \\\" + pathlib.Path(token_path).read_text().strip(), \\\"User-Agent\\\": \\\"stackkits-workbench-host\\\"})\\n    download = tempfile.NamedTemporaryFile(dir=cache, delete=False)\\n    try:\\n        with download, opener.open(req, timeout=60) as response:\\n            size = 0\\n            while chunk := response.read(1048576):\\n                size += len(chunk)\\n                if size \u003e 1073741824:\\n                    raise RuntimeError(\\\"Archive exceeds 1 GiB\\\")\\n                download.write(chunk)\\n        candidate = pathlib.Path(download.name)\\n        if not verified(candidate):\\n            raise RuntimeError(\\\"Published Workbench archive digest mismatch\\\")\\n        os.replace(candidate, archive_path)\\n    finally:\\n        pathlib.Path(download.name).unlink(missing_ok=True)\\nwith archive_path.open(\\\"rb\\\") as archive:\\n    if hashlib.file_digest(archive, \\\"sha256\\\").hexdigest() != digest_pin:\\n        raise RuntimeError(\\\"Published Workbench archive digest mismatch\\\")\\n    archive.seek(0)\\n    with tarfile.open(fileobj=archive, mode=\\\"r:gz\\\") as payload:\\n        payload.extractall(\\\"/opt/workbench-host\\\", filter=\\\"data\\\")\\nroot = pathlib.Path(\\\"/opt/workbench-host/kombify-workbench-host-cloud-0.3.4-linux-x64\\\")\\nstate = pathlib.Path(\\\"/var/lib/workbench-host\\\")\\nfor name in (\\\"home\\\", \\\"workspace\\\", \\\"bin\\\"):\\n    directory = state / name\\n    if directory.is_symlink():\\n        raise RuntimeError(\\\"Workbench state directory must not be a symlink\\\")\\n    directory.mkdir(exist_ok=True, mode=0o700)\\n    os.chmod(directory, 0o700)\\n    os.chown(directory, 10000, 10000)\\nos.setgroups([])\\nos.setgid(10000)\\nos.setuid(10000)\\nos.environ.update(HOME=str(state / \\\"home\\\"), PATH=str(state / \\\"bin\\\") + \\\":\\\" + str(root) + \\\":\\\" + os.environ[\\\"PATH\\\"])\\nos.chdir(state / \\\"workspace\\\")\\nos.execv(str(root / \\\"t3\\\"), [str(root / \\\"t3\\\"), \\\"serve\\\", \\\"--no-browser\\\", \\\"--host\\\", \\\"0.0.0.0\\\", \\\"--port\\\", \\\"3773\\\"])\")"
+            ],
+            "dependsOn": [],
+            "egress": true,
+            "health": {
+              "kind": "http",
+              "path": "/.well-known/kombify-workbench-host",
+              "port": 3773
+            },
+            "id": "workbench-host",
+            "image": {
+              "digest": "sha256:8e4ff723e809a8e3bbd61bdceb92e9031689ad11edccff3306c0b3ebe60704ff",
+              "ref": "docker.io/library/python:3.14.10-trixie"
+            },
+            "init": true,
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "workbench-host-internal"
+            ],
+            "resources": {
+              "memoryLimit": "4g",
+              "memoryReservation": "512m"
+            },
+            "role": "application",
+            "secretFiles": [
+              {
+                "gid": 0,
+                "pathEnvironment": "STACKKIT_RELEASE_TOKEN_FILE",
+                "slot": "release-token",
+                "target": "/run/secrets/release-token",
+                "uid": 0
+              }
+            ],
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "state",
+                "target": "/var/lib/workbench-host"
+              },
+              {
+                "backup": false,
+                "class": "cache",
+                "id": "archive-cache",
+                "target": "/var/cache/workbench-host"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "workbench-host",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:8e4ff723e809a8e3bbd61bdceb92e9031689ad11edccff3306c0b3ebe60704ff",
+          "ref": "docker.io/library/python:3.14.10-trixie"
+        },
+        "kind": "container"
+      },
+      "runtimeRequirements": {
+        "allowedArchitectures": [
+          "amd64"
+        ]
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
         "high": {
           "components": [
             "adguard-home"
@@ -58323,6 +58988,54 @@
     {
       "certificateIssuers": [],
       "evidence": [
+        "workbench-host-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-workbench-host",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-workbench-host-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "dev-workbench"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
         "adguard-home-selected-paas-runtime-contract"
       ],
       "metadata": {
@@ -58386,6 +59099,56 @@
         "transport": true
       },
       "ref": "stackkits-governed-state-verifier-v1",
+      "schemaVersion": "stackkit.ril-action-executor/v1",
+      "version": "1.0.0"
+    },
+    {
+      "operationClasses": [
+        "backup-evidence",
+        "backup-run",
+        "runtime-service-action",
+        "runtime-service-start",
+        "runtime-service-stop",
+        "runtime-service-update"
+      ],
+      "owner": {
+        "authority": "stackkits"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "credentialResolution": true,
+        "leaseAuthority": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "transport": true
+      },
+      "ref": "stackkits-managed-service-executor-v1",
+      "schemaVersion": "stackkit.ril-action-executor/v1",
+      "version": "1.0.0"
+    },
+    {
+      "operationClasses": [
+        "host-container-restart",
+        "host-container-start",
+        "host-container-stop",
+        "host-unit-restart",
+        "host-unit-start",
+        "host-unit-stop"
+      ],
+      "owner": {
+        "authority": "stackkits"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "credentialResolution": true,
+        "leaseAuthority": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "transport": true
+      },
+      "ref": "stackkits-guard-host-executor-v1",
       "schemaVersion": "stackkit.ril-action-executor/v1",
       "version": "1.0.0"
     }
@@ -58568,7 +59331,7 @@
     {
       "approval": {
         "authority": "techstack",
-        "class": "owner-step-up",
+        "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
         "required": true
@@ -58601,7 +59364,7 @@
       "executorRef": "stackkits-governed-state-verifier-v1",
       "grant": {
         "audience": "stackkits",
-        "connectorBindingRequired": true,
+        "connectorBindingRequired": false,
         "required": true,
         "scopes": [
           "stackkit-verify"
@@ -58742,7 +59505,7 @@
     {
       "approval": {
         "authority": "techstack",
-        "class": "owner-step-up",
+        "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
         "required": true
@@ -58772,9 +59535,10 @@
           "recovery"
         ]
       },
+      "executorRef": "stackkits-managed-service-executor-v1",
       "grant": {
         "audience": "stackkits",
-        "connectorBindingRequired": true,
+        "connectorBindingRequired": false,
         "required": true,
         "scopes": [
           "stackkit-service-restart"
@@ -58782,6 +59546,14 @@
       },
       "id": "restart-service",
       "inputs": [
+        {
+          "id": "application-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": false,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        },
         {
           "id": "runtime-instance-ref",
           "inlineMaterial": false,
@@ -58811,7 +59583,7 @@
       },
       "risk": "high",
       "schemaVersion": "stackkit.ril-action-primitive/v1",
-      "support": "contract-only",
+      "support": "executor-bound",
       "target": {
         "requiresNodeRef": true,
         "requiresResolvedPlanHash": true,
@@ -58820,6 +59592,309 @@
         "scope": "runtime-instance"
       },
       "title": "Restart one governed runtime service",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-managed-service-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-service-start"
+        ]
+      },
+      "id": "start-service",
+      "inputs": [
+        {
+          "id": "application-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": false,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        },
+        {
+          "id": "runtime-instance-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "runtime-service-start"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Start one governed runtime service",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-managed-service-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-service-stop"
+        ]
+      },
+      "id": "stop-service",
+      "inputs": [
+        {
+          "id": "application-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": false,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        },
+        {
+          "id": "runtime-instance-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "runtime-service-stop"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Stop one governed runtime service",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-managed-service-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-service-update"
+        ]
+      },
+      "id": "update-service",
+      "inputs": [
+        {
+          "id": "runtime-instance-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        },
+        {
+          "id": "target-release-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "runtime-service-update"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Update one governed runtime service to the managed target release",
       "verification": {
         "evidenceSchema": "stackkit.ril-action-evidence/v1",
         "phases": [
@@ -58926,7 +60001,7 @@
     {
       "approval": {
         "authority": "techstack",
-        "class": "owner-step-up",
+        "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
         "required": true
@@ -58956,9 +60031,10 @@
           "recovery"
         ]
       },
+      "executorRef": "stackkits-managed-service-executor-v1",
       "grant": {
         "audience": "stackkits",
-        "connectorBindingRequired": true,
+        "connectorBindingRequired": false,
         "required": true,
         "scopes": [
           "stackkit-backup-check"
@@ -58995,7 +60071,7 @@
       },
       "risk": "read-only",
       "schemaVersion": "stackkit.ril-action-primitive/v1",
-      "support": "contract-only",
+      "support": "executor-bound",
       "target": {
         "requiresNodeRef": false,
         "requiresResolvedPlanHash": true,
@@ -59007,6 +60083,657 @@
       "verification": {
         "evidenceSchema": "stackkit.ril-action-evidence/v1",
         "phases": [
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "backup",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-managed-service-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-backup-run"
+        ]
+      },
+      "id": "run-backup",
+      "inputs": [
+        {
+          "id": "backup-contract-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "backup-run"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": false,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": false,
+        "requiresStackID": true,
+        "scope": "module-instance"
+      },
+      "title": "Run one governed out-of-band backup of the stack",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-guard-host-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-host-container-start"
+        ]
+      },
+      "id": "start-host-container",
+      "inputs": [
+        {
+          "id": "host-container-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "host-container-start"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Start one unmanaged container of a connected server's host",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-guard-host-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-host-container-stop"
+        ]
+      },
+      "id": "stop-host-container",
+      "inputs": [
+        {
+          "id": "host-container-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "host-container-stop"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Stop one unmanaged container of a connected server's host",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-guard-host-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-host-container-restart"
+        ]
+      },
+      "id": "restart-host-container",
+      "inputs": [
+        {
+          "id": "host-container-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "host-container-restart"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Restart one unmanaged container of a connected server's host",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-guard-host-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-host-unit-start"
+        ]
+      },
+      "id": "start-host-unit",
+      "inputs": [
+        {
+          "id": "host-unit-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "host-unit-start"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Start one service unit of a connected server's host",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-guard-host-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-host-unit-stop"
+        ]
+      },
+      "id": "stop-host-unit",
+      "inputs": [
+        {
+          "id": "host-unit-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "host-unit-stop"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Stop one service unit of a connected server's host",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
+          "readback"
+        ],
+        "required": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "approval": {
+        "authority": "techstack",
+        "class": "agent-equipment",
+        "policyAuthority": "gateway",
+        "receiptRequired": true,
+        "required": true
+      },
+      "category": "service",
+      "destructive": false,
+      "evidence": {
+        "protectedDiagnostics": {
+          "allowed": true,
+          "custodyAuthority": "techstack",
+          "directAccess": false,
+          "inlineMaterial": false,
+          "referenceScheme": "diagnostic",
+          "required": false
+        },
+        "redactedLogsOnly": true,
+        "requiredFields": [
+          "action-card-id",
+          "execution-id",
+          "primitive-id",
+          "primitive-contract-hash",
+          "resolved-plan-hash",
+          "trace-id",
+          "target-ref",
+          "status",
+          "verification",
+          "recovery"
+        ]
+      },
+      "executorRef": "stackkits-guard-host-executor-v1",
+      "grant": {
+        "audience": "stackkits",
+        "connectorBindingRequired": false,
+        "required": true,
+        "scopes": [
+          "stackkit-host-unit-restart"
+        ]
+      },
+      "id": "restart-host-unit",
+      "inputs": [
+        {
+          "id": "host-unit-ref",
+          "inlineMaterial": false,
+          "opaqueReferenceOnly": true,
+          "required": true,
+          "source": "approved-action-card",
+          "type": "opaque-reference"
+        }
+      ],
+      "mutation": true,
+      "owner": {
+        "authority": "stackkits",
+        "operationClass": "host-unit-restart"
+      },
+      "prohibitions": {
+        "arbitraryPaths": true,
+        "callerCommands": true,
+        "providerInputs": true,
+        "providerLifecycle": true,
+        "rawDocker": true,
+        "rawOpenTofu": true,
+        "rawSSH": true
+      },
+      "recovery": {
+        "kind": "manual",
+        "requiredOnFailure": true
+      },
+      "risk": "high",
+      "schemaVersion": "stackkit.ril-action-primitive/v1",
+      "support": "executor-bound",
+      "target": {
+        "requiresNodeRef": true,
+        "requiresResolvedPlanHash": true,
+        "requiresRuntimeInstanceRef": true,
+        "requiresStackID": true,
+        "scope": "runtime-instance"
+      },
+      "title": "Restart one service unit of a connected server's host",
+      "verification": {
+        "evidenceSchema": "stackkit.ril-action-evidence/v1",
+        "phases": [
+          "preflight",
+          "post-action",
           "readback"
         ],
         "required": true
@@ -65438,6 +67165,152 @@
         "cloud"
       ],
       "useCaseRef": "automation"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "workbench-host",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "backupDataClass": "secret-material",
+                  "componentRef": "workbench-host",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "state"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "dev-workbench",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "workbench-host",
+                  "dataBindingRef": "dev-workbench",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/workbench-host",
+                  "volumeRef": "state"
+                },
+                {
+                  "backup": false,
+                  "class": "cache",
+                  "componentRef": "workbench-host",
+                  "dataClasses": [],
+                  "target": "/var/cache/workbench-host",
+                  "volumeRef": "archive-cache"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "release-token"
+              ],
+              "requiredRefs": [
+                "release-token"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "descriptors": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-workbench-host-runtime",
+          "providerRef": "stackkits-workbench-host",
+          "route": {
+            "healthRef": "workbench-host-http",
+            "serviceRef": "dev-workbench"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "included": false,
+          "reason": "No named measured high capability; standard is not copied as high."
+        },
+        "low": {
+          "included": false,
+          "reason": "No independently measured low variant."
+        },
+        "standard": {
+          "alternativeID": "workbench-host",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "workbench-host",
+      "functionalCapabilities": [
+        "user-host-agent-execution"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+        "id": "dev-workbench",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "dev"
     },
     {
       "alternatives": [

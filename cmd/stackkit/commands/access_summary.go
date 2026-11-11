@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/clientsetup"
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
@@ -35,7 +36,8 @@ type accessSummary struct {
 	// ClientTrust carries the device-enrollment handoff for the canonical local
 	// URLs. A device client consumes it to install scoped DNS and the public CA
 	// root with OS approval; it is not an instruction to reconfigure the router.
-	ClientTrust *accessClientTrust `json:"clientTrust,omitempty"`
+	ClientTrust  *accessClientTrust  `json:"clientTrust,omitempty"`
+	SecondDevice *accessSecondDevice `json:"secondDevice,omitempty"`
 	// privateRemoteAccessEnabled is derived only from a verified, successfully
 	// applied native plan. It controls the enrollment handoff and is never
 	// serialized as a second authority.
@@ -44,6 +46,12 @@ type accessSummary struct {
 }
 
 // accessClientTrust is the I2 client-trust handoff for one workspace.
+type accessSecondDevice struct {
+	SetupURL string   `json:"setupUrl"`
+	Network  string   `json:"network"`
+	Steps    []string `json:"steps"`
+}
+
 type accessClientTrust struct {
 	Authority                   string             `json:"authority"`
 	CAFingerprint               string             `json:"caFingerprint"`
@@ -65,7 +73,8 @@ type accessClientTrust struct {
 	// the profile. They never ask the owner to edit router or device DNS.
 	ResolverSteps []string `json:"resolverSteps"`
 	// LinuxProfilePath is an executable OS trust adapter, not a device credential.
-	LinuxProfilePath string `json:"linuxProfilePath,omitempty"`
+	LinuxProfilePath   string `json:"linuxProfilePath,omitempty"`
+	LinuxProfileSHA256 string `json:"linuxProfileSha256,omitempty"`
 }
 
 type accessRemoteAccess struct {
@@ -317,6 +326,12 @@ func writeAccessSummary(wd string, summary *accessSummary) error {
 	if err := writeAccessClientProfile(wd, summary); err != nil {
 		return err
 	}
+	if summary.ClientTrust != nil {
+		summary.SecondDevice = &accessSecondDevice{
+			SetupURL: clientsetup.URL(summary.ClientTrust.ResolverAddress), Network: "same home network",
+			Steps: []string{"Open setupUrl on the new device; no DNS or CA setup is needed for this page.", "Compare the Owner-CA SHA-256 fingerprint with this terminal, then follow the page for your device to configure DNS and approve the public CA.", "Open the HTTPS Hub, create the Pocket ID owner passkey on first use, then sign in. Trust grants no service session."},
+		}
+	}
 	dir := filepath.Join(wd, ".stackkit")
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("create .stackkit directory: %w", err)
@@ -386,7 +401,8 @@ func attachAccessClientTrust(wd string, summary *accessSummary) {
 		RouterConfigurationRequired: false,
 		InstalledScopes:             []string{"dns-zone:" + summary.Domain, "owner-ca"},
 		EnrollmentSteps: []string{
-			"Copy .stackkit/client-trust/enroll-linux.sh from this workspace to a Linux NetworkManager client through your trusted server access.",
+			"Open " + clientsetup.URL(resolverAddress) + " on this device on the same home network; choose its device-specific DNS and CA trust steps.",
+			"For Linux NetworkManager, download the existing enroll-linux.sh adapter from that page, or copy .stackkit/client-trust/enroll-linux.sh through trusted server access.",
 			"Review the printed Owner-CA fingerprint, then approve the local OS trust profile with sudo sh enroll-linux.sh --approve.",
 			"Open the printed id URL to register or confirm your passkey, then sign in through auth. DNS and CA trust grant no service session or Home device credential.",
 		},

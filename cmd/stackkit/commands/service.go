@@ -50,6 +50,7 @@ func newServiceCommand() *cobra.Command {
 		}
 		subcommand.Flags().BoolVar(&ownerApproved, "owner-approve", false, "Explicitly approve the owner-bound service mutation")
 		subcommand.Flags().BoolVar(&outputJSON, "json", false, "Write the versioned service action result as JSON")
+		bindRILPrimitive(subcommand, action+"-service")
 		command.AddCommand(subcommand)
 	}
 	var tail int

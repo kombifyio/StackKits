@@ -190,7 +190,8 @@ grep -q 'listening on' "$output_dir/tcpdump-init.stderr.log" || {
 }
 
 cd "$project_dir"
-timeout 600 stackkit init --owner-source=local --non-interactive >"$output_dir/init.log"
+# The init the public text prints (internal/publicpath), with an owner address the proof owns.
+timeout 600 stackkit init --catalog-defaults --owner-source=local --owner-email oss-e2e@example.com --non-interactive >"$output_dir/init.log"
 timeout 600 stackkit kit verify --json >"$output_dir/release-bootstrap.json"
 jq -e --arg version "$version" '
   .schemaVersion == "stackkit.command-result/v1"

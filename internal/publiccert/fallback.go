@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"regexp"
 	"slices"
 	"strings"
@@ -18,6 +16,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/lancert"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/originca"
+	"github.com/kombifyio/stackkits/internal/routerdiagnostics"
 )
 
 // The step-ca fallback (kombify-StackKits-igti.15). While the public-names
@@ -31,10 +30,6 @@ import (
 // domains, and every router of that host is served from the shared store. No
 // apply and no restart is needed; the router watches router-tls/.
 const (
-	// routerAPI is the Basement core router's API, published on the host's
-	// loopback only (127.0.0.1:8080).
-	routerAPI            = "http://127.0.0.1:8080/api/http/routers?per_page=1000"
-	routerAPIMaxBytes    = 4 << 20
 	routerAPITimeout     = 10 * time.Second
 	fallbackRouterName   = "stackkit-step-ca-fallback"
 	fallbackRouterPrefix = "/.well-known/stackkit-step-ca-fallback/"
@@ -98,21 +93,9 @@ func fallbackHosts(ctx context.Context, workspace string) ([]string, error) {
 func readRouters(ctx context.Context) ([]routerAPIRouter, error) {
 	ctx, cancel := context.WithTimeout(ctx, routerAPITimeout)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, routerAPI, nil)
+	raw, err := routerdiagnostics.ReadHome(ctx, routerdiagnostics.HomeRouters)
 	if err != nil {
 		return nil, err
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("read the router's routes: %w", err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("the router's API answered %d", response.StatusCode)
-	}
-	raw, err := io.ReadAll(io.LimitReader(response.Body, routerAPIMaxBytes+1))
-	if err != nil || len(raw) > routerAPIMaxBytes {
-		return nil, errors.New("the router's API answer is unreadable or too large")
 	}
 	var routers []routerAPIRouter
 	if err := json.Unmarshal(raw, &routers); err != nil {

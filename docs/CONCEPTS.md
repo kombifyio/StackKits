@@ -182,7 +182,7 @@ The compact authoring and promotion matrix lives in [OPTIONS_AND_AUTHORING.md](O
 | `optional` | Available but off by default, user enables | Game Server |
 
 Native authoring uses explicit workload alternatives and module profiles.
-For example, `stackkit init basement-kit --catalog-defaults --use-case photos,files,vault`
+For example, `stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case photos,files,vault`
 accepts the release defaults for those workloads. It does not migrate existing
 intent or silently transfer execution ownership to another adapter.
 
@@ -269,7 +269,7 @@ Replaced by the per-tool role system:
 |-----------|----------|
 | One StackInstance + 1 node | Services may run on the single controller/worker node; KitProfile stays unchanged. |
 | One StackInstance + additional nodes | KitProfile stays unchanged; every node references one Site and one parent StackInstance, with explicit roles/placement. |
-| At least one home and one cloud Site + all five bridge contracts | This is **Modern Homelab**, not merely a remote worker join. It remains Preview until live evidence passes. |
+| At least one home and one cloud Site + all five bridge contracts | This is **Modern Homelab**, not merely a remote worker join. Its runtime status follows the version-bound support table in the public release README. |
 | Several independent mains with their own workers | Several StackInstances grouped in a Fleet; no implicit shared trust, network, or quorum. |
 | Replicated members of one logical ControlPlane | Same KitProfile plus `addons.ha`; explicit availability, failure-domain, and fencing contract required. |
 

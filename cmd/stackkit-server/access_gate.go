@@ -2,13 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/ownapplication"
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/auth/accessgate"
@@ -71,19 +76,69 @@ func accessGateLaunchHosts(table accessgate.Table) []string {
 // forward-auth calls only and carries no API key, CORS or other route: the
 // router reaches it inside the core network, and no host port publishes it.
 func newAccessGateServer(baseDir, listen string, table accessgate.Table) (*http.Server, error) {
-	gate, err := accessgate.New(table, accessgate.Options{
-		Devices:   identityDeviceVerifier{root: baseDir},
-		Browsers:  identityBrowserSessions{root: baseDir},
-		Launcher:  identityLauncher{root: baseDir},
-		AppPasses: identityAppPasses{root: baseDir},
-		Agents:    identityAgentEnvelopes{root: baseDir},
-	})
+	options := accessgate.Options{
+		Devices: identityDeviceVerifier{root: baseDir}, Browsers: identityBrowserSessions{root: baseDir},
+		Launcher: identityLauncher{root: baseDir}, AppPasses: identityAppPasses{root: baseDir}, Agents: identityAgentEnvelopes{root: baseDir},
+	}
+	baseGate, err := accessgate.New(table, options)
 	if err != nil {
 		return nil, err
 	}
+	// Catalog requests never read own custody. File identity, size and mtime
+	// invalidate the own-only cache, including atomic replacement and deletion.
+	var mu sync.Mutex
+	var previous []os.FileInfo
+	var encoded string
+	var gate *accessgate.Gate
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Header.Get("X-Forwarded-Host")
+		for _, route := range table.Routes {
+			if host == route.Host {
+				baseGate.ServeHTTP(w, r)
+				return
+			}
+		}
+		mu.Lock()
+		currentInfo := []os.FileInfo{nil, nil}
+		for n, name := range []string{".stackkit/own-applications/state.json", localevidence.HomeAuthorityPublicRelPath} {
+			currentInfo[n], _ = os.Lstat(filepath.Join(baseDir, name))
+		}
+		same := len(previous) == len(currentInfo)
+		if same {
+			for n, info := range currentInfo {
+				old := previous[n]
+				if (old == nil) != (info == nil) || old != nil && (!os.SameFile(old, info) || old.Size() != info.Size() || !old.ModTime().Equal(info.ModTime())) {
+					same = false
+					break
+				}
+			}
+		}
+		if !same || gate == nil {
+			expanded, e := ownapplication.AccessTable(baseDir, table)
+			if e != nil {
+				expanded = table
+				slog.Warn("own application route custody unavailable; own routes closed")
+			}
+			raw, _ := json.Marshal(expanded)
+			if gate == nil || encoded != string(raw) {
+				candidate, e := accessgate.New(expanded, options)
+				if e == nil {
+					gate = candidate
+					encoded = string(raw)
+				} else {
+					gate = baseGate
+					encoded = ""
+				}
+			}
+			previous = currentInfo
+		}
+		current := gate
+		mu.Unlock()
+		current.ServeHTTP(w, r)
+	})
 	mux := http.NewServeMux()
-	mux.Handle(accessgate.PathLAN, gate)
-	mux.Handle(accessgate.PathRemote, gate)
+	mux.Handle(accessgate.PathLAN, handler)
+	mux.Handle(accessgate.PathRemote, handler)
 	// The DBSC endpoints answer 2xx bodies, which a forward-auth call cannot
 	// carry; a router per gated host sends them here (identity.HomeDBSCHandler).
 	mux.Handle(identity.HomeDBSCRegisterPath, identity.HomeDBSCHandler(baseDir))

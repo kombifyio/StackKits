@@ -43,7 +43,7 @@ func prepareCoreIdentityCustody(workspaceRoot string) error {
 	// lan-certificate issue` obtained it; the core mounts it read-only.
 	// public-tls/live holds the public-names certificate of a public identity
 	// origin (`stackkit reach public-certificate issue`); the router mounts it.
-	for _, directory := range []string{".stackkit/custody/home-verifier", localevidence.HomeAuthorityCustodyRelDir, CoreIdentitySignerSocketDir, ".stackkit/custody/lan-tls/live", localevidence.PublicRouterCertificateRelDir} {
+	for _, directory := range []string{".stackkit/own-applications", ".stackkit/custody/home-verifier", localevidence.HomeAuthorityCustodyRelDir, CoreIdentitySignerSocketDir, ".stackkit/custody/lan-tls/live", localevidence.PublicRouterCertificateRelDir} {
 		if err := os.MkdirAll(filepath.Join(workspaceRoot, filepath.FromSlash(directory)), 0o700); err != nil {
 			return fmt.Errorf("create %s for the Basement core: %w", directory, err)
 		}

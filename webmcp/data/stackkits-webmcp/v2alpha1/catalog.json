@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "e581314c764e2634a41f9d409ab05d975920f650",
-  "authority_bundle_sha256": "32f1fb2319e3d94c2b6da96a11cacafbcfc75b3eb0e29de84127b19e7753853a",
+  "source_sha": "11b147c708b78f32c4f348973143416512a35e60",
+  "authority_bundle_sha256": "b1d0608a378a101e29eacfb375e1f169a793b11c8122c8e9eb37c355e6a1b62d",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -4666,6 +4666,56 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-workbench-host-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev-workbench"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [
+                "amd64"
+              ],
+              "virtualization": [],
+              "components": [
+                "workbench-host"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "0dc07d8a0292663e3a90fd865c3e5136361bb507ce28fe3ff98996dd468dcb6c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-zigbee2mqtt-runtime",
           "role": "workload",
           "required": false,
@@ -5124,6 +5174,29 @@
                 "developer-collaboration",
                 "git-hosting",
                 "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "dev-workbench",
+          "title": "dev-workbench",
+          "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "workbench-host",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "workbench-host",
+              "module_id": "stackkits-workbench-host-runtime",
+              "functions": [
+                "user-host-agent-execution"
               ],
               "load": {
                 "residency": "always-on",
@@ -10351,6 +10424,56 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-workbench-host-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev-workbench"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [
+                "amd64"
+              ],
+              "virtualization": [],
+              "components": [
+                "workbench-host"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "0dc07d8a0292663e3a90fd865c3e5136361bb507ce28fe3ff98996dd468dcb6c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-zigbee2mqtt-runtime",
           "role": "workload",
           "required": false,
@@ -10790,6 +10913,29 @@
                 "developer-collaboration",
                 "git-hosting",
                 "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "dev-workbench",
+          "title": "dev-workbench",
+          "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "workbench-host",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "workbench-host",
+              "module_id": "stackkits-workbench-host-runtime",
+              "functions": [
+                "user-host-agent-execution"
               ],
               "load": {
                 "residency": "always-on",
@@ -15672,6 +15818,56 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-workbench-host-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "dev-workbench"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.5
+              },
+              "architectures": [
+                "amd64"
+              ],
+              "virtualization": [],
+              "components": [
+                "workbench-host"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "0dc07d8a0292663e3a90fd865c3e5136361bb507ce28fe3ff98996dd468dcb6c"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-zigbee2mqtt-runtime",
           "role": "workload",
           "required": false,
@@ -16107,6 +16303,29 @@
                 "developer-collaboration",
                 "git-hosting",
                 "source-control"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "dev-workbench",
+          "title": "dev-workbench",
+          "description": "Optional pinned Workbench Cloud Linux host; Connect enrollment and provider configuration are explicit owner setup. Resource floors are policy, runtime acceptance is pending M13.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "workbench-host",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "workbench-host",
+              "module_id": "stackkits-workbench-host-runtime",
+              "functions": [
+                "user-host-agent-execution"
               ],
               "load": {
                 "residency": "always-on",
@@ -16670,7 +16889,7 @@
       "id": "stackkit.addon.list",
       "tool_name": "stackkit_addon_list",
       "title": "List add-ons",
-      "description": "List the governed add-ons for the current StackKit.",
+      "description": "Use before installing or changing an add-on. Lists the add-ons this StackKit offers; reads only.",
       "command": [
         "addon",
         "list"
@@ -16684,7 +16903,7 @@
       "id": "stackkit.address.bind",
       "tool_name": "stackkit_address_bind",
       "title": "Bind public addresses",
-      "description": "Bind an allocated prefix or install zone into canonical public routes and persist the validated StackSpec.",
+      "description": "Use after an address is allocated to apply it. Writes the bound public routes into a new validated spec file; existing intent is replaced only when its exact current hash is passed.",
       "command": [
         "address",
         "bind"
@@ -16698,7 +16917,7 @@
       "id": "stackkit.address.plan",
       "tool_name": "stackkit_address_plan",
       "title": "Plan public addresses",
-      "description": "Emit the account-free, secret-free public address registration plan for the current StackSpec.",
+      "description": "Use before binding a public address, to see what registration needs. Prints the account-free address plan; changes nothing.",
       "command": [
         "address",
         "plan"
@@ -16712,7 +16931,7 @@
       "id": "stackkit.advanced.change-set.apply",
       "tool_name": "stackkit_advanced_change_set_apply",
       "title": "Apply Advanced change set",
-      "description": "Checkpoint, apply and verify one exact Owner-signed Terramate change set with automatic verified rollback.",
+      "description": "Use after the change set is created and reviewed. Applies it and verifies the result, rolling back automatically on failure; the running stack changes.",
       "command": [
         "advanced",
         "change-set",
@@ -16728,7 +16947,7 @@
       "id": "stackkit.advanced.change-set.create",
       "tool_name": "stackkit_advanced_change_set_create",
       "title": "Create Advanced change set",
-      "description": "Create a content-addressed Owner-signed Terramate change set from an offline capability and a candidate StackSpec.",
+      "description": "Use before an Advanced apply to turn a candidate spec into something reviewable. Writes a content-addressed, Owner-signed change set; applies nothing.",
       "command": [
         "advanced",
         "change-set",
@@ -16744,7 +16963,7 @@
       "id": "stackkit.advanced.restore-drill.run",
       "tool_name": "stackkit_advanced_restore_drill_run",
       "title": "Run restore drill",
-      "description": "Stage and verify a restore of a backup anchor without activation, gated by an offline Advanced capability.",
+      "description": "Use to prove a backup restores without risking the live homelab. Creates or reuses an anchor, stages and verifies a restore, then removes the staging copy; the live runtime is left as it was.",
       "command": [
         "advanced",
         "restore-drill",
@@ -16761,7 +16980,7 @@
       "id": "stackkit.advanced.rollback.run",
       "tool_name": "stackkit_advanced_rollback_run",
       "title": "Run coordinated rollback",
-      "description": "Roll every local Terramate stack back to one verified executor-state checkpoint in reverse run order, gated by an offline Advanced capability.",
+      "description": "Use when an Advanced apply must be undone. Rolls every local stack back to one verified checkpoint, newest first; stacks added after the checkpoint are destroyed.",
       "command": [
         "advanced",
         "rollback",
@@ -16778,7 +16997,7 @@
       "id": "stackkit.advanced.trust.import",
       "tool_name": "stackkit_advanced_trust_import",
       "title": "Import Advanced trust",
-      "description": "Import an exact pinned Advanced issuer trust bundle into local Owner trust.",
+      "description": "Use to trust one known Advanced issuer. Imports the exact pinned bundle into local owner trust and replaces the record that was there.",
       "command": [
         "advanced",
         "trust",
@@ -16795,7 +17014,7 @@
       "id": "stackkit.advanced.trust.inspect",
       "tool_name": "stackkit_advanced_trust_inspect",
       "title": "Inspect Advanced trust",
-      "description": "Inspect the verified local Advanced issuer trust.",
+      "description": "Use before any Advanced operation to see which issuer this host trusts. Reads the verified local trust; changes nothing.",
       "command": [
         "advanced",
         "trust",
@@ -16811,7 +17030,7 @@
       "id": "stackkit.app.compatibility",
       "tool_name": "stackkit_app_compatibility",
       "title": "Application compatibility",
-      "description": "Show the governed application and delivery-adapter support matrix.",
+      "description": "Use before choosing an application or a delivery adapter. Shows the fixed support matrix; it reports product capability, not what this plan or host runs.",
       "command": [
         "app",
         "compatibility",
@@ -16823,10 +17042,26 @@
       "owner_approval": false
     },
     {
+      "id": "stackkit.app.own",
+      "tool_name": "stackkit_own_application",
+      "title": "Operate an own application",
+      "description": "Use to run one extra container image beside the homelab. Dry-run the exact action to review Compose, routing and backup, then repeat it with the returned digest; remove keeps data unless deletion is explicit.",
+      "command": [
+        "app",
+        "own",
+        "--json",
+        "--owner-approve"
+      ],
+      "mutation": true,
+      "destructive": true,
+      "idempotent": true,
+      "owner_approval": true
+    },
+    {
       "id": "stackkit.application.adopt",
       "tool_name": "stackkit_application_adopt",
       "title": "Adopt application",
-      "description": "Owner-sign a reviewed source-bound lifecycle binding while retaining existing accounts, configuration and data.",
+      "description": "Use after stackkit_application_inspect to put an existing application under lifecycle custody. Signs the reviewed binding and keeps its accounts, configuration and data.",
       "command": [
         "application",
         "adopt",
@@ -16842,7 +17077,7 @@
       "id": "stackkit.application.control",
       "tool_name": "stackkit_application_control",
       "title": "Control adopted application",
-      "description": "Control only the verified immutable adopted container without recreation or configuration changes.",
+      "description": "Use to start, stop or restart an adopted application without changing it. Acts on the exact adopted container; nothing is recreated and no configuration changes.",
       "command": [
         "application",
         "control",
@@ -16858,7 +17093,7 @@
       "id": "stackkit.application.inspect",
       "tool_name": "stackkit_application_inspect",
       "title": "Assess application adoption",
-      "description": "Inspect a supported existing application, preservation facts and native Owner without changing it.",
+      "description": "Use before adopting an application that already runs on this host. Reads the container, its current configuration and what must be preserved; changes nothing.",
       "command": [
         "application",
         "inspect",
@@ -16873,7 +17108,7 @@
       "id": "stackkit.application.release",
       "tool_name": "stackkit_application_release",
       "title": "Release adopted application",
-      "description": "Release lifecycle custody without stopping or deleting the retained application or its data.",
+      "description": "Use to hand an adopted application back to manual management. Releases lifecycle custody and keeps the application and its data running.",
       "command": [
         "application",
         "release",
@@ -16889,7 +17124,7 @@
       "id": "stackkit.application.verify",
       "tool_name": "stackkit_application_verify",
       "title": "Verify adopted application",
-      "description": "Verify current source and existing Owner-signed lifecycle evidence.",
+      "description": "Use after adoption, or when custody looks wrong. Checks the signed binding against the current source; reads only.",
       "command": [
         "application",
         "verify",
@@ -16904,7 +17139,7 @@
       "id": "stackkit.apply",
       "tool_name": "stackkit_apply",
       "title": "Apply",
-      "description": "Apply the exact persisted plan after explicit local Owner approval.",
+      "description": "Use when the plan is reviewed and the user wants it live. Applies the exact saved plan to this host, which starts the services it declares.",
       "command": [
         "apply",
         "--json"
@@ -16918,7 +17153,7 @@
       "id": "stackkit.backup",
       "tool_name": "stackkit_backup",
       "title": "Backup",
-      "description": "Create a local owner-custodied backup snapshot.",
+      "description": "Use when the user wants a snapshot now, outside the schedule. Creates one local backup snapshot in owner custody; the running services keep running.",
       "command": [
         "backup",
         "run",
@@ -16933,7 +17168,7 @@
       "id": "stackkit.backup.configure",
       "tool_name": "stackkit_backup_configure",
       "title": "Configure backup repository",
-      "description": "Configure the CUE-governed local Kopia repository from the generated backup policy.",
+      "description": "Use once per host, or after the backup policy changes. Configures the local repository from the generated policy, whose path and service cannot be overridden.",
       "command": [
         "backup",
         "configure",
@@ -16948,7 +17183,7 @@
       "id": "stackkit.backup.emergency-export",
       "tool_name": "stackkit_backup_emergency_export",
       "title": "Emergency export",
-      "description": "Export local data as a portable archive encrypted to age recipient public keys into a new directory.",
+      "description": "Use before a move or a disaster, when snapshots are not enough. Writes a new age-encrypted portable archive with checksums and a runbook; it copies files, so stop writers for a consistent export.",
       "command": [
         "backup",
         "emergency-export",
@@ -16963,7 +17198,7 @@
       "id": "stackkit.backup.emergency-restore",
       "tool_name": "stackkit_backup_emergency_restore",
       "title": "Emergency restore",
-      "description": "Decrypt and verify a portable emergency archive into a new staging directory without activating it.",
+      "description": "Use to inspect or stage a portable archive on another host. Decrypts and verifies it into a new staging directory; nothing is activated.",
       "command": [
         "backup",
         "emergency-restore",
@@ -16978,7 +17213,7 @@
       "id": "stackkit.backup.restore.activate",
       "tool_name": "stackkit_backup_restore_activate",
       "title": "Activate restore",
-      "description": "Activate one verified staged restore into the live volumes behind an automatic safety snapshot.",
+      "description": "Use after a restore is staged and reviewed. Copies the staged data into the live volumes, taking an automatic safety snapshot first.",
       "command": [
         "backup",
         "restore",
@@ -16995,7 +17230,7 @@
       "id": "stackkit.backup.restore.recover",
       "tool_name": "stackkit_backup_restore_recover",
       "title": "Recover restore",
-      "description": "Roll back an interrupted restore activation or finish its committed result.",
+      "description": "Use when a restore activation was interrupted. Rolls back before the commit or finishes the committed result; repeating it returns the original result.",
       "command": [
         "backup",
         "restore",
@@ -17013,7 +17248,7 @@
       "id": "stackkit.backup.schedule.disable",
       "tool_name": "stackkit_backup_schedule_disable",
       "title": "Disable backup schedule",
-      "description": "Revoke the local backup timer after explicit local Owner approval.",
+      "description": "Use to stop scheduled backups. Stops the backup timer and revokes its authorization; existing snapshots are kept.",
       "command": [
         "backup",
         "schedule",
@@ -17030,7 +17265,7 @@
       "id": "stackkit.backup.schedule.enable",
       "tool_name": "stackkit_backup_schedule_enable",
       "title": "Enable backup schedule",
-      "description": "Enable the CUE-governed local backup timer after explicit local Owner approval.",
+      "description": "Use to turn scheduled backups on. Enables the backup timer at the cadence the spec declares; the next run happens on that timer.",
       "command": [
         "backup",
         "schedule",
@@ -17047,7 +17282,7 @@
       "id": "stackkit.backup.schedule.status",
       "tool_name": "stackkit_backup_schedule_status",
       "title": "Backup schedule status",
-      "description": "Read the local backup timer and signed schedule authorization without changing either.",
+      "description": "Use to check whether scheduled backups run and when the last one happened. Reads the timer, its authorization and the last snapshot separately; changes nothing.",
       "command": [
         "backup",
         "schedule",
@@ -17063,7 +17298,7 @@
       "id": "stackkit.backup.status",
       "tool_name": "stackkit_backup_status",
       "title": "Backup status",
-      "description": "Read repository readiness, authenticated receipt history, current snapshot availability and declared recovery objectives.",
+      "description": "Use before a restore, or when a backup looks missing. Reads repository readiness, snapshot history and the declared recovery objectives; changes nothing.",
       "command": [
         "backup",
         "status",
@@ -17078,7 +17313,7 @@
       "id": "stackkit.backup.target.status",
       "tool_name": "stackkit_backup_target_status",
       "title": "Backup target status",
-      "description": "Verify local backup target custody without contacting S3; returns opaque references only.",
+      "description": "Use when a backup target looks unreachable, or to check its custody. Verifies local target custody and returns opaque references only; no remote storage is contacted.",
       "command": [
         "backup",
         "target",
@@ -17093,7 +17328,7 @@
       "id": "stackkit.break-glass.list",
       "tool_name": "stackkit_break_glass_list",
       "title": "List break-glass bundles",
-      "description": "List the encrypted break-glass bundles on this host.",
+      "description": "Use during an outage to find the offline recovery bundles. Lists the encrypted break-glass bundles on this host; reads only.",
       "command": [
         "break-glass",
         "list"
@@ -17107,7 +17342,7 @@
       "id": "stackkit.break-glass.show-bundle",
       "tool_name": "stackkit_break_glass_show_bundle",
       "title": "Show break-glass bundle",
-      "description": "Return the path of one node's still-encrypted break-glass bundle.",
+      "description": "Use after stackkit_break_glass_list to get the exact file. Prints the path of one node's still-encrypted bundle; decrypts nothing.",
       "command": [
         "break-glass",
         "show-bundle"
@@ -17121,7 +17356,7 @@
       "id": "stackkit.capabilities.configure",
       "tool_name": "stackkit_capabilities_configure",
       "title": "Configure capability",
-      "description": "Enable or configure one kit-declared Foundation capability by spec-hash CAS with public settings, a CUE provider and references to existing local custody; applications and storage are retained and no runtime changes until apply.",
+      "description": "Use to enable or change one declared Foundation capability. Merges public settings, a provider and custody references into the spec by hash; no service changes until apply.",
       "command": [
         "capabilities",
         "configure",
@@ -17136,7 +17371,7 @@
       "id": "stackkit.capacity",
       "tool_name": "stackkit_assess_capacity",
       "title": "Capacity",
-      "description": "Assess CUE-bound module demand against optional observed Inventory; missing facts remain unverified and no execution is authorized.",
+      "description": "Use before choosing or resizing modules, or when this host may be too small. Compares the selected modules with observed host capacity; missing measurements stay unverified and nothing is reserved.",
       "command": [
         "capacity"
       ],
@@ -17149,7 +17384,7 @@
       "id": "stackkit.compat",
       "tool_name": "stackkit_compat",
       "title": "Compatibility diagnostics",
-      "description": "Show published OS support evidence and run non-destructive local container-host diagnostics.",
+      "description": "Use before installing on an unusual host or operating system. Shows the published support evidence and runs non-destructive host diagnostics; it certifies no server.",
       "command": [
         "compat"
       ],
@@ -17162,7 +17397,7 @@
       "id": "stackkit.drift",
       "tool_name": "stackkit_drift",
       "title": "Drift",
-      "description": "Observe desired-versus-applied standalone state drift.",
+      "description": "Use to see whether the host still matches the plan. Compares desired, applied and live state; fixes nothing, so use stackkit_drift_reconcile to fix it.",
       "command": [
         "drift",
         "detect",
@@ -17177,7 +17412,7 @@
       "id": "stackkit.drift.reconcile",
       "tool_name": "stackkit_drift_reconcile",
       "title": "Reconcile drift",
-      "description": "Checkpoint, then generate, apply and verify through the governed local lifecycle with automatic verified rollback.",
+      "description": "Use when stackkit_drift reports a difference. Checkpoints, then generates, applies and verifies, rolling back on failure; the running stack changes.",
       "command": [
         "drift",
         "reconcile",
@@ -17193,7 +17428,7 @@
       "id": "stackkit.feasibility",
       "tool_name": "stackkit_assess_feasibility",
       "title": "Feasibility",
-      "description": "Check a proposed StackSpec placement against exact observed node Inventory without side effects; reports per-workload verdicts with requested versus resolved nodes and reasons, and per-node capacity verdicts. It attests, persists and executes nothing.",
+      "description": "Use before apply when the spec pins workloads to nodes. Reports per-workload and per-node fit against an exact inventory; records nothing and runs nothing.",
       "command": [
         "feasibility",
         "--json"
@@ -17207,7 +17442,7 @@
       "id": "stackkit.federation.binding.adopt",
       "tool_name": "stackkit_federation_binding_adopt",
       "title": "Adopt Federation binding",
-      "description": "Validate, Owner-sign and atomically adopt an external Federation-link binding.",
+      "description": "Use to bring an external host into this homelab's inventory. Validates, Owner-signs and adopts the binding in one step.",
       "command": [
         "federation",
         "binding",
@@ -17222,7 +17457,7 @@
       "id": "stackkit.federation.binding.import",
       "tool_name": "stackkit_federation_binding_import",
       "title": "Import Federation binding",
-      "description": "Admit an Owner-signed opaque Federation binding into local Inventory.",
+      "description": "Use to record a binding that is already Owner-signed. Admits it into local inventory; no remote system changes.",
       "command": [
         "federation",
         "binding",
@@ -17237,7 +17472,7 @@
       "id": "stackkit.federation.control.bind",
       "tool_name": "stackkit_federation_control_bind",
       "title": "Bind Federation control receiver",
-      "description": "Admit exact public Home authority and local receiver custody, replacing the previous receiver authority.",
+      "description": "Use to point this receiver at a Home. Admits the Home's public authority and the local receiver custody, replacing the previous receiver authority.",
       "command": [
         "federation",
         "control",
@@ -17252,7 +17487,7 @@
       "id": "stackkit.federation.control.send",
       "tool_name": "stackkit_federation_control_send",
       "title": "Send Federation control action",
-      "description": "Send one Home-signed action to the selected Cloud node over an exact Home-initiated mTLS connection.",
+      "description": "Use to deliver a signed action to a Cloud node. Sends it over the exact pinned Home-initiated connection, so the remote node is reached.",
       "command": [
         "federation",
         "control",
@@ -17267,7 +17502,7 @@
       "id": "stackkit.federation.control.sign",
       "tool_name": "stackkit_federation_control_sign",
       "title": "Sign Federation control action",
-      "description": "Sign one exact short-lived plan or verify action with current Home custody.",
+      "description": "Use to sign one plan or verify action for a Cloud node. Signs with the current Home custody and returns the action; nothing is sent.",
       "command": [
         "federation",
         "control",
@@ -17282,7 +17517,7 @@
       "id": "stackkit.federation.control.withdraw",
       "tool_name": "stackkit_federation_control_withdraw",
       "title": "Withdraw Federation control receiver",
-      "description": "Persistently withdraw receiver authority, including existing TLS sessions.",
+      "description": "Use to cut a receiver off for good. Withdraws receiver authority and ends its TLS sessions; the withdrawal stands on later runs.",
       "command": [
         "federation",
         "control",
@@ -17297,7 +17532,7 @@
       "id": "stackkit.federation.link.bind",
       "tool_name": "stackkit_federation_link_bind",
       "title": "Bind Federation link",
-      "description": "Adopt external WireGuard handles into local Owner custody.",
+      "description": "Use to adopt an existing WireGuard fabric link. Adopts the handles into local owner custody; the remote fabric is not changed.",
       "command": [
         "federation",
         "link",
@@ -17312,7 +17547,7 @@
       "id": "stackkit.federation.link.stop",
       "tool_name": "stackkit_federation_link_stop",
       "title": "Stop Federation link",
-      "description": "Stop the adopted Federation interface without deleting the external fabric.",
+      "description": "Use to take an adopted link down temporarily. Stops the interface and keeps the external fabric, so nothing is deleted.",
       "command": [
         "federation",
         "link",
@@ -17327,7 +17562,7 @@
       "id": "stackkit.game.allow",
       "tool_name": "stackkit_game_allow",
       "title": "Admit game player",
-      "description": "Admit one player on a StackKits allow-list game server and read the game's allow list back.",
+      "description": "Use to let one player onto an allow-list game server. Adds the account and reads the allow list back; only that server's list changes.",
       "command": [
         "game",
         "allow",
@@ -17343,7 +17578,7 @@
       "id": "stackkit.game.list",
       "tool_name": "stackkit_game_list",
       "title": "List game servers",
-      "description": "List the owner's game servers on the installed Game workload with state and port.",
+      "description": "Use first for game servers: it names the identifiers the other game tools take. Lists the owner's game servers with state and port; reads only.",
       "command": [
         "game",
         "list",
@@ -17358,7 +17593,7 @@
       "id": "stackkit.game.power",
       "tool_name": "stackkit_game_power",
       "title": "Game server power",
-      "description": "Start, stop or restart one game server and wait for the observed state.",
+      "description": "Use with an identifier from stackkit_game_list. Starts, stops or restarts one game server and waits until the new state is observed.",
       "command": [
         "game",
         "power",
@@ -17374,7 +17609,7 @@
       "id": "stackkit.generate",
       "tool_name": "stackkit_generate",
       "title": "Generate",
-      "description": "Generate rollout artifacts from the exact persisted ResolvedPlan.",
+      "description": "Use after stackkit_resolve to render what apply would deploy. Writes the rollout artifacts for the exact saved plan; deploys nothing.",
       "command": [
         "generate"
       ],
@@ -17387,7 +17622,7 @@
       "id": "stackkit.host.attach-conformance",
       "tool_name": "stackkit_host_attach_conformance",
       "title": "Attach host conformance",
-      "description": "Attach exact host binding and conformance evidence to Inventory before plan generation.",
+      "description": "Use before planning for a host that is not this machine. Attaches the host binding and its conformance receipt to the inventory; changes only that inventory file.",
       "command": [
         "host",
         "attach-conformance"
@@ -17401,7 +17636,7 @@
       "id": "stackkit.host.conformance",
       "tool_name": "stackkit_host_conformance",
       "title": "Host conformance receipt",
-      "description": "Produce a provider-neutral host conformance receipt, on stdout or as a workspace file.",
+      "description": "Use to measure a host against the binding used for planning. Produces a provider-neutral conformance receipt on stdout or in a workspace file; installs nothing.",
       "command": [
         "host",
         "conformance"
@@ -17415,7 +17650,7 @@
       "id": "stackkit.host.environment",
       "tool_name": "stackkit_host_environment",
       "title": "Host environment",
-      "description": "Observe whether this host looks like a home network or a public server.",
+      "description": "Use before init to know which addresses fit. Detects whether this host looks like a home network or a public server; observes only.",
       "command": [
         "host",
         "environment",
@@ -17430,7 +17665,7 @@
       "id": "stackkit.host.preflight",
       "tool_name": "stackkit_host_preflight",
       "title": "Host preflight",
-      "description": "Check whether this host can run the selected StackKit.",
+      "description": "Use before apply to check whether this host can run the selected StackKit. Measures against the kit's floor and changes nothing; apply repeats the same check.",
       "command": [
         "host",
         "preflight",
@@ -17445,7 +17680,7 @@
       "id": "stackkit.host.prepare",
       "tool_name": "stackkit_host_prepare",
       "title": "Prepare Cloud host",
-      "description": "Provision the Cloud Kit execution-channel account, its privileges and workspace-custodied SSH key before apply.",
+      "description": "Use to converge a Cloud Kit host after an interrupted install; installers and apply run it themselves. Provisions the execution-channel Linux account, its privileges and the workspace-held SSH key.",
       "command": [
         "host",
         "prepare"
@@ -17459,7 +17694,7 @@
       "id": "stackkit.host.reboot",
       "tool_name": "stackkit_host_reboot",
       "title": "Reboot host",
-      "description": "Schedule a guarded reboot of this node after running package operations finish.",
+      "description": "Use after updates when the node must restart. Schedules a guarded reboot that waits for running package work; a control-plane node or one that cannot boot unattended is refused.",
       "command": [
         "host",
         "reboot",
@@ -17475,7 +17710,7 @@
       "id": "stackkit.host.remediate",
       "tool_name": "stackkit_host_remediate",
       "title": "Remediate host",
-      "description": "Show the reversible fixes for host preflight findings, or carry out one named fix or every unattended reversible fix.",
+      "description": "Use when preflight names a finding that has a fix. Plans the reversible fixes, or carries out one named fix; without apply nothing changes.",
       "command": [
         "host",
         "remediate",
@@ -17491,7 +17726,7 @@
       "id": "stackkit.host.updates.apply",
       "tool_name": "stackkit_host_updates_apply",
       "title": "Apply host updates",
-      "description": "Install exactly the reviewed operating-system update plan on this node.",
+      "description": "Use with the digest from stackkit_host_updates_plan. Installs exactly that reviewed package set on this node and reports version changes; a stale plan is refused.",
       "command": [
         "host",
         "updates",
@@ -17508,7 +17743,7 @@
       "id": "stackkit.host.updates.plan",
       "tool_name": "stackkit_host_updates_plan",
       "title": "Plan host updates",
-      "description": "Plan the pending operating-system package updates of this node without changing it.",
+      "description": "Use before updating packages, to see what would change. Refreshes the package index and lists pending updates with a digest; installs nothing.",
       "command": [
         "host",
         "updates",
@@ -17524,7 +17759,7 @@
       "id": "stackkit.identity.projection.apply",
       "tool_name": "stackkit_identity_projection_apply",
       "title": "Apply identity projection",
-      "description": "Apply one previously approved identity projection to local PocketID.",
+      "description": "Use after the projection is approved to make it live. Applies that exact projection to local PocketID; local accounts and groups change.",
       "command": [
         "identity",
         "projection",
@@ -17541,7 +17776,7 @@
       "id": "stackkit.identity.projection.approve",
       "tool_name": "stackkit_identity_projection_approve",
       "title": "Approve identity projection",
-      "description": "Create the local Owner-signed approval of one projection without changing PocketID.",
+      "description": "Use after stackkit_identity_projection_inspect. Creates the Owner-signed approval and leaves PocketID untouched; stackkit_identity_projection_apply makes it live.",
       "command": [
         "identity",
         "projection",
@@ -17558,7 +17793,7 @@
       "id": "stackkit.identity.projection.inspect",
       "tool_name": "stackkit_identity_projection_inspect",
       "title": "Inspect identity projection",
-      "description": "Verify one signed, credential-free identity projection without mutation.",
+      "description": "Use before approving an identity projection. Verifies the signed, credential-free document; changes nothing.",
       "command": [
         "identity",
         "projection",
@@ -17574,7 +17809,7 @@
       "id": "stackkit.identity.projection.unlink",
       "tool_name": "stackkit_identity_projection_unlink",
       "title": "Unlink identity projection",
-      "description": "Detach optional identity sync without deleting any local identity.",
+      "description": "Use to detach optional identity sync. Detaches the linked projection without deleting any local identity.",
       "command": [
         "identity",
         "projection",
@@ -17591,7 +17826,7 @@
       "id": "stackkit.identity.workload-peer.enroll",
       "tool_name": "stackkit_identity_workload_peer_enroll",
       "title": "Enroll workload peer",
-      "description": "Issue and admit a workload peer for one installed Home publication; returns only public certificate documents.",
+      "description": "Use with that request to issue a credential. Issues and admits one workload peer for an installed Home publication; returns only public certificates.",
       "command": [
         "identity",
         "workload-peer",
@@ -17607,7 +17842,7 @@
       "id": "stackkit.identity.workload-peer.install",
       "tool_name": "stackkit_identity_workload_peer_install",
       "title": "Install workload peer",
-      "description": "Install a Home-issued workload certificate using an independently verified Home root.",
+      "description": "Use to install the issued certificate on the workload host. Writes that peer's credential under a Home root verified through a separate channel.",
       "command": [
         "identity",
         "workload-peer",
@@ -17623,7 +17858,7 @@
       "id": "stackkit.identity.workload-peer.probe",
       "tool_name": "stackkit_identity_workload_peer_probe",
       "title": "Probe workload peer",
-      "description": "Request the workload origin through an existing loopback Federation socket.",
+      "description": "Use to check that a workload answers through the tunnel. Requests the origin through an existing loopback socket; reads only.",
       "command": [
         "identity",
         "workload-peer",
@@ -17638,7 +17873,7 @@
       "id": "stackkit.identity.workload-peer.request",
       "tool_name": "stackkit_identity_workload_peer_request",
       "title": "Request workload peer",
-      "description": "Create or reuse a locally held workload key and return only its public CSR.",
+      "description": "Use first on a workload host that needs a Home certificate. Creates or reuses the local key and returns only the public request; no admission changes.",
       "command": [
         "identity",
         "workload-peer",
@@ -17654,7 +17889,7 @@
       "id": "stackkit.identity.workload-peer.revoke",
       "tool_name": "stackkit_identity_workload_peer_revoke",
       "title": "Revoke workload peer",
-      "description": "Withdraw a workload peer's current Home admission.",
+      "description": "Use when a workload certificate should stop working. Withdraws the peer's current Home admission; the old certificate is no longer accepted.",
       "command": [
         "identity",
         "workload-peer",
@@ -17670,7 +17905,7 @@
       "id": "stackkit.init",
       "tool_name": "stackkit_init",
       "title": "Init",
-      "description": "Materialize a native StackSpec from the embedded CUE authoring contract. A fresh workspace needs the email address of the person who becomes the first owner of the homelab.",
+      "description": "Use when the user wants a new homelab or has no stack-spec.yaml yet. Writes the spec from the chosen kit's defaults and asks for the email address of the person who becomes the first owner; installs nothing.",
       "command": [
         "init"
       ],
@@ -17683,7 +17918,7 @@
       "id": "stackkit.kit.list",
       "tool_name": "stackkit_kit_list",
       "title": "List releases",
-      "description": "List published StackKits releases from the public release index.",
+      "description": "Use to find which StackKits releases exist. Fetches the public release index; reads only.",
       "command": [
         "kit",
         "list",
@@ -17698,7 +17933,7 @@
       "id": "stackkit.logs",
       "tool_name": "stackkit_logs",
       "title": "Logs",
-      "description": "List local structured rollout logs.",
+      "description": "Use to find a past run. Lists the local structured rollout logs; then read one with stackkit_logs_read.",
       "command": [
         "logs",
         "list",
@@ -17713,7 +17948,7 @@
       "id": "stackkit.logs.read",
       "tool_name": "stackkit_logs_read",
       "title": "Read logs",
-      "description": "Read one structured rollout log page, the newest by default.",
+      "description": "Use after stackkit_logs to read one run. Returns one page of structured events, newest by default; changes nothing.",
       "command": [
         "logs",
         "--json"
@@ -17727,7 +17962,7 @@
       "id": "stackkit.migrate",
       "tool_name": "stackkit_migrate",
       "title": "Migrate StackSpec v1",
-      "description": "Classify a StackSpec v1, emit its migration report and optionally write the completed canonical StackSpec v2 to a new path.",
+      "description": "Use to move an older stack-spec.yaml forward. Classifies it and reports what must be done by hand; a new file is written only when asked, and nothing is upgraded in place.",
       "command": [
         "migrate"
       ],
@@ -17740,7 +17975,7 @@
       "id": "stackkit.module.lint",
       "tool_name": "stackkit_module_lint",
       "title": "Lint modules",
-      "description": "Lint local module CUE for pin, health, security, access and placement hygiene.",
+      "description": "Use before submitting a module change. Lints module CUE for pin, health, security and access hygiene; changes nothing.",
       "command": [
         "module",
         "lint",
@@ -17755,7 +17990,7 @@
       "id": "stackkit.module.scaffold",
       "tool_name": "stackkit_module_scaffold",
       "title": "Scaffold module",
-      "description": "Render module artifacts deterministically from module_facts.json.",
+      "description": "Use to start a new module from its facts file. Renders the module artifacts or prints them; existing files are overwritten only with force.",
       "command": [
         "module",
         "scaffold"
@@ -17769,7 +18004,7 @@
       "id": "stackkit.output-transaction.gc-retired",
       "tool_name": "stackkit_output_transaction_gc_retired",
       "title": "Collect retired output transaction",
-      "description": "Inspect, or explicitly garbage-collect, one retired Architecture v2 output-transaction tombstone.",
+      "description": "Use to clean up after a retired output transaction. Inspects the tombstone by default and removes it only when apply is set.",
       "command": [
         "output-transaction",
         "gc-retired"
@@ -17783,7 +18018,7 @@
       "id": "stackkit.plan",
       "tool_name": "stackkit_plan",
       "title": "Plan",
-      "description": "Inspect the persisted ResolvedPlan and generated artifact closure.",
+      "description": "Use to review what apply would do. Reads the saved plan and the generated artifacts; changes nothing.",
       "command": [
         "plan",
         "--json"
@@ -17797,7 +18032,7 @@
       "id": "stackkit.prepare",
       "tool_name": "stackkit_prepare",
       "title": "Prepare check",
-      "description": "Run the read-only native host preflight that Apply uses on this host.",
+      "description": "Use before init or apply to see whether this machine is ready. Runs the read-only host checks that apply also runs; installs nothing.",
       "command": [
         "prepare",
         "--json",
@@ -17812,7 +18047,7 @@
       "id": "stackkit.registry.info",
       "tool_name": "stackkit_registry_info",
       "title": "Registry info",
-      "description": "Summarize the embedded StackKits registry snapshot.",
+      "description": "Use to inspect the catalog copy bundled with this binary. Summarizes the embedded registry snapshot; reads only.",
       "command": [
         "registry",
         "info"
@@ -17826,7 +18061,7 @@
       "id": "stackkit.remove",
       "tool_name": "stackkit_remove",
       "title": "Remove",
-      "description": "Remove one governed workload from its exact applied ResolvedPlan after local Owner approval.",
+      "description": "Use to uninstall a workload, or the whole homelab when no workload is named. Stops and removes the selected workloads; data volumes stay unless data deletion is explicit.",
       "command": [
         "remove",
         "--json"
@@ -17840,7 +18075,7 @@
       "id": "stackkit.resolve",
       "tool_name": "stackkit_resolve",
       "title": "Resolve",
-      "description": "Resolve StackSpec and observed Inventory into the canonical ResolvedPlan.",
+      "description": "Use after editing the spec and before stackkit_generate. Computes the canonical plan from the spec and observed inventory; nothing is applied.",
       "command": [
         "resolve"
       ],
@@ -17853,7 +18088,7 @@
       "id": "stackkit.restore",
       "tool_name": "stackkit_restore",
       "title": "Restore",
-      "description": "Verify and restore one signed snapshot into isolated staging.",
+      "description": "Use to restore one signed snapshot. Verifies it and restores into isolated staging; live volumes change only with stackkit_backup_restore_activate.",
       "command": [
         "backup",
         "restore"
@@ -17867,7 +18102,7 @@
       "id": "stackkit.restore.abandon",
       "tool_name": "stackkit_restore_abandon",
       "title": "Abandon restore",
-      "description": "Close one pending or staged restore journal with explicit local Owner approval without touching repository or live volumes.",
+      "description": "Use to close a restore that will not continue. Ends one pending or staged restore journal; the repository and live volumes are left alone.",
       "command": [
         "backup",
         "restore",
@@ -17882,7 +18117,7 @@
       "id": "stackkit.secrets.materialize",
       "tool_name": "stackkit_secrets_materialize",
       "title": "Materialize secret custody",
-      "description": "Establish or reuse owner-bound local custody for every secret the current StackSpec declares; never returns values.",
+      "description": "Use after adding a workload and before stackkit_generate. Establishes local custody for every declared secret; values are never returned.",
       "command": [
         "secrets",
         "materialize"
@@ -17896,7 +18131,7 @@
       "id": "stackkit.service.logs",
       "tool_name": "stackkit_service_logs",
       "title": "Service logs",
-      "description": "Read bounded, redacted logs of one managed service.",
+      "description": "Use to read what one service logged. Returns bounded, redacted entries for one managed service; changes nothing.",
       "command": [
         "service",
         "logs",
@@ -17911,7 +18146,7 @@
       "id": "stackkit.service.restart",
       "tool_name": "stackkit_service_restart",
       "title": "Restart service",
-      "description": "Restart one managed service declared by the active plan.",
+      "description": "Use to restart one managed service without touching its data. Restarts only that service; the rest of the stack keeps running.",
       "command": [
         "service",
         "restart",
@@ -17927,7 +18162,7 @@
       "id": "stackkit.service.start",
       "tool_name": "stackkit_service_start",
       "title": "Start service",
-      "description": "Start one managed service declared by the active plan.",
+      "description": "Use to bring back a service that was stopped. Starts one service declared by the active plan; only that service changes.",
       "command": [
         "service",
         "start",
@@ -17943,7 +18178,7 @@
       "id": "stackkit.service.stop",
       "tool_name": "stackkit_service_stop",
       "title": "Stop service",
-      "description": "Stop one managed, non-critical service declared by the active plan.",
+      "description": "Use to take one non-critical service offline. Stops only that service; core services such as base, id and auth are refused.",
       "command": [
         "service",
         "stop",
@@ -17959,7 +18194,7 @@
       "id": "stackkit.setup",
       "tool_name": "stackkit_setup",
       "title": "Set up application",
-      "description": "Set up and verify a Plan-declared app-local owner account on the existing application.",
+      "description": "Use after apply when an application declares a setup action such as its owner account. Runs that one action against the live application; credentials stay out of the evidence.",
       "command": [
         "setup",
         "--json"
@@ -17973,7 +18208,7 @@
       "id": "stackkit.status",
       "tool_name": "stackkit_status",
       "title": "Status",
-      "description": "Read the current standalone StackKits lifecycle status.",
+      "description": "Use to see where the homelab stands and what runs now. Reads deployment state, services, health and URLs; changes nothing.",
       "command": [
         "status",
         "--json"
@@ -17987,7 +18222,7 @@
       "id": "stackkit.support.export",
       "tool_name": "stackkit_support_export",
       "title": "Export support evidence",
-      "description": "Export one redacted local rollout log and its receipts to a new local file.",
+      "description": "Use to hand one run to support. Writes that rollout log and its receipts to a new local file; no runtime changes.",
       "command": [
         "support",
         "export"
@@ -18001,7 +18236,7 @@
       "id": "stackkit.upgrade",
       "tool_name": "stackkit_upgrade",
       "title": "Upgrade",
-      "description": "Resolve, verify, checkpoint, install, apply, and verify a StackKits release.",
+      "description": "Use to move this homelab to another StackKits release. Verifies the release, checkpoints for rollback, then installs and applies it; the running stack changes.",
       "command": [
         "upgrade",
         "--json",
@@ -18016,7 +18251,7 @@
       "id": "stackkit.use-cases.add",
       "tool_name": "stackkit_use_cases_add",
       "title": "Add use case",
-      "description": "Add a CUE-catalog use case to existing native standalone intent by spec-hash CAS, retaining the Foundation and every other application, and materialize its local secret slots without deploying services.",
+      "description": "Use to add one application from the kit catalog. Writes it into the spec and prepares its local secret slots; nothing is deployed until apply.",
       "command": [
         "use-cases",
         "add",
@@ -18031,7 +18266,7 @@
       "id": "stackkit.use-cases.configure",
       "tool_name": "stackkit_use_cases_configure",
       "title": "Configure use case",
-      "description": "Merge public settings, references to existing local custody and module profiles into one selected application by spec-hash CAS; omitted settings, data, routes, placement, adapter and unrelated applications are retained, and no services change until apply.",
+      "description": "Use to change the settings or profiles of one chosen application. Merges them into the spec and keeps everything omitted; no service changes until apply.",
       "command": [
         "use-cases",
         "configure",
@@ -18046,7 +18281,7 @@
       "id": "stackkit.use-cases.upgrade",
       "tool_name": "stackkit_use_cases_upgrade",
       "title": "Change application release",
-      "description": "Move one selected application to another admitted release with retained-data rollback: to stops it, checkpoints its governed volumes and selects the target release for the next apply; rollback returns the prior release and its checkpointed data; finalize removes the retained data. Unrelated applications are untouched.",
+      "description": "Use to move one application to another admitted release. Stops it and checkpoints its data for rollback; the next apply starts the new release and finalize drops the checkpoint.",
       "command": [
         "use-cases",
         "upgrade",
@@ -18062,7 +18297,7 @@
       "id": "stackkit.use-cases.upgrade.status",
       "tool_name": "stackkit_use_cases_upgrade_status",
       "title": "Application release status",
-      "description": "Read one owner-signed application release operation record: state, prior and target release, retained volumes and their checkpoint read-back.",
+      "description": "Use to see where an application release change stands. Reads the Owner-signed record, the retained volumes and their read-back; changes nothing.",
       "command": [
         "use-cases",
         "upgrade",
@@ -18077,7 +18312,7 @@
       "id": "stackkit.user.list",
       "tool_name": "stackkit_user_list",
       "title": "List users",
-      "description": "List household users in local PocketID.",
+      "description": "Use before adding or removing a household member. Lists household users in local PocketID; reads only.",
       "command": [
         "user",
         "list",
@@ -18092,7 +18327,7 @@
       "id": "stackkit.user.owner.status",
       "tool_name": "stackkit_user_owner_status",
       "title": "Owner activation status",
-      "description": "Read the owner passkey activation status without its activation URL.",
+      "description": "Use when the owner cannot sign in. Reads the owner passkey activation status without its activation link; changes nothing.",
       "command": [
         "user",
         "owner",
@@ -18108,7 +18343,7 @@
       "id": "stackkit.user.remove",
       "tool_name": "stackkit_user_remove",
       "title": "Remove user",
-      "description": "Remove one household user from local PocketID; owner and admin identities are refused.",
+      "description": "Use to remove a household member for good. Revokes their devices and sessions and deletes the PocketID user; the owner and admins are refused.",
       "command": [
         "user",
         "remove",
@@ -18124,7 +18359,7 @@
       "id": "stackkit.validate",
       "tool_name": "stackkit_validate",
       "title": "Validate",
-      "description": "Validate desired StackSpec intent without mutating lifecycle state.",
+      "description": "Use to check the spec and kit definitions before planning. Reads and validates only; changes no lifecycle state.",
       "command": [
         "validate"
       ],
@@ -18137,7 +18372,7 @@
       "id": "stackkit.verify",
       "tool_name": "stackkit_verify",
       "title": "Verify",
-      "description": "Verify desired, planned, applied, and observed local state.",
+      "description": "Use after stackkit_apply, or when something looks wrong. Runs read-only checks across desired, planned, applied and observed state.",
       "command": [
         "verify",
         "--json"
@@ -18148,5 +18383,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "d176f78ac6431a25c93efef363c2138b84c1776fa8910f63982f6deb226fa138"
+  "catalog_sha256": "22ad5f8f985b52d4ab7c8700a4e9a686f1a8af259506e11bec5938681468e35c"
 }

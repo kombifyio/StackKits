@@ -191,7 +191,6 @@ var statusSurfaceGateFiles = []string{
 	".goreleaser.yaml",
 	"README.md",
 	"docs/RELEASE.md",
-	"website/src/content/kit-maturity.generated.ts",
 }
 
 func statusSurfaceGateAvailability(repo string) (bool, error) {

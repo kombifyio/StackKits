@@ -1,11 +1,11 @@
 {
   "schemaVersion": 3,
-  "stackkitsVersion": "v0.54.4",
-  "requestedStackkitsVersion": "v0.56.0",
+  "stackkitsVersion": "v0.57.6",
+  "requestedStackkitsVersion": "v0.57.6",
   "testedStackkitsVersion": "v0.54.4",
   "referenceBinding": {
     "scope": "product-artifact",
-    "requestedRelease": "v0.56.0"
+    "requestedRelease": "v0.57.6"
   },
   "currentResult": "NOT_RUN",
   "generatedAt": "2026-10-21T18:16:12Z",
@@ -74,34 +74,18 @@
     {
       "useCase": "files",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-files",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.54.4"
     },
     {
       "useCase": "photos",
       "adapter": "standalone-compose",
-      "grade": "supported",
-      "reasonCodes": [],
-      "verifiedPhases": [
-        "install",
-        "init",
-        "generate",
-        "apply",
-        "setup-photos",
-        "verify",
-        "backup",
-        "restore"
+      "grade": "unverified",
+      "reasonCodes": [
+        "current-release-receipt-pending"
       ],
       "lastVerifiedRelease": "v0.54.4"
     },

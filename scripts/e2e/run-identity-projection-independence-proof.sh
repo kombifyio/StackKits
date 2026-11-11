@@ -31,7 +31,9 @@ go build -trimpath -o "$harness" "$repo_root/scripts/e2e/identity-projection-fix
 (
   cd "$workspace"
   "$stackkit" init basement-kit \
+    --catalog-defaults \
     --owner-source=local \
+    --owner-email owner@example.test \
     --domain identity-independence.smoke.stackkit.cc \
     --non-interactive \
     >"$output_dir/init.log" 2>&1

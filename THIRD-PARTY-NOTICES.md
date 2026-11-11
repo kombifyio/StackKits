@@ -191,3 +191,18 @@ Text-to-speech uses the unmodified Kokoro-FastAPI v0.9.0 CPU image
 (Apache-2.0, digest in the CUE catalog) with the Kokoro-82M weights
 (Apache-2.0) baked in; it runs espeak-ng (GPL-3.0) as a separate phonemizer
 program.
+
+## Optional Workbench host
+
+The Dev toggle downloads the unmodified private Desktop Cloud Linux x64 archive
+`kombify-workbench-host-cloud-0.3.4-linux-x64.tar.gz` from release
+`workbench-host-cloud-v0.3.4`, SHA256
+`1737877513d211db6175c0c1e0537888467d371875e433ea6ada0ee3d9db27df`.
+The archive retains its upstream T3 attribution, Node/runtime dependency licenses
+and generated `THIRD-PARTY-NOTICES.md`/`third-party-licenses.json`. Workbench's
+private first-party license remains applicable; this entry grants no public
+redistribution right. The launcher uses unmodified Python 3.14.10 (PSF-2.0) in
+`docker.io/library/python:3.14.10-trixie`, image index
+`sha256:8e4ff723e809a8e3bbd61bdceb92e9031689ad11edccff3306c0b3ebe60704ff`.
+Python and Debian dependency notices remain in the upstream image;
+[Python's license](https://docs.python.org/3.14/license.html) applies.

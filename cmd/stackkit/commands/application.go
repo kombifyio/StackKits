@@ -67,6 +67,10 @@ func newApplicationCommand() *cobra.Command {
 		}
 		if verb == "control" {
 			child.Flags().StringVar(&o.action, "action", "", "Admitted power action: start, stop or restart")
+			// The power action selects the executor-bound primitive
+			// (start-service, stop-service or restart-service) whose
+			// --expected-ril-primitive-hash this command checks.
+			bindRILPrimitiveByAction(child, "action", map[string]string{"start": "start-service", "stop": "stop-service", "restart": "restart-service"})
 		}
 		command.AddCommand(child)
 	}

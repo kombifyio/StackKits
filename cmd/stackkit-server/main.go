@@ -17,6 +17,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/ownapplication"
 	"log/slog"
 	"net/http"
 	"os"
@@ -156,6 +157,7 @@ func main() {
 		}
 	}
 	appHosts, launchHosts := []string{}, []string{}
+	var additionalLaunchHosts func() ([]string, error)
 	if *accessGateListen != "" {
 		table, tableErr := loadAccessGateTable()
 		if tableErr != nil {
@@ -163,6 +165,13 @@ func main() {
 			os.Exit(1)
 		}
 		appHosts, launchHosts = accessGateAppHosts(table), accessGateLaunchHosts(table)
+		additionalLaunchHosts = func() ([]string, error) {
+			expanded, err := ownapplication.AccessTable(identityRoot, table)
+			if err != nil {
+				return nil, err
+			}
+			return accessGateLaunchHosts(expanded), nil
+		}
 		// A join never hands another server a certificate scope over these hosts.
 		if err := identity.RecordHomeAuthorityHosts(identityRoot, accessGateHosts(table)); err != nil {
 			slog.Warn("the Access Gate hosts were not recorded for joins", "error", err)
@@ -175,7 +184,7 @@ func main() {
 		serveAccessGate(gateServer)
 	}
 	if *hubListen != "" {
-		hubServer, hubErr := identity.NewHomeHubServer(serverContext, identityRoot, *hubListen, identity.HomeHubOptions{Signer: signer, AppHosts: appHosts, LaunchHosts: launchHosts})
+		hubServer, hubErr := identity.NewHomeHubServer(serverContext, identityRoot, *hubListen, identity.HomeHubOptions{Signer: signer, AppHosts: appHosts, LaunchHosts: launchHosts, AdditionalLaunchHosts: additionalLaunchHosts})
 		if hubErr != nil {
 			slog.Error("hub listener configuration rejected", "error", hubErr)
 			os.Exit(1)

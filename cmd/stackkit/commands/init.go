@@ -11,6 +11,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/config"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/kombifyio/stackkits/internal/stackspecadmission"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -97,27 +98,9 @@ keep their defaults, and planned modules are refused until they install.
 Native authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1
 selects the explicit legacy graph adapter. Flags marked v0.6 compatibility
 are accepted only by an explicitly versioned v0.6 binary.`,
-	Example: `  # Basement Kit for a home server, with the Kit's catalog defaults
-  mkdir my-homelab && cd my-homelab
-  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com
-
-  # Basement Kit with the optional Photos and Files use cases
-  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case photos,files
-
-  # Cloud Kit for a public VPS with an allocated kombify.me install zone
-  mkdir my-cloud && cd my-cloud
-  stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain your-zone.kombify.me
-
-  # Cloud Kit on your own domain, without prompts (for scripts)
-  stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --domain example.com --non-interactive
-
-  # Private AI with its default modules (inference with Ollama, chat with Open WebUI) named explicitly
-  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case ai --use-case-capability ai.inference=ollama --use-case-capability ai.chat=open-webui
-
-  # Pick the core alternative and module profile explicitly instead of catalog defaults
-  stackkit init basement-kit --owner-source=local --owner-email you@example.com --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runInit,
+	Example: initExamples(),
+	Args:    cobra.MaximumNArgs(1),
+	RunE:    runInit,
 }
 
 func init() {
@@ -154,8 +137,8 @@ func init() {
 	// SaaS owner prep, explicit self-hosted owner bootstrap, and OSS/BYOS noop.
 	initCmd.Flags().StringVar(&initClusterMode, "cluster-mode", "first", "v0.6 compatibility only: cluster mode (first|join)")
 	initCmd.Flags().StringVar(&initOwnerBootstrapMode, "owner-bootstrap-mode", "", "v0.6 compatibility only: owner bootstrap mode (auto|custom|none)")
-	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "Owner custody source (native standalone: local; v0.6 compatibility: local|cloud)")
-	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Desired PocketID owner email for --owner-source=local")
+	initCmd.Flags().StringVar(&initOwnerSource, "owner-source", "", "Owner custody source (native standalone: local, implied by an --owner-* flag or by a terminal that asks for the owner; v0.6 compatibility: local|cloud)")
+	initCmd.Flags().StringVar(&initOwnerEmail, "owner-email", "", "Desired PocketID owner email for the standalone local owner (needed on first init; implies --owner-source=local on native init)")
 	initCmd.Flags().StringVar(&initOwnerUsername, "owner-username", "", "Desired PocketID owner username for --owner-source=local")
 	initCmd.Flags().StringVar(&initOwnerDisplayName, "owner-display-name", "", "Desired PocketID owner display name for --owner-source=local")
 	initCmd.Flags().StringVar(&initCloudOIDCIssuer, "cloud-oidc-issuer", "", "v0.6 compatibility only: Cloud OIDC issuer URL for auto/cloud owner handoff")
@@ -853,4 +836,45 @@ func stackKitNames(kits []*models.StackKit) []string {
 		names = append(names, k.Metadata.Name)
 	}
 	return names
+}
+
+// initExamples renders the help examples from the public path source, so the
+// printed commands are the ones a fresh workspace accepts.
+func initExamples() string {
+	basement := func(extra string) string {
+		command := publicpath.InitCommand(publicpath.InitOptions{Kit: "basement-kit"})
+		if extra != "" {
+			command += " " + extra
+		}
+		return command
+	}
+	cloud := func(domain string, nonInteractive bool) string {
+		return publicpath.InitCommand(publicpath.InitOptions{Kit: "cloud-kit", Domain: domain, NonInteractive: nonInteractive})
+	}
+	explicit := publicpath.InitCommand(publicpath.InitOptions{Kit: "basement-kit"})
+	explicit = strings.Replace(explicit, " --catalog-defaults", "", 1)
+	return strings.Join([]string{
+		"  # Basement Kit for a home server, with the Kit's catalog defaults",
+		"  mkdir my-homelab && cd my-homelab",
+		"  " + basement(""),
+		"",
+		"  # Basement Kit with the optional Photos and Files use cases",
+		"  " + basement("--use-case photos,files"),
+		"",
+		"  # Cloud Kit for a public VPS with an allocated kombify.me install zone",
+		"  mkdir my-cloud && cd my-cloud",
+		"  " + cloud("your-zone.kombify.me", false),
+		"",
+		"  # Cloud Kit on your own domain, without prompts (for scripts)",
+		"  " + cloud("example.com", true),
+		"",
+		"  # Private AI with its default modules (inference with Ollama, chat with Open WebUI) named explicitly",
+		"  " + basement("--use-case ai --use-case-capability ai.inference=ollama --use-case-capability ai.chat=open-webui"),
+		"",
+		"  # Pick the core alternative and module profile explicitly instead of catalog defaults",
+		"  " + explicit + " --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard",
+		"",
+		"  # Give an existing StackSpec its local owner (apply refuses a workspace without one)",
+		"  " + publicpath.CustodyRepairCommand(""),
+	}, "\n")
 }

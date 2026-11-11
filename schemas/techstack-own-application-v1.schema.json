@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/techstack-own-application-v1.schema.json",
+  "title": "Techstack own application v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "name",
+    "image",
+    "httpPort",
+    "hostname"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "techstack.own-application/v1"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^(?!(?:kombify|stackkit))[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "image": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*(?::443)?/[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|@sha256:[a-f0-9]{64})$",
+      "allOf": [
+        {
+          "pattern": "^[a-z0-9][a-z0-9.-]*\\.[a-z][a-z0-9-]*(?::443)?/"
+        }
+      ],
+      "description": "Public DNS registry over HTTPS port 443 only. Go admission rejects IP literals, localhost, single-label hosts, private/reserved/unknown public suffixes; transport rejects non-public DNS answers and HTTP redirects/token endpoints. Create/update dry review resolves tags before approval; offline render requires a digest-pinned desired image. Execution binds the reviewed resolvedImage, imports its verified blobs through the same HTTPS transport, and runs the node-derived immutable config image ID with pull_policy never."
+    },
+    "httpPort": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "hostname": {
+      "type": "string",
+      "maxLength": 253,
+      "pattern": "^own-[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$",
+      "description": "Exactly own-<name>.<installation-domain>; checked contextually by StackKits."
+    },
+    "signIn": {
+      "type": "boolean",
+      "default": true
+    },
+    "environment": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 4096,
+        "pattern": "^[^\\u0000\\r\\n]*$"
+      }
+    },
+    "secretRefs": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+        "maxLength": 128
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^secret://own-[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[A-Za-z_][A-Za-z0-9_]*$"
+      },
+      "description": "Each key K must reference exactly secret://own-<name>/K; created via the own operation private secrets-file, never foreign custody."
+    },
+    "volume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mountPath"
+      ],
+      "properties": {
+        "mountPath": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^/[^:\\\\$\\u0000\\r\\n]*$",
+          "description": "Clean absolute container path; system paths, host mounts and Docker socket are refused."
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "memoryMiB": {
+          "type": "integer",
+          "anyOf": [
+            {
+              "const": 0
+            },
+            {
+              "minimum": 64,
+              "maximum": 8192
+            }
+          ],
+          "default": 512
+        },
+        "cpus": {
+          "type": "number",
+          "anyOf": [
+            {
+              "const": 0
+            },
+            {
+              "minimum": 0.1,
+              "maximum": 4
+            }
+          ],
+          "default": 1
+        }
+      }
+    }
+  },
+  "description": "Closed one-container intent. Go admission additionally enforces matching name/hostname/domain, reserved namespaces, canonical mount path, no env/secret key overlap and installation authority. No execution/provider/host authority is accepted. Fixed runtime policy: cap_drop ALL, cap_add CHOWN/SETUID/SETGID/NET_BIND_SERVICE only, no-new-privileges, pids_limit 256, no swap beyond memory, one internal per-app router network, no direct egress or shared core network. No hardening override or read-only-root knob. Result networkNotice states: this application cannot make outbound connections. No outbound Internet; router web ports remain reachable as an anonymous home-network client."
+}

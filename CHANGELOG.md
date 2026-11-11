@@ -1,7 +1,14 @@
 # Changelog
 
+- Changed: `stackkit backup status` names a missing backup instead of a bare missing file. A server with no configured backup answers with the actionable reason `backup_not_configured`, a kit core that owns no local backup source (the Coolify Cloud core, the Cloud edge node of Modern Homelab) with `backup_source_unavailable`; each lists what is missing and how to set it up. The status itself is unchanged and, with Techstack's `check-backup`, is the one backup operation that runs for every kit.
+
+- Changed: six host primitives join the executor-bound set (AP16.1, D-2026-10-23-06): `start-host-container`, `stop-host-container`, `restart-host-container` (operation classes `host-container-start|stop|restart`, grant scopes `stackkit-host-container-start|stop|restart`, input `host-container-ref` = `object:container/<container name or id>`) and `start-host-unit`, `stop-host-unit`, `restart-host-unit` (`host-unit-start|stop|restart`, `stackkit-host-unit-start|stop|restart`, input `host-unit-ref` = `object:unit/<unit>.service`), each with a runtime-instance target and approval class `agent-equipment`, on the new executor `stackkits-guard-host-executor-v1`. The Guard runs them itself, not a StackKits command, so no CLI flag changes; the binary carries one more marker per primitive and the catalog and marker set are thirteen primitives.
+
+- Changed: seven RIL primitives are executor-bound and their Decision is answered by the acting agent's equipment, not a per-use person prompt (D-2026-10-23-06; approval class `agent-equipment`, required by CUE for every executor-bound primitive): `verify-stackkit-state`, `restart-service`, `check-backup`, the new `update-service` (operation class `runtime-service-update`, grant scope `stackkit-service-update`, inputs `runtime-instance-ref` and `target-release-ref`), the new `start-service` and `stop-service` (operation classes `runtime-service-start`/`runtime-service-stop`, grant scopes `stackkit-service-start`/`stackkit-service-stop`, runtime-instance target) and the new `run-backup` (operation class `backup-run`, grant scope `stackkit-backup-run`, module-instance target `backup.<stack id>`, input `backup-contract-ref`, mutation), which run on the new executor `stackkits-managed-service-executor-v1` (backup evidence and run, service start, stop, restart and update) or the existing state verifier. `start-service`, `stop-service` and `restart-service` take the optional input `application-ref` (`object:application/<container id>`): it names an adopted application, whose power action the node runs as application control of exactly that container. The binary declares one marker per primitive, `stackkit.ril-primitive-contract/v2:<id>:sha256:<hash>:end-stackkit.ril-primitive-contract`, under the capability `stackkit.ril-primitive-hash.v2` (replacing `stackkit.verify.ril-primitive-hash.v1`); each must equal the normalized catalog. `--expected-ril-primitive-hash` now also exists on `stackkit service start|stop|restart`, `stackkit application control` (checked against the primitive of its `--action`), `stackkit upgrade`, `stackkit backup status` and `stackkit backup run`; each command refuses a hash that differs from its own primitive's, and `stackkit ril-primitive-hash <id>` reads all seven. `grant.connectorBindingRequired` became a boolean: `false` for the executor-bound primitives, whose authority is the agent's equipment receipt plus the Gateway lease and claim (the managed service entry creates their cards without a connector binding), and `true` for every contract-only primitive; an agent entering through its ril-ops connector still binds the card to a binding that must carry the primitive's grant scope. The contract hashes of the existing executor-bound primitives changed with their approval class and binding requirement (and for `restart-service` its optional `application-ref` input). Fix: the catalog's RIL executor, recovery and module-extension closure checks now evaluate; their loop variables were shadowed by the struct labels they built, so an executor-bound primitive without a matching executor operation class passed `cue vet`.
+
 - Added: `stackkit setup home-graph` (catalog operation `application.home-graph.sync`) projects the household home graph onto the exact local Home Assistant through the node connector credential, under the same authority checks as `setup connector --verify-only`. With kombify leading it creates and updates floors, areas and device placement, keeps the id mapping on the node and reports drift instead of overwriting it, except for the fields named in `restore`; with Home Assistant leading it only reads. Nothing is deleted in Home Assistant. The home graph library moved from `techstack/pkg/agent/homegraph` to `internal/homegraph` and uses the connector's WebSocket client over the confined Home Assistant transport.
 - Added: a native application move keeps the moved applications' configuration. The source projects their portable public settings and effective module profiles (`stackkit backup transfer-configuration`); the destination authors the receiving candidate from exactly that document (`stackkit backup transfer-candidate`) instead of starting from its own catalog defaults. The destination admission names the canonical configuration digest, the source refuses to hold its applications for another configuration, the signed export receipt must carry the same configuration, and the activated outcome names the digest the destination verified. Secret material still travels only inside the sealed transfer custody; no secret, placement or route enters the portable configuration.
+- Added: optional Dev Workbench headless Cloud Linux x64 host pinned to Desktop Delivery 0.3.4 and its archive SHA256, with Compose/OpenTofu/Terramate lifecycle, persistent isolated state and `stackkit setup workbench-host-release` for the release read credential. Connect/provider setup remains explicit; M13 acceptance is pending.
 
 - Added: publicly trusted certificates for a public identity origin (kombify-StackKits-igti.7). `sudo stackkit reach public-certificate issue` obtains one certificate for `*.<name>` and `<name>` by ACME DNS-01 with the `reach lan-certificate` client: kombify Me answers for a kombify.me name; an own domain uses the Owner's Cloudflare token (Zone:Read and DNS:Edit on the zone) from custody (`--dns-token-file` or `--dns-wallet-item <tenant>/<item>`). After `stackkit apply` the Basement core router serves `id.<name>` and every other host with it: the routes it covers name no step-ca resolver, whatever order the router loads its providers in, and any remaining step-ca leaves go to a separate ACME store, so an older leaf cannot shadow it; the identity signer renews it on its 12-hour cadence. A local-only homelab keeps step-ca. `status` and `remove` complete the command.
 - Added: a public-names certificate that stops serving no longer leaves the routes it covered without a certificate until the next `stackkit apply` (kombify-StackKits-igti.15). When renewals kept failing until it expired, when it no longer covers `id.<name>`, or after `reach public-certificate remove`, the identity signer adds a router in `router-tls/` that names the step-ca resolver for exactly those hosts (read from the router API), so the router serves step-ca certificates for them again without an apply or a restart; the next apply with a serving certificate gives the router a fresh ACME store, so these step-ca leaves cannot shadow it. Within 14 days of its expiry a certificate that is still not renewed raises one Owner notice (`public-certificate-renewal-failing`, pushed to the Owner devices by the Hub). `reach public-certificate remove` no longer asks for an apply.
@@ -283,6 +290,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+- Add the versioned own-application Direct Compose lifecycle, signed review/operation receipts, default Homelab sign-in and backup membership through the shared catalog renderer/executor.
+
+
 - Fix: keep the verified public release receipt when optional stale R2 object cleanup fails; report pending cleanup without hiding asset or index publication errors (kombify-StackKits-v237).
 
 - Native authoring catalogs expose CUE-owned public configuration descriptors and exact module profile choices for installed-use-case configuration. Candidate receipts include the canonical previous spec alongside its native hash; no-change inspection retains that spec exactly. Declared scalar types and options are checked while other existing CLI inputs keep their original contract. Active intent and custody are unchanged with a separate output candidate.
@@ -438,6 +448,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.57.8 (2026-11-11)
+
+### Added
+
+* add reviewed own application lifecycle on Direct Compose
+* **cli:** stackkit connect binds a server that runs the public package to a kombify account
+* **compat:** run the fixed public package path in the integration slot
+* **compat:** the integration slot wakes rack-pve through a rack-wake lane on the LAN runner
+* **connect:** pair an own server through a hidden terminal prompt
+* **dev:** add optional pinned headless Workbench host
+* **docs:** one first screen for the public package with the connect offer
+* **installer:** take defaults and localize the questions that remain
+* **mcp:** local operation descriptions say when to use the tool (AP16.3)
+* **mcp:** stackkit-mcp tool descriptions say when to use the tool; registry listing file (AP16.3)
+* **privacy:** report qualified Techstack processor effects
+* **security:** cut over StackKits authority producers and consumers
+* **techstack:** host container and service-unit actions run as governed RIL primitives; run_stackkit_operation leaves the agent surface (AP16.1)
+* **techstack:** restart, update and backup run as governed RIL actions on one equipment-answered write path (AP16.1)
+* **techstack:** schema publication passes the read-only ClickHouse key and pins the producer with the restore point
+* **techstack:** the backup check runs for every kit and refuses with an actionable reason where there is no backup (AP16.1)
+
+### Fixed
+
+* **ci:** one known-error issue per cause, Stable delivery included
+* **ci:** restore installed shared identity for StackKits delivery
+* **core:** confine Home router diagnostics to container loopback
+* **delivery:** admit public-package slots before checkout
+* **delivery:** Techstack Render fallback uses the admission carrying the current contract
+* **delivery:** the prepared Techstack release controller runs as an action step
+* derive public kit support from version-bound package proof
+* **dev:** repair the Techstack and StackKits website local loops
+* guide second-device access and default public connect origin
+* **install:** one public path source; init, Apply hint and proof agree; compat rows need current-release evidence
+* **stackkits:** green the three red repository gates on main
+* **stackkits:** validate append-only slot package ledger imports
+* **techstack:** end the schema publication waits with the run they follow
+* **techstack:** gate company bundle extension on protected credentials
+* **techstack:** keep database readiness independent of image publication
+* **techstack:** require the dedicated bundle operator App ID
+* **techstack:** the schema blocker reports its cause and the schema-expand producer logs the child failure
+* **workbench:** align host renderer contract identity
 
 ## 0.57.7 (2026-11-10)
 

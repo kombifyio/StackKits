@@ -6036,7 +6036,11 @@ _cloudCoreVerificationRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners,
 	{id: "hub-health", componentRef: "hub", transport: "tcp", bindAddress: "127.0.0.1", port: 8081, targetPort: 80, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 ]])
 
-_basementCoreRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners, [
+// Home diagnostics are read by the node inside router loopback, never published.
+_basementCoreRuntimeListeners: list.Concat([[
+ for listener in _cloudCoreRuntimeListeners
+ if listener.id != "router-admin" {listener},
+], [
 	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "127.0.0.1", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 	{id: "lan-dns-udp", componentRef: "lan-dns", bindAddressSource: "node-site", transport: "udp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
 	{id: "lan-dns-tcp", componentRef: "lan-dns", bindAddressSource: "node-site", transport: "tcp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
@@ -7729,7 +7733,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                    "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:f98d00734e2ed208a563d0f24b838a28397e20d7116a6a07c0d27a1229fec722"
+				contractHash:    "sha256:ef30e3d277b8e8fa912e70bbc0c1864b2b5de1767e56e0d689b8132f14306d00"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7742,7 +7746,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                  "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:582cb7125d119d097dadd5622a8aa7209df5055e436a3e411bc9f9ab307e22c3"
+				contractHash:    "sha256:7466a1844d624eb63aad7cac9a757c6546d63f38cbda0278d2eb354047cd569f"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -7755,7 +7759,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                               "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:03391d7d4bb1a9000b8817f568734ef0ddc3e05f814f68eb21e4ddd50cc6ca1b"
+				contractHash:    "sha256:2d38e6963a40e7c87e3e238ebd77d41dfa22ec6fe688b282acbed6869376a447"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -8024,7 +8028,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "compose", kind:                                         "compose", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/compose/v1.yaml", version: "1.0.0"
-				contractHash:    "sha256:8c8c75a3aeedf9d00d78ee2075a45304bb45e9f0c76a929b0b666de65bdac30c"
+				contractHash:    "sha256:24563b4b8ccc72bd77dc6e666553a250b6e7bedc517c5d01f94d7597a5c9d82d"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -8037,7 +8041,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "opentofu", kind:                                       "opentofu", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/opentofu/v1.tf", version: "1.0.0"
-				contractHash:    "sha256:26a187d4794484b0c9bb4788de09e2cadbb350defc0c87111faec44c37104992"
+				contractHash:    "sha256:fa38a65c626899c5139c8847e8beb6fd8d7af82e7b2fc3926494b51097bcda6a"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -8050,7 +8054,7 @@ _architectureV2Modules: list.Concat([[
 			{
 				id:              "terramate", kind:                                    "terramate", rendererRef: "stackkit"
 				templateRef:     "builtin://basement/core-lite/terramate/v1", version: "1.0.0"
-				contractHash:    "sha256:727b7e8a706deef01762973b49eac51f46c2bfc0a2a65b7904f9af8d2cbb4a53"
+				contractHash:    "sha256:19541b6463b0bfefcc9e26af4e87f3d76f6620ae3a29a59970f055f84626dc87"
 				publicInputRefs: _architectureV2CoreComposeRenderInputs.publicInputRefs
 				secretInputRefs: _architectureV2CoreComposeRenderInputs.secretInputRefs
 				planInputRefs:   _architectureV2CoreComposeRenderInputs.planInputRefs
@@ -13516,8 +13520,8 @@ _architectureV2RILActionPrimitives: [
 		id:      "verify-stackkit-state", version: "1.0.0", title:                                   "Verify governed StackKit state", category: "verify"
 		support: "executor-bound", executorRef:    "stackkits-governed-state-verifier-v1", mutation: false, destructive:                         false, risk: "read-only"
 		owner: {authority: "stackkits", operationClass: "product-verify"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
-		grant: {required: true, audience: "stackkits", scopes: ["stackkit-verify"], connectorBindingRequired: true}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-verify"], connectorBindingRequired: false}
 		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 		inputs: []
 		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
@@ -13535,13 +13539,67 @@ _architectureV2RILActionPrimitives: [
 		recovery: {kind: "manual", requiredOnFailure: true}
 	},
 	{
-		id:      "restart-service", version: "1.0.0", title:    "Restart one governed runtime service", category: "service"
-		support: "contract-only", mutation:  true, destructive: false, risk:                                      "high"
+		id:      "restart-service", version:    "1.0.0", title:                                    "Restart one governed runtime service", category: "service"
+		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                                false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "runtime-service-action"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
-		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-restart"], connectorBindingRequired: true}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-restart"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
-		inputs: [{id: "runtime-instance-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		// application-ref names the exact adopted application container
+		// (object:application/<container id>) when the service is an adopted
+		// application; the node then runs application control for it.
+		inputs: [
+			{id: "application-ref", type: "opaque-reference", required: false, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false},
+			{id: "runtime-instance-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false},
+		]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "start-service", version:      "1.0.0", title:                                    "Start one governed runtime service", category: "service"
+		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                              false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "runtime-service-start"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-start"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		// application-ref names the exact adopted application container
+		// (object:application/<container id>) when the service is an adopted
+		// application; the node then runs application control for it.
+		inputs: [
+			{id: "application-ref", type: "opaque-reference", required: false, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false},
+			{id: "runtime-instance-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false},
+		]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "stop-service", version:       "1.0.0", title:                                    "Stop one governed runtime service", category: "service"
+		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                             false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "runtime-service-stop"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-stop"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		// application-ref names the exact adopted application container
+		// (object:application/<container id>) when the service is an adopted
+		// application; the node then runs application control for it.
+		inputs: [
+			{id: "application-ref", type: "opaque-reference", required: false, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false},
+			{id: "runtime-instance-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false},
+		]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "update-service", version:     "1.0.0", title:                                    "Update one governed runtime service to the managed target release", category: "service"
+		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                                                             false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "runtime-service-update"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-update"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		inputs: [
+			{id: "runtime-instance-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false},
+			{id: "target-release-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false},
+		]
 		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
 		recovery: {kind: "manual", requiredOnFailure: true}
 	},
@@ -13557,15 +13615,98 @@ _architectureV2RILActionPrimitives: [
 		recovery: {kind: "manual", requiredOnFailure: true}
 	},
 	{
-		id:      "check-backup", version:   "1.0.0", title:     "Check governed backup and restore evidence", category: "backup"
-		support: "contract-only", mutation: false, destructive: false, risk:                                            "read-only"
+		id:      "check-backup", version:       "1.0.0", title:                                    "Check governed backup and restore evidence", category: "backup"
+		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: false, destructive:                                     false, risk: "read-only"
 		owner: {authority: "stackkits", operationClass: "backup-evidence"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
-		grant: {required: true, audience: "stackkits", scopes: ["stackkit-backup-check"], connectorBindingRequired: true}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-backup-check"], connectorBindingRequired: false}
 		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 		inputs: [{id: "backup-contract-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
 		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["readback"]}
 		recovery: {kind: "none", requiredOnFailure: false}
+	},
+	{
+		id:      "run-backup", version:         "1.0.0", title:                                    "Run one governed out-of-band backup of the stack", category: "backup"
+		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                                            false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "backup-run"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-backup-run"], connectorBindingRequired: false}
+		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
+		inputs: [{id: "backup-contract-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "start-host-container", version: "1.0.0", title:                               "Start one unmanaged container of a connected server's host", category: "service"
+		support: "executor-bound", executorRef:   "stackkits-guard-host-executor-v1", mutation: true, destructive:                                                      false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "host-container-start"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-container-start"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		// host-container-ref names the exact unmanaged container (object:container/<container name or id>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
+		inputs: [{id: "host-container-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "stop-host-container", version: "1.0.0", title:                               "Stop one unmanaged container of a connected server's host", category: "service"
+		support: "executor-bound", executorRef:  "stackkits-guard-host-executor-v1", mutation: true, destructive:                                                     false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "host-container-stop"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-container-stop"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		// host-container-ref names the exact unmanaged container (object:container/<container name or id>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
+		inputs: [{id: "host-container-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "restart-host-container", version: "1.0.0", title:                               "Restart one unmanaged container of a connected server's host", category: "service"
+		support: "executor-bound", executorRef:     "stackkits-guard-host-executor-v1", mutation: true, destructive:                                                        false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "host-container-restart"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-container-restart"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		// host-container-ref names the exact unmanaged container (object:container/<container name or id>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
+		inputs: [{id: "host-container-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "start-host-unit", version:    "1.0.0", title:                               "Start one service unit of a connected server's host", category: "service"
+		support: "executor-bound", executorRef: "stackkits-guard-host-executor-v1", mutation: true, destructive:                                               false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "host-unit-start"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-unit-start"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		// host-unit-ref names the exact service unit (object:unit/<unit name>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
+		inputs: [{id: "host-unit-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "stop-host-unit", version:     "1.0.0", title:                               "Stop one service unit of a connected server's host", category: "service"
+		support: "executor-bound", executorRef: "stackkits-guard-host-executor-v1", mutation: true, destructive:                                              false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "host-unit-stop"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-unit-stop"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		// host-unit-ref names the exact service unit (object:unit/<unit name>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
+		inputs: [{id: "host-unit-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
+	},
+	{
+		id:      "restart-host-unit", version:  "1.0.0", title:                               "Restart one service unit of a connected server's host", category: "service"
+		support: "executor-bound", executorRef: "stackkits-guard-host-executor-v1", mutation: true, destructive:                                                 false, risk: "high"
+		owner: {authority: "stackkits", operationClass: "host-unit-restart"}
+		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-unit-restart"], connectorBindingRequired: false}
+		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
+		// host-unit-ref names the exact service unit (object:unit/<unit name>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
+		inputs: [{id: "host-unit-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
+		verification: {required: true, evidenceSchema: "stackkit.ril-action-evidence/v1", phases: ["preflight", "post-action", "readback"]}
+		recovery: {kind: "manual", requiredOnFailure: true}
 	},
 ]
 
@@ -13575,6 +13716,36 @@ _architectureV2RILActionExecutors: [{
 	version:       "1.0.0"
 	owner: authority: "stackkits"
 	operationClasses: ["product-verify"]
+	prohibitions: {
+		providerLifecycle:    true
+		providerInputs:       true
+		leaseAuthority:       true
+		credentialResolution: true
+		transport:            true
+		callerCommands:       true
+		arbitraryPaths:       true
+	}
+}, {
+	schemaVersion: "stackkit.ril-action-executor/v1"
+	ref:           "stackkits-managed-service-executor-v1"
+	version:       "1.0.0"
+	owner: authority: "stackkits"
+	operationClasses: ["backup-evidence", "backup-run", "runtime-service-action", "runtime-service-start", "runtime-service-stop", "runtime-service-update"]
+	prohibitions: {
+		providerLifecycle:    true
+		providerInputs:       true
+		leaseAuthority:       true
+		credentialResolution: true
+		transport:            true
+		callerCommands:       true
+		arbitraryPaths:       true
+	}
+}, {
+	schemaVersion: "stackkit.ril-action-executor/v1"
+	ref:           "stackkits-guard-host-executor-v1"
+	version:       "1.0.0"
+	owner: authority: "stackkits"
+	operationClasses: ["host-container-restart", "host-container-start", "host-container-stop", "host-unit-restart", "host-unit-start", "host-unit-stop"]
 	prohibitions: {
 		providerLifecycle:    true
 		providerInputs:       true
@@ -13597,9 +13768,9 @@ _architectureV2InternalApplicationLifecycleContracts: *[] | [...]
 _architectureV2InternalHomeWorkloadRefs: *[] | [...string]
 
 // ArchitectureV2RoutelessAddOnWorkloadRefs are optional add-on workloads that
-// only their primary application reaches over its internal network; kits give
-// them no initial route.
-ArchitectureV2RoutelessAddOnWorkloadRefs: ["ai-search", "ai-documents", "ai-speech", "ai-vectors"]
+// use internal networks or an explicit upstream transport; kits give them no
+// initial route.
+ArchitectureV2RoutelessAddOnWorkloadRefs: ["ai-search", "ai-documents", "ai-speech", "ai-vectors", "dev-workbench"]
 
 // ArchitectureV2InternalHomeWorkloadRefs lets the home kits offer the optional
 // internal-only workloads without naming them in public sources.
@@ -13607,11 +13778,11 @@ ArchitectureV2InternalHomeWorkloadRefs: _architectureV2InternalHomeWorkloadRefs
 
 ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
-	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2MarketplaceProviders, _architectureV2DokployProviders, _architectureV2HomeAssistantInstanceProviders, _architectureV2GuacamoleProviders, _architectureV2NtfyLiveProviders, _architectureV2AdguardHomeProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
+	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2MarketplaceProviders, _architectureV2DokployProviders, _architectureV2HomeAssistantInstanceProviders, _architectureV2GuacamoleProviders, _architectureV2NtfyLiveProviders, _architectureV2WorkbenchHostProviders, _architectureV2AdguardHomeProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
-	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2MarketplaceModules, _architectureV2KomodoBootstrapModules, _architectureV2DokployModules, _architectureV2HomeAssistantInstanceModules, _architectureV2GuacamoleModules, _architectureV2NtfyLiveModules, _architectureV2AdguardHomeModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
-	workloads: list.Concat([_architectureV2WorkloadContracts, _architectureV2MarketplaceWorkloads, _architectureV2GuacamoleWorkloads, _architectureV2NtfyLiveWorkloads, _architectureV2AdguardHomeWorkloads, _architectureV2InternalWorkloadContracts])
-	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2GuacamoleLifecycles, _architectureV2NtfyLiveLifecycles, _architectureV2AdguardHomeLifecycles, _architectureV2MarketplaceLifecycles, _architectureV2InternalApplicationLifecycleContracts])
+	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2MarketplaceModules, _architectureV2KomodoBootstrapModules, _architectureV2DokployModules, _architectureV2HomeAssistantInstanceModules, _architectureV2GuacamoleModules, _architectureV2NtfyLiveModules, _architectureV2WorkbenchHostModules, _architectureV2AdguardHomeModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
+	workloads: list.Concat([_architectureV2WorkloadContracts, _architectureV2MarketplaceWorkloads, _architectureV2GuacamoleWorkloads, _architectureV2NtfyLiveWorkloads, _architectureV2WorkbenchHostWorkloads, _architectureV2AdguardHomeWorkloads, _architectureV2InternalWorkloadContracts])
+	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2GuacamoleLifecycles, _architectureV2NtfyLiveLifecycles, _architectureV2WorkbenchHostLifecycles, _architectureV2AdguardHomeLifecycles, _architectureV2MarketplaceLifecycles, _architectureV2InternalApplicationLifecycleContracts])
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
 	rilActionExecutors: [for contract in _architectureV2RILActionExecutors {#RILActionExecutorContractV1 & contract}]
 	rilActionPrimitives: list.Concat([

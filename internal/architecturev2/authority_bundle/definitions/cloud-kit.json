@@ -921,7 +921,8 @@
       "ai-harness",
       "ai-control-plane",
       "ai-gateway",
-      "ai-vectors"
+      "ai-vectors",
+      "dev-workbench"
     ],
     "required": [
       "cloud-core"

@@ -23,6 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localbackupschedule"
+	"github.com/kombifyio/stackkits/internal/ownapplication"
 	"github.com/spf13/cobra"
 )
 
@@ -145,6 +146,10 @@ func runNativeV2BackupRequest(
 	workspace := getWorkDir()
 	initial, err := inspectNativeV2BackupAuthorityForRequest(ctx, workspace, specFile)
 	if err != nil {
+		if operation == nativeV2BackupStatus && errors.Is(err, errBackupSourceAbsent) {
+			// On the read only: this server has no backup to check.
+			err = &backupSourceUnavailableError{cause: err}
+		}
 		return fmt.Errorf("backup %s authority: %w", operation, err)
 	}
 	var result any
@@ -339,6 +344,18 @@ func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpe
 	if coreModuleRef != localbackuppolicy.CoreModuleRef && policy.Source.CoreModuleRef != coreModuleRef {
 		return nativeV2BackupAuthority{}, errors.New("CoreLite and Cloud local Kopia policies must carry their explicit Core profile")
 	}
+	policy, err = ownapplication.ExtendBackupPolicy(workspace, policy)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	policyArtifact, err = localbackuppolicy.ArtifactBytes(policy)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
+	policyDigest, err = localbackuppolicy.Digest(policyArtifact)
+	if err != nil {
+		return nativeV2BackupAuthority{}, err
+	}
 	return nativeV2BackupAuthority{
 		OwnerRef: applied.OwnerRef, AuthorityRef: applied.AuthorityRef, WorkspaceRoot: applied.WorkspaceRoot,
 		OutputRoot: applied.OutputRoot, Plan: applied.Plan, Lineage: applied.Lineage,
@@ -472,6 +489,35 @@ func nativeV2RestoreAppliedRequests(
 	return []runtimeexecutor.ExecutionRequest{request}, nil
 }
 
+// errBackupSourceAbsent is the one case where the applied plan holds no backup
+// source policy artifact at all for this node: the kit core owns no local
+// backup source. A plan with more than one, or with an incomplete artifact, is
+// a plan integrity defect and stays an untyped error. Callers outside the
+// status read keep this error's text unchanged.
+var errBackupSourceAbsent = errors.New(
+	"native v2 backup requires exactly one applied Basement Full-Core, CoreLite or Cloud standalone core source-policy artifact",
+)
+
+// backupSourceUnavailableError reports, on the status read, a server whose
+// applied kit core owns no local backup source (the Coolify Cloud core, or a
+// node of a multi-node kit that does not run the backup runtime). It is a fact
+// of the kit's layout, not of configuration, so no local command can make a
+// backup of this server readable; the guidance names where the backup of this
+// kit is made.
+type backupSourceUnavailableError struct{ cause error }
+
+func (e *backupSourceUnavailableError) Error() string { return e.cause.Error() }
+
+func (e *backupSourceUnavailableError) Unwrap() error { return e.cause }
+
+func (e *backupSourceUnavailableError) Guidance() []string {
+	return []string{
+		"This server has no local backup source: its applied kit core owns no backup repository, so there is nothing here to check.",
+		"Modern Homelab: the backup is made by the home server; run the check there.",
+		"Cloud Kit on the Coolify core: its recovery is the managed off-site backup that was provisioned before Apply; read it with the stack's backup status in Techstack.",
+	}
+}
+
 // nativeV2BackupPolicyRequirement selects the one source-policy artifact and
 // its applied Core runtime from the already verified Plan-owned Apply
 // requirements. It does not infer a profile from generated Compose or from a
@@ -504,6 +550,9 @@ func nativeV2BackupPolicyRequirement(
 		}
 		selected = candidate
 		matches++
+	}
+	if matches == 0 {
+		return "", generationartifact.ApplyArtifactRequirement{}, errBackupSourceAbsent
 	}
 	if matches != 1 || selected.ID == "" || selected.InstanceRef == "" || selected.OutputRef == "" {
 		return "", generationartifact.ApplyArtifactRequirement{}, errors.New(

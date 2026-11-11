@@ -152,6 +152,9 @@ func dockerV2QuiescerForSelectedRuntimeGraphs(newClient dockerQuiesceClientFacto
 	}
 	graphs := make(map[string]dockerApplicationGraph, len(source.ApplicationRuntimes))
 	for _, runtime := range source.ApplicationRuntimes {
+		if runtime.Retained {
+			continue
+		}
 		order, err := localbackuppolicy.ApplicationRuntimeStopOrder(runtime)
 		if err != nil {
 			return &dockerV2Quiescer{newClient: newClient, managed: managed, applicationVolumes: applicationVolumes, initErr: err}
@@ -613,6 +616,9 @@ func (q *dockerV2Quiescer) classifyContainer(container QuiesceContainer) (Quiesc
 			return QuiesceContainer{}, false, fmt.Errorf("Docker container %q has an unselected service %q in governed Compose project %q", container.ID, container.ComposeService, container.ComposeProject)
 		}
 		expectedImage := component.ImageRef + "@" + component.ImageDigest
+		if component.ImageID != "" {
+			expectedImage = component.ImageID
+		}
 		if container.Image != expectedImage {
 			return QuiesceContainer{}, false, fmt.Errorf("Docker service %q in project %q has image %q instead of the selected pinned image", container.ComposeService, container.ComposeProject, container.Image)
 		}

@@ -586,7 +586,6 @@ func buildPlan(input plannerInput) testPlan {
 		"STATUS.md",
 		"docs/RELEASE.md",
 		".goreleaser.yaml",
-		"website/src/content/kit-maturity.generated.ts",
 		"basement-kit/stackkit.yaml",
 		"cloud-kit/stackkit.yaml",
 		"modern-homelab/stackkit.yaml",

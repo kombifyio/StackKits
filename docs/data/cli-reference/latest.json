@@ -1002,14 +1002,15 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit app [flags]",
-      "short": "Inspect StackKits application delivery and manage v0.6 handoffs",
-      "description": "Inspect the governed Architecture v2 application-delivery matrix for\nCoolify, Komodo, and standalone Compose.\n\nOptional customer PaaS handoff metadata remains available only on the explicit\nv0.6 StackSpec compatibility line. Architecture v2 has no arbitrary customer-\nworkload mapping; StackKit-owned applications come from the CUE catalog, while\ncustomer-workload desired state belongs to Techstack.",
+      "short": "Inspect application delivery and run a Techstack own application",
+      "description": "Inspect the governed Architecture v2 application-delivery matrix for\nCoolify, Komodo, and standalone Compose.\n\nOptional customer PaaS handoff metadata remains available only on the explicit\nv0.6 StackSpec compatibility line. StackKit-owned applications come from the CUE\ncatalog. Customer-workload desired state belongs to Techstack: app own consumes\nits versioned one-container document on an installed Direct Compose Home node.",
       "runnable": false,
       "examples": [],
       "flags": [],
       "subcommands": [
         "stackkit app add",
-        "stackkit app compatibility"
+        "stackkit app compatibility",
+        "stackkit app own"
       ]
     },
     {
@@ -1105,6 +1106,100 @@
           "name": "json",
           "type": "bool",
           "description": "Print the compatibility matrix as JSON",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit app own",
+      "name": "own",
+      "parent": "stackkit app",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit app own [flags]",
+      "short": "Render or operate one Techstack-owned container on this node",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "action",
+          "type": "string",
+          "default": "render",
+          "description": "create, update, rollback, stop, remove, status, logs or render",
+          "required": false
+        },
+        {
+          "name": "delete-data",
+          "type": "bool",
+          "description": "Delete the named volume on remove; default retains it in backup",
+          "required": false
+        },
+        {
+          "name": "document",
+          "type": "string",
+          "description": "Techstack techstack.own-application/v1 JSON document",
+          "required": false
+        },
+        {
+          "name": "dry-run",
+          "type": "bool",
+          "description": "Review inputs and render only; no Docker or custody writes",
+          "required": false
+        },
+        {
+          "name": "installation-file",
+          "type": "string",
+          "description": "Offline installation context; dry-run only",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Return the versioned result as JSON",
+          "required": false
+        },
+        {
+          "name": "keep-secrets",
+          "type": "bool",
+          "description": "On remove only: retain secrets with the retained named volume",
+          "required": false
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "Application DNS name, without the reserved own- prefix",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Stable identity of this exact reviewed mutation",
+          "required": false
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve this exact local operation",
+          "required": false
+        },
+        {
+          "name": "resolved-image",
+          "type": "string",
+          "description": "Exact digest from dry review; required for executing a tagged image",
+          "required": false
+        },
+        {
+          "name": "review-digest",
+          "type": "string",
+          "description": "Exact review digest returned by dry-run of this action",
+          "required": false
+        },
+        {
+          "name": "secrets-file",
+          "type": "string",
+          "description": "Private JSON environment-key/value input for application-scoped custody",
           "required": false
         }
       ],
@@ -1210,6 +1305,12 @@
           "name": "container-id",
           "type": "string",
           "description": "Exact immutable 64-character Docker container ID",
+          "required": false
+        },
+        {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded contract hash of the RIL primitive of this action",
           "required": false
         },
         {
@@ -1978,6 +2079,12 @@
       ],
       "flags": [
         {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded contract hash of the run-backup RIL primitive",
+          "required": false
+        },
+        {
           "name": "json",
           "type": "bool",
           "description": "Emit stackkit.command-result/v1 JSON",
@@ -2142,6 +2249,12 @@
         }
       ],
       "flags": [
+        {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded contract hash of the check-backup RIL primitive",
+          "required": false
+        },
         {
           "name": "json",
           "type": "bool",
@@ -3950,6 +4063,37 @@
       "runnable": true,
       "examples": [],
       "flags": [],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit connect",
+      "name": "connect",
+      "parent": "stackkit",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit connect [flags]",
+      "short": "Bind this server to your kombify account (a free account is enough)",
+      "description": "Bind this server, which already runs the public package, to the kombify account that created the pairing in the Techstack setup. The server shows its state in kombify Cloud afterwards; changes beyond that stay with the paid plans. Paste the one-time pairing at the hidden terminal prompt. Automation can use --token-file or KOMBI_TOKEN, never a token argument. The control plane origin comes from --server or KOMBI_SERVER (public default https://techstack.kombify.io). For a self-hosted control plane, copy the exact --server origin from its Techstack own-server setup in kombify Cloud. A server that is already bound reports its binding and changes nothing. Run it as root on Linux.",
+      "runnable": true,
+      "examples": [
+        {
+          "command": "sudo stackkit connect --server https://techstack.kombify.io\nsudo stackkit connect --server https://your-techstack.example --token-file /root/kombify-pairing"
+        }
+      ],
+      "flags": [
+        {
+          "name": "server",
+          "type": "string",
+          "description": "control plane origin the pairing came from (KOMBI_SERVER, otherwise https://techstack.kombify.io); copy self-hosted origins from the Techstack own-server setup",
+          "required": false
+        },
+        {
+          "name": "token-file",
+          "type": "string",
+          "description": "private file holding the one-time pairing (otherwise KOMBI_TOKEN, then a hidden terminal prompt)",
+          "required": false
+        }
+      ],
       "subcommands": []
     },
     {
@@ -7379,6 +7523,10 @@
         {
           "command": "stackkit init basement-kit --owner-source=local --owner-email you@example.com --use-case-alternative basement-core=standalone --module-compute-profile stackkits-basement-core-runtime=standard",
           "description": "Pick the core alternative and module profile explicitly instead of catalog defaults"
+        },
+        {
+          "command": "stackkit init --candidate-spec stack-spec.yaml --owner-source=local --owner-email <owner-email>",
+          "description": "Give an existing StackSpec its local owner (apply refuses a workspace without one)"
         }
       ],
       "flags": [
@@ -7564,13 +7712,13 @@
         {
           "name": "owner-email",
           "type": "string",
-          "description": "Desired PocketID owner email for --owner-source=local",
+          "description": "Desired PocketID owner email for the standalone local owner (needed on first init; implies --owner-source=local on native init)",
           "required": false
         },
         {
           "name": "owner-source",
           "type": "string",
-          "description": "Owner custody source (native standalone: local; v0.6 compatibility: local|cloud)",
+          "description": "Owner custody source (native standalone: local, implied by an --owner-* flag or by a terminal that asks for the owner; v0.6 compatibility: local|cloud)",
           "required": false
         },
         {
@@ -7815,6 +7963,12 @@
           "name": "dry-run",
           "type": "bool",
           "description": "Verify and inspect target generation in a bounded shadow workspace without applying it.",
+          "required": false
+        },
+        {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded contract hash of the update-service RIL primitive",
           "required": false
         },
         {
@@ -10619,6 +10773,12 @@
       ],
       "flags": [
         {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded contract hash of the restart-service RIL primitive",
+          "required": false
+        },
+        {
           "name": "json",
           "type": "bool",
           "description": "Write the versioned service action result as JSON",
@@ -10651,6 +10811,12 @@
       ],
       "flags": [
         {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded contract hash of the start-service RIL primitive",
+          "required": false
+        },
+        {
           "name": "json",
           "type": "bool",
           "description": "Write the versioned service action result as JSON",
@@ -10682,6 +10848,12 @@
         }
       ],
       "flags": [
+        {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded contract hash of the stop-service RIL primitive",
+          "required": false
+        },
         {
           "name": "json",
           "type": "bool",
@@ -10764,7 +10936,8 @@
         "stackkit setup ai-provider",
         "stackkit setup connector",
         "stackkit setup home-graph",
-        "stackkit setup identity"
+        "stackkit setup identity",
+        "stackkit setup workbench-host-release"
       ]
     },
     {
@@ -11015,6 +11188,33 @@
       "subcommands": []
     },
     {
+      "path": "stackkit setup workbench-host-release",
+      "name": "workbench-host-release",
+      "parent": "stackkit setup",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup workbench-host-release [flags]",
+      "short": "Import private Desktop release access for the selected Workbench host",
+      "description": "Import an owner-custodied GitHub credential with contents:read access to\nthe private Workbench Desktop repository (GitHub repository id 1347582990)\nbefore the first Workbench host apply.\nRead it from a private --token-file, or use --token-file - for standard input.\nThe credential is encrypted in existing local owner custody, never written to\nthe StackSpec or command result. Repeating this explicit command rotates it.\nNeither secrets materialization nor an Advanced change set invents this slot.\nConnect enrollment and installed-provider authentication are separate setup.",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the secret-free setup result",
+          "required": false
+        },
+        {
+          "name": "token-file",
+          "type": "string",
+          "description": "Private credential file, or - for standard input",
+          "required": true
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit status",
       "name": "status",
       "parent": "stackkit",
@@ -11150,6 +11350,12 @@
           "name": "dry-run",
           "type": "bool",
           "description": "Verify and inspect target generation in a bounded shadow workspace without applying it.",
+          "required": false
+        },
+        {
+          "name": "expected-ril-primitive-hash",
+          "type": "string",
+          "description": "Require the verified embedded contract hash of the update-service RIL primitive",
           "required": false
         },
         {
@@ -12169,7 +12375,7 @@
         {
           "name": "expected-ril-primitive-hash",
           "type": "string",
-          "description": "Require the verified embedded RIL primitive contract hash",
+          "description": "Require the verified embedded contract hash of the verify-stackkit-state RIL primitive",
           "required": false
         },
         {
@@ -12551,5 +12757,26 @@
       "flags": [],
       "subcommands": []
     }
-  ]
+  ],
+  "publicPath": {
+    "installCommand": "curl -sSL https://install.stackkit.cc | sh",
+    "cliOnlyInstallCommand": "curl -sSL https://install.stackkit.cc | STACKKIT_CLI_ONLY=1 sh",
+    "installerResult": [
+      "cd ~/my-homelab",
+      "stackkit version",
+      "stackkit logs latest --json",
+      "cat .stackkit/access.json"
+    ],
+    "quickStart": [
+      "mkdir my-homelab && cd my-homelab",
+      "stackkit init --catalog-defaults --owner-source=local --owner-email you@example.com",
+      "stackkit validate",
+      "stackkit generate",
+      "stackkit apply",
+      "stackkit logs latest --json",
+      "cat .stackkit/access.json"
+    ],
+    "connectCommand": "sudo stackkit connect --server https://techstack.kombify.io",
+    "accessEvidence": ".stackkit/access.json"
+  }
 }

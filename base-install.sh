@@ -9,14 +9,15 @@
 # to a CLI parameter, and the same result is achievable with plain CLI verbs
 # (see "CLI path" in the final summary or docs/INSTALLATION_PROCESSES.md).
 #
-# Modes (STACKKIT_INSTALL_MODE=auto|guided|expert; interactive menu on a TTY):
-#   auto    Quick Install: owner account and use cases, then defaults to a
+# Modes (STACKKIT_INSTALL_MODE=auto|guided|expert; default auto):
+#   auto    Quick Install: owner email and use cases, then defaults to a
 #           running homelab. Files/Photos/Vault start checked in the picker.
-#   guided  Core decisions: workspace, domain, admin email, owner account,
-#           use-case picker, one apply confirmation.
-#   expert  Detailed: guided plus stack name, platform adapter,
-#           per-phase apply confirmation.
-# Non-TTY runs always use auto. Environment-provided values are never re-asked.
+#   guided  Same defaults; kept for existing automation.
+#   expert  Same defaults; kept for existing automation.
+# The installer asks only for the owner email and the use cases; every other
+# decision is taken from its default, printed as one line, and overridden by
+# the environment variable named below. Without a terminal it asks nothing and
+# takes the same defaults; a terminal is required only where it asks.
 #
 # Steps:
 #   1. Install stackkit CLI + basement-kit definitions  (via install.stackkit.cc)
@@ -26,6 +27,9 @@
 #   5. Generate + deploy the full homelab stack         (host preflight, apply)
 #
 # Environment variables (all optional; each pre-seeds one decision):
+#   KOMBIFY_LANG           en | de | es | fr | hi | ar | zh-Hans for the
+#                          installer questions and notices (fallback: LC_ALL,
+#                          LC_MESSAGES, LANG; default en)
 #   STACKKIT_INSTALL_MODE  auto | guided | expert
 #   HOMELAB_DIR            Workspace (default: $HOME/my-homelab)
 #   DOMAIN                 Own domain (default: local lab.home zone)
@@ -37,6 +41,8 @@
 #   STACKKIT_PLATFORM / STACKKIT_PAAS
 #                          Workload runtime adapter: standalone-compose (default) | komodo | coolify
 #                          (applies to the selected use cases)
+#   STACKKIT_PLACEMENT     home | cloud; picks the kit instead of the detection
+#   STACKKIT_SKIP_APPLY=1  Stop after generate; keep the deployment intent
 #   STACKKIT_SERVER_IMAGE  Optional stackkit-server image override
 #   STACKKIT_INSTALL_URL   Release installer (default: https://install.stackkit.cc)
 #   CLOUDFLARE_API_TOKEN / CLOUDFLARE_EMAIL
@@ -83,6 +89,171 @@ warn()  { printf '\033[1;33m==> %s\033[0m\n' "$*"; }
 err()   { printf '\033[1;31m==> %s\033[0m\n' "$*" >&2; }
 die()   { err "$*"; exit 1; }
 can_prompt() { [ -t 1 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; }
+
+# Installer questions and their notices follow the person's language:
+# KOMBIFY_LANG, then LC_ALL, LC_MESSAGES, LANG, else English. The value is
+# case-insensitive and its language part ends at "_", ".", "-" or "@".
+installer_msg_lang() {
+  _locale=$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')
+  case "$_locale" in
+    zh|zh_cn*|zh_sg*|zh-hans*|zh_hans*) printf 'zh-Hans'; return 0 ;;
+    zh_tw*|zh_hk*|zh_mo*|zh-hant*) printf 'en'; return 0 ;;
+  esac
+  _lang=${_locale%%[_.@-]*}
+  case "$_lang" in
+    en|de|es|fr|hi|ar) printf '%s' "$_lang" ;;
+    *) printf 'en' ;;
+  esac
+}
+KOMBIFY_MSG_LANG=$(installer_msg_lang "${KOMBIFY_LANG:-${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}}")
+
+# kit_placement DETECTED_ENV prints the kit this host gets: an explicit
+# STACKKIT_PLACEMENT wins in both directions, otherwise the detected network
+# decides (public → cloud, home or unknown → home).
+kit_placement() {
+  case "${STACKKIT_PLACEMENT:-}" in
+    home|cloud) printf '%s' "$STACKKIT_PLACEMENT"; return 0 ;;
+    "") ;;
+    *) printf "Unsupported STACKKIT_PLACEMENT '%s'. Expected home or cloud.\n" "$STACKKIT_PLACEMENT" >&2; return 2 ;;
+  esac
+  case "${1:-}" in
+    vps|cloud) printf 'cloud' ;;
+    *) printf 'home' ;;
+  esac
+}
+# t KEY [VALUE] prints one localized installer message.
+t() {
+  _t_value="${2:-}"
+  case "$KOMBIFY_MSG_LANG:$1" in
+    de:email_intro) printf 'Die Homelab-Anmeldung braucht vor der Installation eine E-Mail-Adresse.' ;;
+    es:email_intro) printf 'Los accesos del homelab necesitan tu correo electrónico antes de la instalación.' ;;
+    fr:email_intro) printf 'Les connexions au homelab ont besoin de votre adresse e-mail avant l’installation.' ;;
+    hi:email_intro) printf 'इंस्टॉल से पहले होमलैब लॉगिन के लिए आपका ईमेल पता चाहिए।' ;;
+    ar:email_intro) printf 'تحتاج عمليات تسجيل الدخول إلى الـ homelab إلى بريدك الإلكتروني قبل التثبيت.' ;;
+    zh-Hans:email_intro) printf '安装前需要您的电子邮件地址来创建 Homelab 登录。' ;;
+    *:email_intro) printf 'Homelab logins need your email before install.' ;;
+    de:email_prompt) printf 'E-Mail-Adresse: ' ;;
+    es:email_prompt) printf 'Correo electrónico: ' ;;
+    fr:email_prompt) printf 'Adresse e-mail : ' ;;
+    hi:email_prompt) printf 'ईमेल पता: ' ;;
+    ar:email_prompt) printf 'البريد الإلكتروني: ' ;;
+    zh-Hans:email_prompt) printf '电子邮件地址：' ;;
+    *:email_prompt) printf 'Email address: ' ;;
+    de:email_invalid) printf 'Bitte eine gültige E-Mail-Adresse eingeben, damit Anmeldungen des Eigentümers angelegt werden können.' ;;
+    es:email_invalid) printf 'Introduce un correo electrónico válido para poder crear los accesos de propietario.' ;;
+    fr:email_invalid) printf 'Saisissez une adresse e-mail valide pour créer les connexions du propriétaire.' ;;
+    hi:email_invalid) printf 'मालिक लॉगिन बनाने के लिए मान्य ईमेल पता दर्ज करें।' ;;
+    ar:email_invalid) printf 'أدخل بريدًا إلكترونيًا صالحًا لإنشاء عمليات دخول المالك.' ;;
+    zh-Hans:email_invalid) printf '请输入有效的电子邮件地址，以便创建所有者登录。' ;;
+    *:email_invalid) printf 'Enter a valid email address so owner logins can be created.' ;;
+    de:email_required) printf 'Die Homelab-Installation braucht die E-Mail-Adresse des Eigentümers. STACKKIT_ADMIN_EMAIL setzen oder den Installer in einem Terminal starten.' ;;
+    es:email_required) printf 'La instalación del homelab necesita un correo de propietario. Define STACKKIT_ADMIN_EMAIL o ejecuta el instalador desde un terminal.' ;;
+    fr:email_required) printf 'L’installation du homelab a besoin d’une adresse e-mail de propriétaire. Définissez STACKKIT_ADMIN_EMAIL ou lancez l’installateur depuis un terminal.' ;;
+    hi:email_required) printf 'होमलैब इंस्टॉल के लिए मालिक का ईमेल चाहिए। STACKKIT_ADMIN_EMAIL सेट करें या इंस्टॉलर को टर्मिनल से चलाएँ।' ;;
+    ar:email_required) printf 'يحتاج تثبيت الـ homelab إلى بريد المالك. اضبط STACKKIT_ADMIN_EMAIL أو شغّل المثبّت من طرفية.' ;;
+    zh-Hans:email_required) printf 'Homelab 安装需要所有者电子邮件。请设置 STACKKIT_ADMIN_EMAIL，或在终端中运行安装程序。' ;;
+    *:email_required) printf 'Homelab install needs an owner email. Set STACKKIT_ADMIN_EMAIL or run this installer from a terminal.' ;;
+    de:email_env_invalid) printf 'STACKKIT_ADMIN_EMAIL muss eine gültige E-Mail-Adresse sein.' ;;
+    es:email_env_invalid) printf 'STACKKIT_ADMIN_EMAIL debe ser un correo electrónico válido.' ;;
+    fr:email_env_invalid) printf 'STACKKIT_ADMIN_EMAIL doit être une adresse e-mail valide.' ;;
+    hi:email_env_invalid) printf 'STACKKIT_ADMIN_EMAIL एक मान्य ईमेल पता होना चाहिए।' ;;
+    ar:email_env_invalid) printf 'يجب أن يكون STACKKIT_ADMIN_EMAIL بريدًا إلكترونيًا صالحًا.' ;;
+    zh-Hans:email_env_invalid) printf 'STACKKIT_ADMIN_EMAIL 必须是有效的电子邮件地址。' ;;
+    *:email_env_invalid) printf 'STACKKIT_ADMIN_EMAIL must be a valid email address.' ;;
+    de:username_notice) printf 'Login-Benutzername: %s (mit STACKKIT_OWNER_USERNAME änderbar)' "$_t_value" ;;
+    es:username_notice) printf 'Nombre de usuario: %s (cambia con STACKKIT_OWNER_USERNAME)' "$_t_value" ;;
+    fr:username_notice) printf 'Nom d’utilisateur : %s (modifiable avec STACKKIT_OWNER_USERNAME)' "$_t_value" ;;
+    hi:username_notice) printf 'लॉगिन उपयोगकर्ता नाम: %s (STACKKIT_OWNER_USERNAME से बदलें)' "$_t_value" ;;
+    ar:username_notice) printf 'اسم مستخدم الدخول: %s (يمكن تغييره عبر STACKKIT_OWNER_USERNAME)' "$_t_value" ;;
+    zh-Hans:username_notice) printf '登录用户名：%s（可通过 STACKKIT_OWNER_USERNAME 修改）' "$_t_value" ;;
+    *:username_notice) printf 'Login username: %s (set STACKKIT_OWNER_USERNAME to change)' "$_t_value" ;;
+    de:workspace_label) printf 'Arbeitsverzeichnis' ;;
+    es:workspace_label) printf 'Directorio de trabajo' ;;
+    fr:workspace_label) printf 'Répertoire de travail' ;;
+    hi:workspace_label) printf 'कार्यस्थान' ;;
+    ar:workspace_label) printf 'مساحة العمل' ;;
+    zh-Hans:workspace_label) printf '工作目录' ;;
+    *:workspace_label) printf 'Workspace' ;;
+    de:stack_name_label) printf 'Stack-Name' ;;
+    es:stack_name_label) printf 'Nombre del stack' ;;
+    fr:stack_name_label) printf 'Nom du stack' ;;
+    hi:stack_name_label) printf 'स्टैक नाम' ;;
+    ar:stack_name_label) printf 'اسم الـ stack' ;;
+    zh-Hans:stack_name_label) printf 'Stack 名称' ;;
+    *:stack_name_label) printf 'Stack name' ;;
+    de:platform_label) printf 'Plattform-Adapter' ;;
+    es:platform_label) printf 'Adaptador de plataforma' ;;
+    fr:platform_label) printf 'Adaptateur de plateforme' ;;
+    hi:platform_label) printf 'प्लेटफ़ॉर्म अडैप्टर' ;;
+    ar:platform_label) printf 'محوّل المنصة' ;;
+    zh-Hans:platform_label) printf '平台适配器' ;;
+    *:platform_label) printf 'Platform adapter' ;;
+    de:mode_label) printf 'Installationsmodus' ;;
+    es:mode_label) printf 'Modo de instalación' ;;
+    fr:mode_label) printf 'Mode d’installation' ;;
+    hi:mode_label) printf 'इंस्टॉल मोड' ;;
+    ar:mode_label) printf 'وضع التثبيت' ;;
+    zh-Hans:mode_label) printf '安装模式' ;;
+    *:mode_label) printf 'Install mode' ;;
+    de:use_cases_notice) printf 'Anwendungsfälle wählen (Pfeiltasten bewegen, Leertaste schaltet um, Enter bestätigt)' ;;
+    es:use_cases_notice) printf 'Selecciona casos de uso (flechas para mover, espacio para marcar, Enter para confirmar)' ;;
+    fr:use_cases_notice) printf 'Choisissez des cas d’usage (flèches pour naviguer, espace pour cocher, Entrée pour confirmer)' ;;
+    hi:use_cases_notice) printf 'उपयोग केस चुनें (तीर घुमाते हैं, स्पेस चुनता है, Enter पुष्टि करता है)' ;;
+    ar:use_cases_notice) printf 'اختر حالات الاستخدام (الأسهم للتنقل، المسافة للتبديل، Enter للتأكيد)' ;;
+    zh-Hans:use_cases_notice) printf '选择用例（方向键移动，空格切换，Enter 确认）' ;;
+    *:use_cases_notice) printf 'Select use cases (arrows move, space toggles, Enter confirms)' ;;
+    de:use_cases_required) printf 'Vor der Installation muss ein Anwendungsfall gewählt werden. Zuerst die stackkit-CLI installieren oder STACKKIT_USE_CASES setzen.' ;;
+    es:use_cases_required) printf 'Hay que seleccionar casos de uso antes de instalar. Instala primero la CLI de stackkit o define STACKKIT_USE_CASES.' ;;
+    fr:use_cases_required) printf 'La sélection des cas d’usage est requise avant l’installation. Installez d’abord la CLI stackkit ou définissez STACKKIT_USE_CASES.' ;;
+    hi:use_cases_required) printf 'इंस्टॉल से पहले उपयोग केस चुनना ज़रूरी है। पहले stackkit CLI इंस्टॉल करें या STACKKIT_USE_CASES सेट करें।' ;;
+    ar:use_cases_required) printf 'اختيار حالات الاستخدام مطلوب قبل التثبيت. ثبّت stackkit CLI أولًا أو اضبط STACKKIT_USE_CASES.' ;;
+    zh-Hans:use_cases_required) printf '安装前必须选择用例。请先安装 stackkit CLI，或设置 STACKKIT_USE_CASES。' ;;
+    *:use_cases_required) printf 'Use-case selection is required before install. Install the stackkit CLI first, or set STACKKIT_USE_CASES.' ;;
+    de:cloud_notice) printf 'Öffentlicher Server: Cloud Kit wird verwendet. Mit STACKKIT_PLACEMENT=home wird stattdessen das Basement Kit verwendet.' ;;
+    es:cloud_notice) printf 'Servidor público: se continúa con Cloud Kit. Define STACKKIT_PLACEMENT=home para usar Basement Kit en su lugar.' ;;
+    fr:cloud_notice) printf 'Serveur public : poursuite avec Cloud Kit. Définissez STACKKIT_PLACEMENT=home pour utiliser Basement Kit à la place.' ;;
+    hi:cloud_notice) printf 'सार्वजनिक सर्वर: Cloud Kit के साथ जारी। Basement Kit के लिए STACKKIT_PLACEMENT=home सेट करें।' ;;
+    ar:cloud_notice) printf 'خادم عام: المتابعة باستخدام Cloud Kit. اضبط STACKKIT_PLACEMENT=home لاستخدام Basement Kit بدلًا منه.' ;;
+    zh-Hans:cloud_notice) printf '公共服务器：继续使用 Cloud Kit。设置 STACKKIT_PLACEMENT=home 可改用 Basement Kit。' ;;
+    *:cloud_notice) printf 'Public server: continuing with Cloud Kit. Set STACKKIT_PLACEMENT=home to use Basement Kit instead.' ;;
+    de:basement_notice) printf 'Heimnetz oder VPS konnte nicht erkannt werden: Basement Kit wird verwendet. Mit STACKKIT_PLACEMENT=cloud wird stattdessen das Cloud Kit verwendet.' ;;
+    es:basement_notice) printf 'No se pudo distinguir entre red doméstica y VPS: se continúa con Basement Kit. Define STACKKIT_PLACEMENT=cloud para usar Cloud Kit en su lugar.' ;;
+    fr:basement_notice) printf 'Impossible de distinguer réseau domestique et VPS : poursuite avec Basement Kit. Définissez STACKKIT_PLACEMENT=cloud pour utiliser Cloud Kit à la place.' ;;
+    hi:basement_notice) printf 'होम नेटवर्क या VPS पहचाना नहीं गया: Basement Kit के साथ जारी। Cloud Kit के लिए STACKKIT_PLACEMENT=cloud सेट करें।' ;;
+    ar:basement_notice) printf 'تعذّر تمييز الشبكة المنزلية من VPS: المتابعة باستخدام Basement Kit. اضبط STACKKIT_PLACEMENT=cloud لاستخدام Cloud Kit بدلًا منه.' ;;
+    zh-Hans:basement_notice) printf '无法区分家庭网络和 VPS：继续使用 Basement Kit。设置 STACKKIT_PLACEMENT=cloud 可改用 Cloud Kit。' ;;
+    *:basement_notice) printf 'Could not tell home vs VPS: continuing with Basement Kit. Set STACKKIT_PLACEMENT=cloud to use Cloud Kit instead.' ;;
+    de:domain_public_notice) printf 'Keine eigene Domain angegeben; kombify.me wird für den öffentlichen Zugang verwendet.' ;;
+    es:domain_public_notice) printf 'No se indicó un dominio propio; se usa kombify.me para el acceso público.' ;;
+    fr:domain_public_notice) printf 'Aucun domaine personnalisé fourni ; kombify.me est utilisé pour l’accès public.' ;;
+    hi:domain_public_notice) printf 'कोई कस्टम डोमेन नहीं दिया गया; सार्वजनिक पहुँच के लिए kombify.me उपयोग हो रहा है।' ;;
+    ar:domain_public_notice) printf 'لم يُحدَّد نطاق مخصص؛ يُستخدم kombify.me للوصول العام.' ;;
+    zh-Hans:domain_public_notice) printf '未提供自定义域名；公开访问使用 kombify.me。' ;;
+    *:domain_public_notice) printf 'No custom domain given; using kombify.me for public access.' ;;
+    de:domain_private_notice) printf 'Es wird die private Heimnetz-Adresszone *.lab.home verwendet.' ;;
+    es:domain_private_notice) printf 'Se usa la zona de direcciones privadas *.lab.home.' ;;
+    fr:domain_private_notice) printf 'Utilisation de la zone d’adresses privées *.lab.home.' ;;
+    hi:domain_private_notice) printf 'निजी होम पता ज़ोन *.lab.home उपयोग हो रहा है।' ;;
+    ar:domain_private_notice) printf 'يُستخدم نطاق العناوين المنزلية الخاصة *.lab.home.' ;;
+    zh-Hans:domain_private_notice) printf '使用家庭私有地址域 *.lab.home。' ;;
+    *:domain_private_notice) printf 'Using the private home address zone *.lab.home.' ;;
+    de:deploy_notice) printf 'Die Bereitstellung startet jetzt; mit STACKKIT_SKIP_APPLY=1 stoppt sie nach generate.' ;;
+    es:deploy_notice) printf 'Desplegando ahora; con STACKKIT_SKIP_APPLY=1 se detiene tras generate.' ;;
+    fr:deploy_notice) printf 'Déploiement en cours ; STACKKIT_SKIP_APPLY=1 arrête après generate.' ;;
+    hi:deploy_notice) printf 'अभी डिप्लॉय हो रहा है; generate के बाद रोकने के लिए STACKKIT_SKIP_APPLY=1 सेट करें।' ;;
+    ar:deploy_notice) printf 'جارٍ النشر الآن؛ STACKKIT_SKIP_APPLY=1 يوقف بعد generate.' ;;
+    zh-Hans:deploy_notice) printf '正在部署；设置 STACKKIT_SKIP_APPLY=1 可在 generate 后停止。' ;;
+    *:deploy_notice) printf 'Deploying now; set STACKKIT_SKIP_APPLY=1 to stop after generate.' ;;
+    de:deploy_skip_notice) printf 'apply wird wunschgemäß übersprungen; die Bereitstellung ist vorbereitet.' ;;
+    es:deploy_skip_notice) printf 'Se omite apply a petición; la intención de despliegue está lista.' ;;
+    fr:deploy_skip_notice) printf 'apply est ignoré sur demande ; l’intention de déploiement est prête.' ;;
+    hi:deploy_skip_notice) printf 'अनुरोध पर apply छोड़ा गया; डिप्लॉयमेंट इंटेंट तैयार है।' ;;
+    ar:deploy_skip_notice) printf 'تم تخطّي apply بناءً على الطلب؛ نية النشر جاهزة.' ;;
+    zh-Hans:deploy_skip_notice) printf '已按请求跳过 apply；部署意图已准备好。' ;;
+    *:deploy_skip_notice) printf 'Skipping apply on request; deployment intent is ready.' ;;
+    *) printf '' ;;
+  esac
+}
 
 # Native v2 writes stack-spec.yaml as canonical JSON ("kit":{"slug":"cloud-kit"});
 # older workspaces use YAML ("stackkit: cloud-kit").
@@ -140,38 +311,6 @@ json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
-# prompt_default LABEL DEFAULT -> stdout answer (Enter keeps the default)
-prompt_default() {
-  printf '  %s [%s]: ' "$1" "$2" >/dev/tty
-  read -r _stackkit_answer </dev/tty || _stackkit_answer=""
-  if [ -z "$_stackkit_answer" ]; then
-    printf '%s' "$2"
-  else
-    printf '%s' "$_stackkit_answer"
-  fi
-}
-
-# prompt_select LABEL DEFAULT_NUM -> stdout selected number
-prompt_select() {
-  printf '  %s [%s]: ' "$1" "$2" >/dev/tty
-  read -r _stackkit_answer </dev/tty || _stackkit_answer=""
-  if [ -z "$_stackkit_answer" ]; then
-    printf '%s' "$2"
-  else
-    printf '%s' "$_stackkit_answer"
-  fi
-}
-prompt_yn() {
-  if [ "$2" = "y" ]; then _stackkit_hint="Y/n"; else _stackkit_hint="y/N"; fi
-  printf '  %s [%s]: ' "$1" "$_stackkit_hint" >/dev/tty
-  read -r _stackkit_answer </dev/tty || _stackkit_answer=""
-  case "$_stackkit_answer" in
-    y|Y|yes|YES|Yes) return 0 ;;
-    n|N|no|NO|No) return 1 ;;
-    *) [ "$2" = "y" ] ;;
-  esac
-}
-
 valid_owner_email() {
   _email=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
   case "$_email" in
@@ -214,35 +353,37 @@ collect_owner_identity() {
   if [ -z "$ADMIN_EMAIL" ]; then
     if can_prompt; then
       echo ""
-      echo "  Homelab logins need your email before install."
+      echo "  $(t email_intro)"
       while true; do
-        printf '  Email address: ' >/dev/tty
-        read -r ADMIN_EMAIL </dev/tty || ADMIN_EMAIL=""
+        printf '  %s' "$(t email_prompt)" >/dev/tty
+        read -r ADMIN_EMAIL </dev/tty || die "$(t email_required)"
         ADMIN_EMAIL=$(printf '%s' "$ADMIN_EMAIL" | tr -d '\r')
         if valid_owner_email "$ADMIN_EMAIL" && ! is_placeholder_owner_email "$ADMIN_EMAIL"; then
           break
         fi
-        echo "  Enter a valid email address so owner logins can be created."
+        echo "  $(t email_invalid)"
       done
     else
-      die "Homelab install needs an owner email. Set STACKKIT_ADMIN_EMAIL or run this installer from a terminal."
+      die "$(t email_required)"
     fi
   fi
   if ! valid_owner_email "$ADMIN_EMAIL"; then
-    die "STACKKIT_ADMIN_EMAIL must be a valid email address."
+    die "$(t email_env_invalid)"
   fi
   if [ -z "${OWNER_USERNAME:-}" ]; then
     OWNER_USERNAME="${STACKKIT_OWNER_USERNAME:-}"
   fi
+  _username_derived=""
   if [ -z "$OWNER_USERNAME" ]; then
     OWNER_USERNAME=$(owner_username_from_email "$ADMIN_EMAIL")
     [ -n "$OWNER_USERNAME" ] || OWNER_USERNAME="owner"
-    if can_prompt && [ -z "${STACKKIT_OWNER_USERNAME:-}" ]; then
-      OWNER_USERNAME=$(prompt_default "Login username" "$OWNER_USERNAME")
-    fi
+    _username_derived="1"
   fi
   OWNER_USERNAME=$(printf '%s' "$OWNER_USERNAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g; s/^[.-]*//; s/[.-]*$//; s/--*/-/g' | cut -c1-32)
   [ -n "$OWNER_USERNAME" ] || die "Login username cannot be empty."
+  if [ -n "$_username_derived" ] && can_prompt; then
+    info "$(t username_notice "$OWNER_USERNAME")"
+  fi
   BOOTSTRAP_OWNER="true"
 }
 
@@ -257,28 +398,9 @@ case "$INSTALL_MODE" in
 esac
 
 if [ -z "$INSTALL_MODE" ]; then
-  if can_prompt; then
-    echo ""
-    echo "  How do you want to install?"
-    echo "    1) Quick Install   -- owner account and use cases, then a running homelab"
-    echo "    2) Core decisions  -- workspace, domain, owner account, use cases"
-    echo "    3) Detailed        -- core decisions plus name and platform"
-    printf '  Select [1]: ' >/dev/tty
-    read -r _stackkit_mode_answer </dev/tty || _stackkit_mode_answer=""
-    case "$_stackkit_mode_answer" in
-      2) INSTALL_MODE="guided" ;;
-      3) INSTALL_MODE="expert" ;;
-      *) INSTALL_MODE="auto" ;;
-    esac
-    echo ""
-  else
-    INSTALL_MODE="auto"
-  fi
+  INSTALL_MODE="auto"
 fi
-if [ "$INSTALL_MODE" != "auto" ] && ! can_prompt; then
-  die "STACKKIT_INSTALL_MODE=$INSTALL_MODE needs an interactive terminal. Without one, run the auto mode or drive the CLI directly: stackkit init basement-kit --catalog-defaults --non-interactive --owner-source=local --owner-email you@example.com && stackkit generate && stackkit apply --auto-approve"
-fi
-info "Install mode: $INSTALL_MODE"
+info "$(t mode_label): $INSTALL_MODE"
 
 ADMIN_EMAIL=""
 OWNER_USERNAME=""
@@ -289,9 +411,7 @@ BOOTSTRAP_OWNER=""
 
 HOMELAB_DIR_SET="${HOMELAB_DIR:+1}"
 HOMELAB_DIR="${HOMELAB_DIR:-$HOME/my-homelab}"
-if [ "$INSTALL_MODE" != "auto" ] && [ -z "$HOMELAB_DIR_SET" ]; then
-  HOMELAB_DIR=$(prompt_default "Workspace directory" "$HOMELAB_DIR")
-fi
+info "$(t workspace_label): $HOMELAB_DIR"
 installer_workspace_begin
 
 RESUME_EXISTING=0
@@ -324,8 +444,7 @@ PLATFORM_SELECTION=$(printf '%s' "${STACKKIT_PLATFORM:-${STACKKIT_PAAS:-}}" | tr
 if [ "$INSTALL_MODE" = "expert" ]; then
   if [ -z "${STACKKIT_NAME:-}" ]; then
     _default_name=$(basename "$HOMELAB_DIR")
-    STACK_NAME=$(prompt_default "Stack name (deployment contract ID)" "$_default_name")
-    [ "$STACK_NAME" = "$_default_name" ] && STACK_NAME=""
+    info "$(t stack_name_label): $_default_name"
   fi
 fi
 
@@ -552,7 +671,7 @@ SELECTED_KIT="basement-kit"
 read_host_environment
 info "Detected network: $DETECTED_ENV"
 
-PLACEMENT="${STACKKIT_PLACEMENT:-}"
+PLACEMENT=$(kit_placement "$DETECTED_ENV") || exit 2
 _existing_kit=$(workspace_spec_kit "$HOMELAB_DIR/stack-spec.yaml")
 if [ "$RESUME_EXISTING" = "1" ]; then
   # Saved intent wins over network detection. A rerun is never a kit migration
@@ -571,47 +690,11 @@ if [ "$RESUME_EXISTING" = "1" ]; then
 fi
 
 if [ "$RESUME_EXISTING" != "1" ]; then
-  case "$DETECTED_ENV" in
-    home) [ -z "$PLACEMENT" ] && PLACEMENT="home" ;;
-    vps|cloud)
-      if [ -z "$PLACEMENT" ]; then
-        if [ "$INSTALL_MODE" != "auto" ] && can_prompt; then
-          echo ""
-          echo "  This host is a public server. Cloud Kit is the product for a VPS;"
-          echo "  Basement Kit is for a home network."
-          if prompt_yn "Continue with Cloud Kit?" "y"; then
-            PLACEMENT="cloud"
-          else
-            PLACEMENT="home"
-            DOMAIN_VALUE="${DOMAIN_VALUE:-kombify.me}"
-            info "Keeping Basement Kit with kombify.me for public access"
-          fi
-          echo ""
-        else
-          PLACEMENT="cloud"
-          info "This host is a public server. Continuing with Cloud Kit."
-        fi
-      fi
-      ;;
-    *)
-      if [ -z "$PLACEMENT" ]; then
-        if can_prompt; then
-          echo ""
-          echo "  Could not tell whether this host is on a home network or a public VPS."
-          echo "    1) Home network — Basement Kit, local addresses recommended"
-          echo "    2) Public server / VPS — Cloud Kit, kombify.me or your domain"
-          _place=$(prompt_select "Select" "1")
-          case "$_place" in
-            2) PLACEMENT="cloud" ;;
-            *) PLACEMENT="home" ;;
-          esac
-          echo ""
-        else
-          PLACEMENT="home"
-          info "Could not tell home vs VPS. Continuing with Basement Kit."
-        fi
-      fi
-      ;;
+  # The notice explains a default taken from detection; an explicit
+  # STACKKIT_PLACEMENT was the person's own choice and needs no line.
+  case "$DETECTED_ENV:$PLACEMENT" in
+    vps:cloud|cloud:cloud) info "$(t cloud_notice)" ;;
+    unknown:home) info "$(t basement_notice)" ;;
   esac
   if [ "$PLACEMENT" = "cloud" ]; then
     SELECTED_KIT="cloud-kit"
@@ -622,7 +705,7 @@ if [ "$RESUME_EXISTING" != "1" ]; then
         installer_workspace_begin
       fi
     fi
-    info "Using Cloud Kit on this public host"
+    info "Using Cloud Kit on this host"
     STACKKIT_NO_BANNER=1 installer_run_entry "$STACKKIT_INSTALL_URL" cloud-kit
     if workspace_has_deployment_intent; then
       info "Preparing Cloud execution-channel access for this host"
@@ -637,37 +720,12 @@ if [ "$RESUME_EXISTING" != "1" ]; then
   fi
 
   if [ -z "$DOMAIN_VALUE" ]; then
-    if [ "$SELECTED_KIT" = "cloud-kit" ]; then
-      DOMAIN_VALUE="kombify.me"
-      info "No custom domain given; using kombify.me for public access"
-    elif can_prompt; then
-      echo ""
-      echo "  How should services be reached?"
-      _rec="1"
-      if [ "$DETECTED_ENV" = "vps" ] || [ "$DETECTED_ENV" = "cloud" ]; then
-        _rec="2"
-        echo "    Local *.lab.home addresses are not reachable on a public server."
-      fi
-      echo "    1) Local home addresses (*.lab.home) — recommended on a home network"
-      echo "    2) kombify.me public subdomain"
-      echo "    3) Your own domain"
-      _acc=$(prompt_select "Select" "$_rec")
-      case "$_acc" in
-        2) DOMAIN_VALUE="kombify.me" ;;
-        3) DOMAIN_VALUE=$(prompt_default "Domain" "") ;;
-        *) DOMAIN_VALUE="lab.home" ;;
-      esac
-      echo ""
-    else
-      DOMAIN_VALUE="lab.home"
-    fi
-  fi
-  if [ -z "$DOMAIN_VALUE" ]; then
     if [ "$SELECTED_KIT" = "cloud-kit" ] || [ "$DETECTED_ENV" = "vps" ] || [ "$DETECTED_ENV" = "cloud" ]; then
       DOMAIN_VALUE="kombify.me"
-      info "No custom domain given; using kombify.me for public access"
+      info "$(t domain_public_notice)"
     else
       DOMAIN_VALUE="lab.home"
+      info "$(t domain_private_notice)"
     fi
   fi
   # A bare "home" is a public suffix no browser shares a login session across;
@@ -696,11 +754,11 @@ pick_use_cases() {
     return 0
   fi
   if can_prompt && command -v stackkit >/dev/null 2>&1 && stackkit use-cases pick --help >/dev/null 2>&1; then
-    info "Select use cases (arrows move, space toggles, Enter confirms)"
+    info "$(t use_cases_notice)"
     USE_CASES=$(stackkit use-cases pick --print </dev/tty) || die "Use-case selection canceled"
     USE_CASES=$(printf '%s\n' "$USE_CASES" | tr -d '\r' | tail -n 1)
   elif can_prompt; then
-    die "Use-case selection is required before install. Install the stackkit CLI first, or set STACKKIT_USE_CASES."
+    die "$(t use_cases_required)"
   else
     USE_CASES="files,photos,vault"
   fi
@@ -710,7 +768,8 @@ pick_use_cases() {
 
 pick_use_cases
 if [ "$INSTALL_MODE" = "expert" ] && [ -n "$USE_CASES" ] && [ -z "$PLATFORM_SELECTION" ]; then
-  PLATFORM_SELECTION=$(prompt_default "Platform adapter for the use cases (standalone-compose|komodo|coolify)" "standalone-compose")
+  PLATFORM_SELECTION="standalone-compose"
+  info "$(t platform_label): $PLATFORM_SELECTION"
 fi
 info "Step 2/5 -- Initializing $SELECTED_KIT"
 installer_phase init
@@ -922,22 +981,19 @@ info "This can take a minute with little extra CLI output"
 run_stackkit_step generate
 ok "Deployment artifacts are ready"
 
-if [ "$INSTALL_MODE" != "auto" ]; then
+if [ "${STACKKIT_SKIP_APPLY:-}" = "1" ]; then
   echo ""
-  if ! prompt_yn "Deploy the homelab now (stackkit apply)?" "y"; then
-    echo ""
-    ok "Deployment intent is ready; apply skipped on request."
-    installer_journal_write state prepared
-    echo "  Continue manually:"
-    echo "    cd $HOMELAB_DIR"
-    echo "    stackkit plan"
-    echo "    stackkit apply"
-    echo ""
-    echo "  Project directory: $HOMELAB_DIR"
-    exit 0
-  fi
+  ok "$(t deploy_skip_notice)"
+  installer_journal_write state prepared
+  echo "  Continue manually:"
+  echo "    cd $HOMELAB_DIR"
+  echo "    stackkit plan"
+  echo "    stackkit apply"
   echo ""
+  echo "  Project directory: $HOMELAB_DIR"
+  exit 0
 fi
+info "$(t deploy_notice)"
 
 # One Apply. The canonical ResolvedPlan owns execution order across core
 # services and applications, so there is no separate platform-app stage to
@@ -1067,15 +1123,21 @@ case "$PAAS" in
 esac
 
 PROTO="http"
-[ "$ENABLE_HTTPS" = "true" ] && PROTO="https"
+if [ "$ENABLE_HTTPS" = "true" ] || [ ! -f "$TFVARS" ]; then PROTO="https"; fi
 DASH_URL="${PROTO}://base.${DOMAIN_EFFECTIVE}"
 PAAS_URL="${PROTO}://${PAAS_ROUTE}.${DOMAIN_EFFECTIVE}"
 AUTH_URL="${PROTO}://auth.${DOMAIN_EFFECTIVE}"
 ID_URL="${PROTO}://id.${DOMAIN_EFFECTIVE}"
 
 ACCESS_JSON="$HOMELAB_DIR/.stackkit/access.json"
+SETUP_URL=""
+CA_FINGERPRINT=""
+LINUX_PROFILE_SHA256=""
 HUB_URL=""
 if [ -f "$ACCESS_JSON" ]; then
+  SETUP_URL=$(grep -o '"setupUrl"[[:space:]]*:[[:space:]]*"[^"]*"' "$ACCESS_JSON" | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)"/\1/' || true)
+  CA_FINGERPRINT=$(grep -o '"caFingerprint"[[:space:]]*:[[:space:]]*"[^"]*"' "$ACCESS_JSON" | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)"/\1/' || true)
+  LINUX_PROFILE_SHA256=$(grep -o '"linuxProfileSha256"[[:space:]]*:[[:space:]]*"[^"]*"' "$ACCESS_JSON" | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)"/\1/' || true)
   HUB_URL=$(grep -o '"hubUrl"[[:space:]]*:[[:space:]]*"[^"]*"' "$ACCESS_JSON" | head -1 | sed -E 's/.*:[[:space:]]*"([^"]+)"/\1/' || true)
 fi
 
@@ -1085,6 +1147,17 @@ echo ""
 ok "Your homelab is running!"
 echo ""
 printf '\033[38;5;208m'
+if [ -n "$SETUP_URL" ]; then
+  echo "  Second device (same home network): $SETUP_URL"
+  echo "    Open this setup page first; it needs no DNS or certificate setup."
+  echo "    Choose your phone or laptop, configure DNS, then approve the homelab CA."
+  echo "    Before approving trust, compare this Owner-CA fingerprint with the page:"
+  echo "    $CA_FINGERPRINT"
+  echo "    Linux adapter SHA-256 (compare the downloaded file before running sudo):"
+  echo "    $LINUX_PROFILE_SHA256"
+  echo "    Then open the HTTPS Hub and create your PocketID passkey to sign in."
+  echo ""
+fi
 echo "  Dashboard:  ${HUB_URL:-$DASH_URL}"
 printf '\033[0m'
 echo ""
@@ -1125,27 +1198,22 @@ fi
 echo "    2. Sign in at ${AUTH_URL}"
 echo "    3. Open ${HUB_URL:-$DASH_URL} and protect the hub after owner setup"
 echo ""
-case "$DOMAIN_EFFECTIVE" in
-  localhost|*.localhost)
-    echo "  These .localhost links open on the server itself."
-    echo "  Access from another device requires a configured LAN domain and DNS."
-    echo ""
-    ;;
-  *.local|*.lab|*.lan|*.home|*.internal|*.test|home|homelab)
-    if [ -f "$HOMELAB_DIR/.stackkit/client-trust/enroll-linux.sh" ]; then
-      echo "  Linux client trust: copy this public profile through your trusted server access:"
-      echo "    $HOMELAB_DIR/.stackkit/client-trust/enroll-linux.sh"
-      echo "  Review the Owner-CA fingerprint in $ACCESS_JSON, then approve on the client:"
-      echo "    sudo sh enroll-linux.sh --approve"
-      echo "  Sign in using the same printed HTTPS URLs. Trust does not grant a service session."
-    else
-      echo "  The public client trust profile is unavailable; second-device DNS/TLS remains unverified."
-      echo "  Inspect the cause in the original workspace:"
-      echo "    stackkit -C \"$HOMELAB_DIR\" verify client-trust --export"
-    fi
-    echo ""
-    ;;
-esac
+if [ -z "$SETUP_URL" ]; then
+  case "$DOMAIN_EFFECTIVE" in
+    localhost|*.localhost)
+      echo "  These .localhost links open only on the server. Choose a LAN domain to use another device."
+      ;;
+    *.local|*.lab|*.lan|*.home|*.internal|*.test|home|homelab)
+      echo "  Second-device setup is unavailable; do not try the private names yet."
+      echo "  On the server, repair it with: stackkit -C \"$HOMELAB_DIR\" verify client-trust --export"
+      ;;
+    *)
+      echo "  Second device: open ${HUB_URL:-$DASH_URL}; public DNS and HTTPS need no client setup."
+      echo "  If it does not open, check the selected public reach mode and DNS on the server."
+      ;;
+  esac
+  echo ""
+fi
 echo "  Commands:"
 echo "    stackkit logs latest --json  Inspect local rollout evidence"
 echo "    Moving this server to another network? Run: stackkit network wifi add --ssid <name> --password-stdin"

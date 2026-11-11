@@ -14,7 +14,7 @@ Package: foundation.#UseCasePackage & {
 		layer:       "application"
 		category:    "dev"
 		lifecycle:   "experimental"
-		description: "Private repositories through native Git HTTPS and local owner custody. CI runners are not installed."
+		description: "Private repositories through native Git HTTPS and local owner custody, with an optional isolated Workbench host. CI runners are not installed."
 	}
 
 	selection: {
@@ -54,6 +54,8 @@ Package: foundation.#UseCasePackage & {
 		rationale:  "Pinned rootless Gitea with native authentication and private repositories."
 		capabilities: ["source-control", "git-hosting", "developer-collaboration"]
 	}
+	tools: "workbench-host": {moduleSlug: "workbench-host", role: "supporting", required: false, rationale: "Optional desktop-off host from the exact published Workbench Cloud Linux archive.", capabilities: ["user-host-agent-execution"]}
+
 	lifecycle: foundation.#StandardUseCaseLifecycle
 	evidence: {healthChecks: ["gitea-http"], required: ["route", "backup", "runtime-owner", "removal"]}
 	setup: {
@@ -67,7 +69,7 @@ Package: foundation.#UseCasePackage & {
 		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: []
-		apis: [{
+		apis: [{id: "workbench-host-jobs", protocol: "rest", purpose: "Optional host execution through Connect's existing workbench_host_task/workbench_host_result tools; explicit plain-profile assignment is required.", auth: "Gateway-signed run-bound capability lease"}, {
 			id:       "git-hosting"
 			protocol: "rest"
 			purpose:  "Observe the existing administrator through the selected upstream application's admitted API; application features remain upstream-owned."

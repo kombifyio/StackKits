@@ -11,9 +11,9 @@ required evidence item below is present for the exact public release tag.
 
 StackKits is not yet Enterprise production-ready for broad Public OSS use.
 The Enterprise hardening target is Basement Kit in `bootstrapped` mode, from
-released artifacts, with explicit limitations. Cloud Kit ships as
-`maturity: preview` and Modern Homelab as alpha scaffolding; neither carries an
-Enterprise claim. Unreleased kit definitions and non-graduated mode cells
+released artifacts, with explicit limitations. Cloud Kit and the Modern Homelab
+definition carry no Enterprise claim. Public-package status follows the
+generated, version-bound support table in the public release README. Unreleased kit definitions and non-graduated mode cells
 (`bare`, `advanced`) stay outside the public beta install surface until their
 rollout matrices graduate.
 
@@ -21,7 +21,7 @@ rollout matrices graduate.
 
 | Area | Current contract |
 | --- | --- |
-| Kit | Basement Kit (local), `bootstrapped` install mode only. Cloud Kit is preview and outside the Enterprise scope. |
+| Kit | Basement Kit (local), `bootstrapped` install mode only. Cloud Kit is outside the Enterprise scope; public-package support is versioned in the release README. |
 | Install path | Published `kombifyio/stackKits` release archives, `https://base.stackkit.cc` (Basement), or `https://cloud.stackkit.cc` (Cloud). |
 | Source surface | Curated public `kombifyio/stackKits` mirror only. A private-source build is not Enterprise release evidence. |
 | Operating system | Fresh Ubuntu target used by the production-style VM gate. |

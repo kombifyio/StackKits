@@ -17,6 +17,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/kombifyio/stackkits/cmd/stackkit/user"
 	"github.com/kombifyio/stackkits/internal/logging"
+	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/kombifyio/stackkits/internal/rollout"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/telemetry"
@@ -87,29 +88,9 @@ var (
 
 // rootCmd represents the base command
 var rootCmd = &cobra.Command{
-	Use:   "stackkit",
-	Short: "Set up and care for your own services with portable StackKits",
-	Long: `Run your own services from a portable StackKit definition.
-The standalone local path needs no kombify account or Techstack.
-
-Start in a dedicated deployment directory:
-  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com
-
-Then review your saved choices and follow the next step printed by init.
-Nothing is installed by init. Catalog defaults come from the selected Kit;
-explicit flags let you change its choices.
-
-Your local workflow:
-  init       Save your desired configuration
-  validate   Check the configuration
-  generate   Prepare the deployment artifacts
-  plan       Review infrastructure changes
-  apply      Execute the admitted changes
-  verify     Check the result
-  drift      Compare the running deployment with the applied plan
-
-Returning to an existing deployment? Run stackkit verify and stackkit drift detect in its directory.
-Use stackkit <command> --help for examples and detailed options.`,
+	Use:          "stackkit",
+	Short:        "Set up and care for your own services with portable StackKits",
+	Long:         rootLong(),
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		machineOutputCommandActive = commandRequestsMachineOutput(cmd)
@@ -125,10 +106,8 @@ Use stackkit <command> --help for examples and detailed options.`,
 		if machineOutputCommandActive && strings.TrimSpace(progressJSONL) == "-" {
 			return machineAwareCommandError(cmd, fmt.Errorf("machine JSON output cannot share stdout with --progress-jsonl -; select a file path"))
 		}
-		if cmd == verifyCmd && cmd.Flags().Changed("expected-ril-primitive-hash") {
-			if err := requireRILPrimitiveHash("verify-stackkit-state", verifyRILPrimitiveHash); err != nil {
-				return machineAwareCommandError(cmd, err)
-			}
+		if err := admitRILPrimitive(cmd); err != nil {
+			return machineAwareCommandError(cmd, err)
 		}
 		if err := admitCommandBeforeDeployObservability(cmd); err != nil {
 			return machineAwareCommandError(cmd, err)
@@ -249,6 +228,7 @@ func init() {
 	rootCmd.AddCommand(newNetworkCommand())
 	rootCmd.AddCommand(newRelocateCommand())
 	rootCmd.AddCommand(newDeviceCommand())
+	rootCmd.AddCommand(newConnectCommand())
 	rootCmd.AddCommand(newVPNCommand())
 	rootCmd.AddCommand(newReachCommand())
 	rootCmd.AddCommand(outputTransactionCmd)
@@ -694,4 +674,28 @@ func getWorkDir() string {
 		return workDir
 	}
 	return wd
+}
+
+func rootLong() string {
+	return fmt.Sprintf(`Run your own services from a portable StackKit definition.
+The standalone local path needs no kombify account or Techstack.
+
+Start in a dedicated deployment directory:
+  %s
+
+Then review your saved choices and follow the next step printed by init.
+Nothing is installed by init. Catalog defaults come from the selected Kit;
+explicit flags let you change its choices.
+
+Your local workflow:
+  init       Save your desired configuration
+  validate   Check the configuration
+  generate   Prepare the deployment artifacts
+  plan       Review infrastructure changes
+  apply      Execute the admitted changes
+  verify     Check the result
+  drift      Compare the running deployment with the applied plan
+
+Returning to an existing deployment? Run stackkit verify and stackkit drift detect in its directory.
+Use stackkit <command> --help for examples and detailed options.`, publicpath.InitCommand(publicpath.InitOptions{Kit: "basement-kit"}))
 }

@@ -130,7 +130,7 @@ export PATH="$(dirname "$release_stackkit"):$PATH"
 export STACKKIT_RELEASE_FIXTURE_URL="$fixture_url"
 cd "$project"
 
-timeout 30 "$release_stackkit" init modern-homelab --owner-source=local \
+timeout 30 "$release_stackkit" init modern-homelab --catalog-defaults --owner-source=local --owner-email owner@example.test \
   --domain modern-live.smoke.stackkit.cc --non-interactive >"$output/init.log" 2>&1
 timeout 30 "$release_stackkit" kit verify --json >"$output/release-bootstrap.json"
 jq -e --arg version "$tag" '

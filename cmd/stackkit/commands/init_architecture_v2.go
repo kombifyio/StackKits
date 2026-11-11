@@ -15,11 +15,13 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/netenv"
 	"github.com/kombifyio/stackkits/internal/productkits"
+	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 const architectureV2DomainOverride = "network.domain.base"
@@ -27,6 +29,9 @@ const architectureV2DomainOverride = "network.domain.base"
 func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	dataProfile, err := runtimeprofile.FromBootEnv()
 	if err != nil {
+		return err
+	}
+	if err := resolveArchitectureV2InitOwnerSource(); err != nil {
 		return err
 	}
 	if err := validateArchitectureV2InitFlags(cmd); err != nil {
@@ -308,6 +313,9 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		printInfo("Local execution binding: %s / %s / %s", custody.Binding.SiteRef, custody.Binding.NodeRef, custody.Binding.ChannelRef)
 	}
 	printInfo("StackKit: %s", stackkitName)
+	if strings.TrimSpace(initOwnerSource) != "local" {
+		printWarning("No local owner was established, so apply will refuse this workspace. Establish the owner with: %s", publicpath.CustodyRepairCommand(displayPath))
+	}
 	if document, readErr := stackspecmigration.Read(validation.CanonicalStackSpec); readErr == nil && document.Version == stackspecmigration.SourceVersionV2Alpha1 {
 		printWarning("Explicit v2alpha1 compatibility adapter: install.computeTier selects the legacy kit graph. Native v2alpha2 uses module-local profiles.")
 	}
@@ -379,6 +387,34 @@ func architectureV2CanonicalAddress(canonicalStackSpec []byte) (localevidence.Id
 	return localevidence.IdentityRuntimeAddress{Domain: domain, SubdomainPrefix: strings.TrimSpace(spec.Network.Domain.SubdomainPrefix)}, nil
 }
 
+// resolveArchitectureV2InitOwnerSource makes the standalone local owner the
+// default of native init, because it is the only owner source native init
+// accepts: an owner flag implies it, and a person at a terminal is asked for the
+// owner address instead of being refused. Scripts (--non-interactive) and
+// candidate specs keep stating the owner explicitly.
+func resolveArchitectureV2InitOwnerSource() error {
+	if strings.TrimSpace(initOwnerSource) != "" {
+		return nil
+	}
+	if strings.TrimSpace(initOwnerEmail) != "" || strings.TrimSpace(initOwnerUsername) != "" || strings.TrimSpace(initOwnerDisplayName) != "" {
+		initOwnerSource = "local"
+		return nil
+	}
+	if initNonInteractive || strings.TrimSpace(initCandidateSpec) != "" {
+		return nil
+	}
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return nil
+	}
+	initOwnerSource = "local"
+	email, err := newPrompter().inputString("Owner email (stays on this machine; becomes the owner login of your homelab)", "")
+	if err != nil {
+		return fmt.Errorf("prompt owner email: %w", err)
+	}
+	initOwnerEmail = strings.TrimSpace(email)
+	return nil
+}
+
 func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 	if err := validateInitCandidateFlags(cmd); err != nil {
 		return err
@@ -398,9 +434,6 @@ func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 		source := strings.TrimSpace(initOwnerSource)
 		if source != "" && source != "local" {
 			return fmt.Errorf("native Architecture v2 standalone init accepts only --owner-source=local")
-		}
-		if source == "" && (strings.TrimSpace(initOwnerEmail) != "" || strings.TrimSpace(initOwnerUsername) != "" || strings.TrimSpace(initOwnerDisplayName) != "") {
-			return fmt.Errorf("--owner-email, --owner-username, and --owner-display-name require --owner-source=local")
 		}
 		return nil
 	}
@@ -455,6 +488,9 @@ func selectArchitectureV2InitKit(args []string) (string, *prompter, error) {
 		return "", nil, fmt.Errorf("native Architecture v2 init accepts a canonical product slug, not a local StackKit path")
 	}
 
+	if stackkitName == "" {
+		stackkitName = candidateSpecKit()
+	}
 	if stackkitName == "" {
 		stackkitName = string(stackspecmigration.KitProfileBasement)
 	}
@@ -537,4 +573,24 @@ func architectureV2CanonicalIdentityOrigin(canonicalStackSpec []byte) (host, sou
 		return "", ""
 	}
 	return resolvedplan.IdentityOriginOf(address.Domain)
+}
+
+// candidateSpecKit names the Kit of the --candidate-spec file, so adopting an
+// existing StackSpec (the owner repair command) needs no Kit argument. A
+// candidate on stdin or one that cannot be read leaves the choice to the
+// caller; the candidate admission then reports the real problem.
+func candidateSpecKit() string {
+	path := strings.TrimSpace(initCandidateSpec)
+	if path == "" || path == "-" {
+		return ""
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || len(raw) == 0 || len(raw) > maxInitCandidateBytes {
+		return ""
+	}
+	document, err := stackspecmigration.Read(raw)
+	if err != nil || document.V2 == nil {
+		return ""
+	}
+	return string(document.V2.KitProfile)
 }

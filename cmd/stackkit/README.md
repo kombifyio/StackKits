@@ -18,7 +18,7 @@ make build
 
 ```bash
 # from an empty working directory
-stackkit init basement-kit
+stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com
 stackkit prepare
 stackkit generate
 stackkit plan

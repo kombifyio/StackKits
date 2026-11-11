@@ -2459,6 +2459,37 @@ target scope, recovery relationship, evidence shape, executor identity, and
 explicit provider/lease/credential/transport/command prohibitions. Module
 extensions remain bound to their exact module and provider contracts.
 
+Exactly thirteen primitives are executor-bound: `verify-stackkit-state`,
+`start-service`, `stop-service`, `restart-service`, `update-service`,
+`check-backup`, `run-backup` and the six host primitives
+`start-host-container`, `stop-host-container`, `restart-host-container`,
+`start-host-unit`, `stop-host-unit` and `restart-host-unit`. Each uses the approval class
+`agent-equipment` (the acting agent's equipment answers the Gateway Decision),
+and the released binary carries one contract-hash marker per primitive that
+must equal the normalized catalog. The matching CLI commands (`verify`,
+`service start|stop|restart`, `application control` by its `--action`,
+`upgrade`, `backup status`, `backup run`) refuse an
+`--expected-ril-primitive-hash` that differs from their own primitive's hash.
+The service power primitives take an optional `application-ref` input
+(`object:application/<container id>`) that names an adopted application; the
+node then runs application control of exactly that container with the
+primitive's own verb. A host primitive (executor `stackkits-guard-host-executor-v1`,
+run by the Guard itself, not by a StackKits command) binds exactly one verb and
+one object: `host-container-ref` (`object:container/<container name or id>`) or
+`host-unit-ref` (`object:unit/<unit>.service`) on a runtime-instance target; the
+Guard refuses a StackKits-managed container and every protected container or
+unit. Every other primitive stays contract-only.
+
+`grant.connectorBindingRequired` is `false` for exactly the executor-bound
+primitives and `true` for every contract-only one (CUE enforces both). An
+executor-bound primitive's authority is the acting agent's equipment receipt
+plus the Gateway lease and claim, so the managed service entry
+(`run_managed_service_action`) creates its cards without a connector binding.
+An agent that creates the card through its ril-ops connector still binds it to
+a connector binding, and that binding must carry the primitive's own grant
+scope (for example `stackkit-service-restart`); a binding for any other scope
+cannot drive the primitive.
+
 Those facts are metadata, not a StackKits-hosted RIL executor. Techstack owns
 action cards, admission, durable idempotency, dispatch, transport, runtime
 inventory, and provider/server lifecycle. StackKits exposes no RIL HTTP route

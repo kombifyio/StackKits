@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/backupexec"
+	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/spf13/cobra"
 )
 
@@ -138,6 +139,11 @@ var backupStatusCmd = &cobra.Command{
   # The same status as JSON
   stackkit backup status --json`,
 	RunE: runBackupStatus,
+}
+
+func init() {
+	bindRILPrimitive(backupStatusCmd, "check-backup")
+	bindRILPrimitive(backupRunCmd, "run-backup")
 }
 
 var backupRunCmd = &cobra.Command{
@@ -328,7 +334,7 @@ func runBackupInit(cmd *cobra.Command, args []string) error {
 	printInfo("Local backup CLI (Kopia engine) — readiness checklist")
 	fmt.Println()
 	fmt.Println("  1. Materialize and verify the standalone Basement core:")
-	fmt.Println("       stackkit init --catalog-defaults --owner-source=local --owner-email you@example.com")
+	fmt.Println("       " + publicpath.InitCommand(publicpath.InitOptions{}))
 	fmt.Println("       stackkit validate")
 	fmt.Println("       stackkit generate")
 	fmt.Println("       stackkit apply")

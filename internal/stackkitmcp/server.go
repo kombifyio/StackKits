@@ -205,16 +205,16 @@ func (a *App) OpenMCPJSON() []byte {
 }
 
 func (a *App) addDocs(server *mcp.Server) {
-	mcp.AddTool(server, mcpTool("stackkit_docs_search", "Search embedded StackKits docs, prompts, and OpenAPI snippets.", true, false, true), a.docsSearch)
-	mcp.AddTool(server, mcpTool("stackkit_api_overview", "List StackKits API endpoints from the embedded OpenAPI spec.", true, false, true), a.apiOverview)
-	mcp.AddTool(server, mcpTool("stackkit_api_endpoint", "Return OpenAPI details for one StackKits endpoint path.", true, false, true), a.apiEndpoint)
-	mcp.AddTool(server, mcpTool("stackkit_get_openapi_spec", "Return the StackKits OpenAPI YAML.", true, false, true), a.getOpenAPISpec)
-	mcp.AddTool(server, mcpTool("stackkit_application_delivery_compatibility", "Return the CUE-owned application compatibility matrix for Coolify, Komodo, and standalone Compose.", true, false, true), a.applicationDeliveryCompatibility)
-	mcp.AddTool(server, mcpTool("stackkit_use_case_compute_tiers", "Legacy v2alpha1 compatibility facts only. Native intent uses stackkit_module_profiles, not a kit-wide tier.", true, false, true), a.useCaseComputeTiers)
-	mcp.AddTool(server, mcpTool("stackkit_module_profiles", "List native module-owned compute, storage and accelerator profile contracts from embedded CUE authority. Missing resource axes stay unknown; no profile is selected or recommended.", true, false, false), a.moduleProfiles)
-	mcp.AddTool(server, mcpTool("stackkit_install_plan", "Return a safe BaseKit install plan for agents. Creating the homelab needs the email address of the person who becomes its first owner; the plan names where it goes.", true, false, true), a.installPlan)
-	mcp.AddTool(server, mcpTool("stackkit_self_check_plan", "Return ordered StackKits agent self-check probes.", true, false, true), a.selfCheckPlan)
-	stateConsoleTool := mcpTool("stackkit_state_console", "Return StackKits State Console metadata.", true, false, true)
+	mcp.AddTool(server, mcpTool("stackkit_docs_search", "Use first when unsure how StackKits works. Search the embedded docs, prompts and API notes; returns short matching snippets.", true, false, true), a.docsSearch)
+	mcp.AddTool(server, mcpTool("stackkit_api_overview", "Use to see which stackkit-server HTTP endpoints exist. Lists method and path only.", true, false, true), a.apiOverview)
+	mcp.AddTool(server, mcpTool("stackkit_api_endpoint", "Use after stackkit_api_overview to read one endpoint: parameters, request and response shape.", true, false, true), a.apiEndpoint)
+	mcp.AddTool(server, mcpTool("stackkit_get_openapi_spec", "Use only when you need the full OpenAPI document; it is large. Prefer stackkit_api_overview and stackkit_api_endpoint.", true, false, true), a.getOpenAPISpec)
+	mcp.AddTool(server, mcpTool("stackkit_application_delivery_compatibility", "Use before adopting or delivering an existing application. Returns which apps work with Coolify, Komodo and standalone Compose.", true, false, true), a.applicationDeliveryCompatibility)
+	mcp.AddTool(server, mcpTool("stackkit_use_case_compute_tiers", "Legacy v2alpha1 facts only. For new work use stackkit_module_profiles; there is no kit-wide compute tier.", true, false, true), a.useCaseComputeTiers)
+	mcp.AddTool(server, mcpTool("stackkit_module_profiles", "Use before choosing module resource profiles. Lists each module's compute, storage and accelerator profiles; unknown axes stay unknown and nothing is recommended.", true, false, true), a.moduleProfiles)
+	mcp.AddTool(server, mcpTool("stackkit_install_plan", "Use first when the user wants a new homelab. Returns the ordered, safe BaseKit install steps. Ask the user for the email address of the person who becomes the first owner; the plan shows where it goes.", true, false, true), a.installPlan)
+	mcp.AddTool(server, mcpTool("stackkit_self_check_plan", "Use to check that the StackKits binaries are installed and healthy, and for recovery guidance on known failures. Returns ordered probes; runs nothing.", true, false, true), a.selfCheckPlan)
+	stateConsoleTool := mcpTool("stackkit_state_console", "Use to open the visual State Console for state review, planning and approvals. Returns its metadata.", true, false, true)
 	stateConsoleTool.Meta["ui"] = map[string]any{"resourceUri": stateConsoleResourceURI}
 	stateConsoleTool.Meta["openai/outputTemplate"] = stateConsoleResourceURI
 	stateConsoleTool.Meta["openai/toolInvocation/invoking"] = "Opening StackKits State Console"
@@ -272,10 +272,10 @@ func (a *App) addDocs(server *mcp.Server) {
 }
 
 func (a *App) addLocal(server *mcp.Server) {
-	mcp.AddTool(server, mcpTool("stackkit_validate_spec", "Validate a local stack-spec.yaml without mutating rollout artifacts.", true, false, true), a.validateSpec)
-	mcp.AddTool(server, mcpTool("stackkit_generate_preview", "Preview local generation readiness without writing files.", true, false, true), a.generatePreview)
-	mcp.AddTool(server, mcpTool("stackkit_compat_check", "Return a compatibility-check command plan.", true, false, true), a.compatCheck)
-	mcp.AddTool(server, mcpTool("stackkit_config_get", "Read the local stack-spec.yaml or kombination.yaml without mutation.", true, false, true), a.configGet)
+	mcp.AddTool(server, mcpTool("stackkit_validate_spec", "Use to check a stack-spec.yaml for errors before planning. Changes nothing.", true, false, true), a.validateSpec)
+	mcp.AddTool(server, mcpTool("stackkit_generate_preview", "Use to see whether generation would work, before generating. Writes no files.", true, false, true), a.generatePreview)
+	mcp.AddTool(server, mcpTool("stackkit_compat_check", "Use to get the commands that check whether this host can run a kit. Returns the plan; runs nothing.", true, false, true), a.compatCheck)
+	mcp.AddTool(server, mcpTool("stackkit_config_get", "Use to read the workspace's current stack-spec.yaml or kombination.yaml. Read-only.", true, false, true), a.configGet)
 }
 
 func (a *App) addServerTools(server *mcp.Server, nativeActions bool) {
@@ -283,12 +283,12 @@ func (a *App) addServerTools(server *mcp.Server, nativeActions bool) {
 		return
 	}
 	mcp.AddTool(server, operationMCPTool(standaloneoperations.Capacity), a.assessCapacity)
-	mcp.AddTool(server, mcpTool("stackkit_status", "GET /api/v1/status from stackkit-server.", true, false, true), a.status)
-	mcp.AddTool(server, mcpTool("stackkit_logs_list", "GET /api/v1/logs from stackkit-server.", true, false, true), a.logsList)
-	mcp.AddTool(server, mcpTool("stackkit_log_get", "GET /api/v1/logs/{runID} from stackkit-server.", true, false, true), a.logGet)
+	mcp.AddTool(server, mcpTool("stackkit_status", "Use to read the node-local StackKit rollout status from stackkit-server. It is not proof the services are healthy; verify it separately. Read-only.", true, false, true), a.status)
+	mcp.AddTool(server, mcpTool("stackkit_logs_list", "Use to list recent rollout runs and their outcome. Read-only.", true, false, true), a.logsList)
+	mcp.AddTool(server, mcpTool("stackkit_log_get", "Use after stackkit_logs_list to read one run's log by run ID. Read-only.", true, false, true), a.logGet)
 	if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
-		mcp.AddTool(server, mcpTool("stackkit_verify", "POST /api/v1/verify against the exact v0.6 stackkit-server.", true, false, false), a.verify)
-		mcp.AddTool(server, mcpTool("stackkit_doctor", "POST /api/v1/doctor against the exact v0.6 stackkit-server.", true, false, false), a.doctor)
+		mcp.AddTool(server, mcpTool("stackkit_verify", "Use to verify an exact v0.6 stackkit-server installation. Reads state only.", true, false, false), a.verify)
+		mcp.AddTool(server, mcpTool("stackkit_doctor", "Use to diagnose an exact v0.6 stackkit-server installation. Reads state only.", true, false, false), a.doctor)
 	}
 }
 
@@ -296,7 +296,7 @@ func (a *App) addActions(server *mcp.Server) {
 	if !stackspecadmission.RejectOperationalV1(a.opts.Version) {
 		return
 	}
-	mcp.AddTool(server, mcpTool("stackkit_config_set", "Create or expected-spec-hash compare-and-swap a canonical CUE-validated StackSpec v2.", false, true, true), a.configSet)
+	mcp.AddTool(server, mcpTool("stackkit_config_set", "Use to create the StackSpec, or to change it when you pass the current expected_spec_hash. Writes the StackSpec only; a stale hash is refused.", false, true, true), a.configSet)
 	if a.cliBinding == nil {
 		return
 	}
@@ -549,6 +549,7 @@ func enabledModes(modes map[string]bool) []string {
 
 func stackkitPrompts() []map[string]any {
 	return []map[string]any{
+		{"name": "stackkit_homelab_agent"},
 		{"name": "stackkit_basekit_autonomous_rollout"},
 		{"name": "stackkit_inspect_existing_rollout"},
 		{"name": "stackkit_diagnose_failed_rollout"},

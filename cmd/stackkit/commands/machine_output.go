@@ -199,6 +199,20 @@ func commandFailureDetail(cmd *cobra.Command, err error, guidance ...string) (st
 		)
 		return "failed", detail
 	}
+	var notConfigured *backuplifecycle.NotConfiguredError
+	if errors.As(err, &notConfigured) {
+		return "failed", actionableerror.New(
+			"stackkit_command_failed", "backup_not_configured",
+			logging.RedactText(err.Error()), notConfigured.Guidance(), false,
+		)
+	}
+	var sourceUnavailable *backupSourceUnavailableError
+	if errors.As(err, &sourceUnavailable) {
+		return "failed", actionableerror.New(
+			"stackkit_command_failed", "backup_source_unavailable",
+			logging.RedactText(err.Error()), sourceUnavailable.Guidance(), false,
+		)
+	}
 	var staleSchedule *localbackupschedule.StaleAuthorizationError
 	if errors.As(err, &staleSchedule) {
 		detail := actionableerror.New(

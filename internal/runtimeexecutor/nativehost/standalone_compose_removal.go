@@ -470,7 +470,7 @@ func (r standaloneComposeRemover) inspectPresentContainers(
 		if !exists {
 			continue
 		}
-		if status.Image != component.ImageRef+"@"+component.ImageDigest {
+		if status.Image != composeComponentImage(component) {
 			return nil, fmt.Errorf("standalone Compose component %q differs from its pinned image", component.ID)
 		}
 		id := strings.TrimPrefix(strings.TrimSpace(status.ID), "sha256:")

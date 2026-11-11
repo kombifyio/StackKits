@@ -14,6 +14,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/hostsecurity"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 )
@@ -98,15 +99,23 @@ func newArchitectureV2ProductRuntimeAuthority(workspaceRoot string, options arch
 	return authority, nil
 }
 
+// errLocalApplyCustodyMissing names the one command that establishes the owner
+// of a workspace that already holds a StackSpec: it re-persists the spec
+// unchanged, so no expected spec hash and no new selection is needed.
+func errLocalApplyCustodyMissing() error {
+	return fmt.Errorf(
+		"this workspace has no local Apply evidence custody; run `%s` to establish the homelab owner before Apply",
+		publicpath.CustodyRepairCommand(""),
+	)
+}
+
 // localApplyCustodyError keeps the established guidance for a workspace that
 // has neither owner nor member custody.
 func localApplyCustodyError(err error) error {
 	if errors.Is(err, localevidence.ErrOwnerCustodyMissing) {
 		var memberDenial *localevidence.MemberSigningDenial
 		if !errors.As(err, &memberDenial) {
-			return fmt.Errorf(
-				"this workspace has no local Apply evidence custody; run `stackkit init --owner-source=local` to establish the homelab owner before Apply",
-			)
+			return errLocalApplyCustodyMissing()
 		}
 	}
 	return err
@@ -156,18 +165,14 @@ func newArchitectureV2ProductVerifyAuthority(workspaceRoot string, _ architectur
 func newLocalOwnerApplyEvidenceCollector(workspaceRoot string) (architecturev2.ProductApplyEvidenceCollector, architecturev2.ProductApplyTrustAnchor, localevidence.LocalBinding, error) {
 	custody, err := localevidence.LoadOwnerCustody(workspaceRoot)
 	if errors.Is(err, localevidence.ErrOwnerCustodyMissing) {
-		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf(
-			"this workspace has no local Apply evidence custody; run `stackkit init --owner-source=local` to establish the homelab owner before Apply",
-		)
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, errLocalApplyCustodyMissing()
 	}
 	if err != nil {
 		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("load local owner custody: %w", err)
 	}
 	key, err := localevidence.LoadOwnerKey(workspaceRoot)
 	if errors.Is(err, localevidence.ErrOwnerKeyMissing) {
-		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf(
-			"this workspace has no local Apply evidence custody; run `stackkit init --owner-source=local` to establish the homelab owner before Apply",
-		)
+		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, errLocalApplyCustodyMissing()
 	}
 	if err != nil {
 		return nil, architecturev2.ProductApplyTrustAnchor{}, localevidence.LocalBinding{}, fmt.Errorf("load local Apply evidence custody: %w", err)
@@ -474,6 +479,9 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	standaloneApplications := []func() (architecturev2.ProductRuntimeOwnerRegistration, error){
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductNtfyLiveSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		},
+		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductWorkbenchHostSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
 		},
 		func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
 			return architecturev2.NewProductEmbySelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)

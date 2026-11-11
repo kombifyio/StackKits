@@ -29,9 +29,9 @@ func materializeAdvancedCandidateSecrets(workspace string, candidate []byte) ([]
 		return nil, fmt.Errorf("decode Advanced candidate secret authority: %w", err)
 	}
 	refs := map[string]struct{}{}
-	for _, workload := range spec.Workloads {
-		for _, ref := range workload.SecretRefs {
-			if trimmed := strings.TrimSpace(ref); strings.HasPrefix(trimmed, "secret://") {
+	for name, workload := range spec.Workloads {
+		for slot, ref := range workload.SecretRefs {
+			if trimmed := strings.TrimSpace(ref); !externallyIssuedWorkloadSecret(name, slot) && strings.HasPrefix(trimmed, "secret://") {
 				refs[trimmed] = struct{}{}
 			}
 		}
@@ -47,4 +47,17 @@ func materializeAdvancedCandidateSecrets(workspace string, candidate []byte) ([]
 		}
 	}
 	return ordered, nil
+}
+
+// externallyIssuedWorkloadSecrets names the workload secret slots whose value is
+// issued outside StackKits and imported by an explicit setup command; generated
+// custody never invents them, so a missing import stays a missing-custody refusal.
+var externallyIssuedWorkloadSecrets = map[string]string{
+	// Imported by stackkit setup workbench-host-release.
+	"dev-workbench": "release-token",
+}
+
+func externallyIssuedWorkloadSecret(workload, slot string) bool {
+	issued, ok := externallyIssuedWorkloadSecrets[workload]
+	return ok && issued == slot
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-11-10T06:48:56Z",
+  "generated_at": "2026-11-11T18:50:47Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1997,6 +1997,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "workbench-host",
+      "display_name": "Workbench headless host",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Optional Linux x64 Workbench Cloud host from the exact Desktop Delivery archive. Explicit Connect enrollment and installed-provider setup; M13 acceptance pending. No host socket or host home mount. Executable secret custody and launch belong to native-v2 dev-workbench; this legacy scaffold is not an unattended installer.",
+      "contract_hash": "6976a977acd01b6116fd266b3517602e2d26343d50707e354fcf974fd629b6ec",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "zigbee2mqtt",

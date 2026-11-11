@@ -3075,14 +3075,22 @@ _servicePublicationShape: {
 		required:        true
 		authority:       "techstack"
 		policyAuthority: "gateway"
-		class:           "owner-step-up" | "break-glass"
+		// agent-equipment: the acting agent's equipment answers the Decision
+		// through Gateway policy (D-2026-10-23-06), never a per-use person
+		// prompt. Every executor-bound primitive uses it.
+		class:           "owner-step-up" | "break-glass" | "agent-equipment"
 		receiptRequired: true
 	}
 	grant: {
 		required: true
 		audience: "stackkits"
 		scopes: [...#ContractID] & list.MinItems(1)
-		connectorBindingRequired: true
+		// An executor-bound primitive is authorized by the acting agent's
+		// equipment receipt plus the Gateway lease and claim; the managed
+		// service entry creates its cards without a connector binding. An
+		// agent that enters through its ril-ops connector still binds that
+		// card to a binding carrying this primitive's grant scope.
+		connectorBindingRequired: bool
 		_scopesUnique:            list.UniqueItems(scopes) & true
 	}
 	target: {
@@ -3145,9 +3153,12 @@ _servicePublicationShape: {
 	}
 	if support == "contract-only" {
 		executorRef?: _|_
+		grant: connectorBindingRequired: true
 	}
 	if support == "executor-bound" {
 		executorRef: #ContractID
+		approval: class: "agent-equipment"
+		grant: connectorBindingRequired: false
 	}
 	if destructive {
 		mutation: true
@@ -6639,33 +6650,36 @@ _otlpTransportPostureV1: {
 	privilegedInterfaceApprovals: [...#PrivilegedInterfaceApprovalV2] | *[]
 	rilActionExecutors: [...#RILActionExecutorContractV1] | *[]
 	rilActionPrimitives: [...#RILActionPrimitiveContractV1] | *[]
-	_rilExecutorClosure: [for primitive in rilActionPrimitives if primitive.support == "executor-bound" {
-		primitive: primitive.id
-		executor:  primitive.executorRef
-		matches: [for executor in rilActionExecutors if executor.ref == primitive.executorRef for operationClass in executor.operationClasses if operationClass == primitive.owner.operationClass {executor.ref}] & list.MinItems(1) & list.MaxItems(1)
+	// Loop variables must not share a label of the struct they build: a field
+	// label shadows the variable inside that struct.
+	_rilExecutorClosure: [for candidate in rilActionPrimitives if candidate.support == "executor-bound" {
+		primitive: candidate.id
+		executor:  candidate.executorRef
+		matches: [for boundExecutor in rilActionExecutors if boundExecutor.ref == candidate.executorRef for operationClass in boundExecutor.operationClasses if operationClass == candidate.owner.operationClass {boundExecutor.ref}] & list.MinItems(1) & list.MaxItems(1)
 	}]
-	_rilRecoveryClosure: [for primitive in rilActionPrimitives if primitive.recovery.kind == "primitive" {
-		primitive: primitive.id
-		recovery:  primitive.recovery.primitiveRef
-		matches: [for target in rilActionPrimitives if target.id == primitive.recovery.primitiveRef && target.mutation {target.id}] & list.MinItems(1) & list.MaxItems(1)
+	_rilRecoveryClosure: [for candidate in rilActionPrimitives if candidate.recovery.kind == "primitive" {
+		primitive: candidate.id
+		recovery:  candidate.recovery.primitiveRef
+		matches: [for target in rilActionPrimitives if target.id == candidate.recovery.primitiveRef && target.mutation {target.id}] & list.MinItems(1) & list.MaxItems(1)
 	}]
 	_rilModuleExtensionClosure: [
-		for module in modules
-		for primitive in module.rilActionPrimitives {
-			primitive: primitive.id
-			module:    module.metadata.id
-			provider:  module.providerRef
-			authority: primitive.extensionAuthority & {
+		for owningModule in modules
+		for candidate in owningModule.rilActionPrimitives {
+			primitive: candidate.id
+			module:    owningModule.metadata.id
+			provider:  owningModule.providerRef
+			authority: candidate.extensionAuthority & {
 				kind:        "module"
-				moduleRef:   module.metadata.id
-				providerRef: module.providerRef
+				moduleRef:   owningModule.metadata.id
+				providerRef: owningModule.providerRef
 			}
 			matches: [
 				for catalogPrimitive in rilActionPrimitives
-				if catalogPrimitive.id == primitive.id &&
+				if catalogPrimitive.extensionAuthority != _|_
+				if catalogPrimitive.id == candidate.id &&
 					catalogPrimitive.extensionAuthority.kind == "module" &&
-					catalogPrimitive.extensionAuthority.moduleRef == module.metadata.id &&
-					catalogPrimitive.extensionAuthority.providerRef == module.providerRef {catalogPrimitive.id},
+					catalogPrimitive.extensionAuthority.moduleRef == owningModule.metadata.id &&
+					catalogPrimitive.extensionAuthority.providerRef == owningModule.providerRef {catalogPrimitive.id},
 			] & list.MinItems(1) & list.MaxItems(1)
 		},
 	]

@@ -31,7 +31,7 @@ another application workload; platform services such as `cloud-core` are
 fine.
 
 - One Cloud node: initialize it with only the mail server,
-  `stackkit init cloud-kit --use-case mail-server`. Adding another
+  `stackkit init cloud-kit --catalog-defaults --owner-source=local --owner-email you@example.com --use-case mail-server`. Adding another
   application use case to that node is refused.
 - Several Cloud nodes: add a worker node for mail, set
   `workloads.mail-server.placement.nodeRefs` to that node only, and set the

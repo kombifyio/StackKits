@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -66,6 +67,18 @@ type cliReference struct {
 	GlobalFlags   []cliReferenceFlag    `json:"globalFlags"`
 	Groups        []cliReferenceGroup   `json:"groups"`
 	Commands      []cliReferenceCommand `json:"commands"`
+	// PublicPath is the published install path (internal/publicpath), carried so
+	// the public documentation prints the commands the CLI hints use.
+	PublicPath cliReferencePublicPath `json:"publicPath"`
+}
+
+type cliReferencePublicPath struct {
+	InstallCommand        string   `json:"installCommand"`
+	CLIOnlyInstallCommand string   `json:"cliOnlyInstallCommand"`
+	InstallerResult       []string `json:"installerResult"`
+	QuickStart            []string `json:"quickStart"`
+	ConnectCommand        string   `json:"connectCommand"`
+	AccessEvidence        string   `json:"accessEvidence"`
 }
 
 type cliReferenceGroup struct {
@@ -157,6 +170,14 @@ func renderCLIReference(root *cobra.Command) ([]byte, error) {
 		GlobalFlags:   cliReferenceFlags(root.PersistentFlags(), false, ""),
 		Groups:        []cliReferenceGroup{},
 		Commands:      []cliReferenceCommand{},
+		PublicPath: cliReferencePublicPath{
+			InstallCommand:        publicpath.InstallCommand(),
+			CLIOnlyInstallCommand: publicpath.CLIOnlyInstallCommand(),
+			InstallerResult:       publicpath.InstallerResult(),
+			QuickStart:            publicpath.QuickStart(),
+			ConnectCommand:        publicpath.ConnectCommand(),
+			AccessEvidence:        publicpath.AccessEvidence(),
+		},
 	}
 	for _, group := range root.Groups() {
 		reference.Groups = append(reference.Groups, cliReferenceGroup{

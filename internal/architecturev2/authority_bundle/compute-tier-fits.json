@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:6da2c7093f848fee2fe85d5aa1a95afa165858ef80eaa0ae17ecd9cc701f2cd1",
+  "contentDigest": "sha256:a29e45b66ac758b0bafd659e58886b46c501d7bbd83299e55a2662999430dea1",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -1635,6 +1635,54 @@
       "title": "Automation"
     },
     {
+      "addOns": [
+        {
+          "alternatives": [
+            {
+              "id": "workbench-host",
+              "modules": [
+                {
+                  "computeProfileFacts": {
+                    "standard": {
+                      "executable": true,
+                      "hostFloor": {
+                        "allowedArchitectures": [
+                          "amd64"
+                        ],
+                        "minCpuCores": 2,
+                        "minRamGB": 4,
+                        "minStorageGB": 20
+                      },
+                      "maturity": "experimental",
+                      "provenance": {
+                        "hostFloor": {
+                          "ref": "Kombify host floor support policy",
+                          "source": "policy"
+                        },
+                        "reservation": {
+                          "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                          "source": "policy"
+                        }
+                      },
+                      "realization": "apply-ready",
+                      "reservation": {
+                        "ramGB": 0.5
+                      }
+                    }
+                  },
+                  "computeProfiles": [
+                    "standard"
+                  ],
+                  "id": "stackkits-workbench-host-runtime"
+                }
+              ],
+              "name": "workbench-host"
+            }
+          ],
+          "defaultAlternative": "workbench-host",
+          "id": "dev-workbench"
+        }
+      ],
       "alternatives": [
         {
           "id": "forgejo",
@@ -1772,6 +1820,12 @@
           "kind": "application",
           "name": "Gitea",
           "role": "primary"
+        },
+        {
+          "id": "workbench-host",
+          "kind": "application",
+          "name": "Workbench host",
+          "role": "supporting"
         }
       ],
       "computeTiers": {
@@ -1823,6 +1877,17 @@
         "title": "Dev"
       },
       "settings": [
+        {
+          "default": false,
+          "depth": "summary",
+          "group": "features",
+          "help": "Run agent work through Connect with the Desktop switched off.",
+          "id": "workbench-host",
+          "kind": "toggle",
+          "name": "Workbench host",
+          "realization": "install",
+          "workloadRef": "dev-workbench"
+        },
         {
           "default": false,
           "depth": "summary",

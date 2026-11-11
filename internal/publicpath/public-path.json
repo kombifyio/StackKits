@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "stackkits-public-path/v1",
+  "installCommand": "curl -sSL https://install.stackkit.cc | sh",
+  "cliOnlyInstallCommand": "curl -sSL https://install.stackkit.cc | STACKKIT_CLI_ONLY=1 sh",
+  "versionCommand": "stackkit version",
+  "defaultKit": "basement-kit",
+  "workspaceDir": "my-homelab",
+  "ownerEmail": {
+    "example": "you@example.com",
+    "placeholder": "<owner-email>"
+  },
+  "init": {
+    "selectionFlag": "--catalog-defaults",
+    "ownerFlag": "--owner-source=local",
+    "emailFlag": "--owner-email",
+    "domainFlag": "--domain",
+    "nonInteractiveFlag": "--non-interactive"
+  },
+  "custodyRepair": {
+    "specFlag": "--candidate-spec",
+    "specPath": "stack-spec.yaml"
+  },
+  "afterInit": [
+    "stackkit validate",
+    "stackkit generate",
+    "stackkit apply",
+    "stackkit logs latest --json",
+    "cat .stackkit/access.json"
+  ],
+  "afterInstaller": [
+    "stackkit version",
+    "stackkit logs latest --json",
+    "cat .stackkit/access.json"
+  ],
+  "connectCommand": "sudo stackkit connect --server https://techstack.kombify.io",
+  "accessEvidence": ".stackkit/access.json"
+}

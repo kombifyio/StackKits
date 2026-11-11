@@ -948,10 +948,12 @@ UseCaseCatalog: #UseCaseCatalog & {
 			mainUseCase: id: "dev"
 			docs: "/guides/stackkits/use-cases/development"
 			components: {
+				"workbench-host": {id: "workbench-host", name: "Workbench host", role: "supporting", kind: "application"}
 				gitea: {id: "gitea", name: "Gitea", role: "primary", kind: "application"}
 				forgejo: {id: "forgejo", name: "Forgejo", role: "alternative", kind: "application"}
 			}
 			settings: [
+				{id: "workbench-host", name: "Workbench host", kind: "toggle", group: "features", depth: "summary", help: "Run agent work through Connect with the Desktop switched off.", default: false, realization: "install", workloadRef: "dev-workbench"},
 				{
 					id:          "ci-runners"
 					name:        "CI runners"

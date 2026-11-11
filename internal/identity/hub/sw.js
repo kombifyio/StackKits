@@ -5,7 +5,7 @@
 // LAN listener: the Access Gate keeps /device/ local-only, so a readable edge
 // on a remote path never replaces the code that holds the device key. The
 // worker never touches an identity route.
-const SHELL = 'stackkit-hub-shell-v2';
+const SHELL = 'stackkit-hub-shell-v3';
 const ASSETS = ['/device/', '/device/app.js', '/device/app.css', '/device/manifest.webmanifest', '/device/icon-192.png', '/device/icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -23,6 +23,8 @@ function refresh(path) {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith('/device/')) return;
+  // Setup is fetched fresh and must never become the cached sign-in shell.
+  if (url.pathname === '/device/setup' || url.pathname.startsWith('/device/setup/')) return;
   // Every navigation inside the scope (the callback included) is the shell.
   const path = event.request.mode === 'navigate' ? '/device/' : url.pathname;
   if (!ASSETS.includes(path)) return;

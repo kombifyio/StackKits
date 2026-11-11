@@ -25,14 +25,14 @@ var (
 
 var appCmd = &cobra.Command{
 	Use:   "app",
-	Short: "Inspect StackKits application delivery and manage v0.6 handoffs",
+	Short: "Inspect application delivery and run a Techstack own application",
 	Long: `Inspect the governed Architecture v2 application-delivery matrix for
 Coolify, Komodo, and standalone Compose.
 
 Optional customer PaaS handoff metadata remains available only on the explicit
-v0.6 StackSpec compatibility line. Architecture v2 has no arbitrary customer-
-workload mapping; StackKit-owned applications come from the CUE catalog, while
-customer-workload desired state belongs to Techstack.`,
+v0.6 StackSpec compatibility line. StackKit-owned applications come from the CUE
+catalog. Customer-workload desired state belongs to Techstack: app own consumes
+its versioned one-container document on an installed Direct Compose Home node.`,
 }
 
 var appAddCmd = &cobra.Command{

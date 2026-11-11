@@ -96,7 +96,12 @@ type Retained struct {
 	RetainedUntil time.Time `json:"retained_until"`
 }
 
-// Processor reports the deletion mechanism of a downstream processor.
+// Processor reports a confirmed effect on a registered processor route. Name
+// is the processor register ID; Action distinguishes lookups, inventories,
+// content reads, archives and committed mutations. Reference binds the request
+// and route or a verified artifact digest, never a subject, credential or URL.
+// Partial effects remain reported if a later step fails. This is the
+// participant's statement, not a provider certificate or a retention promise.
 type Processor struct {
 	Name      string `json:"name"`
 	Action    string `json:"action"`

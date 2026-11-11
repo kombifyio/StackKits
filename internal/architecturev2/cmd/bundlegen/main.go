@@ -221,6 +221,7 @@ var rendererWorkloadImages = []rendererWorkloadImage{
 	{moduleID: "stackkits-searxng-runtime", goPrefix: "searxng"},
 	{moduleID: "stackkits-tika-runtime", goPrefix: "tika"},
 	{moduleID: "stackkits-ntfy-live-runtime", goPrefix: "ntfyLive"},
+	{moduleID: "stackkits-workbench-host-runtime", goPrefix: "workbenchHost"},
 	{moduleID: "stackkits-docling-runtime", goPrefix: "docling"},
 	{moduleID: "stackkits-litellm-runtime", goPrefix: "litellm"},
 	{moduleID: "stackkits-qdrant-runtime", goPrefix: "qdrant"},

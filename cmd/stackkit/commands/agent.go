@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/kombifyio/stackkits/internal/stackkitmcp"
 	"github.com/kombifyio/stackkits/internal/standaloneoperations"
 	"github.com/spf13/cobra"
@@ -59,11 +60,14 @@ var (
 // read operations). Mutating tools stay behind STACKKIT_MCP_ALLOW_WRITE.
 const defaultAgentMCPModes = "docs,local,server,actions"
 
+var agentBasementInit = publicpath.InitCommand(publicpath.InitOptions{Kit: "basement-kit", Email: publicpath.EmailPlaceholder(), NonInteractive: true})
+var agentModernInit = publicpath.InitCommand(publicpath.InitOptions{Kit: "modern-homelab", Email: publicpath.EmailPlaceholder(), Domain: "<domain-base>", NonInteractive: true})
+
 var agentPromptBodies = map[string]string{
 	"basekit-autonomous-rollout": `You are operating StackKits autonomously on a fresh controlled host. Deploy BaseKit only.
 
 Run:
-stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive
+` + agentBasementInit + `
 stackkit validate
 stackkit generate
 stackkit plan
@@ -93,7 +97,7 @@ Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or
 Require an observed Inventory plus any ExternalHostBinding/HostConformanceReceipt from the host or TechStack owner. Never put provider credentials, lifecycle, or management addresses into StackSpec.
 
 Run:
-stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive
+` + agentBasementInit + `
 stackkit validate
 stackkit generate
 stackkit plan
@@ -102,7 +106,7 @@ stackkit verify --json`,
 	"family-photo-vault-lifecycle": `Operate the Family Photo Vault through the common standalone StackKits operation registry.
 
 Install from the CUE-owned Modern reference profile:
-stackkit init modern-homelab --domain <domain-base> --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive
+` + agentModernInit + `
 stackkit validate
 stackkit generate
 stackkit plan
@@ -374,10 +378,11 @@ func buildAgentInstallPlan(kit, target, workspace string) agentInstallPlan {
 	if workspace == "" {
 		workspace = "my-homelab"
 	}
-	initCommand := "stackkit init " + kit + " --catalog-defaults --owner-source=local --owner-email <owner-email> --non-interactive"
+	initOptions := publicpath.InitOptions{Kit: kit, Email: publicpath.EmailPlaceholder(), NonInteractive: true}
 	if kit == "cloud-kit" || kit == "modern-homelab" {
-		initCommand += " --domain <domain-base>"
+		initOptions.Domain = "<domain-base>"
 	}
+	initCommand := publicpath.InitCommand(initOptions)
 	scenario := "basekit-autonomous-rollout"
 	if kit == "modern-homelab" {
 		scenario = "family-photo-vault-standalone-rollout"

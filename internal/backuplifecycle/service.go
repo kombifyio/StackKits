@@ -534,6 +534,9 @@ func (s *Service) Status(ctx context.Context, input StatusInput) (RepositoryStat
 		return RepositoryStatus{}, err
 	}
 	configuration, err := s.boundConfiguration(input)
+	if errors.Is(err, os.ErrNotExist) {
+		return RepositoryStatus{}, &NotConfiguredError{}
+	}
 	if err != nil {
 		return RepositoryStatus{}, err
 	}
@@ -1544,6 +1547,28 @@ func (e *ConfigurationBindingError) Guidance() []string {
 	}
 	return []string{
 		"The stored backup configuration belongs to a different Owner or human authority than the current Apply; verify local Owner custody with `stackkit verify --json` before any backup command.",
+	}
+}
+
+// NotConfiguredError reports a server on which no backup was ever configured:
+// there is no repository, schedule or receipt the status could read. It is a
+// local condition with exact remedies, reported instead of the bare missing
+// file so a dashboard, an agent and a person see what is missing and what to
+// do. It unwraps to os.ErrNotExist like the missing configuration it stands for.
+type NotConfiguredError struct{}
+
+func (e *NotConfiguredError) Error() string {
+	return "backuplifecycle: no backup is configured on this server, so there is nothing to check; set one up first (see the guidance)"
+}
+
+func (e *NotConfiguredError) Unwrap() error { return os.ErrNotExist }
+
+// Guidance lists what is missing and how to set a backup up, per kit.
+func (e *NotConfiguredError) Guidance() []string {
+	return []string{
+		"No backup is configured on this server yet: it has no backup repository, so no snapshot or restore receipt exists to check.",
+		"Basement Kit and the home server of a Modern Homelab: the owner sets it up once on the server with `stackkit backup configure`, takes a first snapshot with `stackkit backup run`, and keeps it current with `stackkit backup schedule enable --owner-approve`.",
+		"Cloud Kit managed by kombify: the stack's managed backup schedule configures the repository and takes the first snapshot; enable the backup for the stack in Techstack, then check again after its first run.",
 	}
 }
 

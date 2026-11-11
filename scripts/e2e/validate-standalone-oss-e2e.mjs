@@ -8,6 +8,10 @@ import { fileURLToPath } from 'node:url'
 
 import { readComposeOriginScope } from './compose-origin-scope.mjs'
 
+// The init the public text prints (internal/publicpath/public-path.json, shipped in
+// the public export); the receipt names it with the owner address placeholder.
+const publicPath = JSON.parse(readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'internal', 'publicpath', 'public-path.json'), 'utf8'))
+const publishedInit = ['stackkit init', publicPath.init.selectionFlag, publicPath.init.ownerFlag, publicPath.init.emailFlag, publicPath.ownerEmail.placeholder].join(' ')
 const receiptSchema = 'stackkit.oss-e2e-receipt/v2'
 const eventSchema = 'stackkit.network-event/v1'
 const recorderSchema = 'stackkit.hermetic-network-log/v2'
@@ -24,7 +28,7 @@ const forbiddenHostSuffixes = [
 const phaseContract = [
   {
     id: 'authoring',
-    commands: ['stackkit init --owner-source=local', 'stackkit validate', 'stackkit generate']
+    commands: [publishedInit, 'stackkit validate', 'stackkit generate']
   },
   {
     id: 'runtime',

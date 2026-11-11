@@ -131,7 +131,7 @@ func (a *App) runCatalogOperation(ctx context.Context, operation standaloneopera
 		TimeoutSeconds: int(integerInput(in, "timeout_seconds")),
 	}
 	_, envelopeAgent := EnvelopeAgentFromContext(ctx)
-	if !operation.Mutation || envelopeAgent {
+	if !operation.Mutation || envelopeAgent || operation.ID == "stackkit.app.own" {
 		confined, err := a.confineFileArguments(operation, in, envelopeAgent)
 		if err != nil {
 			out := errorOutput(operation.ToolName, err)

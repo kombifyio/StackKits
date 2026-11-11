@@ -94,10 +94,8 @@ local checks. On current releases, run verify on the deployed host.`,
 	RunE: runVerify,
 }
 
-var verifyRILPrimitiveHash string
-
 func init() {
-	verifyCmd.Flags().StringVar(&verifyRILPrimitiveHash, "expected-ril-primitive-hash", "", "Require the verified embedded RIL primitive contract hash")
+	bindRILPrimitive(verifyCmd, "verify-stackkit-state")
 	verifyCmd.Flags().BoolVar(&verifyJSON, "json", false, "Emit machine-readable JSON")
 	verifyCmd.Flags().BoolVar(&verifyHTTP, "http", false, "Verify generated service URLs with HTTP requests")
 	verifyCmd.Flags().BoolVar(&verifyStrict, "strict", false, "Treat warnings as verification failure")

@@ -1,63 +1,116 @@
 # StackKits
 
-StackKits is an open-source infrastructure blueprint system for self-hosted
-homelab and small-server deployments. **Every deployment is executed and
-tracked by OpenTofu; managed deployments are orchestrated by Terramate**
-(ADR-0045). Standalone Docker Compose remains the complete primary application
-experience: containers run as Compose workloads inside that OpenTofu-tracked
-stack. Standard Mode runs independently, without a Kombify account, Techstack,
-Coolify, or Komodo. Basement Kit defaults to the `opentofu` execution target;
-Cloud Kit and Modern Homelab currently default to `compose`, with
-`opentofu`/`terramate` available, switching after each kit's own end-to-end
-run.
-
-The CLI is an optional user-facing interface to the same governed lifecycle,
-not a separate full edition. Komodo and Coolify are explicit opt-in
-integrations. Development proceeds from complete standalone Compose to Komodo,
-then Coolify; Dokploy remains draft. Existing explicit platform selections are
-preserved. See [the standalone decision](docs/ADR/ADR-0042-standalone-default-and-optional-platforms.md)
-for the application-default contract and the separate runtime-evidence
-requirements.
+**A professional homelab on a computer you already have, with one command.**
+StackKits sets up a secured, backed-up homelab at home or in the cloud and keeps
+the whole setup as one blueprint you can read, version and take anywhere. The
+standard is open and works entirely on its own.
 
 ## Install
 
-Basement Kit — local / homelab:
+Run this on the computer that becomes your homelab, as a user who can use `sudo`:
 
-```sh
-curl -sSL https://base.stackkit.cc | sh
-```
-
-Cloud Kit — cloud VM / BYO-VPS:
-
-```sh
-curl -sSL https://cloud.stackkit.cc | sh
-```
-
-Modern Homelab — combined Home + Cloud topology (alpha definition archive, not an install target yet):
-
+<!-- public-path:begin install -->
 ```sh
 curl -sSL https://install.stackkit.cc | sh
-stackkit init modern-homelab --non-interactive --name my-modern-homelab
 ```
+<!-- public-path:end install -->
 
-The Modern archive and catalog entry prove self-contained native-v2 authoring
-and validation. They do not claim that every federation runtime owner is
-graduated.
+The installer asks a few questions and every one has a default you accept with
+Enter, except your email address, which becomes your owner login. It
+installs the kit that fits the computer (Basement Kit at home, Cloud Kit on a
+public server) and ends with your access details in one file. You get running
+services and a sign-in for you.
 
-For the CLI plus the public kit catalog (two install paths plus the Modern
-alpha definition), use the same `install.stackkit.cc` installer and select the
-desired kit with `stackkit init`.
+On your phone or laptop, join the same home network and open the **Second device**
+address printed by the installer (`http://<server-LAN-IP>/device/setup`). This page
+opens without DNS or certificate setup. Choose your device type and follow its
+two steps: configure homelab DNS and approve the public homelab CA after comparing
+its SHA-256 fingerprint with the install terminal. On Linux, also compare the
+whole downloaded adapter file’s SHA-256 with the installer’s Linux adapter digest
+before running it with sudo. It has instructions for iPhone,
+Android, Windows, macOS and Linux. Then open the HTTPS Hub, create your Pocket ID
+owner passkey on first use and sign in. The address is also `secondDevice.setupUrl`
+in `.stackkit/access.json`, and the Hub links back to setup. No router change or
+kombify account is required for this private home mode. Public-domain or
+kombify.me installations use the printed HTTPS Hub directly, with no client DNS
+or CA setup; these modes require their own domain/Me registration and reach setup.
 
+## Let kombify AI operate it
+
+The homelab runs on its own. To have kombify AI look after it, connect the server
+to your kombify account: start the Techstack setup for your own server at
+<https://app.kombify.io/dashboard/tools/stack/connect>. On the server where you
+installed StackKits, copy and run the setup’s complete command, then copy its
+one-time pairing and paste it when the terminal asks **Pairing (hidden):**.
+Press Enter. The pairing is not displayed, saved to a file or entered in shell
+history. Never put it in a command argument. The setup shows when it expires
+and **Get a new pairing** replaces it when needed.
+
+The public command downloads the Techstack installer and runs it as root to
+install the kombify Guard service:
+
+<!-- public-path:begin connect -->
+```sh
+sudo stackkit connect --server https://techstack.kombify.io
+```
+<!-- public-path:end connect -->
+
+For self-hosted Techstack, copy the complete command from that installation's
+own-server setup; it includes its actual configured `--server` origin.
+`KOMBI_SERVER` also overrides the public default (plain sudo can drop environment
+variables, so prefer `--server`). If an origin is wrong or unreachable, the command
+names it and points back to this setup. A private LAN origin needs the setup's
+pinned install command, which also asks for the pairing without echo.
+For automation, keep a root-owned pairing file with mode `0600` and pass
+`--token-file /root/kombify-pairing` instead of using the terminal prompt.
+
+A free account is enough: the server then shows its state in kombify Cloud and
+kombify AI supports it. Changes that kombify AI makes for you come with the paid
+plans.
+
+## The step-by-step path
+
+Prefer to see each step? Install only the CLI, then run the same steps by hand:
+
+<!-- public-path:begin step-by-step -->
+```sh
+curl -sSL https://install.stackkit.cc | STACKKIT_CLI_ONLY=1 sh
+mkdir my-homelab && cd my-homelab
+stackkit init --catalog-defaults --owner-source=local --owner-email you@example.com
+stackkit validate
+stackkit generate
+stackkit apply
+stackkit logs latest --json
+cat .stackkit/access.json
+```
+<!-- public-path:end step-by-step -->
+
+## Kits
+
+Select the kit with `stackkit init`:
+
+<!-- kit-support:begin -->
 | Kit | Target | Status |
 | --- | --- | --- |
-| Basement Kit | an existing Linux host at home | supported one-command path |
-| Cloud Kit | an existing VPS with your own domain | preview |
-| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive |
+| Basement Kit | an existing Linux host at home | alpha at v0.57.8; no public-package pass recorded |
+| Cloud Kit | an existing VPS with your own domain | alpha at v0.57.8; no public-package pass recorded |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.57.8; no public-package pass recorded |
+<!-- kit-support:end -->
 
 A published release is source and distribution evidence, not runtime
 acceptance. Each release ships `release-evidence.json`; kit and use-case
 runtime evidence is summarized on <https://stackkit.cc> and a status only
-widens when a cited run exists.
+widens when a cited run exists. Modern Homelab ships in every release as a
+definition archive for authoring and validation; it is not an install target.
+
+## How it works
+
+Every deployment is executed and tracked by OpenTofu; managed deployments are
+orchestrated by Terramate (ADR-0045). Docker Compose workloads run inside that
+tracked stack, and CUE files are the technical source of truth for schemas,
+defaults and kit composition. Komodo and Coolify are explicit opt-in
+integrations. See [the standalone decision](docs/ADR/ADR-0042-standalone-default-and-optional-platforms.md)
+for the application-default contract.
 
 ## Website, docs and community
 

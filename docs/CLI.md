@@ -18,10 +18,11 @@ stackkit version
 
 The shared installer installs `stackkit`, `stackkit-server`, `stackkit-mcp`,
 packaged OpenTofu, packaged Terramate, and the public kit catalog under
-`~/.stackkits`, so `stackkit init basement-kit` works from a clean directory
-without a repo checkout. Basement Kit is the verified standalone path; Cloud Kit
-exposes the same kombify-account-free intent bootstrap with an explicit domain and ships
-as a preview, while Modern Homelab is alpha scaffolding. The installer also adds a
+`~/.stackkits`, so `stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com` works from a clean directory
+without a repo checkout. Basement Kit targets home hosts; Cloud Kit exposes
+the same kombify-account-free intent bootstrap with an explicit domain. Modern
+Homelab is a definition archive. The release README gives the generated,
+version-bound public-package support table. The installer also adds a
 short `sk -> stackkit` symlink when the `sk` name is free — it never overwrites
 an existing `sk` (e.g. `skim`). Opt out with `STACKKIT_SKIP_SK_SYMLINK=1`.
 Unpinned installer runs use the GitHub `releases/latest` of
@@ -132,6 +133,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `vpn` | Switch the optional VPN add-on on with WireGuard, Headscale, Tailscale or Pangolin, list its peers, reconcile and switch it off (never a default). |
 | `network` | Move this server to another network: status, signed LAN re-bind, WiFi pre-staging and the self-re-binding watcher. |
 | `relocate` | Plan, check, drain, send and receive Coolify workloads moving to another server, with the pinned coolify-mirror engine and a Wallet-delivered transfer secret. |
+| `connect` | Bind this server, which already runs the public package, to the kombify account that created the pairing in the Techstack setup; a free account is enough. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
 
@@ -1135,6 +1137,31 @@ Remote reach of a home server's Basement core (root; `IDENTITY-STACKKITS.md` "Re
 - `reach enable --kombify-me | --wallet-item <tenant>/<item> | --owner-token-file <file>` runs the Cloudflare Tunnel connector on `stackkit-remote-connector`, which reaches only `http://stackkit-remote-listener.internal:8000`. It refuses to start unless that network holds only the remote router and the Home firewall isolates its bridge. With `--kombify-me` Me's tunnel must lead exactly to the remote listener, and the token arrives sealed to this node.
 - `reach status [--json]` shows the connector and Me's Cloudflare read-back; `reach disable` stops the connector, deletes its token and, in tunnel mode, has Me remove tunnel and DNS records; a node that holds the LAN certificate then publishes its LAN address again.
 - `reach lan-certificate issue --issuer zerossl|gts --eab-kid <kid> --eab-hmac-file <file>` first publishes the node's private site address for `lan.<base>.kombify.me` at Me (DNS-only, read back before anything is ordered; never a public address), then obtains the certificate through Me's DNS-01 responder, with the key generated and kept on the node. `status` shows it; `remove` deletes it and has Me remove the LAN address. The identity signer renews it and republishes the address, which Me removes with every tunnel teardown and with the base; a refused or unpublished address stops issuance and renewal before anything is ordered.
+
+### `stackkit connect`
+
+Binds a server that already runs StackKits to your kombify account. In Cloud,
+choose **Techstack → Connect server**, then copy and run the complete command:
+
+```sh
+sudo stackkit connect --server https://techstack.kombify.io
+```
+
+Copy the one-time pairing from setup and paste it at **Pairing (hidden):**, then
+press Enter. It is not echoed, written to a file or entered in shell history.
+Setup shows expiry and **Get a new pairing**. Automation can use a root-owned
+mode-0600 `--token-file`; `KOMBI_TOKEN` is also supported. Never put the pairing
+in an argument. Origin precedence is `--server`, `KOMBI_SERVER`, then
+`https://techstack.kombify.io`; copy the actual command from self-hosted setup.
+Private LAN uses that setup’s pinned installer instead.
+
+The command fetches `/install.sh` over HTTPS (loopback HTTP is allowed, redirects
+are refused), installs and enrolls kombify Guard, and reports the binding.
+Only the origin, pairing and service switch reach the installer; other caller
+`KOMBI_*` and `TECHSTACK_*` variables are removed. An already bound server reports
+its binding and changes nothing. A free account can connect and show state;
+operated changes need the appropriate paid plan.
+
 
 ### `stackkit vpn`
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/kombifyio/stackkits/internal/netenv"
+	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +36,7 @@ STACKKIT_NETWORK_ENV=home|vps|cloud|unknown overrides live detection.`,
   stackkit host environment --json
 
   # Override a wrong detection for the next command, here Basement Kit init on a home host
-  STACKKIT_NETWORK_ENV=home stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com`,
+  STACKKIT_NETWORK_ENV=home ` + publicpath.InitCommand(publicpath.InitOptions{Kit: "basement-kit"}),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			detected := netenv.Detect(cmd.Context())

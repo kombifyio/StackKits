@@ -86,7 +86,7 @@ OpenTofu is invoked by the `stackkit` CLI. Users should not edit generated `.tf`
 ## Quick Start
 
 ```bash
-stackkit init basement-kit
+stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com
 stackkit validate
 stackkit generate
 stackkit plan

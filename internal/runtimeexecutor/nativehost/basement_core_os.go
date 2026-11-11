@@ -22,6 +22,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/pocketidruntime"
 	"github.com/kombifyio/stackkits/internal/rollout"
+	"github.com/kombifyio/stackkits/internal/routerdiagnostics"
 )
 
 const basementCoreProcessOutputLimit = 256 << 10
@@ -285,6 +286,9 @@ func (o *osBasementCoreOperations) completeApplyWithIdentity(
 	// it: the OpenTofu executor runs no Compose `up` when its root is unchanged.
 	if _, err := o.runner.Run(ctx, basementCoreComposeArgs(composePath, "up"), filepath.Dir(composePath), environment); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("start the local Basement core before PocketID owner %s: %w", identityAction, err)
+	}
+	if err := reconnectOwnApplicationNetworks(ctx, o.workspaceRoot); err != nil {
+		return localevidence.OwnerRuntimeBinding{}, err
 	}
 	binding, err := completeIdentity(ctx)
 	if err != nil {
@@ -689,6 +693,13 @@ func inspectBasementCoreComposeStatus(raw []byte, expected []BasementCoreService
 type osBasementCoreProber struct{}
 
 func (osBasementCoreProber) Probe(ctx context.Context, expectation BasementCoreHealthExpectation) error {
+	if expectation.Kind == "http" && expectation.Port == 8080 {
+		if len(expectation.ExpectedStatuses) != 1 || expectation.ExpectedStatuses[0] != 200 || (expectation.Path != routerdiagnostics.HomePing && expectation.Path != routerdiagnostics.HomeMCPRoute) {
+			return errors.New("unadmitted Home router health probe")
+		}
+		_, err := routerdiagnostics.ReadHome(ctx, expectation.Path)
+		return err
+	}
 	timeout := 30 * time.Second
 	if expectation.Kind == "tcp" {
 		dialer := net.Dialer{Timeout: timeout}

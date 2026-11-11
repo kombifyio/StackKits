@@ -107,6 +107,7 @@ type ApplicationDeliveryComponentDescriptor struct {
 	Lifecycle         string
 	HealthFailure     string
 	ImageRef          string
+	ImageID           string
 	ImageDigest       string
 	DependsOn         []string
 	NetworkRefs       []string
@@ -234,9 +235,10 @@ type ApplicationDeliveryVolumeDescriptor struct {
 // ApplicationDeliveryBundleDescriptor is the validated provider-neutral
 // workload graph used by the StackKits-owned standalone adapter.
 type ApplicationDeliveryBundleDescriptor struct {
-	LocalNetwork  *runtimeprofile.LocalNetwork
-	DataProfile   runtimeprofile.DataProfile
-	OfflineBundle *runtimeprofile.OfflineBundleRef
+	OwnApplication bool
+	LocalNetwork   *runtimeprofile.LocalNetwork
+	DataProfile    runtimeprofile.DataProfile
+	OfflineBundle  *runtimeprofile.OfflineBundleRef
 	// RequiredPrivilege is the verified catalog service endpoint admission.
 	RequiredPrivilege string
 	WorkloadRef       string
@@ -271,6 +273,12 @@ func StandaloneComposeConfigRelPath(containerPath string) string {
 // returns no secret material. Product executors perform their stricter
 // product/version graph validation before invoking an operations owner.
 func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBundleDescriptor, error) {
+	var identity struct {
+		APIVersion string `json:"apiVersion"`
+	}
+	if json.Unmarshal(data, &identity) == nil && identity.APIVersion == "stackkit.own-application-bundle/v1" {
+		return OwnApplicationDescriptor(data)
+	}
 	path := "applicationDeliveryWorkloadBundle"
 	var bundle selectedPaaSWorkloadBundle
 	if err := decodeStrict(data, &bundle); err != nil {

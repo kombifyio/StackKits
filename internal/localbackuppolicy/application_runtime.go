@@ -14,6 +14,8 @@ import (
 // policy so lifecycle consumers cannot infer stop order from Docker names or
 // mutable container labels.
 type ApplicationRuntime struct {
+	// Retained is a removed own application whose named data remains protected.
+	Retained          bool                          `json:"retained,omitempty"`
 	RuntimeAdapterRef string                        `json:"runtimeAdapterRef,omitempty"`
 	WorkloadRef       string                        `json:"workloadRef"`
 	SiteRef           string                        `json:"siteRef"`
@@ -32,6 +34,7 @@ type ApplicationRuntimeComponent struct {
 	HealthFailure string   `json:"healthFailure,omitempty"`
 	ImageRef      string   `json:"imageRef"`
 	ImageDigest   string   `json:"imageDigest"`
+	ImageID       string   `json:"imageID,omitempty"`
 	DependsOn     []string `json:"dependsOn"`
 }
 
@@ -96,6 +99,9 @@ func canonicalApplicationRuntimes(runtimes []ApplicationRuntime) ([]ApplicationR
 }
 
 func validateApplicationRuntime(runtime ApplicationRuntime) error {
+	if runtime.Retained && (!strings.HasPrefix(runtime.WorkloadRef, "own-") || runtime.RuntimeAdapterRef != "standalone-compose") {
+		return fmt.Errorf("only removed own applications retain detached backup volumes")
+	}
 	if runtime.RuntimeAdapterRef != "" && runtime.RuntimeAdapterRef != "standalone-compose" && runtime.RuntimeAdapterRef != "coolify" && runtime.RuntimeAdapterRef != "komodo" && runtime.RuntimeAdapterRef != "runtipi" && runtime.RuntimeAdapterRef != "dokploy" {
 		return fmt.Errorf("unsupported application runtime adapter")
 	}
@@ -134,6 +140,9 @@ func validateApplicationRuntime(runtime ApplicationRuntime) error {
 		if !contractIDPattern.MatchString(component.ImageRef) || strings.Contains(component.ImageRef, "@") ||
 			!imageDigestPattern.MatchString(component.ImageDigest) {
 			return fmt.Errorf("component %q has an unpinned image", component.ComponentRef)
+		}
+		if component.ImageID != "" && (!strings.HasPrefix(runtime.WorkloadRef, "own-") || !imageDigestPattern.MatchString(component.ImageID)) {
+			return fmt.Errorf("invalid own application local image identity")
 		}
 		seen[component.ComponentRef] = struct{}{}
 	}

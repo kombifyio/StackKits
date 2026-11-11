@@ -1211,6 +1211,10 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		return options.applySink(applyOutput)
 	}
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
+	if access.SecondDevice != nil {
+		fmt.Printf("Second device (same home network): %s\nOpen this setup page first; it needs no DNS or CA setup. Follow its device-specific DNS and certificate steps. Compare Owner CA %s before approving trust.\n", access.SecondDevice.SetupURL, access.ClientTrust.CAFingerprint)
+		fmt.Printf("Linux adapter SHA-256 (compare the downloaded file before sudo): %s\n", access.ClientTrust.LinuxProfileSHA256)
+	}
 	if access.ClientTrust != nil && access.ClientTrust.LinuxProfilePath != "" {
 		fmt.Printf("Client trust: copy %s to a Linux NetworkManager client, review CA %s, then run sudo sh enroll-linux.sh --approve.\n", filepath.Join(wd, access.ClientTrust.LinuxProfilePath), access.ClientTrust.CAFingerprint)
 	}

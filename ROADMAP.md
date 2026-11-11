@@ -8,14 +8,22 @@ Basement, Cloud, and Modern Homelab kits.
 
 - Three public OSS kit surfaces share the `foundation/` library:
   - Basement Kit (`basement-kit`, local `context`, installed via
-    `base.stackkit.cc`) — the supported one-command path.
+    `base.stackkit.cc`).
   - Cloud Kit (`cloud-kit`, cloud `context`, installed via
     `cloud.stackkit.cc`).
-  - Modern Homelab (`modern-homelab`) — public native-v2 alpha definition
+  - Modern Homelab (`modern-homelab`) — public native-v2 definition
     combining an explicit Home Site and Cloud Site. Archive presence proves
     authoring/validation only; incomplete runtime owners remain fail-closed.
 - Standalone Docker Compose is the primary application runtime. Komodo and
   Coolify are explicit integrations with separately stated evidence.
+
+<!-- kit-support:begin -->
+| Kit | Target | Status |
+| --- | --- | --- |
+| Basement Kit | an existing Linux host at home | alpha at v0.57.8; no public-package pass recorded |
+| Cloud Kit | an existing VPS with your own domain | alpha at v0.57.8; no public-package pass recorded |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.57.8; no public-package pass recorded |
+<!-- kit-support:end -->
 
 ## Release Priorities
 

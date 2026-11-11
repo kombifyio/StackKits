@@ -89,6 +89,7 @@ type standaloneComposeHTTPProber interface {
 // this boundary.
 type osStandaloneComposeWorkloadOperations struct {
 	workspaceRoot string
+	preview       bool
 	runner        standaloneComposeProcessRunner
 	prober        standaloneComposeHTTPProber
 	// ensureOIDCClient registers an application's Pocket ID client; nil uses
@@ -242,6 +243,9 @@ func (o *osStandaloneComposeWorkloadOperations) completeWorkloadCompose(ctx cont
 	if err := o.waitForBlockingComponents(ctx, project); err != nil {
 		return err
 	}
+	if project.bundle.OwnApplication {
+		return o.completeOwnApplication(ctx, project)
+	}
 	return o.waitForApplicationHTTP(ctx, project)
 }
 
@@ -300,7 +304,7 @@ func blockingStandaloneComposeReadiness(
 		if !exists {
 			return false, nil
 		}
-		if status.Image != component.ImageRef+"@"+component.ImageDigest {
+		if status.Image != composeComponentImage(component) {
 			return false, fmt.Errorf("standalone Compose blocking component %q differs from its pinned image", component.ID)
 		}
 		if component.Lifecycle == "one-shot" {
@@ -882,7 +886,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 	assignedConfig := map[string]struct{}{}
 	for _, component := range bundle.Components {
 		service := standaloneComposeService{
-			Image:       component.ImageRef + "@" + component.ImageDigest,
+			Image:       composeComponentImage(component),
 			Command:     standaloneComposeLiteralArguments(component.Command),
 			Entrypoint:  standaloneComposeLiteralArguments(component.Entrypoint),
 			DependsOn:   map[string]standaloneComposeDependency{},
@@ -903,6 +907,16 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 			service.Restart = "unless-stopped"
 			service.Logging = workloadLogging()
 			service.OOMScoreAdj = oomScoreAdjForRole(component.Role)
+		}
+		if bundle.OwnApplication {
+			service.PullPolicy = "never"
+			service.CapDrop = []string{"ALL"}
+			service.CapAdd = []string{"CHOWN", "SETUID", "SETGID", "NET_BIND_SERVICE"}
+			service.SecurityOpt = []string{"no-new-privileges:true"}
+			service.PidsLimit = 256
+			service.MemLimit = component.Resources.MemoryLimit
+			service.MemSwapLimit = component.Resources.MemoryLimit
+			service.CPUs = strconv.FormatFloat(component.Resources.CPUs, 'f', -1, 64)
 		}
 		for _, dependency := range component.DependsOn {
 			condition := "service_started"
@@ -933,7 +947,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 			if !exists {
 				return nil, nil, nil, errors.New("standalone component references an absent secret slot")
 			}
-			material, err := localevidence.ResolveLocalSecretMaterial(o.workspaceRoot, secretRef)
+			material, err := o.workloadSecretMaterial(secretRef)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("resolve owner-only material for secret slot %q: %w", slot, err)
 			}
@@ -960,6 +974,14 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 				service.Environment[environmentName] = strings.ReplaceAll(file.Reference, "$", "$$")
 				continue
 			}
+			if bundle.OwnApplication {
+				if strings.ContainsAny(string(material), "\x00\r\n") {
+					return nil, nil, nil, errors.New("own application secrets must be single-line environment values")
+				}
+				service.Environment[environmentName] = strings.ReplaceAll(string(material), "$", "$$")
+				clear(material)
+				continue
+			}
 			variable := standaloneComposeSecretVariable(component.ID, environmentName)
 			secretValues[variable] = string(material)
 			service.Environment[environmentName] = "${" + variable + ":?required}"
@@ -969,7 +991,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 			if !exists {
 				return nil, nil, nil, errors.New("standalone component references an absent secret file slot")
 			}
-			material, err := localevidence.ResolveLocalSecretMaterial(o.workspaceRoot, secretRef)
+			material, err := o.workloadSecretMaterial(secretRef)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("resolve owner-only material for secret file slot %q: %w", file.Slot, err)
 			}
@@ -1099,13 +1121,25 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 			}
 		}
 		if component.ID == bundle.EntryComponent {
-			service.Ports = []string{fmt.Sprintf("127.0.0.1::%d", component.HealthPort)}
+			if !bundle.OwnApplication {
+				service.Ports = []string{fmt.Sprintf("127.0.0.1::%d", component.HealthPort)}
+			}
 			if bundle.Route.ID != "" {
-				document.Networks["stackkit-routing"] = standaloneComposeNetwork{Name: routingNetwork, External: true}
-				service.Networks = append(service.Networks, "stackkit-routing")
+				if bundle.OwnApplication {
+					network := ownApplicationNetworkName(bundle.WorkloadRef, bundle.NodeRef)
+					document.Networks["own-private"] = standaloneComposeNetwork{Name: network, Internal: true, Labels: map[string]string{ownNetworkLabel: "v1"}}
+					service.Networks = []string{"own-private"}
+				} else {
+					document.Networks["stackkit-routing"] = standaloneComposeNetwork{Name: routingNetwork, External: true}
+					service.Networks = append(service.Networks, "stackkit-routing")
+				}
 				for key, value := range standaloneComposeRouteLabels(bundle.Route, o.originServes(bundle.Route)) {
 					service.Labels[key] = value
 				}
+				if bundle.OwnApplication {
+					service.Labels["traefik.docker.network"] = ownApplicationNetworkName(bundle.WorkloadRef, bundle.NodeRef)
+				}
+
 			} else {
 				// Docker cannot bind a published port for a container attached
 				// only to internal networks, so the loopback health port the
@@ -1308,6 +1342,11 @@ func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDelive
 		labels["traefik.http.routers."+remote+".rule"] = rule
 		labels["traefik.http.routers."+remote+".service"] = router
 	}
+	if route.ModuleRef == "stackkits-own-application-runtime" {
+		for key, value := range ownApplicationRouteLabels(route, originServed) {
+			labels[key] = value
+		}
+	}
 	return labels
 }
 
@@ -1504,15 +1543,21 @@ func (r osStandaloneComposeProcessRunner) Run(
 // forwards the live output to live. A streamed process (a model pull prints
 // thousands of progress updates) is not bounded by the 256 KiB buffer: the
 // writer keeps only the last bytes for diagnostics and the call returns them.
-func (osStandaloneComposeProcessRunner) RunStreaming(
+func (r osStandaloneComposeProcessRunner) RunStreaming(
 	ctx context.Context,
 	args []string,
 	directory string,
 	live io.Writer,
 ) ([]byte, error) {
+	routerMutation := ownRouterNetworkMutation(args)
+	if routerMutation {
+		if err := r.admitOwnRouterNetworkMutation(ctx, args, directory); err != nil {
+			return nil, err
+		}
+	}
 	dockerRootQuery := slices.Equal(args, standaloneComposeDockerRootArgs)
 	majorHoldDiscoveryQuery := validJellyfinDiscoveryQuery(args) || validImmichDiscoveryQuery(args) || validApplicationReleaseDiscoveryQuery(args)
-	if !dockerRootQuery && !majorHoldDiscoveryQuery && !validNetworkGatewayQuery(args) && !validWorkloadManagerQuery(args) && !validWorkloadVolumeCreateQuery(args, directory) && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
+	if !routerMutation && !dockerRootQuery && !majorHoldDiscoveryQuery && !validOwnApplicationImageQuery(args) && !validOwnNetworkQuery(args) && !validNetworkGatewayQuery(args) && !validWorkloadManagerQuery(args) && !validWorkloadVolumeCreateQuery(args, directory) && (len(args) < 9 || args[0] != "compose" || args[1] != "--project-name" ||
 		args[3] != "--env-file" || filepath.Dir(args[4]) != directory ||
 		filepath.Base(args[4]) != ".env" || args[5] != "-f" ||
 		filepath.Dir(args[6]) != directory || filepath.Base(args[6]) != "compose.yaml") {
@@ -1531,7 +1576,7 @@ func (osStandaloneComposeProcessRunner) RunStreaming(
 			return nil, err
 		}
 	}
-	command := exec.CommandContext(ctx, executable, fullLocalComposeUpArgs(args, 7)...)
+	command := exec.CommandContext(ctx, executable, append([]string{"--host", ownLocalDockerEndpoint()}, fullLocalComposeUpArgs(args, 7)...)...)
 	command.Dir = directory
 	command.Env = []string{"LANG=C", "LC_ALL=C"}
 	// Docker discovers system-wide Windows plugins below ProgramFiles. Keep
@@ -1732,7 +1777,7 @@ func standaloneComposeContainerIdentities(
 		}
 		seenComponents[component.ID] = struct{}{}
 		status, exists := statuses[component.ID]
-		if !exists || status.Image != component.ImageRef+"@"+component.ImageDigest {
+		if !exists || status.Image != composeComponentImage(component) {
 			return nil, fmt.Errorf("standalone Compose component %q differs from its pinned image", component.ID)
 		}
 		if requireIDs && strings.TrimSpace(status.ID) == "" {
@@ -1910,7 +1955,7 @@ var _ SelectedPaaSWorkloadOperations = (*osStandaloneComposeWorkloadOperations)(
 // public identity origin, which a step-ca leaf ordered for the exact host
 // would otherwise shadow whenever the router's Docker provider loads first.
 func (o *osStandaloneComposeWorkloadOperations) originServes(route architecturev2renderer.ApplicationDeliveryRouteDescriptor) bool {
-	if !route.TLSRequired || route.Host == "" {
+	if o.preview || !route.TLSRequired || route.Host == "" {
 		return false
 	}
 	return originca.Covers(o.workspaceRoot, route.Host) ||

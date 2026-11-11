@@ -149,6 +149,7 @@ checkpoint.`,
 		&publicUpgradeOwnerApprove, "owner-approve", false,
 		"Approve this fresh upgrade; required when the kit's upgrade policy requires Owner approval.",
 	)
+	bindRILPrimitive(command, "update-service")
 	command.Flags().BoolVar(
 		&publicUpgradeForward, "forward", false,
 		"With --recover: approve finishing an operation interrupted after target Apply by rerunning its exact target Apply and Verify.",

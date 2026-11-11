@@ -14,6 +14,37 @@ import (
 var troubleshootingOutput string
 var troubleshootingCheck bool
 
+// troubleshootingRouterDiagnostics is part of the same generator authority as
+// the tables above: the Home router exposes no published diagnostics port, so
+// the node command is the only supported read path.
+const troubleshootingRouterDiagnostics = `## Read Home router diagnostics on the node
+
+Basement and Basement Lite bind Traefik's diagnostics API to ` + "`127.0.0.1:8080`" + `
+**inside the router container**. There is no published diagnostics port: neither
+LAN peers, application containers nor the node's ` + "`localhost:8080`" + ` can read it.
+Run diagnostics on the node through Docker, selecting the current Compose router:
+
+` + "```sh" + `
+router_id=$(docker --host unix:///var/run/docker.sock ps --filter label=com.docker.compose.project=stackkit-basement-core --filter label=com.docker.compose.service=router --format '{{.ID}}' --no-trunc)
+docker --host unix:///var/run/docker.sock exec "$router_id" wget -qO- -T 5 'http://127.0.0.1:8080/api/http/routers?per_page=1000'
+` + "```" + `
+
+Keep this diagnostic output private; it contains route and backend identities.
+Home verification reads ` + "`/ping`" + ` and the exact MCP router through that same node/container path. The container healthcheck still uses ` + "`traefik healthcheck --ping`" + ` on that local
+entrypoint. Public-certificate fallback reads use the same fixed node-exec path;
+the node API and local MCP consume that service rather than connecting to a
+router diagnostics port. Techstack's monitoring uses node operations and has no
+Home router API network dependency. Cloud Kit's separate public-TLS observer is
+outside this Home change and keeps its existing node-loopback path.
+
+An existing Home installation recreates its core composition on the next normal
+upgrade/apply because the artifact revisions change. Web ports 80/443 and
+published application routes keep their existing policy. The old host-loopback
+8080 publication disappears; scripts that read it must use the node command
+above. No diagnostics become a public route. This source change does not perform
+an upgrade or touch an enrolled node.
+`
+
 var docsEmitTroubleshootingCmd = &cobra.Command{
 	Use: "emit-troubleshooting", Short: "Generate the shared standalone troubleshooting authority",
 	Long:        "Generate stable error IDs, causes and recovery actions from the same authority used by CLI failures and MCP self-check. With --check, refuse missing or stale documentation without writing.",
@@ -35,6 +66,8 @@ var docsEmitTroubleshootingCmd = &cobra.Command{
 			fmt.Fprintf(&out, "| `%s` | %s | %s | %t |\n", detail.ReasonCode, escape(detail.Message), escape(strings.Join(detail.UserGuidance, " ")), detail.Retryable)
 		}
 		out.WriteString("\nFor ACME rate limits, preserve the observed authority's `retryAfter` (RFC 3339 UTC); never invent an earlier retry time. Changing servers while requesting the same address does not reset the duplicate-certificate limit. HTTP 526 describes failed origin TLS; inspect the actual certificate diagnostic before selecting a remedy. Do not bypass TLS, change trust roots or weaken signed recovery admission.\n")
+		out.WriteString("\n\n")
+		out.WriteString(troubleshootingRouterDiagnostics)
 		path := resolvePathFromWorkDir(getWorkDir(), troubleshootingOutput)
 		if troubleshootingCheck {
 			current, err := os.ReadFile(path)

@@ -14,10 +14,10 @@ Agent-facing StackKits references:
 - `docs/agent/monitoring.md`: status, logs, verification, and evidence surfaces.
 - `api/openapi.v1.yaml`: OpenAPI mirror embedded by the StackKits MCP runtime.
 
-Basement Kit is the verified one-click path and Cloud Kit is its preview
-counterpart for an externally supplied host. The current unpinned public latest
+Basement Kit targets home hosts and Cloud Kit targets an externally supplied
+VPS. The public release README carries the generated, version-bound support table. The current unpinned public latest
 is whatever `releases/latest` resolves to in `kombifyio/stackKits`; documentation
-does not restate that number. Modern Homelab is alpha scaffolding and graduates
+does not restate that number. Modern Homelab is a definition archive and graduates
 only the Runtime owners whose exact boundaries are bound; remaining publication,
 Cloud-verifier, backend-Health, and live-evidence surfaces stay fail-closed.
 Product-bundled applications use standalone Compose by default until further

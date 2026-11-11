@@ -1,0 +1,50 @@
+{
+  "facts_schema_version": "1.0.0",
+  "slug": "workbench-host",
+  "displayName": "Workbench headless host",
+  "description": "Optional Linux x64 Workbench Cloud host from the exact Desktop Delivery archive. Explicit Connect enrollment and installed-provider setup; M13 acceptance pending. No host socket or host home mount. Executable secret custody and launch belong to native-v2 dev-workbench; this legacy scaffold is not an unattended installer.",
+  "layer": "L3-application",
+  "requires": {
+    "infrastructure": {
+      "docker": true,
+      "persistentStorage": true,
+      "minMemory": "512m",
+      "arch": "amd64"
+    }
+  },
+  "services": [
+    {
+      "name": "workbench-host",
+      "type": "application",
+      "required": false,
+      "imageSource": {
+        "moduleRef": "stackkits-workbench-host-runtime",
+        "componentRef": "workbench-host"
+      },
+      "networks": [
+        "workbench-host-internal"
+      ],
+      "volumes": [
+        {
+          "source": "workbench-host-state",
+          "target": "/var/lib/workbench-host",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/.well-known/kombify-workbench-host",
+        "port": 3773
+      },
+      "resources": {
+        "memory": "512m",
+        "memoryMax": "4g"
+      },
+      "upstream": {
+        "registryImage": "docker.io/library/python"
+      },
+      "routed": false
+    }
+  ]
+}

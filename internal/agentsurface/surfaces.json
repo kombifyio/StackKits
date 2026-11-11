@@ -54,6 +54,12 @@
       "productMcps": [],
       "apis": [
         {
+          "id": "workbench-host-jobs",
+          "protocol": "rest",
+          "purpose": "Optional host execution through Connect's existing workbench_host_task/workbench_host_result tools; explicit plain-profile assignment is required.",
+          "auth": "Gateway-signed run-bound capability lease"
+        },
+        {
           "id": "git-hosting",
           "protocol": "rest",
           "purpose": "Observe the existing administrator through the selected upstream application's admitted API; application features remain upstream-owned.",

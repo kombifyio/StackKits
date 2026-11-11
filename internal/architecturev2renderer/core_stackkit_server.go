@@ -174,6 +174,12 @@ const (
 	basementStackKitServerIdentityEnvironment = `      STACKKIT_POCKETID_LOCAL_API: http://pocketid:1411
 `
 	basementStackKitServerIdentityVolumes = `      - type: bind
+        source: ${STACKKIT_WORKSPACE_DIR:?}/.stackkit/own-applications
+        target: /var/lib/stackkit-identity/.stackkit/own-applications
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ${STACKKIT_CUSTODY_DIR:?}/home-verifier
         target: /var/lib/stackkit-identity/.stackkit/custody/home-verifier
         bind:
@@ -261,6 +267,14 @@ const (
       - traefik.http.routers.stackkit-hub-remote.entrypoints=remote
       - traefik.http.routers.stackkit-hub-remote.service=stackkit-hub
       - traefik.http.services.stackkit-hub.loadbalancer.server.port=8084
+      # Public setup material only, over HTTP before client DNS/CA trust.
+      # The handler admits only the node site IP; remote entrypoints have no route.
+      - traefik.http.routers.stackkit-client-setup.rule=PathPrefix(` + "`/device/setup`" + `)
+      - traefik.http.routers.stackkit-client-setup.entrypoints=web
+      - traefik.http.routers.stackkit-client-setup.priority=10000
+      - traefik.http.routers.stackkit-client-setup.middlewares=stackkit-client-setup-lan@docker
+      - traefik.http.routers.stackkit-client-setup.service=stackkit-hub
+      - traefik.http.middlewares.stackkit-client-setup-lan.ipallowlist.sourcerange=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,127.0.0.0/8,::1/128
       # The Gate's own paths (the launch exchange and the browser-native
       # session endpoints under /.well-known/stackkit/) on every gated host:
       # one router per host and listener, inserted by the compiler below,

@@ -97,6 +97,8 @@ func resourcePriority(uri string) float64 {
 
 func promptText(name string) string {
 	switch name {
+	case "stackkit_homelab_agent":
+		return embeddedPrompt("docs/agent/homelab-agent.md")
 	case "stackkit_basekit_autonomous_rollout":
 		return embeddedPrompt("docs/agent/basekit-autonomous-rollout.md")
 	case "stackkit_inspect_existing_rollout":

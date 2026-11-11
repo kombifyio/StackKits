@@ -32,7 +32,12 @@ var contractPackageRoots = []string{
 }
 
 // nonContractRoots hold contract tooling that never ships as contract API.
-var nonContractRoots = map[string]bool{"internal": true}
+// ownapplication parses Techstack's own-application document for the node
+// renderer. It imports golang.org/x/net/publicsuffix, which the contract
+// boundary forbids ("standard library, github.com/google/uuid and packages
+// below contracts/"), and only this module's own packages import it
+// (cmd/stackkit, internal/...); Techstack authors and validates its own copy.
+var nonContractRoots = map[string]bool{"internal": true, "ownapplication": true}
 
 // forbiddenContractImports keep transport, persistence, process execution and
 // memory-unsafe code out of non-test contract sources. Contract values are
