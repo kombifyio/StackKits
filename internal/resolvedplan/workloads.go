@@ -767,7 +767,7 @@ func workloadInputs(selection, alternative map[string]any, path string) (map[str
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := validateWorkloadInputMap(settings, settingsContract, path+".settings"); err != nil {
+	if err := validateWorkloadInputMap(withoutComponentRelease(settings), settingsContract, path+".settings"); err != nil {
 		return nil, nil, err
 	}
 	if err := validateWorkloadInputMap(secretRefs, secretContract, path+".secretRefs"); err != nil {

@@ -2,6 +2,49 @@ package foundation
 
 import "list"
 
+// #OwnApplicationAdoptedLifecycle is "Stack it": one observed single container
+// StackKits did not install, rebuilt as an own application
+// (techstack.own-application/v4). Unlike the Home Assistant in-place profile it
+// recreates the container (new container ID, bounded downtime) and then owns
+// the full own-application lifecycle. The original is stopped, kept with
+// restart policy "no", restorable for retentionDays and never deleted
+// automatically.
+#OwnApplicationAdoptedLifecycle: {
+	profileRef:    "own-application-adopted/v1"
+	mode:          "rebuild_as_own_application"
+	sourceRuntime: "docker"
+	contract:      "techstack.own-application/v4"
+	// The data source is copied, never moved, renamed or changed.
+	ownedFields: ["image", "environment", "secrets", "data-volume", "published-ports", "power-state", "updates", "backup"]
+	preservedFields: ["persistentData", "environmentValues", "publishedPortBindings", "outboundInternet"]
+	refused: ["compose-project", "shared-user-network", "host-network", "privileged", "capabilities", "devices", "docker-socket", "root-mount", "bind-outside-data-roots", "multiple-data-mounts", "custom-command", "user-override", "local-only-image", "legacy-links", "host-user-namespace", "existing-application-volume"]
+	phases: ["inspect", "plan", "adopt", "verify"]
+	retentionDays:          7
+	stabilityWindowSeconds: 120
+	stages: {
+		adopt: {
+			name: "adopt"
+			operations: ["stackkit.app.own.adopt", "stackkit.app.own.restore-original", "stackkit.app.own.release-original"]
+			phases: ["inspect", "plan", "adopt", "verify"]
+			surfaces: ["cli", "mcp", "state-console"]
+			evidence: ["adoption-result"]
+			mutation:      true
+			destructive:   false
+			ownerApproval: true
+		}
+		manage: {
+			name: "manage"
+			operations: ["stackkit.app.own"]
+			phases: ["update", "rollback", "start", "stop", "restart", "remove", "status", "logs", "discard-checkpoint"]
+			surfaces: ["cli", "mcp", "state-console"]
+			evidence: ["own-application-result"]
+			mutation:      true
+			destructive:   true
+			ownerApproval: true
+		}
+	}
+}
+
 // #StandardUseCaseLifecycle is the reusable standalone Application Kit
 // lifecycle. Product packages may add setup and evidence requirements, but
 // they must not redefine commands, approval semantics, or surface ownership.

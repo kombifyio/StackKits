@@ -232,6 +232,9 @@ type selectedPaaSWorkloadBundle struct {
 		Release        string `json:"release"`
 		Delivery       string `json:"delivery"`
 		EntryComponent string `json:"entryComponentRef"`
+		// ReleaseOverride is the effective entry pin when the plan selected
+		// another release than the catalog default (workload_release.go).
+		ReleaseOverride *WorkloadReleaseOverride `json:"releaseOverride,omitempty"`
 	} `json:"workload"`
 	Target struct {
 		SiteRef     string `json:"siteRef"`

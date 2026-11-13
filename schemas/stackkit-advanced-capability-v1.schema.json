@@ -115,6 +115,7 @@
       "items": {
         "enum": [
           "drift.reconcile.advanced",
+          "own-application.lifecycle",
           "public-tls.origin-certificate.install",
           "public-tls.origin-certificate.request",
           "restore.drill",

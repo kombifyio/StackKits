@@ -5260,11 +5260,20 @@ components:
         siteRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         nodeRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
         instanceRef: {$ref: "#/components/schemas/ArchitectureV2ContractID"}
+    ArchitectureV2ApplicationAudience:
+      type: object
+      additionalProperties: false
+      required: [schema, members]
+      properties:
+        schema: {type: string, const: stackkit.application-audience/v1}
+        members: {type: string, enum: [owner, household]}
+      description: Explicit local application audience; currently Photos and Documents on standalone Compose. Owner retains access; omission preserves inherited grants. Selected people and remote access are not admitted by v1.
     ArchitectureV2ModulePublicRouteAccess:
       type: object
       additionalProperties: false
       required: [exposure, policyExposure, authentication, privilege, enrolledDeviceRequired, ownerStepUpRequired, ownerRemoteOptIn, appAccessAway, defaultClosed, policyRef]
       properties:
+        audience: {$ref: "#/components/schemas/ArchitectureV2ApplicationAudience"}
         exposure: {type: string, enum: [local, remote-private, public]}
         policyExposure: {type: string, enum: [local-only, remote-private, public]}
         authentication: {type: string, enum: [none, human, human+device, agent, workload]}

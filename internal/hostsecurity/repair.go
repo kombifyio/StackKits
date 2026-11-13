@@ -461,7 +461,15 @@ func (r *repairer) repairBruteForce(ctx context.Context) error {
 	if !r.path.SSHInstalled {
 		return blocked("there is no sshd on this host, so there is no ssh login for fail2ban to protect")
 	}
-	if err := r.ensurePackages(ctx, "fail2ban"); err != nil {
+	systemd := r.systemdRunning()
+	packages := []string{"fail2ban"}
+	if _, apt := r.engine.toolPath("apt-get"); systemd && apt {
+		// The systemd backend reads the journal through python3-systemd. Debian 12 lists it
+		// only as a recommendation of fail2ban and packages are installed without
+		// recommendations, so without naming it the sshd jail never loads there.
+		packages = append(packages, "python3-systemd")
+	}
+	if err := r.ensurePackages(ctx, packages...); err != nil {
 		return err
 	}
 	// The management path is never banned: its addresses are ignored by the jail.
@@ -471,7 +479,7 @@ func (r *repairer) repairBruteForce(ctx context.Context) error {
 	}
 	ignore = append(ignore, r.path.ManagementSources...)
 	backend := "auto"
-	if r.systemdRunning() {
+	if systemd {
 		backend = "systemd"
 	}
 	ports := r.path.SSHPorts
@@ -494,7 +502,7 @@ func (r *repairer) repairBruteForce(ctx context.Context) error {
 	if err := r.write(fail2banDropIn, []byte(content), 0o644); err != nil {
 		return err
 	}
-	if r.systemdRunning() {
+	if systemd {
 		if _, err := r.exec(ctx, "systemctl", "enable", "--now", fail2banUnit); err != nil {
 			return err
 		}
@@ -507,13 +515,26 @@ func (r *repairer) repairBruteForce(ctx context.Context) error {
 	if !r.apply {
 		return nil
 	}
+	var last string
 	for attempt := 0; attempt < 30; attempt++ {
-		if output, err := r.engine.run(ctx, "fail2ban-client", "status", "sshd"); err == nil && output.ExitCode == 0 {
+		output, err := r.engine.run(ctx, "fail2ban-client", "status", "sshd")
+		if err == nil && output.ExitCode == 0 {
 			return nil
+		}
+		if err == nil {
+			last = strings.TrimSpace(output.Stderr)
+			if last == "" {
+				last = strings.TrimSpace(output.Stdout)
+			}
+		} else {
+			last = err.Error()
 		}
 		if err := r.engine.Host.Sleep(ctx, time.Second); err != nil {
 			return err
 		}
+	}
+	if last != "" {
+		return fmt.Errorf("the fail2ban sshd jail did not become ready within 30s: %s", boundedText(last))
 	}
 	return errors.New("the fail2ban sshd jail did not become ready within 30s")
 }

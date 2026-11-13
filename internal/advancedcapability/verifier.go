@@ -88,6 +88,12 @@ func Verify(raw []byte, request Request) (Grant, error) {
 	if request.Operation == OperationApplicationTransferReceive && (document.TransferReceive == nil || *document.TransferReceive != *request.TransferReceive) {
 		return Grant{}, deny(ReasonCapabilityScopeMismatch, "transferReceive", "does not match the local receiving intent, source Owner and step")
 	}
+	if request.Operation == OperationApplicationReleaseUpdate && (document.ApplicationRelease == nil || *document.ApplicationRelease != *request.ApplicationRelease) {
+		return Grant{}, deny(ReasonCapabilityScopeMismatch, "applicationRelease", "does not match the local use case, release, digest and release kind")
+	}
+	if request.Operation == OperationOwnApplicationLifecycle && (document.OwnApplicationLifecycle == nil || *document.OwnApplicationLifecycle != *request.OwnApplicationLifecycle) {
+		return Grant{}, deny(ReasonCapabilityScopeMismatch, "ownApplicationLifecycle", "does not match the application, action, operation ID and review digest of this call")
+	}
 	if document.BackupRenewal != nil {
 		if request.Operation != OperationRestoreDrill || len(document.AllowedOperations) != 1 || expiresAt.Sub(issuedAt) > 15*time.Minute {
 			return Grant{}, deny(ReasonCapabilityScopeMismatch, "backupRenewal", "requires one short-lived restore.drill operation")
@@ -99,6 +105,7 @@ func Verify(raw []byte, request Request) (Grant, error) {
 	return Grant{
 		TransferRetirement: document.TransferRetirement,
 		TransferReceive:    document.TransferReceive,
+		ApplicationRelease: document.ApplicationRelease,
 		BackupRenewal:      document.BackupRenewal,
 		CapabilityID:       document.CapabilityID,
 		IssuerID:           document.IssuerID,
@@ -137,6 +144,18 @@ func validateVerificationRequest(request Request) error {
 	}
 	if request.TransferReceive != nil && request.Operation != OperationApplicationTransferReceive {
 		return deny(ReasonCapabilityScopeMismatch, "transferReceive", "cannot authorize another operation")
+	}
+	if request.Operation == OperationApplicationReleaseUpdate && request.ApplicationRelease == nil {
+		return deny(ReasonCapabilityScopeMismatch, "applicationRelease", "authenticated local scope is required")
+	}
+	if request.ApplicationRelease != nil && request.Operation != OperationApplicationReleaseUpdate {
+		return deny(ReasonCapabilityScopeMismatch, "applicationRelease", "cannot authorize another operation")
+	}
+	if request.Operation == OperationOwnApplicationLifecycle && request.OwnApplicationLifecycle == nil {
+		return deny(ReasonCapabilityScopeMismatch, "ownApplicationLifecycle", "authenticated local scope is required")
+	}
+	if request.OwnApplicationLifecycle != nil && request.Operation != OperationOwnApplicationLifecycle {
+		return deny(ReasonCapabilityScopeMismatch, "ownApplicationLifecycle", "cannot authorize another operation")
 	}
 	if !wire.IsOperation(request.Operation) {
 		return deny(ReasonCapabilityOperationDenied, "operation", "is not an advanced operation")

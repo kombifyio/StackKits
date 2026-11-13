@@ -2302,7 +2302,21 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 // identity: a request is allowed only for a Homelab account, directly or as
 // the subject an agent acts for, plus an enrolled device of that account
 // where the policy asks for one. The safe default is local-only.
+#ApplicationAudienceV1: {
+	schema:  "stackkit.application-audience/v1"
+	members: "owner" | "household"
+}
+
 #AccessPolicyV2: {
+	// Explicit audiences are an application-wide local decision. Keeping this
+	// optional (without a default) preserves output for inherited access.
+	audience?: #ApplicationAudienceV1
+	if audience != _|_ {
+		exposure:       "local-only"
+		privilege:      "user"
+		authentication: "human" | "human+device"
+	}
+
 	exposure:       *"local-only" | "remote-private" | "public"
 	privilege:      *"user" | "sign-in" | "admin" | "identity" | "secrets" | "vault" | "recovery"
 	authentication: *"human" | "human+device" | "agent" | "none"
@@ -2593,6 +2607,14 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 }
 
 #ResolvedAccessDecisionV2: {
+	audience?: #ApplicationAudienceV1
+	if audience != _|_ {
+		exposure:       "local"
+		policyExposure: "local-only"
+		privilege:      "user"
+		authentication: "human" | "human+device"
+	}
+
 	exposure:               #ServiceExposureV2
 	policyExposure:         #AccessPolicyExposureV2
 	authentication:         #AccessAuthenticationV2 | "workload"
@@ -2718,6 +2740,13 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 }
 
 #ResolvedServiceRouteV2: {
+	if access.audience != _|_ {
+		moduleRef:   "stackkits-immich-runtime" | "stackkits-immich-lite-runtime" | "stackkits-paperless-runtime"
+		serviceRef:  "photos" | "documents"
+		protocol:    "https"
+		ingressAuth: "forward-auth"
+	}
+
 	id:             #ContractID
 	serviceRef:     #ContractID
 	moduleRef:      #ContractID
@@ -3157,7 +3186,7 @@ _servicePublicationShape: {
 	}
 	if support == "executor-bound" {
 		executorRef: #ContractID
-		approval: class: "agent-equipment"
+		approval: class:                 "agent-equipment"
 		grant: connectorBindingRequired: false
 	}
 	if destructive {
@@ -3725,14 +3754,16 @@ _servicePublicationShape: {
 		ref:    string & =~"^[^[:space:]]+$"
 		digest: #ContentHash
 	}
-	// releases lists further upstream releases the catalog admits for the
-	// entry component beside its default image. A workload selects one with
-	// its declared `release` setting; generation, Apply and the renderers
-	// admit only these exact tag and digest pins, and a downgrade on existing
-	// data needs the scoped release rollback (`stackkit use-cases upgrade`).
-	// Tags are plain semantic versions so Apply can order them. Keep a release
-	// admitted while installations may still select it; a dropped release
-	// fails their generation closed.
+	// releases lists further upstream releases the catalog has tested for
+	// the entry component beside its default image. Every workload may move
+	// its entry component with the generic `release` setting, an exact
+	// override {version, ref, digest, tested} written by
+	// `stackkit use-cases upgrade`: to a tested release here, or to an
+	// owner-accepted untested stable release of the same image inside the
+	// module's upstream.track (modules/<slug>/module.cue). A downgrade on
+	// existing data needs the scoped release rollback. Tags are plain semantic
+	// versions so Apply can order them. An override at or below the default
+	// release is superseded by it.
 	releases?: [...close({
 		image: {
 			ref:    string & =~"^[^[:space:]@]+:[^[:space:]:/@]+$"
@@ -3749,6 +3780,7 @@ _servicePublicationShape: {
 	hostNetwork?: true
 	if hostNetwork == _|_ {networkRefs: list.MinItems(1)}
 	if hostNetwork != _|_ {networkRefs: [], egress?: _|_, lanListeners?: _|_, publishedPorts?: _|_, peerNetworks?: _|_}
+
 	// Outbound access for owner-requested downloads; never publishes a port.
 	egress?: bool
 	// stopSignal replaces the image's stop signal when its PID 1 does not act
@@ -5054,6 +5086,13 @@ _servicePublicationShape: {
 }
 
 #ModulePublicResolvedRouteV4: {
+	if access.audience != _|_ {
+		moduleRef:   "stackkits-immich-runtime" | "stackkits-immich-lite-runtime" | "stackkits-paperless-runtime"
+		serviceRef:  "photos" | "documents"
+		protocol:    "https"
+		ingressAuth: "forward-auth"
+	}
+
 	id:             #ContractID
 	serviceRef:     #ContractID
 	moduleRef:      #ContractID

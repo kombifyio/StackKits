@@ -168,14 +168,14 @@ func verifyHomeAssistantMQTTRoundTrip(ctx context.Context, client *http.Client, 
 	defer conn.Close(websocket.StatusNormalClosure, "MQTT readback complete")
 	conn.SetReadLimit(homeAssistantWSLimit)
 	var greeting homeAssistantWSGreeting
-	if err := wsjson.Read(ctx, conn, &greeting); err != nil || greeting.Type != "auth_required" || greeting.HAVersion != HomeAssistantPinnedVersion {
+	if err := wsjson.Read(ctx, conn, &greeting); err != nil || greeting.Type != "auth_required" || !homeAssistantVersionAdmitted(greeting.HAVersion) {
 		return errors.New("Home Assistant MQTT readback version changed")
 	}
 	if err := wsjson.Write(ctx, conn, map[string]string{"type": "auth", "access_token": token}); err != nil {
 		return errors.New("Home Assistant MQTT readback authentication failed")
 	}
 	var auth homeAssistantWSAuthResult
-	if err := wsjson.Read(ctx, conn, &auth); err != nil || auth.Type != "auth_ok" || auth.HAVersion != HomeAssistantPinnedVersion {
+	if err := wsjson.Read(ctx, conn, &auth); err != nil || auth.Type != "auth_ok" || !homeAssistantVersionAdmitted(auth.HAVersion) {
 		return errors.New("Home Assistant MQTT readback authentication failed")
 	}
 	topic, payload := "stackkit/setup/"+rand.Text(), rand.Text()

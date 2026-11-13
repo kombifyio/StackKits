@@ -37,17 +37,19 @@ type WorkloadComposeServiceSecret struct {
 
 // WorkloadComposeService is one container of a workload project.
 type WorkloadComposeService struct {
-	CapDrop      []string `yaml:"cap_drop,omitempty"`
-	CapAdd       []string `yaml:"cap_add,omitempty"`
-	SecurityOpt  []string `yaml:"security_opt,omitempty"`
-	PidsLimit    int      `yaml:"pids_limit,omitempty"`
-	MemLimit     string   `yaml:"mem_limit,omitempty"`
-	MemSwapLimit string   `yaml:"memswap_limit,omitempty"`
-	CPUs         string   `yaml:"cpus,omitempty"`
-	DNS          []string `yaml:"dns,omitempty"`
-	Image        string   `yaml:"image"`
-	PullPolicy   string   `yaml:"pull_policy,omitempty"`
-	Restart      string   `yaml:"restart,omitempty"`
+	MACAddress   string            `yaml:"mac_address,omitempty"`
+	Sysctls      map[string]string `yaml:"sysctls,omitempty"`
+	CapDrop      []string          `yaml:"cap_drop,omitempty"`
+	CapAdd       []string          `yaml:"cap_add,omitempty"`
+	SecurityOpt  []string          `yaml:"security_opt,omitempty"`
+	PidsLimit    int               `yaml:"pids_limit,omitempty"`
+	MemLimit     string            `yaml:"mem_limit,omitempty"`
+	MemSwapLimit string            `yaml:"memswap_limit,omitempty"`
+	CPUs         string            `yaml:"cpus,omitempty"`
+	DNS          []string          `yaml:"dns,omitempty"`
+	Image        string            `yaml:"image"`
+	PullPolicy   string            `yaml:"pull_policy,omitempty"`
+	Restart      string            `yaml:"restart,omitempty"`
 	// Runtime names a registered OCI runtime other than the daemon default
 	// (gVisor's runsc for the governed agent harness).
 	Runtime     string                               `yaml:"runtime,omitempty"`
@@ -121,6 +123,7 @@ type WorkloadComposeLogging struct {
 
 // WorkloadComposeNetwork is a project network or an external reference.
 type WorkloadComposeNetwork struct {
+	EnableIPv6 *bool             `yaml:"enable_ipv6,omitempty"`
 	DriverOpts map[string]string `yaml:"driver_opts,omitempty"`
 	Labels     map[string]string `yaml:"labels,omitempty"`
 	Name       string            `yaml:"name,omitempty"`

@@ -31,6 +31,9 @@ type Mapping struct {
 	// successful write or comparison; it tells a change made in kombify from a
 	// change made in Home Assistant.
 	Synced map[string]string `json:"synced"`
+	// Adoption is the adoption state of this Home Assistant; nil when kombify
+	// projected onto it without an adoption (a new Home Assistant).
+	Adoption *AdoptionRecord `json:"adoption,omitempty"`
 }
 
 func (m *Mapping) normalize() {
@@ -62,6 +65,10 @@ func (m Mapping) Clone() Mapping {
 	c.Created = make(map[string]bool, len(m.Created))
 	for k, v := range m.Created {
 		c.Created[k] = v
+	}
+	if m.Adoption != nil {
+		a := *m.Adoption
+		c.Adoption = &a
 	}
 	c.normalize()
 	return c

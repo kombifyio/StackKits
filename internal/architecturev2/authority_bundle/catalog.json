@@ -15905,14 +15905,7 @@
                   ]
                 }
               ],
-              "settingsRefs": [
-                {
-                  "matches": [
-                    "vaultwarden"
-                  ],
-                  "ref": "release"
-                }
-              ]
+              "settingsRefs": []
             }
           ],
           "providerMatches": [
@@ -32707,7 +32700,7 @@
             "compose",
             "opentofu"
           ],
-          "contractHash": "sha256:bdfc2416ecef3841621bd3166fccf50246f0525a127ec98500158da99142db85",
+          "contractHash": "sha256:44226a82f065830cdc96c5d73667432429b8ba8f65ff0d71e692e32cc8b40cee",
           "id": "vaultwarden",
           "inputBindings": [
             {
@@ -32730,8 +32723,7 @@
           "planInputRefs": [],
           "providesInterfaces": [],
           "publicInputRefs": [
-            "delivery-route",
-            "release"
+            "delivery-route"
           ],
           "rendererRef": "stackkit",
           "requiresInterfaces": [],
@@ -32808,8 +32800,7 @@
           "id": "compose",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route",
-            "release"
+            "delivery-route"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -32828,8 +32819,7 @@
           "id": "opentofu",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route",
-            "release"
+            "delivery-route"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -32849,8 +32839,7 @@
           "id": "terramate",
           "planInputRefs": [],
           "publicInputRefs": [
-            "delivery-route",
-            "release"
+            "delivery-route"
           ],
           "rendererRef": "stackkit",
           "secretInputRefs": [
@@ -51032,8 +51021,8 @@
             },
             "id": "coolify",
             "image": {
-              "digest": "sha256:7c54f42d64c0d20fed4a8f4561df9018a561fecba9931ed3f64a4f3e0d34a3be",
-              "ref": "coollabsio/coolify:4.4.6"
+              "digest": "sha256:ac2259a438f0221e73eca2838c0c929ff2fd304f8345daabc85c910b6c83d6ee",
+              "ref": "coollabsio/coolify:4.7.5"
             },
             "lifecycle": "daemon",
             "networkRefs": [
@@ -61867,16 +61856,8 @@
               ]
             },
             "settings": {
-              "allowedRefs": [
-                "release"
-              ],
-              "descriptors": [
-                {
-                  "key": "release",
-                  "label": "Release",
-                  "type": "string"
-                }
-              ],
+              "allowedRefs": [],
+              "descriptors": [],
               "requiredRefs": []
             }
           },

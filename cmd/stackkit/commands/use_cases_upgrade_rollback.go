@@ -6,12 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/mod/semver"
-
 	"github.com/kombifyio/stackkits/internal/applicationrelease"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/spf13/cobra"
@@ -24,19 +23,31 @@ import (
 // Every precondition is checked under the lifecycle lock before live data is
 // touched, and the retained copy is read back before it overwrites live data.
 func runApplicationReleaseRollback(cmd *cobra.Command, o useCaseUpgradeOptions) error {
-	wd := getWorkDir()
-	operation := strings.TrimSpace(o.rollback)
-	service, specPath, err := applicationReleaseIntentAuthority(wd)
-	if err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(cmd.Context(), applicationReleaseTimeout)
 	defer cancel()
-	runtime, err := restoreactivation.NewDockerRuntime(wd)
+	record, abandoned, err := rollbackApplicationRelease(ctx, getWorkDir(), strings.TrimSpace(o.rollback))
 	if err != nil {
 		return err
 	}
+	if abandoned {
+		return writeApplicationReleaseResult(cmd, o, record, "Released the incomplete checkpoint; "+record.WorkloadRef+" keeps "+record.PriorRelease, nil)
+	}
+	return writeApplicationReleaseResult(cmd, o, record, "Restored "+record.WorkloadRef+" data to its "+record.PriorRelease+" checkpoint; selected "+record.PriorRelease+" (data written since the checkpoint is discarded)",
+		[]string{"stackkit generate", "stackkit apply", "stackkit use-cases upgrade --finalize " + record.OperationID + " --owner-approve (after the apply)"})
+}
+
+// rollbackApplicationRelease runs the rollback of one operation and reports
+// whether it only released an incomplete checkpoint.
+func rollbackApplicationRelease(ctx context.Context, wd, operation string) (applicationrelease.Record, bool, error) {
 	var record applicationrelease.Record
+	service, specPath, err := applicationReleaseIntentAuthority(wd)
+	if err != nil {
+		return record, false, err
+	}
+	runtime, err := restoreactivation.NewDockerRuntime(wd)
+	if err != nil {
+		return record, false, err
+	}
 	abandoned := false
 	err = withLifecycleMutation(wd, "use-cases upgrade", func() error {
 		var err error
@@ -58,7 +69,8 @@ func runApplicationReleaseRollback(cmd *cobra.Command, o useCaseUpgradeOptions) 
 					return err
 				}
 			}
-			return nil
+			// Live runtime files never change while the checkpoint is open.
+			return applicationrelease.RemoveRetainedRuntimeFiles(wd, record)
 		case applicationrelease.StateCheckpointed, applicationrelease.StateRollbackStarted:
 		default:
 			return fmt.Errorf("release operation %s is %s and has nothing to roll back", record.OperationID, record.State)
@@ -71,6 +83,11 @@ func runApplicationReleaseRollback(cmd *cobra.Command, o useCaseUpgradeOptions) 
 			if !sameReadback(retained, record.Volumes[index].Checkpoint) {
 				return fmt.Errorf("the retained copy of %s differs from its checkpoint; live data was not changed", volume.LiveName)
 			}
+		}
+		// Runtime files restore after the volumes, so their retained copies
+		// are checked before any live data changes.
+		if err := applicationrelease.VerifyRetainedRuntimeFiles(wd, record); err != nil {
+			return err
 		}
 		if record.State == applicationrelease.StateCheckpointed {
 			record.State = applicationrelease.StateRollbackStarted
@@ -93,7 +110,10 @@ func runApplicationReleaseRollback(cmd *cobra.Command, o useCaseUpgradeOptions) 
 				return fmt.Errorf("restored %s differs from its checkpoint; the application stays stopped", volume.LiveName)
 			}
 		}
-		return nil
+		// A native installation's private runtime files (the Marketplace's
+		// APP_KEY, credentials and API token custody) return with the data
+		// they belong to.
+		return applicationrelease.RestoreRuntimeFiles(wd, record)
 	})
 	// The intent writer takes the lifecycle lock itself; while the record is
 	// incomplete, Apply starts nothing of this application.
@@ -110,28 +130,30 @@ func runApplicationReleaseRollback(cmd *cobra.Command, o useCaseUpgradeOptions) 
 		record, err = applicationrelease.Persist(wd, record)
 	}
 	if err != nil {
-		return fmt.Errorf("rollback of %s did not complete; repeat the command: %w", operation, err)
+		return record, abandoned, fmt.Errorf("rollback of %s did not complete; repeat the command: %w", operation, err)
 	}
-	if abandoned {
-		return writeApplicationReleaseResult(cmd, o, record, "Released the incomplete checkpoint; "+record.WorkloadRef+" keeps "+record.PriorRelease, nil)
-	}
-	return writeApplicationReleaseResult(cmd, o, record, "Restored "+record.WorkloadRef+" data to its "+record.PriorRelease+" checkpoint; selected "+record.PriorRelease+" (data written since the checkpoint is discarded)",
-		[]string{"stackkit generate", "stackkit apply", "stackkit use-cases upgrade --finalize " + record.OperationID + " --owner-approve (after the apply)"})
+	return record, abandoned, nil
 }
 
 // runApplicationReleaseFinalize removes the retained data. After a rollback
 // it first requires the prior release to be applied, because the open
 // rolled-back record is what admits that earlier release.
 func runApplicationReleaseFinalize(cmd *cobra.Command, o useCaseUpgradeOptions) error {
-	wd := getWorkDir()
-	operation := strings.TrimSpace(o.finalize)
 	ctx, cancel := context.WithTimeout(cmd.Context(), applicationReleaseTimeout)
 	defer cancel()
-	runtime, err := restoreactivation.NewDockerRuntime(wd)
+	record, err := finalizeApplicationRelease(ctx, getWorkDir(), strings.TrimSpace(o.finalize))
 	if err != nil {
 		return err
 	}
+	return writeApplicationReleaseResult(cmd, o, record, "Removed the retained data of "+record.OperationID, nil)
+}
+
+func finalizeApplicationRelease(ctx context.Context, wd, operation string) (applicationrelease.Record, error) {
 	var record applicationrelease.Record
+	runtime, err := restoreactivation.NewDockerRuntime(wd)
+	if err != nil {
+		return record, err
+	}
 	err = withLifecycleMutation(wd, "use-cases upgrade", func() error {
 		var err error
 		if record, err = applicationrelease.Read(wd, operation); err != nil {
@@ -155,14 +177,14 @@ func runApplicationReleaseFinalize(cmd *cobra.Command, o useCaseUpgradeOptions) 
 				return err
 			}
 		}
+		if err := applicationrelease.RemoveRetainedRuntimeFiles(wd, record); err != nil {
+			return err
+		}
 		record.State = applicationrelease.StateFinalized
 		record, err = applicationrelease.Persist(wd, record)
 		return err
 	})
-	if err != nil {
-		return err
-	}
-	return writeApplicationReleaseResult(cmd, o, record, "Removed the retained data of "+record.OperationID, nil)
+	return record, err
 }
 
 // requireApplicationReleaseIntent refuses before any runtime change when the
@@ -215,13 +237,10 @@ func applicationReleaseIntentAuthority(wd string) (*architecturev2.Service, stri
 	return service, specPath, err
 }
 
-// releaseOrder orders two release names as semantic versions.
+// releaseOrder orders two release tags on one release line
+// (resolvedplan.ComponentReleaseLater).
 func releaseOrder(candidate, current string) (later, comparable bool) {
-	a, b := "v"+strings.TrimPrefix(candidate, "v"), "v"+strings.TrimPrefix(current, "v")
-	if !semver.IsValid(a) || !semver.IsValid(b) {
-		return false, false
-	}
-	return semver.Compare(a, b) > 0, true
+	return resolvedplan.ComponentReleaseLater(candidate, current)
 }
 
 func writeApplicationReleaseResult(cmd *cobra.Command, o useCaseUpgradeOptions, record applicationrelease.Record, summary string, next []string) error {
@@ -232,7 +251,7 @@ func writeApplicationReleaseResult(cmd *cobra.Command, o useCaseUpgradeOptions, 
 	result := map[string]any{
 		"apiVersion": "stackkit.application-release-result/v1", "operationId": record.OperationID, "state": record.State,
 		"workloadRef": record.WorkloadRef, "composeProject": record.ComposeProject,
-		"priorRelease": record.PriorRelease, "targetRelease": record.TargetRelease,
+		"priorRelease": record.PriorRelease, "targetRelease": record.TargetRelease, "targetTested": !record.TargetUntested,
 		"priorSpecHash": record.PriorSpecHash, "targetSpecHash": record.TargetSpecHash,
 		"volumes": volumes, "runtimeApplied": false, "nextSteps": next,
 	}

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -189,11 +190,13 @@ func sameIdentity(previous, next Record) bool {
 	if previous.OperationID != next.OperationID || previous.UseCaseRef != next.UseCaseRef || previous.WorkloadRef != next.WorkloadRef || previous.ModuleRef != next.ModuleRef ||
 		previous.NodeRef != next.NodeRef || previous.ComposeProject != next.ComposeProject || previous.EntryComponent != next.EntryComponent ||
 		previous.PriorRelease != next.PriorRelease || previous.PriorImage != next.PriorImage ||
-		previous.TargetRelease != next.TargetRelease || previous.TargetImage != next.TargetImage ||
+		previous.TargetRelease != next.TargetRelease || previous.TargetImage != next.TargetImage || previous.TargetUntested != next.TargetUntested ||
+		(previous.Managed == nil) != (next.Managed == nil) || previous.Managed != nil && *previous.Managed != *next.Managed ||
 		previous.PriorSpecHash != next.PriorSpecHash || previous.TargetSpecHash != next.TargetSpecHash ||
 		!bytes.Equal(previous.PriorSpec, next.PriorSpec) || !bytes.Equal(previous.TargetSpec, next.TargetSpec) ||
 		previous.PlanHash != next.PlanHash || previous.KopiaHelperImage != next.KopiaHelperImage ||
-		!previous.CreatedAt.Equal(next.CreatedAt) || len(previous.Volumes) != len(next.Volumes) {
+		!previous.CreatedAt.Equal(next.CreatedAt) || len(previous.Volumes) != len(next.Volumes) ||
+		!slices.Equal(previous.RuntimeFiles, next.RuntimeFiles) {
 		return false
 	}
 	for index, volume := range previous.Volumes {

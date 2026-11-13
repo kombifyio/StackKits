@@ -16,12 +16,16 @@
     {"go": "BackupRenewalMaxLifetimeSeconds", "value": 900, "doc": "BackupRenewalMaxLifetimeSeconds bounds a capability that carries a backup renewal (15 minutes)."},
     {"go": "BackupRenewalMaxMeasurementAgeSeconds", "value": 300, "doc": "BackupRenewalMaxMeasurementAgeSeconds bounds how long before issuedAt the renewal usage may have been measured."},
     {"go": "TransferRetirementMaxLifetimeSeconds", "value": 900, "doc": "TransferRetirementMaxLifetimeSeconds bounds a capability for one held transfer retirement (15 minutes)."},
-    {"go": "TransferReceiveMaxLifetimeSeconds", "value": 900, "doc": "TransferReceiveMaxLifetimeSeconds bounds a capability for one receiving transfer step (15 minutes)."}
+    {"go": "TransferReceiveMaxLifetimeSeconds", "value": 900, "doc": "TransferReceiveMaxLifetimeSeconds bounds a capability for one receiving transfer step (15 minutes)."},
+    {"go": "ApplicationReleaseMaxLifetimeSeconds", "value": 900, "doc": "ApplicationReleaseMaxLifetimeSeconds bounds a capability for one scoped application release update (15 minutes)."},
+    {"go": "OwnApplicationLifecycleMaxLifetimeSeconds", "value": 900, "doc": "OwnApplicationLifecycleMaxLifetimeSeconds bounds a capability for one reviewed own-application action (15 minutes)."}
   ],
   "operations": [
+    {"go": "OperationApplicationReleaseUpdate", "value": "application-release.update"},
     {"go": "OperationApplicationTransferReceive", "value": "application-transfer.receive"},
     {"go": "OperationApplicationTransferRetire", "value": "application-transfer.retire"},
     {"go": "OperationDriftReconcileAdvanced", "value": "drift.reconcile.advanced"},
+    {"go": "OperationOwnApplicationLifecycle", "value": "own-application.lifecycle"},
     {"go": "OperationOriginCertificateInstall", "value": "public-tls.origin-certificate.install"},
     {"go": "OperationOriginCertificateRequest", "value": "public-tls.origin-certificate.request"},
     {"go": "OperationRestoreDrill", "value": "restore.drill", "backupRenewal": true},
@@ -43,7 +47,13 @@
     {"name": "decimalInt64", "regexp": "^(0|[1-9][0-9]{0,18})$"},
     {"name": "transferOperationId", "regexp": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     {"name": "transferRetirementRole", "regexp": "^(source|destination)$"},
-    {"name": "transferReceiveStep", "regexp": "^(admit|prepare|import)$"}
+    {"name": "transferReceiveStep", "regexp": "^(admit|prepare|import)$"},
+    {"name": "useCaseRef", "regexp": "^[a-z0-9][a-z0-9-]{0,62}$"},
+    {"name": "releaseTag", "regexp": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    {"name": "releaseKind", "regexp": "^(tested|untested)$"},
+    {"name": "ownApplicationName", "regexp": "^[a-z][a-z0-9-]{0,39}$"},
+    {"name": "ownApplicationAction", "regexp": "^(start|stop|restart|update|rollback|discard-checkpoint)$"},
+    {"name": "ownApplicationOperationId", "regexp": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"}
   ],
   "documents": [
     {
@@ -52,6 +62,7 @@
       "signingDomain": "SchemaVersion",
       "fields": [
         {"json": "allowedOperations", "go": "AllowedOperations", "type": "operationSet", "doc": "AllowedOperations is the sorted, duplicate-free operation set."},
+        {"json": "applicationRelease", "go": "ApplicationRelease", "type": "object:ApplicationRelease", "optional": true, "doc": "ApplicationRelease binds a short-lived scoped release update to one catalog use case and the exact release, manifest digest and tested or untested kind the Owner approved in Techstack."},
         {"json": "audience", "go": "Audience", "type": "string", "const": "Audience"},
         {"json": "backupRenewal", "go": "BackupRenewal", "type": "object:BackupRenewal", "optional": true, "doc": "BackupRenewal is present only on a single short-lived restore.drill capability."},
         {"json": "capabilityId", "go": "CapabilityID", "type": "string", "pattern": "capabilityId", "doc": "CapabilityID is a lowercase UUIDv7."},
@@ -59,6 +70,7 @@
         {"json": "issuedAt", "go": "IssuedAt", "type": "string", "format": "rfc3339-utc-seconds"},
         {"json": "issuerId", "go": "IssuerID", "type": "string", "pattern": "issuerId", "doc": "IssuerID names a Techstack issuer (see IssuerClass)."},
         {"json": "keyId", "go": "KeyID", "type": "string", "pattern": "keyId", "doc": "KeyID is ed25519://sha256/<hex SHA-256 of the raw public key>."},
+        {"json": "ownApplicationLifecycle", "go": "OwnApplicationLifecycle", "type": "object:OwnApplicationLifecycle", "optional": true, "doc": "OwnApplicationLifecycle binds a short-lived own-application.lifecycle capability to one application, one action, one operation ID and the review digest of its dry run."},
         {"json": "ownerRef", "go": "OwnerRef", "type": "string", "pattern": "ownerRef"},
         {"json": "rilRef", "go": "RILRef", "type": "string", "format": "logical-reference"},
         {"json": "schemaVersion", "go": "SchemaVersion", "type": "string", "const": "SchemaVersion"},
@@ -67,6 +79,16 @@
         {"json": "transferReceive", "go": "TransferReceive", "type": "object:TransferReceive", "optional": true, "doc": "TransferReceive binds a short-lived receiving step to the exact receiving desired intent and the one source Owner Techstack admitted for this move."},
         {"json": "transferRetirement", "go": "TransferRetirement", "type": "object:TransferRetirement", "optional": true, "doc": "TransferRetirement binds a short-lived retirement to the exact existing held snapshot, signed peer outcome and canonical desired-intent transition."},
         {"json": "uiManagerRef", "go": "UIManagerRef", "type": "string", "format": "logical-reference"}
+      ]
+    },
+    {
+      "go": "ApplicationRelease",
+      "doc": "ApplicationRelease authorizes one scoped release update of the single application a catalog use case selects on a managed node: the node stops it, retains and reads back its data, records the release override in its desired intent and runs generate, apply and verify, rolling back to the prior release and data on failure. It grants no other intent change, no StackKits release change, no data deletion, server or provider authority. The consumer reconstructs every field from its own command and catalog.",
+      "fields": [
+        {"json": "releaseKind", "go": "ReleaseKind", "type": "string", "pattern": "releaseKind"},
+        {"json": "targetDigest", "go": "TargetDigest", "type": "string", "pattern": "sha256Digest"},
+        {"json": "targetRelease", "go": "TargetRelease", "type": "string", "pattern": "releaseTag"},
+        {"json": "useCaseRef", "go": "UseCaseRef", "type": "string", "pattern": "useCaseRef"}
       ]
     },
     {
@@ -86,6 +108,16 @@
         {"json": "targetRef", "go": "TargetRef", "type": "string", "pattern": "backupTargetRef"},
         {"json": "tenantId", "go": "TenantID", "type": "string", "pattern": "renewalIdentity"},
         {"json": "usedBytes", "go": "UsedBytes", "type": "string", "pattern": "decimalInt64"}
+      ]
+    },
+    {
+      "go": "OwnApplicationLifecycle",
+      "doc": "OwnApplicationLifecycle authorizes exactly one reviewed action (start, stop, restart, update, rollback or discard-checkpoint) of one own application on a managed node: the operation ID and the review digest its dry run returned. It grants no create, remove, data deletion, server or provider authority. The consumer compares every field with the call it admits.",
+      "fields": [
+        {"json": "action", "go": "Action", "type": "string", "pattern": "ownApplicationAction"},
+        {"json": "name", "go": "Name", "type": "string", "pattern": "ownApplicationName"},
+        {"json": "operationId", "go": "OperationID", "type": "string", "pattern": "ownApplicationOperationId"},
+        {"json": "reviewDigest", "go": "ReviewDigest", "type": "string", "pattern": "sha256Digest"}
       ]
     },
     {
@@ -159,6 +191,29 @@
   ],
   "fixtures": [
     {
+      "name": "application-release-v1",
+      "seedHex": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+      "capability": {
+        "allowedOperations": [
+          "application-release.update"
+        ],
+        "applicationRelease": {
+          "releaseKind": "untested",
+          "targetDigest": "sha256:abababababababababababababababababababababababababababababababab",
+          "targetRelease": "1.37.6",
+          "useCaseRef": "vault"
+        },
+        "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
+        "expiresAt": "2026-11-12T12:15:00Z",
+        "issuedAt": "2026-11-12T12:00:00Z",
+        "issuerId": "techstack",
+        "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
+        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
+        "stackId": "cloud-stack",
+        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1"
+      }
+    },
+    {
       "name": "advanced-capability-v1",
       "seedHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
       "capability": {
@@ -200,6 +255,29 @@
         "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
         "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
         "stackId": "cloud-stack",
+        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1"
+      }
+    },
+    {
+      "name": "own-application-lifecycle-v1",
+      "seedHex": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
+      "capability": {
+        "allowedOperations": [
+          "own-application.lifecycle"
+        ],
+        "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
+        "expiresAt": "2026-11-12T12:15:00Z",
+        "issuedAt": "2026-11-12T12:00:00Z",
+        "issuerId": "techstack",
+        "ownApplicationLifecycle": {
+          "action": "update",
+          "name": "mail",
+          "operationId": "mail-update-1",
+          "reviewDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
+        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
+        "stackId": "basement-main",
         "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1"
       }
     },

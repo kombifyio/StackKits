@@ -1214,8 +1214,7 @@ _architectureV2WorkloadContracts: [
 			}
 			setup: {mode: "on-demand", owner: "module", actionRefs: ["vault-owner-invite"]}
 			inputs: {
-				// release selects one admitted Vaultwarden release; omission keeps the default.
-				settings: {allowedRefs: ["release"], requiredRefs: [], descriptors: [{key: "release", type: "string", label: "Release"}]}
+				settings: {allowedRefs: [], requiredRefs: []}
 				secretInputs: {
 					allowedRefs: ["admin-token"]
 					requiredRefs: ["admin-token"]
@@ -8989,8 +8988,8 @@ _architectureV2Modules: list.Concat([[
 					ref:    "ghcr.io/dani-garcia/vaultwarden:1.37.2"
 					digest: "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912"
 				}
-				// Further upstream release (multi-arch index digest, amd64 and
-				// arm64) one installation can move to with a retained-data
+				// Further tested upstream release (multi-arch index digest, amd64
+				// and arm64) one installation can move to with a retained-data
 				// rollback: `stackkit use-cases upgrade vault --to 1.37.5`.
 				releases: [{image: {
 					ref:    "ghcr.io/dani-garcia/vaultwarden:1.37.5"
@@ -9025,8 +9024,8 @@ _architectureV2Modules: list.Concat([[
 			compatibleTargets: ["compose", "opentofu"]
 			templateRef:  "builtin://workloads/vaultwarden/bundle/v2.json"
 			version:      "2.0.0"
-			contractHash: "sha256:bdfc2416ecef3841621bd3166fccf50246f0525a127ec98500158da99142db85"
-			publicInputRefs: ["delivery-route", "release"]
+			contractHash: "sha256:44226a82f065830cdc96c5d73667432429b8ba8f65ff0d71e692e32cc8b40cee"
+			publicInputRefs: ["delivery-route"]
 			inputBindings: [{
 				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
 				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
@@ -9059,19 +9058,19 @@ _architectureV2Modules: list.Concat([[
 				id:           "compose", target: "compose", rendererRef: "stackkit"
 				contractHash: "sha256:efac52c8e5f859db1840d54bf3b18d1f1f9b58fe14a52c01d7a63476b6481a56"
 				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
-				publicInputRefs: ["delivery-route", "release"], secretInputRefs: ["admin-token"], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 			{
 				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
 				contractHash: "sha256:b5726cb7e278a8a0d3b083e83c41f107a8c08b200b7989c02ebc52da8bebb430"
 				unitRefs: ["vaultwarden"], artifactRefs: ["vaultwarden-workload-bundle"]
-				publicInputRefs: ["delivery-route", "release"], secretInputRefs: ["admin-token"], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 			{
 				id:           "terramate", target: "terramate", rendererRef: "stackkit"
 				contractHash: _architectureV2TerramateStackHashes.workload
 				unitRefs: ["vaultwarden", "terramate-stack"], artifactRefs: ["vaultwarden-workload-bundle", _architectureV2VaultwardenTerramateStack.contract.id]
-				publicInputRefs: ["delivery-route", "release"], secretInputRefs: ["admin-token"], planInputRefs: []
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["admin-token"], planInputRefs: []
 			},
 		]
 		realizationSupport: _architectureV2VaultwardenSupport

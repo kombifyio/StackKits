@@ -29,17 +29,21 @@ type marketplaceStoreQuery struct {
 
 // The only executable PHP is this product-owned native integration. IDs are
 // JSON data; the caller cannot supply PHP, shell, credentials or a manager.
+// The digests qualify the Coolify 4.7.5 files: since 4.4.6 they add the
+// expected-stop marker, an optional attempt count that defaults to the
+// constants.ssh.max_retries this control sets to 1, host-key mismatch notes
+// and output redaction, and keep the synchronous single-attempt transport.
 const marketplaceStorePHP = `
 error_reporting(0);
 $qualified=[
- 'app/Actions/Service/StopServiceApplication.php'=>'b4eb8d7632b87065988a768aa246720e0cfc2f2e9b99e421a486780d0c264225',
- 'app/Actions/Service/RestartServiceApplication.php'=>'4a63827022d7b530d494e9bcaa9127d8dba48f636df657abe359c6d31edd7292',
- 'app/Models/Service.php'=>'48bff038d700109c4df35eba6d989dedd2abbb8b33d1e0c36fac181820da72ea',
- 'app/Helpers/SshRetryHandler.php'=>'d791da00d2b3e36ce1b7692cc4a241aab818814ce5b764bdb76a915c9ba12fdc',
- 'app/Traits/SshRetryable.php'=>'a7c797af05a68ca040e4c633cd33b50518b1acdaae82b16b375224daa411f052',
- 'bootstrap/helpers/remoteProcess.php'=>'e529552da9dc8c955d0c879b2fc9754e405ddcdc222109a0be52ab6fa57c37f8',
- 'app/Jobs/CoolifyTask.php'=>'fa35f9d1b903f05797999df22215c08feabea3ec20d17c0a16203929d6ed93c4',
- 'app/Actions/CoolifyTask/RunRemoteProcess.php'=>'70dac502dd2fa3dfe951f0baf2b6a20e887a1dd475f13a51f3598f4b05cd3118',
+ 'app/Actions/Service/StopServiceApplication.php'=>'f4b8a65aea1cc911638abb8c6649769f5b96d84a9451b8370a8278c96a8b0c88',
+ 'app/Actions/Service/RestartServiceApplication.php'=>'2785d2be60c20aaacf859cbadc856ad9604ac15de74b641e83e03ba6df1b5b27',
+ 'app/Models/Service.php'=>'47d0d479b6f004c3516f69a4dbc5f2a232fc3a29fd0f04228238c8289256e75a',
+ 'app/Helpers/SshRetryHandler.php'=>'e045b560e01d1391b9ecbc76fd18a1a6e1f7f0016c3bf933c42d0fe1d90c73da',
+ 'app/Traits/SshRetryable.php'=>'0a311e0e2c542d77379079e115743127167b53b456ad3bc4da2860ee7cf9e9fa',
+ 'bootstrap/helpers/remoteProcess.php'=>'b25bac163f6f6c66f60df347acdb799e5e00bd2a0436c60fb9a3fe16a68e3411',
+ 'app/Jobs/CoolifyTask.php'=>'df64fecb6cbf1b19189e82230ebb22afe6a8eaf2c69d9897f8668c58c12f9c92',
+ 'app/Actions/CoolifyTask/RunRemoteProcess.php'=>'097ab7edc21f0ba4b42d784b9effcae0aa270f1db508cb4ad760d8bcbfb7cc84',
  'app/Enums/ProcessStatus.php'=>'5f637d76be5c9d8122f59dcd0e1ebe62632957574aa661d38286b4eea0f505dc'];
 foreach($qualified as $file=>$digest){if(hash_file('sha256','/var/www/html/'.$file)!==$digest){exit(74);}}
 require '/var/www/html/vendor/autoload.php';

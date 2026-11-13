@@ -14,6 +14,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 	"github.com/kombifyio/stackkits/internal/upgradelifecycle"
 )
@@ -93,7 +94,7 @@ func publicMarketplaceUpgradeAuthority(workspace string) nativehost.MarketplaceU
 }
 
 func marketplaceUpgradePreservesIdentity(prior, target architecturev2renderer.MarketplaceCoolifyDocument) error {
-	// Parsing both recipes retains the qualified Coolify 4.4, PostgreSQL 15
+	// Parsing both recipes retains the qualified Coolify 4.4/4.7, PostgreSQL 15
 	// and Redis 7 bounds; a checkpoint cannot admit a major data migration.
 	if err := architecturev2renderer.ValidateMarketplaceCoolifyDocument(prior); err != nil {
 		return err
@@ -105,5 +106,24 @@ func marketplaceUpgradePreservesIdentity(prior, target architecturev2renderer.Ma
 		prior.DomainBase != target.DomainBase || prior.SubdomainPrefix != target.SubdomainPrefix || !reflect.DeepEqual(prior.Route, target.Route) {
 		return errors.New("Marketplace upgrade must preserve its Kit, node, identity and addresses; use an explicit manager transition for ownership changes")
 	}
+	// Coolify migrates its database forward on start; an older image cannot
+	// run on that database, so a checkpoint never moves Coolify back to an
+	// earlier release (4.7 to 4.4, or an applied 4.7.6 override to a 4.7.5
+	// StackKits default). The scoped release rollback restores the data first.
+	from, to := marketplaceCoolifyRelease(prior), marketplaceCoolifyRelease(target)
+	if from != to {
+		if later, comparable := resolvedplan.ComponentReleaseLater(to, from); !comparable || !later {
+			return fmt.Errorf("Marketplace upgrade cannot move Coolify from %s back to %s; restore its checkpoint instead (stackkit use-cases upgrade --rollback <operation-id>)", from, to)
+		}
+	}
 	return nil
+}
+
+func marketplaceCoolifyRelease(d architecturev2renderer.MarketplaceCoolifyDocument) string {
+	for _, c := range d.Components {
+		if c.ID == "coolify" {
+			return imageReleaseTag(c.ImageRef)
+		}
+	}
+	return ""
 }

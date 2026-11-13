@@ -62,10 +62,13 @@ of the Tailscale and Pangolin tools are the Owner's own account or server
 Fossorial Commercial License where their header says so); device clients
 (WireGuard apps, Tailscale, Olm) are installed by the person from upstream.
 
-Marketplace targets digest-pinned Coolify 4.4.x with `AUTOUPDATE=false`
-(ADR-0049). That target is not the legacy 4.1.2 pin. Its implementation must
-record the exact release, digest and matching upstream notice before release;
-the 4.4.6 development probe is not a shipped Marketplace pin.
+Marketplace runs Coolify 4.7.5 (`coollabsio/coolify:4.7.5`, image index
+`sha256:ac2259a438f0221e73eca2838c0c929ff2fd304f8345daabc85c910b6c83d6ee`,
+Apache-2.0, [Source](https://github.com/coollabsio/coolify/tree/v4.7.5),
+[LICENSE](https://github.com/coollabsio/coolify/blob/v4.7.5/LICENSE)) unmodified,
+digest-pinned with `AUTOUPDATE=false` (ADR-0049), with PostgreSQL 15 and
+Redis 7 from the same catalog entry. It replaces the earlier 4.4.6 pin and is
+not the legacy 4.1.2 pin of the Full core alternatives.
 
 ## coolify-mirror relocation engine
 

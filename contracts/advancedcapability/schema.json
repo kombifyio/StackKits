@@ -38,9 +38,11 @@
           "uniqueItems": true,
           "items": {
             "enum": [
+              "application-release.update",
               "application-transfer.receive",
               "application-transfer.retire",
               "drift.reconcile.advanced",
+              "own-application.lifecycle",
               "public-tls.origin-certificate.install",
               "public-tls.origin-certificate.request",
               "restore.drill",
@@ -50,6 +52,10 @@
             ]
           },
           "description": "AllowedOperations is the sorted, duplicate-free operation set."
+        },
+        "applicationRelease": {
+          "$ref": "#/$defs/ApplicationRelease",
+          "description": "ApplicationRelease binds a short-lived scoped release update to one catalog use case and the exact release, manifest digest and tested or untested kind the Owner approved in Techstack."
         },
         "audience": {
           "type": "string",
@@ -84,6 +90,10 @@
           "pattern": "^ed25519://sha256/[0-9a-f]{64}$",
           "description": "KeyID is ed25519://sha256/\u003chex SHA-256 of the raw public key\u003e."
         },
+        "ownApplicationLifecycle": {
+          "$ref": "#/$defs/OwnApplicationLifecycle",
+          "description": "OwnApplicationLifecycle binds a short-lived own-application.lifecycle capability to one application, one action, one operation ID and the review digest of its dry run."
+        },
         "ownerRef": {
           "type": "string",
           "pattern": "^owner/local/[0-9a-f]{32}$"
@@ -116,6 +126,35 @@
         "uiManagerRef": {
           "type": "string",
           "x-kombify-format": "logical-reference"
+        }
+      }
+    },
+    "ApplicationRelease": {
+      "description": "ApplicationRelease authorizes one scoped release update of the single application a catalog use case selects on a managed node: the node stops it, retains and reads back its data, records the release override in its desired intent and runs generate, apply and verify, rolling back to the prior release and data on failure. It grants no other intent change, no StackKits release change, no data deletion, server or provider authority. The consumer reconstructs every field from its own command and catalog.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "releaseKind",
+        "targetDigest",
+        "targetRelease",
+        "useCaseRef"
+      ],
+      "properties": {
+        "releaseKind": {
+          "type": "string",
+          "pattern": "^(tested|untested)$"
+        },
+        "targetDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "targetRelease": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "useCaseRef": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
         }
       }
     },
@@ -191,6 +230,35 @@
         "usedBytes": {
           "type": "string",
           "pattern": "^(0|[1-9][0-9]{0,18})$"
+        }
+      }
+    },
+    "OwnApplicationLifecycle": {
+      "description": "OwnApplicationLifecycle authorizes exactly one reviewed action (start, stop, restart, update, rollback or discard-checkpoint) of one own application on a managed node: the operation ID and the review digest its dry run returned. It grants no create, remove, data deletion, server or provider authority. The consumer compares every field with the call it admits.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "name",
+        "operationId",
+        "reviewDigest"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "pattern": "^(start|stop|restart|update|rollback|discard-checkpoint)$"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "operationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "reviewDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
         }
       }
     },

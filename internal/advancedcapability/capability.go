@@ -24,10 +24,16 @@ type TransferRetirement = wire.TransferRetirement
 
 type TransferReceive = wire.TransferReceive
 
+type ApplicationRelease = wire.ApplicationRelease
+
+type OwnApplicationLifecycle = wire.OwnApplicationLifecycle
+
 const (
+	OperationApplicationReleaseUpdate   = wire.OperationApplicationReleaseUpdate
 	OperationApplicationTransferReceive = wire.OperationApplicationTransferReceive
 	OperationApplicationTransferRetire  = wire.OperationApplicationTransferRetire
 	OperationDriftReconcileAdvanced     = wire.OperationDriftReconcileAdvanced
+	OperationOwnApplicationLifecycle    = wire.OperationOwnApplicationLifecycle
 	OperationOriginCertificateInstall   = wire.OperationOriginCertificateInstall
 	OperationOriginCertificateRequest   = wire.OperationOriginCertificateRequest
 	OperationRestoreDrill               = wire.OperationRestoreDrill
@@ -97,22 +103,25 @@ type TrustBundle struct {
 // Request binds verification to the exact local operation being admitted.
 // Optional expected issuer/approval references add narrower caller scope.
 type Request struct {
-	TransferRetirement *wire.TransferRetirement
-	TransferReceive    *wire.TransferReceive
-	Now                time.Time
-	TrustBundle        *TrustBundle
-	StackID            string
-	OwnerRef           string
-	Operation          string
-	IssuerID           string
-	UIManagerRef       string
-	RILRef             string
+	TransferRetirement      *wire.TransferRetirement
+	TransferReceive         *wire.TransferReceive
+	OwnApplicationLifecycle *wire.OwnApplicationLifecycle
+	ApplicationRelease      *wire.ApplicationRelease
+	Now                     time.Time
+	TrustBundle             *TrustBundle
+	StackID                 string
+	OwnerRef                string
+	Operation               string
+	IssuerID                string
+	UIManagerRef            string
+	RILRef                  string
 }
 
 // Grant is the fully verified and locally scoped capability.
 type Grant struct {
 	TransferRetirement *wire.TransferRetirement
 	TransferReceive    *wire.TransferReceive
+	ApplicationRelease *wire.ApplicationRelease
 	BackupRenewal      *wire.BackupRenewal
 	CapabilityID       string
 	IssuerID           string

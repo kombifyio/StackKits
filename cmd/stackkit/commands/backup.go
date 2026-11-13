@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/backupexec"
+	"github.com/kombifyio/stackkits/internal/crypto/decisionreceipt"
 	"github.com/kombifyio/stackkits/internal/publicpath"
 	"github.com/spf13/cobra"
 )
@@ -294,6 +295,7 @@ func init() {
 	backupRestoreActivateCmd.MarkFlagsMutuallyExclusive("workload", "marketplace-service")
 	backupRestoreActivateCmd.Flags().BoolVar(&backupActivationOwnerApproved, "owner-approve", false,
 		"Authorize live activation with the established local Owner custody")
+	addDecisionReceiptFlags(backupRestoreActivateCmd)
 	backupRestoreRecoverCmd.Flags().BoolVar(&backupOutputJSON, "json", false,
 		"Emit stackkit.command-result/v1 JSON")
 	backupRestoreRecoverCmd.Flags().BoolVar(&backupRecoveryOwnerApproved, "owner-approve", false,
@@ -437,10 +439,56 @@ func runBackupRestoreActivate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return machineAwareCommandError(cmd, err)
 	}
+	receipted, err := admitDecisionReceipt(func() (decisionreceipt.Request, error) {
+		return backupRestoreDecisionRequest(cmd, getWorkDir(), args[0], expected)
+	})
+	if err != nil {
+		return machineAwareCommandError(cmd, err)
+	}
+	approved := backupActivationOwnerApproved || receipted
 	return machineAwareCommandError(cmd, runNativeV2RestoreActivationCommand(
 		cmd, args[0], backupActivationOperationID,
-		backupActivationOwnerApproved, expected,
+		approved, expected,
 	))
+}
+
+// backupRestoreDecisionRequest is the first-slice request one restore
+// activation presents to a decision receipt (docs/DECISION-RECEIPTS.md,
+// "Binding definition"): the staged restore result it activates, its
+// canonical arguments, the plan hash it was reviewed against and the revision
+// of the workspace. A receipt requires --expected-plan-hash, and the
+// activation itself refuses a plan whose hash differs from it, so the receipt
+// binds the plan that runs.
+func backupRestoreDecisionRequest(cmd *cobra.Command, workspace, resultID, expectedPlanHash string) (decisionreceipt.Request, error) {
+	plan, err := decisionPlanDigest("--expected-plan-hash", expectedPlanHash)
+	if err != nil {
+		return decisionreceipt.Request{}, err
+	}
+	revision, err := decisionReceiptRevision(workspace)
+	if err != nil {
+		return decisionreceipt.Request{}, err
+	}
+	workload, err := cmd.Flags().GetString("workload")
+	if err != nil {
+		return decisionreceipt.Request{}, err
+	}
+	marketplaceService, err := cmd.Flags().GetString("marketplace-service")
+	if err != nil {
+		return decisionreceipt.Request{}, err
+	}
+	resultID = strings.TrimSpace(resultID)
+	return decisionreceipt.Request{
+		Operation: decisionreceipt.OperationBackupRestore,
+		Target:    decisionreceipt.Target{Kind: decisionreceipt.TargetRestore, Ref: resultID},
+		Arguments: decisionreceipt.BackupRestoreArguments(
+			resultID,
+			strings.TrimSpace(workload),
+			strings.TrimSpace(marketplaceService),
+			strings.TrimSpace(backupActivationOperationID),
+		),
+		PlanSHA256: plan,
+		Revision:   revision,
+	}, nil
 }
 
 func runBackupRestoreRecover(cmd *cobra.Command, args []string) error {

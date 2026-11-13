@@ -237,7 +237,7 @@ func RemoveMarketplaceWorkload(ctx context.Context, workspace string, request wo
 		}
 		// A subsequently explicit install must issue new API/server custody
 		// into the new database; the retired token cannot be silently reused.
-		state.APIToken, state.ServerID = "", ""
+		state.APIToken, state.PendingAPIToken, state.ServerID = "", "", ""
 		if err := saveMarketplaceCustody(view, state); err != nil {
 			return result, err
 		}

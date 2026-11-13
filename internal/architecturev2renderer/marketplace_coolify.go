@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
@@ -15,6 +16,12 @@ import (
 const MarketplaceCoolifyModuleRef = "stackkits-marketplace-coolify-runtime"
 const MarketplaceCoolifyUnitRef = "marketplace"
 const MarketplaceCoolifyOutputRef = "workloads/marketplace/installation.json"
+
+// marketplaceCoolifySchema is the frozen renderer contract identity. Its hash
+// is carried by every applied Marketplace request, and a checkpointed upgrade
+// parses the prior request under the same contract, so the string is not
+// edited for a new Coolify minor: ParseMarketplaceCoolifyDocument admits the
+// qualified minors and the catalog selects the one exact pin.
 const marketplaceCoolifySchema = "stackkit.marketplace-coolify/v1|artifact-revision:2|node-local,basement-and-cloud-standard|core:basement-lite-or-cloud-standalone|network:kit-core-bound|identity-subdomain-prefix:plan-bound|application:coolify4.4|components:coolify,postgres15,redis7|images:catalog-bound|api:loopback-only|identity:pocketid-pkce,root-email,household-members|ui:kit-router,forward-auth,cloud-public-tls-or-home-private|autoupdate:false|secrets:node-custody|provider-lifecycle:not-owned|backup:node-installation-volumes,quiesced"
 
 var marketplaceIdentityPrefixPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
@@ -151,12 +158,18 @@ func ParseMarketplaceCoolifyDocument(raw []byte) (MarketplaceCoolifyDocument, er
 	if d.SubdomainPrefix != "" && (d.KitRef != "cloud-kit" || len(d.SubdomainPrefix) > 63 || !marketplaceIdentityPrefixPattern.MatchString(d.SubdomainPrefix)) {
 		return d, errors.New("Marketplace identity prefix differs from the closed Cloud address contract")
 	}
-	prefixes := map[string]string{"coolify": "coollabsio/coolify:4.4.", "postgres": "postgres:15-", "redis": "redis:7-"}
+	// The catalog pins one exact Coolify 4.7 release. Every Coolify 4.x stays
+	// parseable: a checkpointed StackKits upgrade parses the prior 4.4
+	// installation, and a scoped application release (use-cases upgrade
+	// marketplace) may select a tested or an Owner-accepted untested later
+	// release of the same major, which the plan compiler admits only inside
+	// the module's track and after the catalog default.
+	prefixes := map[string][]string{"coolify": {"coollabsio/coolify:4."}, "postgres": {"postgres:15-"}, "redis": {"redis:7-"}}
 	seen := map[string]bool{}
 	for _, c := range d.Components {
-		if prefixes[c.ID] == "" || seen[c.ID] || !strings.HasPrefix(c.ImageRef, prefixes[c.ID]) ||
+		if len(prefixes[c.ID]) == 0 || seen[c.ID] || !slices.ContainsFunc(prefixes[c.ID], func(prefix string) bool { return strings.HasPrefix(c.ImageRef, prefix) }) ||
 			!komodoBootstrapDigestPattern.MatchString(c.ImageDigest) || !komodoBootstrapMemoryPattern.MatchString(c.MemoryLimit) {
-			return d, errors.New("Marketplace requires its digest-pinned Coolify 4.4, PostgreSQL 15 and Redis 7 installation components")
+			return d, errors.New("Marketplace requires its digest-pinned Coolify 4, PostgreSQL 15 and Redis 7 installation components")
 		}
 		seen[c.ID] = true
 	}

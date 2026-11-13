@@ -87,7 +87,7 @@ func validateVaultwardenSelectedPaaSRequest(request runtimeexecutor.ExecutionReq
 		target.ModuleRef != vaultwardenModuleRef || target.ModuleContractHash != authority.ModuleContractHash ||
 		target.UnitRef != vaultwardenUnitRef || target.UnitContractHash != authority.UnitContractHash ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "selected-paas" || target.RuntimeEngine != "docker" ||
-		target.WorkloadRef != vaultwardenWorkloadRef || !vaultwardenAdmittedImage(target.ImageRef, target.ImageDigest) ||
+		target.WorkloadRef != vaultwardenWorkloadRef || !entryImageAdmitted(vaultwardenModuleRef, target.ImageRef, target.ImageDigest) ||
 		target.InstanceRef != vaultwardenInstancePrefix+binding.NodeRef || target.ExecutionChannelRef != binding.ExecutionChannelRef ||
 		!slices.Equal(target.SiteRefs, []string{binding.SiteRef}) || !slices.Equal(target.NodeRefs, []string{binding.NodeRef}) ||
 		len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
@@ -138,8 +138,8 @@ func validateVaultwardenSelectedPaaSRequest(request runtimeexecutor.ExecutionReq
 	if err != nil {
 		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, fmt.Errorf("validate closed Vaultwarden workload bundle: %w", err)
 	}
-	if release, _ := architecturev2renderer.AdmittedWorkloadReleaseForImage(vaultwardenModuleRef, target.ImageRef, target.ImageDigest); (release != "" || descriptor.Release != architecturev2renderer.VaultwardenRelease) && descriptor.Release != release {
-		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, errors.New("Vaultwarden workload bundle release differs from its runtime image")
+	if descriptor.Release, descriptor.Components, err = effectiveEntryRelease(artifact.Content, descriptor.Release, descriptor.Components, target); err != nil {
+		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, fmt.Errorf("Vaultwarden workload bundle release: %w", err)
 	}
 	if descriptor.WorkloadRef != target.WorkloadRef || descriptor.ModuleRef != target.ModuleRef ||
 		descriptor.SiteRef != binding.SiteRef || descriptor.NodeRef != binding.NodeRef ||
@@ -188,14 +188,4 @@ func validateVaultwardenObservation(observation SelectedPaaSWorkloadObservation,
 		}
 	}
 	return nil
-}
-
-// vaultwardenAdmittedImage admits the default pin or a release the catalog
-// admits beside it (the workload release setting).
-func vaultwardenAdmittedImage(ref, digest string) bool {
-	if ref == vaultwardenImageRef && digest == vaultwardenImageDigest {
-		return true
-	}
-	_, admitted := architecturev2renderer.AdmittedWorkloadReleaseForImage(vaultwardenModuleRef, ref, digest)
-	return admitted
 }

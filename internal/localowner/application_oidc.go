@@ -2,6 +2,7 @@ package localowner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -21,6 +22,7 @@ type ApplicationOIDCClientRequest struct {
 	// RequiredPrivilege comes from the validated catalog endpoint. Empty keeps
 	// the existing household application policy; vault always requires vault.
 	RequiredPrivilege string
+	Audience          *householdapps.Audience
 	// Public is admitted only for the governed Smart Home and kombify account
 	// link PKCE clients.
 	Public   bool
@@ -56,6 +58,59 @@ type oidcClientUpdater interface {
 	UpdateOIDCClient(context.Context, string, pocketid.RegisterClientRequest) (*pocketid.OIDCClient, error)
 }
 
+// applicationAudienceMarkerPrefix marks the Pocket ID client of an application
+// that carries an explicit audience decision. The decision follows the prefix
+// as its canonical JSON, so member-grant reconciliation keys on the decision
+// instead of inferring it from the client's group pair.
+const applicationAudienceMarkerPrefix = "stackkit.application-audience/v1 "
+
+// applicationAudienceDescription renders the explicit decision that is recorded
+// on the Pocket ID client.
+func applicationAudienceDescription(audience householdapps.Audience) (string, error) {
+	raw, err := json.Marshal(audience)
+	if err != nil {
+		return "", err
+	}
+	return applicationAudienceMarkerPrefix + string(raw), nil
+}
+
+// applicationAudienceFromDescription reads the explicit decision back from the
+// Pocket ID client. A description that is not our marker, or that does not
+// carry the canonical decision, carries no decision at all.
+func applicationAudienceFromDescription(description string) (*householdapps.Audience, bool) {
+	trimmed := strings.TrimSpace(description)
+	if !strings.HasPrefix(trimmed, applicationAudienceMarkerPrefix) {
+		return nil, false
+	}
+	raw := strings.TrimPrefix(trimmed, applicationAudienceMarkerPrefix)
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var audience householdapps.Audience
+	if err := decoder.Decode(&audience); err != nil {
+		return nil, false
+	}
+	canonical, err := json.Marshal(audience)
+	if err != nil || string(canonical) != raw {
+		return nil, false
+	}
+	if _, err := audience.Groups(); err != nil {
+		return nil, false
+	}
+	return &audience, true
+}
+
+// applicationAudienceDescriptionDiffers reports whether the recorded decision
+// must be rewritten: a decision that is present but different, or a decision
+// that was withdrawn. A client without our marker keeps the description its
+// owner gave it.
+func applicationAudienceDescriptionDiffers(existing, desired string) bool {
+	if desired != "" {
+		return existing != desired
+	}
+	_, marked := applicationAudienceFromDescription(existing)
+	return marked
+}
+
 // EnsureApplicationOIDCClient registers or converges a governed,
 // PKCE-enabled Pocket ID client for one application, restricted to the same
 // owner groups as the TinyAuth gate, and keeps its secret in local custody as
@@ -88,6 +143,13 @@ func (s *Service) EnsureApplicationOIDCClient(ctx context.Context, request Appli
 		ID: request.ClientID, Name: request.Name, CallbackURLs: callbackURLs,
 		IsPublic: request.Public, PkceEnabled: true, IsGroupRestricted: true,
 	}
+	if request.Audience != nil {
+		marker, markerErr := applicationAudienceDescription(*request.Audience)
+		if markerErr != nil {
+			return ApplicationOIDCClient{}, errors.New("localowner: application audience decision is invalid")
+		}
+		desired.Description = marker
+	}
 	existing, err := client.GetOIDCClient(ctx, request.ClientID)
 	secret := ""
 	switch {
@@ -103,7 +165,8 @@ func (s *Service) EnsureApplicationOIDCClient(ctx context.Context, request Appli
 		return ApplicationOIDCClient{}, errors.New("localowner: Pocket ID application client readback failed")
 	default:
 		if existing.Name != desired.Name || !slices.Equal(existing.CallbackURLs, desired.CallbackURLs) ||
-			existing.IsPublic != request.Public || !existing.PkceEnabled || !existing.IsGroupRestricted {
+			existing.IsPublic != request.Public || !existing.PkceEnabled || !existing.IsGroupRestricted ||
+			applicationAudienceDescriptionDiffers(existing.Description, desired.Description) {
 			updater, ok := client.(oidcClientUpdater)
 			if !ok {
 				return ApplicationOIDCClient{}, errors.New("localowner: Pocket ID application client differs and cannot be converged")
@@ -123,11 +186,14 @@ func (s *Service) EnsureApplicationOIDCClient(ctx context.Context, request Appli
 	if _, err := client.UpdateOIDCClientAllowedUserGroups(ctx, request.ClientID, groupIDs); err != nil {
 		return ApplicationOIDCClient{}, errors.New("localowner: Pocket ID application client group binding failed")
 	}
-	if request.RequiredPrivilege == "vault" || request.Public {
+	// Clients restricted to owners and admins (Vault, Marketplace) read their
+	// group binding back, so a household user is provably refused at Pocket ID.
+	if (request.RequiredPrivilege != "" && request.RequiredPrivilege != "user") || request.Public || request.Audience != nil {
 		observed, err := client.GetOIDCClient(ctx, request.ClientID)
 		if err != nil || observed == nil || observed.ID != request.ClientID || observed.Name != desired.Name ||
 			observed.IsPublic != request.Public || !observed.PkceEnabled || !observed.IsGroupRestricted ||
-			!slices.Equal(observed.CallbackURLs, callbackURLs) || !samePocketIDGroupIDs(observed.AllowedUserGroups, groupIDs) {
+			!slices.Equal(observed.CallbackURLs, callbackURLs) || !samePocketIDGroupIDs(observed.AllowedUserGroups, groupIDs) ||
+			(request.Audience != nil && observed.Description != desired.Description) {
 			return ApplicationOIDCClient{}, errors.New("localowner: application OIDC admission readback differs")
 		}
 	}
@@ -187,6 +253,16 @@ func applicationOIDCGroupIDs(ctx context.Context, client pocketIDOwnerClient, re
 		names = []string{"admins", "owners"}
 	default:
 		return nil, errors.New("localowner: unknown application OIDC privilege")
+	}
+	if request.Audience != nil {
+		if request.RequiredPrivilege != "user" || !householdapps.IsGrantable(strings.TrimPrefix(request.ClientID, "stackkit-")) {
+			return nil, errors.New("localowner: application audience requires a governed user application")
+		}
+		var err error
+		names, err = request.Audience.Groups()
+		if err != nil {
+			return nil, err
+		}
 	}
 	ids := make([]string, 0, len(names))
 	for _, name := range names {

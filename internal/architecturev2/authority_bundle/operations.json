@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:4b57f082562a9f89dcb715eac091916d31f8ac1e4efa27d4e620f4a9656f94a0",
+  "contentDigest": "sha256:af2cd87bd5b8c8e97dc0b92120c20dd25f759ba7c3ea97cf44459e0531ae721d",
   "operations": [
     {
       "command": [
@@ -102,6 +102,12 @@
           "kind": "string",
           "name": "expect_sha256",
           "required": true
+        },
+        {
+          "description": "compact decision receipt (JWS) that carries the Owner's confirmation of this exact change set; required",
+          "flag": "--decision-receipt",
+          "kind": "string",
+          "name": "decision_receipt"
         }
       ],
       "command": [
@@ -302,10 +308,13 @@
             "create",
             "update",
             "rollback",
+            "start",
             "stop",
+            "restart",
             "remove",
             "status",
-            "logs"
+            "logs",
+            "discard-checkpoint"
           ],
           "flag": "--action",
           "kind": "string",
@@ -319,7 +328,7 @@
           "required": true
         },
         {
-          "description": "Local Techstack techstack.own-application/v1 JSON file; custody references only",
+          "description": "Local Techstack own-application/v1, v2 or v3 JSON file; custody references only",
           "flag": "--document",
           "kind": "string",
           "name": "document_file"
@@ -341,6 +350,36 @@
           "flag": "--resolved-image",
           "kind": "string",
           "name": "resolved_image"
+        },
+        {
+          "description": "Update only: newer version tag of the application's own image; re-resolved before stopping, checkpoint, verify, automatic rollback",
+          "flag": "--image-tag",
+          "kind": "string",
+          "name": "image_tag"
+        },
+        {
+          "description": "With image_tag: admit another major version or an unversioned running image; never a downgrade or another variant",
+          "flag": "--allow-major",
+          "kind": "boolean",
+          "name": "allow_major"
+        },
+        {
+          "description": "Rollback: restore the data checkpoint this tag update operation took, then return to its prior image; discard-checkpoint: remove its retained copy",
+          "flag": "--checkpoint",
+          "kind": "string",
+          "name": "checkpoint"
+        },
+        {
+          "description": "Managed node only: Techstack own-application.lifecycle capability bound to this application, action, operation ID and review digest",
+          "flag": "--capability",
+          "kind": "string",
+          "name": "capability_file"
+        },
+        {
+          "description": "JSON object of service and digest pairs from dry review for a tagged project execution",
+          "flag": "--resolved-images-file",
+          "kind": "string",
+          "name": "resolved_images_file"
         },
         {
           "description": "Private JSON input for this application namespace; never inline secret values",
@@ -371,6 +410,12 @@
           "flag": "--delete-data",
           "kind": "boolean",
           "name": "delete_data"
+        },
+        {
+          "description": "Compact decision receipt (JWS) that carries the Owner's confirmation of this exact removal; required when remove deletes data outside a dry run, refused otherwise",
+          "flag": "--decision-receipt",
+          "kind": "string",
+          "name": "decision_receipt"
         }
       ],
       "command": [
@@ -379,7 +424,7 @@
         "--json",
         "--owner-approve"
       ],
-      "description": "Use to run one extra container image beside the homelab. Dry-run the exact action to review Compose, routing and backup, then repeat it with the returned digest; remove keeps data unless deletion is explicit.",
+      "description": "Use to run one extra container image, or one Compose project of several containers, beside the homelab. Dry-run the exact action to review Compose, routing and backup, then repeat it with the returned digest; remove keeps data unless deletion is explicit.",
       "destructive": true,
       "id": "stackkit.app.own",
       "idempotent": true,
@@ -748,6 +793,12 @@
           "flag": "--expected-plan-hash",
           "kind": "string",
           "name": "expected_plan_hash"
+        },
+        {
+          "description": "compact decision receipt (JWS) that carries the Owner's confirmation of this exact activation; required, with expected_plan_hash",
+          "flag": "--decision-receipt",
+          "kind": "string",
+          "name": "decision_receipt"
         }
       ],
       "command": [
@@ -2342,6 +2393,14 @@
       "toolName": "stackkit_registry_info"
     },
     {
+      "arguments": [
+        {
+          "description": "Compact decision receipt (JWS) that carries the Owner's confirmation of this exact removal; required when data deletion is explicit and refused otherwise",
+          "flag": "--decision-receipt",
+          "kind": "string",
+          "name": "decision_receipt"
+        }
+      ],
       "command": [
         "remove",
         "--json"
@@ -2760,10 +2819,28 @@
           "name": "slug"
         },
         {
-          "description": "admitted target release; exactly one of to, rollback or finalize",
+          "description": "target release (image tag); exactly one of to, rollback or finalize",
           "flag": "--to",
           "kind": "string",
           "name": "to"
+        },
+        {
+          "description": "exact sha256 manifest digest of to; required for an untested release",
+          "flag": "--digest",
+          "kind": "string",
+          "name": "digest"
+        },
+        {
+          "description": "accept a release outside the catalog's tested releases, inside the module's release track",
+          "flag": "--accept-untested",
+          "kind": "boolean",
+          "name": "accept_untested"
+        },
+        {
+          "description": "run checkpoint, generate, apply and live verify, rolling back automatically on failure",
+          "flag": "--apply",
+          "kind": "boolean",
+          "name": "apply"
         },
         {
           "description": "release operation ID to return to its prior release and data",
@@ -2796,7 +2873,7 @@
         "--json",
         "--owner-approve"
       ],
-      "description": "Use to move one application to another admitted release. Stops it and checkpoints its data for rollback; the next apply starts the new release and finalize drops the checkpoint.",
+      "description": "Use to move one application to a newer release of its entry image, tested or owner-accepted untested inside its release track. Stops it and checkpoints its data for rollback; apply (or --apply in one step, with automatic rollback) starts the new release and finalize drops the checkpoint.",
       "destructive": true,
       "id": "stackkit.use-cases.upgrade",
       "idempotent": false,
@@ -2805,6 +2882,31 @@
       "ownerApproval": true,
       "title": "Change application release",
       "toolName": "stackkit_use_cases_upgrade"
+    },
+    {
+      "arguments": [
+        {
+          "description": "report the release overrides",
+          "flag": "--overrides",
+          "kind": "boolean",
+          "name": "overrides",
+          "required": true
+        }
+      ],
+      "command": [
+        "use-cases",
+        "upgrade",
+        "--json"
+      ],
+      "description": "Use to see which applications run their own release override and whether the installed StackKits release keeps or supersedes it; changes nothing.",
+      "destructive": false,
+      "id": "stackkit.use-cases.upgrade.overrides",
+      "idempotent": true,
+      "mutation": false,
+      "openWorld": false,
+      "ownerApproval": false,
+      "title": "Application release overrides",
+      "toolName": "stackkit_use_cases_upgrade_overrides"
     },
     {
       "arguments": [

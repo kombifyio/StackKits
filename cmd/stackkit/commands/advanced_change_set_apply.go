@@ -23,6 +23,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/crypto/decisionreceipt"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -372,7 +373,40 @@ func settleAdvancedTarget(
 	return &publicUpgradeRolledBackError{phase: result.FailedPhase, cause: targetErr}
 }
 
+// advancedChangeSetDecisionRequest is the first-slice request one change-set
+// apply presents to a decision receipt (docs/DECISION-RECEIPTS.md, "Binding
+// definition"): the change set it applies, the digest of the stored
+// change-set bytes as its plan digest, and the revision of the workspace. The
+// apply's own admission compares that digest with the stored bytes before any
+// effect, so the receipt binds the change that runs.
+func advancedChangeSetDecisionRequest(workspace string) (decisionreceipt.Request, error) {
+	plan, err := decisionPlanDigest("--expect-sha256", advancedChangeSetDigest)
+	if err != nil {
+		return decisionreceipt.Request{}, err
+	}
+	changeSet := strings.TrimSpace(advancedChangeSetID)
+	if !sha256DigestPattern.MatchString(changeSet) {
+		return decisionreceipt.Request{}, errors.New("a decision receipt for a change set requires --change-set sha256:<64 lowercase hex>")
+	}
+	revision, err := decisionReceiptRevision(workspace)
+	if err != nil {
+		return decisionreceipt.Request{}, err
+	}
+	return decisionreceipt.Request{
+		Operation:  decisionreceipt.OperationAdvancedChangeSetApply,
+		Target:     decisionreceipt.Target{Kind: decisionreceipt.TargetChangeSet, Ref: changeSet},
+		Arguments:  decisionreceipt.AdvancedChangeSetApplyArguments(changeSet),
+		PlanSHA256: plan,
+		Revision:   revision,
+	}, nil
+}
+
 func runAdvancedChangeSetApply(cmd *cobra.Command, _ []string) error {
+	if _, err := admitDecisionReceipt(func() (decisionreceipt.Request, error) {
+		return advancedChangeSetDecisionRequest(getWorkDir())
+	}); err != nil {
+		return err
+	}
 	result, err := runAdvancedMutation(cmd, advancedMutationRequest{
 		CapabilityPath: strings.TrimSpace(advancedCapabilityPath),
 		CandidatePath:  strings.TrimSpace(advancedCandidatePath),

@@ -216,6 +216,46 @@ devices, and `syncedAt`. Failures carry the stable reason codes
 `home_graph_apply_failed`. The release catalog exposes the operation as
 `application.home-graph.sync`.
 
+### Adopting an existing Home Assistant and changing the leading system
+
+`stackkit setup home-graph-adopt --workload smart-home --request-file
+<relative-file> --operation-id <connector-operation-id> --adoption-file
+<relative-file> --json` adopts a Home Assistant that already has floors, areas
+and devices, and runs the same plan when the leading system changes later or a
+second Home Assistant is connected. It runs under the same authority and
+credential handling as `setup home-graph`. `--adoption-file` is a
+`stackkit.home-graph-adoption-request/v1` document of at most 512 KiB: `mode`,
+the graph (its `leading_system` is the system the person chose; kombify is
+preselected) and, for an apply, the confirmed `planDigest` with `decisions`
+(`conflictId`, `side`) or `decideAll` (one side for all).
+
+- `mode: inventory` reads the registries and writes nothing to Home Assistant.
+  Floors and rooms match by stored link, external reference, then name and
+  alias; devices match by their Home Assistant device id. The result lists the
+  matched objects, the objects only one side has and the conflicts
+  (`room_floor_mismatch`, `device_room_mismatch`, `name_collision`, and on a
+  leader change `deleted_on_one_side`) with both sides' values, and the
+  `planDigest`. On a Home Assistant kombify never wrote to, the node records the
+  adoption as pending: every `setup home-graph` run then fails with
+  `home_graph_adoption_pending` until the plan is confirmed, so the existing
+  installation stays observed.
+- `mode: apply` plans again and refuses with `home_graph_adoption_stale` when
+  the plan differs from the confirmed digest, and with
+  `home_graph_request_invalid` when a conflict has no decision. It then writes
+  the Home Assistant registry backup
+  (`.stackkit/home-graph/backups/ha-registry-<time>-<pid>.json`,
+  `kombify.home_graph.ha_registry_backup.v1`, mode 0600) before any write, and
+  fails with `home_graph_backup_failed` without changing anything when it
+  cannot. With kombify leading it applies the resolved projection (status
+  `applied`); with Home Assistant leading it writes nothing there and kombify
+  mirrors Home Assistant (status `mirrored`). The result carries the merged
+  graph Cloud stores as the next revision, the links, the drift and the backup.
+  The node records the confirmed leading system; a `setup home-graph` run with
+  another leading system fails with `home_graph_adoption_pending`, so a leader
+  change goes through the same plan. Nothing is deleted in Home Assistant.
+
+The command-result data uses `stackkit.home-graph-adoption-result/v1`.
+
 The local `appsetup.BootstrapHomeAssistantOwner` API accepts an optional
 `HomeAssistantOwnerRequest.Connector`. Ordinary owner/OIDC setup does not issue
 an agent credential. An authorized local caller explicitly selects `ensure`

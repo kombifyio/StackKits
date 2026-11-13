@@ -424,7 +424,7 @@ func New() Catalog {
 				Events: []EventPhase{changeSetPrepareEvents},
 				Modes:  capabilityModes,
 			},
-		}, append(applicationOperations(), applicationTransferReceiveEntry(), applicationTransferConfigurationEntry())...),
+		}, append(append(applicationOperations(), applicationTransferReceiveEntry(), applicationTransferConfigurationEntry(), applicationReleaseUpdateEntry()), ownApplicationOperations()...)...),
 	}
 	slices.SortFunc(catalog.Operations, func(a, b Operation) int { return cmp.Compare(a.Operation, b.Operation) })
 	return catalog
@@ -471,8 +471,18 @@ func placeholders() []Placeholder {
 	return []Placeholder{
 		{Name: "workloadRef", Description: "Exact selected application workload."},
 		{Name: "useCase", Description: "Exact selected catalog use case.", Pattern: `^[a-z0-9][a-z0-9-]{0,62}$`},
+		{Name: "releaseTag", Description: "Exact release (image tag) of the use case's application.", Pattern: `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`},
+		{Name: "imageDigest", Description: "Exact sha256 manifest digest of the release.", Pattern: sha},
 		{Name: "containerId", Description: "Exact immutable Docker container ID.", Pattern: `^[0-9a-f]{64}$`},
 		{Name: "planDigest", Description: "Reviewed source-bound application adoption digest.", Pattern: sha},
+		{Name: "ownApplicationName", Description: "Own application name, without the reserved own- prefix (also of an adopted container).", Pattern: `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`},
+		{Name: "ownApplicationAction", Description: "Reviewed own-application action.", Pattern: `^(start|stop|restart|rollback)$`},
+		{Name: "reviewDigest", Description: "Exact review digest the dry run of the same action returned.", Pattern: sha},
+		{Name: "checkpointOperationId", Description: "Operation ID of the tag update whose data checkpoint is restored.", Pattern: `^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`},
+		{Name: "imageTag", Description: "Newer version tag of the own application's image repository.", Pattern: `^v?[0-9]{1,9}(\.[0-9]{1,9}){0,3}([-_+][A-Za-z0-9_.+-]*)?$`},
+		{Name: "resolvedImage", Description: "Digest-pinned image the update review resolved the tag to.", Pattern: `^[a-z0-9][^@\s]*@sha256:[0-9a-f]{64}$`},
+		{Name: "httpPort", Description: "Container web port.", Pattern: `^[1-9][0-9]{0,4}$`},
+		{Name: "environmentName", Description: "Environment variable name.", Pattern: `^[A-Za-z_][A-Za-z0-9_]*$`},
 		{Name: "applicationAction", Description: "Admitted adopted-container power action.", Pattern: `^(start|stop|restart)$`},
 		{Name: "connectorRequestFile", Description: "Workspace-relative private metadata-only Home Assistant connector request."},
 		{Name: "homeGraphFile", Description: "Workspace-relative private home graph sync request (stackkit.home-graph-sync-request/v1, at most 512 KiB)."},

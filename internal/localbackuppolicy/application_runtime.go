@@ -14,6 +14,12 @@ import (
 // policy so lifecycle consumers cannot infer stop order from Docker names or
 // mutable container labels.
 type ApplicationRuntime struct {
+	FirewallRulesetDigest string `json:"firewallRulesetDigest,omitempty"`
+	// Firewalled is an own application on its managed host firewall bridge
+	// (outbound Internet, published ports, or both): snapshot recovery verifies
+	// or resumes it only through the firewall watcher.
+	Firewalled       bool `json:"firewalled,omitempty"`
+	OutboundInternet bool `json:"outboundInternet,omitempty"`
 	// Retained is a removed own application whose named data remains protected.
 	Retained          bool                          `json:"retained,omitempty"`
 	RuntimeAdapterRef string                        `json:"runtimeAdapterRef,omitempty"`
@@ -99,6 +105,13 @@ func canonicalApplicationRuntimes(runtimes []ApplicationRuntime) ([]ApplicationR
 }
 
 func validateApplicationRuntime(runtime ApplicationRuntime) error {
+	if runtime.OutboundInternet && !runtime.Firewalled {
+		return fmt.Errorf("outbound Internet of an own application requires its managed host firewall")
+	}
+	if runtime.Firewalled && (!strings.HasPrefix(runtime.WorkloadRef, "own-") || runtime.RuntimeAdapterRef != "standalone-compose") {
+		return fmt.Errorf("managed host firewall belongs only to an own application on Direct Compose")
+	}
+
 	if runtime.Retained && (!strings.HasPrefix(runtime.WorkloadRef, "own-") || runtime.RuntimeAdapterRef != "standalone-compose") {
 		return fmt.Errorf("only removed own applications retain detached backup volumes")
 	}

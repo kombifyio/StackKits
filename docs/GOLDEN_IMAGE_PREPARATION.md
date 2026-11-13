@@ -5,6 +5,11 @@ Terramate and immutable core container images before a machine image is captured
 `stackkit image` owns this neutral cache boundary. Techstack owns VM construction,
 OS sysprep, publication and per-clone Guard enrollment.
 
+Every published kit release carries a ready image for Ubuntu 26.04 and 24.04
+that imports as a Proxmox VE template: see "Release images", "Import into Proxmox
+VE" and "First boot of a Proxmox clone" below. The sections before them describe
+preparing an image by hand.
+
 Ubuntu 26.04 is the default target; Ubuntu 24.04 remains compatible. Preparation
 observes the actual Ubuntu version, CPU architecture and local Docker daemon.
 These diagnostics are not OS compatibility PASS receipts. Each clone is observed
@@ -115,3 +120,93 @@ another neutral image.
 The cache reduces downloads but records `networkRequired: true`: certificate and
 service integrations, optional workloads and cache recovery may need network
 access. Cache verification is separate from running-stack and public live proof.
+
+## Release images
+
+Every published kit release carries a ready image, so a person does not prepare
+one by hand. After each release, the release pipeline's KVM lane on kombify's
+own hardware bakes the `cloud-core-compose` profile for Ubuntu 26.04 and 24.04:
+the exact kit release, a verified published Guard release, the neutral host
+baseline, logical sanitation, offline inspection and two clone boots with
+distinct identities. A
+release that already carries its image is not baked again, and a published image
+is never replaced. The run attaches these assets to the public release
+`https://github.com/kombifyio/stackKits/releases/tag/<tag>`:
+
+| Asset | Content |
+| --- | --- |
+| `kombify-golden-image-<tag>-ubuntu-<version>-amd64.qcow2` | the compressed image both clones booted; above 1.9 GiB it is published as `.qcow2.part-000`, `.qcow2.part-001`, … |
+| `kombify-golden-image-<tag>-ubuntu-<version>-amd64.manifest.json` | OS image, Guard and StackKits pins, image digest |
+| `kombify-golden-image-<tag>-ubuntu-<version>-amd64.receipt.json` | the passed bake, sanitation and clone receipt |
+| `kombify-golden-image-<tag>-proxmox-import.sh` | the Proxmox VE import below |
+| `kombify-golden-image-<tag>-SHA256SUMS` | SHA-256 of every asset and of the whole image; written last, so a release carries an image only once this file exists |
+
+The images are downloaded from the GitHub release; the R2 mirror of the
+installers leaves them out.
+
+## Import into Proxmox VE
+
+On the Proxmox VE host, as root, with the release tag of the kit you want:
+
+```sh
+TAG=v0.58.0   # the kit release
+BASE="https://github.com/kombifyio/stackKits/releases/download/$TAG"
+curl -fLO "$BASE/kombify-golden-image-$TAG-SHA256SUMS"
+curl -fLO "$BASE/kombify-golden-image-$TAG-proxmox-import.sh"
+sha256sum -c --ignore-missing "kombify-golden-image-$TAG-SHA256SUMS"   # must print "…proxmox-import.sh: OK"
+bash "kombify-golden-image-$TAG-proxmox-import.sh" --release "$TAG" --ubuntu 26.04 \
+  --vmid 9100 --storage local-lvm --bridge vmbr0 --from .
+```
+
+Check the script against the release's SHA256SUMS before running it as root.
+The script then fetches what is missing in the `--from` directory, checks every
+file against SHA256SUMS, reassembles a split image and checks the whole image
+against SHA256SUMS, its manifest and its passed receipt. It then creates VM 9100 (q35, host CPU, 2 cores,
+4 GiB, VirtIO SCSI, DHCP on `vmbr0`, serial console), imports the disk with a
+cloud-init drive and turns the VM into a template. It refuses a VM id that
+exists. `--from <dir>` imports files that were downloaded before; `--ubuntu 24.04`
+selects the compatibility image; `--vmid` defaults to the next free id. Give each
+clone the CPU, memory and disk the kits need (`qm set`, `qm resize`).
+
+## First boot of a Proxmox clone
+
+Each clone generates its own machine id and SSH host keys on first boot, and its
+Guard starts unbound and waits. To enroll it with kombify, copy the server and
+the one-time token from the connect command kombify shows for a new server
+(`KOMBI_SERVER=… KOMBI_TOKEN=…`) into the clone's cloud-init user data:
+
+```sh
+pvesm set local --content iso,vztmpl,backup,snippets   # once, if snippets are not enabled
+qm clone 9100 120 --name homelab --full
+cat > /var/lib/vz/snippets/kombify-120.yaml <<'YAML'
+#cloud-config
+users:
+  - name: admin
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys: ["ssh-ed25519 AAAA… you@laptop"]
+write_files:
+  - path: /run/kombify/pairing
+    permissions: '0600'
+    content: "<KOMBI_TOKEN>"
+runcmd:
+  - [sh, -c, '/usr/local/bin/techstack agent enroll --server "<KOMBI_SERVER>" --token-file /run/kombify/pairing && /usr/local/bin/techstack guard layout apply --activate']
+YAML
+qm set 120 --cicustom user=local:snippets/kombify-120.yaml
+qm start 120
+```
+
+`agent enroll` creates the Guard's key, redeems the token and deletes the token
+file (it lives on tmpfs); `guard layout apply --activate` hands the bound Guard
+its runtime layout. The server shows as connected in kombify within a few
+minutes. The token is single use: delete the snippet once the server is
+connected. A control plane on a private LAN address whose connect command carries
+`KOMBI_PRIVATE_LAN_PIN` is not covered by this user data.
+
+Without kombify, leave out `write_files` and `runcmd`: the Guard stays unbound
+and the clone runs the account-free Standard Mode from "First boot of each clone"
+above. A release image keeps its cache under `/opt/stackkits-image` and its empty
+deployment directory at `/opt/stackkit`, so run those commands in `/opt/stackkit`
+instead of `/srv/stackkit`.

@@ -9,13 +9,13 @@ import (
 	"regexp"
 	"strings"
 
-	"golang.org/x/mod/semver"
 	"gopkg.in/yaml.v3"
 
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applicationrelease"
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
 const (
@@ -56,7 +56,7 @@ func (e *ApplicationReleaseSafetyError) ActionableError() actionableerror.Contra
 		if e.choice {
 			guidance = []string{
 				"Return to the earlier release with its data: stackkit use-cases upgrade --rollback <operation-id> --owner-approve, then stackkit generate and stackkit apply.",
-				"To stay on " + e.from + ", select it again (stackkit use-cases configure " + e.workload + " --setting release=\"" + e.from + "\").",
+				"To stay on " + e.from + ", select it again (stackkit use-cases upgrade " + e.workload + " --to " + e.from + " --owner-approve, with --digest and --accept-untested for an untested release).",
 			}
 		}
 		return actionableerror.New("stackkit_command_denied", e.reason,
@@ -75,6 +75,8 @@ func (e *ApplicationReleaseSafetyError) ActionableError() actionableerror.Contra
 // restored, and nothing while a checkpoint or rollback is incomplete. Without
 // an open operation any move of applied runtime custody to an earlier release
 // is refused, and a release-choice workload with data but no custody is refused.
+// A StackKits release that supersedes the override of a completed checkpoint
+// moves forward past its target and is admitted.
 func (o *osStandaloneComposeWorkloadOperations) requireApplicationReleaseTransition(
 	ctx context.Context,
 	bundle architecturev2renderer.ApplicationDeliveryBundleDescriptor,
@@ -86,15 +88,17 @@ func (o *osStandaloneComposeWorkloadOperations) requireApplicationReleaseTransit
 	}
 	to := componentImageTag(target.ImageRef)
 	project := "stackkit-" + bundle.WorkloadRef + "-" + bundle.NodeRef
-	// Only a release-choice workload has release operations to consult.
-	choice := len(architecturev2renderer.AdmittedWorkloadReleases(bundle.ModuleRef)) > 1
-	record, open := applicationrelease.Record{}, false
-	if choice {
-		var err error
-		if record, open, err = applicationrelease.OpenFor(o.workspaceRoot, bundle.WorkloadRef); err != nil {
-			return unknown
-		}
+	// Every workload may move its entry release (`stackkit use-cases
+	// upgrade`), so its release operations are always consulted. A workload
+	// with tested releases or a running override is a release choice whose
+	// data without custody is refused below.
+	_, atDefault, known := architecturev2renderer.WorkloadEntryImageRelease(bundle.ModuleRef, target.ImageRef, target.ImageDigest)
+	choice := len(architecturev2renderer.AdmittedWorkloadReleases(bundle.ModuleRef)) > 1 || (known && !atDefault)
+	record, open, err := applicationrelease.OpenFor(o.workspaceRoot, bundle.WorkloadRef)
+	if err != nil {
+		return unknown
 	}
+	choice = choice || open
 	if open && record.ComposeProject == project {
 		expected := ""
 		switch record.State {
@@ -104,6 +108,12 @@ func (o *osStandaloneComposeWorkloadOperations) requireApplicationReleaseTransit
 			expected = record.PriorRelease
 		}
 		if expected == "" || to != expected {
+			// A StackKits release whose default supersedes the override of a
+			// completed checkpoint moves the application further forward; the
+			// retained data stays the checkpoint of the prior release.
+			if later, comparable := releaseIsLater(to, record.TargetRelease); record.State == applicationrelease.StateCheckpointed && comparable && later {
+				return nil
+			}
 			return &ApplicationReleaseSafetyError{reason: applicationReleaseOperationOpen, workload: bundle.WorkloadRef, from: record.OperationID, to: to}
 		}
 		return nil
@@ -130,14 +140,10 @@ func (o *osStandaloneComposeWorkloadOperations) requireApplicationReleaseTransit
 	return nil
 }
 
-// releaseIsLater orders two release tags as semantic versions; comparable is
-// false when either tag is not one.
+// releaseIsLater orders two release tags on one release line (the same
+// prefix and variant suffix); comparable is false otherwise.
 func releaseIsLater(candidate, current string) (later, comparable bool) {
-	a, b := "v"+strings.TrimPrefix(candidate, "v"), "v"+strings.TrimPrefix(current, "v")
-	if !semver.IsValid(a) || !semver.IsValid(b) {
-		return false, false
-	}
-	return semver.Compare(a, b) > 0, true
+	return resolvedplan.ComponentReleaseLater(candidate, current)
 }
 
 func componentImageTag(ref string) string {
@@ -151,6 +157,9 @@ func componentImageTag(ref string) string {
 // PersistedApplicationEntryImage reads the entry image of one applied
 // standalone Compose project; found is false before its first Apply.
 func PersistedApplicationEntryImage(workspaceRoot, project, entry string) (string, bool, error) {
+	if project == marketplaceProject {
+		return persistedMarketplaceEntryImage(workspaceRoot, entry)
+	}
 	return readPersistedEntryImage(filepath.Join(workspaceRoot, ".stackkit", "runtime", "applications", project), project, entry)
 }
 

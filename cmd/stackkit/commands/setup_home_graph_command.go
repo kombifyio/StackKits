@@ -25,6 +25,10 @@ const (
 	homeGraphUnavailable = "home_graph_connector_unavailable"
 	homeGraphInvalid     = "home_graph_request_invalid"
 	homeGraphApplyFailed = "home_graph_apply_failed"
+	// homeGraphAdoptionPending refuses a plain sync while an adoption of an
+	// existing Home Assistant waits for the person's confirmation, or while
+	// the requested leading system differs from the confirmed one.
+	homeGraphAdoptionPending = "home_graph_adoption_pending"
 )
 
 // homeGraphFailure carries a stable reason code through the machine-aware
@@ -114,6 +118,9 @@ func syncHomeGraph(ctx context.Context, workspace string, client *http.Client, o
 	mapping, err := loadHomeGraphMapping(workspace)
 	if err != nil {
 		return homegraph.SyncResult{}, &homeGraphFailure{reason: homeGraphApplyFailed, message: "the stored mapping is unreadable", guidance: "Inspect the node's home graph mapping state."}
+	}
+	if mapping.SyncBlocked(request.Graph.LeadingSystem) {
+		return homegraph.SyncResult{}, &homeGraphFailure{reason: homeGraphAdoptionPending, message: "the Home Assistant adoption or leader change is not confirmed", guidance: "Confirm the adoption plan (stackkit setup home-graph-adopt) for the chosen leading system first."}
 	}
 	ha, err := homegraph.NewClient(ctx, client, origin, token)
 	if err != nil {

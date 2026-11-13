@@ -254,6 +254,18 @@
           "required": false
         },
         {
+          "name": "decision-principal",
+          "type": "string",
+          "description": "Acting principal the receipt is bound to, as <person|agent_instance>:<id>",
+          "required": false
+        },
+        {
+          "name": "decision-receipt",
+          "type": "string",
+          "description": "Compact decision receipt (JWS) that carries the person's confirmation of this exact operation, or @file to read it from a file",
+          "required": false
+        },
+        {
           "name": "expect-sha256",
           "type": "string",
           "description": "Required exact sha256:<hex> digest of the canonical stored change-set bytes",
@@ -1118,7 +1130,7 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit app own [flags]",
-      "short": "Render or operate one Techstack-owned container on this node",
+      "short": "Render or operate one Techstack-owned container or Compose project on this node, or adopt an existing container (--from-container)",
       "description": "",
       "runnable": true,
       "examples": [],
@@ -1127,7 +1139,43 @@
           "name": "action",
           "type": "string",
           "default": "render",
-          "description": "create, update, rollback, stop, remove, status, logs or render",
+          "description": "create, update, rollback, start, stop, restart, remove, status, logs, render or discard-checkpoint",
+          "required": false
+        },
+        {
+          "name": "allow-major",
+          "type": "bool",
+          "description": "With --image-tag: admit a different major version, or a running image that names no version; never a downgrade or another variant",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Managed node: Techstack capability (own-application.lifecycle) for an executed start, stop, restart, update or rollback",
+          "required": false
+        },
+        {
+          "name": "checkpoint",
+          "type": "string",
+          "description": "Rollback: restore the data checkpoint this tag update operation took, then return to its prior image; discard-checkpoint: remove its retained copy",
+          "required": false
+        },
+        {
+          "name": "cpus",
+          "type": "float",
+          "description": "Adoption: CPU limit (0.1..4; default the original's limit or 2)",
+          "required": false
+        },
+        {
+          "name": "decision-principal",
+          "type": "string",
+          "description": "Acting principal the receipt is bound to, as <person|agent_instance>:<id>",
+          "required": false
+        },
+        {
+          "name": "decision-receipt",
+          "type": "string",
+          "description": "Compact decision receipt (JWS) that carries the person's confirmation of this exact operation, or @file to read it from a file",
           "required": false
         },
         {
@@ -1139,13 +1187,31 @@
         {
           "name": "document",
           "type": "string",
-          "description": "Techstack techstack.own-application/v1 JSON document",
+          "description": "Techstack own-application/v1, v2 or v3 JSON document (v2 outbound requires managed host firewall)",
           "required": false
         },
         {
           "name": "dry-run",
           "type": "bool",
           "description": "Review inputs and render only; no Docker or custody writes",
+          "required": false
+        },
+        {
+          "name": "from-container",
+          "type": "string",
+          "description": "Stack it: adopt this existing container (ID or name) StackKits did not install, rebuilt as an own application",
+          "required": false
+        },
+        {
+          "name": "http-port",
+          "type": "int",
+          "description": "Adoption: the container's web port when it exposes several",
+          "required": false
+        },
+        {
+          "name": "image-tag",
+          "type": "string",
+          "description": "Update only: move a one-container application to this newer version tag of its own image (re-resolved before stopping, data checkpoint, verify, automatic rollback of image and data)",
           "required": false
         },
         {
@@ -1167,9 +1233,21 @@
           "required": false
         },
         {
+          "name": "memory-mib",
+          "type": "int",
+          "description": "Adoption: memory limit (64..8192 MiB; default the original's limit or 2048)",
+          "required": false
+        },
+        {
           "name": "name",
           "type": "string",
           "description": "Application DNS name, without the reserved own- prefix",
+          "required": false
+        },
+        {
+          "name": "no-outbound",
+          "type": "bool",
+          "description": "Adopt without outbound Internet; published host ports stay and only answer connections made to them",
           "required": false
         },
         {
@@ -1185,9 +1263,39 @@
           "required": false
         },
         {
+          "name": "phase",
+          "type": "string",
+          "description": "Adoption phase: inspect, plan, adopt or verify",
+          "required": false
+        },
+        {
+          "name": "plan-digest",
+          "type": "string",
+          "description": "Exact adoption plan digest returned by --phase plan; required for --phase adopt",
+          "required": false
+        },
+        {
+          "name": "release-original",
+          "type": "bool",
+          "description": "Remove the stopped original of an adopted container (requires --owner-approve); never automatic",
+          "required": false
+        },
+        {
           "name": "resolved-image",
           "type": "string",
           "description": "Exact digest from dry review; required for executing a tagged image",
+          "required": false
+        },
+        {
+          "name": "resolved-images-file",
+          "type": "string",
+          "description": "JSON object of service and digest pairs from dry review; required for executing a tagged project image",
+          "required": false
+        },
+        {
+          "name": "restore-original",
+          "type": "bool",
+          "description": "Within 7 days of adoption: remove the rebuilt application and start the original again (requires --owner-approve)",
           "required": false
         },
         {
@@ -1197,9 +1305,15 @@
           "required": false
         },
         {
+          "name": "secret-env",
+          "type": "stringArray",
+          "description": "Adoption: also classify this environment variable as a credential (repeatable); every value is hidden anyway",
+          "required": false
+        },
+        {
           "name": "secrets-file",
           "type": "string",
-          "description": "Private JSON environment-key/value input for application-scoped custody",
+          "description": "Private JSON environment-key/value input for application-scoped custody (a project uses <service>.<KEY> slots)",
           "required": false
         }
       ],
@@ -1950,6 +2064,18 @@
         }
       ],
       "flags": [
+        {
+          "name": "decision-principal",
+          "type": "string",
+          "description": "Acting principal the receipt is bound to, as <person|agent_instance>:<id>",
+          "required": false
+        },
+        {
+          "name": "decision-receipt",
+          "type": "string",
+          "description": "Compact decision receipt (JWS) that carries the person's confirmation of this exact operation, or @file to read it from a file",
+          "required": false
+        },
         {
           "name": "expected-plan-hash",
           "type": "string",
@@ -10361,6 +10487,18 @@
           "required": false
         },
         {
+          "name": "decision-principal",
+          "type": "string",
+          "description": "Acting principal the receipt is bound to, as <person|agent_instance>:<id>",
+          "required": false
+        },
+        {
+          "name": "decision-receipt",
+          "type": "string",
+          "description": "Compact decision receipt (JWS) that carries the person's confirmation of this exact operation, or @file to read it from a file",
+          "required": false
+        },
+        {
           "name": "delete-data",
           "type": "bool",
           "description": "Delete named volumes in the selected removal scope (default keeps application data)",
@@ -10936,7 +11074,9 @@
         "stackkit setup ai-provider",
         "stackkit setup connector",
         "stackkit setup home-graph",
+        "stackkit setup home-graph-adopt",
         "stackkit setup identity",
+        "stackkit setup loxone-import",
         "stackkit setup workbench-host-release"
       ]
     },
@@ -11137,6 +11277,51 @@
       "subcommands": []
     },
     {
+      "path": "stackkit setup home-graph-adopt",
+      "name": "home-graph-adopt",
+      "parent": "stackkit setup",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup home-graph-adopt [flags]",
+      "short": "Inventory or apply the adoption of the exact local Home Assistant into the household home graph",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "adoption-file",
+          "type": "string",
+          "description": "Workspace-relative private stackkit.home-graph-adoption-request/v1 JSON (at most 512 KiB)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the stackkit.home-graph-adoption-result/v1 result",
+          "required": false
+        },
+        {
+          "name": "operation-id",
+          "type": "string",
+          "description": "Exact stable connector setup operation identity",
+          "required": false
+        },
+        {
+          "name": "request-file",
+          "type": "string",
+          "description": "Workspace-relative private metadata-only connector ensure request JSON; never contains credentials",
+          "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Exact local workload; only smart-home is admitted",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
       "path": "stackkit setup identity",
       "name": "identity",
       "parent": "stackkit setup",
@@ -11182,6 +11367,39 @@
           "type": "duration",
           "default": "15m0s",
           "description": "How long to wait for the Owner passkey and for the first Owner device",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit setup loxone-import",
+      "name": "loxone-import",
+      "parent": "stackkit setup",
+      "aliases": [],
+      "group": "start",
+      "usage": "stackkit setup loxone-import [flags]",
+      "short": "Read the Loxone Miniserver structure file and merge its rooms and controls into the home graph (read-only)",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "credential-file",
+          "type": "string",
+          "description": "Workspace-relative private stackkit.loxone-credential/v1 JSON with baseUrl, user, password and optional caPem; stays on the node",
+          "required": false
+        },
+        {
+          "name": "graph-file",
+          "type": "string",
+          "description": "Workspace-relative private kombify.home_graph.v1 JSON (at most 512 KiB)",
+          "required": false
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "description": "Emit the stackkit.loxone-import-result/v1 result",
           "required": false
         }
       ],
@@ -11638,13 +11856,17 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit use-cases upgrade [slug] [flags]",
-      "short": "Move one application to another admitted release, keeping its prior data for a rollback",
-      "description": "Move one selected application to another release its catalog admits, without\ntouching unrelated applications. The command stops only that application,\ncopies each of its governed volumes into a retained volume, reads the copy back\nas a file-tree digest, records an owner-signed checkpoint and selects the target\nrelease. The application stays stopped until normal generate and apply start\nthe target release.\n\n--rollback <operation-id> stops the application again, verifies the retained\ncopy, copies it back, proves the live data equals the checkpoint and selects the\nprior release; the next apply starts the prior release on exactly that data, and\ndata written since the checkpoint is discarded. Rolling back a checkpoint that\nnever completed releases it and restarts the unchanged application. While an\noperation is open, apply starts only the release it expects; without one, apply\nrefuses every move to an earlier release.\n--finalize <operation-id> removes the retained data once the change is\naccepted (or after the rollback was applied). --status reads a record.",
+      "short": "Move one application to a newer release of its entry image, keeping its prior data for a rollback",
+      "description": "Move one selected application to a newer release of its entry image, without\ntouching unrelated applications or the StackKits release. --to names a tested\nrelease the catalog admits; --to with --digest sha256:... names an untested\nstable upstream release of the same image inside the module's release track\n(same major; a \"patch\" track also keeps the minor), which needs\n--accept-untested. A major release moves only with a StackKits release. An\nuntested tag is re-resolved from its registry for this node's platform and\nrefused when it no longer names that digest. The selection is stored as the\nworkload's release override {version, ref, digest, tested}. A later StackKits\nrelease whose default is at or above the override supersedes it; a newer\nin-track override is kept (--overrides reports which).\n\nThe command stops only that application, copies each of its governed volumes\ninto a retained volume, reads the copy back as a file-tree digest, records an\nowner-signed checkpoint and selects the target release. The application stays\nstopped until generate and apply start the target release.\n\n--apply runs the whole update on this node: checkpoint, generate, apply and\nlive verify. When generate, apply or verify fails, it rolls back to the prior\nrelease and data, applies again and finalizes that rollback. With --json the\nresult names update_outcome (updated, rolled_back, rollback_failed or\nrefused), reason_code and the prior and target version and digest.\n\n--rollback <operation-id> stops the application again, verifies the retained\ncopy, copies it back, proves the live data equals the checkpoint and selects the\nprior release; the next apply starts the prior release on exactly that data, and\ndata written since the checkpoint is discarded. Rolling back a checkpoint that\nnever completed releases it and restarts the unchanged application. While an\noperation is open, apply starts only the release it expects (or a later\nStackKits default that supersedes it); without one, apply refuses every move\nto an earlier release.\n--finalize <operation-id> removes the retained data once the change is\naccepted (or after the rollback was applied). --status reads a record.\n\nOn a node Techstack manages, a forward change also needs --capability: the\nexact Techstack-signed application-release.update capability for this use\ncase, release, digest and tested or untested kind, verified offline against\nthe Owner-approved Advanced trust before the application is stopped. The\nrecord keeps that authority, and the result reports the prior and target\nStackSpec hashes so Techstack's desired state follows the override. A\nstandalone node takes no capability.",
       "runnable": true,
       "examples": [
         {
           "command": "stackkit use-cases upgrade vault --to 1.37.5 --owner-approve\nstackkit generate && stackkit apply",
-          "description": "Move Vaultwarden to an admitted later release, then apply it"
+          "description": "Move Vaultwarden to a tested catalog release, then apply it"
+        },
+        {
+          "command": "stackkit use-cases upgrade vault --to 1.37.6 --digest sha256:<manifest digest> --accept-untested --owner-approve --apply --json",
+          "description": "Move to an untested in-track release in one step, rolling back on failure"
         },
         {
           "command": "stackkit use-cases upgrade --rollback release.vault.20261101T120000Z --owner-approve\nstackkit generate && stackkit apply",
@@ -11653,9 +11875,37 @@
         {
           "command": "stackkit use-cases upgrade --finalize release.vault.20261101T120000Z --owner-approve",
           "description": "Accept the result and remove the retained data"
+        },
+        {
+          "command": "stackkit use-cases upgrade --overrides --json",
+          "description": "Report every release override and whether this release keeps it"
         }
       ],
       "flags": [
+        {
+          "name": "accept-untested",
+          "type": "bool",
+          "description": "Accept a release the catalog has not tested (inside the module's release track only)",
+          "required": false
+        },
+        {
+          "name": "apply",
+          "type": "bool",
+          "description": "Run checkpoint, generate, apply and live verify, rolling back automatically on failure",
+          "required": false
+        },
+        {
+          "name": "capability",
+          "type": "string",
+          "description": "Techstack application-release.update capability file; required on a Techstack-managed node",
+          "required": false
+        },
+        {
+          "name": "digest",
+          "type": "string",
+          "description": "Exact sha256 manifest digest of the --to release; required for a release outside the catalog",
+          "required": false
+        },
         {
           "name": "expected-spec-hash",
           "type": "string",
@@ -11681,6 +11931,12 @@
           "required": false
         },
         {
+          "name": "overrides",
+          "type": "bool",
+          "description": "Report every application release override and whether this release keeps it",
+          "required": false
+        },
+        {
           "name": "owner-approve",
           "type": "bool",
           "description": "Approve stopping the application while its data is copied",
@@ -11701,7 +11957,7 @@
         {
           "name": "to",
           "type": "string",
-          "description": "Admitted release to move the selected application to",
+          "description": "Release (image tag) to move the selected application to",
           "required": false
         }
       ],

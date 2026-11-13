@@ -508,9 +508,18 @@ func renderUnit(ctx context.Context, renderer UnitRenderer, unit RenderUnit) ([]
 	if renderer == nil {
 		return nil, fail(ErrUnknownRenderer, "renderer", "implementation is required")
 	}
+	unit, override, err := entryReleaseUnit(unit)
+	if err != nil {
+		return nil, err
+	}
 	outputs, err := renderer.RenderUnit(ctx, unit)
 	if err != nil {
 		return nil, wrap(ErrRendererFailure, unit.moduleID+"/"+unit.id+"/"+unit.instanceID, "renderer returned an error", err)
+	}
+	if override != nil {
+		if outputs, err = withEntryReleaseOverride(unit, *override, outputs); err != nil {
+			return nil, err
+		}
 	}
 	declared := make(map[string]struct{}, len(unit.declaredOutputRef))
 	for _, output := range unit.declaredOutputRef {

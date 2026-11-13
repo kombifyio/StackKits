@@ -1810,6 +1810,11 @@ func projectPublicRouteAccess(access map[string]any, path string) (map[string]an
 		}
 		result[field] = boolean
 	}
+	if audience, exists, err := resolveApplicationAudience(access, path); err != nil {
+		return nil, err
+	} else if exists {
+		result["audience"] = audience
+	}
 	for _, field := range []string{"allowedSiteRefs", "allowedMethods"} {
 		if _, exists := access[field]; !exists {
 			continue

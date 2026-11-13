@@ -58,6 +58,17 @@ type Readback struct {
 	Digest string `json:"digest"`
 }
 
+// ManagedAuthority is the Techstack authority of a release change on a
+// managed node: the exact application-release.update capability the node
+// verified against its Owner-approved trust before it stopped the
+// application. A standalone record carries none.
+type ManagedAuthority struct {
+	CapabilityID     string `json:"capabilityId"`
+	CapabilitySHA256 string `json:"capabilitySha256"`
+	IssuerID         string `json:"issuerId"`
+	KeyID            string `json:"keyId"`
+}
+
 // Volume is one governed live volume of the application and its retained,
 // operation-bound copy.
 type Volume struct {
@@ -83,16 +94,25 @@ type Record struct {
 	PriorImage     Image  `json:"priorImage"`
 	TargetRelease  string `json:"targetRelease"`
 	TargetImage    Image  `json:"targetImage"`
-	PriorSpecHash  string `json:"priorSpecHash"`
-	TargetSpecHash string `json:"targetSpecHash"`
+	// TargetUntested marks a target outside the catalog's tested releases,
+	// accepted explicitly by the owner.
+	TargetUntested bool `json:"targetUntested,omitempty"`
+	// Managed is set when Techstack manages the node; the intent change was
+	// admitted by that capability, and resume and rollback stay bound to it.
+	Managed        *ManagedAuthority `json:"managed,omitempty"`
+	PriorSpecHash  string            `json:"priorSpecHash"`
+	TargetSpecHash string            `json:"targetSpecHash"`
 	// PriorSpec and TargetSpec are the exact canonical StackSpec bytes.
-	PriorSpec        []byte    `json:"priorSpec"`
-	TargetSpec       []byte    `json:"targetSpec"`
-	PlanHash         string    `json:"planHash"`
-	KopiaHelperImage string    `json:"kopiaHelperImage"`
-	Volumes          []Volume  `json:"volumes"`
-	CreatedAt        time.Time `json:"createdAt"`
-	UpdatedAt        time.Time `json:"updatedAt"`
+	PriorSpec        []byte   `json:"priorSpec"`
+	TargetSpec       []byte   `json:"targetSpec"`
+	PlanHash         string   `json:"planHash"`
+	KopiaHelperImage string   `json:"kopiaHelperImage"`
+	Volumes          []Volume `json:"volumes"`
+	// RuntimeFiles are the private runtime files of a native installation
+	// (the Marketplace) retained beside its volumes and restored with them.
+	RuntimeFiles []RuntimeFile `json:"runtimeFiles,omitempty"`
+	CreatedAt    time.Time     `json:"createdAt"`
+	UpdatedAt    time.Time     `json:"updatedAt"`
 
 	Signature localevidence.OwnerApplicationReleaseSignature `json:"signature"`
 }
@@ -132,6 +152,12 @@ func (record Record) validate() error {
 		len(record.PriorSpec) == 0 || len(record.TargetSpec) == 0 || record.PlanHash == "" || record.KopiaHelperImage == "" ||
 		len(record.Volumes) == 0 || record.CreatedAt.IsZero() || record.UpdatedAt.Before(record.CreatedAt) {
 		return errors.New("applicationrelease: record is incomplete")
+	}
+	if !validRuntimeFiles(record.RuntimeFiles) {
+		return errors.New("applicationrelease: record runtime files are invalid")
+	}
+	if record.Managed != nil && (record.Managed.CapabilityID == "" || len(record.Managed.CapabilitySHA256) != len("sha256:")+64 || record.Managed.IssuerID == "" || record.Managed.KeyID == "") {
+		return errors.New("applicationrelease: managed authority is incomplete")
 	}
 	if _, known := transitions[record.State]; !known && record.Open() {
 		return errors.New("applicationrelease: record state is unknown")

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
-	"slices"
-	"strings"
 
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
@@ -37,10 +35,16 @@ func validatePublicConfigurationSettings(catalog resolvedplan.Catalog, workloadI
 		}
 	}
 	if raw, selected := settings[resolvedplan.ComponentReleaseSetting]; selected {
-		admitted := resolvedplan.AdmittedComponentReleases(catalog, moduleRef)
-		name, _ := raw.(string)
-		if !slices.Contains(admitted, name) {
-			return resolveError(ErrInvalidStackSpec, fmt.Sprintf("release %q is not admitted for %s; admitted releases: %s", name, workloadID, strings.Join(admitted, ", ")), nil)
+		choice, ok := resolvedplan.CatalogComponentReleaseChoice(catalog, moduleRef)
+		override, decoded := resolvedplan.DecodeComponentReleaseSetting(raw)
+		if !ok {
+			return resolveError(ErrInvalidStackSpec, fmt.Sprintf("%s admits no release choice", workloadID), nil)
+		}
+		if !decoded {
+			return resolveError(ErrInvalidStackSpec, fmt.Sprintf("the release setting of %s requires exactly {version, ref, digest, tested}", workloadID), nil)
+		}
+		if _, err := resolvedplan.EvaluateComponentRelease(choice, override); err != nil {
+			return resolveError(ErrInvalidStackSpec, fmt.Sprintf("release of %s: %v", workloadID, err), nil)
 		}
 	}
 	for key, value := range settings {

@@ -56,6 +56,39 @@ func ResolveOwnApplicationImage(ctx context.Context, image string) (string, erro
 	return pinned, nil
 }
 
+// VerifyOwnApplicationImageDigest observes that a public HTTPS registry still
+// serves the exact digest-pinned manifest, through the same address policy as
+// tag resolution. It pulls no layers. Adoption uses it to refuse an image that
+// exists only on this host.
+func VerifyOwnApplicationImageDigest(ctx context.Context, image string) error {
+	_, digest, e := ownapplication.SplitImage(image)
+	if e != nil {
+		return e
+	}
+	if digest == "" {
+		return errors.New("adoption requires a digest-pinned registry image")
+	}
+	ref, e := name.ParseReference(image, name.StrictValidation)
+	if e != nil {
+		return errors.New("image registry reference is invalid")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil // A proxy must not bypass address admission.
+	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	transport.DialContext = dialOwnRegistry
+	defer transport.CloseIdleConnections()
+	descriptor, e := remote.Head(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(authn.DefaultKeychain), remote.WithTransport(ownRegistryTransport{transport}))
+	if e != nil {
+		return errors.New("the public HTTPS registry does not serve this image digest; a local-only or built image cannot be adopted")
+	}
+	if descriptor.Digest.String() != digest {
+		return errors.New("the registry answered a different manifest digest")
+	}
+	return nil
+}
+
 type ownRegistryTransport struct{ next http.RoundTripper }
 
 func (t ownRegistryTransport) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -111,12 +144,52 @@ func publicRegistryAddress(ip netip.Addr) bool {
 // AdmitImage fetches the approved manifest and every blob through the same
 // public-address HTTPS transport. The daemon only imports a private archive;
 // it never follows user-selected registry URLs or pulls an image itself.
+//
+// A project imports the approved image of every service it declares.
 func (r *OwnApplicationRuntime) AdmitImage(ctx context.Context, b ownapplication.Bundle) (ownapplication.Bundle, error) {
-	phase := "reference"
-	fail := func() (ownapplication.Bundle, error) {
-		return b, errors.New("secure import of approved own application image failed at " + phase)
+	if b.Application.IsProject() {
+		resolved := map[string]string{}
+		identities := map[string]string{}
+		for _, s := range b.Application.Services {
+			image, ok := b.ResolvedImages[s.Name]
+			if !ok {
+				return b, errors.New("secure import of approved own application image failed at reference")
+			}
+			id, e := r.admitImage(ctx, image, func(metadata []byte) error {
+				return s.AdmitImageConfiguration(metadata)
+			})
+			if e != nil {
+				return b, e
+			}
+			resolved[s.Name] = image
+			identities[s.Name] = id
+		}
+		b.ResolvedImages = resolved
+		b.ImageIDs = identities
+		if e := r.admitImageConfiguration(ctx, b); e != nil {
+			return b, e
+		}
+		return b, nil
 	}
-	if _, d, e := ownapplication.SplitImage(b.ResolvedImage); e != nil || d == "" {
+	id, e := r.admitImage(ctx, b.ResolvedImage, b.Application.AdmitImageConfiguration)
+	if e != nil {
+		return b, e
+	}
+	b.ImageID = id
+	if e = r.admitImageConfiguration(ctx, b); e != nil {
+		return b, e
+	}
+	return b, nil
+}
+
+// admitImage imports one approved image and returns its local image identity.
+// It refuses anything that is not already pinned by digest.
+func (r *OwnApplicationRuntime) admitImage(ctx context.Context, resolved string, admit func([]byte) error) (string, error) {
+	phase := "reference"
+	fail := func() (string, error) {
+		return "", errors.New("secure import of approved own application image failed at " + phase)
+	}
+	if _, d, e := ownapplication.SplitImage(resolved); e != nil || d == "" {
 		return fail()
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
@@ -126,7 +199,7 @@ func (r *OwnApplicationRuntime) AdmitImage(ctx context.Context, b ownapplication
 	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	transport.DialContext = dialOwnRegistry
 	defer transport.CloseIdleConnections()
-	ref, e := name.ParseReference(b.ResolvedImage, name.StrictValidation)
+	ref, e := name.ParseReference(resolved, name.StrictValidation)
 	if e != nil {
 		return fail()
 	}
@@ -144,8 +217,8 @@ func (r *OwnApplicationRuntime) AdmitImage(ctx context.Context, b ownapplication
 	if e != nil {
 		return fail()
 	}
-	if e = b.Application.AdmitImageConfiguration(raw); e != nil {
-		return b, e
+	if e = admit(raw); e != nil {
+		return "", e
 	}
 	id, e := image.ConfigName()
 	if e != nil {
@@ -174,11 +247,7 @@ func (r *OwnApplicationRuntime) AdmitImage(ctx context.Context, b ownapplication
 	if e = command.Run(); e != nil {
 		return fail()
 	}
-	b.ImageID = id.String()
-	if e = r.admitImageConfiguration(ctx, b); e != nil {
-		return b, e
-	}
-	return b, nil
+	return id.String(), nil
 }
 func ownLocalDockerEndpoint() string {
 	if runtime.GOOS == "windows" {

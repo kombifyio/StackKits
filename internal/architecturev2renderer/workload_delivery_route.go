@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/householdapps"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 )
 
@@ -76,6 +77,10 @@ type applicationDeliveryRoute struct {
 
 // ApplicationDeliveryRouteDescriptor is the non-secret route identity every
 // Coolify, Komodo, or standalone adapter must observe after Apply.
+//
+// Audience is the explicit application-wide access decision. It is omitted
+// from every marshalled artifact while no decision exists, so a plan without a
+// decision renders exactly the bytes origin/main rendered.
 type ApplicationDeliveryRouteDescriptor struct {
 	CoreModuleRef         string
 	ID                    string
@@ -97,6 +102,7 @@ type ApplicationDeliveryRouteDescriptor struct {
 	TLSIssuerRef          string
 	TLSOwnerCapabilityRef string
 	IngressAuth           string
+	Audience              *householdapps.Audience `json:"audience,omitempty"`
 }
 
 // ApplicationDeliveryComponentDescriptor is the complete non-secret
@@ -195,6 +201,15 @@ type ApplicationDeliveryLANListener struct {
 	Protocol string
 }
 
+// ApplicationDeliveryOwnPublishedPort is one admitted host port of an adopted
+// own application; an empty HostIP binds every host address.
+type ApplicationDeliveryOwnPublishedPort struct {
+	HostIP        string
+	HostPort      int
+	ContainerPort int
+	Protocol      string
+}
+
 // ApplicationDeliveryDevice is one owner-chosen host device passthrough.
 type ApplicationDeliveryDevice struct {
 	HostPath string
@@ -236,9 +251,18 @@ type ApplicationDeliveryVolumeDescriptor struct {
 // workload graph used by the StackKits-owned standalone adapter.
 type ApplicationDeliveryBundleDescriptor struct {
 	OwnApplication bool
-	LocalNetwork   *runtimeprofile.LocalNetwork
-	DataProfile    runtimeprofile.DataProfile
-	OfflineBundle  *runtimeprofile.OfflineBundleRef
+	// OwnApplicationFirewalled puts an own application on its managed host
+	// firewall bridge (fixed MAC, IPv6 off, restore unit and watcher) instead of
+	// an internal-only network. It holds with outbound Internet or published
+	// ports; OwnApplicationOutbound additionally grants public IPv4 egress.
+	OwnApplicationFirewalled bool
+	OwnApplicationOutbound   bool
+	// OwnApplicationPorts are the host ports an adopted own application keeps
+	// publishing (techstack.own-application/v4); only its entry publishes them.
+	OwnApplicationPorts []ApplicationDeliveryOwnPublishedPort
+	LocalNetwork        *runtimeprofile.LocalNetwork
+	DataProfile         runtimeprofile.DataProfile
+	OfflineBundle       *runtimeprofile.OfflineBundleRef
 	// RequiredPrivilege is the verified catalog service endpoint admission.
 	RequiredPrivilege string
 	WorkloadRef       string
@@ -487,6 +511,9 @@ func ParseApplicationDeliveryWorkloadBundle(data []byte) (ApplicationDeliveryBun
 	if bundle.DeliveryRoute != nil {
 		descriptor.Route = bundle.DeliveryRoute.descriptor()
 	}
+	if err := applyWorkloadReleaseOverride(&descriptor, bundle.Workload.ReleaseOverride, path+".workload.releaseOverride"); err != nil {
+		return ApplicationDeliveryBundleDescriptor{}, err
+	}
 	if bundle.DaemonSocketPath != "" {
 		if _, gameNode := GameNodeModuleFor(bundle.Workload.ModuleRef); !gameNode || validateDockerSocketPath(bundle.DaemonSocketPath) != nil {
 			return ApplicationDeliveryBundleDescriptor{}, fail(ErrInvalidPlan, path+".daemonSocketPath", "a Docker socket is admitted only for the governed game node")
@@ -525,7 +552,16 @@ func (route applicationDeliveryRoute) descriptor() ApplicationDeliveryRouteDescr
 	if ingressAuth == "" {
 		ingressAuth = "native"
 	}
+	var access map[string]json.RawMessage
+	// The artifact parser validates an explicitly present audience before the
+	// descriptor is created. Other access facts retain their opaque contract.
+	_ = json.Unmarshal(route.Access, &access)
+	var audience *householdapps.Audience
+	if raw, explicit := access["audience"]; explicit {
+		_ = json.Unmarshal(raw, &audience)
+	}
 	return ApplicationDeliveryRouteDescriptor{
+		Audience:      audience,
 		CoreModuleRef: route.CoreModuleRef,
 		ID:            route.ID, ServiceRef: route.ServiceRef, ModuleRef: route.ModuleRef,
 		Exposure: route.Exposure, Protocol: route.Protocol, UpstreamProtocol: route.UpstreamProtocol,
@@ -616,6 +652,22 @@ func validateParsedApplicationDeliveryRoute(
 		}
 		if err := rejectForbiddenApplicationRouteAuthority(raw, path+"."+field); err != nil {
 			return err
+		}
+	}
+	var accessFields map[string]json.RawMessage
+	if err := json.Unmarshal(route.Access, &accessFields); err != nil {
+		return wrap(ErrInvalidPlan, path+".access", "decode route access object", err)
+	}
+	if _, explicit := accessFields["audience"]; explicit {
+		var access rawPublicRouteAccessV2
+		if err := decodeStrict(route.Access, &access); err != nil {
+			return wrap(ErrInvalidPlan, path+".access", "decode audience-bound route access", err)
+		}
+		if access.Audience == nil {
+			return fail(ErrInvalidPlan, path+".access.audience", "an explicit audience cannot be null")
+		}
+		if _, ok := applicationAudienceGroups(access, serviceRef); !ok || ingressAuth != "forward-auth" || route.Exposure != "local" || route.Protocol != "https" {
+			return fail(ErrInvalidPlan, path+".access.audience", "invalid local application audience")
 		}
 	}
 	if len(route.OriginSelection) > 0 {

@@ -229,6 +229,9 @@ func RenderNativeDockerOpenTofu(spec NativeDockerSpec) (NativeDockerRoot, error)
 func (r *nativeDockerRender) networks(path string) error {
 	for _, key := range sortedKeys(r.document.Networks) {
 		network := r.document.Networks[key]
+		if network.EnableIPv6 != nil {
+			return fail(ErrRendererFailure, path+".networks."+key+".enable_ipv6", "explicit IPv6 policy requires the native Compose owner")
+		}
 		if !nativeIdentifierPattern.MatchString(key) {
 			return fail(ErrRendererFailure, path+".networks", "network %q is not a portable name", key)
 		}

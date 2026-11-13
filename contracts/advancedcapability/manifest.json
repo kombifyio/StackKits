@@ -5,15 +5,19 @@
   "source": {
     "repository": "github.com/kombifyio/stackkits",
     "path": "contracts/advancedcapability/contract.json",
-    "sha256": "b5a9843b770f147ce9936160a7a21779fb1a0fa266bed7bc799e2b5201dac2c2"
+    "sha256": "ce11ef5e44034c611caae89e4ebbce0d4d0d1d12c5e83ed566a489ee163e0cb6"
   },
   "outputs": {
-    "advancedcapability_gen.go": "f7b232a6c4dc87e1b53a567c7800f1990582d7514938cdbccc309b264afb5ccd",
-    "schema.json": "b2ae0c96c0fd29afe5615ecdaca81530d3906520f325b67424dd2f683a7b82a4",
+    "advancedcapability_gen.go": "55442ecfd3464750e11ad9cc053ea37b1cbc10ab1a8ad39ac7a6c5fa8ab45686",
+    "schema.json": "7f06381fff691a2c06f24e1af0ccf0902cbd80b300cb2ac4e036407b16d4fe76",
     "testdata/advanced-capability-v1.json": "c73754e797cd6904d5a9b26b85ad49ba56b82c6ba5950909bb638089706233d7",
     "testdata/advanced-capability-v1.trust-bundle.json": "198cd10223a18e983f686ca9a3d8a8268dc288ef604f79f7edeaf951bb9feda7",
+    "testdata/application-release-v1.json": "c56c2a2718a8b18ea834ea7ba4b784d42f723075211da869f3865f45d2d72dd5",
+    "testdata/application-release-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
     "testdata/backup-renewal-v1.json": "9f6e93318a81fe55897e3480e97487353fb13bd099a94d3cfab69e0aa917bc92",
     "testdata/backup-renewal-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
+    "testdata/own-application-lifecycle-v1.json": "3ba8c200d689666efdee1961757c17ea211b41811d9e8efe7d5caf9198fca766",
+    "testdata/own-application-lifecycle-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
     "testdata/transfer-receive-v1.json": "9858b816cc3d4893359100b5d3131a4b4704e5e8c6616d1a7a65e190d096c31e",
     "testdata/transfer-receive-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
     "testdata/transfer-retirement-v1.json": "5ae69e756d2f57bec3c573708821a84e727eacf048aceeb1318bdd298b86673e",

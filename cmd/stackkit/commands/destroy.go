@@ -11,6 +11,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/crypto/decisionreceipt"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/workloadremoval"
@@ -90,6 +91,45 @@ func init() {
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest")
 	removeCmd.Flags().StringVar(&removeV2ExecutionOptions.receiptPath, "generation-receipt", "", "Architecture v2 generation receipt")
+	addDecisionReceiptFlags(removeCmd)
+}
+
+// removeDecisionRequest is the first-slice request one removal presents to a
+// decision receipt (docs/DECISION-RECEIPTS.md, "Binding definition"): a
+// workload removal with its data is application_remove, a removal of the
+// whole installation with its data is installation_remove. Every other
+// removal keeps its data, or selects its plan through a path the receipt does
+// not bind, and refuses a receipt instead of ignoring it.
+func removeDecisionRequest(workspace string) (decisionreceipt.Request, error) {
+	if removeForce || removeV2ExecutionOptions.planPath != "" || removeV2ExecutionOptions.manifestPath != "" ||
+		removeV2ExecutionOptions.receiptPath != "" || removeV2ExecutionOptions.inventoryPath != "" {
+		return decisionreceipt.Request{}, errors.New("a decision receipt binds the workspace's own plan; it does not cover --force, --resolved-plan, --artifact-manifest, --generation-receipt or --inventory")
+	}
+	revision, err := decisionReceiptRevision(workspace)
+	if err != nil {
+		return decisionreceipt.Request{}, err
+	}
+	workload := strings.TrimSpace(removeWorkloadRef)
+	if workload != "" {
+		if !removeDeleteData || removePurge {
+			return decisionreceipt.Request{}, errors.New("a decision receipt covers removing a workload only with --delete-data")
+		}
+		return decisionreceipt.Request{
+			Operation: decisionreceipt.OperationApplicationRemove,
+			Target:    decisionreceipt.Target{Kind: decisionreceipt.TargetApplication, Ref: workload},
+			Arguments: decisionreceipt.ApplicationRemoveArguments(workload, true),
+			Revision:  revision,
+		}, nil
+	}
+	if !removeDeleteData && !removePurge {
+		return decisionreceipt.Request{}, errors.New("a decision receipt covers removing the installation only with --delete-data or --purge")
+	}
+	return decisionreceipt.Request{
+		Operation: decisionreceipt.OperationInstallationRemove,
+		Target:    decisionreceipt.Target{},
+		Arguments: decisionreceipt.InstallationRemoveArguments(removeDeleteData, removePurge),
+		Revision:  revision,
+	}, nil
 }
 
 func runRemove(cmd *cobra.Command, args []string) error {
@@ -97,18 +137,33 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return errors.New("--expected-spec-hash requires --candidate-output; it never authorizes runtime deletion")
 	}
 	if removeUseCaseRef != "" {
+		if err := refuseDecisionReceipt("a decision receipt does not cover a use-case group removal"); err != nil {
+			return err
+		}
 		if removeWorkloadRef != "" || removePurge || removeForce || removeTerminalEvidenceJSON {
 			return errors.New("--use-case is exclusive with --workload, --purge, --force and --terminal-evidence-json")
 		}
 		return runUseCaseGroupRemoval(cmd, removeUseCaseRef)
 	}
 	if removeCandidateOutput != "" {
+		if err := refuseDecisionReceipt("a decision receipt does not cover an authoring candidate"); err != nil {
+			return err
+		}
 		if removeWorkloadRef == "" || removeDeleteData || removePurge || removeForce || removeTerminalEvidenceJSON {
 			return errors.New("--candidate-output requires --workload and retains data; it cannot emit terminal runtime evidence")
 		}
 		return authorRemovalCandidate(cmd, removeWorkloadRef, removeCandidateOutput)
 	}
-	if commandRequestsMachineOutput(cmd) && !removeAutoApprove {
+	receipted := false
+	if decisionReceiptPresented() {
+		receiptWorkspace := adoptConventionalInstallerWorkspace(getWorkDir())
+		var err error
+		receipted, err = admitDecisionReceipt(func() (decisionreceipt.Request, error) { return removeDecisionRequest(receiptWorkspace) })
+		if err != nil {
+			return machineAwareCommandError(cmd, err)
+		}
+	}
+	if commandRequestsMachineOutput(cmd) && !removeAutoApprove && !receipted {
 		return machineAwareCommandError(cmd, errors.New("removal approval required for machine output"),
 			"Review the removal scope and data retention options, then re-run with --auto-approve to explicitly approve removal.")
 	}
@@ -118,7 +173,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 	}
 	wd := adoptConventionalInstallerWorkspace(getWorkDir())
 
-	if !removeAutoApprove {
+	if !removeAutoApprove && !receipted {
 		fmt.Println()
 		if strings.TrimSpace(removeWorkloadRef) != "" {
 			if removeDeleteData {

@@ -18,7 +18,7 @@ read-only current-runtime observations. The receipt identifies the encrypted
 archive by SHA-256. Applications with automatic deployments enabled or an
 active deployment are refused before source drain. Restore failures after the
 database commit are retained outcomes, never described as an automatic rollback.
-| Tested Coolify | 4.4.6 (the StackKits pin) |
+| Tested Coolify | 4.4.6; the StackKits Marketplace pin 4.7.5 is not in the engine's tested list, so this 1.9.3 build warns and still runs its trial import, rollback and verification checks; upstream 1.10.2 published a passing compatibility run on 4.7.5 (2026-11-11) |
 
 Upstream's `docs/`, `site/`, `lab/`, `scripts/` and `install.sh` are not
 vendored. Everything else is upstream source, unchanged except for the

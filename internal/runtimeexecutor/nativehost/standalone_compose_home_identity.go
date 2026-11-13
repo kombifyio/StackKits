@@ -192,6 +192,7 @@ func (o *osStandaloneComposeWorkloadOperations) ensurePocketIDClients(ctx contex
 			Public:            component.PocketIDClient.Public,
 			ClientID:          localowner.ApplicationOIDCClientID(bundle.WorkloadRef),
 			RequiredPrivilege: bundle.RequiredPrivilege,
+			Audience:          bundle.Route.Audience,
 			Name:              "StackKit " + bundle.WorkloadRef,
 			CallbackURLs:      renderPocketIDCallbackURLs(component.PocketIDClient.CallbackURLs, pocketIDRouteOrigin(bundle.Route)),
 			SecretRef:         secretRef,

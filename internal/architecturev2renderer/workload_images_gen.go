@@ -206,11 +206,161 @@ const (
 	stalwartEntrypointJSON         = "[\"/bin/sh\",\"-c\",\"set -eu; printf '%s' '{\\\"@type\\\":\\\"RocksDb\\\",\\\"path\\\":\\\"/var/lib/stalwart/\\\"}' \\u003e /etc/stalwart/config.json; secret=$(cat \\\"$STACKKIT_ADMIN_SECRET_FILE\\\"); export STALWART_RECOVERY_ADMIN=\\\"admin:${secret:?}\\\"; unset secret; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json \\u0026 pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ \\\"$i\\\" -lt 90 ] || exit 1; sleep 1; done; printf 'user = \\\"%s\\\"\\\\n' \\\"$STALWART_RECOVERY_ADMIN\\\" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{\\\"using\\\":[\\\"urn:ietf:params:jmap:core\\\",\\\"urn:stalwart:jmap\\\"],\\\"methodCalls\\\":[[\\\"x:Tracer/get\\\",{\\\"properties\\\":[\\\"id\\\"]},\\\"t0\\\"],[\\\"x:Tracer/set\\\",{\\\"#destroy\\\":{\\\"resultOf\\\":\\\"t0\\\",\\\"name\\\":\\\"x:Tracer/get\\\",\\\"path\\\":\\\"/list/*/id\\\"},\\\"create\\\":{\\\"stdout\\\":{\\\"@type\\\":\\\"Stdout\\\",\\\"level\\\":\\\"info\\\",\\\"ansi\\\":false}}},\\\"t1\\\"],[\\\"x:NetworkListener/set\\\",{\\\"create\\\":{\\\"submission\\\":{\\\"name\\\":\\\"submission\\\",\\\"bind\\\":{\\\"[::]:587\\\":true},\\\"protocol\\\":\\\"smtp\\\",\\\"tlsImplicit\\\":false}}},\\\"l1\\\"]]}' http://127.0.0.1:8080/jmap/; grep -q '\\\"submission\\\":{\\\"id\\\"' /tmp/stackkit-seed.json; grep -q '\\\"stdout\\\":{\\\"id\\\"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill \\\"$pid\\\"; wait \\\"$pid\\\" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json\"]"
 )
 
-// admittedWorkloadReleaseImages lists, per module, the default entry image
-// first and then every further release the catalog admits.
-var admittedWorkloadReleaseImages = map[string][]workloadReleaseImage{
-	"stackkits-vaultwarden-runtime": {
+// workloadEntryReleases lists, per catalog module, its entry component and
+// its default entry image first, then every release the catalog has tested.
+var workloadEntryReleases = map[string]workloadEntryRelease{
+	"stackkits-adguard-home-runtime": {Component: "adguard-home", Images: []workloadReleaseImage{
+		{Release: "v0.107.79", Ref: "docker.io/adguard/adguardhome:v0.107.79", Digest: "sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0"},
+	}},
+	"stackkits-anythingllm-runtime": {Component: "anythingllm", Images: []workloadReleaseImage{
+		{Release: "1.16.2", Ref: "docker.io/mintplexlabs/anythingllm:1.16.2", Digest: "sha256:480b0f105efd6a4c8a4cde82713fe81348d75c979a24a38e9ed8e236bed0fd17"},
+	}},
+	"stackkits-audiobookshelf-runtime": {Component: "audiobookshelf", Images: []workloadReleaseImage{
+		{Release: "2.36.1", Ref: "ghcr.io/advplyr/audiobookshelf:2.36.1", Digest: "sha256:3528a93b6442ffe54bd46771bbbab7c97084e1101071586d9dc2254f30bb4358"},
+	}},
+	"stackkits-basement-core-lite-runtime": {Component: "hub", Images: []workloadReleaseImage{
+		{Release: "alpine", Ref: "docker.io/library/nginx:alpine", Digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"},
+	}},
+	"stackkits-basement-core-runtime": {Component: "coolify", Images: []workloadReleaseImage{
+		{Release: "4.1.2", Ref: "ghcr.io/coollabsio/coolify:4.1.2", Digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"},
+	}},
+	"stackkits-calagopus-runtime": {Component: "panel", Images: []workloadReleaseImage{
+		{Release: "1.2.4", Ref: "ghcr.io/calagopus/panel:1.2.4", Digest: "sha256:95ee4a9ea6b3c1567179610ca8f5637f7e8d7f6bc4f97a4207afba6b9cd21d1a"},
+	}},
+	"stackkits-cloud-core-runtime": {Component: "coolify", Images: []workloadReleaseImage{
+		{Release: "4.1.2", Ref: "ghcr.io/coollabsio/coolify:4.1.2", Digest: "sha256:3a27ba5f7f98ff7763a0a4d6715ec36e564f9622eea8f492c46f90716ea2525f"},
+	}},
+	"stackkits-cloud-core-standalone-runtime": {Component: "hub", Images: []workloadReleaseImage{
+		{Release: "alpine", Ref: "docker.io/library/nginx:alpine", Digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"},
+	}},
+	"stackkits-cloudreve-runtime": {Component: "cloudreve", Images: []workloadReleaseImage{
+		{Release: "4.18.0", Ref: "docker.io/cloudreve/cloudreve:4.18.0", Digest: "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a"},
+	}},
+	"stackkits-comfyui-runtime": {Component: "comfyui", Images: []workloadReleaseImage{
+		{Release: "comfy0.35.0-torch2.13.0-cuda13.0-runtime", Ref: "ghcr.io/saladtechnologies/comfyui-api:comfy0.35.0-torch2.13.0-cuda13.0-runtime", Digest: "sha256:5cc4f79f21e61b9da46e94286c29ef8185520117452027a6f5574cf6125c0ff8"},
+	}},
+	"stackkits-docling-runtime": {Component: "docling", Images: []workloadReleaseImage{
+		{Release: "v1.35.0", Ref: "quay.io/docling-project/docling-serve-cpu:v1.35.0", Digest: "sha256:79e5fcd19ab227ed36323fa5fa31820d14d53efc4f073417ba37be7931c7af0a"},
+	}},
+	"stackkits-dokploy-bootstrap-runtime": {Component: "dokploy", Images: []workloadReleaseImage{
+		{Release: "v0.30.8", Ref: "docker.io/dokploy/dokploy:v0.30.8", Digest: "sha256:e8789a3f71a1e50d817836ad222ee0eab8ee69fc1b0451fee189a880b5602871"},
+	}},
+	"stackkits-emby-runtime": {Component: "emby", Images: []workloadReleaseImage{
+		{Release: "4.10.0.40", Ref: "docker.io/emby/embyserver:4.10.0.40", Digest: "sha256:3aafff933d3f28d23ed0bc201022abe71c0aa80deb17177566c726b9bbc686c6"},
+	}},
+	"stackkits-esphome-runtime": {Component: "esphome", Images: []workloadReleaseImage{
+		{Release: "2026.9.0", Ref: "ghcr.io/esphome/esphome:2026.9.0", Digest: "sha256:f6509fcf917a732fd80058567b237d5b9286b9dc6c8dde1b655fbb69ebd600ad"},
+	}},
+	"stackkits-euro-office-runtime": {Component: "euro-office", Images: []workloadReleaseImage{
+		{Release: "v9.3.4-hotfix.1", Ref: "ghcr.io/euro-office/documentserver:v9.3.4-hotfix.1", Digest: "sha256:889e681923d2dcc8bdfb92fe128d10e185fcff880d302b6a0c0c7bf339499290"},
+	}},
+	"stackkits-forgejo-runtime": {Component: "forgejo", Images: []workloadReleaseImage{
+		{Release: "16.0.5-rootless", Ref: "codeberg.org/forgejo/forgejo:16.0.5-rootless", Digest: "sha256:5effb7305584aca479b29fde6f9631a6dbe86ae798ae02eeea33a3666f0c0bf8"},
+	}},
+	"stackkits-gitea-runtime": {Component: "gitea", Images: []workloadReleaseImage{
+		{Release: "1.27.3-rootless", Ref: "docker.gitea.com/gitea:1.27.3-rootless", Digest: "sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2"},
+	}},
+	"stackkits-guacamole-runtime": {Component: "guacamole", Images: []workloadReleaseImage{
+		{Release: "1.6.0", Ref: "docker.io/guacamole/guacamole:1.6.0", Digest: "sha256:f344085e618bb05e22b964b0208dbd06d3468275bac70206f93805245e067b40"},
+	}},
+	"stackkits-hermes-runtime": {Component: "hermes", Images: []workloadReleaseImage{
+		{Release: "v2026.9.24", Ref: "docker.io/nousresearch/hermes-agent:v2026.9.24", Digest: "sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7"},
+	}},
+	"stackkits-home-assistant-runtime": {Component: "home-assistant", Images: []workloadReleaseImage{
+		{Release: "2026.9.4", Ref: "ghcr.io/home-assistant/home-assistant:2026.9.4", Digest: "sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76"},
+	}},
+	"stackkits-immich-kiosk-runtime": {Component: "immich-kiosk", Images: []workloadReleaseImage{
+		{Release: "0.45.0", Ref: "ghcr.io/damongolding/immich-kiosk:0.45.0", Digest: "sha256:49d04d67d3cb313124bcb041a0113878c7e91f3f01eca663a3f5ba2646ec0b51"},
+	}},
+	"stackkits-immich-lite-runtime": {Component: "immich-server", Images: []workloadReleaseImage{
+		{Release: "v3.3.4", Ref: "ghcr.io/immich-app/immich-server:v3.3.4", Digest: "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f"},
+	}},
+	"stackkits-immich-power-tools-runtime": {Component: "immich-power-tools", Images: []workloadReleaseImage{
+		{Release: "0.24.0", Ref: "ghcr.io/immich-power-tools/immich-power-tools:0.24.0", Digest: "sha256:0bb87c70270ee7a95848a5b8ecbd90cd850e7bdacc0f64b70e33e4524f123fa4"},
+	}},
+	"stackkits-immich-public-proxy-runtime": {Component: "immich-public-proxy", Images: []workloadReleaseImage{
+		{Release: "3.4.0", Ref: "ghcr.io/alangrainger/immich-public-proxy:3.4.0", Digest: "sha256:b442829bb99e25f39e2979bb45bb12a6db991d98a1cd90938799b84ab262692a"},
+	}},
+	"stackkits-immich-runtime": {Component: "immich-server", Images: []workloadReleaseImage{
+		{Release: "v3.3.4", Ref: "ghcr.io/immich-app/immich-server:v3.3.4", Digest: "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f"},
+	}},
+	"stackkits-jellyfin-runtime": {Component: "jellyfin", Images: []workloadReleaseImage{
+		{Release: "12.1", Ref: "docker.io/jellyfin/jellyfin:12.1", Digest: "sha256:78d3ea1207d1322471fcac39a614f004f2ccf7e878f95ab2977d752f07e4dd7e"},
+	}},
+	"stackkits-komodo-bootstrap-runtime": {Component: "core", Images: []workloadReleaseImage{
+		{Release: "2.3.3", Ref: "ghcr.io/moghtech/komodo-core:2.3.3", Digest: "sha256:bca73d0eee143066228fb9b80c38a5a2726e573ad2758f7aa92b5c91a8aef1c7"},
+	}},
+	"stackkits-litellm-runtime": {Component: "litellm", Images: []workloadReleaseImage{
+		{Release: "v1.105.0", Ref: "ghcr.io/berriai/litellm:v1.105.0", Digest: "sha256:60947db020b57e204823d3fbc8bb295c85be890d7c9adcc77fb4f5fc2fe410b2"},
+	}},
+	"stackkits-marketplace-coolify-runtime": {Component: "coolify", Images: []workloadReleaseImage{
+		{Release: "4.7.5", Ref: "coollabsio/coolify:4.7.5", Digest: "sha256:ac2259a438f0221e73eca2838c0c929ff2fd304f8345daabc85c910b6c83d6ee"},
+	}},
+	"stackkits-marketplace-runtipi-runtime": {Component: "runtipi", Images: []workloadReleaseImage{
+		{Release: "v4.10.2", Ref: "ghcr.io/runtipi/runtipi:v4.10.2", Digest: "sha256:9cdb7297d8f3d3f3d74425b56caecb3d452a4916146136503d9163b477ace6f0"},
+	}},
+	"stackkits-mosquitto-runtime": {Component: "mosquitto", Images: []workloadReleaseImage{
+		{Release: "2.1.2-alpine", Ref: "docker.io/library/eclipse-mosquitto:2.1.2-alpine", Digest: "sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408"},
+	}},
+	"stackkits-navidrome-runtime": {Component: "navidrome", Images: []workloadReleaseImage{
+		{Release: "0.64.2", Ref: "docker.io/deluan/navidrome:0.64.2", Digest: "sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52"},
+	}},
+	"stackkits-nextcloud-runtime": {Component: "nextcloud", Images: []workloadReleaseImage{
+		{Release: "35.0.1-apache", Ref: "docker.io/library/nextcloud:35.0.1-apache", Digest: "sha256:276547e033df451770dbf9c0065929e5ea179a613b1884bd3fa807ba1c2703e7"},
+	}},
+	"stackkits-ntfy-live-runtime": {Component: "ntfy-live", Images: []workloadReleaseImage{
+		{Release: "v2.30.0", Ref: "docker.io/binwiederhier/ntfy:v2.30.0", Digest: "sha256:8563a39da2f5a47360618b2ab9200239c76b37f4145f6d627d9ab4368abd23f0"},
+	}},
+	"stackkits-opencloud-runtime": {Component: "opencloud", Images: []workloadReleaseImage{
+		{Release: "8.1.0", Ref: "docker.io/opencloudeu/opencloud-rolling:8.1.0", Digest: "sha256:8fc64ca861739cc62095cd558814f2eba6a90acf5998d884e439b33a47875da8"},
+	}},
+	"stackkits-openhands-runtime": {Component: "openhands", Images: []workloadReleaseImage{
+		{Release: "1.24.0", Ref: "ghcr.io/openhands/agent-canvas:1.24.0", Digest: "sha256:ad0829a7082a71ddfd2d16c1fae5a2172e4ca5a34eba7f03b69bd5b9b1bc54d7"},
+	}},
+	"stackkits-paperclip-runtime": {Component: "paperclip", Images: []workloadReleaseImage{
+		{Release: "2026.916.1", Ref: "ghcr.io/paperclipai/paperclip:2026.916.1", Digest: "sha256:a02ac35ac41df911af477422ea0e781cf41d2b2c600c66f0a5ac9d8c63f52c2c"},
+	}},
+	"stackkits-paperless-runtime": {Component: "paperless", Images: []workloadReleaseImage{
+		{Release: "3.1.3", Ref: "ghcr.io/paperless-ngx/paperless-ngx:3.1.3", Digest: "sha256:aa810a36942c63d4ee70d00eda7236cd3d6acfb7eb3f7987fb568ed14df8817a"},
+	}},
+	"stackkits-passbolt-runtime": {Component: "passbolt", Images: []workloadReleaseImage{
+		{Release: "5.16.0-1-ce-non-root", Ref: "docker.io/passbolt/passbolt:5.16.0-1-ce-non-root", Digest: "sha256:1f6aba5b18199809de9aaec17ba1525b88ac75be9390c5fc343b88a9b18f525d"},
+	}},
+	"stackkits-pelican-runtime": {Component: "panel", Images: []workloadReleaseImage{
+		{Release: "v1.0.0-beta38", Ref: "ghcr.io/pelican/panel:v1.0.0-beta38", Digest: "sha256:46f356f3fda423b1d43f0dc3c71efc056cd8b9bec365d1d7817306a17ee5694a"},
+	}},
+	"stackkits-private-ai-runtime": {Component: "open-webui", Images: []workloadReleaseImage{
+		{Release: "v0.11.3", Ref: "ghcr.io/open-webui/open-webui:v0.11.3", Digest: "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"},
+	}},
+	"stackkits-pterodactyl-runtime": {Component: "panel", Images: []workloadReleaseImage{
+		{Release: "v1.15.1", Ref: "ghcr.io/pterodactyl/panel:v1.15.1", Digest: "sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2"},
+	}},
+	"stackkits-qdrant-runtime": {Component: "qdrant", Images: []workloadReleaseImage{
+		{Release: "v1.20.0", Ref: "docker.io/qdrant/qdrant:v1.20.0", Digest: "sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2"},
+	}},
+	"stackkits-roundcube-runtime": {Component: "roundcube", Images: []workloadReleaseImage{
+		{Release: "1.6.19-apache", Ref: "docker.io/roundcube/roundcubemail:1.6.19-apache", Digest: "sha256:f1256d1ce06ca5c52660f67f8511f3971def5d3b80aab3e3809df970489b1c46"},
+	}},
+	"stackkits-searxng-runtime": {Component: "searxng", Images: []workloadReleaseImage{
+		{Release: "2026.9.25-12f8b6515", Ref: "docker.io/searxng/searxng:2026.9.25-12f8b6515", Digest: "sha256:5286edb35782454ab8a102c5eff6b54bff745853191b46aeead95f225aa6dfb6"},
+	}},
+	"stackkits-speechkit-runtime": {Component: "speechkit", Images: []workloadReleaseImage{
+		{Release: "v0.0.0-placeholder", Ref: "ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder", Digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"},
+	}},
+	"stackkits-stalwart-runtime": {Component: "stalwart", Images: []workloadReleaseImage{
+		{Release: "v0.16.23", Ref: "docker.io/stalwartlabs/stalwart:v0.16.23", Digest: "sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592"},
+	}},
+	"stackkits-tika-runtime": {Component: "tika", Images: []workloadReleaseImage{
+		{Release: "4.0.0-1", Ref: "docker.io/apache/tika:4.0.0-1", Digest: "sha256:a8b442501f601fb15015de974f9afe13dd242b0f14e49a2b144fadcb214a555b"},
+	}},
+	"stackkits-vaultwarden-runtime": {Component: "vaultwarden", Images: []workloadReleaseImage{
 		{Release: "1.37.2", Ref: "ghcr.io/dani-garcia/vaultwarden:1.37.2", Digest: "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912"},
 		{Release: "1.37.5", Ref: "ghcr.io/dani-garcia/vaultwarden:1.37.5", Digest: "sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f"},
-	},
+	}},
+	"stackkits-workbench-host-runtime": {Component: "workbench-host", Images: []workloadReleaseImage{
+		{Release: "3.14.10-trixie", Ref: "docker.io/library/python:3.14.10-trixie", Digest: "sha256:8e4ff723e809a8e3bbd61bdceb92e9031689ad11edccff3306c0b3ebe60704ff"},
+	}},
+	"stackkits-zigbee2mqtt-runtime": {Component: "zigbee2mqtt", Images: []workloadReleaseImage{
+		{Release: "2.14.1", Ref: "ghcr.io/koenkk/zigbee2mqtt:2.14.1", Digest: "sha256:fef0de769dcd04c27b3a6d277b61046eb96284bdd4198dcb1687c3a01b3020f3"},
+	}},
 }

@@ -21,7 +21,7 @@ const (
 
 var tinyAuthRouteACLEnvironmentPattern = regexp.MustCompile(`^TINYAUTH_APPS_ROUTE([A-F0-9]{64})_(CONFIG_DOMAIN|OAUTH_WHITELIST|OAUTH_GROUPS)$`)
 
-var tinyAuthRouteACLGroupsPattern = regexp.MustCompile(`^owners,admins(,household|,household-open,household-app-[a-z][a-z0-9-]*)?$`)
+var tinyAuthRouteACLGroupsPattern = regexp.MustCompile(`^(owners(,household)?|owners,admins(,household|,household-open,household-app-[a-z][a-z0-9-]*)?)$`)
 
 type coreRuntimeValues struct {
 	BackupSource      localbackuppolicy.BackupSourceProjection `json:"backup-source"`
@@ -125,7 +125,7 @@ func tinyAuthRouteACLs(unit RenderUnit) (map[string]string, error) {
 			continue
 		}
 		host := strings.ToLower(strings.TrimSpace(route.Host))
-		groups, ok := tinyAuthRouteACLGroups(route.Access.Privilege, route.ServiceRef)
+		groups, ok := applicationAudienceGroups(route.Access, route.ServiceRef)
 		if !ok || host == "" || !basementDomainPattern.MatchString(host) || host != route.Host {
 			return nil, fail(ErrInvalidPlan, "resolvedPlan.modules."+unit.ModuleID()+".values."+tinyAuthRouteACLInputRef, "forward-auth route %q has no enforceable TinyAuth host/privilege policy", route.ID)
 		}

@@ -88,7 +88,7 @@ _architectureV2MarketplaceModules: [#PreparedRuntipiMarketplaceModule, #Prepared
 		execution: "executable", kind: "host", delivery: "stackkit", entryComponentRef: "coolify"
 		components: [{
 			id: "coolify", role: "application", lifecycle: "daemon", networkRefs: ["marketplace", "kit-core"]
-			image: {ref: "coollabsio/coolify:4.4.6", digest: "sha256:7c54f42d64c0d20fed4a8f4561df9018a561fecba9931ed3f64a4f3e0d34a3be"}
+			image: {ref: "coollabsio/coolify:4.7.5", digest: "sha256:ac2259a438f0221e73eca2838c0c929ff2fd304f8345daabc85c910b6c83d6ee"}
 			dependsOn: ["postgres", "redis"], health: {kind: "http", path: "/api/health", port: 8080}
 			resources: {memoryLimit: "1536m"}
 			volumes: [for v in _architectureV2MarketplaceStorage if v.componentRef == "coolify" {id: v.volumeRef, target: v.target, class: "persistent", backup: true}]

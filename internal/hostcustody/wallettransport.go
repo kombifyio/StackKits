@@ -27,7 +27,7 @@ import (
 // critical wallet_ctx header that binds the exact delivery context. kombify Me
 // answers a homelab's tunnel connector token in this format (homelab identity
 // target §10, §11). A homelab without a kombify account (Standard Mode,
-// Techstack Local) receives it sealed to a key of its own local custody: the
+// Techstack Standalone) receives it sealed to a key of its own local custody: the
 // node generates that key for one delivery, keeps it in memory only and opens
 // the envelope here.
 const (

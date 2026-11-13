@@ -62,7 +62,7 @@ resource "coolify_service" "workload" {
   }
 }
 
-# At the pinned Coolify 4.4.6, RestartService activates the saved recipe even
+# At the pinned Coolify 4.7.5, RestartService activates the saved recipe even
 # when stopped. Delete of this action is a no-op; updates never delete services.
 resource "coolify_resource_action" "activate" {
   resource_uuid = coolify_service.workload.uuid

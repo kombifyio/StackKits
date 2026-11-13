@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/kombifyio/stackkits/internal/ownappfirewall"
 	"net"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"time"
 )
 
+const ownEgressLabel = "io.stackkit.own-egress"
 const ownNetworkLabel = "io.stackkit.own-network"
 
 var ownNetworkName = regexp.MustCompile(`^stackkit-own-[a-z][a-z0-9-]{0,39}-[a-z][a-z0-9-]*_private$`)
@@ -27,9 +29,13 @@ func ownApplicationNetworkName(workload, node string) string {
 type ownNetwork struct {
 	Name, Driver string
 	Internal     bool
+	EnableIPv6   bool
 	Options      map[string]string
 	Labels       map[string]string
-	Containers   map[string]struct{ IPv4Address string }
+	Containers   map[string]struct {
+		IPv4Address string
+		MacAddress  string
+	}
 }
 
 func validOwnNetworkQuery(a []string) bool {
@@ -43,7 +49,7 @@ func validOwnNetworkQuery(a []string) bool {
 	if len(a) == 9 && a[0] == "ps" && a[1] == "--all" && a[2] == "--filter" && a[3] == "label=com.docker.compose.project=stackkit-basement-core" && a[4] == "--filter" && (a[5] == "label=com.docker.compose.service=router" || a[5] == "label=com.docker.compose.service=router-remote") && a[6] == "--format" && a[7] == "{{.ID}}" && a[8] == "--no-trunc" {
 		return true
 	}
-	if len(a) == 8 && a[0] == "ps" && a[1] == "--filter" && strings.HasPrefix(a[2], "label=com.docker.compose.project=") && ownNetworkName.MatchString(strings.TrimPrefix(a[2], "label=com.docker.compose.project=")+"_private") && a[3] == "--filter" && a[4] == "label=com.docker.compose.service=app" && a[5] == "--format" && a[6] == "{{.ID}}" && a[7] == "--no-trunc" {
+	if len(a) == 6 && a[0] == "ps" && a[1] == "--filter" && strings.HasPrefix(a[2], "label=com.docker.compose.project=") && ownNetworkName.MatchString(strings.TrimPrefix(a[2], "label=com.docker.compose.project=")+"_private") && a[3] == "--format" && a[4] == "{{.ID}}" && a[5] == "--no-trunc" {
 		return true
 	}
 	return false
@@ -58,7 +64,11 @@ func (o *osStandaloneComposeWorkloadOperations) inspectOwnNetwork(ctx context.Co
 		return ownNetwork{}, errors.New("invalid own application network observation")
 	}
 	n := observed[0]
-	if n.Name != name || n.Driver != "bridge" || !n.Internal || len(n.Options) != 0 || n.Labels[ownNetworkLabel] != "v1" || n.Labels["com.docker.compose.project"]+"_private" != name {
+	validMode := n.Internal && len(n.Options) == 0 && n.Labels[ownEgressLabel] == ""
+	if n.Labels[ownEgressLabel] == "v1" {
+		validMode = !n.Internal && !n.EnableIPv6 && len(n.Options) == 1 && n.Options["com.docker.network.bridge.name"] == ownappfirewall.Bridge(name)
+	}
+	if n.Name != name || n.Driver != "bridge" || !validMode || n.Labels[ownNetworkLabel] != "v1" || n.Labels["com.docker.compose.project"]+"_private" != name {
 		return n, errors.New("own application network is not its admitted internal bridge")
 	}
 	return n, nil
@@ -105,6 +115,9 @@ func (o *osStandaloneComposeWorkloadOperations) completeOwnApplication(ctx conte
 	if e != nil {
 		return e
 	}
+	if n.Internal == p.bundle.OwnApplicationFirewalled {
+		return errors.New("own application observed network does not match its reviewed firewall grant")
+	}
 	raw, e := o.runner.Run(ctx, standaloneComposeArgs(p, "ps"), p.directory)
 	if e != nil {
 		return e
@@ -118,10 +131,17 @@ func (o *osStandaloneComposeWorkloadOperations) completeOwnApplication(ctx conte
 		return e
 	}
 	// Use the admitted container's private address, never a published host port.
-	var address string
-	for _, id := range ids {
-		if endpoint, ok := n.Containers[id]; ok {
-			address = endpoint.IPv4Address
+	// A project keeps every service on this network, so the readiness probe
+	// addresses the routed service only.
+	entryID, admitted := ids[p.bundle.EntryComponent]
+	if !admitted {
+		return errors.New("own application entry container identity unavailable")
+	}
+	address := ""
+	if endpoint, ok := n.Containers[entryID]; ok {
+		address = endpoint.IPv4Address
+		if p.bundle.OwnApplicationFirewalled && !strings.EqualFold(endpoint.MacAddress, ownappfirewall.MAC(n.Name)) {
+			return errors.New("own application endpoint MAC differs from reviewed firewall identity")
 		}
 	}
 	ip, _, e := net.ParseCIDR(address)
@@ -138,6 +158,11 @@ func (o *osStandaloneComposeWorkloadOperations) completeOwnApplication(ctx conte
 		case <-ctx.Done():
 			return errors.New("own application HTTP readiness did not complete; route remains closed")
 		case <-time.After(time.Second):
+		}
+	}
+	if p.firewall != nil {
+		if err := p.firewall.VerifyWatcher(ctx); err != nil {
+			return err
 		}
 	}
 	return o.connectOwnRouter(ctx, n.Name)
@@ -165,15 +190,22 @@ func reconnectOwnApplicationNetworks(ctx context.Context, workspace string) erro
 			return fmt.Errorf("foreign own-application network")
 		}
 		project := strings.TrimSuffix(name, "_private")
-		running, err := runtime.ops.runner.Run(ctx, []string{"ps", "--filter", "label=com.docker.compose.project=" + project, "--filter", "label=com.docker.compose.service=app", "--format", "{{.ID}}", "--no-trunc"}, workspace)
+		running, err := runtime.ops.runner.Run(ctx, []string{"ps", "--filter", "label=com.docker.compose.project=" + project, "--format", "{{.ID}}", "--no-trunc"}, workspace)
 		if err != nil {
 			return err
 		}
-		id := strings.TrimSpace(string(running))
-		if id == "" {
+		ids := strings.Fields(string(running))
+		if len(ids) == 0 {
 			continue
 		}
-		if !ownContainerID.MatchString(id) {
+		admitted := false
+		for _, id := range ids {
+			if ownContainerID.MatchString(id) {
+				admitted = true
+				break
+			}
+		}
+		if !admitted {
 			return errors.New("exact own application container required")
 		}
 		if e = runtime.ops.connectOwnRouter(ctx, name); e != nil {

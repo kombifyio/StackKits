@@ -144,6 +144,17 @@ func (a *App) runCatalogOperation(ctx context.Context, operation standaloneopera
 		out := errorOutput(operation.ToolName, err)
 		return errorJSONResult(out), out, nil
 	}
+	// The receipt argument renders as --decision-receipt; the server adds the
+	// acting principal it authenticated, or refuses the receipt when this call
+	// is not a first-slice call (decision_receipt.go).
+	principalArgs, denial := a.decisionReceiptArgs(ctx, operation.ToolName, string(operation.ID), common.BaseDir,
+		stringInput(in, "decision_receipt"), catalogReceiptCall(operation, in))
+	if denial != nil {
+		return errorJSONResult(denial), denial, nil
+	}
+	if len(principalArgs) == 2 {
+		args = append(args, principalArgs[1])
+	}
 	if operation.Mutation {
 		approved, _ := in["owner_approved"].(bool)
 		return a.runApprovedStackkitTool(ctx, operation.ID, stringInput(in, "operation_confirmation"), approved, common, args, nil)

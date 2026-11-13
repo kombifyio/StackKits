@@ -45,13 +45,21 @@ const (
 	// TransferReceiveMaxLifetimeSeconds bounds a capability for one receiving
 	// transfer step (15 minutes).
 	TransferReceiveMaxLifetimeSeconds = 900
+	// ApplicationReleaseMaxLifetimeSeconds bounds a capability for one scoped
+	// application release update (15 minutes).
+	ApplicationReleaseMaxLifetimeSeconds = 900
+	// OwnApplicationLifecycleMaxLifetimeSeconds bounds a capability for one
+	// reviewed own-application action (15 minutes).
+	OwnApplicationLifecycleMaxLifetimeSeconds = 900
 )
 
 // Advanced operation identifiers. A capability authorizes a sorted subset.
 const (
+	OperationApplicationReleaseUpdate   = "application-release.update"
 	OperationApplicationTransferReceive = "application-transfer.receive"
 	OperationApplicationTransferRetire  = "application-transfer.retire"
 	OperationDriftReconcileAdvanced     = "drift.reconcile.advanced"
+	OperationOwnApplicationLifecycle    = "own-application.lifecycle"
 	OperationOriginCertificateInstall   = "public-tls.origin-certificate.install"
 	OperationOriginCertificateRequest   = "public-tls.origin-certificate.request"
 	OperationRestoreDrill               = "restore.drill"
@@ -67,9 +75,11 @@ const BackupRenewalOperation = OperationRestoreDrill
 // Operations returns every Advanced operation in canonical (sorted) order.
 func Operations() []string {
 	return []string{
+		OperationApplicationReleaseUpdate,
 		OperationApplicationTransferReceive,
 		OperationApplicationTransferRetire,
 		OperationDriftReconcileAdvanced,
+		OperationOwnApplicationLifecycle,
 		OperationOriginCertificateInstall,
 		OperationOriginCertificateRequest,
 		OperationRestoreDrill,
@@ -82,27 +92,33 @@ func Operations() []string {
 // IsOperation reports whether value is an Advanced operation identifier.
 func IsOperation(value string) bool {
 	switch value {
-	case OperationApplicationTransferReceive, OperationApplicationTransferRetire, OperationDriftReconcileAdvanced, OperationOriginCertificateInstall, OperationOriginCertificateRequest, OperationRestoreDrill, OperationRollbackCoordinated, OperationTerramateChangeSetApply, OperationTerramateChangeSetCreate:
+	case OperationApplicationReleaseUpdate, OperationApplicationTransferReceive, OperationApplicationTransferRetire, OperationDriftReconcileAdvanced, OperationOwnApplicationLifecycle, OperationOriginCertificateInstall, OperationOriginCertificateRequest, OperationRestoreDrill, OperationRollbackCoordinated, OperationTerramateChangeSetApply, OperationTerramateChangeSetCreate:
 		return true
 	}
 	return false
 }
 
 var (
-	issuerIdPattern               = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
-	stackIdPattern                = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
-	ownerRefPattern               = regexp.MustCompile(`^owner/local/[0-9a-f]{32}$`)
-	keyIdPattern                  = regexp.MustCompile(`^ed25519://sha256/[0-9a-f]{64}$`)
-	capabilityIdPattern           = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
-	renewalIdentityPattern        = regexp.MustCompile(`^[A-Za-z0-9_:@|.-]{1,180}$`)
-	renewalJobIdPattern           = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{7,99}$`)
-	sha256DigestPattern           = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	backupTargetRefPattern        = regexp.MustCompile(`^backup-target://sha256/[0-9a-f]{64}$`)
-	custodyAttestationRefPattern  = regexp.MustCompile(`^backup-custody-attestation://sha256/[0-9a-f]{64}$`)
-	decimalInt64Pattern           = regexp.MustCompile(`^(0|[1-9][0-9]{0,18})$`)
-	transferOperationIdPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
-	transferRetirementRolePattern = regexp.MustCompile(`^(source|destination)$`)
-	transferReceiveStepPattern    = regexp.MustCompile(`^(admit|prepare|import)$`)
+	issuerIdPattern                  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	stackIdPattern                   = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
+	ownerRefPattern                  = regexp.MustCompile(`^owner/local/[0-9a-f]{32}$`)
+	keyIdPattern                     = regexp.MustCompile(`^ed25519://sha256/[0-9a-f]{64}$`)
+	capabilityIdPattern              = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+	renewalIdentityPattern           = regexp.MustCompile(`^[A-Za-z0-9_:@|.-]{1,180}$`)
+	renewalJobIdPattern              = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{7,99}$`)
+	sha256DigestPattern              = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	backupTargetRefPattern           = regexp.MustCompile(`^backup-target://sha256/[0-9a-f]{64}$`)
+	custodyAttestationRefPattern     = regexp.MustCompile(`^backup-custody-attestation://sha256/[0-9a-f]{64}$`)
+	decimalInt64Pattern              = regexp.MustCompile(`^(0|[1-9][0-9]{0,18})$`)
+	transferOperationIdPattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	transferRetirementRolePattern    = regexp.MustCompile(`^(source|destination)$`)
+	transferReceiveStepPattern       = regexp.MustCompile(`^(admit|prepare|import)$`)
+	useCaseRefPattern                = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+	releaseTagPattern                = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+	releaseKindPattern               = regexp.MustCompile(`^(tested|untested)$`)
+	ownApplicationNamePattern        = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
+	ownApplicationActionPattern      = regexp.MustCompile(`^(start|stop|restart|update|rollback|discard-checkpoint)$`)
+	ownApplicationOperationIdPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 )
 
 // Capability is one stackkit.advanced-capability/v1 document. Its canonical
@@ -111,7 +127,11 @@ var (
 type Capability struct {
 	// AllowedOperations is the sorted, duplicate-free operation set.
 	AllowedOperations []string `json:"allowedOperations"`
-	Audience          string   `json:"audience"`
+	// ApplicationRelease binds a short-lived scoped release update to one
+	// catalog use case and the exact release, manifest digest and tested or
+	// untested kind the Owner approved in Techstack.
+	ApplicationRelease *ApplicationRelease `json:"applicationRelease,omitempty"`
+	Audience           string              `json:"audience"`
 	// BackupRenewal is present only on a single short-lived restore.drill
 	// capability.
 	BackupRenewal *BackupRenewal `json:"backupRenewal,omitempty"`
@@ -122,10 +142,14 @@ type Capability struct {
 	// IssuerID names a Techstack issuer (see IssuerClass).
 	IssuerID string `json:"issuerId"`
 	// KeyID is ed25519://sha256/<hex SHA-256 of the raw public key>.
-	KeyID         string `json:"keyId"`
-	OwnerRef      string `json:"ownerRef"`
-	RILRef        string `json:"rilRef"`
-	SchemaVersion string `json:"schemaVersion"`
+	KeyID string `json:"keyId"`
+	// OwnApplicationLifecycle binds a short-lived own-application.lifecycle
+	// capability to one application, one action, one operation ID and the review
+	// digest of its dry run.
+	OwnApplicationLifecycle *OwnApplicationLifecycle `json:"ownApplicationLifecycle,omitempty"`
+	OwnerRef                string                   `json:"ownerRef"`
+	RILRef                  string                   `json:"rilRef"`
+	SchemaVersion           string                   `json:"schemaVersion"`
 	// Signature is the unpadded standard-Base64 Ed25519 signature over
 	// SigningDigest of the unsigned canonical bytes.
 	Signature string `json:"signature"`
@@ -138,6 +162,20 @@ type Capability struct {
 	// transition.
 	TransferRetirement *TransferRetirement `json:"transferRetirement,omitempty"`
 	UIManagerRef       string              `json:"uiManagerRef"`
+}
+
+// ApplicationRelease authorizes one scoped release update of the single
+// application a catalog use case selects on a managed node: the node stops
+// it, retains and reads back its data, records the release override in its
+// desired intent and runs generate, apply and verify, rolling back to the
+// prior release and data on failure. It grants no other intent change, no
+// StackKits release change, no data deletion, server or provider authority.
+// The consumer reconstructs every field from its own command and catalog.
+type ApplicationRelease struct {
+	ReleaseKind   string `json:"releaseKind"`
+	TargetDigest  string `json:"targetDigest"`
+	TargetRelease string `json:"targetRelease"`
+	UseCaseRef    string `json:"useCaseRef"`
 }
 
 // BackupRenewal authorizes one local staged drill against unchanged applied
@@ -157,6 +195,19 @@ type BackupRenewal struct {
 	TargetRef             string `json:"targetRef"`
 	TenantID              string `json:"tenantId"`
 	UsedBytes             string `json:"usedBytes"`
+}
+
+// OwnApplicationLifecycle authorizes exactly one reviewed action (start,
+// stop, restart, update, rollback or discard-checkpoint) of one own
+// application on a managed node: the operation ID and the review digest its
+// dry run returned. It grants no create, remove, data deletion, server or
+// provider authority. The consumer compares every field with the call it
+// admits.
+type OwnApplicationLifecycle struct {
+	Action       string `json:"action"`
+	Name         string `json:"name"`
+	OperationID  string `json:"operationId"`
+	ReviewDigest string `json:"reviewDigest"`
 }
 
 // TransferReceive authorizes one receiving step of a native application
@@ -214,6 +265,10 @@ func (c Capability) appendCanonical(out []byte, signed bool) []byte {
 		out = strconv.AppendQuote(out, element)
 	}
 	out = append(out, ']')
+	if c.ApplicationRelease != nil {
+		out = append(out, ",\"applicationRelease\":"...)
+		out = c.ApplicationRelease.appendCanonical(out)
+	}
 	out = append(out, ",\"audience\":"...)
 	out = strconv.AppendQuote(out, c.Audience)
 	if c.BackupRenewal != nil {
@@ -230,6 +285,10 @@ func (c Capability) appendCanonical(out []byte, signed bool) []byte {
 	out = strconv.AppendQuote(out, c.IssuerID)
 	out = append(out, ",\"keyId\":"...)
 	out = strconv.AppendQuote(out, c.KeyID)
+	if c.OwnApplicationLifecycle != nil {
+		out = append(out, ",\"ownApplicationLifecycle\":"...)
+		out = c.OwnApplicationLifecycle.appendCanonical(out)
+	}
 	out = append(out, ",\"ownerRef\":"...)
 	out = strconv.AppendQuote(out, c.OwnerRef)
 	out = append(out, ",\"rilRef\":"...)
@@ -277,6 +336,36 @@ func (c Capability) checkFormats() error {
 	}
 	if !stackIdPattern.MatchString(c.StackID) {
 		return invalid("stackId", "is not canonical")
+	}
+	return nil
+}
+
+// appendCanonical appends the RFC 8785 bytes of ApplicationRelease.
+func (a ApplicationRelease) appendCanonical(out []byte) []byte {
+	out = append(out, "{\"releaseKind\":"...)
+	out = strconv.AppendQuote(out, a.ReleaseKind)
+	out = append(out, ",\"targetDigest\":"...)
+	out = strconv.AppendQuote(out, a.TargetDigest)
+	out = append(out, ",\"targetRelease\":"...)
+	out = strconv.AppendQuote(out, a.TargetRelease)
+	out = append(out, ",\"useCaseRef\":"...)
+	out = strconv.AppendQuote(out, a.UseCaseRef)
+	return append(out, '}')
+}
+
+// checkFormats checks the constant and pattern members of ApplicationRelease.
+func (a ApplicationRelease) checkFormats() error {
+	if !releaseKindPattern.MatchString(a.ReleaseKind) {
+		return invalid("releaseKind", "is not canonical")
+	}
+	if !sha256DigestPattern.MatchString(a.TargetDigest) {
+		return invalid("targetDigest", "is not canonical")
+	}
+	if !releaseTagPattern.MatchString(a.TargetRelease) {
+		return invalid("targetRelease", "is not canonical")
+	}
+	if !useCaseRefPattern.MatchString(a.UseCaseRef) {
+		return invalid("useCaseRef", "is not canonical")
 	}
 	return nil
 }
@@ -349,6 +438,36 @@ func (b BackupRenewal) checkFormats() error {
 	}
 	if !decimalInt64Pattern.MatchString(b.UsedBytes) {
 		return invalid("usedBytes", "is not canonical")
+	}
+	return nil
+}
+
+// appendCanonical appends the RFC 8785 bytes of OwnApplicationLifecycle.
+func (o OwnApplicationLifecycle) appendCanonical(out []byte) []byte {
+	out = append(out, "{\"action\":"...)
+	out = strconv.AppendQuote(out, o.Action)
+	out = append(out, ",\"name\":"...)
+	out = strconv.AppendQuote(out, o.Name)
+	out = append(out, ",\"operationId\":"...)
+	out = strconv.AppendQuote(out, o.OperationID)
+	out = append(out, ",\"reviewDigest\":"...)
+	out = strconv.AppendQuote(out, o.ReviewDigest)
+	return append(out, '}')
+}
+
+// checkFormats checks the constant and pattern members of OwnApplicationLifecycle.
+func (o OwnApplicationLifecycle) checkFormats() error {
+	if !ownApplicationActionPattern.MatchString(o.Action) {
+		return invalid("action", "is not canonical")
+	}
+	if !ownApplicationNamePattern.MatchString(o.Name) {
+		return invalid("name", "is not canonical")
+	}
+	if !ownApplicationOperationIdPattern.MatchString(o.OperationID) {
+		return invalid("operationId", "is not canonical")
+	}
+	if !sha256DigestPattern.MatchString(o.ReviewDigest) {
+		return invalid("reviewDigest", "is not canonical")
 	}
 	return nil
 }

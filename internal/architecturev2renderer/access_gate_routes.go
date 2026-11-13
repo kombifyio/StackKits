@@ -76,7 +76,7 @@ func accessGateRouteFromAccess(id, host, path, serviceRef, ingressAuth string, a
 		}
 	} else {
 		route.OwnerRemoteOptIn = access.OwnerRemoteOptIn
-		if groups, ok := tinyAuthRouteACLGroups(access.Privilege, serviceRef); ok {
+		if groups, ok := applicationAudienceGroups(access, serviceRef); ok {
 			route.Groups = strings.Split(groups, ",")
 		}
 	}
@@ -209,6 +209,11 @@ func accessGateRoutes(unit RenderUnit) (accessgatetable.Table, error) {
 		ingressAuth := route.IngressAuth
 		if ingressAuth == "" {
 			ingressAuth = accessgatetable.IngressNative
+		}
+		if route.Access.Audience != nil {
+			if _, ok := applicationAudienceGroups(route.Access, route.ServiceRef); !ok || route.IngressAuth != "forward-auth" {
+				return accessgatetable.Table{}, fail(ErrInvalidPlan, path, "invalid application audience")
+			}
 		}
 		next := accessGateRouteFromAccess(route.ID, host, routePath, route.ServiceRef, ingressAuth, route.Access)
 		duplicate := false

@@ -133,7 +133,7 @@ func validateImmichSelectedPaaSRequest(variant immichWorkloadVariant, request ru
 		target.ProviderRef != variant.providerRef || target.ProviderContractHash != authority.ProviderContractHash ||
 		target.ModuleRef != variant.moduleRef || target.ModuleContractHash != authority.ModuleContractHash || target.UnitRef != immichWorkloadUnitRef || target.UnitContractHash != authority.UnitContractHash ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "selected-paas" || target.RuntimeEngine != "docker" ||
-		target.WorkloadRef != immichWorkloadRef || target.ImageRef != immichWorkloadImageRef || target.ImageDigest != immichWorkloadImageDigest ||
+		target.WorkloadRef != immichWorkloadRef || !entryImageAdmitted(variant.moduleRef, target.ImageRef, target.ImageDigest) ||
 		target.InstanceRef != immichWorkloadInstancePrefix+binding.NodeRef || target.ExecutionChannelRef != binding.ExecutionChannelRef ||
 		!slices.Equal(target.SiteRefs, []string{binding.SiteRef}) || !slices.Equal(target.NodeRefs, []string{binding.NodeRef}) || len(target.DaemonBindings) != 0 ||
 		len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 || !slices.Equal(target.ArtifactRefs, []string{artifact.ID}) {
@@ -175,6 +175,9 @@ func validateImmichSelectedPaaSRequest(variant immichWorkloadVariant, request ru
 	descriptor, err := architecturev2renderer.ParseImmichWorkloadBundle(artifact.Content)
 	if err != nil {
 		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, fmt.Errorf("validate closed Immich workload bundle: %w", err)
+	}
+	if descriptor.Release, descriptor.Components, err = effectiveEntryRelease(artifact.Content, descriptor.Release, descriptor.Components, target); err != nil {
+		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, fmt.Errorf("Immich workload bundle release: %w", err)
 	}
 	if descriptor.WorkloadRef != target.WorkloadRef || descriptor.ModuleRef != target.ModuleRef || descriptor.SiteRef != binding.SiteRef || descriptor.NodeRef != binding.NodeRef || descriptor.InstanceRef != target.InstanceRef {
 		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, errors.New("Immich workload bundle target differs from the authorized runtime target")

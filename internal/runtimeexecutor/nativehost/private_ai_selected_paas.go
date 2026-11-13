@@ -85,7 +85,7 @@ func validatePrivateAISelectedPaaSRequest(request runtimeexecutor.ExecutionReque
 		target.ModuleRef != privateAIModuleRef || target.ModuleContractHash != authority.ModuleContractHash ||
 		target.UnitRef != privateAIUnitRef || target.UnitContractHash != authority.UnitContractHash ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "selected-paas" || target.RuntimeEngine != "docker" ||
-		target.WorkloadRef != privateAIWorkloadRef || (target.ImageRef != architecturev2renderer.PrivateAIImageRef || target.ImageDigest != architecturev2renderer.PrivateAIImageDigest) ||
+		target.WorkloadRef != privateAIWorkloadRef || !entryImageAdmitted(privateAIModuleRef, target.ImageRef, target.ImageDigest) ||
 		target.InstanceRef != privateAIInstancePrefix+binding.NodeRef || target.ExecutionChannelRef != binding.ExecutionChannelRef ||
 		!slices.Equal(target.SiteRefs, []string{binding.SiteRef}) || !slices.Equal(target.NodeRefs, []string{binding.NodeRef}) ||
 		len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
@@ -135,6 +135,9 @@ func validatePrivateAISelectedPaaSRequest(request runtimeexecutor.ExecutionReque
 	descriptor, err := architecturev2renderer.ParsePrivateAIWorkloadBundle(artifact.Content)
 	if err != nil {
 		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, fmt.Errorf("validate closed PrivateAI workload bundle: %w", err)
+	}
+	if descriptor.Release, descriptor.Components, err = effectiveEntryRelease(artifact.Content, descriptor.Release, descriptor.Components, target); err != nil {
+		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, fmt.Errorf("PrivateAI workload bundle release: %w", err)
 	}
 	if descriptor.WorkloadRef != target.WorkloadRef || descriptor.ModuleRef != target.ModuleRef ||
 		descriptor.SiteRef != binding.SiteRef || descriptor.NodeRef != binding.NodeRef ||

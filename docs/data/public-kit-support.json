@@ -1,5 +1,5 @@
 {
-  "publicationTag": "v0.57.8",
+  "publicationTag": "v0.57.11",
   "rows": [
     {
       "id": "basement",
@@ -7,7 +7,7 @@
       "name": "Basement Kit",
       "target": "an existing Linux host at home",
       "grade": "alpha",
-      "label": "alpha at v0.57.8; no public-package pass recorded",
+      "label": "alpha at v0.57.11; no public-package pass recorded",
       "proofUrl": null
     },
     {
@@ -16,7 +16,7 @@
       "name": "Cloud Kit",
       "target": "an existing VPS with your own domain",
       "grade": "alpha",
-      "label": "alpha at v0.57.8; no public-package pass recorded",
+      "label": "alpha at v0.57.11; no public-package pass recorded",
       "proofUrl": null
     },
     {
@@ -25,7 +25,7 @@
       "name": "Modern Homelab",
       "target": "Home + Cloud, joined by an explicit federation bridge",
       "grade": "alpha",
-      "label": "alpha definition archive at v0.57.8; no public-package pass recorded",
+      "label": "alpha definition archive at v0.57.11; no public-package pass recorded",
       "proofUrl": null
     }
   ]

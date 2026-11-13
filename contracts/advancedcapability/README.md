@@ -54,3 +54,16 @@ from its authenticated local journal and canonical removal candidate before
 committing under the existing snapshot lease. The grant permits no runtime
 activation, restart, volume deletion or provider operation. Older consumers
 reject the new operation; existing conformance bytes remain unchanged.
+
+## Scoped application release update
+
+`application-release.update` requires exactly one `applicationRelease` scope
+and a lifetime of at most 15 minutes. It cannot share a capability with another
+operation, a transfer scope or a backup renewal. The scope binds the catalog
+use case (`useCaseRef`), the exact release tag (`targetRelease`), its manifest
+digest (`targetDigest`) and whether the Owner approved a tested or an untested
+release (`releaseKind`). A managed node reconstructs every field from its own
+`stackkit use-cases upgrade` command and its catalog before it stops the
+application; the grant permits that one release override and the automatic
+rollback of the same operation, nothing else. Older consumers reject the new
+operation; existing conformance bytes remain unchanged.

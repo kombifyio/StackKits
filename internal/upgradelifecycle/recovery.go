@@ -17,6 +17,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
+	"github.com/kombifyio/stackkits/internal/ownapplication"
 	"github.com/kombifyio/stackkits/internal/releaseindex"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
 	"github.com/kombifyio/stackkits/internal/terramatehost"
@@ -110,6 +111,11 @@ func (store ExecutorStateStore) RecoverWith(
 		return ExecutorStateRecoveryResult{}, err
 	}
 
+	// No recovered executor (including a release predating own-application v2)
+	// may inherit an active outbound grant. Keep data, revoke exact runtime/rules.
+	if err := ownapplication.SuspendOutboundForKitRollback(ctx, workspaceRoot); err != nil {
+		return ExecutorStateRecoveryResult{}, fmt.Errorf("executor state: revoke own-application outbound before recovery: %w", err)
+	}
 	tempRoot, err := os.MkdirTemp("", "stackkit-executor-recovery-")
 	if err != nil {
 		return ExecutorStateRecoveryResult{}, fmt.Errorf(

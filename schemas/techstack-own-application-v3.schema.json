@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/techstack-own-application-v3.schema.json",
+  "title": "Techstack own application v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "name",
+    "hostname",
+    "services"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "techstack.own-application/v3"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^(?!(?:kombify|stackkit))[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "hostname": {
+      "type": "string",
+      "maxLength": 253,
+      "pattern": "^own-[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$",
+      "description": "Exactly own-<name>.<installation-domain>; checked contextually by StackKits. It routes the one service that declares httpPort."
+    },
+    "signIn": {
+      "type": "boolean",
+      "default": true
+    },
+    "services": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "description": "The containers of the project. Exactly one service declares httpPort and is routed; every other service stays on the project's private network. The same refusals as for one container apply to every service: no host ports, no privileged mode, no host mounts, and images pinned by digest at review.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "image"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "description": "Compose service name; also the container name on the project's private network."
+          },
+          "image": {
+            "type": "string",
+            "maxLength": 512,
+            "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*(?::443)?/[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|@sha256:[a-f0-9]{64})$",
+            "allOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.-]*\\.[a-z][a-z0-9-]*(?::443)?/"
+              }
+            ],
+            "description": "Public DNS registry over HTTPS port 443 only. Create/update dry review resolves every tag before approval; offline render requires digest-pinned desired images. Execution binds the reviewed resolvedImages, imports the verified blobs through the same HTTPS transport, and runs the node-derived immutable config image ID with pull_policy never."
+          },
+          "httpPort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "The container port that serves HTTP. Exactly one service of the project declares it; that service is the routed one."
+          },
+          "environment": {
+            "type": "object",
+            "maxProperties": 64,
+            "propertyNames": {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "maxLength": 128
+            },
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 4096,
+              "pattern": "^[^\\u0000\\r\\n]*$"
+            }
+          },
+          "secretRefs": {
+            "type": "object",
+            "maxProperties": 64,
+            "propertyNames": {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "maxLength": 128
+            },
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^secret://own-[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "description": "Each key K must reference exactly secret://own-<name>/<service>/K; created via the own operation private secrets-file under the <service>.<KEY> slot, never foreign custody."
+          },
+          "volume": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mountPath"
+            ],
+            "properties": {
+              "mountPath": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^/[^:\\\\$\\u0000\\r\\n]*$",
+                "description": "Clean absolute container path; system paths, host mounts and Docker socket are refused. The named volume of this service is included in backup."
+              }
+            }
+          },
+          "resources": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "memoryMiB": {
+                "type": "integer",
+                "anyOf": [
+                  {
+                    "const": 0
+                  },
+                  {
+                    "minimum": 64,
+                    "maximum": 8192
+                  }
+                ],
+                "default": 512
+              },
+              "cpus": {
+                "type": "number",
+                "anyOf": [
+                  {
+                    "const": 0
+                  },
+                  {
+                    "minimum": 0.1,
+                    "maximum": 4
+                  }
+                ],
+                "default": 1
+              }
+            }
+          },
+          "dependsOn": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+            },
+            "description": "Services of this project that start first. Unknown services, self references and cycles are refused."
+          }
+        }
+      }
+    }
+  },
+  "description": "Closed v3 own-application intent: a Compose project of one to eight containers. Exactly one service declares httpPort and is routed on the project hostname; the other services stay on the project's private network. Their declared named volumes are included in backup. A project has no outbound Internet: the v2 outboundInternet grant belongs to the one-container form only."
+}

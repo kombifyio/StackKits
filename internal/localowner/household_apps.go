@@ -232,6 +232,11 @@ func sameAccess(a, b HouseholdAppAccess) bool {
 
 // convergeHouseholdAppClients rebinds every existing user-tier app client that
 // still admits the flat household to the per-app admission set.
+//
+// A client that carries an explicit audience decision keeps that decision: the
+// decision, not the per-app grant set, governs who the application admits. A
+// client without such a decision is reconciled exactly as origin/main
+// reconciled it.
 func (s *Service) convergeHouseholdAppClients(ctx context.Context, client pocketIDOwnerClient) error {
 	for _, app := range householdapps.Grantable {
 		clientID := ApplicationOIDCClientID(app)
@@ -241,6 +246,19 @@ func (s *Service) convergeHouseholdAppClients(ctx context.Context, client pocket
 		}
 		if err != nil || existing == nil {
 			return errors.New("localowner: Pocket ID application client readback failed")
+		}
+		if audience, decided := applicationAudienceFromDescription(existing.Description); decided {
+			ids, err := applicationOIDCGroupIDs(ctx, client, ApplicationOIDCClientRequest{ClientID: clientID, RequiredPrivilege: "user", Audience: audience})
+			if err != nil {
+				return err
+			}
+			if samePocketIDGroupIDs(existing.AllowedUserGroups, ids) {
+				continue
+			}
+			if _, err := client.UpdateOIDCClientAllowedUserGroups(ctx, clientID, ids); err != nil {
+				return errors.New("localowner: Pocket ID application client group binding failed")
+			}
+			continue
 		}
 		names := pocketIDGroupNames(existing.AllowedUserGroups)
 		if !slices.Contains(names, "household") && !slices.Contains(names, householdOpenGroupName) {

@@ -16,8 +16,8 @@ import (
 )
 
 // DeriveApplicationReleaseAuthority narrows restore authority to one
-// standalone Compose application and its governed persistent volumes for a
-// scoped release change, against the current applied plan. Its rollback
+// standalone Compose application, or the native Marketplace installation, and
+// its governed persistent volumes for a scoped release change, against the current applied plan. Its rollback
 // volumes are bound to the operation, so the release rollback rebuilds the
 // same authority from its signed record without the plan the target release
 // generated.
@@ -50,12 +50,9 @@ func DeriveApplicationReleaseAuthority(workspace string, plan generationartifact
 	if _, err := ApplicationTransferPersistentWorkloads(policy, []string{workload}); err != nil {
 		return Authority{}, errors.New("restoreactivation: the application has no governed persistent data to retain")
 	}
-	custody, err := ApplicationTransferRuntimeCustody(workspace, plan, manifest, []string{workload})
+	runtime, err := applicationReleaseRuntime(workspace, plan, manifest, operation, workload)
 	if err != nil {
 		return Authority{}, err
-	}
-	if len(custody) != 1 {
-		return Authority{}, errors.New("restoreactivation: a release change covers exactly one Compose project")
 	}
 	var details []Volume
 	for _, declared := range policy.Source.ApplicationVolumes {
@@ -63,7 +60,7 @@ func DeriveApplicationReleaseAuthority(workspace string, plan generationartifact
 			continue
 		}
 		index := slices.IndexFunc(graph.VolumeDetails, func(v Volume) bool { return v.LiveName == declared.VolumeName })
-		if index < 0 || graph.VolumeDetails[index].ComposeProject != custody[0].Project {
+		if index < 0 || graph.VolumeDetails[index].ComposeProject != runtime.Project {
 			return Authority{}, errors.New("restoreactivation: application volume is outside its runtime authority")
 		}
 		details = append(details, graph.VolumeDetails[index])
@@ -77,7 +74,37 @@ func DeriveApplicationReleaseAuthority(workspace string, plan generationartifact
 	if err != nil {
 		return Authority{}, err
 	}
-	return Authority{OperationID: operation, RenderTarget: graph.RenderTarget, OwnerRef: owner.OwnerRef, PlanHash: graph.PlanHash, ManifestHash: graph.ManifestHash, ApplyResultHash: lineage.ApplyResultHash, ManagedVolumeSetHash: hash, StackID: graph.StackID, ComposeProject: graph.ComposeProject, ComposePath: graph.ComposePath, ComposeDigest: graph.ComposeDigest, ComposeRuntimes: []ComposeRuntime{custody[0].Runtime}, KopiaHelperImage: graph.KopiaHelperImage, StagingVolume: graph.StagingVolume, Volumes: names, VolumeDetails: details}, nil
+	return Authority{OperationID: operation, RenderTarget: graph.RenderTarget, OwnerRef: owner.OwnerRef, PlanHash: graph.PlanHash, ManifestHash: graph.ManifestHash, ApplyResultHash: lineage.ApplyResultHash, ManagedVolumeSetHash: hash, StackID: graph.StackID, ComposeProject: graph.ComposeProject, ComposePath: graph.ComposePath, ComposeDigest: graph.ComposeDigest, ComposeRuntimes: []ComposeRuntime{runtime}, KopiaHelperImage: graph.KopiaHelperImage, StagingVolume: graph.StagingVolume, Volumes: names, VolumeDetails: details}, nil
+}
+
+// applicationReleaseRuntime binds the one Compose runtime a release change
+// holds. A curated application is its standalone Compose bundle; the
+// Marketplace is its native node installation (fixed project
+// stackkit-marketplace), whose Coolify database, Redis and storage volumes
+// form the retained data and whose private runtime files the caller retains
+// beside them.
+func applicationReleaseRuntime(workspace string, plan generationartifact.VerifiedPlan, manifest generationartifact.ArtifactManifest, operation, workload string) (ComposeRuntime, error) {
+	if workload == "marketplace" {
+		marketplace, err := DeriveMarketplaceRuntimeCustody(workspace, plan, manifest, operation)
+		if err != nil {
+			return ComposeRuntime{}, err
+		}
+		if marketplace == nil || marketplace.Runtime.Project != localbackuppolicy.MarketplaceComposeProject {
+			return ComposeRuntime{}, errors.New("restoreactivation: the Marketplace release change requires its applied native installation")
+		}
+		for _, file := range marketplace.Files {
+			clear(file.Data)
+		}
+		return marketplace.Runtime, nil
+	}
+	custody, err := ApplicationTransferRuntimeCustody(workspace, plan, manifest, []string{workload})
+	if err != nil {
+		return ComposeRuntime{}, err
+	}
+	if len(custody) != 1 {
+		return ComposeRuntime{}, errors.New("restoreactivation: a release change covers exactly one Compose project")
+	}
+	return custody[0].Runtime, nil
 }
 
 // HoldApplicationProject stops every container of one Compose project and any

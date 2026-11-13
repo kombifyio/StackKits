@@ -150,6 +150,7 @@ func init() {
 		&advancedChangeSetApplyJSON, "json", false,
 		"Emit stackkit.command-result/v1 JSON",
 	)
+	addDecisionReceiptFlags(advancedChangeSetApplyCmd)
 	advancedTrustCmd.AddCommand(advancedTrustImportCmd, advancedTrustInspectCmd)
 	advancedChangeSetCmd.AddCommand(advancedChangeSetCreateCmd, advancedChangeSetApplyCmd)
 	advancedCmd.AddCommand(advancedTrustCmd, advancedChangeSetCmd)

@@ -160,8 +160,9 @@ type upgradeOperationInput struct {
 
 type removeOperationInput struct {
 	architectureV2MutationInput
-	WorkloadRef string `json:"workload_ref" jsonschema:"exact ResolvedPlan workload ref to remove"`
-	DeleteData  bool   `json:"delete_data,omitempty" jsonschema:"explicitly delete the workload's owned data volumes; omitted or false retains data; requires local Owner approval"`
+	WorkloadRef     string `json:"workload_ref" jsonschema:"exact ResolvedPlan workload ref to remove"`
+	DeleteData      bool   `json:"delete_data,omitempty" jsonschema:"explicitly delete the workload's owned data volumes; omitted or false retains data; requires local Owner approval"`
+	DecisionReceipt string `json:"decision_receipt,omitempty" jsonschema:"compact decision receipt (JWS) that carries the Owner's confirmation of this exact removal; required with delete_data and refused without it"`
 }
 
 type configSetInput struct {
@@ -902,6 +903,14 @@ func (a *App) stackkitRemoveV2(ctx context.Context, req *mcp.CallToolRequest, in
 	if in.DeleteData {
 		args = append(args, "--delete-data")
 	}
+	// Removing a workload with its data is a first-slice operation: the
+	// command verifies and spends the receipt before the removal. A removal
+	// that keeps its data is not, and refuses a receipt instead of ignoring it.
+	receiptArgs, denial := a.decisionReceiptArgs(ctx, "stackkit_remove", string(standaloneoperations.Remove), in.BaseDir, in.DecisionReceipt, in.DeleteData)
+	if denial != nil {
+		return errorJSONResult(denial), denial, nil
+	}
+	args = append(args, receiptArgs...)
 	return a.runApprovedStackkitTool(ctx, standaloneoperations.Remove, in.OperationConfirmation, in.OwnerApproved, in.commandInput(), args, nil)
 }
 

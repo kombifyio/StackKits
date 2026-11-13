@@ -112,6 +112,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `drift` | Detect native-v2 local drift read-only; reconciliation remains fail-closed until its required authority exists. |
 | `remove` | Destroy a StackKit deployment. |
 | `status` | Show deployment state and service health. |
+| `app own` | Render or operate an own application (one container or a Compose project) on this node, and adopt an existing container StackKits did not install as one (`--from-container`, "Stack it"). |
 | `setup <workload>` | Run a Plan-bound Photos, Files, Media, Vault or Smart Home owner setup action on local standalone Compose. |
 | `validate [file]` | Validate stack specs, CUE files, and generated OpenTofu output where present. |
 | `resolve [file]` | Resolve canonical StackSpec v2 through the embedded CUE authority or return a typed v1 migration report. |
@@ -211,9 +212,90 @@ to Techstack dispatch.
 
 ### `stackkit use-cases upgrade <slug> --to <release>`
 
-Move one selected application to another release its catalog admits (today
-Vaultwarden `1.37.2` and `1.37.5`), with a rollback that restores the prior
-release and its data. Unrelated applications and their data are not touched.
+Move one selected application to a newer release of its entry image, with a
+rollback that restores the prior release and its data, independent of StackKits
+releases. Unrelated applications and their data are not touched. It applies to
+every catalog application on a single-node installation, a standalone Standard
+one or a node Techstack manages when Techstack dispatches the change with its
+capability: each module's entry image is a release choice. Its tested releases
+are the catalog default plus any further `releases:` the catalog lists
+(Vaultwarden: `1.37.2` and `1.37.5`); its release track is the module's
+`upstream.track` in `modules/<slug>/module.cue` (`minor` unless it says
+`patch`, as Immich does).
+
+- `--to <release>` names a tested release the catalog admits.
+- `--to <release> --digest sha256:<manifest digest> --accept-untested` names an
+  untested stable upstream release of the same image inside the module's
+  release track: the same major, and for a `patch` track the same minor. A
+  major release moves only with a StackKits release. The CLI re-resolves the tag
+  from its registry and refuses unless it still names that digest and carries
+  an image for this node's platform. Without `--accept-untested` it is refused.
+- The choice is stored as the workload's `release` override
+  `{version, ref, digest, tested}`, a setting every workload admits, for the
+  entry component only; companion database and cache images stay with the
+  StackKits release. The renderers never see the override: generation renders
+  the module at its catalog default and records the override as
+  `workload.releaseOverride` in the workload bundle, and the Compose project
+  runs the override pin for the entry service. The Marketplace's native
+  installation recipe, which has no runtime adapter, carries the selected
+  Coolify pin directly.
+- `--apply` runs checkpoint, `generate`, `apply` and live `verify` in one
+  command. When one of them fails it rolls back to the prior release and data,
+  applies again and finalizes that rollback. With `--json` the result
+  (`stackkit.application-update-result/v1`) names `update_outcome`
+  (`updated`, `rolled_back`, `rollback_failed` or `refused`), `reason_code`
+  and the prior and target version, ref and digest, the prior and target
+  StackSpec hash (`prior_spec_hash`, `target_spec_hash`) and, on a managed
+  node, `capability_id`. A successful update keeps the checkpoint open for a
+  later `--rollback`; `--finalize` accepts it.
+- On a node Techstack manages (an imported Advanced trust or `install.mode:
+  advanced`), a forward change also needs `--capability <file>`: the
+  Techstack-signed `application-release.update` capability (Advanced operation
+  of the same name) for exactly this use case, `--to` release, `--digest` and
+  tested or untested kind, at most 15 minutes valid, verified offline against
+  the Owner-approved trust before the application is stopped. Without it, or
+  when it does not match, the change is refused with an `advanced_capability_*`
+  `reason_code` and nothing is stopped. The owner-signed record keeps the
+  capability's ID and digest; resuming an interrupted checkpoint, the automatic
+  rollback, `--rollback` and `--finalize` stay bound to that record. A
+  standalone node refuses `--capability`. A multi-node intent changes through
+  Advanced change sets.
+- A StackKits release whose default release is at or above an override
+  supersedes it: its default pin runs and the override is inert. A newer
+  in-track override is kept. `--overrides [--json]` reports each override as
+  `kept`, `superseded` or `invalid` for the installed release. Apply admits a
+  StackKits release that moves an application past the target of an open
+  checkpoint.
+
+- The Marketplace Coolify (use case `marketplace`, one per node, also the
+  Layer-2 platform) updates the same way, independent of a StackKits release
+  (D-2026-11-12-06). Its tested release is the catalog pin (Coolify `4.7.5`);
+  any other Coolify 4.x release after it needs `--digest` and
+  `--accept-untested` (in Techstack: the untested-release setting, at the
+  Owner's own responsibility). The checkpoint stops the whole installation
+  (Coolify, PostgreSQL, Redis), retains and reads back its eight volumes,
+  including Coolify's PostgreSQL database, and retains its private runtime
+  files (`compose.yaml`, `coolify.env` with `APP_KEY`, `custody.json` with the
+  API token and server identity, `ca-bundle.crt`, `php-trust.ini`,
+  `ssh-private-key`) as operation-bound 0600 copies whose digests the
+  owner-signed record keeps. Apply then starts the selected Coolify image only
+  under that open record and with those files unchanged, and re-runs the
+  admin, Pocket ID and API token bootstrap with its readback, the image-pin,
+  private UI and own-host SSH checks. Coolify migrates its database forward on
+  start and cannot go back, so a failure restores the database and the runtime
+  files together before the prior image starts again; a StackKits upgrade
+  never moves Coolify to an earlier release (also not from an applied override
+  to an earlier default). PostgreSQL 15 and Redis 7 stay with the StackKits
+  release. A `rollback_failed` result names the restore command
+  (`stackkit use-cases upgrade --rollback <operation-id> --owner-approve`).
+
+```bash
+stackkit use-cases upgrade vault --to 1.37.6 --digest sha256:<digest> --accept-untested --owner-approve --apply --json
+stackkit use-cases upgrade marketplace --to 4.7.6 --digest sha256:<digest> --accept-untested --owner-approve --apply --json
+stackkit use-cases upgrade --overrides --json
+```
+
+The step-by-step form:
 
 ```bash
 stackkit use-cases upgrade vault --to 1.37.5 --owner-approve
@@ -725,6 +807,38 @@ a staged restore cannot verify live application recovery. `lifecycleVersion`
 identifies the lifecycle contract, not the deployed application version.
 The State Console displays this same view with direct application links and
 next steps. Changing the selected workspace clears its previous status view.
+
+### `stackkit app own --from-container <container>` ("Stack it")
+
+Rebuilds one existing single container that StackKits did not install as an own
+application (`techstack.own-application/v4`), so it gets the own-application
+lifecycle: digest-pinned update and rollback, volume backup, logs, stop and
+status. Details and every refusal: [Run your own container](OWN_APPLICATIONS.md#stack-an-existing-container-v4).
+
+```sh
+stackkit app own --from-container <id-or-name> --phase inspect --json
+stackkit app own --from-container <id-or-name> --name <name> --phase plan --json
+stackkit app own --from-container <id-or-name> --name <name> --phase adopt \
+  --plan-digest sha256:<plan-digest> --operation-id <stable-id> --owner-approve --json
+stackkit app own --from-container <id-or-name> --name <name> --phase verify --json
+stackkit app own --from-container <id> --name <name> --restore-original --operation-id <id> --owner-approve --json
+stackkit app own --from-container <id> --name <name> --release-original --operation-id <id> --owner-approve --json
+```
+
+`inspect` and `plan` change nothing. The plan lists every setting as `kept`,
+`changed` or `refused`, states that the container is recreated (new container
+ID) with its expected downtime, shows the data copy size against free disk and
+returns `planDigest`. `adopt` stops the original only with `--owner-approve`
+and the matching `--plan-digest`. Plan options: `--http-port`, `--no-outbound`,
+`--memory-mib`, `--cpus` and the repeatable `--secret-env <NAME>`; adopt takes
+the same options as the plan it executes. `--installation-file` allows an offline
+`--phase plan` only. Every result is `stackkit.own-application-adoption/v1`
+([schema](../schemas/stackkit-own-application-adoption-v1.schema.json)) with an
+`outcome` code (`planned`, `refused`, `adopted`, `rolled_back`,
+`rollback_failed`, `verified`, `unhealthy`, `restored`, `released`); a failed
+adoption still prints its result before the nonzero exit. Catalog operations:
+`application.stack.plan`, `application.stack`, `application.stack.verify`,
+`application.stack.restore-original` and `application.stack.release-original`.
 
 ### `stackkit setup <workload>`
 

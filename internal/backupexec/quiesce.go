@@ -12,6 +12,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
+	"github.com/kombifyio/stackkits/internal/ownappfirewall"
 )
 
 // QuiesceMount is the immutable Docker mount identity retained in the
@@ -455,10 +456,19 @@ func (q *dockerV2Quiescer) StartContainer(ctx context.Context, id string) error 
 		return fmt.Errorf("Docker one-shot container %q cannot be restarted by snapshot recovery", container.ID)
 	}
 	if container.Running {
+		if graph, ok := q.applicationGraphs[container.ComposeProject]; ok && graph.runtime.Firewalled {
+			return ownappfirewall.VerifyRunning(ctx, container.ComposeProject+"_private", container.ID, graph.runtime.FirewallRulesetDigest)
+		}
 		return nil
 	}
 	controlled := false
-	if q.applicationControl != nil && container.ComponentRef != "" {
+	if graph, ok := q.applicationGraphs[container.ComposeProject]; ok && graph.runtime.Firewalled {
+		if err = ownappfirewall.Resume(ctx, container.ComposeProject+"_private", container.ID, graph.runtime.FirewallRulesetDigest); err != nil {
+			return err
+		}
+		controlled = true
+	}
+	if !controlled && q.applicationControl != nil && container.ComponentRef != "" {
 		controlled, err = q.applicationControl(ctx, q.applicationGraphs[container.ComposeProject].runtime, container.ComponentRef, "start")
 		if err != nil {
 			return err

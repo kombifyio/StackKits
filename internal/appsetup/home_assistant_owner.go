@@ -752,3 +752,10 @@ func cloneHomeAssistantHTTPClient(client *http.Client) *http.Client {
 	}
 	return &clone
 }
+
+// homeAssistantVersionAdmitted reports a Home Assistant release the node may
+// run after setup: the catalog pin, or a tested or owner-accepted in-track
+// update of the entry image (stackkit use-cases upgrade).
+func homeAssistantVersionAdmitted(version string) bool {
+	return version == HomeAssistantPinnedVersion || architecturev2renderer.WorkloadReleaseInTrack("stackkits-home-assistant-runtime", version)
+}

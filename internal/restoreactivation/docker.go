@@ -483,6 +483,8 @@ func (runtime *dockerRuntime) DigestVolume(
 	script := digestScript
 	if strings.HasPrefix(authority.OperationID, "transfer-import.") {
 		script = transferDigestScript
+	} else if strings.HasPrefix(authority.OperationID, OwnCheckpointOperationPrefix) {
+		script = treeDigestScript
 	}
 	output, err := runtime.docker(ctx,
 		"run", "--name", helperName(authority, "digest-"+volume.LiveName),
@@ -878,6 +880,30 @@ func wrapDocker(operation string, err error) error {
 
 // The transfer boundary includes ownership, permissions and empty directories.
 // Ordinary snapshot digests retain their established format.
+// OwnCheckpointOperationPrefix marks an own-application data checkpoint: its
+// readback digest covers the whole tree (treeDigestScript), not only file
+// contents.
+const OwnCheckpointOperationPrefix = "own-checkpoint."
+
+// treeDigestScript prints files, bytes and one digest over file contents and
+// the metadata of every entry: type, mode, owner uid:gid and path (the root
+// included, so its mode counts), every symlink target and every empty
+// directory. A copy that lost ownership, permissions, links or empty
+// directories therefore reads back different. The catalog release checkpoint
+// and restore activation keep digestScript: their signed records hold
+// content-only readbacks, and changing that format would refuse the rollback
+// of records already open.
+const treeDigestScript = `root=$1
+test -d "$root"
+cd "$root"
+list=$(find . -type f -exec sha256sum {} + | LC_ALL=C sort -k 2)
+files=$(printf '%s\n' "$list" | grep -c . || true)
+bytes=$(find . -type f -exec stat -c %s {} + | awk '{s+=$1} END {print s+0}')
+meta=$(find . -exec stat -c '%F|%a|%u:%g|%n' {} + | LC_ALL=C sort)
+links=$(find . -type l -exec sh -c 'for l do printf "%s -> %s\n" "$l" "$(readlink "$l")"; done' sh {} + | LC_ALL=C sort)
+digest=$(printf '%s\n--meta--\n%s\n--links--\n%s\n' "$list" "$meta" "$links" | sha256sum | cut -d' ' -f1)
+echo "$files $bytes $digest"`
+
 const transferDigestScript = `root=$1
 test -d "$root"
 cd "$root"

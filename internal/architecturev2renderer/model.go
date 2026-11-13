@@ -16,6 +16,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/accessgatetable"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
+	"github.com/kombifyio/stackkits/internal/householdapps"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"github.com/kombifyio/stackkits/internal/terramatestackgraph"
 )
@@ -380,6 +381,7 @@ type rawPublicRouteAccessV2 struct {
 	OwnerStepUpRequired    bool                       `json:"ownerStepUpRequired"`
 	OwnerRemoteOptIn       bool                       `json:"ownerRemoteOptIn"`
 	AppAccessAway          bool                       `json:"appAccessAway"`
+	Audience               *householdapps.Audience    `json:"audience,omitempty"`
 	AnonymousRateLimit     *accessgatetable.RateLimit `json:"anonymousRateLimit,omitempty"`
 	AllowedSiteRefs        []string                   `json:"allowedSiteRefs,omitempty"`
 	AllowedMethods         []string                   `json:"allowedMethods,omitempty"`

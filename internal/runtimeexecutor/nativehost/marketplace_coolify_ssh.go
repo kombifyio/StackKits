@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/hostsecurity"
@@ -96,14 +97,26 @@ func (o *osMarketplaceOperations) ensureMarketplaceSSH(ctx context.Context, view
 	knownHosts := []byte(knownHost + " " + strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostKey))) + "\n")
 	// The fixed command proves the real application namespace can authenticate
 	// root against the node's independently read host key and Docker daemon.
-	raw, err = o.compose(ctx, directory, knownHosts, "exec", "-T", "coolify", "sh", "-ec", `umask 077; cat > /var/www/html/storage/app/ssh/stackkit-known-hosts; exec ssh -o BatchMode=yes -o ConnectTimeout=10 -o IdentityAgent=none -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/var/www/html/storage/app/ssh/stackkit-known-hosts -i "$1" -p "$3" "root@$2" 'test "$(id -u)" = 0 && docker info --format "{{.ID}}"'`, "stackkit-marketplace", binding.Path, gateway.String(), strconv.Itoa(policy.Port))
-	if err != nil || strings.TrimSpace(string(raw)) == "" {
-		return marketplaceSSHObservation{}, errors.New("Marketplace application could not authenticate its own root host/Docker connection")
+	// The fresh sshd policy and Coolify's own SSH state can lag the binding
+	// (kombify-StackKits-ytlt); both read-only proofs retry within a bound.
+	if err := retryMarketplaceStep(ctx, "own-host-ssh-login", 60*time.Second, 3*time.Second, func(ctx context.Context) error {
+		raw, err := o.compose(ctx, directory, knownHosts, "exec", "-T", "coolify", "sh", "-ec", `umask 077; cat > /var/www/html/storage/app/ssh/stackkit-known-hosts; exec ssh -o BatchMode=yes -o ConnectTimeout=10 -o IdentityAgent=none -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/var/www/html/storage/app/ssh/stackkit-known-hosts -i "$1" -p "$3" "root@$2" 'test "$(id -u)" = 0 && docker info --format "{{.ID}}"'`, "stackkit-marketplace", binding.Path, gateway.String(), strconv.Itoa(policy.Port))
+		if err != nil || strings.TrimSpace(string(raw)) == "" {
+			return errors.New("Marketplace application could not authenticate its own root host/Docker connection")
+		}
+		return nil
+	}); err != nil {
+		return marketplaceSSHObservation{}, err
 	}
 	input, _ = json.Marshal(map[string]string{"serverId": state.ServerID})
-	raw, err = o.compose(ctx, directory, input, "exec", "-T", "coolify", "php", "-r", strings.TrimPrefix(marketplaceSSHReadyPHP, "<?php\n"))
-	if err != nil || strings.TrimSpace(string(raw)) != "ready" {
-		return marketplaceSSHObservation{}, errors.New("Marketplace upstream did not accept its own-host SSH/Docker connection")
+	if err := retryMarketplaceStep(ctx, "own-host-ssh-ready", 60*time.Second, 3*time.Second, func(ctx context.Context) error {
+		raw, err := o.compose(ctx, directory, input, "exec", "-T", "coolify", "php", "-r", strings.TrimPrefix(marketplaceSSHReadyPHP, "<?php\n"))
+		if err != nil || strings.TrimSpace(string(raw)) != "ready" {
+			return errors.New("Marketplace upstream did not accept its own-host SSH/Docker connection")
+		}
+		return nil
+	}); err != nil {
+		return marketplaceSSHObservation{}, err
 	}
 	return marketplaceSSHObservation{ApplicationAddress: address.String(), HostGateway: gateway.String(), Port: policy.Port, KeyFingerprint: policy.KeyFingerprint, HostKeyFingerprint: ssh.FingerprintSHA256(hostKey), OwnHostAuthenticated: true, OutsidePolicyPreserved: policy.OutsidePolicyPreserved}, nil
 }

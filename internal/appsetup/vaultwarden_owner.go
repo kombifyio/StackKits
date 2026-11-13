@@ -503,7 +503,8 @@ func cloneVaultwardenHTTPClient(client *http.Client) *http.Client {
 	return &clone
 }
 
-// vaultwardenReleaseAdmitted reports a release the catalog admits for Vaultwarden.
+// vaultwardenReleaseAdmitted reports a release Vaultwarden may run: the
+// default, a tested catalog release or an owner-accepted in-track release.
 func vaultwardenReleaseAdmitted(version string) bool {
 	if version == VaultwardenPinnedVersion {
 		return true
@@ -513,5 +514,5 @@ func vaultwardenReleaseAdmitted(version string) bool {
 			return true
 		}
 	}
-	return false
+	return architecturev2renderer.WorkloadReleaseInTrack("stackkits-vaultwarden-runtime", version)
 }

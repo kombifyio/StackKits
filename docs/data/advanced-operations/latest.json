@@ -135,6 +135,16 @@
       "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
     },
     {
+      "name": "releaseTag",
+      "description": "Exact release (image tag) of the use case's application.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    {
+      "name": "imageDigest",
+      "description": "Exact sha256 manifest digest of the release.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
       "name": "containerId",
       "description": "Exact immutable Docker container ID.",
       "pattern": "^[0-9a-f]{64}$"
@@ -143,6 +153,46 @@
       "name": "planDigest",
       "description": "Reviewed source-bound application adoption digest.",
       "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "ownApplicationName",
+      "description": "Own application name, without the reserved own- prefix (also of an adopted container).",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    {
+      "name": "ownApplicationAction",
+      "description": "Reviewed own-application action.",
+      "pattern": "^(start|stop|restart|rollback)$"
+    },
+    {
+      "name": "reviewDigest",
+      "description": "Exact review digest the dry run of the same action returned.",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "checkpointOperationId",
+      "description": "Operation ID of the tag update whose data checkpoint is restored.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    {
+      "name": "imageTag",
+      "description": "Newer version tag of the own application's image repository.",
+      "pattern": "^v?[0-9]{1,9}(\\.[0-9]{1,9}){0,3}([-_+][A-Za-z0-9_.+-]*)?$"
+    },
+    {
+      "name": "resolvedImage",
+      "description": "Digest-pinned image the update review resolved the tag to.",
+      "pattern": "^[a-z0-9][^@\\s]*@sha256:[0-9a-f]{64}$"
+    },
+    {
+      "name": "httpPort",
+      "description": "Container web port.",
+      "pattern": "^[1-9][0-9]{0,4}$"
+    },
+    {
+      "name": "environmentName",
+      "description": "Environment variable name.",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
     },
     {
       "name": "applicationAction",
@@ -334,6 +384,64 @@
       "modes": {
         "standard": "allowed",
         "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application-release.update",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Move the one application a catalog use case selects to a newer release of its entry image: stop it, retain and read back its data, record the release override in the desired intent, then generate, apply and live verify, rolling back to the prior release and data on failure. The result (stackkit.application-update-result/v1) names update_outcome, reason_code and the prior and target release and StackSpec hash. --accept-untested is required when the capability names an untested release.",
+      "command": "stackkit use-cases upgrade",
+      "argv": [
+        "use-cases",
+        "upgrade",
+        "{useCase}",
+        "--to",
+        "{releaseTag}",
+        "--digest",
+        "{imageDigest}",
+        "--capability",
+        "{capabilityFile}",
+        "--apply",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "application-release.update",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.application-update-result/v1",
+          "schema": "cmd/stackkit/commands/use_cases_upgrade_apply.go",
+          "description": "Command-result data: update_outcome updated, the operation ID, prior and target release and the target StackSpec hash now in effect."
+        },
+        {
+          "status": "failed",
+          "schemaVersion": "stackkit.application-update-result/v1",
+          "schema": "cmd/stackkit/commands/use_cases_upgrade_apply.go",
+          "description": "update_outcome refused (nothing stopped; reason_code names the refusal, an advanced_capability_* code when the capability does not admit the change), rolled_back or rollback_failed."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
       }
     },
     {
@@ -794,6 +902,262 @@
       }
     },
     {
+      "operation": "application.stack",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Stack it: stop the reviewed original (kept, restart policy no), copy and checksum its one data source, create the own application and hold a 2-minute stability window; any failure removes the new workload and starts the original (outcome rolled_back or rollback_failed).",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--from-container",
+        "{containerId}",
+        "--name",
+        "{ownApplicationName}",
+        "--phase",
+        "adopt",
+        "--plan-digest",
+        "{planDigest}",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--no-outbound"
+          ],
+          "description": "Adopt without outbound Internet; published host ports stay and only answer connections made to them."
+        },
+        {
+          "argv": [
+            "--http-port",
+            "{httpPort}"
+          ],
+          "description": "The web port when the container exposes several."
+        },
+        {
+          "argv": [
+            "--secret-env",
+            "{environmentName}"
+          ],
+          "description": "Also classify this variable as a credential (repeatable); every value is hidden anyway."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-adoption/v1",
+          "schema": "schemas/stackkit-own-application-adoption-v1.schema.json",
+          "description": "Rows kept, changed or refused, the plan digest, the outcome code and, after adoption, the own-application result and retention deadline; environment values never appear."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.stack.plan",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Inspect an existing container and plan its rebuild as an own application: kept, changed and refused settings, recreation and downtime, data copy size against free disk; returns the plan digest. Changes nothing.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--from-container",
+        "{containerId}",
+        "--name",
+        "{ownApplicationName}",
+        "--phase",
+        "plan",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--no-outbound"
+          ],
+          "description": "Adopt without outbound Internet; published host ports stay and only answer connections made to them."
+        },
+        {
+          "argv": [
+            "--http-port",
+            "{httpPort}"
+          ],
+          "description": "The web port when the container exposes several."
+        },
+        {
+          "argv": [
+            "--secret-env",
+            "{environmentName}"
+          ],
+          "description": "Also classify this variable as a credential (repeatable); every value is hidden anyway."
+        }
+      ],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-adoption/v1",
+          "schema": "schemas/stackkit-own-application-adoption-v1.schema.json",
+          "description": "Rows kept, changed or refused, the plan digest, the outcome code and, after adoption, the own-application result and retention deadline; environment values never appear."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.stack.release-original",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Remove the stopped original after the owner confirms; its volumes and bind sources stay. Never automatic.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--from-container",
+        "{containerId}",
+        "--name",
+        "{ownApplicationName}",
+        "--release-original",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-adoption/v1",
+          "schema": "schemas/stackkit-own-application-adoption-v1.schema.json",
+          "description": "Rows kept, changed or refused, the plan digest, the outcome code and, after adoption, the own-application result and retention deadline; environment values never appear."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.stack.restore-original",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Within the 7-day retention window: remove the rebuilt application (its volume retained) and start the original with its original restart policy.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--from-container",
+        "{containerId}",
+        "--name",
+        "{ownApplicationName}",
+        "--restore-original",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-adoption/v1",
+          "schema": "schemas/stackkit-own-application-adoption-v1.schema.json",
+          "description": "Rows kept, changed or refused, the plan digest, the outcome code and, after adoption, the own-application result and retention deadline; environment values never appear."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.stack.verify",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Read the adoption: checkpoint, signed own-application status, published port answers, restart stability and the retention deadline.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--from-container",
+        "{containerId}",
+        "--name",
+        "{ownApplicationName}",
+        "--phase",
+        "verify",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-adoption/v1",
+          "schema": "schemas/stackkit-own-application-adoption-v1.schema.json",
+          "description": "Rows kept, changed or refused, the plan digest, the outcome code and, after adoption, the own-application result and retention deadline; environment values never appear."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
       "operation": "application.verify",
       "status": "available",
       "sinceRelease": "pending",
@@ -1026,6 +1390,763 @@
       "modes": {
         "standard": "denied",
         "advanced": "capability"
+      }
+    },
+    {
+      "operation": "own-application.backup",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Take a node backup snapshot now; it holds the volume of every own application with data under the installation's existing user-content coverage. Changes no intent.",
+      "command": "stackkit backup run",
+      "argv": [
+        "backup",
+        "run",
+        "--operation-id",
+        "{operationId}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.command-result/v1",
+          "schema": "schemas/stackkit-command-result-v1.schema.json",
+          "description": "data.id is the snapshot anchor ID for backup restore."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "own-application.checkpoint-discard",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Remove the retained copy of a tag update's data checkpoint, also one a failed rollback kept (the owner then accepts the live data as it is); refused while its update has not finished (checkpoint_in_flight). State, review digest, removal and the signed record are checked and written under one lifecycle lock. A kept or unfinished checkpoint blocks new tag updates and remove --delete-data until it is restored or discarded.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "discard-checkpoint",
+        "--checkpoint",
+        "{checkpointOperationId}",
+        "--review-digest",
+        "{reviewDigest}",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--capability",
+            "{capabilityFile}"
+          ],
+          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "own-application.lifecycle",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-update/v1",
+          "schema": "internal/ownapplication/image_update.go",
+          "description": "Raw tag update result (no command-result envelope): outcome reviewed, updated, refused, rolled_back (prior image and checkpoint data both back), rollback_failed or discarded with reasonCode, allowMajor, targetCheck not_checked_by_kombify, prior and target image, the data checkpoint (state planned, taken, retained, restored, kept or discarded, retainedBytes, and the exact restoreCommand and discardCommand) and the update and rollback results."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "own-application.checkpoint-discard.review",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Review removing the retained copy of a tag update's data checkpoint (its size is checkpoint.retainedBytes); returns the review digest. Changes nothing.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "discard-checkpoint",
+        "--checkpoint",
+        "{checkpointOperationId}",
+        "--dry-run",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-update/v1",
+          "schema": "internal/ownapplication/image_update.go",
+          "description": "Raw tag update result (no command-result envelope): outcome reviewed, updated, refused, rolled_back (prior image and checkpoint data both back), rollback_failed or discarded with reasonCode, allowMajor, targetCheck not_checked_by_kombify, prior and target image, the data checkpoint (state planned, taken, retained, restored, kept or discarded, retainedBytes, and the exact restoreCommand and discardCommand) and the update and rollback results."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "own-application.checkpoint-rollback",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Stop the application, restore the data checkpoint the tag update took (read back by digest), return to its prior image and verify it; the manual form of the automatic rollback and the restore command a rollback_failed result names.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "rollback",
+        "--checkpoint",
+        "{checkpointOperationId}",
+        "--review-digest",
+        "{reviewDigest}",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--capability",
+            "{capabilityFile}"
+          ],
+          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "own-application.lifecycle",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-update/v1",
+          "schema": "internal/ownapplication/image_update.go",
+          "description": "Raw tag update result (no command-result envelope): outcome reviewed, updated, refused, rolled_back (prior image and checkpoint data both back), rollback_failed or discarded with reasonCode, allowMajor, targetCheck not_checked_by_kombify, prior and target image, the data checkpoint (state planned, taken, retained, restored, kept or discarded, retainedBytes, and the exact restoreCommand and discardCommand) and the update and rollback results."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "own-application.checkpoint-rollback.review",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Review restoring the data checkpoint a tag update took and returning to the image it recorded; returns the review digest. Changes nothing.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "rollback",
+        "--checkpoint",
+        "{checkpointOperationId}",
+        "--dry-run",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-update/v1",
+          "schema": "internal/ownapplication/image_update.go",
+          "description": "Raw tag update result (no command-result envelope): outcome reviewed, updated, refused, rolled_back (prior image and checkpoint data both back), rollback_failed or discarded with reasonCode, allowMajor, targetCheck not_checked_by_kombify, prior and target image, the data checkpoint (state planned, taken, retained, restored, kept or discarded, retainedBytes, and the exact restoreCommand and discardCommand) and the update and rollback results."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "own-application.logs",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Read the last 100 log lines of every container of the own application; secret values are redacted.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "logs",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-result/v1",
+          "schema": "internal/ownapplication/state.go",
+          "description": "Raw own-application result (no command-result envelope): outcome reviewed, observed, observation_unavailable, started, stopped or restarted, or refused, pending or denied with reason; the signed record, review digest and, for logs, redacted text."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "own-application.restart",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Stop and start the running own application again through the same path as start.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "restart",
+        "--review-digest",
+        "{reviewDigest}",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--capability",
+            "{capabilityFile}"
+          ],
+          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "own-application.lifecycle",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-result/v1",
+          "schema": "internal/ownapplication/state.go",
+          "description": "Raw own-application result (no command-result envelope): outcome reviewed, observed, observation_unavailable, started, stopped or restarted, or refused, pending or denied with reason; the signed record, review digest and, for logs, redacted text."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "own-application.review",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Review start, stop, restart or rollback: returns the review digest bound to the current signed record, installation and, for a firewalled application, the freshly observed host rules. Changes nothing.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "{ownApplicationAction}",
+        "--dry-run",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-result/v1",
+          "schema": "internal/ownapplication/state.go",
+          "description": "Raw own-application result (no command-result envelope): outcome reviewed, observed, observation_unavailable, started, stopped or restarted, or refused, pending or denied with reason; the signed record, review digest and, for logs, redacted text."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "own-application.rollback",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Return to the prior image held in signed custody; the data stays as it is (own-application.checkpoint-rollback restores a tag update's data as well).",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "rollback",
+        "--review-digest",
+        "{reviewDigest}",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--capability",
+            "{capabilityFile}"
+          ],
+          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "own-application.lifecycle",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-result/v1",
+          "schema": "internal/ownapplication/state.go",
+          "description": "Raw own-application result (no command-result envelope): outcome reviewed, observed, observation_unavailable, started, stopped or restarted, or refused, pending or denied with reason; the signed record, review digest and, for logs, redacted text."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "own-application.start",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Start a stopped own application from its signed bundle and admitted local image; a firewalled application starts only through the verified host firewall watcher (never docker start around it).",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "start",
+        "--review-digest",
+        "{reviewDigest}",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--capability",
+            "{capabilityFile}"
+          ],
+          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "own-application.lifecycle",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-result/v1",
+          "schema": "internal/ownapplication/state.go",
+          "description": "Raw own-application result (no command-result envelope): outcome reviewed, observed, observation_unavailable, started, stopped or restarted, or refused, pending or denied with reason; the signed record, review digest and, for logs, redacted text."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "own-application.status",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Read the signed own-application record and its runtime: container state and health, route answer and firewall grant. Changes nothing.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "status",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-result/v1",
+          "schema": "internal/ownapplication/state.go",
+          "description": "Raw own-application result (no command-result envelope): outcome reviewed, observed, observation_unavailable, started, stopped or restarted, or refused, pending or denied with reason; the signed record, review digest and, for logs, redacted text."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "own-application.stop",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Stop the own application; its data, secrets and firewall grant stay, and its route closes.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "stop",
+        "--review-digest",
+        "{reviewDigest}",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--capability",
+            "{capabilityFile}"
+          ],
+          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "own-application.lifecycle",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-result/v1",
+          "schema": "internal/ownapplication/state.go",
+          "description": "Raw own-application result (no command-result envelope): outcome reviewed, observed, observation_unavailable, started, stopped or restarted, or refused, pending or denied with reason; the signed record, review digest and, for logs, redacted text."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "own-application.update",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Update to the reviewed tag: re-resolve its digest and refuse a moved tag before stopping; for an application with a volume stop it and take an application-scoped data checkpoint (free space measured before anything stops; an operation-bound copy of its volumes read back by a digest over contents, mode, owner, symlink targets and empty directories; fails closed without the installed backup helper; refused while an earlier checkpoint is kept or unfinished); recreate on the new image and require it running and, with an image healthcheck, healthy through the stability window. On any failure stop it, restore the checkpoint data, return to the prior image and verify again: rolled_back only when image and data are both back, otherwise rollback_failed with the checkpoint and its exact restore command. The target is not checked by kombify.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "update",
+        "--image-tag",
+        "{imageTag}",
+        "--resolved-image",
+        "{resolvedImage}",
+        "--review-digest",
+        "{reviewDigest}",
+        "--operation-id",
+        "{operationId}",
+        "--owner-approve",
+        "--json"
+      ],
+      "optionalArgs": [
+        {
+          "argv": [
+            "--allow-major"
+          ],
+          "description": "The review admitted another major version or an unversioned running image."
+        },
+        {
+          "argv": [
+            "--capability",
+            "{capabilityFile}"
+          ],
+          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+        }
+      ],
+      "mutates": true,
+      "requires": {
+        "capability": true,
+        "capabilityOperation": "own-application.lifecycle",
+        "trustImported": true,
+        "ownerApproval": true,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "capabilityFile",
+          "schemaVersion": "stackkit.advanced-capability/v1",
+          "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
+          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-update/v1",
+          "schema": "internal/ownapplication/image_update.go",
+          "description": "Raw tag update result (no command-result envelope): outcome reviewed, updated, refused, rolled_back (prior image and checkpoint data both back), rollback_failed or discarded with reasonCode, allowMajor, targetCheck not_checked_by_kombify, prior and target image, the data checkpoint (state planned, taken, retained, restored, kept or discarded, retainedBytes, and the exact restoreCommand and discardCommand) and the update and rollback results."
+        },
+        {
+          "status": "denied",
+          "schemaVersion": "stackkit.operation-denial/v1",
+          "schema": "schemas/stackkit-operation-denial-v1.schema.json",
+          "description": "Fail-closed admission denial before any side effect."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "capability"
+      }
+    },
+    {
+      "operation": "own-application.update.review",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Review a tag update: the same image repository, a newer version tag with the same major and variant (--allow-major admits another major or a running image that names no version), resolved to its registry digest. Returns resolvedImage, the review digest and replacesCheckpoint (state and size of the retained copy this update's checkpoint replaces); the target is not checked by kombify.",
+      "command": "stackkit app own",
+      "argv": [
+        "app",
+        "own",
+        "--name",
+        "{ownApplicationName}",
+        "--action",
+        "update",
+        "--image-tag",
+        "{imageTag}",
+        "--dry-run",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.own-application-update/v1",
+          "schema": "internal/ownapplication/image_update.go",
+          "description": "Raw tag update result (no command-result envelope): outcome reviewed, updated, refused, rolled_back (prior image and checkpoint data both back), rollback_failed or discarded with reasonCode, allowMajor, targetCheck not_checked_by_kombify, prior and target image, the data checkpoint (state planned, taken, retained, restored, kept or discarded, retainedBytes, and the exact restoreCommand and discardCommand) and the update and rollback results."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
       }
     },
     {

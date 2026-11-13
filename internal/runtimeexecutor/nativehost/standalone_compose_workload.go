@@ -28,6 +28,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/originca"
+	"github.com/kombifyio/stackkits/internal/ownappfirewall"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"gopkg.in/yaml.v3"
@@ -88,10 +89,13 @@ type standaloneComposeHTTPProber interface {
 // Docker Compose capability. Server and Docker-daemon lifecycle stay outside
 // this boundary.
 type osStandaloneComposeWorkloadOperations struct {
-	workspaceRoot string
-	preview       bool
-	runner        standaloneComposeProcessRunner
-	prober        standaloneComposeHTTPProber
+	ownFirewallReceipt *ownappfirewall.Receipt
+	ownFirewallRuleset string
+	ownFirewallFactory func(context.Context, string, bool) (*ownappfirewall.Guard, error)
+	workspaceRoot      string
+	preview            bool
+	runner             standaloneComposeProcessRunner
+	prober             standaloneComposeHTTPProber
 	// ensureOIDCClient registers an application's Pocket ID client; nil uses
 	// the local owner service.
 	ensureOIDCClient func(context.Context, string, localowner.ApplicationOIDCClientRequest) error
@@ -160,10 +164,21 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	// wait budget. A running container without a healthcheck is not HTTP-ready.
 	ctx, cancel := context.WithTimeout(ctx, standaloneComposeApplyBudget)
 	defer cancel()
-	if _, err := o.runner.Run(ctx, standaloneComposeArgs(project, "up"), project.directory); err != nil {
+	if project.firewall != nil {
+		if err := project.firewall.Verify(ctx); err != nil {
+			return SelectedPaaSApplyReceipt{}, err
+		}
+	}
+	if err := o.startWorkload(ctx, project); err != nil {
+		if project.firewall != nil {
+			err = errors.Join(err, o.removeFailedOwnStart(context.WithoutCancel(ctx), project))
+		}
 		return SelectedPaaSApplyReceipt{}, fmt.Errorf("standalone Docker Compose Apply did not complete: %w", err)
 	}
 	if err := o.completeWorkloadCompose(ctx, project); err != nil {
+		if project.firewall != nil {
+			err = errors.Join(err, o.removeFailedOwnStart(context.WithoutCancel(ctx), project))
+		}
 		return SelectedPaaSApplyReceipt{}, err
 	}
 	if managerState != nil {
@@ -192,6 +207,46 @@ func (o *osStandaloneComposeWorkloadOperations) PrepareWorkloadCompose(
 	}
 	if err := o.persist(project); err != nil {
 		return NativeWorkloadCompose{}, err
+	}
+	if project.bundle.OwnApplicationFirewalled {
+		factory := o.ownFirewallFactory
+		if factory == nil {
+			factory = ownappfirewall.New
+		}
+		guard, err := factory(ctx, ownApplicationNetworkName(project.bundle.WorkloadRef, project.bundle.NodeRef), project.bundle.OwnApplicationOutbound)
+		if err != nil {
+			return NativeWorkloadCompose{}, err
+		}
+		if o.ownFirewallRuleset == "" || guard.Policy.Digest() != o.ownFirewallRuleset {
+			return NativeWorkloadCompose{}, errors.New("own firewall: concrete static rules changed since review; review again")
+		}
+		if err = guard.ObserveEgress(ctx, o.workspaceRoot); err != nil {
+			return NativeWorkloadCompose{}, err
+		}
+		receipt, err := guard.Apply(ctx)
+		if err != nil {
+			return NativeWorkloadCompose{}, err
+		}
+		project.firewall = guard
+		// Create stopped: no image code runs until the Docker network and actual
+		// bridge in this firewall namespace are both observed and admitted.
+		if _, err = o.runner.Run(ctx, standaloneComposeArgs(project, "create"), project.directory); err != nil {
+			return NativeWorkloadCompose{}, err
+		}
+		n, err := o.inspectOwnNetwork(ctx, ownApplicationNetworkName(project.bundle.WorkloadRef, project.bundle.NodeRef))
+		if err != nil {
+			return NativeWorkloadCompose{}, err
+		}
+		if n.Internal {
+			return NativeWorkloadCompose{}, errors.New("own firewalled network remains internal")
+		}
+		if err = guard.VerifyBridge(); err != nil {
+			return NativeWorkloadCompose{}, err
+		}
+		if err = guard.Verify(ctx); err != nil {
+			return NativeWorkloadCompose{}, err
+		}
+		o.ownFirewallReceipt = &receipt
 	}
 	return preparedWorkloadCompose(project), nil
 }
@@ -226,6 +281,15 @@ func (o *osStandaloneComposeWorkloadOperations) CompleteWorkloadCompose(ctx cont
 }
 
 func (o *osStandaloneComposeWorkloadOperations) completeWorkloadCompose(ctx context.Context, project standaloneComposeProject) error {
+	if project.bundle.OwnApplicationFirewalled {
+		if project.firewall == nil {
+			return errors.New("own application firewalled start requires managed firewall verification")
+		}
+		if err := project.firewall.VerifyWatcher(ctx); err != nil {
+			return errors.Join(err, o.removeFailedOwnStart(context.WithoutCancel(ctx), project))
+		}
+	}
+
 	if project.bundle.ModuleRef == "stackkits-adguard-home-runtime" {
 		// AdGuard persists UI edits in its own configuration volume. Its
 		// governed startup restores the plan-owned policy only when it runs.
@@ -496,8 +560,9 @@ func (o *osStandaloneComposeWorkloadOperations) ValidateWorkloadObservation(
 }
 
 type standaloneComposeProject struct {
-	unitRef string
-	name    string
+	firewall *ownappfirewall.Guard
+	unitRef  string
+	name     string
 	// The selected manager's physical Compose identity; the canonical node
 	// project and persisted recipe remain StackKits-owned.
 	runtimeProject string
@@ -897,7 +962,7 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 			},
 		}
 		service.Deploy = componentDeploy(component.Resources)
-		if component.Egress {
+		if component.Egress && !bundle.OwnApplication {
 			// The component remains un-published. This bridge supplies outbound
 			// access independently of the application's ingress route.
 			document.Networks["stackkit-workload-egress"] = standaloneComposeNetwork{}
@@ -910,6 +975,18 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 		}
 		if bundle.OwnApplication {
 			service.PullPolicy = "never"
+			if bundle.OwnApplicationFirewalled {
+				network := ownApplicationNetworkName(bundle.WorkloadRef, bundle.NodeRef)
+				service.Restart = "no"
+				service.MACAddress = ownappfirewall.MAC(network)
+				service.Sysctls = map[string]string{"net.ipv6.conf.all.disable_ipv6": "1", "net.ipv6.conf.default.disable_ipv6": "1"}
+				// Public resolvers keep Docker's embedded DNS forwarding inside
+				// the container namespace, through the bridge firewall: with a
+				// host-loopback resolver Docker would forward from the host
+				// namespace, around it. Ingress-only drops those queries too.
+				service.DNS = []string{"1.1.1.1", "9.9.9.9"}
+				service.Labels[ownEgressLabel] = "v1"
+			}
 			service.CapDrop = []string{"ALL"}
 			service.CapAdd = []string{"CHOWN", "SETUID", "SETGID", "NET_BIND_SERVICE"}
 			service.SecurityOpt = []string{"no-new-privileges:true"}
@@ -1128,7 +1205,24 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 				if bundle.OwnApplication {
 					network := ownApplicationNetworkName(bundle.WorkloadRef, bundle.NodeRef)
 					document.Networks["own-private"] = standaloneComposeNetwork{Name: network, Internal: true, Labels: map[string]string{ownNetworkLabel: "v1"}}
+					if bundle.OwnApplicationFirewalled {
+						ipv6 := false
+						document.Networks["own-private"] = standaloneComposeNetwork{Name: network, EnableIPv6: &ipv6, DriverOpts: map[string]string{"com.docker.network.bridge.name": ownappfirewall.Bridge(network)}, Labels: map[string]string{ownNetworkLabel: "v1", ownEgressLabel: "v1"}}
+					}
 					service.Networks = []string{"own-private"}
+					// An adopted application keeps the host ports its original
+					// published. Docker publishes only on the firewalled bridge
+					// (with or without outbound Internet), never on the internal one.
+					if len(bundle.OwnApplicationPorts) != 0 && !bundle.OwnApplicationFirewalled {
+						return nil, nil, nil, errors.New("own application published ports require the reviewed firewalled bridge")
+					}
+					for _, port := range bundle.OwnApplicationPorts {
+						binding := fmt.Sprintf("%d:%d/%s", port.HostPort, port.ContainerPort, port.Protocol)
+						if port.HostIP != "" {
+							binding = port.HostIP + ":" + binding
+						}
+						service.Ports = append(service.Ports, binding)
+					}
 				} else {
 					document.Networks["stackkit-routing"] = standaloneComposeNetwork{Name: routingNetwork, External: true}
 					service.Networks = append(service.Networks, "stackkit-routing")
@@ -1152,6 +1246,12 @@ func (o *osStandaloneComposeWorkloadOperations) renderWithHostFacts(
 		}
 		if err := standaloneComposeHostBindings(bundle, component, &service); err != nil {
 			return nil, nil, nil, err
+		}
+		// Every service of an own application project stays on the project's
+		// private network: the private services reach the routed one, and
+		// nothing reaches the host or the Internet.
+		if bundle.OwnApplication && component.ID != bundle.EntryComponent && bundle.Route.ID != "" {
+			service.Networks = append(service.Networks, "own-private")
 		}
 		// Owner-enabled LAN rights, already validated against the governed
 		// component declaration by the bundle parser.
@@ -1495,6 +1595,8 @@ func standaloneComposeArgs(project standaloneComposeProject, operation string) [
 		"-f", filepath.Join(project.directory, "compose.yaml"),
 	}
 	switch operation {
+	case "create":
+		return append(prefix, "create", "--no-build", "--pull", "never", "app")
 	case "up":
 		// The adapter owns the project: a component the bundle no longer
 		// declares (an optional component the owner turned off, such as the

@@ -120,6 +120,7 @@ var operatorOperations = []Contract{
 			requiredFlagArg("candidate_spec", ArgumentString, "--candidate-spec", "path to the exact candidate StackSpec v2"),
 			requiredFlagArg("change_set", ArgumentString, "--change-set", "exact sha256:<hex> change-set content address"),
 			requiredFlagArg("expect_sha256", ArgumentString, "--expect-sha256", "exact sha256:<hex> digest of the stored change-set bytes"),
+			flagArg("decision_receipt", ArgumentString, "--decision-receipt", "compact decision receipt (JWS) that carries the Owner's confirmation of this exact change set; required"),
 		},
 	},
 
@@ -133,6 +134,7 @@ var operatorOperations = []Contract{
 			positionalArg("restore_result_id", "exact staged restore result ID"),
 			flagArg("operation_id", ArgumentString, "--operation-id", "stable idempotency key for this activation"),
 			flagArg("expected_plan_hash", ArgumentString, "--expected-plan-hash", "admitted lowercase sha256 ResolvedPlan; optional for standalone Owner operation"),
+			flagArg("decision_receipt", ArgumentString, "--decision-receipt", "compact decision receipt (JWS) that carries the Owner's confirmation of this exact activation; required, with expected_plan_hash"),
 		},
 	},
 	{
@@ -469,11 +471,14 @@ var operatorOperations = []Contract{
 	},
 	{
 		ID: "stackkit.use-cases.upgrade", ToolName: "stackkit_use_cases_upgrade", Title: "Change application release",
-		Description: "Use to move one application to another admitted release. Stops it and checkpoints its data for rollback; the next apply starts the new release and finalize drops the checkpoint.",
+		Description: "Use to move one application to a newer release of its entry image, tested or owner-accepted untested inside its release track. Stops it and checkpoints its data for rollback; apply (or --apply in one step, with automatic rollback) starts the new release and finalize drops the checkpoint.",
 		Command:     []string{"use-cases", "upgrade", "--json", "--owner-approve"}, Mutation: true, Destructive: true, OwnerApproval: true,
 		Arguments: []Argument{
 			optionalPositionalArg("slug", "selected use case; required with to"),
-			flagArg("to", ArgumentString, "--to", "admitted target release; exactly one of to, rollback or finalize"),
+			flagArg("to", ArgumentString, "--to", "target release (image tag); exactly one of to, rollback or finalize"),
+			flagArg("digest", ArgumentString, "--digest", "exact sha256 manifest digest of to; required for an untested release"),
+			flagArg("accept_untested", ArgumentBoolean, "--accept-untested", "accept a release outside the catalog's tested releases, inside the module's release track"),
+			flagArg("apply", ArgumentBoolean, "--apply", "run checkpoint, generate, apply and live verify, rolling back automatically on failure"),
 			flagArg("rollback", ArgumentString, "--rollback", "release operation ID to return to its prior release and data"),
 			flagArg("finalize", ArgumentString, "--finalize", "release operation ID whose retained data is removed"),
 			flagArg("resume_operation_id", ArgumentString, "--operation-id", "resume this interrupted checkpoint with the same slug and to"),
@@ -485,6 +490,12 @@ var operatorOperations = []Contract{
 		Description: "Use to see where an application release change stands. Reads the Owner-signed record, the retained volumes and their read-back; changes nothing.",
 		Command:     []string{"use-cases", "upgrade", "--json"}, Idempotent: true,
 		Arguments: []Argument{requiredFlagArg("operation_id", ArgumentString, "--status", "release operation ID")},
+	},
+	{
+		ID: "stackkit.use-cases.upgrade.overrides", ToolName: "stackkit_use_cases_upgrade_overrides", Title: "Application release overrides",
+		Description: "Use to see which applications run their own release override and whether the installed StackKits release keeps or supersedes it; changes nothing.",
+		Command:     []string{"use-cases", "upgrade", "--json"}, Idempotent: true,
+		Arguments: []Argument{requiredFlagArg("overrides", ArgumentBoolean, "--overrides", "report the release overrides")},
 	},
 	{
 		ID: "stackkit.capabilities.configure", ToolName: "stackkit_capabilities_configure", Title: "Configure capability",

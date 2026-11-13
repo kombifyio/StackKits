@@ -164,6 +164,26 @@ func (c Capability) ValidateClaims() error {
 			return invalid("transferReceive."+validation.Field, validation.Detail)
 		}
 	}
+	releaseOperation := slices.Contains(c.AllowedOperations, OperationApplicationReleaseUpdate)
+	if releaseOperation || c.ApplicationRelease != nil {
+		if !releaseOperation || len(c.AllowedOperations) != 1 || c.ApplicationRelease == nil || c.TransferRetirement != nil || c.TransferReceive != nil || c.BackupRenewal != nil || c.OwnApplicationLifecycle != nil || lifetime > ApplicationReleaseMaxLifetimeSeconds*time.Second {
+			return invalid("applicationRelease", "requires one short-lived application-release.update operation and its exact scope")
+		}
+		if err := c.ApplicationRelease.checkFormats(); err != nil {
+			validation := err.(*ValidationError)
+			return invalid("applicationRelease."+validation.Field, validation.Detail)
+		}
+	}
+	lifecycleOperation := slices.Contains(c.AllowedOperations, OperationOwnApplicationLifecycle)
+	if lifecycleOperation || c.OwnApplicationLifecycle != nil {
+		if !lifecycleOperation || len(c.AllowedOperations) != 1 || c.OwnApplicationLifecycle == nil || c.TransferReceive != nil || c.TransferRetirement != nil || c.BackupRenewal != nil || c.ApplicationRelease != nil || lifetime > OwnApplicationLifecycleMaxLifetimeSeconds*time.Second {
+			return invalid("ownApplicationLifecycle", "requires one short-lived own-application.lifecycle operation and its exact scope")
+		}
+		if err := c.OwnApplicationLifecycle.checkFormats(); err != nil {
+			validation := err.(*ValidationError)
+			return invalid("ownApplicationLifecycle."+validation.Field, validation.Detail)
+		}
+	}
 	if c.BackupRenewal != nil {
 		if len(c.AllowedOperations) != 1 || c.AllowedOperations[0] != BackupRenewalOperation || lifetime > BackupRenewalMaxLifetimeSeconds*time.Second {
 			return invalid("backupRenewal", "requires one short-lived "+BackupRenewalOperation+" operation")

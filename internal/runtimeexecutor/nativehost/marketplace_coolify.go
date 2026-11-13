@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -53,6 +55,11 @@ type MarketplaceObservation struct {
 	UIProtected        bool                       `json:"uiProtected"`
 	OwnHostSSH         bool                       `json:"ownHostSSH"`
 	SSH                *marketplaceSSHObservation `json:"ssh,omitempty"`
+	// APITokenAbilities and APITokenTeamWide are the read-back grant of the
+	// node's Coolify API token; APITokenRolled reports a roll on this Apply.
+	APITokenAbilities []string `json:"apiTokenAbilities"`
+	APITokenTeamWide  bool     `json:"apiTokenTeamWide"`
+	APITokenRolled    bool     `json:"apiTokenRolled"`
 	// RevokedForeignAccess counts root-team memberships and OIDC identities of
 	// other accounts that the bootstrap revoked on this Apply.
 	RevokedForeignAccess *MarketplaceRevokedAccess `json:"revokedForeignAccess,omitempty"`
@@ -71,21 +78,24 @@ type osMarketplaceOperations struct {
 	upgrade   MarketplaceUpgradeAuthority
 }
 type marketplaceCustody struct {
-	Version          string            `json:"version"`
-	OwnerRef         string            `json:"ownerRef"`
-	SiteRef          string            `json:"siteRef"`
-	NodeRef          string            `json:"nodeRef"`
-	Domain           string            `json:"domain"`
-	AppID            string            `json:"appId"`
-	AppKey           string            `json:"appKey"`
-	AdminPassword    string            `json:"adminPassword"`
-	DatabasePassword string            `json:"databasePassword"`
-	RedisPassword    string            `json:"redisPassword"`
-	PusherKey        string            `json:"pusherKey"`
-	PusherSecret     string            `json:"pusherSecret"`
-	APIToken         string            `json:"apiToken,omitempty"`
-	ServerID         string            `json:"serverId,omitempty"`
-	CuratedProjects  map[string]string `json:"curatedProjects,omitempty"`
+	Version          string `json:"version"`
+	OwnerRef         string `json:"ownerRef"`
+	SiteRef          string `json:"siteRef"`
+	NodeRef          string `json:"nodeRef"`
+	Domain           string `json:"domain"`
+	AppID            string `json:"appId"`
+	AppKey           string `json:"appKey"`
+	AdminPassword    string `json:"adminPassword"`
+	DatabasePassword string `json:"databasePassword"`
+	RedisPassword    string `json:"redisPassword"`
+	PusherKey        string `json:"pusherKey"`
+	PusherSecret     string `json:"pusherSecret"`
+	APIToken         string `json:"apiToken,omitempty"`
+	// PendingAPIToken is the replacement secret of an API token roll that has
+	// not been confirmed by the bootstrap yet.
+	PendingAPIToken string            `json:"pendingApiToken,omitempty"`
+	ServerID        string            `json:"serverId,omitempty"`
+	CuratedProjects map[string]string `json:"curatedProjects,omitempty"`
 }
 
 func NewOSMarketplaceOperations(workspace string, upgrade ...MarketplaceUpgradeAuthority) (MarketplaceOperations, error) {
@@ -128,6 +138,9 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 	if err := requireMarketplaceKitContext(o.workspace, d); err != nil {
 		return MarketplaceObservation{}, err
 	}
+	if err := requireMarketplaceReleaseTransition(o.workspace, d); err != nil {
+		return MarketplaceObservation{}, err
+	}
 	if localevidence.IsPlaceholderOwnerEmail(owner.PocketID.Email) {
 		return MarketplaceObservation{}, errors.New("Marketplace requires established Kit custody and the root owner's email")
 	}
@@ -168,7 +181,7 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 		return MarketplaceObservation{}, errors.New("Marketplace requires the signed Pocket ID owner binding")
 	}
 	client, err := service.EnsureApplicationOIDCClient(ctx, localowner.ApplicationOIDCClientRequest{
-		RequiredPrivilege: "user", ClientID: localowner.ApplicationOIDCClientID("marketplace"), Name: "Marketplace",
+		RequiredPrivilege: "admin", ClientID: localowner.ApplicationOIDCClientID("marketplace"), Name: "Marketplace",
 		CallbackURL: "https://" + d.Host() + "/auth/oidc/callback", SecretRef: localowner.ApplicationOIDCClientSecretRef("marketplace"),
 	})
 	if err != nil {
@@ -212,7 +225,18 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 	if err := waitMarketplaceHTTP(ctx, endpoint); err != nil {
 		return MarketplaceObservation{}, err
 	}
-	input, _ := json.Marshal(map[string]string{"ownerEmail": owner.PocketID.Email, "ownerSubject": ownerBinding.PocketIDSubject, "clientId": client.ClientID, "clientSecret": string(secret), "issuer": client.Issuer, "origin": "https://" + d.Host(), "existingToken": state.APIToken})
+	// A held token whose grant differs from the current least-privilege grant
+	// is rolled, never reissued. The replacement secret is saved before the
+	// bootstrap runs, so an interrupted roll is resumed with the same secret.
+	if state.APIToken != "" && state.PendingAPIToken == "" {
+		if state.PendingAPIToken, err = marketplaceRollCandidate(state.APIToken); err != nil {
+			return MarketplaceObservation{}, err
+		}
+		if err := saveMarketplaceCustody(view, state); err != nil {
+			return MarketplaceObservation{}, err
+		}
+	}
+	input, _ := json.Marshal(map[string]string{"ownerEmail": owner.PocketID.Email, "ownerSubject": ownerBinding.PocketIDSubject, "clientId": client.ClientID, "clientSecret": string(secret), "issuer": client.Issuer, "origin": "https://" + d.Host(), "existingToken": state.APIToken, "rollToken": state.PendingAPIToken})
 	defer clear(input)
 	raw, err := o.compose(ctx, directory, input, "exec", "-T", "coolify", "php", "-r", strings.TrimPrefix(marketplaceBootstrapPHP, "<?php\n"))
 	if err != nil {
@@ -224,42 +248,54 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 		Token       string                 `json:"token"`
 	}
 	if json.Unmarshal(raw, &result) != nil || !result.Observation.RootAdmin || !result.Observation.RegistrationClosed || !result.Observation.AutoUpdateDisabled ||
-		result.Observation.Proxy != "NONE" || result.Observation.ServerID == "" || result.Token == "" {
+		result.Observation.Proxy != "NONE" || result.Observation.ServerID == "" || result.Token == "" ||
+		!slices.Equal(result.Observation.APITokenAbilities, marketplaceAPITokenAbilities) || !result.Observation.APITokenTeamWide {
 		return MarketplaceObservation{}, errors.New("Marketplace admin bootstrap failed closed; its private installation is retained for repair")
 	}
 	if state.ServerID != "" && state.ServerID != result.Observation.ServerID {
 		return MarketplaceObservation{}, errors.New("Marketplace server identity changed; preserve its node custody")
 	}
-	state.APIToken, state.ServerID = result.Token, result.Observation.ServerID
+	if state.APIToken != "" && result.Token != state.APIToken && result.Token != state.PendingAPIToken {
+		return MarketplaceObservation{}, errors.New("Marketplace API token changed outside its roll; preserve its node custody")
+	}
+	state.APIToken, state.PendingAPIToken, state.ServerID = result.Token, "", result.Observation.ServerID
 	if err := saveMarketplaceCustody(view, state); err != nil {
 		return MarketplaceObservation{}, err
 	}
-	if err := verifyMarketplaceAPI(ctx, endpoint, state.APIToken); err != nil {
+	// kombify-StackKits-ytlt: the steps after the admin bootstrap race the
+	// freshly started application (its queue workers, the Kit router's label
+	// discovery, sshd). Each retries within its own bound and a failure names
+	// its step, so a window receipt shows which readiness was missing.
+	if err := retryMarketplaceStep(ctx, "api-readback", 90*time.Second, 3*time.Second, func(ctx context.Context) error {
+		return verifyMarketplaceAPI(ctx, endpoint, state.APIToken)
+	}); err != nil {
 		return MarketplaceObservation{}, err
 	}
 	for _, image := range d.Components {
 		raw, err := o.compose(ctx, directory, nil, "ps", "--quiet", image.ID)
 		if err != nil {
-			return MarketplaceObservation{}, err
+			return MarketplaceObservation{}, marketplaceStepFailed("image-pin", err)
 		}
 		id := strings.TrimSpace(string(raw))
 		if len(id) != 64 {
-			return MarketplaceObservation{}, errors.New("Marketplace component has no single running identity")
+			return MarketplaceObservation{}, marketplaceStepFailed("image-pin", errors.New("Marketplace component has no single running identity"))
 		}
 		actual, err := o.run(ctx, []string{"inspect", "--format", "{{.Config.Image}}", id}, nil, directory)
 		if err != nil || strings.TrimSpace(string(actual)) != image.ImageRef+"@"+image.ImageDigest {
-			return MarketplaceObservation{}, errors.New("Marketplace running image differs from its selected pin")
+			return MarketplaceObservation{}, marketplaceStepFailed("image-pin", errors.New("Marketplace running image differs from its selected pin"))
 		}
 	}
 	if d.Route.ID != "" {
-		if err := o.verifyPrivateUI(ctx, d); err != nil {
+		if err := retryMarketplaceStep(ctx, "private-ui", 90*time.Second, 2*time.Second, func(ctx context.Context) error {
+			return o.verifyPrivateUI(ctx, d)
+		}); err != nil {
 			return MarketplaceObservation{}, err
 		}
 		result.Observation.UIProtected = true
 	}
 	sshObservation, err := o.ensureMarketplaceSSH(ctx, view, state)
 	if err != nil {
-		return MarketplaceObservation{}, err
+		return MarketplaceObservation{}, marketplaceStepFailed("own-host-ssh", err)
 	}
 	result.Observation.OwnHostSSH = sshObservation.OwnHostAuthenticated && sshObservation.OutsidePolicyPreserved
 	result.Observation.SSH = &sshObservation
@@ -293,7 +329,7 @@ func (o *osMarketplaceOperations) loadMarketplaceCustody(ctx context.Context, vi
 				return state, errors.New("Marketplace private bootstrap material is incomplete; preserve custody and repair it before applying")
 			}
 		}
-		if (state.APIToken == "") != (state.ServerID == "") {
+		if (state.APIToken == "") != (state.ServerID == "") || (state.PendingAPIToken != "" && state.APIToken == "") {
 			return state, errors.New("Marketplace API token and server custody are inconsistent")
 		}
 		composeFile, err := view.Open("compose.yaml")
@@ -326,6 +362,21 @@ func (o *osMarketplaceOperations) loadMarketplaceCustody(ctx context.Context, vi
 		}
 		for _, c := range d.Components {
 			if recipe.Services[c.ID].Image != c.ImageRef+"@"+c.ImageDigest {
+				// A scoped Coolify release change (use-cases upgrade
+				// marketplace) is admitted by its owner-signed checkpoint.
+				if admitted, err := admitMarketplaceReleaseImage(o.workspace, d); admitted || err != nil {
+					if err != nil {
+						return state, fmt.Errorf("Marketplace release change: %w", err)
+					}
+					// The release record admits only the Coolify image; its
+					// database and cache stay on the installed recipe.
+					for _, other := range d.Components {
+						if other.ID != "coolify" && recipe.Services[other.ID].Image != other.ImageRef+"@"+other.ImageDigest {
+							return state, fmt.Errorf("Marketplace release change admits only the Coolify image; %s differs from the installed recipe", other.ID)
+						}
+					}
+					break
+				}
 				if o.upgrade == nil {
 					return state, errors.New("Marketplace image changes require its explicit checkpointed upgrade")
 				}
@@ -517,6 +568,58 @@ func (o *osMarketplaceOperations) endpoint(ctx context.Context, directory string
 	}
 	return "http://" + address, nil
 }
+
+// marketplaceAPITokenAbilities is the least-privilege grant of the node's
+// Coolify API token, in Coolify's stored order: it creates and changes the
+// curated projects and services, deploys them and, since Coolify 4.6, needs
+// its own delete ability to remove them. It never holds root or the separate
+// read:sensitive/write:sensitive abilities. The token covers the root team:
+// at Coolify 4.7 creating a project, and controlling the owner's store apps
+// across projects, need a team-wide token, so it carries no project scope.
+var marketplaceAPITokenAbilities = []string{"read", "write", "deploy", "delete"}
+
+// marketplaceRollCandidate is the replacement plain-text token of a roll.
+// Rolling keeps the Sanctum row, so the candidate keeps the held token's ID
+// and only replaces its secret, in Coolify's own secret shape.
+func marketplaceRollCandidate(held string) (string, error) {
+	id, _, ok := strings.Cut(held, "|")
+	if !ok || id == "" || strings.Trim(id, "0123456789") != "" {
+		return "", errors.New("Marketplace API token custody is not a Coolify token")
+	}
+	entropy := make([]byte, 20)
+	if _, err := rand.Read(entropy); err != nil {
+		return "", err
+	}
+	secret := hex.EncodeToString(entropy)
+	return fmt.Sprintf("%s|%s%08x", id, secret, crc32.ChecksumIEEE([]byte(secret))), nil
+}
+
+// marketplaceStepFailed names the Marketplace step behind a failure.
+func marketplaceStepFailed(step string, err error) error {
+	return fmt.Errorf("Marketplace step %s failed: %w", step, err)
+}
+
+// retryMarketplaceStep repeats one read-only readiness check until it passes
+// or its bound expires. The interval keeps a failing API token below Coolify's
+// 30 failed requests per minute.
+func retryMarketplaceStep(ctx context.Context, step string, bound, interval time.Duration, check func(context.Context) error) error {
+	deadline := time.NewTimer(bound)
+	defer deadline.Stop()
+	for {
+		err := check(ctx)
+		if err == nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return marketplaceStepFailed(step, errors.Join(err, ctx.Err()))
+		case <-deadline.C:
+			return marketplaceStepFailed(step, err)
+		case <-time.After(interval):
+		}
+	}
+}
+
 func waitMarketplaceHTTP(ctx context.Context, endpoint string) error {
 	return waitPlatformHTTP(ctx, endpoint, "/api/health", "Marketplace")
 }
@@ -600,7 +703,9 @@ try {
  if ($discovery===false || $discoveryStatus!==200 || (json_decode($discovery,true,32,JSON_THROW_ON_ERROR)['issuer']??null)!==$input['issuer']) {throw new RuntimeException('Verified node-local issuer discovery failed');}
  $phase='root-admin';
  $root=App\Models\User::find(0);
- if (!$root) { Illuminate\Support\Facades\Artisan::call('db:seed',['--force'=>true]); $root=App\Models\User::find(0); }
+ // Only the upstream root seeder, never the development DatabaseSeeder. It
+ // echoes its result, which must not reach the JSON answer on stdout.
+ if (!$root) { ob_start(); try { Illuminate\Support\Facades\Artisan::call('db:seed',['--class'=>'Database\\Seeders\\RootUserSeeder','--force'=>true]); } finally { ob_end_clean(); } $root=App\Models\User::find(0); }
  if (!$root || $root->email!==$input['ownerEmail'] || !$root->teams()->where('team_id',0)->wherePivot('role','owner')->exists()) { throw new RuntimeException('Root admin bootstrap not established'); }
  $settings=App\Models\InstanceSettings::findOrFail(0);
  if ($settings->is_registration_enabled) {throw new RuntimeException('Public registration remained enabled');}
@@ -645,11 +750,39 @@ try {
  $server->proxy=['type'=>'NONE','status'=>'exited'];$server->save();
  $proxy=json_decode($server->getRawOriginal('proxy'),true,32,JSON_THROW_ON_ERROR);
  if(($proxy['type']??null)!=='NONE'){throw new RuntimeException('Stored proxy owner differs');}
- $token=$input['existingToken'];
  $phase='api-token';
- session(['currentTeam'=>App\Models\Team::findOrFail(0)]);
- if (!$token) { $existing=$root->tokens()->where('name','stackkit-node-marketplace')->exists();if($existing){throw new RuntimeException('Uncertain API token issuance; inspect custody');} $token=$root->createToken('stackkit-node-marketplace',['read','write','deploy'])->plainTextToken; }
+ // Least privilege: read, write, deploy and the delete ability Coolify 4.6
+ // made separate; root team, no project scope (creating a project needs a
+ // team-wide token), no expiry. A held token whose stored grant differs is
+ // rolled: the same row keeps its ID, takes the grant and the replacement
+ // secret StackKits saved beforehand, and its old secret stops working.
+ $abilities=['read','write','deploy','delete'];
+ $tokenModel=Laravel\Sanctum\Sanctum::$personalAccessTokenModel;
+ $held=$input['existingToken']??'';$roll=$input['rollToken']??'';$rolled=false;
+ $wanted=$abilities;sort($wanted);
+ if ($held!=='') {
+  [$heldId,$heldSecret]=array_pad(explode('|',$held,2),2,'');[$rollId,$rollSecret]=array_pad(explode('|',$roll,2),2,'');
+  if ($heldSecret==='' || $rollSecret==='' || $rollId!==$heldId || !ctype_digit($heldId)) {throw new RuntimeException('API token custody is incomplete');}
+  $row=$tokenModel::find((int)$heldId);
+  if (!$row || $row->name!=='stackkit-node-marketplace' || $row->tokenable_type!==App\Models\User::class || (int)$row->tokenable_id!==$root->id) {throw new RuntimeException('API token custody differs from Coolify');}
+  if ($row->paused_at!==null) {throw new RuntimeException('API token is paused in Coolify');}
+  $isHeld=hash_equals($row->token,hash('sha256',$heldSecret));$isRolled=hash_equals($row->token,hash('sha256',$rollSecret));
+  if (!$isHeld && !$isRolled) {throw new RuntimeException('API token custody differs from Coolify');}
+  $grant=$row->abilities??[];sort($grant);
+  $differs=$grant!==$wanted || $row->scopes!==null || (int)$row->team_id!==0 || $row->expires_at!==null;
+  if ($isRolled) {$token=$roll;}
+  if ($differs) {
+   $row->forceFill(['abilities'=>$abilities,'scopes'=>null,'team_id'=>0,'expires_at'=>null,'token'=>hash('sha256',$rollSecret),'last_used_at'=>null])->save();
+   $token=$roll;$rolled=true;
+  } elseif ($isHeld) {$token=$held;}
+ } else {
+  if ($root->tokens()->where('name','stackkit-node-marketplace')->exists()) {throw new RuntimeException('Uncertain API token issuance; inspect custody');}
+  $token=$root->createToken('stackkit-node-marketplace',$abilities,null,0)->plainTextToken;
+ }
+ $issued=$tokenModel::findToken($token);
+ $got=is_array($issued?->abilities)?$issued->abilities:[];sort($got);
+ if (!$issued || $issued->name!=='stackkit-node-marketplace' || $issued->tokenable_type!==App\Models\User::class || (int)$issued->tokenable_id!==$root->id || !is_array($issued->abilities) || $issued->scopes!==null || (int)$issued->team_id!==0 || $issued->expires_at!==null || $issued->paused_at!==null || $got!==$wanted) {throw new RuntimeException('API token grant readback differs');}
  $phase='observation';
- echo json_encode(['token'=>$token,'observation'=>['revokedForeignAccess'=>$revoked,'rootAdmin'=>true,'registrationClosed'=>!$settings->is_registration_enabled,'autoUpdateDisabled'=>!$settings->is_auto_update_enabled,'serverId'=>$server->uuid,'proxy'=>$proxy['type']]],JSON_THROW_ON_ERROR);
+ echo json_encode(['token'=>$token,'observation'=>['revokedForeignAccess'=>$revoked,'rootAdmin'=>true,'registrationClosed'=>!$settings->is_registration_enabled,'autoUpdateDisabled'=>!$settings->is_auto_update_enabled,'serverId'=>$server->uuid,'proxy'=>$proxy['type'],'apiTokenAbilities'=>$abilities,'apiTokenTeamWide'=>$issued->scopes===null,'apiTokenRolled'=>$rolled]],JSON_THROW_ON_ERROR);
 } catch (Throwable $e) {fwrite(STDERR,"Marketplace bootstrap postcondition failed: ".$phase." (".get_class($e).")\n");exit(1);}
 `

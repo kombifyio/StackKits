@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkit.cc/schemas/stackkit-own-application-adoption-v1.schema.json",
+  "title": "StackKits own application adoption result v1",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "phase",
+    "outcome",
+    "rows",
+    "hiddenKeys",
+    "secretKeys",
+    "publishedPorts",
+    "notice"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "stackkit.own-application-adoption/v1"
+    },
+    "phase": {
+      "enum": [
+        "inspect",
+        "plan",
+        "adopt",
+        "verify",
+        "restore-original",
+        "release-original"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "inspected",
+        "planned",
+        "refused",
+        "adopted",
+        "rolled_back",
+        "rollback_failed",
+        "verified",
+        "unhealthy",
+        "restored",
+        "released",
+        "in_progress"
+      ],
+      "description": "Machine outcome a control plane notifies on; rollback_failed always needs attention."
+    },
+    "containerId": {
+      "type": "string"
+    },
+    "containerName": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "admissible": {
+      "type": "boolean"
+    },
+    "planDigest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "Binds container, document, rows and installation; volatile rows (data size, downtime, readiness) are excluded."
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code",
+          "field",
+          "status"
+        ],
+        "properties": {
+          "code": {
+            "enum": [
+              "capabilities_fixed_policy",
+              "cgroupns_daemon_default",
+              "container_recreated",
+              "data_size_measured",
+              "data_size_not_measured",
+              "data_volume_replaced",
+              "downtime_estimated",
+              "environment_empty_kept",
+              "environment_values_to_custody",
+              "healthcheck_from_image",
+              "host_override_dropped",
+              "hostname_route_with_sign_in",
+              "http_port_routed",
+              "image_pinned_by_digest",
+              "outbound_kept_firewalled",
+              "outbound_none_kept",
+              "outbound_turned_off",
+              "own_private_network",
+              "port_kept",
+              "port_random_dropped",
+              "port_router_owned_dropped",
+              "read_only_root_dropped",
+              "readiness_answered",
+              "readiness_no_answer",
+              "readiness_not_probed",
+              "readiness_wrong_status",
+              "refused_added_capabilities",
+              "refused_already_managed",
+              "refused_bind_outside_data_roots",
+              "refused_compose_project",
+              "refused_container_network",
+              "refused_contract",
+              "refused_custom_command",
+              "refused_custom_runtime",
+              "refused_data_disk_space",
+              "refused_data_unmeasurable",
+              "refused_devices",
+              "refused_docker_socket",
+              "refused_environment_count",
+              "refused_environment_entry",
+              "refused_environment_value_size",
+              "refused_existing_application_volume",
+              "refused_host_network",
+              "refused_host_user_namespace",
+              "refused_http_port_ambiguous",
+              "refused_image_reference",
+              "refused_image_volume",
+              "refused_legacy_links",
+              "refused_local_only_image",
+              "refused_mount_type",
+              "refused_multiline_environment",
+              "refused_multiple_data_mounts",
+              "refused_name",
+              "refused_privileged",
+              "refused_registry_image",
+              "refused_relaxed_security",
+              "refused_review",
+              "refused_review_outbound",
+              "refused_shared_namespace",
+              "refused_shared_user_network",
+              "refused_unknown_secret_env",
+              "refused_user_override",
+              "refused_volumes_from",
+              "resources_bounded",
+              "restart_by_firewall_watcher",
+              "restart_unless_stopped",
+              "secrets_classified",
+              "timezone_mount_dropped",
+              "tmpfs_mount_dropped",
+              "volume_copied_checksummed"
+            ],
+            "description": "Stable machine code of the row; Techstack and other clients translate by code and values, never by the English reason (docs/APPLICATION_ADOPTION.md, Plan row codes)."
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Structured facts of the row keyed by name (for example hostPort, mountPath, count); environment values never appear."
+          },
+          "field": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "kept",
+              "changed",
+              "refused"
+            ]
+          },
+          "observed": {
+            "type": "string"
+          },
+          "adopted": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "application": {
+      "$ref": "techstack-own-application-v4.schema.json"
+    },
+    "hiddenKeys": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Every environment variable whose value moved into encrypted secret custody; names only."
+    },
+    "secretKeys": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Variables classified as credentials by name or --secret-env; names only."
+    },
+    "outboundInternet": {
+      "type": "boolean"
+    },
+    "publishedPorts": {
+      "type": "array"
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "mountPath": {
+          "type": "string"
+        },
+        "volume": {
+          "type": "string"
+        },
+        "measured": {
+          "type": "boolean"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "freeBytes": {
+          "type": "integer"
+        },
+        "digest": {
+          "type": "string"
+        }
+      }
+    },
+    "downtimeSeconds": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reviewDigest": {
+      "type": "string"
+    },
+    "checkpoint": {
+      "type": "object",
+      "description": "Owner-only recovery record (.stackkit/own-applications/adoptions/<name>.json, 0600); signed own-application custody remains the authority."
+    },
+    "retainUntil": {
+      "type": "string",
+      "format": "date-time",
+      "description": "End of the --restore-original window; the original is never deleted automatically."
+    },
+    "ownApplication": {
+      "type": "object",
+      "description": "stackkit.own-application-result/v1 of the create."
+    },
+    "originalState": {
+      "type": "string"
+    },
+    "portProbes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "notice": {
+      "type": "string"
+    }
+  },
+  "description": "Result of stackkit app own --from-container. Environment values, secret values and command arguments never appear."
+}

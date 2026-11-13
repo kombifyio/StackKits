@@ -111,7 +111,10 @@ var catalog = append([]Contract{
 	{ID: RestoreAbandon, ToolName: "stackkit_restore_abandon", Title: "Abandon restore", Description: "Use to close a restore that will not continue. Ends one pending or staged restore journal; the repository and live volumes are left alone.", Command: []string{"backup", "restore", "abandon"}, Mutation: true, Destructive: false, Idempotent: true, OwnerApproval: true},
 	{ID: Upgrade, ToolName: "stackkit_upgrade", Title: "Upgrade", Description: "Use to move this homelab to another StackKits release. Verifies the release, checkpoints for rollback, then installs and applies it; the running stack changes.", Command: []string{"upgrade", "--json", "--owner-approve"}, Mutation: true, Destructive: true, Idempotent: false, OpenWorld: true, OwnerApproval: true},
 	{ID: Drift, ToolName: "stackkit_drift", Title: "Drift", Description: "Use to see whether the host still matches the plan. Compares desired, applied and live state; fixes nothing, so use stackkit_drift_reconcile to fix it.", Command: []string{"drift", "detect", "--json"}, Idempotent: true},
-	{ID: Remove, ToolName: "stackkit_remove", Title: "Remove", Description: "Use to uninstall a workload, or the whole homelab when no workload is named. Stops and removes the selected workloads; data volumes stay unless data deletion is explicit.", Command: []string{"remove", "--json"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true},
+	{ID: Remove, ToolName: "stackkit_remove", Title: "Remove", Description: "Use to uninstall a workload, or the whole homelab when no workload is named. Stops and removes the selected workloads; data volumes stay unless data deletion is explicit.", Command: []string{"remove", "--json"}, Mutation: true, Destructive: true, Idempotent: true, OwnerApproval: true,
+		Arguments: []Argument{
+			flagArg("decision_receipt", ArgumentString, "--decision-receipt", "Compact decision receipt (JWS) that carries the Owner's confirmation of this exact removal; required when data deletion is explicit and refused otherwise"),
+		}},
 }, operatorOperations...)
 
 // All returns fresh contracts in stable catalog order.

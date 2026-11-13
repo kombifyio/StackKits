@@ -1512,7 +1512,7 @@ func resolveModuleRenderUnits(moduleID string, contract map[string]any, rawInten
 		}
 		intent.secretRefs[key] = value
 	}
-	resolved, err := lowerModuleRenderUnits(moduleID, indexed, mergeModuleValues(defaults, intent.settings), intent.secretRefs, placement)
+	resolved, err := lowerModuleRenderUnits(moduleID, indexed, mergeModuleValues(defaults, withoutComponentRelease(intent.settings)), intent.secretRefs, placement)
 	return resolved, selectedUnitIDs, declared, resolvedVariant, err
 }
 
@@ -1634,7 +1634,7 @@ func validateModuleRenderInputs(moduleID string, defaults map[string]any, intent
 	if err := validateModulePublicValues("catalog.modules."+moduleID+".inputDefaults", defaults, declared, ErrContractConflict); err != nil {
 		return err
 	}
-	if err := validateModulePublicValues("spec.modules."+moduleID+".settings", intent.settings, declared, ErrUnrealizedModule); err != nil {
+	if err := validateModulePublicValues("spec.modules."+moduleID+".settings", withoutComponentRelease(intent.settings), declared, ErrUnrealizedModule); err != nil {
 		return err
 	}
 	for key := range intent.secretRefs {

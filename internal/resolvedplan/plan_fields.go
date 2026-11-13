@@ -187,6 +187,9 @@ func buildRoutes(profile *profileView, spec *specView, resolved *resolution, mod
 		backendPools = append(backendPools, backendPool)
 		routeHealth = append(routeHealth, healthGate)
 	}
+	if err := validateApplicationAudiences(routes); err != nil {
+		return nil, nil, nil, err
+	}
 	return routes, backendPools, routeHealth, nil
 }
 
@@ -267,6 +270,22 @@ func buildRoute(profile *profileView, spec *specView, resolved *resolution, modu
 	resolvedAccess, err := resolveRouteAccess(routeID, exposure, policyRef, policy)
 	if err != nil {
 		return nil, nil, nil, err
+	}
+	if _, explicit := resolvedAccess["audience"]; explicit {
+		// This first executable contract covers the native Compose OIDC pipeline
+		// for Photos and Documents. Other account and protocol adapters stay closed.
+		if len(endpoint.siteRefs) != 1 || spec.siteByID[endpoint.siteRefs[0]].kind != "home" {
+			return nil, nil, nil, fail(ErrProfileMismatch, routePath+".access.audience", "local application audiences require one home-site origin")
+		}
+		workload := resolved.workloads[serviceRef]
+		if workload == nil || workload.runtimeAdapterID != "standalone-compose" || len(workload.runtimeAdapterFallbackIDs) != 0 ||
+			(serviceRef != "photos" && serviceRef != "documents") ||
+			(moduleRef != "stackkits-immich-runtime" && moduleRef != "stackkits-immich-lite-runtime" && moduleRef != "stackkits-paperless-runtime") {
+			return nil, nil, nil, fail(ErrProfileMismatch, routePath+".access.audience", "application audience v1 requires Photos or Documents on standalone-compose without fallback adapters")
+		}
+	}
+	if _, explicit := resolvedAccess["audience"]; explicit && (endpoint.ingressAuth != "forward-auth" || protocol != "https") {
+		return nil, nil, nil, fail(ErrProfileMismatch, routePath+".access.audience", "application audiences require a governed HTTPS forward-auth endpoint")
 	}
 	if err := validateServiceEndpointAccess(endpoint, resolvedAccess, routePath+".access"); err != nil {
 		return nil, nil, nil, err
@@ -422,6 +441,14 @@ func resolveAccessDecision(referencePath, exposure, policyRef string, rawPolicy 
 		"policyExposure": policyExposure, "ownerRemoteOptIn": ownerRemoteOptIn, "appAccessAway": appAccessAway,
 		"authentication": authentication, "privilege": privilege,
 		"enrolledDeviceRequired": enrolledDeviceRequired, "ownerStepUpRequired": ownerStepUpRequired,
+	}
+	if audience, exists, err := resolveApplicationAudience(policy, referencePath); err != nil {
+		return nil, err
+	} else if exists {
+		if exposure != "local" || policyExposure != "local-only" || privilege != "user" || (authentication != "human" && authentication != "human+device") {
+			return nil, fail(ErrProfileMismatch, referencePath+".audience", "v1 application audiences require local authenticated user access")
+		}
+		resolved["audience"] = audience
 	}
 	if anonymousRateLimit != nil {
 		resolved["anonymousRateLimit"] = anonymousRateLimit

@@ -8,11 +8,11 @@ custody outside the own-application namespace or recovery authority. Existing pe
 mandatory.
 
 When asked to run an own application, use one Techstack
-`techstack.own-application/v1` document and the `stackkit_own_application` tool.
+`techstack.own-application/v1` or `v2` document and the `stackkit_own_application` tool.
 First call its exact create/update/rollback/stop/remove action with `dry_run:
 true`, `operation_confirmation: "stackkit.app.own"`, `owner_approved: true`,
 `name` and, for create/update, `document_file` inside the workspace. Explain the
-image, hostname, sign-in setting, resource limits, the plan notice "this application cannot make outbound connections", and data disposition from the
+image, hostname, sign-in setting, resource limits, the returned network notice and firewall policy digest (v2 only), and data disposition from the
 returned Compose, route and backup membership. Obtain the person's approval
 through the connection's normal approval path; then repeat the exact request
 with its `review_digest` and a stable `operation_id`, without `dry_run`.

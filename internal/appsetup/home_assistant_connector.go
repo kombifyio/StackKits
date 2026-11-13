@@ -119,7 +119,7 @@ func prepareHomeAssistantConnector(request *HomeAssistantConnectorRequest, origi
 	b := request.Binding
 	if (request.Action != "ensure" && request.Action != "revoke") || !haConnectorID.MatchString(b.ResourceID) ||
 		!haContainerID.MatchString(b.ContainerID) || !strings.HasPrefix(b.ImageDigest, "sha256:") || !haContainerID.MatchString(strings.TrimPrefix(b.ImageDigest, "sha256:")) || b.ServiceRevision <= 0 ||
-		version != HomeAssistantPinnedVersion {
+		!homeAssistantVersionAdmitted(version) {
 		return nil, errors.New("home_assistant_connector_binding_invalid")
 	}
 	owner, err := localevidence.LoadOwnerCustody(request.Workspace)

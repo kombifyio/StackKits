@@ -91,6 +91,23 @@ A directly attached (stdio) agent uses the same credentials: start `stackkit-mcp
 credential, ignores `STACKKIT_MCP_ALLOW_WRITE`, and sends every mutating call through the same per-call owner approval.
 The credential is re-checked on each mutating call, so a revoke denies the next write.
 
+### Signed decision receipts for the first-slice operations
+
+A few destructive calls also need the person's confirmation as a signed decision receipt from the platform's decision
+ledger, passed as the `decision_receipt` input (the compact JWS): `stackkit_remove` with `delete_data`,
+`stackkit_backup_restore_activate`, `stackkit_advanced_change_set_apply`, and `stackkit_own_application` with
+`action: remove` and `delete_data` outside a dry run. Without a receipt these calls are refused with the
+`owner_approval_required` reason. The receipt is never approval at this server: every call keeps its own approval
+(the write switch, the confirmation, the local Owner approval or an agent's per-call step-up) exactly as before. On every
+other tool, action or dry run a presented receipt is refused with `stackkit_receipt_invalid`, not ignored.
+
+The server passes the receipt to the command with the acting principal it authenticated: the agent instance of an
+envelope agent, the credential of a directly attached agent, otherwise the local Owner. The command verifies the receipt
+offline against the node's purpose-key snapshot, binds the target to the node's enrolled identity, recomputes the
+intent digest from its own resolved call, and spends the receipt in the node's spent record before the first effect.
+That custody is root-owned, so only a server or command running as root can use a receipt; a node without the hosted
+enrollment has no receipt path. See [Decision receipts](../DECISION-RECEIPTS.md).
+
 ### Agent reach on a local installation
 
 Every agent that attaches here is an external agent on a local Standard Mode installation: it needs no kombify
@@ -205,8 +222,9 @@ The modular lifecycle of selected use cases runs through the same CLI code as
 | `stackkit_use_cases_add` | `use-cases add <slug> --json` | Adds one catalog use case to the intent; `alternative`, `platform`, `node` and the profiles choose a non-default selection. |
 | `stackkit_use_cases_configure` | `use-cases configure <slug> --json` | Merges `settings`, `custody_refs` and module profiles into one selected application. |
 | `stackkit_capabilities_configure` | `capabilities configure <id> --json` | Enables or configures one kit-declared Foundation capability. |
-| `stackkit_use_cases_upgrade` | `use-cases upgrade --json --owner-approve` | Exactly one of `slug` with `to`, `rollback` or `finalize`: moves one application to an admitted release with a retained-data checkpoint, returns it to the prior release and data, or removes the retained data. |
+| `stackkit_use_cases_upgrade` | `use-cases upgrade --json --owner-approve` | Exactly one of `slug` with `to`, `rollback` or `finalize`: moves one application to a newer release of its entry image (a tested catalog release, or with `digest` and `accept_untested` an untested in-track release) with a retained-data checkpoint, returns it to the prior release and data, or removes the retained data. `apply` runs generate, apply and live verify in the same call and rolls back automatically on failure (`update_outcome`). |
 | `stackkit_use_cases_upgrade_status` | `use-cases upgrade --json --status <id>` | Reads one release operation record; read-only. |
+| `stackkit_use_cases_upgrade_overrides` | `use-cases upgrade --json --overrides` | Reports each application release override as kept or superseded by the installed release; read-only. |
 
 Authoring tools change intent only, by spec-hash compare-and-swap
 (`expected_spec_hash`), and report `stackkit.intent-change/v1` with

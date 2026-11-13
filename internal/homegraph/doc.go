@@ -13,5 +13,11 @@
 // type in this package serializes one, no error carries one and nothing logs
 // one. kombify deletes nothing in Home Assistant: plans contain no delete
 // operation, and removal of any object needs the person's confirmation outside
-// this package. Nothing here writes to a Loxone Miniserver.
+// this package. Nothing here writes to a Loxone Miniserver: no supported write
+// path into the Miniserver configuration is used (the structure file is
+// read-only and Loxone Config owns the configuration), so differences become
+// Loxone Config tasks for the person. The node runs the import with
+// `stackkit setup loxone-import`, the projection with `stackkit setup
+// home-graph` and the adoption of an existing Home Assistant, as well as a
+// later leader change, with `stackkit setup home-graph-adopt` (RunAdoption).
 package homegraph

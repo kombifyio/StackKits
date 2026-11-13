@@ -16,8 +16,11 @@ lifecycle. Coolify, Komodo and Dokploy are Layer-2 PaaS platforms and later
 runtime targets (Marketplace installs Coolify as its engine); support needs a
 current-pin receipt ([ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md)).
 
-Not implemented: managed-serverless provisioning, SaaS placement beyond S1,
-`stackkit app add` customer-app deployment, internal kombify operator MCPs.
+Not implemented: managed-serverless provisioning, SaaS placement beyond S1, the
+legacy v0.6 `stackkit app add` PaaS handoff on native installations, internal
+kombify operator MCPs. Customer-app deployment is `stackkit app own` with a
+`techstack.own-application/v1`, `/v2` or `/v3` document: v1 and v2 run one
+container, v3 runs a Compose project of several containers.
 
 ## User-Facing MCP Model
 
@@ -118,12 +121,12 @@ env STACKKIT_RELEASE_VERSION='<exact-release-tag>' sh -c 'curl -fsSL https://bas
 
 Whoever wants stepwise control installs the CLI and drives the verbs (P2); this entrypoint carries the user to a running homelab:
 
-1. Resolves the install mode: `STACKKIT_INSTALL_MODE=auto|guided|expert`, or an interactive menu on a TTY (Enter = Quick Install). Non-TTY runs use `auto`; `guided`/`expert` without a TTY fail closed and print the equivalent CLI chain.
-2. Collects decisions per mode, mapping each to a CLI parameter; environment values are never re-asked. Guided: workspace, domain strategy, local Owner email, optional use cases. Expert adds stack name and workload adapter (adapter choice changes neither product mode nor Marketplace).
+1. Resolves the install mode: `STACKKIT_INSTALL_MODE=auto|guided|expert` (default `auto`). `guided` and `expert` stay accepted for existing automation and take the same defaults as `auto`; without a terminal every mode asks nothing.
+2. Collects what a terminal still asks: the Owner email (and, in Cloud Kit, the optional Cloudflare DNS token); `STACKKIT_ADMIN_EMAIL`/`KOMBIFY_USER_EMAIL` pre-seed the email. Every other decision is taken from its default, printed as one line with the environment variable that overrides it (`HOMELAB_DIR`, `DOMAIN`, `STACKKIT_NAME`, `STACKKIT_PLATFORM`/`STACKKIT_PAAS`, `STACKKIT_USE_CASES`), and mapped to a CLI parameter; the use-case picker still runs on a terminal.
 3. Re-running on a workspace with deployment intent skips init, prepares the host, re-resolves the plan (`stackkit generate`) and resumes `stackkit apply` (native Apply journal). The installer journal preserves pre-init selections and interrupted phases; any directory works with the same workspace; saved kit intent beats new network detection; a re-run never removes a stack or converts its kit.
 4. Runs the shared CLI installer from `https://install.stackkit.cc` (binaries, packaged OpenTofu, kit definitions; SUDO_USER-safe).
 5. `stackkit init basement-kit --catalog-defaults --non-interactive --owner-source=local --owner-email <collected-email>` with the collected `--domain`, `--name`, `--owner-username`, `--use-case`, `--platform`, then `stackkit validate`. Empty use-case input is passed explicitly so it cannot become the default application set.
-6. Bootstraps the container runtime (Docker via get.docker.com when missing, docker group activated for non-root runs). Native `stackkit prepare` only checks prerequisites; the guided installer owns bootstrap.
+6. Bootstraps the container runtime (Docker via get.docker.com when missing, docker group activated for non-root runs). Native `stackkit prepare` only checks prerequisites; the full installer owns bootstrap.
 7. Builds the local FROM-scratch `stackkit-server:local` image with the host CA bundle, falling back to the registry image when Docker or the binary is unavailable.
 8. `stackkit host preflight` admits the host read-only; in `auto` mode `stackkit host remediate --auto-reversible --yes` applies undoable fixes (bounded container logs, swap) and re-measures (`STACKKIT_REMEDIATE=0` opts out; a failed fix never stops the install). Then `stackkit generate` and one `stackkit apply --auto-approve`. Apply configures host firewall, sshd and fail2ban, which only root can change: a non-root run hands that Apply to root via passwordless `sudo` (restoring workspace ownership) or prints the exact command. Ports below 1024 are read from the kernel socket table when a non-root bind probe is refused. If the host has less RAM than the services reserve, `generate` names the amount and the remedy. The ResolvedPlan owns execution order, so no platform-app stage exists.
 9. `stackkit verify` runs before the journal completes and the access summary prints (service URLs, initial admin credentials, machine-readable access summary path, project directory, shell-quoted whole-install removal commands with their scope). A refused host exits 3 untouched; a failed rollout exits non-zero and names how to inspect and re-apply.
@@ -132,7 +135,7 @@ Important environment variables (each pre-seeds one decision):
 
 | Variable | Purpose |
 | --- | --- |
-| `STACKKIT_INSTALL_MODE` | `auto`, `guided`, or `expert`; non-TTY always `auto`. |
+| `STACKKIT_INSTALL_MODE` | `auto`, `guided`, or `expert`; `guided`/`expert` take the `auto` defaults, so a run without a terminal asks nothing. |
 | `HOMELAB_DIR` | Workspace; defaults to `$HOME/my-homelab`. |
 | `DOMAIN` | Canonical service domain. Basement defaults to `lab.home`; Cloud defaults to `kombify.me`. Local clients enroll the scoped resolver/Owner-CA profile. |
 | `STACKKIT_NAME` | Deployment contract ID; default derives from the workspace name. |
@@ -286,9 +289,11 @@ stackkit apply          # requires a prepared host with Docker access
 stackkit verify --http --json
 ```
 
-`stackkit prepare` inspects local host prerequisites (no Docker install, no package changes); run it on the target through the owner-managed channel. Module-local capacity admission uses the attested Inventory and ResolvedPlan. A non-root user needs Docker group access before apply (`sudo usermod -aG docker $USER` and re-login) or lets the guided installer activate it.
+`stackkit prepare` inspects local host prerequisites (no Docker install, no package changes); run it on the target through the owner-managed channel. Module-local capacity admission uses the attested Inventory and ResolvedPlan. A non-root user needs Docker group access before apply (`sudo usermod -aG docker $USER` and re-login) or lets the full installer activate it.
 
 The shared installer accepts kit arguments (`sh -s -- basement-kit`, `sh -s -- all`); `all` installs definitions and is not a kit slug for `init`. Modern definitions can be authored and inspected through the admitted standalone preview path; Modern multi-site apply stays Techstack-owned.
+
+Debian 12 needs the Docker CLI plugin (`docker compose`); Bookworm's `docker-compose` package is Python Compose v1 and does not satisfy this prerequisite. The Techstack enrollment installer, rollout bootstrap and KVM host preparation use a distribution Compose v2 package when available, otherwise use Docker's apt repository with the host's `/etc/os-release` codename and a `signed-by` keyring. A host without a Docker CLI gets `docker-ce`, `docker-ce-cli`, `containerd.io` and `docker-compose-plugin` together; an existing Engine gets only the missing plugin and remains installed. Missing Compose is reported as runtime not ready.
 
 Native v2 init accepts the full authoring parameter surface (unknown values
 fail closed with the kit's declared choices):

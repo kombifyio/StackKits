@@ -414,3 +414,17 @@ func writePrivate(path string, raw []byte) error {
 	}
 	return os.Rename(temp.Name(), path)
 }
+
+// EgressAddresses asks the existing Me origin for the public IPv4 address(es)
+// it observes for this installation. Server contract: GET
+// /subdomains/reach/:base/egress-addresses, authenticated like the other reach
+// routes, answers {"addresses":["<caller IPv4>"]}. It must use the trusted edge
+// connection address, never caller-provided headers. A missing route refuses
+// the optional outbound grant; there is no third-party discovery fallback.
+func (c Client) EgressAddresses(ctx context.Context) ([]string, error) {
+	var answer struct {
+		Addresses []string `json:"addresses"`
+	}
+	err := c.do(ctx, http.MethodGet, "/egress-addresses", nil, &answer)
+	return answer.Addresses, err
+}

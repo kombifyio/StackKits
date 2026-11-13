@@ -343,6 +343,35 @@ import "list"
 			if route.access.policyRef == policyID
 			if route.access.ownerRemoteOptIn == accessPolicy.ownerRemoteOptIn {policyID},
 		] & list.MinItems(1) & list.MaxItems(1)
+		audienceForward: [
+			for policyID, accessPolicy in plan.access
+			if route.access.policyRef == policyID
+			if accessPolicy.audience != _|_ {
+				policyRef: policyID
+				value:     route.access.audience & accessPolicy.audience
+			},
+		]
+		if route.access.audience != _|_ {
+			audienceReverse: [
+				for policyID, accessPolicy in plan.access
+				if route.access.policyRef == policyID
+				if accessPolicy.audience != _|_ {
+					policyRef: policyID
+					value:     route.access.audience & accessPolicy.audience
+				},
+			] & list.MinItems(1) & list.MaxItems(1)
+			ingressAuth: route.ingressAuth & "forward-auth"
+			applicationRoutes: [for sibling in plan.network.routes if sibling.serviceRef == route.serviceRef {
+				routeRef:  sibling.id
+				moduleRef: sibling.moduleRef & route.moduleRef
+				audience:  sibling.access.audience & route.access.audience
+			}]
+			homeOrigin: [for site in plan.sites if site.kind == "home" if route.originSiteRefs == [site.id] {site.id}] & list.MinItems(1) & list.MaxItems(1)
+			nativeWorkload: [for workload in plan.workloads if workload.alternative.moduleRef == route.moduleRef {
+				adapter: workload.alternative.runtime.adapter.id & "standalone-compose"
+				fallback: workload.alternative.runtime.fallback.adapterRefs & []
+			}] & list.MinItems(1) & list.MaxItems(1)
+		}
 		appAccessAwayMatches: [
 			for policyID, accessPolicy in plan.access
 			if route.access.policyRef == policyID

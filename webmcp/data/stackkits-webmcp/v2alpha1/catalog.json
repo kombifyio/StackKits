@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "11b147c708b78f32c4f348973143416512a35e60",
-  "authority_bundle_sha256": "b1d0608a378a101e29eacfb375e1f169a793b11c8122c8e9eb37c355e6a1b62d",
+  "source_sha": "d4e892772638b69204bd195af4267fe311f68f2c",
+  "authority_bundle_sha256": "4605cd68416d0e68fc04b5e1f179e7c8af5c51fae3ea069052ed91d3d2c31704",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -17045,7 +17045,7 @@
       "id": "stackkit.app.own",
       "tool_name": "stackkit_own_application",
       "title": "Operate an own application",
-      "description": "Use to run one extra container image beside the homelab. Dry-run the exact action to review Compose, routing and backup, then repeat it with the returned digest; remove keeps data unless deletion is explicit.",
+      "description": "Use to run one extra container image, or one Compose project of several containers, beside the homelab. Dry-run the exact action to review Compose, routing and backup, then repeat it with the returned digest; remove keeps data unless deletion is explicit.",
       "command": [
         "app",
         "own",
@@ -18281,7 +18281,7 @@
       "id": "stackkit.use-cases.upgrade",
       "tool_name": "stackkit_use_cases_upgrade",
       "title": "Change application release",
-      "description": "Use to move one application to another admitted release. Stops it and checkpoints its data for rollback; the next apply starts the new release and finalize drops the checkpoint.",
+      "description": "Use to move one application to a newer release of its entry image, tested or owner-accepted untested inside its release track. Stops it and checkpoints its data for rollback; apply (or --apply in one step, with automatic rollback) starts the new release and finalize drops the checkpoint.",
       "command": [
         "use-cases",
         "upgrade",
@@ -18292,6 +18292,21 @@
       "destructive": true,
       "idempotent": false,
       "owner_approval": true
+    },
+    {
+      "id": "stackkit.use-cases.upgrade.overrides",
+      "tool_name": "stackkit_use_cases_upgrade_overrides",
+      "title": "Application release overrides",
+      "description": "Use to see which applications run their own release override and whether the installed StackKits release keeps or supersedes it; changes nothing.",
+      "command": [
+        "use-cases",
+        "upgrade",
+        "--json"
+      ],
+      "mutation": false,
+      "destructive": false,
+      "idempotent": true,
+      "owner_approval": false
     },
     {
       "id": "stackkit.use-cases.upgrade.status",
@@ -18383,5 +18398,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "22ad5f8f985b52d4ab7c8700a4e9a686f1a8af259506e11bec5938681468e35c"
+  "catalog_sha256": "790a20ece03e6ec5989b326f77f40d03cd0e33042e211be56daa26b18dd09255"
 }

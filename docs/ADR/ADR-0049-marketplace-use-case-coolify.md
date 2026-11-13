@@ -98,6 +98,38 @@ Support for any platform, Marketplace engine or runtime target requires
 current-pin lifecycle evidence; no decision above promotes a compatibility
 cell.
 
+### Note 2026-11-12: Coolify 4.7 pin, token grant and owner-only sign-in
+
+Decision 1 now pins Coolify 4.7.5 by digest (platform-i0vm3j). A checkpointed
+upgrade moves an existing 4.4 installation to 4.7 and never back, because
+Coolify migrates its database forward on start. The bootstrap was checked
+against the 4.7.5 models (`OauthSetting`, `OauthIdentity`, `User`, `Team`,
+`InstanceSettings`, `Server`, `PrivateKey`, `PersonalAccessToken`) in a
+disposable container. Coolify 4.6 made deletes a separate token ability and
+added token scopes, pausing and rolling: the node token is `read`, `write`,
+`deploy` and `delete` on the root team without project scope, because a
+project-scoped token cannot create the projects of curated apps or reach the
+Owner's store apps; a token holding another grant is rolled, not reissued.
+
+Decision 6 is narrowed: the Pocket ID client of Coolify admits only `owners`
+and `admins`, so other household users are refused at Pocket ID, and Coolify
+keeps OIDC registration and root-team auto-join off. Household members in
+Coolify need an explicit Household team that StackKits does not build yet.
+The Coolify UI stays behind TinyAuth.
+
+Coolify updates as one application, independent of a StackKits release
+(D-2026-11-12-06): `stackkit use-cases upgrade marketplace` selects a later
+Coolify 4.x release (tested = the catalog pin; anything else only with an
+exact digest and the Owner's accept-untested). It reuses the scoped
+application release record rather than a separate `marketplace upgrade`
+operation, because the record, its Apply guard, the automatic rollback, the
+Techstack `application-release.update` capability and the outcome codes are
+already the one per-application update path. The Marketplace additions are
+the native recipe's release admission, a checkpoint of its private runtime
+files beside its volumes (Coolify migrates its database forward on start, so
+`APP_KEY` and API token custody must return with the database) and the
+executor admitting the image change only under that open record.
+
 ## Consequences
 
 - The Public Beta demo matrix no longer lists `coolify` among the core
