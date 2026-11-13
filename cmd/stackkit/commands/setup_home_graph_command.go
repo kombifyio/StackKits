@@ -122,6 +122,11 @@ func syncHomeGraph(ctx context.Context, workspace string, client *http.Client, o
 	if mapping.SyncBlocked(request.Graph.LeadingSystem) {
 		return homegraph.SyncResult{}, &homeGraphFailure{reason: homeGraphAdoptionPending, message: "the Home Assistant adoption or leader change is not confirmed", guidance: "Confirm the adoption plan (stackkit setup home-graph-adopt) for the chosen leading system first."}
 	}
+	// Connector verification and adoption admission precede publication.
+	// Publish before registry projection; a failed mirror expires on the reader.
+	if err := saveHomeGraphVoice(workspace, request.Graph); err != nil {
+		return homegraph.SyncResult{}, &homeGraphFailure{reason: homeGraphApplyFailed, message: "the local voice graph could not be published", guidance: "Check the node home graph directory permissions.", retry: true}
+	}
 	ha, err := homegraph.NewClient(ctx, client, origin, token)
 	if err != nil {
 		return homegraph.SyncResult{}, &homeGraphFailure{reason: homeGraphUnavailable, message: "Home Assistant did not accept the connector session", guidance: "Verify the Home Assistant connector and retry.", retry: true}

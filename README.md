@@ -21,6 +21,11 @@ installs the kit that fits the computer (Basement Kit at home, Cloud Kit on a
 public server) and ends with your access details in one file. You get running
 services and a sign-in for you.
 
+It installs the recommended release: the newest one on which every declared
+test lane passed. While no release is recommended it installs the newest release
+and says so; `stackkit compat` and the
+[Compatibility page](https://stackkit.cc/compatibility) show which it is.
+
 On your phone or laptop, join the same home network and open the **Second device**
 address printed by the installer (`http://<server-LAN-IP>/device/setup`). This page
 opens without DNS or certificate setup. Choose your device type and follow its
@@ -92,9 +97,9 @@ Select the kit with `stackkit init`:
 <!-- kit-support:begin -->
 | Kit | Target | Status |
 | --- | --- | --- |
-| Basement Kit | an existing Linux host at home | alpha at v0.57.11; no public-package pass recorded |
-| Cloud Kit | an existing VPS with your own domain | alpha at v0.57.11; no public-package pass recorded |
-| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.57.11; no public-package pass recorded |
+| Basement Kit | an existing Linux host at home | alpha at v0.57.12; no public-package pass recorded |
+| Cloud Kit | an existing VPS with your own domain | alpha at v0.57.12; no public-package pass recorded |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.57.12; no public-package pass recorded |
 <!-- kit-support:end -->
 
 A published release is source and distribution evidence, not runtime

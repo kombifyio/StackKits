@@ -145,7 +145,8 @@ Important environment variables (each pre-seeds one decision):
 | `STACKKIT_PLATFORM` / `STACKKIT_PAAS` | Explicit compatibility workload-adapter selection (`coolify`/`komodo`); does not select Marketplace or define native defaults. |
 | `STACKKIT_SERVER_IMAGE` | stackkit-server image override (skips the local build). |
 | `STACKKIT_INSTALL_URL` | Alternate published release-installer endpoint for fixtures or mirrors. |
-| `STACKKIT_RELEASE_VERSION` | Exact release tag consumed by the shared installer when testing a candidate. Without it the installer takes the newest stable release; StackKits ships Stable only, with no Early Access or Nightly channel (D-2026-11-07-07). |
+| `STACKKIT_RELEASE_VERSION` | Exact release tag consumed by the shared installer when testing a candidate. Without it the installer takes the recommended release (the newest one on which every declared test lane passed, named by the mirror's `recommended.json`), or the newest stable release while none is recommended or the document cannot be read, and says which; a newer `stackkit` already installed stays unless this variable is set; StackKits ships Stable only, with no Early Access or Nightly channel (D-2026-11-07-07). |
+| `STACKKIT_RELEASE_RECOMMENDED_URL` | Alternate `recommended.json` for fixtures; by default the installer reads it from the release mirror, and not at all when `STACKKIT_RELEASE_API_URL` names another release source. |
 
 Standard Mode without a kombify account, core only, with all decisions supplied:
 

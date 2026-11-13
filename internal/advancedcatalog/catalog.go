@@ -486,6 +486,7 @@ func placeholders() []Placeholder {
 		{Name: "applicationAction", Description: "Admitted adopted-container power action.", Pattern: `^(start|stop|restart)$`},
 		{Name: "connectorRequestFile", Description: "Workspace-relative private metadata-only Home Assistant connector request."},
 		{Name: "homeGraphFile", Description: "Workspace-relative private home graph sync request (stackkit.home-graph-sync-request/v1, at most 512 KiB)."},
+		{Name: "homeGraphDocumentFile", Description: "Workspace-relative private kombify.home_graph.v1 document (at most 512 KiB)."},
 		{Name: "ownerFile", Description: "Workspace-relative private native application Owner grant file."},
 		{Name: "anchorId", Description: "Existing snapshot-anchor ID in local custody."},
 		{Name: "archiveSha256", Description: "Exact transfer ciphertext digest from the source receipt.", Pattern: sha},

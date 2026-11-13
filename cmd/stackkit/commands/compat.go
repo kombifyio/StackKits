@@ -42,6 +42,7 @@ func runCompat(cmd *cobra.Command, args []string) error {
 	fmt.Println(bold("StackKits OS Compatibility"))
 	fmt.Println()
 	printCurrentOSEvidence()
+	printRecommendedRelease()
 
 	fmt.Println()
 	fmt.Println(bold("Host Conformance Diagnostics"))

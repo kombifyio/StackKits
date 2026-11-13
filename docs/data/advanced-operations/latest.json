@@ -208,6 +208,10 @@
       "description": "Workspace-relative private home graph sync request (stackkit.home-graph-sync-request/v1, at most 512 KiB)."
     },
     {
+      "name": "homeGraphDocumentFile",
+      "description": "Workspace-relative private kombify.home_graph.v1 document (at most 512 KiB)."
+    },
+    {
       "name": "ownerFile",
       "description": "Workspace-relative private native application Owner grant file."
     },
@@ -748,6 +752,52 @@
           "schemaVersion": "stackkit.application-adoption/v1",
           "schema": "schemas/stackkit-application-adoption-v1.schema.json",
           "description": "Source and authority-bound adoption evidence."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.home-graph.loxone-import",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Read the Loxone Miniserver structure file (LoxAPP3.json) read-only with the Miniserver credential kept on the node and merge its rooms and controls into the household home graph as kombify rooms and external devices; nothing is written to the Miniserver.",
+      "command": "stackkit setup loxone-import",
+      "argv": [
+        "setup",
+        "loxone-import",
+        "--credential-file",
+        ".stackkit/loxone-credential.json",
+        "--graph-file",
+        "{homeGraphDocumentFile}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": false,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "homeGraphDocumentFile",
+          "schemaVersion": "kombify.home_graph.v1",
+          "schema": "schemas/kombify-home-graph-v1.schema.json",
+          "description": "The current kombify.home_graph.v1 document the import merges into; at most 512 KiB."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.loxone-import-result/v1",
+          "schema": "schemas/stackkit-loxone-import-result-v1.schema.json",
+          "description": "The merged home graph proposal and the counts of added rooms and devices; read-only."
         }
       ],
       "events": [],

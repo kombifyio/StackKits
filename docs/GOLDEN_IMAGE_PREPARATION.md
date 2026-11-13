@@ -1,5 +1,79 @@
 # Neutral golden-image preparation
 
+## Mini-PC USB installer
+
+AP17.2 consumes the AP17.1 Ubuntu 26.04 candidate; it does not bake another
+system. The release-matrix workflow's `mini-pc-installer` job assembles a hybrid
+USB ISO using the pinned Ubuntu Server 26.04.1 installer. Ubuntu's existing
+screens own network, local OS login, disk selection and erase confirmation.
+The added payload is restricted to StackKits, the signed Guard binary and the
+neutral release cache. Machine identity, SSH keys and Guard enrollment are
+never copied. First boot converges the installed host through the canonical
+`guard host-baseline prepare`, `stackkit image prepare` and `image verify`.
+Installation currently requires internet access for OS packages and pinned
+container images; subsequent local-only operation contacts no kombify service.
+If preparation fails, the normal Ubuntu login remains available and setup
+retries when the console next starts; missing network never traps the login.
+
+The physical console then offers `local` or `connect`. `local` starts no
+Cloud login and leaves Guard services disabled. `connect` uses the existing
+Auth0 device-code prompt at `login.kombify.io`, the account-authorized
+`/v1/techstack/trust/pairing-tokens` mint and `techstack agent enroll`. The
+native access/refresh/ID tokens stay in memory; only the one-time capability
+is retained owner-only to resume an interrupted enrollment, and the canonical
+enroll command deletes it after use. Guard creates the host key on the mini
+PC; the canonical privilege-split layout adopts it after enrollment. A
+completed first boot is not repeated on restart. Local Owner and Homelab
+account creation remain StackKits' existing lifecycle; this does not give a
+Cloud account local Owner authority or initialize a workload.
+An enrollment that did not establish a host-key binding is refused on retry;
+it must be detached before pairing again, so retries cannot mint another server.
+
+Assembly fails closed unless the golden image passed its existing sanitation
+and clone checks and its signed Guard supports `agent pair --check`. The kit
+release's signed Guard prerequisite must therefore include appliance pairing.
+The workflow's non-secret repository variable
+`TECHSTACK_CLOUD_NATIVE_CLIENT_ID` identifies the existing Auth0 Native
+application with Device Authorization Grant and Gateway audience
+`https://api.kombify.io`; no client secret is embedded. Missing configuration
+publishes no installer and leaves the Proxmox image path independent.
+
+Assets live only on the public StackKits GitHub Release. Their prefix is
+`kombify-mini-pc-installer-vX.Y.Z-ubuntu-26.04-amd64`: `.iso` (or `.iso.part-NNN`
+below GitHub's 2 GiB limit), `.manifest.json`, `-download.sh` and `-SHA256SUMS`.
+Checksums are uploaded last; that marker makes the set immutable. The download
+helper reassembles and verifies the whole ISO in a new directory. An image
+writer can then flash the ISO to a USB drive. No installer bytes, proxy or
+fallback pass through Render. A future graphical download/reassembly or
+onboarding screen belongs to its design owner; this package adds no web screen.
+
+### Acceptance owed to M13
+
+Run `mini-pc-usb-install-firstboot-pairing` on **rack-pve** with a disposable
+blank disk and the published ISO, then validate physical USB/firmware behavior
+on a mini PC in Public Beta. No tests run on ryzen-pve. Bind evidence to the
+release, ISO checksum, assembly manifest, installed kit and Guard digests.
+
+- Boot the USB image using BIOS and UEFI; confirm the original Ubuntu storage
+  confirmation precedes every destination write and cancel preserves a sentinel
+  disk. Choose the destination with the stock installer and boot the installed
+  disk with the USB removed.
+- Select local-only with kombify endpoints blocked. Verify fresh machine/SSH
+  identity, installed StackKits, no enrollment and no Cloud requests. Reboot
+  without repeated onboarding.
+- On a fresh install choose connect. Approve the displayed device code as a
+  shared test account, observe one server in that account's Cloud inventory and
+  a host-key-bound Guard with the canonical privilege split. Never use the
+  owner's personal account. Confirm another account cannot consume its pairing.
+- Exercise expired/denied sign-in, lost network, power interruption before and
+  after redemption, and retry. Verify no user login token persists, the one-time
+  capability is removed on success, and reboot creates no second server.
+- Validate published-part reassembly, a corrupted part's refusal and the whole
+  ISO digest. TPM, Wi-Fi drivers and Secure Boot on hardware remain Beta proof.
+
+No installer assembly, VM installation or physical-device PASS is claimed by
+the source change. M13 owns these runs; AP17.2 implementation closes on merge.
+
 StackKits can preinstall its attested release, packaged OpenTofu provider closure,
 Terramate and immutable core container images before a machine image is captured.
 `stackkit image` owns this neutral cache boundary. Techstack owns VM construction,

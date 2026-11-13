@@ -10,7 +10,9 @@
 #   curl -sSL https://install.stackkit.cc | sh -s -- modern-homelab   # CLI + Modern Homelab Preview
 #
 # StackKits ships Stable only (D-2026-11-07-07): the installer resolves the
-# newest stable release, or the exact STACKKIT_RELEASE_VERSION.
+# recommended release (the newest one on which every declared test lane passed,
+# D-2026-11-10-18), the newest stable release while none is recommended, or the
+# exact STACKKIT_RELEASE_VERSION.
 #
 # Called by the short website entrypoints (`base.stackkit.cc`,
 # `cloud.stackkit.cc`) to provide the shared install + kit-download step
@@ -84,6 +86,13 @@ else
   RELEASE_API_URL=$RELEASE_API_FALLBACK_URL
 fi
 RELEASES_PAGE_URL="${STACKKIT_RELEASES_PAGE_URL:-https://github.com/$REPO/releases/latest}"
+# The recommended release is the newest one on which every declared test lane
+# passed (scripts/public/recommended-release.mjs); the mirror publishes it as
+# recommended.json. A caller that names its own release API reads that instead.
+RECOMMENDED_URL="${STACKKIT_RELEASE_RECOMMENDED_URL:-}"
+if [ -z "$RECOMMENDED_URL" ] && [ -n "$RELEASE_MIRROR_URL" ] && [ -z "${STACKKIT_RELEASE_API_URL:-}" ]; then
+  RECOMMENDED_URL="$RELEASE_MIRROR_URL/recommended.json"
+fi
 # STACKKIT_INSTALL_DIR relocates the binaries (default /usr/local/bin); the
 # provider mirror goes to ../lib/stackkit/providers beside that directory.
 INSTALL_DIR="${STACKKIT_INSTALL_DIR:-/usr/local/bin}"
@@ -199,12 +208,55 @@ esac
 
 # --- Resolve latest release ---------------------------------------------------
 
-echo "Resolving latest stackkit release..."
+echo "Resolving the recommended stackkit release..."
 RELEASE_JSON=""
+RECOMMENDED=""
+RECOMMENDATION_STATE=""
+if [ -z "${STACKKIT_RELEASE_VERSION:-}" ] && [ -n "$RECOMMENDED_URL" ]; then
+  # Only an exact stable tag counts; an explicit null says no release is
+  # recommended, and anything else (no answer, an error page) is unavailable.
+  _recommended_doc=$(curl -fsSL --connect-timeout 5 --max-time 10 "$RECOMMENDED_URL" 2>/dev/null || true)
+  RECOMMENDED=$(printf '%s\n' "$_recommended_doc" \
+    | sed -nE 's/^[[:space:]]*"recommended_tag":[[:space:]]*"v([0-9]+\.[0-9]+\.[0-9]+)",?[[:space:]]*$/\1/p' | head -1)
+  if [ -n "$RECOMMENDED" ]; then
+    RECOMMENDATION_STATE=recommended
+  elif printf '%s\n' "$_recommended_doc" | grep -Eq '^[[:space:]]*"recommended_tag":[[:space:]]*null,?[[:space:]]*$'; then
+    RECOMMENDATION_STATE=none
+  else
+    RECOMMENDATION_STATE=unavailable
+  fi
+fi
+# version_newer A B: A is a later x.y.z than B.
+version_newer() {
+  printf '%s\n%s\n' "$1" "$2" | awk -F. 'NR == 1 { a = $1; b = $2; c = $3; next }
+    { exit !(a > $1 || (a == $1 && (b > $2 || (b == $2 && c > $3)))) }'
+}
+# The installer never moves a host backwards: a newer stackkit already in
+# INSTALL_DIR stays unless STACKKIT_RELEASE_VERSION names the release.
+INSTALLED_VERSION=""
+if [ -n "$RECOMMENDED" ] && [ -x "$INSTALL_DIR/stackkit" ]; then
+  INSTALLED_VERSION=$("$INSTALL_DIR/stackkit" version 2>/dev/null \
+    | sed -nE '1s/^stackkit version v?([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*$/\1/p' || true)
+fi
+# The declared test lanes run Linux amd64 guests only.
+LANE_SCOPE="Linux amd64 guests"
+if [ "$OS/$ARCH" != linux/amd64 ]; then
+  LANE_SCOPE="Linux amd64 guests; no lane ran this ${OS}/${ARCH} build"
+fi
 if [ -n "${STACKKIT_RELEASE_VERSION:-}" ]; then
   LATEST=$(printf '%s' "$STACKKIT_RELEASE_VERSION" | sed -E 's/^v//')
   echo "  -> pinned to v${LATEST} via STACKKIT_RELEASE_VERSION (existence verified at download)"
+elif [ -n "$INSTALLED_VERSION" ] && version_newer "$INSTALLED_VERSION" "$RECOMMENDED"; then
+  LATEST=$INSTALLED_VERSION
+  echo "  -> keeping the installed v${LATEST}: it is newer than the recommended v${RECOMMENDED} (STACKKIT_RELEASE_VERSION=v${RECOMMENDED} installs that one)"
+elif [ -n "$RECOMMENDED" ]; then
+  LATEST=$RECOMMENDED
+  echo "  -> recommended release v${LATEST}: every declared test lane passed on it (${LANE_SCOPE}; https://stackkit.cc/compatibility)"
 else
+  case "$RECOMMENDATION_STATE" in
+    none) echo "  -> No release is recommended yet: the newest release is installed, and not every declared test lane has passed on it (https://stackkit.cc/compatibility)." ;;
+    unavailable) echo "  -> The recommended release could not be read from ${RECOMMENDED_URL}; the newest release is installed, which may not be the recommended one (https://stackkit.cc/compatibility)." ;;
+  esac
   RELEASE_JSON=$(release_lookup "$RELEASE_API_URL" "$RELEASE_API_FALLBACK_URL")
   LATEST=$(extract_release_version "$RELEASE_JSON")
   if [ -z "$LATEST" ] && [ -n "$GITHUB_AUTH_HEADER" ]; then
