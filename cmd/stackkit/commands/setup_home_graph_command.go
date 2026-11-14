@@ -135,10 +135,11 @@ func syncHomeGraph(ctx context.Context, workspace string, client *http.Client, o
 	result, next, syncErr := homegraph.Sync(ctx, ha, request, mapping, time.Now())
 	// A failed apply returns the links made so far; keep them so the next
 	// run resumes. A read-only run returns the mapping unchanged.
-	if request.Graph.LeadingSystem == homegraph.LeadingKombify {
-		if saveErr := saveHomeGraphMapping(workspace, next); saveErr != nil && syncErr == nil {
-			syncErr = saveErr
-		}
+	if saveErr := saveHomeGraphMapping(workspace, next); saveErr != nil && syncErr == nil {
+		syncErr = saveErr
+	}
+	if errors.Is(syncErr, homegraph.ErrAdoptionRequired) {
+		return homegraph.SyncResult{}, &homeGraphFailure{reason: homeGraphAdoptionPending, message: "Home Assistant requires a confirmed adoption plan", guidance: "Inventory and confirm the home graph adoption first."}
 	}
 	if syncErr != nil {
 		return homegraph.SyncResult{}, &homeGraphFailure{reason: homeGraphApplyFailed, message: "the home graph could not be applied to Home Assistant", guidance: "Retry the sync; links made so far are kept.", retry: true}

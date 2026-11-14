@@ -598,8 +598,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 				cloudreve: {id: "cloudreve", name: "Cloudreve", role: "primary", kind: "application"}
 				nextcloud: {id: "nextcloud", name: "Nextcloud", role: "alternative", kind: "application"}
 				opencloud: {id: "opencloud", name: "OpenCloud", role: "alternative", kind: "application"}
-				// kombify Paperwork has no distributable self-hosted edition; the
-				// alternative binds the owner's hosted Paperwork instance.
+				// D-2026-11-13-20: Until the self-hostable edition's image is
+				// published, the alternative binds the owner's hosted instance.
 				paperwork: {id: "paperwork", name: "kombify Paperwork", role: "alternative", kind: "connector"}
 				"euro-office": {id: "euro-office", name: "Euro-Office", role: "supporting", kind: "application"}
 				"paperless-ngx": {id: "paperless-ngx", name: "Paperless-ngx", role: "supporting", kind: "application"}
@@ -984,8 +984,8 @@ UseCaseCatalog: #UseCaseCatalog & {
 			docs: "/guides/stackkits/use-cases/mail"
 			components: {
 				roundcube: {id: "roundcube", name: "Roundcube Webmail", role: "primary", kind: "application"}
-				// Owner direction 2026-09-25: the hosted Paperwork mail client is a
-				// Mail alternative; it deploys nothing on the Node.
+				// D-2026-11-13-20: Until its self-hostable edition's image is
+				// published, Paperwork binds the hosted instance; nothing is deployed on the Node.
 				paperwork: {id: "paperwork", name: "kombify Paperwork", role: "alternative", kind: "connector"}
 			}
 			settings: [

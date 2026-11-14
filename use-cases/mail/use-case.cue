@@ -44,7 +44,7 @@ Package: foundation.#UseCasePackage & {
 		requiresControlPlane:      true
 		requiresLocalBridge:       false
 		notes: [
-			"Declared handoff only (owner decision 2026-09-24): Paperwork is offered as a managed kombify Cloud service, not as a self-hosted edition. It is not the default and not an entitlement; access follows the kombify Cloud offering.",
+			"Declared handoff only (D-2026-11-13-20): Paperwork's self-hostable edition is being built for distribution as published images with private source (platform-bo9qn1); hosted Paperwork is its managed counterpart. Until its image is published, the alternative binds the owner's hosted instance. It is not the default and not an entitlement; access follows the kombify Cloud offering.",
 			"The Roundcube default stays account-free in Standard Mode and never requires this profile.",
 		]
 	}

@@ -28,8 +28,7 @@ const (
 	AdoptionApply     = "apply"
 
 	// StatusPlanned answers an inventory; StatusMirrored answers an apply
-	// while Home Assistant leads (kombify mirrors Home Assistant and writes
-	// nothing there).
+	// while Home Assistant leads after the confirmed decisions converge.
 	StatusPlanned  = "planned"
 	StatusMirrored = "mirrored"
 
@@ -248,13 +247,26 @@ func (ap AdoptionPlan) Digest() string {
 		}
 		return conflicts[i].HAID < conflicts[j].HAID
 	})
+	graph := ap.Graph
+	graph.Revision, graph.LeadingSystem = 0, ""
+	snapshot := ap.Snapshot
+	snapshot.Floors = append([]HAFloor{}, snapshot.Floors...)
+	snapshot.Areas = append([]HAArea{}, snapshot.Areas...)
+	snapshot.Devices = append([]HADevice{}, snapshot.Devices...)
+	snapshot.Labels = append([]HALabel{}, snapshot.Labels...)
+	sort.Slice(snapshot.Floors, func(i, j int) bool { return snapshot.Floors[i].FloorID < snapshot.Floors[j].FloorID })
+	sort.Slice(snapshot.Areas, func(i, j int) bool { return snapshot.Areas[i].AreaID < snapshot.Areas[j].AreaID })
+	sort.Slice(snapshot.Devices, func(i, j int) bool { return snapshot.Devices[i].ID < snapshot.Devices[j].ID })
+	sort.Slice(snapshot.Labels, func(i, j int) bool { return snapshot.Labels[i].LabelID < snapshot.Labels[j].LabelID })
 	raw, _ := json.Marshal(struct {
+		Graph       Graph
+		Snapshot    HASnapshot
 		FirstRun    bool
 		Matched     []Match
 		OnlyKombify []Only
 		OnlyHA      []Only
 		Conflicts   []Conflict
-	}{ap.FirstRun, matched, sortOnly(ap.OnlyKombify), sortOnly(ap.OnlyHA), conflicts})
+	}{graph, snapshot, ap.FirstRun, matched, sortOnly(ap.OnlyKombify), sortOnly(ap.OnlyHA), conflicts})
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
@@ -274,9 +286,8 @@ func (m Mapping) IsFirstAdoption() bool {
 // Apply re-plans, refuses with ErrAdoptionStale when the plan differs from the
 // confirmed digest and with ErrAdoptionUndecided when a conflict has no
 // decision, calls backup with the registry snapshot before any write, resolves
-// the decisions and, when kombify leads, applies the projection. When Home
-// Assistant leads, nothing is written there: kombify mirrors Home Assistant
-// and the merged graph is returned. Nothing is ever deleted in Home Assistant.
+// the decisions and applies their projection before mirroring the chosen
+// leader. Nothing is ever deleted in Home Assistant.
 // On an apply error the returned mapping holds the progress made.
 func RunAdoption(ctx context.Context, reg Registry, req AdoptionRequest, m Mapping, now time.Time, backup func(HASnapshot) (AdoptionBackup, error)) (AdoptionResult, Mapping, error) {
 	m = m.Clone()
@@ -337,8 +348,9 @@ func RunAdoption(ctx context.Context, reg Registry, req AdoptionRequest, m Mappi
 	}
 	result.Backup = &ref
 
+	result.Status = StatusApplied
 	next := projection.Mapping
-	if merged.LeadingSystem == LeadingKombify {
+	if len(projection.Ops) > 0 {
 		applied, skipped, applyErr := ApplyPlan(ctx, reg, projection)
 		if applyErr != nil {
 			return AdoptionResult{}, applied, applyErr
@@ -357,7 +369,8 @@ func RunAdoption(ctx context.Context, reg Registry, req AdoptionRequest, m Mappi
 				snap = after
 			}
 		}
-	} else {
+	}
+	if merged.LeadingSystem == LeadingHomeAssistant {
 		result.Status = StatusMirrored
 	}
 	next.normalize()

@@ -206,14 +206,17 @@ Assistant id mapping on the node in `.stackkit/home-graph/home-graph-mapping.jso
 (mode 0600, written atomically). A field that changed in Home Assistant since
 the last sync is reported as drift and left alone unless it is in `restore`.
 Nothing is ever deleted in Home Assistant. With `leading_system:
-home_assistant` the command only reads the registries and writes nothing.
+home_assistant` the command forwards changed kombify fields only when HA still
+holds their last mirrored values, then returns the HA graph in `graph`. Concurrent
+HA changes win in the mirror. A populated, unadopted registry requires the adoption
+plan before any ordinary synchronization.
 
 The command-result data uses `stackkit.home-graph-sync-result/v1`: `revision`,
 `leadingSystem`, `status` (`applied` or `observed`), `operations`, `links`,
 `drift`, a bounded `inventory` of floors and areas with a count of unmapped
-devices, and `syncedAt`. Failures carry the stable reason codes
+devices, a nullable `graph` (the HA-leading mirror), and `syncedAt`. Failures carry the stable reason codes
 `home_graph_connector_unavailable`, `home_graph_request_invalid` and
-`home_graph_apply_failed`. The release catalog exposes the operation as
+`home_graph_apply_failed` and `home_graph_adoption_pending`. The release catalog exposes the operation as
 `application.home-graph.sync`.
 
 ### Adopting an existing Home Assistant and changing the leading system
@@ -246,15 +249,27 @@ preselected) and, for an apply, the confirmed `planDigest` with `decisions`
   (`.stackkit/home-graph/backups/ha-registry-<time>-<pid>.json`,
   `kombify.home_graph.ha_registry_backup.v1`, mode 0600) before any write, and
   fails with `home_graph_backup_failed` without changing anything when it
-  cannot. With kombify leading it applies the resolved projection (status
-  `applied`); with Home Assistant leading it writes nothing there and kombify
-  mirrors Home Assistant (status `mirrored`). The result carries the merged
+  cannot. It applies the resolved projection so confirmed conflict values
+  converge, then mirrors the selected leader (status `applied` for kombify or
+  `mirrored` for Home Assistant). The result carries the merged
   graph Cloud stores as the next revision, the links, the drift and the backup.
   The node records the confirmed leading system; a `setup home-graph` run with
   another leading system fails with `home_graph_adoption_pending`, so a leader
   change goes through the same plan. Nothing is deleted in Home Assistant.
 
 The command-result data uses `stackkit.home-graph-adoption-result/v1`.
+
+The release catalog exposes `application.home-graph.adopt`. Techstack serves
+`POST /api/v1/internal/household/home-graph/adoption` with `owner_subject`,
+`space_id`, optional `service_id` and the adoption `request`; `GET` with the
+owner, space and returned `job_id` reads the plan or apply result. Both calls
+require the `household:home_graph` scope on behalf of the owner. Jobs retain the
+request and return the validated result; Cloud commits the merged graph with a
+revision check, preserving its device roles, identities and assignments. A
+second Home Assistant can be selected only from that owner's active smart-home
+connectors. The pinned released catalog must advertise the operation before
+Techstack admits it.
+
 
 The local `appsetup.BootstrapHomeAssistantOwner` API accepts an optional
 `HomeAssistantOwnerRequest.Connector`. Ordinary owner/OIDC setup does not issue

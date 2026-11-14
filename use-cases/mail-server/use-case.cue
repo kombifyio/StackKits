@@ -49,7 +49,7 @@ Package: foundation.#UseCasePackage & {
 			"kombify-managed IONOS Cloud (DCD) nodes: Techstack provisions a Basic Cube XS (1 vCPU, 2 GB, 60 GB) with a reserved public IPv4, a PTR record through the IONOS Cloud DNS reverse-record API and a NIC firewall opening 25, 465, 587, 993, 4190 and 443. Whether DCD allows outbound port 25 is pending the first live test.",
 			"Optional outbound relay (smarthost) in the setup input: all non-local mail then leaves through it with TLS required and the certificate verified; its password reaches Stalwart once and is never stored by StackKits.",
 			"Home nodes stay refused: home publication is home-outbound through an external fabric, so a home node cannot be the direct-inbound MX host at its own fixed public IPv4 (ADR-0046 amendment 2026-09-25).",
-			"kombify does not operate mail servers for customers; kombify's managed mail is Paperwork, the kombify-managed-paperwork profile of the Mail use case.",
+			"kombify does not operate mail servers for customers; hosted Paperwork is the managed counterpart of its self-hostable edition (D-2026-11-13-20), represented by the kombify-managed-paperwork profile of the Mail use case.",
 			"StackKits never creates DNS records. The setup action prints MX, SPF, DKIM, DMARC and client autoconfiguration records for the owner to publish.",
 		]
 	}

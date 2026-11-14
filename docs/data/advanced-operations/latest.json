@@ -208,6 +208,10 @@
       "description": "Workspace-relative private home graph sync request (stackkit.home-graph-sync-request/v1, at most 512 KiB)."
     },
     {
+      "name": "homeGraphAdoptionFile",
+      "description": "Workspace-relative private home graph adoption request (at most 512 KiB)."
+    },
+    {
       "name": "homeGraphDocumentFile",
       "description": "Workspace-relative private kombify.home_graph.v1 document (at most 512 KiB)."
     },
@@ -752,6 +756,62 @@
           "schemaVersion": "stackkit.application-adoption/v1",
           "schema": "schemas/stackkit-application-adoption-v1.schema.json",
           "description": "Source and authority-bound adoption evidence."
+        }
+      ],
+      "events": [],
+      "modes": {
+        "standard": "allowed",
+        "advanced": "allowed"
+      }
+    },
+    {
+      "operation": "application.home-graph.adopt",
+      "status": "available",
+      "sinceRelease": "pending",
+      "summary": "Inventory an existing Home Assistant without writes, then apply the confirmed conflict decisions and leading system after a node-held registry backup. Leader changes use the same plan.",
+      "command": "stackkit setup home-graph-adopt",
+      "argv": [
+        "setup",
+        "home-graph-adopt",
+        "--workload",
+        "smart-home",
+        "--request-file",
+        "{connectorRequestFile}",
+        "--operation-id",
+        "{operationId}",
+        "--adoption-file",
+        "{homeGraphAdoptionFile}",
+        "--json"
+      ],
+      "optionalArgs": [],
+      "mutates": true,
+      "requires": {
+        "capability": false,
+        "trustImported": false,
+        "ownerApproval": false,
+        "candidateSpec": false,
+        "changeSet": false
+      },
+      "inputs": [
+        {
+          "placeholder": "connectorRequestFile",
+          "schemaVersion": "stackkit.home-assistant-connector-request/v1",
+          "schema": "schemas/stackkit-home-assistant-connector-request-v1.schema.json",
+          "description": "The ensure request of the active connector; external resource and revision are correlation only."
+        },
+        {
+          "placeholder": "homeGraphAdoptionFile",
+          "schemaVersion": "stackkit.home-graph-adoption-request/v1",
+          "schema": "schemas/stackkit-home-graph-adoption-request-v1.schema.json",
+          "description": "Current graph and read-only inventory mode, or the inventory digest with explicit conflict decisions for apply; at most 512 KiB."
+        }
+      ],
+      "results": [
+        {
+          "status": "success",
+          "schemaVersion": "stackkit.home-graph-adoption-result/v1",
+          "schema": "schemas/stackkit-home-graph-adoption-result-v1.schema.json",
+          "description": "Bounded matches and conflicts with a plan digest; confirmed apply includes the merged graph and retained node backup reference."
         }
       ],
       "events": [],

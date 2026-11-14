@@ -32,6 +32,8 @@ func clip(s string) string {
 	return string(r[:maxText])
 }
 
+var ErrAdoptionRequired = errors.New("homegraph: existing Home Assistant requires confirmed adoption")
+
 // Sync statuses.
 const (
 	StatusApplied  = "applied"
@@ -128,17 +130,21 @@ type SyncResult struct {
 	Drift         []SyncDrift   `json:"drift"`
 	Inventory     SyncInventory `json:"inventory"`
 	SyncedAt      string        `json:"syncedAt"`
+	Graph         *Graph        `json:"graph"`
 }
 
 // Sync runs one synchronization. Leading kombify: plan (with the restore
 // items), apply and return the updated mapping. Leading Home Assistant:
-// read the registries only and return the mapping unchanged. Nothing is ever
+// forward edits of unchanged HA fields, then mirror the registries. Nothing is ever
 // deleted in Home Assistant. On an apply error the returned mapping holds the
 // progress made so the caller can persist it; the result is then zero.
 func Sync(ctx context.Context, reg Registry, req SyncRequest, mapping Mapping, now time.Time) (SyncResult, Mapping, error) {
 	snap, err := reg.Snapshot(ctx)
 	if err != nil {
 		return SyncResult{}, mapping, err
+	}
+	if mapping.SyncBlocked(req.Graph.LeadingSystem) || (mapping.IsFirstAdoption() && (len(snap.Floors) > 0 || len(snap.Areas) > 0 || len(snap.Devices) > 0)) {
+		return SyncResult{}, mapping, ErrAdoptionRequired
 	}
 	result := SyncResult{SchemaVersion: SyncResultSchema, Revision: req.Graph.Revision, LeadingSystem: req.Graph.LeadingSystem, Status: StatusObserved, Drift: []SyncDrift{}}
 	next := mapping
@@ -165,6 +171,36 @@ func Sync(ctx context.Context, reg Registry, req SyncRequest, mapping Mapping, n
 				snap = after
 			}
 		}
+	}
+	if req.Graph.LeadingSystem == LeadingHomeAssistant {
+		// First forward edits whose HA value is still the last mirrored value.
+		// Concurrent HA edits become drift and are mirrored back below.
+		projection := projectOnto(req.Graph, snap, mapping, nil)
+		next, _, err = ApplyPlan(ctx, reg, projection)
+		result.Operations = len(projection.Ops)
+		if result.Operations > 0 {
+			result.Status = StatusApplied
+		}
+		if err != nil {
+			return SyncResult{}, next, err
+		}
+		if len(projection.Ops) > 0 {
+			snap, err = reg.Snapshot(ctx)
+			if err != nil {
+				return SyncResult{}, next, err
+			}
+		}
+		plan := PlanAdoption(req.Graph, snap, next, false)
+		decisions := map[string]Side{}
+		for _, c := range plan.Conflicts {
+			decisions[c.ID] = SideHA
+		}
+		merged, resolved, resolveErr := Resolve(plan, decisions)
+		if resolveErr != nil {
+			return SyncResult{}, next, resolveErr
+		}
+		next = resolved.Mapping
+		result.Graph = &merged
 	}
 	next.normalize()
 	result.Links = SyncLinks{Floors: cloneMap(next.Floors), Areas: cloneMap(next.Areas), Devices: cloneMap(next.Devices)}

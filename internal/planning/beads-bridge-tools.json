@@ -1,44 +1,44 @@
 {
   "schema_version": 1,
-  "compatibility": "Operational bd: public Beads Cloudflare v0.2.6, backend 1.3.1+cloudflare.0.2.6. Exact source a62e57f7febd19df0d2e37e1cfa9e3e935b7ad96, public commit 342ec0745ea4e62c2c06299b9d8544c9271b0342, proved OSS run 40080754485. All five public archives are verified against SHA256SUMS, binary build provenance and bundled licenses. Each repository must explicitly activate its verified Cloudflare binding; installing tools alone never activates a tracker.",
+  "compatibility": "Operational bd: public Beads Cloudflare v0.2.17, backend 1.3.4+cloudflare.0.2.17. Exact source 464a1127a4490073263bfac33ab6f4aa73908ff3, proved OSS run 43496818226 (archives byte-identical to dry run 43494958996). All five public archives are verified against SHA256SUMS. Each repository must explicitly activate its verified Cloudflare binding; installing tools alone never activates a tracker.",
   "linux-x64": [
     {
       "binary": "bd",
-      "version": "1.3.1+cloudflare.0.2.6",
-      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.6/bd_linux_amd64.tar.gz",
-      "sha256": "fedf2f3938fa284b99327d3bf71501c2265dd73e5786c7fc80981e1e13d17f7c"
+      "version": "1.3.4+cloudflare.0.2.17",
+      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.17/bd_linux_amd64.tar.gz",
+      "sha256": "2b3f43107b2194f13a681d85804bdf7ffdbb58b4280e9bac5120475dc0d81598"
     }
   ],
   "linux-arm64": [
     {
       "binary": "bd",
-      "version": "1.3.1+cloudflare.0.2.6",
-      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.6/bd_linux_arm64.tar.gz",
-      "sha256": "5142d5c49542d52fe3a79ffca122fad3c9c7ffdee13de8b51224964383efc587"
+      "version": "1.3.4+cloudflare.0.2.17",
+      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.17/bd_linux_arm64.tar.gz",
+      "sha256": "7469eb45bfa461ef86ca3011fe7178e9597586d396db47cfc98ab79e136078d5"
     }
   ],
   "darwin-x64": [
     {
       "binary": "bd",
-      "version": "1.3.1+cloudflare.0.2.6",
-      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.6/bd_darwin_amd64.tar.gz",
-      "sha256": "fed546476f00844b01d233a3de0c8ff0973b22f395c34b433799979e6b0eec2e"
+      "version": "1.3.4+cloudflare.0.2.17",
+      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.17/bd_darwin_amd64.tar.gz",
+      "sha256": "6e043ae2f1dfc786a3a700848fcbef9778ec2c3090a6351f2932dc193b61bbb6"
     }
   ],
   "darwin-arm64": [
     {
       "binary": "bd",
-      "version": "1.3.1+cloudflare.0.2.6",
-      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.6/bd_darwin_arm64.tar.gz",
-      "sha256": "9bdebd83299f0801d8c70806b3cdd28f2f2e44ea0161cbd95be6a5bd927d5b75"
+      "version": "1.3.4+cloudflare.0.2.17",
+      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.17/bd_darwin_arm64.tar.gz",
+      "sha256": "b63b154544c62cca573cbae963a075f96fabd3da38f038e2e7d31696ac1b7fa3"
     }
   ],
   "win32-x64": [
     {
       "binary": "bd",
-      "version": "1.3.1+cloudflare.0.2.6",
-      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.6/bd_windows_amd64.zip",
-      "sha256": "4dd87d5f76b65320b70e8f8672dfbfe8de2b4b06ad9ba1ac9df61c0c529f62fc"
+      "version": "1.3.4+cloudflare.0.2.17",
+      "url": "https://github.com/kombifyio/beads-cloudflare/releases/download/v0.2.17/bd_windows_amd64.zip",
+      "sha256": "d6b83093d3a86de992f6a866d7ec3cf30996301222cdf9de0bf69f59600c44bd"
     }
   ]
 }

@@ -297,6 +297,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+- Existing Home Assistant adoption is dispatchable as `application.home-graph.adopt`; confirmed decisions converge before leader changes, populated registries stay observed, and HA-leading synchronization returns a graph mirror.
+
 - Added: catalog operation `application.home-graph.loxone-import` (read-only, `stackkit setup loxone-import --credential-file .stackkit/loxone-credential.json --graph-file {homeGraphDocumentFile} --json`) and the result schema `stackkit.loxone-import-result/v1`, so Techstack can dispatch the Loxone import on a managed node (platform-cn7fa.6). The Miniserver credential stays a node file and is never part of the dispatch.
 
 - Added: the Marketplace Coolify updates as one application, independent of a StackKits release (platform-i0vm3j P4, platform-8gb0l5, D-2026-11-12-06). `stackkit use-cases upgrade marketplace --to <release> [--digest sha256:... --accept-untested] --owner-approve --apply` moves Coolify to a later 4.x release: tested is the catalog pin (4.7.5), anything else needs its exact digest and the Owner's accept-untested. The checkpoint stops the installation, retains and reads back its eight volumes (Coolify's PostgreSQL database included) and retains its private runtime files (`coolify.env` with `APP_KEY`, `custody.json` with the API token and server identity, the SSH key, Compose recipe and trust files) as operation-bound 0600 copies whose digests the owner-signed release record keeps (`runtimeFiles`). Apply starts the selected Coolify image only under that open record and with those files unchanged, then re-runs the admin, Pocket ID and API token bootstrap with its readback; a failed generate, apply or verify restores the database and the runtime files together and starts the prior digest again. Outcomes are the existing `updated`, `rolled_back`, `rollback_failed` (with the `--rollback <operation-id>` restore command) and `refused` with `reason_code`. The plan compiler admits the `release` setting for this native installation, which has no runtime adapter, and its recipe carries the selected pin; PostgreSQL 15 and Redis 7 stay with the StackKits release. A StackKits upgrade now refuses any move of Coolify to an earlier release (before: only 4.7 to 4.4), so an applied override is never undone onto migrated data. On a Techstack-managed node the existing `application-release.update` capability (use case `marketplace`) admits it. The application-releases feed carries Coolify's GitHub security advisories for the Marketplace entry (`catalogModule` `stackkits-marketplace-coolify-runtime`).
@@ -474,6 +476,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.57.13 (2026-11-14)
+
+### Added
+
+* **catalog:** export application pins and verified upstream release sources
+* **home-graph:** carry confirmed HA adoption onto current main
+* **rack-kvm:** add held two-device public first-app journey
+
+### Fixed
+
+* **guard-release:** scheduled refresh without signed binaries exits 0 with a notice
 
 ## 0.57.12 (2026-11-13)
 

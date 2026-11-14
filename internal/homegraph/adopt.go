@@ -1,6 +1,8 @@
 package homegraph
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -380,6 +382,9 @@ func Resolve(plan AdoptionPlan, decisions map[string]Side) (Graph, Plan, error) 
 	if err := r.g.Validate(); err != nil {
 		return r.g, Plan{Mapping: r.m}, fmt.Errorf("homegraph: merged graph is invalid: %w", err)
 	}
+	// Confirmation authorizes the resolved values even when HA changed them
+	// since the previous sync. Ordinary drift protection must not override it.
+	r.m.Synced = map[string]string{}
 	return r.g, projectOnto(r.g, plan.Snapshot, r.m, nil), nil
 }
 
@@ -396,11 +401,11 @@ type resolver struct {
 
 func copyGraph(g Graph) Graph {
 	c := g
-	c.MirrorClasses = append([]string(nil), g.MirrorClasses...)
-	c.Floors = append([]Floor(nil), g.Floors...)
-	c.Rooms = append([]Room(nil), g.Rooms...)
-	c.Devices = append([]Device(nil), g.Devices...)
-	c.Assignments = append([]Assignment(nil), g.Assignments...)
+	c.MirrorClasses = append([]string{}, g.MirrorClasses...)
+	c.Floors = append([]Floor{}, g.Floors...)
+	c.Rooms = append([]Room{}, g.Rooms...)
+	c.Devices = append([]Device{}, g.Devices...)
+	c.Assignments = append([]Assignment{}, g.Assignments...)
 	return c
 }
 
@@ -414,6 +419,9 @@ func (r *resolver) link(kind, kid, hid string) {
 				if r.leadHA() {
 					if f, ok := r.haFloor[hid]; ok && f.Name != "" {
 						r.g.Floors[i].Name = clipName(f.Name)
+						if f.Level != nil {
+							r.g.Floors[i].Level = *f.Level
+						}
 					}
 				}
 			}
@@ -435,6 +443,11 @@ func (r *resolver) link(kind, kid, hid string) {
 		for i := range r.g.Devices {
 			if r.g.Devices[i].ID == kid {
 				r.g.Devices[i].ExternalRefs = withRef(r.g.Devices[i].ExternalRefs, SystemHomeAssistant, hid)
+				if r.leadHA() {
+					if d, ok := r.haDev[hid]; ok {
+						r.g.Devices[i].Name = clipName(d.DisplayName())
+					}
+				}
 			}
 		}
 	}
@@ -605,6 +618,20 @@ func (r *resolver) remove(kind, id string) {
 			}
 		}
 	case "device":
+		// HA can remove its link, never the kombify identity or assignments.
+		for i := range r.g.Devices {
+			d := &r.g.Devices[i]
+			if d.ID == id && d.Identity.Kind != IdentityExt {
+				refs := []ExternalRef{}
+				for _, ref := range d.ExternalRefs {
+					if ref.System != SystemHomeAssistant {
+						refs = append(refs, ref)
+					}
+				}
+				d.ExternalRefs = refs
+				return
+			}
+		}
 		out := r.g.Devices[:0:0]
 		for _, x := range r.g.Devices {
 			if x.ID != id {
@@ -620,6 +647,11 @@ func (r *resolver) remove(kind, id string) {
 		}
 		r.g.Assignments = as
 	}
+}
+
+func importedHAID(prefix, space, id string) string {
+	sum := sha256.Sum256([]byte(space + ":" + prefix + id))
+	return prefix + hex.EncodeToString(sum[:12])
 }
 
 func (r *resolver) importHA(reimport map[string]bool) {
@@ -638,7 +670,7 @@ func (r *resolver) importHA(reimport map[string]bool) {
 		if !want("floor", f.FloorID) || f.Name == "" {
 			continue
 		}
-		id := NewID("flr_")
+		id := importedHAID("flr_", r.g.SpaceID, f.FloorID)
 		level := 0
 		if f.Level != nil && *f.Level >= -10 && *f.Level <= 100 {
 			level = *f.Level
@@ -651,7 +683,7 @@ func (r *resolver) importHA(reimport map[string]bool) {
 		if !want("room", a.AreaID) || a.Name == "" {
 			continue
 		}
-		id := NewID("rom_")
+		id := importedHAID("rom_", r.g.SpaceID, a.AreaID)
 		var fid *string
 		if a.FloorID != nil {
 			if k := reverse(r.m.Floors, *a.FloorID); k != "" {
@@ -679,7 +711,7 @@ func (r *resolver) importHA(reimport map[string]bool) {
 		if utf8.RuneCountInString(name) == 0 {
 			continue
 		}
-		id := NewID("hdv_")
+		id := importedHAID("hdv_", r.g.SpaceID, d.ID)
 		var rid *string
 		if d.AreaID != nil {
 			if k := reverse(r.m.Areas, *d.AreaID); k != "" {

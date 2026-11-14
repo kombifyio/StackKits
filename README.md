@@ -97,9 +97,9 @@ Select the kit with `stackkit init`:
 <!-- kit-support:begin -->
 | Kit | Target | Status |
 | --- | --- | --- |
-| Basement Kit | an existing Linux host at home | alpha at v0.57.12; no public-package pass recorded |
-| Cloud Kit | an existing VPS with your own domain | alpha at v0.57.12; no public-package pass recorded |
-| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.57.12; no public-package pass recorded |
+| Basement Kit | an existing Linux host at home | alpha at v0.57.13; no public-package pass recorded |
+| Cloud Kit | an existing VPS with your own domain | alpha at v0.57.13; no public-package pass recorded |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.57.13; no public-package pass recorded |
 <!-- kit-support:end -->
 
 A published release is source and distribution evidence, not runtime

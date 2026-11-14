@@ -1,9 +1,10 @@
 // Package files defines the File Storage / Document Management use case package.
 //
 // Files is a default BaseKit use case. The release path stays self-hosted and
-// OSS-realized through Cloudreve. Nextcloud and the hosted kombify Paperwork are
+// OSS-realized through Cloudreve. Nextcloud and kombify Paperwork are
 // alternatives, Euro-Office and Paperless-ngx optional add-ons (owner direction
-// 2026-09-25); the catalog marks which choices the pinned release installs.
+// 2026-09-25); Paperwork binds the hosted instance until its self-hostable image
+// is published (D-2026-11-13-20). The catalog marks installed choices.
 package files
 
 import "github.com/kombifyio/stackkits/foundation"
