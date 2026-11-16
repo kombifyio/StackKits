@@ -1,9 +1,9 @@
 {
   "schemaVersion": "stackkits.edition-projection/v1",
   "source": "kombify-go-common/edition",
-  "sourceVersion": "v0.8.13",
-  "sourceCommit": "317bc698c393e4275cdc8c81b794b00f0f983f50",
-  "sourceSum": "h1:sJ4M0aYhiMGCYJiQxt7rVj0Ug4PnI1lIKhnhj/GdgEc=",
+  "sourceVersion": "v0.9.2",
+  "sourceCommit": "d8dc5f0a0a53f50c85b058447caca4ab3b623757",
+  "sourceSum": "h1:a2TuBN0GwFg+dxKGdbCwGTf+Lsri12XUeZPUHZ7XT5w=",
   "sourceFiles": [
     "edition.go"
   ],

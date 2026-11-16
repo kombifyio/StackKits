@@ -477,6 +477,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.57.16 (2026-11-16)
+
+### Fixed
+
+* **public:** align denial projection with go-common v0.9.2
+
+## 0.57.15 (2026-11-16)
+
+### Added
+
+* **delivery:** package, mirror and store-build groups are side publications (R3c, )
+* **techstack:** Companion AppLink v1 client in Kombify.Client.Shell 0.1.0-alpha.5
+
+### Fixed
+
+* **ci:** compile every Go module a pull request touches before it merges
+* **ci:** run pre-merge node project checks one at a time
+* **delivery:** StackKits product-delivery.yml adopts .github 3dfd0344 (Y pin move, )
+* **delivery:** StackKits product-delivery.yml adopts .github 483a186b (R4 wave B narrow bind, )
+* **delivery:** StackKits product-delivery.yml adopts .github aa27c3b7 (Y-prime pin move, )
+* **delivery:** the Render download admission pin takes the requalified Techstack recipe (fbb76287)
+* **deps:** update internal products
+* **techstack:** enforce Gateway decisions and persist bounded job authority
+* **techstack:** only a refused grant ends the Connect session; 429, 5xx and network faults keep the refresh token and retry
+* **techstack:** pin the installers to main's bytes and fail a stale pin before merge
+
 ## 0.57.14 (2026-11-14)
 
 ### Fixed

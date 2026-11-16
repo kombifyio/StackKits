@@ -48,7 +48,6 @@ type Runtime struct {
 	quiescedSnapshotExport func(context.Context) error
 	transferHoldID         func() string
 	transferResumeID       string
-	appGroups              *AppGroupSnapshotBinding
 	workspaceRoot          string
 	newEngine              engineFactory
 	policy                 *localbackuppolicy.Policy
@@ -305,12 +304,12 @@ func (r *Runtime) CreateSnapshotWithQuiescence(
 	// writer cleanup below has had its say.
 	stage := backuplifecycle.RunStageQuiescePrepare
 	defer func() { resultErr = backuplifecycle.WithRunStage(stage, resultErr) }()
-	if r != nil && (r.appGroups != nil || journal.ControlVersion == 2) {
+	if r != nil && journal.ControlVersion == 2 {
+		// The only writer of a v2 (app-group) journal was the retired Runtipi
+		// app-group adapter. No journal of that form can be produced any more, so
+		// a retained one is refused rather than read as core quiescence.
 		stage = backuplifecycle.RunStageAppGroups
-		if r.appGroups == nil {
-			return receipt, errors.New("retained v2 snapshot requires original app-group adapter")
-		}
-		return r.createAppGroupSnapshot(ctx, request, journal, persist)
+		return receipt, errors.New("retained v2 snapshot control is no longer supported")
 	}
 	hasJournal := journal.Phase != "" || len(journal.Containers) > 0
 	if hasJournal && persist == nil {
