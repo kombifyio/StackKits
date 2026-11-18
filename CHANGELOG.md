@@ -477,6 +477,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.57.18 (2026-11-18)
+
+### Added
+
+* **techstack:** Settings &gt; Companion in the Windows client, the installer carries the Companion, techstack:// opens it
+
+### Fixed
+
+* **ci:** refuse a changed source file that is not valid UTF-8 in pre-merge
+* **ci:** retry a pre-merge install or Go download that fails on the network
+* **delivery:** move StackKits callers to the bounded-Sentry 52078b28 producer
+* **deps:** update internal products
+* **release:** pin release-please and its preparation check to .github (504 read retry, kombify-ci fallback)
+
 ## 0.57.17 (2026-11-18)
 
 ### Added

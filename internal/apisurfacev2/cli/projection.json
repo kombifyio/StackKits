@@ -1,9 +1,9 @@
 {
   "schemaVersion": "stackkits.apisurface-cli-projection/v1",
   "source": "kombify-go-common/apisurface-cli",
-  "sourceVersion": "v0.9.2",
-  "sourceCommit": "d8dc5f0a0a53f50c85b058447caca4ab3b623757",
-  "sourceSum": "h1:a2TuBN0GwFg+dxKGdbCwGTf+Lsri12XUeZPUHZ7XT5w=",
+  "sourceVersion": "v0.10.3",
+  "sourceCommit": "cae1426681270e953d0f050ddc90d2f3d6d827e8",
+  "sourceSum": "h1:wFiCfFqQlOoLPqPG336SWS8YC7IrICxcxds/ZxKtK4E=",
   "sourceFiles": [
     "agentcontext.go",
     "cli.go",
