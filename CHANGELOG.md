@@ -477,6 +477,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.57.17 (2026-11-18)
+
+### Added
+
+* **android:** extend existing rack wake admission to Paperwork PR capture
+* **delivery:** grant the authority read its own OIDC identity
+* **photos:** add standalone Ente deployment
+* **techstack:** start Creation profiles on Standard capacity
+
+### Fixed
+
+* bound hosted StackKits release publication
+* **ci:** adopt the regenerated known-error workflow
+* **delivery:** move StackKits callers to the Gateway-admitted ee3effd producer
+* **delivery:** pin Techstack readiness to the qualified Render guard
+* **delivery:** rebuild the stranded Techstack activation workflow
+* **dev:** show runnable local product checks
+* **dev:** watch all StackKits CLI input trees
+* **release:** bound archive build for hosted runner fallback
+* **release:** free hosted disk before building archives
+* **release:** separate StackKits publication from verification reports
+* **scaffold:** isolate additional module smoke routes
+* **techstack:** expose confirmed use cases during rollout
+
 ## 0.57.16 (2026-11-16)
 
 ### Fixed

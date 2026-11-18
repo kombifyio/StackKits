@@ -520,9 +520,16 @@ func deriveComposeFields(rm *renderModel) {
 			s.HealthTest = fmt.Sprintf(`["CMD-SHELL", %q]`, s.HC.Command)
 		}
 		if s.Routed {
+			// The harness checks the primary service at HealthHost. Give each
+			// additional routed service a distinct host so Traefik cannot
+			// select a different backend for that same smoke request.
+			host := rm.HealthHost
+			if s.Name != rm.RouterName {
+				host = s.Name + "." + rm.HealthHost
+			}
 			s.TraefikLabels = []string{
 				"traefik.enable=true",
-				fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", s.Name, rm.HealthHost),
+				fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", s.Name, host),
 				fmt.Sprintf("traefik.http.routers.%s.entrypoints=web", s.Name),
 				fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%d", s.Name, s.TraefikPort),
 			}

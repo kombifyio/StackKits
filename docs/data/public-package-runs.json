@@ -224,6 +224,96 @@
         "informational": true
       },
       "installation": null
+    },
+    {
+      "runId": 43748674878,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-15T18:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.57.14",
+          "version": "0.57.14"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-15T18:50:16.428116+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "failed",
+            "seconds": 0.931,
+            "exitCode": 1,
+            "evidence": "public-path-install.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
+    },
+    {
+      "runId": 43933197022,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-16T18:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.57.16",
+          "version": "0.57.16"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-16T19:54:55.260985+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "failed",
+            "seconds": 0.781,
+            "exitCode": 1,
+            "evidence": "public-path-install.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
+    },
+    {
+      "runId": 44034303633,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-17T06:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.57.16",
+          "version": "0.57.16"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-17T06:53:28.018569+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "failed",
+            "seconds": 0.681,
+            "exitCode": 1,
+            "evidence": "public-path-install.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
     }
   ]
 }
