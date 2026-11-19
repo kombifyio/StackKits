@@ -185,7 +185,12 @@ var fileFocusedTests = map[string][]string{
 	"internal/localevidence/lifecycle_mutation_signature.go": {
 		"TestOwnerLifecycleMutationSignatureRejectsTamper",
 	},
-	"internal/lifecyclemutation/journal.go": {},
+	"internal/lifecyclemutation/journal.go":            {},
+	"internal/lifecyclemutation/journal_begin.go":      {},
+	"internal/lifecyclemutation/journal_history.go":    {},
+	"internal/lifecyclemutation/journal_validation.go": {},
+	"internal/lifecyclemutation/join.go":               {},
+	"internal/lifecyclemutation/session.go":            {},
 	"internal/stackspecintent/store.go": {
 		"TestPersistUsesCanonicalExpectedHashCAS",
 		"TestPersistRejectsMissingInvalidAndLegacyTargetsWithoutCandidateWrite",

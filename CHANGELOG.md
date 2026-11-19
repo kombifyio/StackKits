@@ -477,6 +477,167 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.58.0 (2026-11-19)
+
+### Added
+
+* add reviewed own application lifecycle on Direct Compose
+* **android:** extend existing rack wake admission to Paperwork PR capture
+* **appliance:** assemble a mini-PC installer with first-boot pairing
+* **catalog:** export application pins and verified upstream release sources
+* **ci:** window lanes lan-host and windows-device upload the window-bound native suite receipt
+* **cli:** stackkit connect binds a server that runs the public package to a kombify account
+* **compat:** run the fixed public package path in the integration slot
+* **compat:** the integration slot wakes rack-pve through a rack-wake lane on the LAN runner
+* **connect:** pair an own server through a hidden terminal prompt
+* **decision-receipt:** verify and spend the platform's signed decision receipt against node custody
+* **delivery:** grant the authority read its own OIDC identity
+* **delivery:** package, mirror and store-build groups are side publications (R3c, )
+* **dev:** add optional pinned headless Workbench host
+* **docs:** one first screen for the public package with the connect offer
+* **golden-image:** bake per kit release on rack-kvm and ship a Proxmox template
+* **guard:** publish authenticated StackKits update metadata
+* **guard:** restore the G10 IONOS image qualification lane
+* **home-graph:** carry confirmed HA adoption onto current main
+* **home-graph:** publish a private voice routing snapshot on the node
+* **homegraph:** complete existing Home Assistant adoption and CLI reference
+* **homegraph:** node command to import the Loxone structure file read-only
+* **installer:** serve install.ps1 from private R2
+* **installer:** take defaults and localize the questions that remain
+* **install:** install the recommended release, computed from the slot's recorded lanes
+* **marketplace:** Coolify 4.7.5, least-privilege rolled API token, owner-only Pocket ID sign-in
+* **marketplace:** update Coolify as one application with database and custody rollback ( P4)
+* **mcp:** local operation descriptions say when to use the tool (AP16.3)
+* **mcp:** stackkit-mcp tool descriptions say when to use the tool; registry listing file (AP16.3)
+* **os-compat:** the KVM matrix runs once per published release and records every cell
+* **own-application:** a person's own Compose project under sign-in, routing and backup
+* **own-app:** published ports without outbound through an ingress-only firewall; restore unit review nits
+* **own-app:** Stack it adopts any existing single container as an own application
+* **own-app:** start, restart, tag update with rollback and catalog operations for own applications; Stack it row codes
+* **photos:** add standalone Ente deployment
+* **privacy:** report qualified Techstack processor effects
+* **rack-kvm:** add held two-device public first-app journey
+* **security:** cut over StackKits authority producers and consumers
+* **stackkits:** optional outbound Internet for own applications, only behind a managed host rule set
+* **stackkit:** sync the kombify home graph to Home Assistant on the node
+* **techstack:** Companion AppLink v1 client in Kombify.Client.Shell 0.1.0-alpha.5
+* **techstack:** dispatch the Loxone import on the node and return the merged home graph to Cloud
+* **techstack:** hand the node the platform's signed decision receipt for destructive operations
+* **techstack:** host container and service-unit actions run as governed RIL primitives; run_stackkit_operation leaves the agent surface (AP16.1)
+* **techstack:** make the managed-server path provider-neutral (ox5v)
+* **techstack:** name the installer editions Standalone and Connected
+* **techstack:** restart, update and backup run as governed RIL actions on one equipment-answered write path (AP16.1)
+* **techstack:** schema publication passes the read-only ClickHouse key and pins the producer with the restore point
+* **techstack:** server-side creation draft that continues across Cloud and Techstack
+* **techstack:** Settings &gt; Companion in the Windows client, the installer carries the Companion, techstack:// opens it
+* **techstack:** start Creation profiles on Standard capacity
+* **techstack:** the backup check runs for every kit and refuses with an actionable reason where there is no backup (AP16.1)
+* **transfer:** carry portable application configuration into the receiving candidate
+* **use-cases:** admit the application release update on a Techstack-managed node under an exact application-release.update capability
+* **use-cases:** release override of the entry image for every catalog application
+* **use-cases:** update one application to an untested in-track release with --apply and automatic rollback
+* **watch:** daily application releases and advisories feed
+* **watch:** release notes, paired affected ranges, Docker Hub reuse and repair path
+
+### Fixed
+
+* **access:** repair the local application audience round after review
+* bound hosted StackKits release publication
+* **ci:** adopt the regenerated known-error workflow
+* **ci:** bind each Local fixture dispatch to its authority
+* **ci:** compile every Go module a pull request touches before it merges
+* **ci:** one known-error issue per cause, Stable delivery included
+* **ci:** refuse a changed source file that is not valid UTF-8 in pre-merge
+* **ci:** repin shared workflows to the merged .github producer c1681812
+* **ci:** restore installed shared identity for StackKits delivery
+* **ci:** retire broad personal workflow token consumers
+* **ci:** retry a pre-merge install or Go download that fails on the network
+* **ci:** run pre-merge node project checks one at a time
+* **ci:** the release train and package bumps no longer wait for checks that never run
+* **ci:** treat a clean sync pull request as success and give the scheduled standards caller its default
+* **ci:** wake and register the Android runner from the LAN lane
+* **ci:** window projection pushes go to compat-evidence/&lt;id&gt;, not the App-only test-window ref
+* **core:** confine Home router diagnostics to container loopback
+* **delivery:** admit public-package slots before checkout
+* **delivery:** delete the one-shot Render queue recovery lane bound to old run ids
+* **delivery:** dispatch installer through native CLI operation
+* **delivery:** move StackKits callers to the bounded-Sentry 52078b28 producer
+* **delivery:** move StackKits callers to the Gateway-admitted ee3effd producer
+* **delivery:** observe the OSS publisher for 90 minutes
+* **delivery:** pin Techstack readiness to the qualified Render guard
+* **delivery:** pin Techstack Render admission to the requalified recipe
+* **delivery:** rebuild the stranded Techstack activation workflow
+* **delivery:** reconcile database recovery and bind Guard signing provenance (rebuild of )
+* **delivery:** StackKits product-delivery.yml adopts .github 3dfd0344 (Y pin move, )
+* **delivery:** StackKits product-delivery.yml adopts .github 483a186b (R4 wave B narrow bind, )
+* **delivery:** StackKits product-delivery.yml adopts .github aa27c3b7 (Y-prime pin move, )
+* **delivery:** Techstack Render fallback uses the admission carrying the current contract
+* **delivery:** the prepared Techstack release controller runs as an action step
+* **delivery:** the Render download admission pin takes the requalified Techstack recipe (fbb76287)
+* **deps:** update internal products
+* **deps:** update internal products
+* **deps:** update internal products
+* derive public kit support from version-bound package proof
+* **dev:** repair the Techstack and StackKits website local loops
+* **dev:** show runnable local product checks
+* **dev:** watch all StackKits CLI input trees
+* **docs:** print an init command that runs on a fresh workspace
+* **golden-image:** the bake takes Guard releases, which are published as prereleases
+* **guard-release:** scheduled refresh without signed binaries exits 0 with a notice
+* guide second-device access and default public connect origin
+* **host-security:** the fail2ban sshd jail loads on Debian 12
+* **installer-smoke:** assert the current guided non-TTY contract
+* **install:** one public path source; init, Apply hint and proof agree; compat rows need current-release evidence
+* **integration:** remove the integration-lane hold model
+* **mcp:** pass the owner email through stackkit_init and the install plan
+* **own-app:** outbound own applications come back after a host reboot, fail closed
+* **public:** align denial projection with go-common v0.9.2
+* **rack-kvm:** the public-app device gets its browser driver from a job and only Ubuntu main packages
+* **rack-kvm:** typed apt cause, lock-aware preparation and a shallow release-tag checkout for the public-app journey
+* **release:** admit the 11:30 UTC release slot in the slot checks
+* **release:** bind observer to prepared Techstack source
+* **release:** bound archive build for hosted runner fallback
+* **release:** bound pinned OpenTofu downloads
+* **release:** complete prepared Techstack through the database-first controller
+* **release:** export the own-application adoption docs and schemas; ci:fast runs the public export
+* **release:** free hosted disk before building archives
+* **release:** pin release-please and its preparation check to .github (504 read retry, kombify-ci fallback)
+* **release:** scan the shipping stackkit binary before the public publish
+* **release:** separate StackKits publication from verification reports
+* **release:** serialize release merges per repository and retry the base-branch race
+* **release:** the public export carries the own-application v2 schema
+* **runtime:** preserve rollout bootstrap and pair Debian 12 Engine with Compose
+* **scaffold:** isolate additional module smoke routes
+* **security:** build OSV with the supported repository Go compiler
+* select Techstack release artifacts by changed inputs
+* **slot:** the package-run importer downloads the dash-keyed artifact
+* **slot:** the public package slot reads the newest published release without gh
+* **stackkits:** green the three red repository gates on main
+* **stackkits:** validate append-only slot package ledger imports
+* **techstack:** adopt the job-scoped schema-expand producer bcf9b868
+* **techstack:** end the schema publication waits with the run they follow
+* **techstack:** enforce Gateway decisions and persist bounded job authority
+* **techstack:** expose confirmed use cases during rollout
+* **techstack:** gate company bundle extension on protected credentials
+* **techstack:** keep database readiness independent of image publication
+* **techstack:** Kombify.Client.Shell publishes itself when its version changes on main
+* **techstack:** lab lanes run their Core on the self-hosted embedded storage, not Stage
+* **techstack:** only a refused grant ends the Connect session; 429, 5xx and network faults keep the refresh token and retry
+* **techstack:** pin the installers to main's bytes and fail a stale pin before merge
+* **techstack:** read the company App session instead of the personal PAT custody
+* **techstack:** record the reserved-guest absence of a failed Proxmox substrate provision
+* **techstack:** require the dedicated bundle operator App ID
+* **techstack:** Services and stack page show the same content on a phone as on the desktop
+* **techstack:** terminalize a failed Proxmox substrate provision on definitive reserved-guest absence
+* **techstack:** terminalize resource-free Proxmox substrate teardown without a capacity release
+* **techstack:** the Render deploy admits with the requalified Techstack recipe (workspace 0d87b8f8)
+* **techstack:** the schema blocker reports its cause and the schema-expand producer logs the child failure
+* **techstack:** upgrade an older installed Companion at start and on an AppLink version refusal, ending a running one first
+* **test:** copy the contract bundle into the bundlegen drift test's export
+* **workbench:** align host renderer contract identity
+
+
+
 ## 0.57.19 (2026-11-19)
 
 ### Fixed
