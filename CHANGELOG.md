@@ -477,6 +477,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.57.19 (2026-11-19)
+
+### Fixed
+
+* **delivery:** delete the one-shot Render queue recovery lane bound to old run ids
+* **delivery:** observe the OSS publisher for 90 minutes
+* **techstack:** Kombify.Client.Shell publishes itself when its version changes on main
+* **techstack:** the Render deploy admits with the requalified Techstack recipe (workspace 0d87b8f8)
+* **techstack:** upgrade an older installed Companion at start and on an AppLink version refusal, ending a running one first
+
 ## 0.57.18 (2026-11-18)
 
 ### Added
