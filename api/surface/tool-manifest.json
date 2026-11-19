@@ -548,7 +548,7 @@
                         },
                         "secretRefs": {
                           "additionalProperties": {
-                            "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                            "pattern": "^(secret|vault|doppler|homelab)://[^\\s]+$",
                             "type": "string"
                           },
                           "type": "object"
@@ -1163,7 +1163,7 @@
                             },
                             "secretRefs": {
                               "additionalProperties": {
-                                "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                                "pattern": "^(secret|vault|doppler|homelab)://[^\\s]+$",
                                 "type": "string"
                               },
                               "type": "object"

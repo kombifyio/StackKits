@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// The agent link of this node (homelab identity target §7, §10): Techstack
+// The agent link of this node (homelab identity target §7, §10): Homelab
 // hands the Gateway's agent envelope verification key, the server and tenant
 // it was issued for, the owner's kombify subject and the D10 references to the
 // node; the Guard dispatches these commands with fixed argv (StackKit
@@ -27,7 +27,7 @@ func init() {
 		Use:   "agent-link",
 		Short: "Pin, show or remove the Gateway key that kombify agent envelopes are verified against",
 		Long: "A kombify agent reaches this node's /mcp with a Gateway-signed envelope that the Access Gate verifies against " +
-			"the key pinned here at linking and maps through the D10 reference to a Homelab account. Techstack delivers the " +
+			"the key pinned here at linking and maps through the D10 reference to a Homelab account. Homelab delivers the " +
 			"link over the Guard when the server is registered as a Connect node and whenever the key or the linked members " +
 			"change. install pins the key document for this node's own Guard enrollment and maps the owner's kombify subject " +
 			"to the Owner of this node's custody and each linked member to their account. Pinning a key, re-keying and changing " +
@@ -44,7 +44,7 @@ func init() {
 		RunE: runIdentityAgentLinkInstall,
 	}
 	install.Flags().String("file", "", "Workspace-relative stackkit.home-agent-link-request/v1 JSON (no secret: the public key, the owner's kombify subject and the linked members' kombify subjects and Pocket ID usernames)")
-	install.Flags().String("expect-sha256", "", "Required: the sha256:<hex> digest of the file's exact bytes (the request Techstack dispatched)")
+	install.Flags().String("expect-sha256", "", "Required: the sha256:<hex> digest of the file's exact bytes (the request Homelab dispatched)")
 	install.Flags().Duration("wait", 5*time.Minute, "How long to wait for the Owner's passkey step-up when one is needed; the request stays open after a shorter wait")
 	install.Flags().Bool("owner-approve", false, "Approve pinning this key for agent access to this node (a new key or owner also needs the Owner's passkey step-up)")
 	install.Flags().Bool("json", false, "Emit the pinned link as a command result")
@@ -140,7 +140,7 @@ func runIdentityAgentLinkInstall(cmd *cobra.Command, _ []string) error {
 		// Pinning a key, re-keying and changing the owner decide which
 		// agents act for the Owner on this node: an Owner act on homelab
 		// identity, approved with a passkey step-up at the Authority (homelab
-		// identity target §10), never by Techstack's assertion alone.
+		// identity target §10), never by Homelab's assertion alone.
 		wait, _ := cmd.Flags().GetDuration("wait")
 		stepUp, approved, err := awaitAgentLinkStepUp(cmd, root, request, wait)
 		if err != nil {

@@ -27,7 +27,7 @@ import (
 
 #SemanticVersion: string & =~"^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
 #ContentHash:     string & =~"^sha256:[a-f0-9]{64}$"
-#SecretReference: string & =~"^(secret|vault|doppler|techstack)://[^[:space:]]+$"
+#SecretReference: string & =~"^(secret|vault|doppler|homelab)://[^[:space:]]+$"
 #AbsolutePath:    string & =~"^/[^[:cntrl:]]*$"
 
 // External host references are opaque control-plane handles. Their fixed
@@ -1430,7 +1430,7 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 // nodes[].hardware.profile  device class (#HardwareProfileV2)
 // context                   legacy migration input only; v2 init rejects --context
 //
-// Init and the Techstack Unifier write explicit native module selections.
+// Init and the Homelab Unifier write explicit native module selections.
 // Apply executes; inventory admits capacity and never rewrites selections.
 // Missing or undeclared profiles fail closed, without a standard fallback.
 #ComputeTierV2: "low" | "standard" | "high"
@@ -1584,7 +1584,7 @@ _backupRetentionCeiling: #BackupRetentionV1 & {
 	driftPolicy: #DriftPolicyV1 | *{}
 	notifications?: #NotificationIntentV1
 	observability?: #ModuleOTLPBaselineV1
-	// A deployment managed by Techstack (Advanced Mode) exports metrics to the
+	// A deployment managed by Homelab (Advanced Mode) exports metrics to the
 	// loopback Guard sink unless the spec names its own collector transport.
 	// Standard Mode has no such default: it stays account-free and names its
 	// own receiver.
@@ -3102,7 +3102,7 @@ _servicePublicationShape: {
 	}
 	approval: {
 		required:        true
-		authority:       "techstack"
+		authority:       "homelab"
 		policyAuthority: "gateway"
 		// agent-equipment: the acting agent's equipment answers the Decision
 		// through Gateway policy (D-2026-10-23-06), never a per-use person
@@ -3166,7 +3166,7 @@ _servicePublicationShape: {
 			allowed:          true
 			required:         false
 			referenceScheme:  "diagnostic"
-			custodyAuthority: "techstack"
+			custodyAuthority: "homelab"
 			inlineMaterial:   false
 			directAccess:     false
 		}
@@ -3876,7 +3876,7 @@ _servicePublicationShape: {
 	homeAssistantOIDC?: {version: string, sha256: string, patch: string, patchSHA256: string, aiofilesSHA256: string, joserfcSHA256: string}
 	// homeAssistantNotify is the owner-opt-in "kombify notify" right of the
 	// governed Home Assistant component: a REST notify target that posts the
-	// automation author's text to the node's local Techstack agent. It stays
+	// automation author's text to the node's local Homelab agent. It stays
 	// inert until the owner turns on the named workload setting. The target
 	// directory holds the generated platform file and its secrets file; the
 	// node adapter binds the container-network address and the node-held
@@ -5833,7 +5833,7 @@ _servicePublicationShape: {
 #OtelLoopbackEndpoint: =~"^([a-z]+://)?(127\\.[0-9]+\\.[0-9]+\\.[0-9]+|localhost|\\[::1\\])(:[0-9]+)?(/.*)?$"
 
 // #GuardOTLPSinkEndpoint is the loopback OTLP/gRPC sink of kombify Guard, the
-// Techstack node agent. A deployment managed by Techstack runs in Advanced
+// Homelab node agent. A deployment managed by Homelab runs in Advanced
 // Mode and has a Guard on every node; the Guard is that node's only telemetry
 // egress, so the collector exports to this sink instead of to the network
 // (SERVER-CONNECTION-STANDARD section 9). The Guard sink accepts OTLP metrics

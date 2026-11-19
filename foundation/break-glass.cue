@@ -94,6 +94,6 @@ package foundation
 		value: =~"^\\$argon2id\\$.*"
 	}
 	if kind == "ref" {
-		value: =~"^(techstack|secret|doppler|vault)://.+|^(env|file):.+"
+		value: =~"^(homelab|secret|doppler|vault)://.+|^(env|file):.+"
 	}
 }

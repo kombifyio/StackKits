@@ -18,8 +18,8 @@ import (
 // step-up per action at the Authority and are never reachable by an envelope,
 // read or write; the Owner runs them at the console or in the Hub.
 const (
-	agentCapabilityOperate     = "techstack.inventory.operate"
-	agentCapabilityMaintenance = "techstack.server.maintenance"
+	agentCapabilityOperate     = "homelab.inventory.operate"
+	agentCapabilityMaintenance = "homelab.server.maintenance"
 )
 
 // agentSensitiveOperations are operation ID prefixes of identity, secrets,
@@ -106,9 +106,9 @@ func envelopeToolCallDenial(body []byte, capability string) string {
 }
 
 // agentMaintenanceOperations are the server maintenance operations a
-// techstack.server.maintenance lease reaches: upgrades, host updates and
+// homelab.server.maintenance lease reaches: upgrades, host updates and
 // reboots, backups, restores, drift repair, service control and rollback.
-// Every other mutation is an inventory operation of techstack.inventory.operate.
+// Every other mutation is an inventory operation of homelab.inventory.operate.
 var agentMaintenanceOperations = []string{
 	"stackkit.upgrade", "stackkit.host.", "stackkit.backup", "stackkit.restore", "stackkit.drift", "stackkit.service.",
 	"stackkit.advanced.restore-drill.", "stackkit.advanced.rollback.", "stackkit.output-transaction.",

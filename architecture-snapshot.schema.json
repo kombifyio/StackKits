@@ -42,7 +42,7 @@
       "items": {"$ref": "#/$defs/catalogEntry"}
     },
     "module_profiles": {
-      "description": "Declared compute and accelerator footprints per Architecture v2 module contract. Undeclared axes are absent, never zero (ADR-0039). Techstack owns recommendation over them.",
+      "description": "Declared compute and accelerator footprints per Architecture v2 module contract. Undeclared axes are absent, never zero (ADR-0039). Homelab owns recommendation over them.",
       "type": "array",
       "items": {"$ref": "#/$defs/moduleProfiles"}
     },

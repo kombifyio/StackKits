@@ -58,7 +58,7 @@ const (
 const (
 	IdentityEdge    = "edge_device"
 	IdentityConnect = "connect_installation"
-	IdentityNode    = "techstack_node"
+	IdentityNode    = "homelab_node"
 	IdentityExt     = "external"
 	StatusActive    = "active"
 	StatusRevoked   = "revoked"

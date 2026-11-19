@@ -13,7 +13,7 @@ const RecoveryBudget = 10 * time.Minute
 type commandDeadlineKey struct{}
 
 // WithCommandDeadline records the time by which the whole command, recovery
-// included, must have returned. Its caller (for example Techstack's agent)
+// included, must have returned. Its caller (for example Homelab's agent)
 // kills the process at that point, so a recovery that runs past it is lost.
 func WithCommandDeadline(ctx context.Context, deadline time.Time) context.Context {
 	return context.WithValue(ctx, commandDeadlineKey{}, deadline)

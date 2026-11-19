@@ -18,7 +18,7 @@ type productHomePrivateRemoteAccessFactory struct {
 // NewProductHomePrivateRemoteAccessRegistration binds the exact node-local
 // private-remote-access owner to the node's reach custody. A standalone Home
 // core realizes the capability through the standard reach paths; a
-// Techstack-dispatched channel keeps the process-dispatched owner.
+// Homelab-dispatched channel keeps the process-dispatched owner.
 func NewProductHomePrivateRemoteAccessRegistration(runtimeVersion string, operations nativehost.HomePrivateRemoteAccessOperations) (ProductRuntimeOwnerRegistration, error) {
 	if runtimeVersion == "" || runtimeVersion != strings.TrimSpace(runtimeVersion) || nilProductRuntimeOwnerValue(operations) {
 		return ProductRuntimeOwnerRegistration{}, errors.New("Home private-remote-access product registration requires a runtime version and operations owner")

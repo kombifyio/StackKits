@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-11-19T11:36:35Z",
+  "generated_at": "2026-11-19T18:21:22Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1599,8 +1599,8 @@
       "display_name": "Monitoring Agent (OTel)",
       "version": "2.0.0",
       "layer": "L2-platform-ingress",
-      "description": "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to TechStack or monitoring-core",
-      "contract_hash": "513e301afaf20fd1486cc470d7e41e9c3f39e93f91e2c5566a7713800ef3420a",
+      "description": "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to Homelab or monitoring-core",
+      "contract_hash": "756a36cc4dae76c1bb748746e48ccd0db11a40f51d22ede1b92f121e1b5b41dd",
       "supported_contexts": [
         "local",
         "cloud",
@@ -2182,7 +2182,7 @@
           "kind": "default",
           "is_default": true,
           "spec_hash": "23424987f6fd7dc188d7f5e8e834b4ffe3c8d05751b72b8fecd4ee2cce1a79c6",
-          "kit_definition_hash": "7e86c9000fc16dc87caed2662a5b43b5c53a627ff087b0ca0deeaf9d4ea0ebe5",
+          "kit_definition_hash": "b5b0809347bb19fb568f642b6db3ebd445f69f04be76840254a98f6bcfd1722e",
           "module_contract_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
         }
       ]
@@ -2199,7 +2199,7 @@
           "slug": "default",
           "kind": "default",
           "is_default": true,
-          "kit_definition_hash": "1ba4011c6b67da3583afd070b4f883b41dac03650a4171416c0317e52fb69b3c"
+          "kit_definition_hash": "203d71a6889f20fcbe8e7422bf04bad7f0545ae939de207f84a2718245b6eacb"
         }
       ]
     },

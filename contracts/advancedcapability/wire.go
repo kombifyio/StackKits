@@ -33,10 +33,10 @@ func invalid(field, detail string) error {
 	return &ValidationError{Field: field, Detail: detail}
 }
 
-// IsTechstackIssuerID reports whether issuerID names a Techstack issuer: the
+// IsHomelabIssuerID reports whether issuerID names a Homelab issuer: the
 // bare IssuerClass or IssuerClass followed by "." and a per-installation
-// suffix. Advanced Mode is Techstack-only, so no other issuer is valid.
-func IsTechstackIssuerID(issuerID string) bool {
+// suffix. Advanced Mode is Homelab-only, so no other issuer is valid.
+func IsHomelabIssuerID(issuerID string) bool {
 	if !issuerIdPattern.MatchString(issuerID) {
 		return false
 	}
@@ -98,7 +98,7 @@ func (c Capability) ExpiresAtTime() time.Time {
 }
 
 // ValidateClaims checks every time-independent wire rule of the unsigned
-// document: constants, patterns, a Techstack issuer, a non-empty sorted
+// document: constants, patterns, a Homelab issuer, a non-empty sorted
 // operation set, logical references, exact-second UTC times, the 30-day
 // lifetime bound, and the backup renewal and transfer retirement shapes. It does not check the
 // signature, trusted time, or the caller's local scope.
@@ -106,7 +106,7 @@ func (c Capability) ValidateClaims() error {
 	if err := c.checkFormats(); err != nil {
 		return err
 	}
-	if !IsTechstackIssuerID(c.IssuerID) {
+	if !IsHomelabIssuerID(c.IssuerID) {
 		return invalid("issuerId", "must name a "+IssuerClass+" issuer")
 	}
 	if len(c.AllowedOperations) == 0 || !slices.IsSorted(c.AllowedOperations) {
@@ -278,7 +278,7 @@ func (b TrustBundle) Digest() string {
 	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
-// Validate checks the bundle version, the key count, Techstack issuers,
+// Validate checks the bundle version, the key count, Homelab issuers,
 // key-id binding, and that no issuer/key binding repeats.
 func (b TrustBundle) Validate() error {
 	if err := b.checkFormats(); err != nil {
@@ -292,7 +292,7 @@ func (b TrustBundle) Validate() error {
 		if _, err := key.RawPublicKey(); err != nil {
 			return err
 		}
-		if !IsTechstackIssuerID(key.IssuerID) {
+		if !IsHomelabIssuerID(key.IssuerID) {
 			return invalid("issuerId", "must name a "+IssuerClass+" issuer")
 		}
 		identity := key.IssuerID + "\x00" + key.KeyID

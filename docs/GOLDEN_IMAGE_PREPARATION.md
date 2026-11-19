@@ -18,7 +18,7 @@ retries when the console next starts; missing network never traps the login.
 The physical console then offers `local` or `connect`. `local` starts no
 Cloud login and leaves Guard services disabled. `connect` uses the existing
 Auth0 device-code prompt at `login.kombify.io`, the account-authorized
-`/v1/techstack/trust/pairing-tokens` mint and `techstack agent enroll`. The
+`/v1/homelab/trust/pairing-tokens` mint and `homelab agent enroll`. The
 native access/refresh/ID tokens stay in memory; only the one-time capability
 is retained owner-only to resume an interrupted enrollment, and the canonical
 enroll command deletes it after use. Guard creates the host key on the mini
@@ -33,7 +33,7 @@ Assembly fails closed unless the golden image passed its existing sanitation
 and clone checks and its signed Guard supports `agent pair --check`. The kit
 release's signed Guard prerequisite must therefore include appliance pairing.
 The workflow's non-secret repository variable
-`TECHSTACK_CLOUD_NATIVE_CLIENT_ID` identifies the existing Auth0 Native
+`HOMELAB_CLOUD_NATIVE_CLIENT_ID` identifies the existing Auth0 Native
 application with Device Authorization Grant and Gateway audience
 `https://api.kombify.io`; no client secret is embedded. Missing configuration
 publishes no installer and leaves the Proxmox image path independent.
@@ -76,7 +76,7 @@ the source change. M13 owns these runs; AP17.2 implementation closes on merge.
 
 StackKits can preinstall its attested release, packaged OpenTofu provider closure,
 Terramate and immutable core container images before a machine image is captured.
-`stackkit image` owns this neutral cache boundary. Techstack owns VM construction,
+`stackkit image` owns this neutral cache boundary. Homelab owns VM construction,
 OS sysprep, publication and per-clone Guard enrollment.
 
 Every published kit release carries a ready image for Ubuntu 26.04 and 24.04
@@ -92,7 +92,7 @@ again; no previous machine's host-conformance receipt is reused.
 The initial profiles are `cloud-core-compose` (default), `basement-core-compose`
 and `basement-core-lite-compose`. Their names describe the container payload,
 not the IaC generation target. Cloud retains its standalone Compose default;
-Basement retains its CUE-owned OpenTofu default. Every Techstack-managed clone
+Basement retains its CUE-owned OpenTofu default. Every Homelab-managed clone
 uses Advanced Terramate from its first rollout. Modern Homelab, optional
 applications and other platform adapters are outside these core cache profiles.
 
@@ -139,7 +139,7 @@ changed release, incomplete cache or modified package is refused. The metadata
 root permits only its manifest and selected release cache. The deployment target
 must stay empty. Paths may not traverse symlinks. Copied Owner keys, runtime
 custody, journals, generated data and unexpected entries are refused and retained.
-StackKits never deletes state to make an image neutral. Techstack's OS seal must
+StackKits never deletes state to make an image neutral. Homelab's OS seal must
 also exclude machine identity, SSH host keys and credentials outside these roots.
 
 ## First boot of each clone
@@ -167,7 +167,7 @@ Basement's current catalog default uses the lite core and
 `--use-case-alternative basement-core=standalone` to native init. CUE validates
 the final selection, and image admission refuses a different core module.
 
-For Techstack-managed first boot, use its existing admitted native candidate with
+For Homelab-managed first boot, use its existing admitted native candidate with
 `generation.target: terramate` and its existing Advanced capabilities. Keep the
 candidate outside the empty deployment directory:
 
@@ -180,7 +180,7 @@ sudo stackkit init cloud-kit --non-interactive \
 # Continue through the existing capability-gated Advanced generate/apply flow.
 ```
 
-The managed handoff comes from the existing Techstack execution path. Selecting
+The managed handoff comes from the existing Homelab execution path. Selecting
 Terramate or presenting a manifest does not grant an Advanced capability.
 Standard Mode needs no kombify account and retains its regular lifecycle.
 
@@ -266,7 +266,7 @@ write_files:
     permissions: '0600'
     content: "<KOMBI_TOKEN>"
 runcmd:
-  - [sh, -c, '/usr/local/bin/techstack agent enroll --server "<KOMBI_SERVER>" --token-file /run/kombify/pairing && /usr/local/bin/techstack guard layout apply --activate']
+  - [sh, -c, '/usr/local/bin/homelab agent enroll --server "<KOMBI_SERVER>" --token-file /run/kombify/pairing && /usr/local/bin/homelab guard layout apply --activate']
 YAML
 qm set 120 --cicustom user=local:snippets/kombify-120.yaml
 qm start 120

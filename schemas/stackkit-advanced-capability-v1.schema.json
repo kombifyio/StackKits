@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stackkits.dev/schemas/stackkit-advanced-capability-v1.schema.json",
   "title": "StackKit Advanced capability v1",
-  "description": "Input of every capability-gated Advanced operation (--capability): a short-lived, secret-free, Techstack-signed grant scoped to one local stack and Owner. The file must be the exact canonical JSON form; the Ed25519 signature covers the canonical document without signature. Verification is offline against the imported stackkit.advanced-trust-bundle/v1; internal/advancedcapability is the authority (lifetime at most 30 days).",
+  "description": "Input of every capability-gated Advanced operation (--capability): a short-lived, secret-free, Homelab-signed grant scoped to one local stack and Owner. The file must be the exact canonical JSON form; the Ed25519 signature covers the canonical document without signature. Verification is offline against the imported stackkit.advanced-trust-bundle/v1; internal/advancedcapability is the authority (lifetime at most 30 days).",
   "type": "object",
   "additionalProperties": false,
   "required": [

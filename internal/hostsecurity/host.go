@@ -2,7 +2,7 @@
 // baseline on one node and produces versioned, expiring evidence of it.
 //
 // It is the node-side half of continuous host-security evidence:
-// Techstack dispatches the operation through the pinned StackKits CLI, and a
+// Homelab dispatches the operation through the pinned StackKits CLI, and a
 // standalone (Standard Mode) operator runs the same commands without any
 // account. Every host interaction goes through the Host interface so the
 // decisions (what is compliant, what may be repaired without cutting the

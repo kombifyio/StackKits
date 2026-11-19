@@ -14,9 +14,9 @@ const ExecutionChannelUnboundBlocker = "execution-channel-unbound"
 
 // executionChannelUnboundGuidance names the route for a node this host cannot
 // reach, such as a Modern Cloud node: the standalone CLI has no executor for
-// it, and Advanced Mode runs through kombify Techstack only.
+// it, and Advanced Mode runs through kombify Homelab only.
 const executionChannelUnboundGuidance = "the standalone CLI cannot execute a node on another host; " +
-	"manage this deployment with kombify Techstack, which runs Advanced Mode and executes that node through the pinned StackKits CLI"
+	"manage this deployment with kombify Homelab, which runs Advanced Mode and executes that node through the pinned StackKits CLI"
 
 // ExecutionChannelBlockers returns one blocker per Site/node that a runtime
 // target this host executes names but bound does not cover. A nil scope means

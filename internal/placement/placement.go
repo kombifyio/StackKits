@@ -5,7 +5,7 @@
 // provider+target for the realizable placement modes.
 //
 // StackKits-OSS realizes only S1 — local-only and standard+cloudless. The
-// managed-serverless mode and any coupled placement are S2/S3 (TechStack /
+// managed-serverless mode and any coupled placement are S2/S3 (Homelab /
 // Control-Plane) and are rejected here with ErrNotS1; their per-deployment
 // bindings live in the kombify-DB sk_* catalog (Control Plane), never in
 // this repo.
@@ -32,11 +32,11 @@ type Result struct {
 }
 
 // ErrNotS1 signals a placement that StackKits-OSS does not realize
-// (managed-serverless mode or coupled coupling → TechStack/SaaS, S2/S3).
+// (managed-serverless mode or coupled coupling → Homelab/SaaS, S2/S3).
 type ErrNotS1 struct{ Mode, Coupling string }
 
 func (e ErrNotS1) Error() string {
-	return fmt.Sprintf("placement %q (coupling %q) requires TechStack/SaaS (S2/S3); not realized by StackKits-OSS", e.Mode, e.Coupling)
+	return fmt.Sprintf("placement %q (coupling %q) requires Homelab/SaaS (S2/S3); not realized by StackKits-OSS", e.Mode, e.Coupling)
 }
 
 // s1Capabilities maps each realizable mode to its capability bindings.

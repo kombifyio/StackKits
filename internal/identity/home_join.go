@@ -28,25 +28,25 @@ import (
 )
 
 // One Authority across servers (homelab identity target §4, §14.1, P2).
-// Several servers exist only under Techstack; the server that runs Pocket ID
+// Several servers exist only under Homelab; the server that runs Pocket ID
 // is the Authority and every further server joins it:
 //
 //  1. The joining server prepares a join request (PrepareHomeJoin): its own
 //     server identity, the hostnames it serves, a fresh P-256 key for its
 //     intermediate CA (host custody) and an Ed25519 key that authenticates
 //     its verification-state reads (verification custody).
-//  2. Techstack carries the request to the Authority, whose console raises
+//  2. Homelab carries the request to the Authority, whose console raises
 //     an Owner step-up of class join for exactly this request; the Owner
 //     approves with a passkey in the Hub (ApproveHomeJoin). The Authority's
 //     step-ca root then signs the intermediate (DNS subtrees of the server's
 //     hostnames, every IP range and the identity names excluded, path length
 //     0, 90 days) and its Owner key signs the trust bundle: issuer, keys,
 //     Owner subject, root, revocation feed.
-//  3. Techstack carries the bundle back; the joining server's console shows
+//  3. Homelab carries the bundle back; the joining server's console shows
 //     the root fingerprint, the Owner confirms it, and InstallHomeJoin
 //     verifies every signature and constraint before it installs the trust.
 //
-// Techstack only carries both documents: it can neither forge nor widen one.
+// Homelab only carries both documents: it can neither forge nor widen one.
 const (
 	HomeJoinRequestSchema = "stackkit.homelab-join-request/v1"
 	HomeTrustBundleSchema = "stackkit.homelab-trust-bundle/v1"
@@ -114,7 +114,7 @@ type homeJoinPrivateKey struct {
 // root fingerprint the Owner read at the Authority and entered here; only a
 // bundle under that root ever installs. It generates the intermediate CA key
 // into host custody and the state-read key into verification custody and
-// returns the request Techstack carries. A server that already holds an
+// returns the request Homelab carries. A server that already holds an
 // Authority's device registry, or already joined, cannot request.
 func PrepareHomeJoin(root string, hostnames []string, authorityRoot string, now time.Time) (HomeJoinRequest, error) {
 	owner, err := localevidence.LoadOwnerCustody(root)

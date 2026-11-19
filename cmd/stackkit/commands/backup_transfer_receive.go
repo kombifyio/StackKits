@@ -24,7 +24,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Receiving steps a Techstack receive capability names. Each is authorized
+// Receiving steps a Homelab receive capability names. Each is authorized
 // separately: one grant never admits another step.
 const (
 	applicationTransferReceiveAdmit   = "admit"
@@ -72,10 +72,10 @@ func currentApplicationTransferIntent(workspace string) (applicationTransferInte
 	return applicationTransferIntent{Mode: intent.Install.Mode, SpecPath: specPath, SpecHash: current.SpecHash, Canonical: current.CanonicalStackSpec}, nil
 }
 
-// applicationTransferManaged reports whether this node is Techstack-managed,
+// applicationTransferManaged reports whether this node is Homelab-managed,
 // through the one managed-intent detector the other intent changes use
 // (install.mode advanced or an imported Advanced trust record). A managed
-// node receives and retires a transfer only under the exact Techstack
+// node receives and retires a transfer only under the exact Homelab
 // capability; a standalone node stays Standard Mode.
 func applicationTransferManaged(workspace string) (bool, error) {
 	intent, err := currentApplicationTransferIntent(workspace)
@@ -85,7 +85,7 @@ func applicationTransferManaged(workspace string) (bool, error) {
 	return advancedManagedIntent(workspace, intent.Mode)
 }
 
-// admitApplicationTransferReceive verifies the Techstack receive capability
+// admitApplicationTransferReceive verifies the Homelab receive capability
 // of one receiving step on a managed node. Every scope field is reconstructed
 // here: the candidate is this node's exact desired intent and the source Owner
 // is the one the authenticated transfer (or the admit request) names. A
@@ -98,12 +98,12 @@ func admitApplicationTransferReceive(cmd *cobra.Command, workspace, stackID, ste
 	path, _ := cmd.Flags().GetString("capability")
 	if !managed {
 		if path != "" {
-			return errors.New("a standalone node receives a transfer without a Techstack capability; this node has no Advanced trust")
+			return errors.New("a standalone node receives a transfer without a Homelab capability; this node has no Advanced trust")
 		}
 		return nil
 	}
 	if path == "" {
-		return &advancedcapability.Denial{Code: advancedcapability.ReasonCapabilityRequired, Field: "capability", Detail: "managed receiving transfer step " + step + " requires its exact Techstack capability; nothing was received"}
+		return &advancedcapability.Denial{Code: advancedcapability.ReasonCapabilityRequired, Field: "capability", Detail: "managed receiving transfer step " + step + " requires its exact Homelab capability; nothing was received"}
 	}
 	raw, err := readAdvancedRegular(resolvePathFromWorkDir(workspace, path), maxAdvancedTrustBundleBytes, "Advanced capability")
 	if err != nil {
@@ -309,7 +309,7 @@ func readApplicationTransferAdmittedIntent(workspace, nonce string) (application
 	return record, true, nil
 }
 
-// admitManagedApplicationTransferCandidate persists the Techstack-approved
+// admitManagedApplicationTransferCandidate persists the Homelab-approved
 // receiving candidate as this node's desired intent and generates it. No
 // runtime is applied: the receiving application's first Apply follows the
 // credential adoption (transfer-prepare). The grant binds the exact candidate

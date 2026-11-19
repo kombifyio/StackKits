@@ -3,7 +3,7 @@
   "program": "stackkit",
   "usage": "stackkit [flags]",
   "short": "Set up and care for your own services with portable StackKits",
-  "description": "Run your own services from a portable StackKit definition.\nThe standalone local path needs no kombify account or Techstack.\n\nStart in a dedicated deployment directory:\n  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com\n\nThen review your saved choices and follow the next step printed by init.\nNothing is installed by init. Catalog defaults come from the selected Kit;\nexplicit flags let you change its choices.\n\nYour local workflow:\n  init       Save your desired configuration\n  validate   Check the configuration\n  generate   Prepare the deployment artifacts\n  plan       Review infrastructure changes\n  apply      Execute the admitted changes\n  verify     Check the result\n  drift      Compare the running deployment with the applied plan\n\nReturning to an existing deployment? Run stackkit verify and stackkit drift detect in its directory.\nUse stackkit <command> --help for examples and detailed options.",
+  "description": "Run your own services from a portable StackKit definition.\nThe standalone local path needs no kombify account or Homelab.\n\nStart in a dedicated deployment directory:\n  stackkit init basement-kit --catalog-defaults --owner-source=local --owner-email you@example.com\n\nThen review your saved choices and follow the next step printed by init.\nNothing is installed by init. Catalog defaults come from the selected Kit;\nexplicit flags let you change its choices.\n\nYour local workflow:\n  init       Save your desired configuration\n  validate   Check the configuration\n  generate   Prepare the deployment artifacts\n  plan       Review infrastructure changes\n  apply      Execute the admitted changes\n  verify     Check the result\n  drift      Compare the running deployment with the applied plan\n\nReturning to an existing deployment? Run stackkit verify and stackkit drift detect in its directory.\nUse stackkit <command> --help for examples and detailed options.",
   "globalFlags": [
     {
       "name": "chdir",
@@ -1014,8 +1014,8 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit app [flags]",
-      "short": "Inspect application delivery and run a Techstack own application",
-      "description": "Inspect the governed Architecture v2 application-delivery matrix for\nCoolify, Komodo, and standalone Compose.\n\nOptional customer PaaS handoff metadata remains available only on the explicit\nv0.6 StackSpec compatibility line. StackKit-owned applications come from the CUE\ncatalog. Customer-workload desired state belongs to Techstack: app own consumes\nits versioned one-container document on an installed Direct Compose Home node.",
+      "short": "Inspect application delivery and run a Homelab own application",
+      "description": "Inspect the governed Architecture v2 application-delivery matrix for\nCoolify, Komodo, and standalone Compose.\n\nOptional customer PaaS handoff metadata remains available only on the explicit\nv0.6 StackSpec compatibility line. StackKit-owned applications come from the CUE\ncatalog. Customer-workload desired state belongs to Homelab: app own consumes\nits versioned one-container document on an installed Direct Compose Home node.",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -1130,7 +1130,7 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit app own [flags]",
-      "short": "Render or operate one Techstack-owned container or Compose project on this node, or adopt an existing container (--from-container)",
+      "short": "Render or operate one Homelab-owned container or Compose project on this node, or adopt an existing container (--from-container)",
       "description": "",
       "runnable": true,
       "examples": [],
@@ -1151,7 +1151,7 @@
         {
           "name": "capability",
           "type": "string",
-          "description": "Managed node: Techstack capability (own-application.lifecycle) for an executed start, stop, restart, update or rollback",
+          "description": "Managed node: Homelab capability (own-application.lifecycle) for an executed start, stop, restart, update or rollback",
           "required": false
         },
         {
@@ -1187,7 +1187,7 @@
         {
           "name": "document",
           "type": "string",
-          "description": "Techstack own-application/v1, v2 or v3 JSON document (v2 outbound requires managed host firewall)",
+          "description": "Homelab own-application/v1, v2 or v3 JSON document (v2 outbound requires managed host firewall)",
           "required": false
         },
         {
@@ -2566,7 +2566,7 @@
         {
           "name": "capability",
           "type": "string",
-          "description": "Techstack capability for the exact Advanced held target retirement",
+          "description": "Homelab capability for the exact Advanced held target retirement",
           "required": false
         },
         {
@@ -2806,7 +2806,7 @@
         {
           "name": "capability",
           "type": "string",
-          "description": "Techstack capability for the exact Advanced held transfer retirement",
+          "description": "Homelab capability for the exact Advanced held transfer retirement",
           "required": false
         },
         {
@@ -2869,7 +2869,7 @@
         {
           "name": "capability",
           "type": "string",
-          "description": "Managed node: Techstack capability for this exact receiving import",
+          "description": "Managed node: Homelab capability for this exact receiving import",
           "required": false
         },
         {
@@ -2963,7 +2963,7 @@
         {
           "name": "capability",
           "type": "string",
-          "description": "Managed node: Techstack capability for this exact receiving preparation",
+          "description": "Managed node: Homelab capability for this exact receiving preparation",
           "required": false
         },
         {
@@ -3045,7 +3045,7 @@
         {
           "name": "capability",
           "type": "string",
-          "description": "Managed node: Techstack capability for this exact receiving import",
+          "description": "Managed node: Homelab capability for this exact receiving import",
           "required": false
         },
         {
@@ -3207,13 +3207,13 @@
         {
           "name": "candidate-spec",
           "type": "string",
-          "description": "Managed node: the Techstack-approved receiving candidate StackSpec to persist and generate",
+          "description": "Managed node: the Homelab-approved receiving candidate StackSpec to persist and generate",
           "required": false
         },
         {
           "name": "capability",
           "type": "string",
-          "description": "Managed node: Techstack capability for this exact receiving admission",
+          "description": "Managed node: Homelab capability for this exact receiving admission",
           "required": false
         },
         {
@@ -3243,7 +3243,7 @@
         {
           "name": "source-owner",
           "type": "string",
-          "description": "Managed node: the source Owner the Techstack receive capability names",
+          "description": "Managed node: the source Owner the Homelab receive capability names",
           "required": false
         }
       ],
@@ -4072,7 +4072,7 @@
       "group": "reference",
       "usage": "stackkit cluster join-token [flags]",
       "short": "Create a join token for worker or storage nodes",
-      "description": "Create a join token for worker or storage nodes.\n\nThe token is the only supported path for treating another BaseKit install as a\nmember of this homelab. Coolify remote-server registration and TechStack mirror\nupdates consume this cluster identity in later rollout steps.",
+      "description": "Create a join token for worker or storage nodes.\n\nThe token is the only supported path for treating another BaseKit install as a\nmember of this homelab. Coolify remote-server registration and Homelab mirror\nupdates consume this cluster identity in later rollout steps.",
       "runnable": true,
       "examples": [],
       "flags": [
@@ -4199,18 +4199,18 @@
       "group": "reference",
       "usage": "stackkit connect [flags]",
       "short": "Bind this server to your kombify account (a free account is enough)",
-      "description": "Bind this server, which already runs the public package, to the kombify account that created the pairing in the Techstack setup. The server shows its state in kombify Cloud afterwards; changes beyond that stay with the paid plans. Paste the one-time pairing at the hidden terminal prompt. Automation can use --token-file or KOMBI_TOKEN, never a token argument. The control plane origin comes from --server or KOMBI_SERVER (public default https://techstack.kombify.io). For a self-hosted control plane, copy the exact --server origin from its Techstack own-server setup in kombify Cloud. A server that is already bound reports its binding and changes nothing. Run it as root on Linux.",
+      "description": "Bind this server, which already runs the public package, to the kombify account that created the pairing in the Homelab setup. The server shows its state in kombify Cloud afterwards; changes beyond that stay with the paid plans. Paste the one-time pairing at the hidden terminal prompt. Automation can use --token-file or KOMBI_TOKEN, never a token argument. The control plane origin comes from --server or KOMBI_SERVER (public default https://homelab.kombify.io). For a self-hosted control plane, copy the exact --server origin from its Homelab own-server setup in kombify Cloud. A server that is already bound reports its binding and changes nothing. Run it as root on Linux.",
       "runnable": true,
       "examples": [
         {
-          "command": "sudo stackkit connect --server https://techstack.kombify.io\nsudo stackkit connect --server https://your-techstack.example --token-file /root/kombify-pairing"
+          "command": "sudo stackkit connect --server https://homelab.kombify.io\nsudo stackkit connect --server https://your-homelab.example --token-file /root/kombify-pairing"
         }
       ],
       "flags": [
         {
           "name": "server",
           "type": "string",
-          "description": "control plane origin the pairing came from (KOMBI_SERVER, otherwise https://techstack.kombify.io); copy self-hosted origins from the Techstack own-server setup",
+          "description": "control plane origin the pairing came from (KOMBI_SERVER, otherwise https://homelab.kombify.io); copy self-hosted origins from the Homelab own-server setup",
           "required": false
         },
         {
@@ -5807,7 +5807,7 @@
       "group": "reference",
       "usage": "stackkit host delivery [flags]",
       "short": "Manage this node's sealed host delivery recipient",
-      "description": "Sealed host delivery brings Wallet items, backup targets and SSH access to\nthis node. A delivering authority seals each value to this node's recipient key\n(HPKE, pkg/hostdelivery); only this node opens it into its own custody.\nTechstack and Guard carry ciphertext and references only.",
+      "description": "Sealed host delivery brings Wallet items, backup targets and SSH access to\nthis node. A delivering authority seals each value to this node's recipient key\n(HPKE, pkg/hostdelivery); only this node opens it into its own custody.\nHomelab and Guard carry ciphertext and references only.",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -6085,7 +6085,7 @@
       "group": "reference",
       "usage": "stackkit host reboot [flags]",
       "short": "Schedule a reboot of this node",
-      "description": "Schedule a reboot of this node after a short delay and return immediately.\n\nThe returned boot_id_before identifies the current boot, so a caller can tell\nthe node came back by reading a different boot ID. The command refuses a node\nthat runs the Techstack control plane, a node where apt or dpkg holds its lock\nor a host update runs, and a node that cannot boot unattended (volumes in\n/etc/crypttab that need a passphrase, or no apt).\n\nWhen the delay ends a guard checks again, waits up to 15 minutes for any\npackage operation to finish, and requests the reboot while holding the dpkg\nlocks. A node that stays busy is not rebooted; its boot ID stays the same.",
+      "description": "Schedule a reboot of this node after a short delay and return immediately.\n\nThe returned boot_id_before identifies the current boot, so a caller can tell\nthe node came back by reading a different boot ID. The command refuses a node\nthat runs the Homelab control plane, a node where apt or dpkg holds its lock\nor a host update runs, and a node that cannot boot unattended (volumes in\n/etc/crypttab that need a passphrase, or no apt).\n\nWhen the delay ends a guard checks again, waits up to 15 minutes for any\npackage operation to finish, and requests the reboot while holding the dpkg\nlocks. A node that stays busy is not rebooted; its boot ID stays the same.",
       "runnable": true,
       "examples": [
         {
@@ -6186,7 +6186,7 @@
       "group": "reference",
       "usage": "stackkit host security [flags]",
       "short": "Verify and repair the host security baseline with versioned evidence",
-      "description": "Observe this node against the StackKits host security baseline, and restore what\ndrifted without cutting the management path.\n\n'verify' never changes the host. It produces stackkit.host-security-evidence/v1\nfor the firewall, sshd, brute-force protection, automatic and pending security\nupdates, reboot state, kernel parameters, exposed listeners and certificate\nexpiry, and for the SSH CA trust and host certificate delivered to this node\n('host ssh apply') once they are recorded. Every control is compliant, drifted, unknown or an owner-approved\nexception, and the evidence expires: a stale observation is unknown, and an\nunknown control never counts as compliant.\n\nIt works on its own (Standard Mode, no account) and through the pinned CLI when\nTechstack manages the deployment (--mode advanced).",
+      "description": "Observe this node against the StackKits host security baseline, and restore what\ndrifted without cutting the management path.\n\n'verify' never changes the host. It produces stackkit.host-security-evidence/v1\nfor the firewall, sshd, brute-force protection, automatic and pending security\nupdates, reboot state, kernel parameters, exposed listeners and certificate\nexpiry, and for the SSH CA trust and host certificate delivered to this node\n('host ssh apply') once they are recorded. Every control is compliant, drifted, unknown or an owner-approved\nexception, and the evidence expires: a stale observation is unknown, and an\nunknown control never counts as compliant.\n\nIt works on its own (Standard Mode, no account) and through the pinned CLI when\nHomelab manages the deployment (--mode advanced).",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -6317,7 +6317,7 @@
           "name": "mode",
           "type": "string",
           "default": "standard",
-          "description": "Lifecycle mode to record: standard, or advanced when Techstack manages this deployment",
+          "description": "Lifecycle mode to record: standard, or advanced when Homelab manages this deployment",
           "required": false
         },
         {
@@ -6396,7 +6396,7 @@
         },
         {
           "command": "sudo stackkit host security verify --mode advanced --json --fail-on-drift --drift-scope enforced",
-          "description": "What the Techstack host pre-step runs: only the controls the baseline enforces decide the exit code; patch lag, pending reboot, exposure and certificates are still observed and reported"
+          "description": "What the Homelab host pre-step runs: only the controls the baseline enforces decide the exit code; patch lag, pending reboot, exposure and certificates are still observed and reported"
         },
         {
           "command": "sudo stackkit host security verify --resolved-plan plan.json --local-node node-1",
@@ -6471,7 +6471,7 @@
           "name": "mode",
           "type": "string",
           "default": "standard",
-          "description": "Lifecycle mode to record: standard, or advanced when Techstack manages this deployment",
+          "description": "Lifecycle mode to record: standard, or advanced when Homelab manages this deployment",
           "required": false
         },
         {
@@ -6660,7 +6660,7 @@
       "group": "reference",
       "usage": "stackkit identity agent-link [flags]",
       "short": "Pin, show or remove the Gateway key that kombify agent envelopes are verified against",
-      "description": "A kombify agent reaches this node's /mcp with a Gateway-signed envelope that the Access Gate verifies against the key pinned here at linking and maps through the D10 reference to a Homelab account. Techstack delivers the link over the Guard when the server is registered as a Connect node and whenever the key or the linked members change. install pins the key document for this node's own Guard enrollment and maps the owner's kombify subject to the Owner of this node's custody and each linked member to their account. Pinning a key, re-keying and changing the owner need the Owner's passkey step-up in the Hub (the request waits up to --wait and stays open for five minutes; a later dispatch picks up the approval); a change of the linked members under the pinned key does not. A higher binding generation or a new Gateway key id replaces the pin; an unchanged request changes nothing. remove deletes the pin when the node is unlinked, status shows what is pinned.",
+      "description": "A kombify agent reaches this node's /mcp with a Gateway-signed envelope that the Access Gate verifies against the key pinned here at linking and maps through the D10 reference to a Homelab account. Homelab delivers the link over the Guard when the server is registered as a Connect node and whenever the key or the linked members change. install pins the key document for this node's own Guard enrollment and maps the owner's kombify subject to the Owner of this node's custody and each linked member to their account. Pinning a key, re-keying and changing the owner need the Owner's passkey step-up in the Hub (the request waits up to --wait and stays open for five minutes; a later dispatch picks up the approval); a change of the linked members under the pinned key does not. A higher binding generation or a new Gateway key id replaces the pin; an unchanged request changes nothing. remove deletes the pin when the node is unlinked, status shows what is pinned.",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -6685,7 +6685,7 @@
         {
           "name": "expect-sha256",
           "type": "string",
-          "description": "Required: the sha256:<hex> digest of the file's exact bytes (the request Techstack dispatched)",
+          "description": "Required: the sha256:<hex> digest of the file's exact bytes (the request Homelab dispatched)",
           "required": false
         },
         {
@@ -6765,7 +6765,7 @@
       "group": "reference",
       "usage": "stackkit identity join [flags]",
       "short": "Join this server to the homelab's Authority, or approve and manage joined servers at the Authority",
-      "description": "Several servers of one homelab share one Authority, the server that runs Pocket ID. A further server prepares a join request, the Owner approves it with a passkey step-up at the Authority, which signs a trust bundle and an intermediate CA for the server's hostnames, and the joining server installs the bundle after the Owner confirmed its root fingerprint there. Techstack only carries the request and the bundle.",
+      "description": "Several servers of one homelab share one Authority, the server that runs Pocket ID. A further server prepares a join request, the Owner approves it with a passkey step-up at the Authority, which signs a trust bundle and an intermediate CA for the server's hostnames, and the joining server installs the bundle after the Owner confirmed its root fingerprint there. Homelab only carries the request and the bundle.",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -6975,8 +6975,8 @@
       "aliases": [],
       "group": "reference",
       "usage": "stackkit identity join zone [flags]",
-      "short": "Report this server's place in the homelab DNS zone, or install the zone Techstack assembled",
-      "description": "Techstack assembles the homelab zone from every server's zone site and carries it to each server. A server installs only what its join trust vouches for: the Authority the names the Owner approved for each joined server, a joined server the Authority at its bundle's LAN address and other servers as the Authority's signed verification state lists them. DNS answers are never identity: TLS verifies each name under the root.",
+      "short": "Report this server's place in the homelab DNS zone, or install the zone Homelab assembled",
+      "description": "Homelab assembles the homelab zone from every server's zone site and carries it to each server. A server installs only what its join trust vouches for: the Authority the names the Owner approved for each joined server, a joined server the Authority at its bundle's LAN address and other servers as the Authority's signed verification state lists them. DNS answers are never identity: TLS verifies each name under the root.",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -7000,7 +7000,7 @@
         {
           "name": "zone",
           "type": "string",
-          "description": "The homelab zone (stackkit.homelab-dns-zone/v1) Techstack assembled",
+          "description": "The homelab zone (stackkit.homelab-dns-zone/v1) Homelab assembled",
           "required": true
         }
       ],
@@ -7460,7 +7460,7 @@
       "group": "reference",
       "usage": "stackkit image [flags]",
       "short": "Prepare and admit an owner-neutral golden image cache",
-      "description": "Prepare immutable core container caches from the embedded CUE catalog.\nThis never initializes an Owner, starts services, creates volumes or prepares a\nprovider VM. Ubuntu 26.04 is the default target; Ubuntu 24.04 remains compatible.\nThe manifest is unsigned cache metadata, never host conformance or Apply authority.\nThe existing packaged OpenTofu provider closure is verified and reused. Network\naccess remains necessary for first-boot service integrations and optional\nworkloads. Techstack owns machine sysprep, VM images and enrollment.",
+      "description": "Prepare immutable core container caches from the embedded CUE catalog.\nThis never initializes an Owner, starts services, creates volumes or prepares a\nprovider VM. Ubuntu 26.04 is the default target; Ubuntu 24.04 remains compatible.\nThe manifest is unsigned cache metadata, never host conformance or Apply authority.\nThe existing packaged OpenTofu provider closure is verified and reused. Network\naccess remains necessary for first-boot service integrations and optional\nworkloads. Homelab owns machine sysprep, VM images and enrollment.",
       "runnable": false,
       "examples": [],
       "flags": [],
@@ -7623,7 +7623,7 @@
       "group": "start",
       "usage": "stackkit init [stackkit] [flags]",
       "short": "Initialize a new deployment from a StackKit",
-      "description": "Create a stack-spec.yaml in your deployment directory.\nThis saves your choices; it does not install services or change the host.\nThe standalone local path works without a kombify account or Techstack.\n\nStart with the selected Kit's catalog defaults. --owner-source=local keeps the\nowner on this machine and needs --owner-email for the local PocketID owner.\nCloud Kit local ownership requires --domain with your own domain or an\nallocated <zone>.kombify.me install zone. The shared kombify.me parent cannot\nisolate this installation's login cookies. DNS may be configured after init.\n\nReview the saved configuration before generating or applying it. Defaults\nare recorded as explicit intent and validated by the Kit's CUE contract.\nRequired information, such as a domain, is requested when the Kit needs it.\nUse --non-interactive in scripts to fail instead of prompting.\n\nFor precise control, use --use-case-alternative and --module-compute-profile\ninstead of --catalog-defaults. These selections come from the chosen Kit.\nA use case built from capability modules (Private AI) takes\n--use-case-capability <use-case>.<capability>=<option|off>; omitted modules\nkeep their defaults, and planned modules are refused until they install.\nNative authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1\nselects the explicit legacy graph adapter. Flags marked v0.6 compatibility\nare accepted only by an explicitly versioned v0.6 binary.",
+      "description": "Create a stack-spec.yaml in your deployment directory.\nThis saves your choices; it does not install services or change the host.\nThe standalone local path works without a kombify account or Homelab.\n\nStart with the selected Kit's catalog defaults. --owner-source=local keeps the\nowner on this machine and needs --owner-email for the local PocketID owner.\nCloud Kit local ownership requires --domain with your own domain or an\nallocated <zone>.kombify.me install zone. The shared kombify.me parent cannot\nisolate this installation's login cookies. DNS may be configured after init.\n\nReview the saved configuration before generating or applying it. Defaults\nare recorded as explicit intent and validated by the Kit's CUE contract.\nRequired information, such as a domain, is requested when the Kit needs it.\nUse --non-interactive in scripts to fail instead of prompting.\n\nFor precise control, use --use-case-alternative and --module-compute-profile\ninstead of --catalog-defaults. These selections come from the chosen Kit.\nA use case built from capability modules (Private AI) takes\n--use-case-capability <use-case>.<capability>=<option|off>; omitted modules\nkeep their defaults, and planned modules are refused until they install.\nNative authoring uses stackkit/v2alpha2; --api-version stackkit/v2alpha1\nselects the explicit legacy graph adapter. Flags marked v0.6 compatibility\nare accepted only by an explicitly versioned v0.6 binary.",
       "runnable": true,
       "examples": [
         {
@@ -9441,7 +9441,7 @@
       "group": "reference",
       "usage": "stackkit reach enable [flags]",
       "short": "Start the reach connector (requires root on the home server)",
-      "description": "Exactly one source of the tunnel token:\n  --kombify-me                  tunnel mode of this homelab's kombify.me base with its Me registration; the token is\n                                rotated and sealed to a fresh key of this node's local custody\n  --wallet-item <tenant>/<item> a token the kombify Wallet delivered to this node (kombify-account tunnel mode, or a\n                                tunnel Techstack provisioned in the Owner's Cloudflare account)\n  --owner-token-file <file>     a tunnel token of the Owner's own Cloudflare account (Standard Mode); its ingress stays\n                                in the Owner's dashboard and must lead every public hostname to http://stackkit-remote-listener.internal:8000",
+      "description": "Exactly one source of the tunnel token:\n  --kombify-me                  tunnel mode of this homelab's kombify.me base with its Me registration; the token is\n                                rotated and sealed to a fresh key of this node's local custody\n  --wallet-item <tenant>/<item> a token the kombify Wallet delivered to this node (kombify-account tunnel mode, or a\n                                tunnel Homelab provisioned in the Owner's Cloudflare account)\n  --owner-token-file <file>     a tunnel token of the Owner's own Cloudflare account (Standard Mode); its ingress stays\n                                in the Owner's dashboard and must lead every public hostname to http://stackkit-remote-listener.internal:8000",
       "runnable": true,
       "examples": [],
       "flags": [
@@ -11857,7 +11857,7 @@
       "group": "reference",
       "usage": "stackkit use-cases upgrade [slug] [flags]",
       "short": "Move one application to a newer release of its entry image, keeping its prior data for a rollback",
-      "description": "Move one selected application to a newer release of its entry image, without\ntouching unrelated applications or the StackKits release. --to names a tested\nrelease the catalog admits; --to with --digest sha256:... names an untested\nstable upstream release of the same image inside the module's release track\n(same major; a \"patch\" track also keeps the minor), which needs\n--accept-untested. A major release moves only with a StackKits release. An\nuntested tag is re-resolved from its registry for this node's platform and\nrefused when it no longer names that digest. The selection is stored as the\nworkload's release override {version, ref, digest, tested}. A later StackKits\nrelease whose default is at or above the override supersedes it; a newer\nin-track override is kept (--overrides reports which).\n\nThe command stops only that application, copies each of its governed volumes\ninto a retained volume, reads the copy back as a file-tree digest, records an\nowner-signed checkpoint and selects the target release. The application stays\nstopped until generate and apply start the target release.\n\n--apply runs the whole update on this node: checkpoint, generate, apply and\nlive verify. When generate, apply or verify fails, it rolls back to the prior\nrelease and data, applies again and finalizes that rollback. With --json the\nresult names update_outcome (updated, rolled_back, rollback_failed or\nrefused), reason_code and the prior and target version and digest.\n\n--rollback <operation-id> stops the application again, verifies the retained\ncopy, copies it back, proves the live data equals the checkpoint and selects the\nprior release; the next apply starts the prior release on exactly that data, and\ndata written since the checkpoint is discarded. Rolling back a checkpoint that\nnever completed releases it and restarts the unchanged application. While an\noperation is open, apply starts only the release it expects (or a later\nStackKits default that supersedes it); without one, apply refuses every move\nto an earlier release.\n--finalize <operation-id> removes the retained data once the change is\naccepted (or after the rollback was applied). --status reads a record.\n\nOn a node Techstack manages, a forward change also needs --capability: the\nexact Techstack-signed application-release.update capability for this use\ncase, release, digest and tested or untested kind, verified offline against\nthe Owner-approved Advanced trust before the application is stopped. The\nrecord keeps that authority, and the result reports the prior and target\nStackSpec hashes so Techstack's desired state follows the override. A\nstandalone node takes no capability.",
+      "description": "Move one selected application to a newer release of its entry image, without\ntouching unrelated applications or the StackKits release. --to names a tested\nrelease the catalog admits; --to with --digest sha256:... names an untested\nstable upstream release of the same image inside the module's release track\n(same major; a \"patch\" track also keeps the minor), which needs\n--accept-untested. A major release moves only with a StackKits release. An\nuntested tag is re-resolved from its registry for this node's platform and\nrefused when it no longer names that digest. The selection is stored as the\nworkload's release override {version, ref, digest, tested}. A later StackKits\nrelease whose default is at or above the override supersedes it; a newer\nin-track override is kept (--overrides reports which).\n\nThe command stops only that application, copies each of its governed volumes\ninto a retained volume, reads the copy back as a file-tree digest, records an\nowner-signed checkpoint and selects the target release. The application stays\nstopped until generate and apply start the target release.\n\n--apply runs the whole update on this node: checkpoint, generate, apply and\nlive verify. When generate, apply or verify fails, it rolls back to the prior\nrelease and data, applies again and finalizes that rollback. With --json the\nresult names update_outcome (updated, rolled_back, rollback_failed or\nrefused), reason_code and the prior and target version and digest.\n\n--rollback <operation-id> stops the application again, verifies the retained\ncopy, copies it back, proves the live data equals the checkpoint and selects the\nprior release; the next apply starts the prior release on exactly that data, and\ndata written since the checkpoint is discarded. Rolling back a checkpoint that\nnever completed releases it and restarts the unchanged application. While an\noperation is open, apply starts only the release it expects (or a later\nStackKits default that supersedes it); without one, apply refuses every move\nto an earlier release.\n--finalize <operation-id> removes the retained data once the change is\naccepted (or after the rollback was applied). --status reads a record.\n\nOn a node Homelab manages, a forward change also needs --capability: the\nexact Homelab-signed application-release.update capability for this use\ncase, release, digest and tested or untested kind, verified offline against\nthe Owner-approved Advanced trust before the application is stopped. The\nrecord keeps that authority, and the result reports the prior and target\nStackSpec hashes so Homelab's desired state follows the override. A\nstandalone node takes no capability.",
       "runnable": true,
       "examples": [
         {
@@ -11897,7 +11897,7 @@
         {
           "name": "capability",
           "type": "string",
-          "description": "Techstack application-release.update capability file; required on a Techstack-managed node",
+          "description": "Homelab application-release.update capability file; required on a Homelab-managed node",
           "required": false
         },
         {
@@ -12380,7 +12380,7 @@
       "group": "care",
       "usage": "stackkit user owner reconcile [flags]",
       "short": "Enable legacy TinyAuth PKCE only against the verified existing Owner binding",
-      "description": "Requires explicit Owner approval and an idle native lifecycle. Verifies every existing Owner, client, callback and group binding before enabling PKCE, then verifies again. Keeps Owner keys, users, groups, client secret, enrollment links, Plan and release pin. Other identity drift fails closed. On a managed server invoke through authorized Techstack server access; this performs no Advanced apply or provider execution.",
+      "description": "Requires explicit Owner approval and an idle native lifecycle. Verifies every existing Owner, client, callback and group binding before enabling PKCE, then verifies again. Keeps Owner keys, users, groups, client secret, enrollment links, Plan and release pin. Other identity drift fails closed. On a managed server invoke through authorized Homelab server access; this performs no Advanced apply or provider execution.",
       "runnable": true,
       "examples": [],
       "flags": [
@@ -13032,7 +13032,7 @@
       "stackkit logs latest --json",
       "cat .stackkit/access.json"
     ],
-    "connectCommand": "sudo stackkit connect --server https://techstack.kombify.io",
+    "connectCommand": "sudo stackkit connect --server https://homelab.kombify.io",
     "accessEvidence": ".stackkit/access.json"
   }
 }

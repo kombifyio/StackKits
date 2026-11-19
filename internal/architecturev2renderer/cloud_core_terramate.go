@@ -63,7 +63,7 @@ func cloudCoreOriginCertificateRenderProfile() cloudCoreRenderProfile {
 // cloudStandaloneCoreOriginCertificateRenderProfile is the standalone Cloud
 // core profile of the Terramate (Advanced) twin. Like the Cloud core twin, a
 // managed kombify.me address is served by the delivered Origin CA
-// certificate; every other domain keeps ACME. Without it Techstack installs
+// certificate; every other domain keeps ACME. Without it Homelab installs
 // an origin certificate while the routers keep requesting Let's Encrypt, and
 // the origin-trust public TLS probe fails with an unknown authority.
 func cloudStandaloneCoreOriginCertificateRenderProfile() cloudCoreRenderProfile {

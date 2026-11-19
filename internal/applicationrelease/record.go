@@ -58,7 +58,7 @@ type Readback struct {
 	Digest string `json:"digest"`
 }
 
-// ManagedAuthority is the Techstack authority of a release change on a
+// ManagedAuthority is the Homelab authority of a release change on a
 // managed node: the exact application-release.update capability the node
 // verified against its Owner-approved trust before it stopped the
 // application. A standalone record carries none.
@@ -97,7 +97,7 @@ type Record struct {
 	// TargetUntested marks a target outside the catalog's tested releases,
 	// accepted explicitly by the owner.
 	TargetUntested bool `json:"targetUntested,omitempty"`
-	// Managed is set when Techstack manages the node; the intent change was
+	// Managed is set when Homelab manages the node; the intent change was
 	// admitted by that capability, and resume and rollback stay bound to it.
 	Managed        *ManagedAuthority `json:"managed,omitempty"`
 	PriorSpecHash  string            `json:"priorSpecHash"`

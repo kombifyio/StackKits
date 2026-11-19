@@ -33,7 +33,7 @@
       "$ref": "stackkit-rollback-result-v1.schema.json"
     },
     "releaseAuthority": {
-      "description": "The release authority that executed the target, present once it was established. running-executable: the target is the release already executing and the workspace holds no release cache for it (a Techstack-managed host); sha256 is the running executable digest. workspace-release-cache: a Sigstore-verified receipt under .stackkit/releases; sha256 is the digest of its executable once materialized.",
+      "description": "The release authority that executed the target, present once it was established. running-executable: the target is the release already executing and the workspace holds no release cache for it (a Homelab-managed host); sha256 is the running executable digest. workspace-release-cache: a Sigstore-verified receipt under .stackkit/releases; sha256 is the digest of its executable once materialized.",
       "type": "object",
       "additionalProperties": false,
       "required": ["kind", "version", "platform"],

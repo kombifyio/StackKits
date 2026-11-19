@@ -106,7 +106,7 @@ A successful staging restore proves isolated recovery bytes without writing
 into live Docker volumes; it does not activate those bytes or prove that services
 boot from them. An abandonment receipt proves only the terminal Owner decision.
 
-StackKits remains the standalone lifecycle authority. Techstack can provide an
+StackKits remains the standalone lifecycle authority. Homelab can provide an
 optional Orchestrator UI/RIL over the exact published binary and versioned
 results. kombify Cloud can provide user-approved identity sync convenience for
 the local PocketID/TinyAuth plane, but neither service is required for backup or

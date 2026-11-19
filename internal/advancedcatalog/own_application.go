@@ -2,11 +2,11 @@ package advancedcatalog
 
 import "github.com/kombifyio/stackkits/internal/advancedcapability"
 
-// ownApplicationOperations operate one own application (techstack.own-application,
+// ownApplicationOperations operate one own application (homelab.own-application,
 // including one taken over with "Stack it") like a catalog application: logs,
 // status, start, stop, restart, a tag update with automatic rollback, and the
 // backup that holds its volume. A mutation is reviewed first: its dry run
-// returns the review digest the execution names. On a Techstack-managed node an
+// returns the review digest the execution names. On a Homelab-managed node an
 // executed start, stop, restart, update or rollback needs an
 // own-application.lifecycle capability bound to the application, the action,
 // the operation ID and the review digest of its dry run (at most 15 minutes);
@@ -20,7 +20,7 @@ func ownApplicationOperations() []Operation {
 	}
 	mutate := func(operation, summary string, argv []string, results []Outcome) Operation {
 		return Operation{Operation: operation, Status: StatusAvailable, SinceRelease: SincePending, Summary: summary, Command: "stackkit app own", Argv: append(append(append([]string{}, base...), argv...), "--review-digest", "{reviewDigest}", "--operation-id", "{operationId}", "--owner-approve", "--json"),
-			OptionalArgs: []OptionalArgs{{Argv: []string{"--capability", "{capabilityFile}"}, Description: "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."}},
+			OptionalArgs: []OptionalArgs{{Argv: []string{"--capability", "{capabilityFile}"}, Description: "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."}},
 			Mutates:      true, Requires: Requirements{Capability: true, CapabilityOperation: advancedcapability.OperationOwnApplicationLifecycle, TrustImported: true, OwnerApproval: true},
 			Inputs: []Input{capabilityInput}, Results: append(append([]Outcome{}, results...), denialOutcome), Events: []EventPhase{}, Modes: Modes{Standard: AdmissionAllowed, Advanced: AdmissionCapability}}
 	}
@@ -40,7 +40,7 @@ func ownApplicationOperations() []Operation {
 				"--review-digest", "{reviewDigest}", "--operation-id", "{operationId}", "--owner-approve", "--json"),
 			OptionalArgs: []OptionalArgs{
 				{Argv: []string{"--allow-major"}, Description: "The review admitted another major version or an unversioned running image."},
-				{Argv: []string{"--capability", "{capabilityFile}"}, Description: "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."},
+				{Argv: []string{"--capability", "{capabilityFile}"}, Description: "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."},
 			},
 			Mutates: true, Requires: Requirements{Capability: true, CapabilityOperation: advancedcapability.OperationOwnApplicationLifecycle, TrustImported: true, OwnerApproval: true},
 			Inputs: []Input{capabilityInput}, Results: append(append([]Outcome{}, update...), denialOutcome), Events: []EventPhase{},

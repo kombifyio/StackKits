@@ -1,4 +1,4 @@
-// Package ownapplication defines Techstack-owned desired state consumed by the
+// Package ownapplication defines Homelab-owned desired state consumed by the
 // node's StackKits renderer. It grants no host, daemon or provider authority.
 package ownapplication
 
@@ -17,21 +17,21 @@ import (
 	"strings"
 )
 
-const APIVersion = "techstack.own-application/v1"
-const APIVersionV2 = "techstack.own-application/v2"
-const APIVersionV3 = "techstack.own-application/v3"
+const APIVersion = "homelab.own-application/v1"
+const APIVersionV2 = "homelab.own-application/v2"
+const APIVersionV3 = "homelab.own-application/v3"
 
 // APIVersionV4 is one container StackKits rebuilt from an observed container
 // it did not install ("Stack it"). It is the v2 single-container form plus the
 // adoption source and the host ports the original published.
-const APIVersionV4 = "techstack.own-application/v4"
+const APIVersionV4 = "homelab.own-application/v4"
 const BundleVersion = "stackkit.own-application-bundle/v1"
 const ModuleRef = "stackkits-own-application-runtime"
 
 // Application is deliberately closed: users supply an image, never Compose,
 // commands, capabilities, host mounts, devices or network configuration.
 //
-// A techstack.own-application/v3 document declares a Compose project instead of
+// A homelab.own-application/v3 document declares a Compose project instead of
 // a single container: it lists its services and carries no image or httpPort of
 // its own.
 type Application struct {
@@ -46,10 +46,10 @@ type Application struct {
 	SecretRefs       map[string]string `json:"secretRefs,omitempty"`
 	Volume           *Volume           `json:"volume,omitempty"`
 	Resources        Resources         `json:"resources,omitempty"`
-	// Services declares the containers of a techstack.own-application/v3
+	// Services declares the containers of a homelab.own-application/v3
 	// project. The one-container forms keep their image and httpPort here.
 	Services []Service `json:"services,omitempty"`
-	// AdoptedFrom and PublishedPorts belong to techstack.own-application/v4
+	// AdoptedFrom and PublishedPorts belong to homelab.own-application/v4
 	// only: the observed source of an adopted container and the host ports it
 	// published, kept so LAN host:port clients keep working.
 	AdoptedFrom    *AdoptedFrom    `json:"adoptedFrom,omitempty"`
@@ -106,13 +106,13 @@ func (a *Application) UnmarshalJSON(raw []byte) error {
 	}
 	if flag, present := fields["outboundInternet"]; present {
 		if (value.APIVersion != APIVersionV2 && value.APIVersion != APIVersionV4) || bytes.Equal(bytes.TrimSpace(flag), []byte("null")) {
-			return errors.New("outboundInternet is a boolean field of techstack.own-application/v2 and v4 only")
+			return errors.New("outboundInternet is a boolean field of homelab.own-application/v2 and v4 only")
 		}
 	}
 	for _, field := range []string{"adoptedFrom", "publishedPorts"} {
 		if raw, present := fields[field]; present {
 			if value.APIVersion != APIVersionV4 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
-				return fmt.Errorf("%s is a field of techstack.own-application/v4 only", field)
+				return fmt.Errorf("%s is a field of homelab.own-application/v4 only", field)
 			}
 		}
 	}
@@ -150,7 +150,7 @@ type Bundle struct {
 	// ImageID is derived from the verified manifest/config by the node, never desired state.
 	ImageID string `json:"imageID,omitempty"`
 	// ResolvedImages and ImageIDs carry the image custody of every service of a
-	// techstack.own-application/v3 project, keyed by service name. A project
+	// homelab.own-application/v3 project, keyed by service name. A project
 	// never carries the single-container custody above.
 	ResolvedImages map[string]string `json:"resolvedImages,omitempty"`
 	ImageIDs       map[string]string `json:"imageIDs,omitempty"`
@@ -396,7 +396,7 @@ func (a Application) Validate() error {
 		return fmt.Errorf("unsupported own application apiVersion: %s", a.APIVersion)
 	}
 	if a.APIVersion == APIVersion && a.OutboundInternet != nil {
-		return errors.New("outboundInternet requires techstack.own-application/v2; v1 always has no outbound Internet")
+		return errors.New("outboundInternet requires homelab.own-application/v2; v1 always has no outbound Internet")
 	}
 	if err := a.validateAdoption(); err != nil {
 		return err
@@ -410,7 +410,7 @@ func (a Application) Validate() error {
 		}
 	} else {
 		if len(a.Services) != 0 {
-			return errors.New("services belong to techstack.own-application/v3 only")
+			return errors.New("services belong to homelab.own-application/v3 only")
 		}
 		if _, _, err := SplitImage(a.Image); err != nil {
 			return err
@@ -486,13 +486,13 @@ func AdoptableBindSource(source string) bool {
 func (a Application) validateAdoption() error {
 	if a.APIVersion != APIVersionV4 {
 		if a.AdoptedFrom != nil || len(a.PublishedPorts) != 0 {
-			return errors.New("adoptedFrom and publishedPorts belong to techstack.own-application/v4 only")
+			return errors.New("adoptedFrom and publishedPorts belong to homelab.own-application/v4 only")
 		}
 		return nil
 	}
 	from := a.AdoptedFrom
 	if from == nil {
-		return errors.New("techstack.own-application/v4 requires adoptedFrom")
+		return errors.New("homelab.own-application/v4 requires adoptedFrom")
 	}
 	if !containerID.MatchString(from.ContainerID) || !digest.MatchString(from.ImageDigest) || !configRef.MatchString(from.OriginalConfigRef) {
 		return errors.New("adoptedFrom requires the 64-hex container ID, the sha256 image digest and a compose: or docker: configuration reference")
@@ -540,13 +540,13 @@ func (a Application) validateAdoption() error {
 // host. The same refusals as for one container apply to every service.
 func (a Application) validateProject() error {
 	if a.Image != "" || a.HTTPPort != 0 {
-		return errors.New("techstack.own-application/v3 declares its containers in services; image and httpPort belong to v1 and v2")
+		return errors.New("homelab.own-application/v3 declares its containers in services; image and httpPort belong to v1 and v2")
 	}
 	if len(a.Environment) != 0 || len(a.SecretRefs) != 0 || a.Volume != nil {
-		return errors.New("techstack.own-application/v3 declares environment, secrets and volumes per service")
+		return errors.New("homelab.own-application/v3 declares environment, secrets and volumes per service")
 	}
 	if a.Resources != (Resources{}) {
-		return errors.New("techstack.own-application/v3 declares resources per service")
+		return errors.New("homelab.own-application/v3 declares resources per service")
 	}
 	if len(a.Services) == 0 || len(a.Services) > 8 {
 		return errors.New("an own application project declares 1..8 services")

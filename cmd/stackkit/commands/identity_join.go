@@ -17,7 +17,7 @@ import (
 )
 
 // identity join: one Authority across servers (homelab identity target §4,
-// P2). Techstack runs request on the joining server, approve on the
+// P2). Homelab runs request on the joining server, approve on the
 // Authority and install on the joining server again, carrying only the two
 // documents between them.
 func init() {
@@ -27,7 +27,7 @@ func init() {
 		Long: "Several servers of one homelab share one Authority, the server that runs Pocket ID. A further server " +
 			"prepares a join request, the Owner approves it with a passkey step-up at the Authority, which signs a trust " +
 			"bundle and an intermediate CA for the server's hostnames, and the joining server installs the bundle after " +
-			"the Owner confirmed its root fingerprint there. Techstack only carries the request and the bundle.",
+			"the Owner confirmed its root fingerprint there. Homelab only carries the request and the bundle.",
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	}
 	client := &cobra.Command{
@@ -41,8 +41,8 @@ func init() {
 	client.AddCommand(newIdentityJoinClientRegisterCommand(), newIdentityJoinClientBindCommand())
 	zone := &cobra.Command{
 		Use:   "zone",
-		Short: "Report this server's place in the homelab DNS zone, or install the zone Techstack assembled",
-		Long: "Techstack assembles the homelab zone from every server's zone site and carries it to each server. A server " +
+		Short: "Report this server's place in the homelab DNS zone, or install the zone Homelab assembled",
+		Long: "Homelab assembles the homelab zone from every server's zone site and carries it to each server. A server " +
 			"installs only what its join trust vouches for: the Authority the names the Owner approved for each joined " +
 			"server, a joined server the Authority at its bundle's LAN address and other servers as the Authority's signed " +
 			"verification state lists them. DNS answers are never identity: TLS verifies each name under the root.",
@@ -318,7 +318,7 @@ func newIdentityJoinZoneInstallCommand() *cobra.Command {
 			})
 		},
 	}
-	command.Flags().StringVar(&zoneFile, "zone", "", "The homelab zone ("+identity.HomeDNSZoneSchema+") Techstack assembled")
+	command.Flags().StringVar(&zoneFile, "zone", "", "The homelab zone ("+identity.HomeDNSZoneSchema+") Homelab assembled")
 	_ = command.MarkFlagRequired("zone")
 	return command
 }

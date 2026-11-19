@@ -13,12 +13,12 @@ import (
 	"time"
 )
 
-const techStackGuardService = "techstack-agent.service"
+const homelabGuardService = "techstack-agent.service"
 
-// Techstack bootstraps Guard before invoking StackKits. Preparation only reads
+// Homelab bootstraps Guard before invoking StackKits. Preparation only reads
 // that installation: restarting or replacing it here could interrupt the Guard
 // executing this command, or overwrite its host key and durable journal.
-const techStackGuardObservationScript = `set -eu
+const homelabGuardObservationScript = `set -eu
 systemctl is-active --quiet techstack-agent.service
 systemctl is-enabled --quiet techstack-agent.service
 file=/etc/techstack/agent-enrollment.json
@@ -32,43 +32,43 @@ test "$(wc -c < "$file")" -le 262144
 head -c 262145 "$file"
 `
 
-type techStackGuardObservation struct {
-	RuntimeAgentID   string                     `json:"runtime_agent_id"`
-	WorkerID         string                     `json:"worker_id"`
-	ServerID         string                     `json:"server_id"`
-	TenantID         string                     `json:"tenant_id"`
-	OwnerID          string                     `json:"owner_id"`
-	StackID          string                     `json:"stack_id"`
-	LeaseID          string                     `json:"lease_id"`
-	HeartbeatURL     string                     `json:"heartbeat_url"`
-	InventoryURL     string                     `json:"inventory_url"`
-	ChannelBootstrap *techStackGuardObservation `json:"channel_bootstrap"`
-	Data             *techStackGuardObservation `json:"data"`
+type homelabGuardObservation struct {
+	RuntimeAgentID   string                   `json:"runtime_agent_id"`
+	WorkerID         string                   `json:"worker_id"`
+	ServerID         string                   `json:"server_id"`
+	TenantID         string                   `json:"tenant_id"`
+	OwnerID          string                   `json:"owner_id"`
+	StackID          string                   `json:"stack_id"`
+	LeaseID          string                   `json:"lease_id"`
+	HeartbeatURL     string                   `json:"heartbeat_url"`
+	InventoryURL     string                   `json:"inventory_url"`
+	ChannelBootstrap *homelabGuardObservation `json:"channel_bootstrap"`
+	Data             *homelabGuardObservation `json:"data"`
 }
 
-func probeTechStackGuardLocal(ctx context.Context) ([]byte, error) {
+func probeHomelabGuardLocal(ctx context.Context) ([]byte, error) {
 	if runtime.GOOS != "linux" {
 		return nil, fmt.Errorf("canonical Guard verification requires Linux/systemd")
 	}
-	command := exec.CommandContext(ctx, "sh", "-c", techStackGuardObservationScript)
+	command := exec.CommandContext(ctx, "sh", "-c", homelabGuardObservationScript)
 	if os.Geteuid() != 0 {
-		command = exec.CommandContext(ctx, "sudo", "-n", "sh", "-c", techStackGuardObservationScript)
+		command = exec.CommandContext(ctx, "sudo", "-n", "sh", "-c", homelabGuardObservationScript)
 	}
 	// The enrollment is consumed privately by the Go decoder; neither stdout
 	// nor stderr from this secret-file probe is published.
 	return command.Output()
 }
 
-func verifyTechStackGuard(ctx context.Context, handoff techStackHandoff, target string, probe func(context.Context) ([]byte, error)) error {
+func verifyHomelabGuard(ctx context.Context, handoff homelabHandoff, target string, probe func(context.Context) ([]byte, error)) error {
 	probeCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	data, err := probe(probeCtx)
 	if err != nil {
-		return techStackGuardVerificationError("canonical service or protected enrollment could not be observed; Linux/systemd and read access are required")
+		return homelabGuardVerificationError("canonical service or protected enrollment could not be observed; Linux/systemd and read access are required")
 	}
-	var observed techStackGuardObservation
+	var observed homelabGuardObservation
 	if len(data) > 262144 || json.Unmarshal(data, &observed) != nil {
-		return techStackGuardVerificationError("canonical enrollment observation is invalid")
+		return homelabGuardVerificationError("canonical enrollment observation is invalid")
 	}
 	if observed.Data != nil {
 		observed = *observed.Data
@@ -99,14 +99,14 @@ func verifyTechStackGuard(ctx context.Context, handoff techStackHandoff, target 
 		{"stack_id", observed.StackID, handoff.StackID},
 	} {
 		if binding.actual == "" || binding.actual != binding.expected {
-			return techStackGuardVerificationError("canonical enrollment does not match the " + binding.field + " handoff")
+			return homelabGuardVerificationError("canonical enrollment does not match the " + binding.field + " handoff")
 		}
 	}
 	if observed.LeaseID != handoff.LeaseID {
-		return techStackGuardVerificationError("canonical enrollment does not match the lease_id handoff")
+		return homelabGuardVerificationError("canonical enrollment does not match the lease_id handoff")
 	}
 	if handoff.OwnerID != "" && observed.OwnerID != handoff.OwnerID {
-		return techStackGuardVerificationError("canonical enrollment does not match the owner_id handoff")
+		return homelabGuardVerificationError("canonical enrollment does not match the owner_id handoff")
 	}
 	for _, endpoint := range []struct{ actual, supplied, suffix string }{
 		{observed.HeartbeatURL, handoff.HeartbeatURL, "/heartbeat"},
@@ -114,13 +114,13 @@ func verifyTechStackGuard(ctx context.Context, handoff techStackHandoff, target 
 	} {
 		expected := handoff.ServerURL + "/api/v1/workers/" + url.PathEscape(handoff.RuntimeAgentID) + endpoint.suffix
 		if endpoint.actual != expected || (endpoint.supplied != "" && endpoint.supplied != expected) {
-			return techStackGuardVerificationError("canonical enrollment endpoints do not match the control-plane handoff")
+			return homelabGuardVerificationError("canonical enrollment endpoints do not match the control-plane handoff")
 		}
 	}
 	// Persist only the nonsecret handoff after observation succeeds. Existing
 	// Guard configuration, enrollment, identity and journals are never written.
 	evidence := map[string]any{
-		"status": "verified", "target": target, "service": techStackGuardService,
+		"status": "verified", "target": target, "service": homelabGuardService,
 		"verification_scope": "active-enabled-service-and-enrollment-binding",
 		"server_url":         handoff.ServerURL, "server_id": observed.ServerID,
 		"runtime_agent_id": observed.RuntimeAgentID, "tenant_id": observed.TenantID,
@@ -136,9 +136,9 @@ func verifyTechStackGuard(ctx context.Context, handoff techStackHandoff, target 
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "techstack-guard-evidence.json"), append(encoded, '\n'), 0600)
+	return os.WriteFile(filepath.Join(dir, "homelab-guard-evidence.json"), append(encoded, '\n'), 0600)
 }
 
-func techStackGuardVerificationError(reason string) error {
-	return fmt.Errorf("techstack_guard_not_verified: %s; complete or recover Guard bootstrap in Techstack before retrying prepare; StackKits does not install or restart Guard", strings.TrimSpace(reason))
+func homelabGuardVerificationError(reason string) error {
+	return fmt.Errorf("homelab_guard_not_verified: %s; complete or recover Guard bootstrap in Homelab before retrying prepare; StackKits does not install or restart Guard", strings.TrimSpace(reason))
 }

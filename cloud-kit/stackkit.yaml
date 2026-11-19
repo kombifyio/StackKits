@@ -86,7 +86,7 @@ modes:
       - "Advanced bootstrap and service handoff policies"
       - "Drift detection, change sets, rollback, and restore drills"
       - "Komodo/Coolify platform adapters"
-      - "Managed TechStack lifecycle handoff"
+      - "Managed Homelab lifecycle handoff"
     recommended_for:
       - "Production environments"
       - "Compliance requirements"

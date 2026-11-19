@@ -3,7 +3,7 @@
 Agent-facing StackKits references:
 
 - `docs/agent/agents.md`: autonomous workflow and evidence contract.
-- `docs/agent/agents.md` also links the optional Techstack Advanced seam,
+- `docs/agent/agents.md` also links the optional Homelab Advanced seam,
   immutable contract consumer lock and existing Wallet host-reader boundary.
 - `docs/agent/stackkit-mcp.md`: single StackKits MCP connection, local adapter, durable endpoint, and security gates.
 - `docs/API.md`: node-local API summary.

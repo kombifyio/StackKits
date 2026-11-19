@@ -4,7 +4,7 @@
   "contract": "pocketid-membership-cas-v1",
   "scope": "one existing StackKit and its existing named local SQLite volume; no external/shared PostgreSQL transition or landscape creation",
   "authority": {
-    "advanced": "Techstack dispatches the existing node-scoped StackKits lifecycle",
+    "advanced": "Homelab dispatches the existing node-scoped StackKits lifecycle",
     "standalone": "StackKits acts on its own node under its existing local Owner authority",
     "credentials": "existing node custody and supported host-delivery paths only"
   },

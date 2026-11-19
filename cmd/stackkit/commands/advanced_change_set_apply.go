@@ -556,7 +556,7 @@ func runAdvancedMutation(cmd *cobra.Command, request advancedMutationRequest) (a
 	}
 
 	// The target of an Advanced mutation is the release already executing.
-	// Without a workspace release cache for it (a Techstack-managed host) the
+	// Without a workspace release cache for it (a Homelab-managed host) the
 	// running executable is the release authority; see
 	// resolveLifecycleReleaseAuthority.
 	release, err := currentLifecycleReleaseAuthority(cmd, workspace)

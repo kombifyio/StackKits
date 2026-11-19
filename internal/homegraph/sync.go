@@ -40,7 +40,7 @@ const (
 	StatusObserved = "observed"
 )
 
-// SyncRequest is the document Cloud hands to a node through Techstack.
+// SyncRequest is the document Cloud hands to a node through Homelab.
 type SyncRequest struct {
 	SchemaVersion string    `json:"schemaVersion"`
 	Graph         Graph     `json:"graph"`

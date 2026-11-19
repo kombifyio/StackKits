@@ -45,7 +45,7 @@ type CompositionResult struct {
 	// placements, which StackKits-OSS does not realize — see Warnings).
 	Placement *placement.Result
 	// ControlPlaneHandoffs records enabled package/runtime profiles whose
-	// realization is intentionally owned by Admin/TechStack rather than the
+	// realization is intentionally owned by Admin/Homelab rather than the
 	// local OSS resolver.
 	ControlPlaneHandoffs []ControlPlaneHandoff
 }

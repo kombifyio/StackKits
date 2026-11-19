@@ -66,7 +66,7 @@ exception, and the evidence expires: a stale observation is unknown, and an
 unknown control never counts as compliant.
 
 It works on its own (Standard Mode, no account) and through the pinned CLI when
-Techstack manages the deployment (--mode advanced).`,
+Homelab manages the deployment (--mode advanced).`,
 	}
 	security.AddCommand(newHostSecurityVerifyCommand(), newHostSecurityStatusCommand(), newHostSecurityRepairCommand(), newHostSecurityNetworkCommand())
 	return security
@@ -76,7 +76,7 @@ func bindHostSecurityFlags(cmd *cobra.Command, flags *hostSecurityFlags) {
 	cmd.Flags().BoolVar(&flags.json, "json", false, "Emit the result as machine-readable JSON")
 	cmd.Flags().StringVar(&flags.kit, "kit", "", "Kit slug to record (default: the kit of the workspace StackSpec)")
 	cmd.Flags().StringVar(&flags.siteKind, "site-kind", "", "Site kind of this host: home or cloud (default: inferred from the kit; modern-homelab needs it)")
-	cmd.Flags().StringVar(&flags.mode, "mode", string(hostsecurity.ModeStandard), "Lifecycle mode to record: standard, or advanced when Techstack manages this deployment")
+	cmd.Flags().StringVar(&flags.mode, "mode", string(hostsecurity.ModeStandard), "Lifecycle mode to record: standard, or advanced when Homelab manages this deployment")
 	cmd.Flags().DurationVar(&flags.freshness, "freshness", hostsecurity.DefaultFreshness, "How long the evidence may be relied on before it expires (1m to 24h)")
 	cmd.Flags().StringVar(&flags.exceptions, "exceptions", hostsecurity.DefaultExceptionsPath, "Owner-controlled exceptions file (each exception needs an owner and an expiry)")
 	cmd.Flags().StringVar(&flags.resolvedPlan, "resolved-plan", "", "Verified canonical ResolvedPlan whose declared listeners to judge exposure against")
@@ -196,7 +196,7 @@ given, and it expires after --freshness.`,
   # Machine-readable, advanced mode, exit non-zero on any drifted control
   sudo stackkit host security verify --mode advanced --json --fail-on-drift
 
-  # What the Techstack host pre-step runs: only the controls the baseline
+  # What the Homelab host pre-step runs: only the controls the baseline
   # enforces decide the exit code; patch lag, pending reboot, exposure and
   # certificates are still observed and reported
   sudo stackkit host security verify --mode advanced --json --fail-on-drift --drift-scope enforced

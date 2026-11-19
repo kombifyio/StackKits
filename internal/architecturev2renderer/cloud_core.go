@@ -313,7 +313,7 @@ func managedOriginCertificateDomain(domain string) bool {
 }
 
 // RenderCloudCoreComposeForOriginCertificate renders the Advanced
-// (Terramate-generated, Techstack-dispatched) Cloud core for a managed
+// (Terramate-generated, Homelab-dispatched) Cloud core for a managed
 // kombify.me address (ADR-0047). The core routers carry no ACME resolver: the
 // router serves the Cloudflare Origin CA certificate delivered to the node by
 // the capability-gated origin-certificate operation, mounted read-only from

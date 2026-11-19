@@ -41,7 +41,7 @@ rollout matrices graduate.
 - CUE remains the source of truth for deployment contracts, defaults, constraints, routes, access policy, and module requirements.
 - Public/non-local routes must be protected by default unless the StackSpec or module access policy explicitly configures public or unauthenticated exposure.
 - `stackkit-server` must require an API key for non-public endpoints outside local development. Production profiles must reject unauthenticated mode and wildcard CORS.
-- Internal StackAction routes require `X-Kombify-Service-Auth` with the TechStack caller and StackKits audience.
+- Internal StackAction routes require `X-Kombify-Service-Auth` with the Homelab caller and StackKits audience.
 - Generated secrets, rollout evidence, logs, and bootstrap material must be redacted before they are published or mirrored.
 - Static default credentials are forbidden.
 
@@ -85,7 +85,7 @@ and include:
 ## Operations Expectations
 
 - Backup and restore procedures must be tested, not only documented, before they are included in an Enterprise support claim.
-- Rollout evidence lives under `.stackkit/runs/<runId>/` locally and may be mirrored to Admin/TechStack only after redaction.
+- Rollout evidence lives under `.stackkit/runs/<runId>/` locally and may be mirrored to Admin/Homelab only after redaction.
 - Failure output must classify setup, auth, routing, image, platform, or app-layer causes without dumping provider tokens.
 - Open P0 Beads blockers that affect BaseKit production behavior must be closed with evidence before an Enterprise release is announced; non-core P1 deferrals must be labeled outside the Enterprise claim.
 - The complete native standalone application lifecycle is core Enterprise scope. The Layer-2 PaaS platforms (Coolify, Komodo, Dokploy) and Marketplace on Coolify are admitted separately by current-pin receipts.
@@ -107,5 +107,5 @@ The remaining blockers for an Enterprise Public OSS production claim are:
   cells); Enterprise claims stay `bootstrapped`-only.
 
 Managed-provider entitlement denial is not a StackKits Enterprise blocker: it
-belongs to Techstack provider control, and StackKits holds no provider
+belongs to Homelab provider control, and StackKits holds no provider
 admission code or release dependency.

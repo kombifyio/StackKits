@@ -258,7 +258,7 @@ type ApplicationDeliveryBundleDescriptor struct {
 	OwnApplicationFirewalled bool
 	OwnApplicationOutbound   bool
 	// OwnApplicationPorts are the host ports an adopted own application keeps
-	// publishing (techstack.own-application/v4); only its entry publishes them.
+	// publishing (homelab.own-application/v4); only its entry publishes them.
 	OwnApplicationPorts []ApplicationDeliveryOwnPublishedPort
 	LocalNetwork        *runtimeprofile.LocalNetwork
 	DataProfile         runtimeprofile.DataProfile

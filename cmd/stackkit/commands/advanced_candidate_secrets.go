@@ -15,9 +15,9 @@ import (
 // StackSpec declares, before the target generate and apply read them. A
 // workload added by a change set (Vault's admin-token, Photos' database
 // password) otherwise has no custody: only init and `stackkit secrets
-// materialize` created it, and neither runs on a Techstack-managed host.
+// materialize` created it, and neither runs on a Homelab-managed host.
 // Existing custody is reused, never regenerated. The candidate may be JSON
-// (Techstack) or YAML (CLI); yaml.v3 decodes both. It returns the ordered refs
+// (Homelab) or YAML (CLI); yaml.v3 decodes both. It returns the ordered refs
 // so the result can name them without values.
 func materializeAdvancedCandidateSecrets(workspace string, candidate []byte) ([]string, error) {
 	var spec struct {

@@ -5,9 +5,9 @@ import (
 	"os"
 )
 
-// KombifyLinkClientID is the public PKCE client a Techstack-connected node
+// KombifyLinkClientID is the public PKCE client a Homelab-connected node
 // registers so a household member can link their kombify account to their
-// Pocket ID user. It matches Techstack's household link client id.
+// Pocket ID user. It matches Homelab's household link client id.
 const KombifyLinkClientID = "stackkit-kombify-link"
 
 // kombifyLinkCallbackURLs are the exact portal callbacks of the production and
@@ -17,15 +17,15 @@ var kombifyLinkCallbackURLs = []string{
 	"https://preview.kombify.io/household/homelab-link/callback",
 }
 
-// techstackEnrollmentPaths are the Techstack agent enrollment files; one of
-// them exists only on a node the owner connected to Techstack.
-var techstackEnrollmentPaths = []string{
+// homelabEnrollmentPaths are the Homelab agent enrollment files; one of
+// them exists only on a node the owner connected to Homelab.
+var homelabEnrollmentPaths = []string{
 	"/etc/techstack/agent-enrollment.json",
 	"/var/lib/techstack/guard/agent-enrollment.json",
 }
 
-func techstackConnected() bool {
-	for _, path := range techstackEnrollmentPaths {
+func homelabConnected() bool {
+	for _, path := range homelabEnrollmentPaths {
 		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
 			return true
 		}
@@ -34,9 +34,9 @@ func techstackConnected() bool {
 }
 
 // ensureKombifyLinkClient registers the link client idempotently on a
-// Techstack-connected node. A standalone node stays account-free: no client.
+// Homelab-connected node. A standalone node stays account-free: no client.
 func (s *Service) ensureKombifyLinkClient(ctx context.Context) error {
-	if !techstackConnected() {
+	if !homelabConnected() {
 		return nil
 	}
 	_, err := s.EnsureApplicationOIDCClient(ctx, ApplicationOIDCClientRequest{

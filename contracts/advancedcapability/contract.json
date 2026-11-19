@@ -5,7 +5,7 @@
     {"go": "SchemaVersion", "value": "stackkit.advanced-capability/v1", "doc": "SchemaVersion is the capability document version and the signing domain prefix."},
     {"go": "TrustBundleSchemaVersion", "value": "stackkit.advanced-trust-bundle/v1", "doc": "TrustBundleSchemaVersion is the Owner-imported trust bundle version."},
     {"go": "Audience", "value": "stackkit", "doc": "Audience is the only accepted capability audience."},
-    {"go": "IssuerClass", "value": "techstack", "doc": "IssuerClass is the only issuer a verifier may trust: issuerId is either exactly this value or this value followed by a dot and a per-installation suffix."},
+    {"go": "IssuerClass", "value": "homelab", "doc": "IssuerClass is the only issuer a verifier may trust: issuerId is either exactly this value or this value followed by a dot and a per-installation suffix."},
     {"go": "BackupRenewalRepositoryID", "value": "kopia:local:cloud", "doc": "BackupRenewalRepositoryID is the only repository a backup renewal can name."}
   ],
   "limits": [
@@ -62,13 +62,13 @@
       "signingDomain": "SchemaVersion",
       "fields": [
         {"json": "allowedOperations", "go": "AllowedOperations", "type": "operationSet", "doc": "AllowedOperations is the sorted, duplicate-free operation set."},
-        {"json": "applicationRelease", "go": "ApplicationRelease", "type": "object:ApplicationRelease", "optional": true, "doc": "ApplicationRelease binds a short-lived scoped release update to one catalog use case and the exact release, manifest digest and tested or untested kind the Owner approved in Techstack."},
+        {"json": "applicationRelease", "go": "ApplicationRelease", "type": "object:ApplicationRelease", "optional": true, "doc": "ApplicationRelease binds a short-lived scoped release update to one catalog use case and the exact release, manifest digest and tested or untested kind the Owner approved in Homelab."},
         {"json": "audience", "go": "Audience", "type": "string", "const": "Audience"},
         {"json": "backupRenewal", "go": "BackupRenewal", "type": "object:BackupRenewal", "optional": true, "doc": "BackupRenewal is present only on a single short-lived restore.drill capability."},
         {"json": "capabilityId", "go": "CapabilityID", "type": "string", "pattern": "capabilityId", "doc": "CapabilityID is a lowercase UUIDv7."},
         {"json": "expiresAt", "go": "ExpiresAt", "type": "string", "format": "rfc3339-utc-seconds"},
         {"json": "issuedAt", "go": "IssuedAt", "type": "string", "format": "rfc3339-utc-seconds"},
-        {"json": "issuerId", "go": "IssuerID", "type": "string", "pattern": "issuerId", "doc": "IssuerID names a Techstack issuer (see IssuerClass)."},
+        {"json": "issuerId", "go": "IssuerID", "type": "string", "pattern": "issuerId", "doc": "IssuerID names a Homelab issuer (see IssuerClass)."},
         {"json": "keyId", "go": "KeyID", "type": "string", "pattern": "keyId", "doc": "KeyID is ed25519://sha256/<hex SHA-256 of the raw public key>."},
         {"json": "ownApplicationLifecycle", "go": "OwnApplicationLifecycle", "type": "object:OwnApplicationLifecycle", "optional": true, "doc": "OwnApplicationLifecycle binds a short-lived own-application.lifecycle capability to one application, one action, one operation ID and the review digest of its dry run."},
         {"json": "ownerRef", "go": "OwnerRef", "type": "string", "pattern": "ownerRef"},
@@ -76,7 +76,7 @@
         {"json": "schemaVersion", "go": "SchemaVersion", "type": "string", "const": "SchemaVersion"},
         {"json": "signature", "go": "Signature", "type": "string", "signature": true, "format": "ed25519-signature", "doc": "Signature is the unpadded standard-Base64 Ed25519 signature over SigningDigest of the unsigned canonical bytes."},
         {"json": "stackId", "go": "StackID", "type": "string", "pattern": "stackId"},
-        {"json": "transferReceive", "go": "TransferReceive", "type": "object:TransferReceive", "optional": true, "doc": "TransferReceive binds a short-lived receiving step to the exact receiving desired intent and the one source Owner Techstack admitted for this move."},
+        {"json": "transferReceive", "go": "TransferReceive", "type": "object:TransferReceive", "optional": true, "doc": "TransferReceive binds a short-lived receiving step to the exact receiving desired intent and the one source Owner Homelab admitted for this move."},
         {"json": "transferRetirement", "go": "TransferRetirement", "type": "object:TransferRetirement", "optional": true, "doc": "TransferRetirement binds a short-lived retirement to the exact existing held snapshot, signed peer outcome and canonical desired-intent transition."},
         {"json": "uiManagerRef", "go": "UIManagerRef", "type": "string", "format": "logical-reference"}
       ]
@@ -181,7 +181,7 @@
     },
     {
       "go": "TrustBundleKey",
-      "doc": "TrustBundleKey binds one Techstack issuer to one raw Ed25519 public key.",
+      "doc": "TrustBundleKey binds one Homelab issuer to one raw Ed25519 public key.",
       "fields": [
         {"json": "issuerId", "go": "IssuerID", "type": "string", "pattern": "issuerId"},
         {"json": "keyId", "go": "KeyID", "type": "string", "pattern": "keyId"},
@@ -206,11 +206,11 @@
         "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
         "expiresAt": "2026-11-12T12:15:00Z",
         "issuedAt": "2026-11-12T12:00:00Z",
-        "issuerId": "techstack",
+        "issuerId": "homelab",
         "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
-        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
+        "rilRef": "urn:kombify:homelab:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
         "stackId": "cloud-stack",
-        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1"
+        "uiManagerRef": "urn:kombify:homelab:deployment:deployment-1"
       }
     },
     {
@@ -221,11 +221,11 @@
         "capabilityId": "018f47a0-7b55-7cc2-8c4a-65f238d78a15",
         "expiresAt": "2026-07-27T15:14:05Z",
         "issuedAt": "2026-07-27T15:04:05Z",
-        "issuerId": "techstack",
+        "issuerId": "homelab",
         "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
-        "rilRef": "urn:kombify:techstack:ril:decision:018f47a0-7b55-7cc2-8c4a-65f238d78a15",
+        "rilRef": "urn:kombify:homelab:ril:decision:018f47a0-7b55-7cc2-8c4a-65f238d78a15",
         "stackId": "basement-main",
-        "uiManagerRef": "urn:kombify:techstack:ui-manager:approval:018f47a0-7b55-7cc2-8c4a-65f238d78a15"
+        "uiManagerRef": "urn:kombify:homelab:ui-manager:approval:018f47a0-7b55-7cc2-8c4a-65f238d78a15"
       }
     },
     {
@@ -251,11 +251,11 @@
         "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
         "expiresAt": "2026-09-27T12:15:00Z",
         "issuedAt": "2026-09-27T12:00:00Z",
-        "issuerId": "techstack",
+        "issuerId": "homelab",
         "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
-        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
+        "rilRef": "urn:kombify:homelab:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
         "stackId": "cloud-stack",
-        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1"
+        "uiManagerRef": "urn:kombify:homelab:deployment:deployment-1"
       }
     },
     {
@@ -268,7 +268,7 @@
         "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
         "expiresAt": "2026-11-12T12:15:00Z",
         "issuedAt": "2026-11-12T12:00:00Z",
-        "issuerId": "techstack",
+        "issuerId": "homelab",
         "ownApplicationLifecycle": {
           "action": "update",
           "name": "mail",
@@ -276,9 +276,9 @@
           "reviewDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         },
         "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
-        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
+        "rilRef": "urn:kombify:homelab:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f90",
         "stackId": "basement-main",
-        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1"
+        "uiManagerRef": "urn:kombify:homelab:deployment:deployment-1"
       }
     },
     {
@@ -291,11 +291,11 @@
         "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8e",
         "expiresAt": "2026-09-27T12:15:00Z",
         "issuedAt": "2026-09-27T12:00:00Z",
-        "issuerId": "techstack",
+        "issuerId": "homelab",
         "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
-        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8e",
+        "rilRef": "urn:kombify:homelab:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8e",
         "stackId": "cloud-stack",
-        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1",
+        "uiManagerRef": "urn:kombify:homelab:deployment:deployment-1",
         "transferReceive": {
           "candidateSpecHash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
           "sourceOwnerRef": "owner/local/ffeeddccbbaa99887766554433221100",
@@ -313,11 +313,11 @@
         "capabilityId": "01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
         "expiresAt": "2026-09-27T12:15:00Z",
         "issuedAt": "2026-09-27T12:00:00Z",
-        "issuerId": "techstack",
+        "issuerId": "homelab",
         "ownerRef": "owner/local/00112233445566778899aabbccddeeff",
-        "rilRef": "urn:kombify:techstack:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
+        "rilRef": "urn:kombify:homelab:ril:capability:01a0e080-c6aa-7ce7-89e7-2c8a0ee91f8d",
         "stackId": "cloud-stack",
-        "uiManagerRef": "urn:kombify:techstack:deployment:deployment-1",
+        "uiManagerRef": "urn:kombify:homelab:deployment:deployment-1",
         "transferRetirement": {
           "baselineSpecHash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           "candidateSpecHash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

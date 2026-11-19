@@ -4,7 +4,7 @@ import "list"
 
 // #OwnApplicationAdoptedLifecycle is "Stack it": one observed single container
 // StackKits did not install, rebuilt as an own application
-// (techstack.own-application/v4). Unlike the Home Assistant in-place profile it
+// (homelab.own-application/v4). Unlike the Home Assistant in-place profile it
 // recreates the container (new container ID, bounded downtime) and then owns
 // the full own-application lifecycle. The original is stopped, kept with
 // restart policy "no", restorable for retentionDays and never deleted
@@ -13,7 +13,7 @@ import "list"
 	profileRef:    "own-application-adopted/v1"
 	mode:          "rebuild_as_own_application"
 	sourceRuntime: "docker"
-	contract:      "techstack.own-application/v4"
+	contract:      "homelab.own-application/v4"
 	// The data source is copied, never moved, renamed or changed.
 	ownedFields: ["image", "environment", "secrets", "data-volume", "published-ports", "power-state", "updates", "backup"]
 	preservedFields: ["persistentData", "environmentValues", "publishedPortBindings", "outboundInternet"]

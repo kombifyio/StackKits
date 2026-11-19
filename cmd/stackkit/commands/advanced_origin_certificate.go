@@ -92,7 +92,7 @@ type originCertificateInvalidError struct{ cause error }
 func (e *originCertificateInvalidError) Error() string { return e.cause.Error() }
 func (e *originCertificateInvalidError) Unwrap() error { return e.cause }
 
-// admitAdvancedOriginCertificate verifies the Techstack-signed capability
+// admitAdvancedOriginCertificate verifies the Homelab-signed capability
 // offline against the local Owner-approved trust before any custody write.
 func admitAdvancedOriginCertificate(workspace, capabilityPath, operation string, now time.Time) error {
 	capabilityRaw, err := readAdvancedRegular(capabilityPath, maxAdvancedTrustBundleBytes, "Advanced capability")

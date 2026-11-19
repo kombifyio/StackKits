@@ -114,8 +114,8 @@ Every agent that attaches here is an external agent on a local Standard Mode ins
 account, and nothing on the server can attest which rights its owner gave it. Such agents keep these ceilings by
 design: read tools by default, the shared token and an anonymous stdio attachment behind `STACKKIT_MCP_ALLOW_WRITE`
 plus `owner_approved`, and a per-agent credential behind the owner's per-call approval in the server's shell. A kombify
-agent such as the Companion does not attach to this connector; on a Techstack-managed installation it acts through
-Techstack, which checks the rights the kombify Gateway attests for it.
+agent such as the Companion does not attach to this connector; on a Homelab-managed installation it acts through
+Homelab, which checks the rights the kombify Gateway attests for it.
 
 ## StackKits State Console
 
@@ -269,7 +269,7 @@ not require clients to scrape text. Apply, Status, Verify, and Logs preserve
 their versioned runtime/log contracts and local evidence links. Adapter or CLI
 failures include `stackkit.actionable-error/v1` under `error_details` with a
 stable reason code and concrete local recovery commands. These read models
-remain usable in Standard Mode without Techstack, Kombify Cloud, an account,
+remain usable in Standard Mode without Homelab, Kombify Cloud, an account,
 or another hosted endpoint.
 
 CLI-backed inputs accept an optional validated `correlation_id`, forwarded as

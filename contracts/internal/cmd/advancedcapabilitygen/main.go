@@ -4,7 +4,7 @@
 // manifest that binds every output to the source by SHA-256.
 //
 // The source is the single authority for the stackkit.advanced-capability/v1
-// and stackkit.advanced-trust-bundle/v1 wire. Techstack issues and StackKits
+// and stackkit.advanced-trust-bundle/v1 wire. Homelab issues and StackKits
 // verifies against the generated package; neither keeps its own copy.
 package main
 
@@ -36,7 +36,7 @@ const (
 	generatedGoFile        = "advancedcapability_gen.go"
 	generatedSchemaFile    = "schema.json"
 	manifestFile           = "manifest.json"
-	fixtureIssuerID        = "techstack"
+	fixtureIssuerID        = "homelab"
 	capabilityDocumentName = "Capability"
 	trustBundleName        = "TrustBundle"
 )

@@ -33,7 +33,7 @@ var clusterJoinTokenCmd = &cobra.Command{
 	Long: `Create a join token for worker or storage nodes.
 
 The token is the only supported path for treating another BaseKit install as a
-member of this homelab. Coolify remote-server registration and TechStack mirror
+member of this homelab. Coolify remote-server registration and Homelab mirror
 updates consume this cluster identity in later rollout steps.`,
 	RunE: runClusterJoinToken,
 }

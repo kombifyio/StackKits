@@ -11,7 +11,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/localevidence"
 )
 
-// The homelab DNS zone (homelab identity target §4): Techstack assembles,
+// The homelab DNS zone (homelab identity target §4): Homelab assembles,
 // from its inventory, where each server of the homelab answers on the LAN,
 // and every server's LAN resolver serves the whole zone, so each member
 // device reaches every server by its names. A DNS answer is never identity
@@ -33,7 +33,7 @@ type HomeDNSZoneServer struct {
 	Hostnames []string `json:"hostnames"`
 }
 
-// HomeDNSZone is the zone Techstack assembles and carries to each server.
+// HomeDNSZone is the zone Homelab assembles and carries to each server.
 type HomeDNSZone struct {
 	Schema string `json:"schema"`
 	// Domain is the homelab domain the Authority serves.
@@ -186,7 +186,7 @@ func admitHomeDNSZoneJoined(ctx context.Context, root string, zone HomeDNSZone, 
 	return nil
 }
 
-// HomeDNSZoneSite is what one server reports for the zone Techstack
+// HomeDNSZoneSite is what one server reports for the zone Homelab
 // assembles: its role, its own domain and LAN address, and on a joined server
 // its node and the names the Owner approved for it.
 type HomeDNSZoneSite struct {

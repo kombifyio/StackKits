@@ -2,12 +2,12 @@
 //
 // Deploys VictoriaMetrics single-node as a long-term metrics store.
 // When enabled, monitoring-agent instances should point their OTLP endpoint
-// at this module's gateway service instead of TechStack directly.
+// at this module's gateway service instead of Homelab directly.
 //
 // Architecture:
 //   monitoring-agent nodes  →  OTLP/gRPC (4317)  →  otel-gateway
 //   otel-gateway            →  Remote Write       →  VictoriaMetrics
-//   TechStack               →  PromQL HTTP        →  VictoriaMetrics
+//   Homelab               →  PromQL HTTP        →  VictoriaMetrics
 //   External dashboards     →  PromQL HTTP        →  VictoriaMetrics
 //
 // Resource requirements on the host:

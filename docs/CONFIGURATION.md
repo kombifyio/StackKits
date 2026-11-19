@@ -9,7 +9,7 @@ This document collects the runtime configuration surfaces for StackKits. CUE rem
 | Surface | Owner | Purpose |
 | --- | --- | --- |
 | CUE files under `base/`, `basement-kit/`, `cloud-kit/`, and `modules/` | Developers | Schemas, defaults, constraints, and deployment shape. |
-| `stack-spec.yaml` | Operators or TechStack | User intent and selected defaults for one deployment. |
+| `stack-spec.yaml` | Operators or Homelab | User intent and selected defaults for one deployment. |
 | CLI flags | Operators or CI | One-run overrides for init, generate, apply, verify, and registry operations. |
 | `stackkit-server` flags/env | Operators or platform | Local API auth, CORS, rate limits, and log directory. |
 | Registry snapshot | Release pipeline | Read-only, CUE-derived catalog mirror baked into CLI/runtime; it has no Admin or DB availability dependency. |
@@ -161,7 +161,7 @@ prints the message without sending it.
 | Exact-v0.6 `stackkit prepare` compatibility | `--host`, `--user`, `--key`, `--port`, `--dry-run`, `--skip-docker`, `--skip-tofu`, `--auto-fix`, `--force`, `--non-interactive` | Historical preparation adapter only; these flags retain their v0.6 behavior on exact-v0.6 artifacts. |
 | `stackkit init` cloud owner handoff (v0.6 compatibility) | `--cloud-oidc-issuer`, `--cloud-oidc-client-id`, `--cloud-oidc-client-secret-ref`, `--cloud-oidc-foreign-subject` | Optional legacy metadata for orchestrator-managed auto owner bootstrap. |
 | `stackkit addon list` | none | On v0.7, list the embedded CUE add-on catalog and, when a canonical v2 spec exists, its validated kit-filtered selection state. This is discovery only. `addon add/remove` remains v0.6 compatibility-only. |
-| `stackkit app add` (v0.6 compatibility) | `<name>`, `--image`, `--kind`, `--port`, `--host`, `--auth`, `--health-path`, repeated `--env`, repeated `--secret` | Add legacy PaaS handoff metadata. Native v2 fails closed: catalog apps remain StackKit-owned, and no TechStack customer-workload desired-state contract exists yet. |
+| `stackkit app add` (v0.6 compatibility) | `<name>`, `--image`, `--kind`, `--port`, `--host`, `--auth`, `--health-path`, repeated `--env`, repeated `--secret` | Add legacy PaaS handoff metadata. Native v2 fails closed: catalog apps remain StackKit-owned, and no Homelab customer-workload desired-state contract exists yet. |
 | `stackkit generate` | `--output`, `--inventory`, `--resolved-plan`, `--local-site`, `--local-node`; deprecated rejection-only `--force`, `--fragments` | Resolve StackSpec v2 and atomically persist the current canonical ResolvedPlan, then render only its governed output. `--local-site`/`--local-node` name the local inventory node on multi-node specs (same binding as Apply). StackSpec v1 returns `migration_required` before output or lifecycle state is written. |
 | `stackkit apply` | `--auto-approve`, `--verify`, `--verify-http`, `--verify-strict` | Apply only local generated infrastructure and optionally verify results. The public command has no Admin or tenant-deployment path. |
 | `stackkit apply` env | local execution, renderer, and optional observability variables only | Public Apply does not consume Admin endpoints/tokens, Kombify credentials, or a managed bootstrap envelope. |
@@ -240,7 +240,7 @@ no Admin endpoint or private credential participates in public validation.
   baseline, StackKit-packaged Terramate orchestration,
   drift/change/rollback/restore-drill surfaces, and Runtime Intelligence Layer
   handoff. It does not select Photos, Vault, Files, or another L3 application.
-  Techstack may unify a user-approved v0.9 opt-in, but the CUE contract remains
+  Homelab may unify a user-approved v0.9 opt-in, but the CUE contract remains
   final authority. Legacy `terramate` / `advanced-terramate` inputs normalize to
   this same Advanced contract.
 
@@ -261,7 +261,7 @@ Native v2 uses local Owner custody. `stackkit init --owner-source=local`
 creates the stable `ownerRef`, Ed25519 evidence key, step-ca certificate, and
 desired PocketID projection outside StackSpec. The first Apply realizes the
 PocketID Owner plus TinyAuth OIDC client and signs their binding. Public Apply
-accepts only this local custody; Techstack or kombify Cloud may propose a
+accepts only this local custody; Homelab or kombify Cloud may propose a
 user-approved profile projection, and kombify Cloud may synchronize approved
 user fields as a convenience, but neither can replace local authority or sync
 passwords, passkeys, private keys, or Cloud sessions.
@@ -270,7 +270,7 @@ The fields below describe only the bounded v1 compatibility/migration contract:
 
 `owner.bootstrapMode` is the lane selector for first-user setup:
 
-- `auto` is the TechStack SaaS path. The public/default StackSpec carries `source: cloud` or `source: first-run` plus policy only. `owner.email` and `owner.username` are not required or invented in the public spec. `stackkit apply` rejects `auto` because the owner must come from an external orchestrator; standalone apply accepts local owner custody only.
+- `auto` is the Homelab SaaS path. The public/default StackSpec carries `source: cloud` or `source: first-run` plus policy only. `owner.email` and `owner.username` are not required or invented in the public spec. `stackkit apply` rejects `auto` because the owner must come from an external orchestrator; standalone apply accepts local owner custody only.
 - `custom` is the self-hosted explicit Owner path. It requires `source: local`, `owner.email`, `owner.username`, and an argon2id `recoveryPassphraseHash`.
 - `none` is the OSS/BYOS or manual setup path. It must not carry owner identity or recovery fields.
 
@@ -307,7 +307,7 @@ keys are never user-sync fields.
 | `--trusted-proxies` | `STACKKITS_TRUSTED_PROXIES` | empty | Trusted proxy IPs/CIDRs for `X-Forwarded-For`. |
 | `--log-dir` | `STACKKITS_LOG_DIR` | `<base-dir>/.stackkit/logs` | Deploy log directory. |
 | `--log-level` | n/a | `info` | `debug`, `info`, `warn`, or `error`. |
-| n/a | `SERVICE_AUTH_SECRET` | empty | Shared HS256 secret required for TechStack internal StackAction calls. |
+| n/a | `SERVICE_AUTH_SECRET` | empty | Shared HS256 secret required for Homelab internal StackAction calls. |
 | n/a | `SERVICE_AUTH_SECRET_NEXT` | empty | Optional rotated service-auth secret accepted alongside the current secret. |
 | n/a | `STACKKITS_STACK_ACTION_MODE` | `dry-run` | `dry-run` validates the handoff; `apply` executes local OpenTofu rollout/verification commands. |
 | n/a | `STACKKITS_RESTORE_DRILL_COMMAND` | empty | Optional restore verifier command for `restore_drill` in `apply` mode; receives `STACKKIT_STACK_ACTION`, `STACKKIT_STACK_ID`, `STACKKIT_STACK_NAME`, `STACKKIT_STACKKIT`, `STACKKIT_TOFU_DIR`, and `STACKKIT_UNIFIED_PATH`. |

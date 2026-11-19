@@ -52,7 +52,7 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       false
-			notes: ["Cloud-only Managed product intent, outside StackKits and Techstack Core/Standard. Existing Techstack commercial orchestration operates upstream Home Assistant; this is not an admitted native workload alternative."]
+			notes: ["Cloud-only Managed product intent, outside StackKits and Homelab Core/Standard. Existing Homelab commercial orchestration operates upstream Home Assistant; this is not an admitted native workload alternative."]
 		}
 		"kombify-managed-hybrid": {
 			displayName: "Kombify Managed Home Assistant with local integrations"
@@ -62,7 +62,7 @@ Package: foundation.#UseCasePackage & {
 			managedServerlessEligible: true
 			requiresControlPlane:      true
 			requiresLocalBridge:       true
-			notes: ["Cloud-only Managed intent, outside Techstack Core/Standard. Reuse Home Assistant integrations, an existing MQTT broker and optional Zigbee2MQTT; no Kombify device bridge is implied. Native Mosquitto and Zigbee2MQTT are individually selected optional workloads; they do not grant Managed provisioning or LAN/device access."]
+			notes: ["Cloud-only Managed intent, outside Homelab Core/Standard. Reuse Home Assistant integrations, an existing MQTT broker and optional Zigbee2MQTT; no Kombify device bridge is implied. Native Mosquitto and Zigbee2MQTT are individually selected optional workloads; they do not grant Managed provisioning or LAN/device access."]
 		}
 		"self-hosted-container": {
 			displayName: "Self-hosted Home Assistant Container"

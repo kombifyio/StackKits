@@ -497,7 +497,7 @@ package foundation
 	// /lc/<token> URL (PocketID one-time code) the operator clicks once to enroll a
 	// WebAuthn credential. Cloud owners federate from an external IdP.
 	recoveryPassphraseHash?: =~"^\\$argon2id\\$.*"
-	recoveryMaterialRef?:    =~"^(techstack|secret|doppler|vault)://.+|^(env|file):.+"
+	recoveryMaterialRef?:    =~"^(homelab|secret|doppler|vault)://.+|^(env|file):.+"
 	foreignSubjectId?:       string // optional for source=cloud; Cloud can resolve it out-of-band
 	passkeyEnrollmentToken?: string // optional first-login passkey link
 
@@ -511,7 +511,7 @@ package foundation
 	if bootstrapMode == "auto" {
 		source?: "cloud"
 		{
-			recoveryMaterialRef!: =~"^(techstack|secret|doppler|vault)://.+|^(env|file):.+"
+			recoveryMaterialRef!: =~"^(homelab|secret|doppler|vault)://.+|^(env|file):.+"
 		} | {
 			recoveryPassphraseHash!: =~"^\\$argon2id\\$.*"
 		}

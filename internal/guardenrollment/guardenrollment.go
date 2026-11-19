@@ -1,6 +1,6 @@
-// Package guardenrollment reads the Techstack Guard enrollment of this node:
+// Package guardenrollment reads the Homelab Guard enrollment of this node:
 // the server and worker the Guard was enrolled for. StackKits never imports
-// Techstack; it reads the enrollment file the Guard keeps on the host, so a
+// Homelab; it reads the enrollment file the Guard keeps on the host, so a
 // credential or a link can be bound to this node's own Guard identity and
 // never to one a request names.
 package guardenrollment
@@ -21,7 +21,7 @@ var Paths = []string{
 }
 
 // ErrAbsent means this node has no readable Guard enrollment.
-var ErrAbsent = errors.New("guardenrollment: this node has no Techstack Guard enrollment")
+var ErrAbsent = errors.New("guardenrollment: this node has no Homelab Guard enrollment")
 
 var ref = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 

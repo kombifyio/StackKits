@@ -9,7 +9,7 @@ import (
 )
 
 // LoadTransferSecret reads the move's transfer secret from this node's Wallet
-// item custody. Techstack delivers the same item, sealed, to the source and
+// item custody. Homelab delivers the same item, sealed, to the source and
 // the destination (`stackkit wallet-item import`); it never arrives any other
 // way. The caller clears the returned value after deriving from it.
 func LoadTransferSecret(workspace, tenantRef, itemRef string) ([]byte, error) {

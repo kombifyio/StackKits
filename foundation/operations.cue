@@ -29,7 +29,7 @@ package foundation
 }
 
 // #OperationSpec is the StackKit-owned contract for post-apply and day-2
-// operations. TechStack may orchestrate these operations, but StackKits owns
+// operations. Homelab may orchestrate these operations, but StackKits owns
 // the declaration and the resource ownership boundary.
 #OperationSpec: {
 	name:      =~"^[a-z][a-z0-9-]+$"

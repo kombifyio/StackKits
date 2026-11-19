@@ -4,7 +4,7 @@
 //
 // A resolution names normalized failure signatures (fk-normalizer), where it
 // applies, the root cause and fix steps as references to StackKits or
-// Techstack procedures. The snapshot holds no installation, tenant or subject
+// Homelab procedures. The snapshot holds no installation, tenant or subject
 // data; it is knowledge, never execution authority. A fix runs only through
 // the referenced product procedure.
 //
@@ -55,7 +55,7 @@ const (
 var (
 	signaturePattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	idPattern        = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-	productPattern   = regexp.MustCompile(`^(stackkits|techstack)$`)
+	productPattern   = regexp.MustCompile(`^(stackkits|homelab)$`)
 	procedurePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._:/@#-]{1,199}$`)
 )
 

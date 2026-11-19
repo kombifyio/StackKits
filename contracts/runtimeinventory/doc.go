@@ -3,14 +3,14 @@
 //
 // # Authority
 //
-// The canonical Inventory schema in Techstack owns this model. This package
+// The canonical Inventory schema in Homelab owns this model. This package
 // owns its generated Go type identity and stable JSON field names.
 //
 // # Non-authority
 //
 // This package does not own server identity, lifecycle transitions, desired
 // state, lease state, provider operations, cleanup evidence, freshness policy,
-// authorization, pagination behavior, or access-link derivation. Techstack is
+// authorization, pagination behavior, or access-link derivation. Homelab is
 // the production authority for those decisions and projections.
 //
 // # Side effects

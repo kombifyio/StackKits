@@ -18,7 +18,7 @@ type runtimeInventoryManifest struct {
 
 // verifyRuntimeInventoryManifest binds the checked-in Runtime Inventory schema
 // and generated types to the digests its generation manifest recorded. The
-// generator lives in Techstack, so this is the drift check on this side.
+// generator lives in Homelab, so this is the drift check on this side.
 func verifyRuntimeInventoryManifest(root string) error {
 	directory := filepath.Join(root, "runtimeinventory")
 	payload, err := os.ReadFile(filepath.Join(directory, "manifest.json"))

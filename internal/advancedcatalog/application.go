@@ -41,7 +41,7 @@ func applicationOperations() []Operation {
 
 // applicationStackOperations are "Stack it": one existing single container
 // StackKits did not install, rebuilt as an own application
-// (techstack.own-application/v4) with the own-application lifecycle.
+// (homelab.own-application/v4) with the own-application lifecycle.
 func applicationStackOperations() []Operation {
 	result := []Outcome{{Status: "success", ContractRef: ref("stackkit.own-application-adoption/v1", "schemas/stackkit-own-application-adoption-v1.schema.json"), Description: "Rows kept, changed or refused, the plan digest, the outcome code and, after adoption, the own-application result and retention deadline; environment values never appear."}}
 	base := []string{"app", "own", "--from-container", "{containerId}", "--name", "{ownApplicationName}"}

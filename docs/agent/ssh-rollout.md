@@ -1,6 +1,6 @@
 # Prompt: External Executor Handoff
 
-Prepare an externally managed host for a governed Architecture v2 rollout. Raw SSH target selection, provider identity, credentials, and transport configuration are not StackSpec intent and must remain owned by the external executor/TechStack boundary.
+Prepare an externally managed host for a governed Architecture v2 rollout. Raw SSH target selection, provider identity, credentials, and transport configuration are not StackSpec intent and must remain owned by the external executor/Homelab boundary.
 
 Collect or confirm outside StackSpec:
 

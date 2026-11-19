@@ -228,7 +228,7 @@ func sealReceiptEnvelope(ctx context.Context, command Command, receipt Receipt, 
 }
 
 // InitialReceipt creates the coordinator-owned head of a new lifecycle chain.
-// It is the only valid sequence-1 receipt. TechStack persists it before
+// It is the only valid sequence-1 receipt. Homelab persists it before
 // calling an Executor, then passes it to the executor as read-only execution
 // context in an ExecutionRequest. The executor never mutates the ledger head.
 func InitialReceipt(command Command, issuedAt time.Time) (Receipt, error) {
@@ -268,7 +268,7 @@ func (request ExecutionRequest) Validate(ctx context.Context, verifier EvidenceV
 	return request.Previous.ValidateFor(ctx, request.Command, verifier)
 }
 
-// AssembleReceipt has no storage side effect. It lets TechStack's coordinator
+// AssembleReceipt has no storage side effect. It lets Homelab's coordinator
 // turn an adapter result into the next immutable receipt using the coordinator
 // ledger head. Callers must persist the result only after this function
 // succeeds; it seals and validates the candidate and its append transition.

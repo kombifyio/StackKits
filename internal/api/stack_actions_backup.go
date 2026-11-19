@@ -1,7 +1,7 @@
 package api
 
 // Node-side backup StackActions (backup_run, backup_status,
-// backup_restore, backup_wipe). TechStack orchestrates these over the
+// backup_restore, backup_wipe). Homelab orchestrates these over the
 // service-auth channel; the node executes them against the local kopia-agent
 // container through the shared backupexec engine — the exact argv the
 // `stackkit backup` CLI speaks.
@@ -614,7 +614,7 @@ func backupSnapshotFromEngineStackAction(snap backupexec.Snapshot, classes []str
 
 // latestLogicalRepoSize approximates the repository's current logical size as
 // the sum of the newest snapshot per source path. That is what the user
-// "stores" and what TechStack meters against the tier quota; physical
+// "stores" and what Homelab meters against the tier quota; physical
 // (deduplicated) size refinement lands with the control-plane R2 metering.
 func latestLogicalRepoSizeStackAction(snapshots []backupexec.Snapshot) int64 {
 	latest := make(map[string]backupexec.Snapshot)

@@ -5,7 +5,7 @@ _monitoringBaselineOnlyCheck: #MonitoringConfig & {
 	baseline: {
 		signals: {metrics: true, logs: false, traces: false}
 		collector: {
-			endpoint: "techstack:4317"
+			endpoint: "homelab:4317"
 			protocol: "grpc"
 			auth: {mode: "none"}
 			tls:  {insecure: false}

@@ -1,6 +1,6 @@
 // Package advancedcatalog is the single source of truth for the Advanced
 // operations catalog (stackkit.advanced-operations/v1): every Advanced
-// operation an orchestrator such as Techstack may dispatch to the stackkit
+// operation an orchestrator such as Homelab may dispatch to the stackkit
 // CLI, with its exact argv template, admission requirements, input and result
 // contracts, rollout event phases and denial envelope.
 //
@@ -205,7 +205,7 @@ var (
 	capabilityInput = Input{
 		Placeholder: "capabilityFile",
 		ContractRef: ref(CapabilitySchemaVersion, CapabilitySchema),
-		Description: "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust.",
+		Description: "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust.",
 	}
 	candidateInput = Input{
 		Placeholder: "candidateSpecFile",
@@ -288,7 +288,7 @@ func New() Catalog {
 		Operations: append([]Operation{
 			{
 				Operation: OperationTrustImport, Status: StatusAvailable, SinceRelease: "v0.15.8",
-				Summary:      "Import the exact pinned Techstack issuer trust bundle into local Owner custody; prerequisite of every capability-gated operation.",
+				Summary:      "Import the exact pinned Homelab issuer trust bundle into local Owner custody; prerequisite of every capability-gated operation.",
 				Command:      "stackkit advanced trust import",
 				Argv:         []string{"advanced", "trust", "import", "--bundle", "{bundleFile}", "--expect-sha256", "{bundleSha256}", "--owner-approve", "--json"},
 				OptionalArgs: []OptionalArgs{},
@@ -378,7 +378,7 @@ func New() Catalog {
 				Modes: capabilityModes,
 			},
 			originCertificateEntry(advancedcapability.OperationOriginCertificateRequest, "request",
-				"Generate the origin key pair on the node (custody, never exported) and return the CSR for a managed kombify.me origin certificate; Techstack has Cloudflare issue it.",
+				"Generate the origin key pair on the node (custody, never exported) and return the CSR for a managed kombify.me origin certificate; Homelab has Cloudflare issue it.",
 				[]string{"--hosts", "{hostsCsv}"}, []Input{capabilityInput, hostsInput}),
 			originCertificateEntry(advancedcapability.OperationOriginCertificateInstall, "install",
 				"Verify and install the delivered Cloudflare Origin CA certificate against the pending node key; the managed kombify.me routes are then served without an ACME order.",
@@ -497,7 +497,7 @@ func placeholders() []Placeholder {
 		{Name: "capabilityFile", Description: "Path to the canonical capability file."},
 		{Name: "changeSetId", Description: "Content address of the Owner-signed change set.", Pattern: sha},
 		{Name: "changeSetSha256", Description: "Exact digest of the stored change-set bytes.", Pattern: sha},
-		{Name: "certificateFile", Description: "Path to the PEM origin certificate delivered by Techstack."},
+		{Name: "certificateFile", Description: "Path to the PEM origin certificate delivered by Homelab."},
 		{Name: "hostsCsv", Description: "Comma-separated managed kombify.me hostnames.", Pattern: `^[a-z0-9*][a-z0-9.*,-]*$`},
 		{Name: "correlationId", Description: "Caller correlation ID."},
 		{Name: "operationId", Description: "Stable lowercase operation ID.", Pattern: `^[a-z0-9][a-z0-9._-]{7,99}$`},

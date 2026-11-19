@@ -37,7 +37,7 @@ modeMatrix: foundation.#KitModeSupport & {
 		// bootstrapped path end-to-end on externally supplied fresh Ubuntu,
 		// but that run left no citable receipt in this repository.
 		bootstrapped: "scaffolding"
-		// mvps_4061f9f196 (Techstack-dispatched Advanced on a managed IONOS
+		// mvps_4061f9f196 (Homelab-dispatched Advanced on a managed IONOS
 		// VPS, StackKits snapshot 80d57455) passed the lifecycle phases but has
 		// no owner setup, application setup, household user or OIDC proof, so
 		// it no longer satisfies the install.advanced gate

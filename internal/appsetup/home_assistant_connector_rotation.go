@@ -20,7 +20,7 @@ import (
 func localGuardIdentity() (string, error) {
 	enrollment, err := guardenrollment.Read()
 	if err != nil {
-		return "", errors.New("home_assistant_connector_guard_required: the connector credential is bound to the Techstack Guard of this node; no Guard enrollment was found")
+		return "", errors.New("home_assistant_connector_guard_required: the connector credential is bound to the Homelab Guard of this node; no Guard enrollment was found")
 	}
 	return enrollment.Identity(), nil
 }

@@ -15,7 +15,7 @@ _validStatefulOperation: #OperationSpec & {
 	}
 	state_scope: {
 		backend: "s3"
-		stack:   "techstack/tenant-1/stack-1/ops"
+		stack:   "homelab/tenant-1/stack-1/ops"
 	}
 }
 

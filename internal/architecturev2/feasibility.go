@@ -13,7 +13,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
 )
 
-// Feasibility report identity. Techstack validates a proposed layout against
+// Feasibility report identity. Homelab validates a proposed layout against
 // this contract and never interprets a ResolvedPlan itself.
 const (
 	FeasibilityAPIVersion = "stackkit.kombify.io/feasibility/v1"

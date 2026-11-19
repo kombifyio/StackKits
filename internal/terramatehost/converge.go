@@ -46,7 +46,7 @@ const (
 	// exist after apply.
 	StackPendingRoot = "pending_root"
 	// StackOtherHost: the stack belongs to another host project. Its change
-	// runs through that host's execution channel (Techstack dispatch).
+	// runs through that host's execution channel (Homelab dispatch).
 	StackOtherHost = "other_host"
 )
 
@@ -176,7 +176,7 @@ type ConvergeRequest struct {
 	// AffectedStacks are the change set's stack IDs in graph run order.
 	AffectedStacks []string
 	// RemoteOwnedModules are the module refs whose runtime owner runs as a
-	// remote operations process (Techstack dispatch). Only their stacks may
+	// remote operations process (Homelab dispatch). Only their stacks may
 	// stay pending_root.
 	RemoteOwnedModules []string
 	Tools              Tools

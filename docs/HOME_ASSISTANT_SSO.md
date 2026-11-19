@@ -99,7 +99,7 @@ setup lifecycle projection retain `homeAssistantConnector.issuer` and
 `verifiedLocalDeployment` (node, instance, container, image). Only the latter
 are independently verified local deployment facts. `issuer.requestedBinding`
 keeps `resourceId` and `serviceRevision` as caller-selected external correlation;
-it does not prove a Techstack inventory revision. A changed or missing container
+it does not prove a Homelab inventory revision. A changed or missing container
 withholds a verified result and never authorizes silent replacement enrollment.
 External/imported Home Assistant instances have no native workload bundle and
 cannot enter this bootstrap path; their preservation-first adoption is unchanged.
@@ -110,7 +110,7 @@ binding denial, enrollment replay/revoke and secret-free receipt projection;
 it does not qualify a deployed Docker installation or native MCP tools.
 StackKits pins 2026.9.4, the release the separately reviewed native MCP
 adapter fixture admits; the pin alone qualifies nothing. Gateway connection
-eligibility, equipment assignment, Techstack handoff and actual agent use remain
+eligibility, equipment assignment, Homelab handoff and actual agent use remain
 unavailable until those joins, a released runtime receipt and the current-pin
 customer journey are qualified.
 
@@ -161,7 +161,7 @@ signature covering the local deployment facts. Consumers must decode and
 verify those bytes and match the authenticated pinned-CLI result to their
 current service authority; an inner issuer signature alone does not prove the
 local deployment. External resource/revision correlation is still not a
-Techstack inventory attestation.
+Homelab inventory attestation.
 
 If the command acknowledgement is lost, use the same request and operation
 with `--verify-only` instead of `--owner-approve`. Verification does not issue,
@@ -180,7 +180,7 @@ claim independent MCP reachability or current tool qualification.
 The release catalog exposes `application.connector` and
 `application.connector.verify` with fixed argv and the request/result schemas.
 These local lifecycle operations can be dispatched within an existing
-Techstack Advanced deployment once the normally published pinned release and
+Homelab Advanced deployment once the normally published pinned release and
 its capability have been admitted; they do not introduce a standalone Advanced
 executor. Current source qualification does not activate a Gateway grant or
 agent equipment.
@@ -259,7 +259,7 @@ preselected) and, for an apply, the confirmed `planDigest` with `decisions`
 
 The command-result data uses `stackkit.home-graph-adoption-result/v1`.
 
-The release catalog exposes `application.home-graph.adopt`. Techstack serves
+The release catalog exposes `application.home-graph.adopt`. Homelab serves
 `POST /api/v1/internal/household/home-graph/adoption` with `owner_subject`,
 `space_id`, optional `service_id` and the adoption `request`; `GET` with the
 owner, space and returned `job_id` reads the plan or apply result. Both calls
@@ -268,7 +268,7 @@ request and return the validated result; Cloud commits the merged graph with a
 revision check, preserving its device roles, identities and assignments. A
 second Home Assistant can be selected only from that owner's active smart-home
 connectors. The pinned released catalog must advertise the operation before
-Techstack admits it.
+Homelab admits it.
 
 
 The local `appsetup.BootstrapHomeAssistantOwner` API accepts an optional
@@ -305,7 +305,7 @@ Guard enrollment or under another Guard identity
 (`home_assistant_connector_guard_changed`), while `revoke` still works. The
 signed receipt carries `guardIdentity` and the expiry of the generation of
 setup; `stackkit.home-assistant-connector-result/v1` adds `currentIssuer`,
-Owner-signed issuer evidence of the generation the node holds now (Techstack
+Owner-signed issuer evidence of the generation the node holds now (Homelab
 takes the current expiry from it only when owner, user, version, binding,
 Guard identity and secret reference equal the receipt's). Verification
 (`--verify-only`) rotates too and is the periodic driver until the local
@@ -347,4 +347,4 @@ owner/version readback. The caller still owes current relay admission.
 
 Production deployment-to-node handoff, automatic Gateway connection creation,
 agent equipment and local relay consumption remain separate integration work.
-No plaintext credential may enter Techstack, Gateway, UI, logs, or receipts.
+No plaintext credential may enter Homelab, Gateway, UI, logs, or receipts.

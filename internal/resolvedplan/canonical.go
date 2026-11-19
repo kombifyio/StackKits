@@ -15,7 +15,7 @@ import (
 const redactedValue = "<redacted>"
 
 var (
-	secretRefPattern       = regexp.MustCompile(`^(secret|vault|doppler|techstack)://.+$`)
+	secretRefPattern       = regexp.MustCompile(`^(secret|vault|doppler|homelab)://.+$`)
 	canonicalSHA256Pattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	compactKeyReplacer     = strings.NewReplacer("_", "", "-", "")
 	setSemanticKeys        = map[string]struct{}{
@@ -365,7 +365,7 @@ func validateSecretReferenceValue(value any, path string) error {
 		}
 		return nil
 	}
-	return fail(ErrUnsafeSecretReference, path, "plaintext or embedded secret material is forbidden; use a secret://, vault://, doppler://, or techstack:// reference")
+	return fail(ErrUnsafeSecretReference, path, "plaintext or embedded secret material is forbidden; use a secret://, vault://, doppler://, or homelab:// reference")
 }
 
 func sortStringsUnique(values []string) []string {

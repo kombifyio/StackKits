@@ -127,7 +127,7 @@ func newHostRebootCommand(deps hostMaintenanceDeps) *cobra.Command {
 
 The returned boot_id_before identifies the current boot, so a caller can tell
 the node came back by reading a different boot ID. The command refuses a node
-that runs the Techstack control plane, a node where apt or dpkg holds its lock
+that runs the Homelab control plane, a node where apt or dpkg holds its lock
 or a host update runs, and a node that cannot boot unattended (volumes in
 /etc/crypttab that need a passphrase, or no apt).
 

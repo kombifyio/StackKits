@@ -19,7 +19,7 @@ package foundation
 
 #IaCDefaults: {
 	// Pinned host-local OpenTofu adapter versions. Server infrastructure
-	// providers are intentionally absent; TechStack owns those drivers. Simulate
+	// providers are intentionally absent; Homelab owns those drivers. Simulate
 	// may consume the same neutral executor contract as an optional test harness.
 	provider_versions: #ProviderVersions
 

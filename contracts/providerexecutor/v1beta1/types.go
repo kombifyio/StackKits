@@ -10,7 +10,7 @@ const APIVersion = "providerexecutor/v1beta1"
 
 // The v1beta1 contract is intentionally bounded so validation, hashing, and
 // graph traversal have predictable resource use. These bounds apply to one
-// command or receipt envelope, not to TechStack's durable ledger retention.
+// command or receipt envelope, not to Homelab's durable ledger retention.
 const (
 	MaxTargets             = 128
 	MaxResources           = 256
@@ -120,14 +120,14 @@ type ResourceTarget struct {
 }
 
 // Command is authorized and persisted by the owning product before it crosses
-// an Executor boundary. AdapterID selects a TechStack-owned adapter; it is not
+// an Executor boundary. AdapterID selects a Homelab-owned adapter; it is not
 // a StackKit compatibility or architecture field. CustodyRef, ConnectionRef,
 // and DesiredSpecRef are hierarchical server-side lookup references whose
 // identifiers are opaque to this package; they must never contain raw
 // credentials. LeaseRevision, RuntimeServerID, and ResourceGenerationID fence
-// execution to the exact lease/server/generation aggregate that TechStack
+// execution to the exact lease/server/generation aggregate that Homelab
 // admitted. ProviderID is the stable vendor identity; AdapterID selects the
-// TechStack implementation. CapabilitySnapshotHash and ExecutionProfileHash
+// Homelab implementation. CapabilitySnapshotHash and ExecutionProfileHash
 // retain the exact catalog/admission decision used for this operation.
 type Command struct {
 	APIVersion             string           `json:"api_version"`
@@ -237,14 +237,14 @@ func IsProviderReasonCode(code string) bool {
 }
 
 // Reason is a secret-free, machine-readable failure envelope. Human-readable
-// diagnostics and raw provider responses remain in TechStack-owned logs or
+// diagnostics and raw provider responses remain in Homelab-owned logs or
 // evidence stores and never cross this contract.
 type Reason struct {
 	Code      string `json:"code"`
 	Retryable bool   `json:"retryable"`
 }
 
-// Receipt is an immutable lifecycle-ledger entry. TechStack's coordinator
+// Receipt is an immutable lifecycle-ledger entry. Homelab's coordinator
 // first persists sequence 1 as pending/requested with no resources, then asks
 // an Executor to return later entries (normally starting at sequence 2). The
 // coordinator seals, validates, and appends each entry. Sequence and
@@ -280,7 +280,7 @@ type Receipt struct {
 }
 
 // EvidenceVerifier verifies the attestation behind definitive provider-native
-// evidence. TechStack owns the implementation and its trust configuration.
+// evidence. Homelab owns the implementation and its trust configuration.
 // Implementations must honor context cancellation. The shared package invokes
 // it before accepting an absent lifecycle state and rejects typed-nil verifiers.
 type EvidenceVerifier interface {
@@ -289,7 +289,7 @@ type EvidenceVerifier interface {
 
 // ExecutionResult is the unchained result of one adapter invocation. It has no
 // receipt identity, sequence, or digest because an adapter cannot safely own
-// TechStack's ledger head. A provider failure is represented by a failed
+// Homelab's ledger head. A provider failure is represented by a failed
 // result with a closed provider reason and every known resource binding.
 // Admission and policy failures use DenyReceipt before invocation. The
 // single-return shape prevents callers from discarding partial-create cleanup
@@ -305,14 +305,14 @@ type ExecutionResult struct {
 // ledger head. The adapter therefore has the prior lifecycle phase, complete
 // resource graph, and immutable evidence history it needs to return exactly
 // one next transition. The request does not transfer ledger authority: only
-// TechStack's coordinator may seal and persist the resulting receipt.
+// Homelab's coordinator may seal and persist the resulting receipt.
 type ExecutionRequest struct {
 	Command  Command `json:"command"`
 	Previous Receipt `json:"previous"`
 }
 
 // Executor is intentionally transport-agnostic. It returns an unchained
-// ExecutionResult, never an authoritative ledger receipt. TechStack's
+// ExecutionResult, never an authoritative ledger receipt. Homelab's
 // coordinator owns the ledger head, calls AssembleReceipt, persists the
 // sealed receipt, and validates the append before advancing projections.
 type Executor interface {

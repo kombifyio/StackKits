@@ -1,7 +1,7 @@
 // Package originca holds the node side of Cloudflare Origin CA certificates
 // for managed kombify.me origins (ADR-0047).
 //
-// The node generates the key pair and hands out only a CSR. Techstack has the
+// The node generates the key pair and hands out only a CSR. Homelab has the
 // certificate issued and delivers the signed certificate, which is public. The
 // private key is written to owner custody and never leaves the node: no
 // result, log or receipt in this package carries it.

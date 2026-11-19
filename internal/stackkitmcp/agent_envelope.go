@@ -19,7 +19,7 @@ const AgentEnvelopeHeader = "Stackkit-Agent-Envelope"
 
 // ReadOnlyAgentCapability is the lease capability whose ceiling is the
 // read-only tools.
-const ReadOnlyAgentCapability = "techstack.inventory.read"
+const ReadOnlyAgentCapability = "homelab.inventory.read"
 
 const maxAgentEnvelopeBodyBytes = 4 << 20
 

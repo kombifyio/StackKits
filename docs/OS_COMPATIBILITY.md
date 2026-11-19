@@ -39,7 +39,7 @@ runs inside it.
 
 | Hypervisor | How the guest is created | Grade | Evidence | Last verified |
 | --- | --- | :-: | --- | --- |
-| Proxmox VE | kombify Techstack or the Proxmox VE API creates a guest VM; the StackKit installs inside that guest and is reached from the home network. | **⚪ unverified** | No lifecycle receipt for this release yet | `v0.35.0` |
+| Proxmox VE | kombify Homelab or the Proxmox VE API creates a guest VM; the StackKit installs inside that guest and is reached from the home network. | **⚪ unverified** | No lifecycle receipt for this release yet | `v0.35.0` |
 
 ## Kits by environment
 

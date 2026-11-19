@@ -79,7 +79,7 @@ type AdoptionDecision struct {
 	Side       Side   `json:"side"`
 }
 
-// AdoptionRequest is the document Cloud hands to the node through Techstack.
+// AdoptionRequest is the document Cloud hands to the node through Homelab.
 // The graph's leading_system is the leading system the person chose (kombify
 // is preselected). Apply carries the planDigest of the inventory the person
 // confirmed and a decision for every conflict, or decideAll.

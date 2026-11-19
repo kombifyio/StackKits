@@ -2,7 +2,7 @@
 //
 // Deploys an OTel Collector in agent mode on the node. Collects host and
 // container metrics via hostmetrics + dockerstats receivers and pushes them
-// via OTLP/gRPC to TechStack (or a monitoring-core gateway when present).
+// via OTLP/gRPC to Homelab (or a monitoring-core gateway when present).
 //
 // This is the standard monitoring agent for all supported hardware tiers
 // (Pi 4B, Pi 5, x86 servers). Requires 4 GB+ RAM on the host.
@@ -21,7 +21,7 @@ Contract: foundation.#ModuleContract & {
 		displayName: "Monitoring Agent (OTel)"
 		version:     "2.0.0"
 		layer:       "L2-platform-ingress"
-		description: "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to TechStack or monitoring-core"
+		description: "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to Homelab or monitoring-core"
 		maturity:    "opt-in"
 		testScenarios: ["SK-S1", "SK-S4"]
 	}

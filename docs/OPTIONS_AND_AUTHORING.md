@@ -136,7 +136,7 @@ They do not deploy an application or claim that it is running.
 Standard Mode persists through the canonical intent store with the current
 spec hash; `--expected-spec-hash` can pin the caller's reviewed baseline.
 Advanced or multi-node authoring requires `--output <new-candidate.json>` and
-retains the active baseline for Techstack's capability-gated change-set
+retains the active baseline for Homelab's capability-gated change-set
 lifecycle. Use `--node <existing-enabled-node>` when an addition has several
 possible nodes. No node is provisioned by these authoring commands.
 `--json` returns `stackkit.intent-change/v1` with the previous and candidate
@@ -156,7 +156,7 @@ After a successful Standard intent retirement, run `stackkit generate` and
 and Apply proof deliberately cannot authorize the new spec. Use `--use-case`
 to remove a complete selected composition together, with one final intent CAS.
 Access policies, data bindings and secret custody remain available for reuse.
-A workspace Techstack manages (it holds the imported Advanced trust bundle)
+A workspace Homelab manages (it holds the imported Advanced trust bundle)
 is Advanced, like `install.mode: advanced`: a runtime removal never retires
 its intent, so each removal of a destroy resolves the plan the rollout
 applied, and its intent changes only through the Advanced change set.

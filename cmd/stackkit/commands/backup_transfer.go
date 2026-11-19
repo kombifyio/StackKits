@@ -43,7 +43,7 @@ func configureApplicationTransferCommands() {
 		importCmd.Flags().String(f, "", "Required exact transfer admission value")
 	}
 	importCmd.Flags().Bool("owner-approve", false, "Approve selected destination application replacement")
-	importCmd.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving import")
+	importCmd.Flags().String("capability", "", "Managed node: Homelab capability for this exact receiving import")
 	importCmd.Flags().Bool("recover", false, "Recover the original signed transfer activation journal")
 	importCmd.Flags().Bool("json", false, "Output destination activation receipt")
 	importCmd.Flags().Int64("max-bytes", 512<<30, "Maximum decompressed bytes")
@@ -52,7 +52,7 @@ func configureApplicationTransferCommands() {
 		prepare.Flags().String(f, "", "Required exact transfer admission value")
 	}
 	prepare.Flags().Bool("owner-approve", false, "Approve selected new application credential adoption")
-	prepare.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving preparation")
+	prepare.Flags().String("capability", "", "Managed node: Homelab capability for this exact receiving preparation")
 	prepare.Flags().Int64("max-bytes", 512<<30, "Maximum decompressed bytes")
 	backupCmd.AddCommand(export, importCmd, prepare)
 	recoverCmd := &cobra.Command{Use: "transfer-recover", Short: "Recover the original typed transfer activation through its existing journal", Args: machineAwareNoArgs, RunE: runApplicationTransferImport}
@@ -62,7 +62,7 @@ func configureApplicationTransferCommands() {
 	recoverCmd.Flags().Bool("recover", true, "Recover original transfer activation")
 	_ = recoverCmd.Flags().MarkHidden("recover")
 	recoverCmd.Flags().Bool("owner-approve", false, "Authorize original selected activation recovery")
-	recoverCmd.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving import")
+	recoverCmd.Flags().String("capability", "", "Managed node: Homelab capability for this exact receiving import")
 	recoverCmd.Flags().Bool("json", false, "Output recovery outcome")
 	recoverCmd.Flags().Int64("max-bytes", 512<<30, "Maximum decompressed archive bytes")
 	backupCmd.AddCommand(recoverCmd)

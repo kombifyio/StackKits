@@ -1,11 +1,11 @@
 {
-  "schemaVersion": "techstack.runtimeinventory-generation-manifest/v1",
+  "schemaVersion": "homelab.runtimeinventory-generation-manifest/v1",
   "generatorVersion": "runtimeinventorygen/v1",
   "wireVersion": "runtimeinventory/v1",
   "source": {
     "repository": "github.com/kombify/kombify-Techstack",
     "path": "contracts/runtimeinventory/v1/schema.json",
-    "sha256": "9a1147bb9fc8140fd7c6d509d3b85d03e2c9967cdfb5909fb1b1c40f9f840342"
+    "sha256": "a1d764a4826cf4ef030b2c5d763dde2afea86f908f55bf4a0648cb93b99f8b9a"
   },
   "outputs": {
     "types.go": "3116ac7ebbe60256384e6cb63093179445fd3a4f78286acd9fabcb87bb957e69"

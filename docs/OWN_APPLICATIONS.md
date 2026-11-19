@@ -5,19 +5,19 @@ installation. It uses that installation's router, TLS, Homelab sign-in, encrypte
 secret custody and backup. **V1 has no outbound Internet access: this application cannot make outbound connections.** Many images require outbound APIs and will not work in this version. It does not provision a server or install a platform.
 
 The same lifecycle runs a Compose **project** of several containers through
-`techstack.own-application/v3`; see [Compose projects (v3)](#compose-projects-v3).
+`homelab.own-application/v3`; see [Compose projects (v3)](#compose-projects-v3).
 An existing single container that StackKits did not install can be rebuilt into
-this lifecycle as `techstack.own-application/v4` ("Stack it"); see
+this lifecycle as `homelab.own-application/v4` ("Stack it"); see
 [Stack an existing container (v4)](#stack-an-existing-container-v4).
 
-The desired document belongs to Techstack. The versioned contract is
-[`techstack.own-application/v1`](../schemas/techstack-own-application-v1.schema.json).
+The desired document belongs to Homelab. The versioned contract is
+[`homelab.own-application/v1`](../schemas/homelab-own-application-v1.schema.json).
 StackKits admits it into the same application descriptor, Compose renderer and
 native executor as catalog applications. Do not edit generated Compose files.
 
 ```json
 {
-  "apiVersion": "techstack.own-application/v1",
+  "apiVersion": "homelab.own-application/v1",
   "name": "hello",
   "image": "docker.io/library/nginx:1.29-alpine",
   "httpPort": 80,
@@ -75,12 +75,12 @@ be trusted.
 
 ## Optional outbound Internet (v2)
 
-[`techstack.own-application/v2`](../schemas/techstack-own-application-v2.schema.json)
+[`homelab.own-application/v2`](../schemas/homelab-own-application-v2.schema.json)
 adds exactly one field, `"outboundInternet": true`. Omitted or `false` keeps the
 v1 internal bridge and makes no host firewall changes. V1 refuses this field,
 including `false` and `null`; an older StackKits reader refuses the v2 version.
 There is no screen or separate CLI flag. Use the v2 desired document with the
-same `app own --document` and review/execute sequence. Techstack authoring remains
+same `app own --document` and review/execute sequence. Homelab authoring remains
 subject to its verified released CLI pin; this package adds no UI control.
 
 Enabling it permits **ordinary public IPv4 destinations only**. The application
@@ -300,7 +300,7 @@ address-less binding stays IPv4 on every address.
 
 ## Compose projects (v3)
 
-[`techstack.own-application/v3`](../schemas/techstack-own-application-v3.schema.json)
+[`homelab.own-application/v3`](../schemas/homelab-own-application-v3.schema.json)
 is the multi-container form: a Compose project of one to eight containers that
 share one internal bridge. Exactly one service declares `httpPort` and is routed
 on the project hostname. Every other service stays on the project's private
@@ -308,7 +308,7 @@ network, where it is reachable only from that project.
 
 ```json
 {
-  "apiVersion": "techstack.own-application/v3",
+  "apiVersion": "homelab.own-application/v3",
   "name": "hello",
   "hostname": "own-hello.lab.home",
   "services": [
@@ -395,7 +395,7 @@ adoption ([Existing application adoption](APPLICATION_ADOPTION.md)) stays
 separate: it keeps the original container and only takes power control.
 
 The rebuilt application is a
-[`techstack.own-application/v4`](../schemas/techstack-own-application-v4.schema.json)
+[`homelab.own-application/v4`](../schemas/homelab-own-application-v4.schema.json)
 document: the v2 single-container form plus `adoptedFrom` (container ID, image
 digest, the one data source, `compose:` or `docker:` configuration reference)
 and `publishedPorts`. Only `stackkit app own --from-container` creates it; a
@@ -501,24 +501,24 @@ granted them to the application, not to one image.
 
 ## Author and review
 
-A Techstack installation with an authenticated StackKits release pin can admit
-and store a document in `.techstack/own-applications/hello.json`:
+A Homelab installation with an authenticated StackKits release pin can admit
+and store a document in `.homelab/own-applications/hello.json`:
 
 ```sh
-techstack own-app --workspace /path/to/installation --document hello.json
+homelab own-app --workspace /path/to/installation --document hello.json
 ```
 
-`TECHSTACK_STACKKIT_RELEASE_PIN` and `TECHSTACK_STACKKIT_RELEASE_CACHE` select
+`HOMELAB_STACKKIT_RELEASE_PIN` and `HOMELAB_STACKKIT_RELEASE_CACHE` select
 its existing verified release installation. A pin without the new contract
 refuses authoring; it never falls back to a source checkout. `--dry-run` previews
 without replacing the desired document. Authoring uses offline `render`, so its image must be digest-pinned; first resolve a tag through create/update dry review and put that returned digest reference in the desired document. This command authors intent only;
-managed rollout remains under Techstack's Advanced dispatch authority.
+managed rollout remains under Homelab's Advanced dispatch authority.
 
 On the node, review the exact action against the desired document:
 
 ```sh
 stackkit app own --action create --name hello \
-  --document .techstack/own-applications/hello.json --secrets-file hello-secrets.json --dry-run --json
+  --document .homelab/own-applications/hello.json --secrets-file hello-secrets.json --dry-run --json
 ```
 
 The versioned result contains `compose`, `route`, `backupVolumes`, the intended
@@ -534,7 +534,7 @@ Execute the reviewed action with its exact digest and a new stable operation ID:
 
 ```sh
 stackkit app own --action create --name hello \
-  --document .techstack/own-applications/hello.json \
+  --document .homelab/own-applications/hello.json \
   --secrets-file hello-secrets.json --resolved-image docker.io/library/nginx@sha256:<image-digest> \
   --owner-approve --operation-id hello-create-1 --review-digest sha256:<review-digest> --json
 ```
@@ -550,7 +550,7 @@ images:
 
 ```sh
 stackkit app own --action create --name hello \
-  --document .techstack/own-applications/hello.json \
+  --document .homelab/own-applications/hello.json \
   --secrets-file hello-secrets.json \
   --resolved-images-file hello-resolved-images.json \
   --owner-approve --operation-id hello-create-1 --review-digest sha256:<review-digest> --json
@@ -710,9 +710,9 @@ project updates through its reviewed document.
 
 ### Managed nodes
 
-On a node Techstack manages (install mode `advanced` or an imported Advanced
+On a node Homelab manages (install mode `advanced` or an imported Advanced
 trust), an executed `start`, `stop`, `restart`, `update` or `rollback` also
-(or `discard-checkpoint`) needs `--capability <file>`: a Techstack capability whose only
+(or `discard-checkpoint`) needs `--capability <file>`: a Homelab capability whose only
 `allowedOperations` entry is `own-application.lifecycle`, valid for at most 15
 minutes, for this stack and Owner, whose `ownApplicationLifecycle` scope names
 exactly this application, action, `--operation-id` and the `--review-digest` of
@@ -720,7 +720,7 @@ its dry run. Any other call is denied (`advanced_capability_*`) before anything
 changes, so a capability is never replayed for another application, action,
 operation or review. Dry runs, `status` and `logs` need none; `create` and
 `remove` keep their admission. A standalone node runs these actions in Standard
-Mode under `--owner-approve` and refuses a capability. Techstack dispatches them
+Mode under `--owner-approve` and refuses a capability. Homelab dispatches them
 as the catalog operations `own-application.status`, `.logs`, `.review`,
 `.start`, `.stop`, `.restart`, `.update.review`, `.update`, `.rollback`,
 `.checkpoint-rollback.review`, `.checkpoint-rollback`,

@@ -17,7 +17,7 @@ import (
 //
 // The key is custodied as an owner-signed issued secret under
 // contentbridge.ImmichKeySecretRef and reaches the bridge container as a file
-// on the next apply. It never reaches Techstack, the Gateway, Cloud or a
+// on the next apply. It never reaches Homelab, the Gateway, Cloud or a
 // client, and the returned result holds no secret.
 func IssueContentBridgeImmichKey(ctx context.Context, client *http.Client, baseURL, email, password, workspace string) (ImmichAPIKeyResult, error) {
 	issued, issueErr := IssueImmichAddOnAPIKey(ctx, client, baseURL, email, password, contentbridge.ImmichKeyName, contentbridge.ImmichPermissions())

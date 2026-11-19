@@ -53,11 +53,11 @@ exporters:
       num_consumers: 4
       queue_size: 2000
 
-  # Also forward to TechStack OTLP receiver for real-time alerting
-  # (TechStack reads from its own embedded TSDB for alerts; VM is long-term)
-  # Uncomment when TechStack OTLP receiver is available (Phase 2):
-  # otlp/techstack:
-  #   endpoint: "techstack:4317"
+  # Also forward to Homelab OTLP receiver for real-time alerting
+  # (Homelab reads from its own embedded TSDB for alerts; VM is long-term)
+  # Uncomment when Homelab OTLP receiver is available (Phase 2):
+  # otlp/homelab:
+  #   endpoint: "homelab:4317"
   #   tls:
   #     insecure: true
 

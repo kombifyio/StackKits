@@ -8355,7 +8355,7 @@ _architectureV2Modules: list.Concat([[
 			extensionAuthority: {
 				kind: "module", moduleRef: "stackkits-immich-runtime", providerRef: "stackkits-immich"
 			}
-			approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+			approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 			grant: {required: true, audience: "stackkits", scopes: ["stackkit-immich-health-read"], connectorBindingRequired: true}
 			target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 			inputs: []
@@ -13497,7 +13497,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "plan-drift-repair", version: "1.0.0", title:     "Plan a governed drift repair", category: "plan"
 		support: "contract-only", mutation:    false, destructive: false, risk:                              "read-only"
 		owner: {authority: "stackkits", operationClass: "plan-inspection"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-plan"], connectorBindingRequired: true}
 		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 		inputs: []
@@ -13508,7 +13508,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "apply-stackkit-change", version: "1.0.0", title:    "Apply an approved StackKit change", category: "apply"
 		support: "contract-only", mutation:        true, destructive: false, risk:                                   "high"
 		owner: {authority: "stackkits", operationClass: "product-apply"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-apply"], connectorBindingRequired: true}
 		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 		inputs: [{id: "approved-change-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
@@ -13519,7 +13519,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "verify-stackkit-state", version: "1.0.0", title:                                   "Verify governed StackKit state", category: "verify"
 		support: "executor-bound", executorRef:    "stackkits-governed-state-verifier-v1", mutation: false, destructive:                         false, risk: "read-only"
 		owner: {authority: "stackkits", operationClass: "product-verify"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-verify"], connectorBindingRequired: false}
 		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 		inputs: []
@@ -13530,7 +13530,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "rollback-stackkit-change", version: "1.0.0", title:    "Roll back an approved StackKit change", category: "rollback"
 		support: "contract-only", mutation:           true, destructive: true, risk:                                        "critical"
 		owner: {authority: "stackkits", operationClass: "product-rollback"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "break-glass", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "break-glass", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-rollback"], connectorBindingRequired: true}
 		target: {scope: "stack", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 		inputs: [{id: "checkpoint-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
@@ -13541,7 +13541,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "restart-service", version:    "1.0.0", title:                                    "Restart one governed runtime service", category: "service"
 		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                                false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "runtime-service-action"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-restart"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// application-ref names the exact adopted application container
@@ -13558,7 +13558,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "start-service", version:      "1.0.0", title:                                    "Start one governed runtime service", category: "service"
 		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                              false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "runtime-service-start"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-start"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// application-ref names the exact adopted application container
@@ -13575,7 +13575,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "stop-service", version:       "1.0.0", title:                                    "Stop one governed runtime service", category: "service"
 		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                             false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "runtime-service-stop"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-stop"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// application-ref names the exact adopted application container
@@ -13592,7 +13592,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "update-service", version:     "1.0.0", title:                                    "Update one governed runtime service to the managed target release", category: "service"
 		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                                                             false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "runtime-service-update"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-service-update"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		inputs: [
@@ -13606,7 +13606,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "rotate-certificate", version: "1.0.0", title:    "Rotate one governed certificate binding", category: "certificate"
 		support: "contract-only", mutation:     true, destructive: false, risk:                                         "high"
 		owner: {authority: "stackkits", operationClass: "certificate-action"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "owner-step-up", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-certificate-rotate"], connectorBindingRequired: true}
 		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: false}
 		inputs: [{id: "certificate-binding-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
@@ -13617,7 +13617,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "check-backup", version:       "1.0.0", title:                                    "Check governed backup and restore evidence", category: "backup"
 		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: false, destructive:                                     false, risk: "read-only"
 		owner: {authority: "stackkits", operationClass: "backup-evidence"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-backup-check"], connectorBindingRequired: false}
 		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 		inputs: [{id: "backup-contract-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
@@ -13628,7 +13628,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "run-backup", version:         "1.0.0", title:                                    "Run one governed out-of-band backup of the stack", category: "backup"
 		support: "executor-bound", executorRef: "stackkits-managed-service-executor-v1", mutation: true, destructive:                                            false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "backup-run"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-backup-run"], connectorBindingRequired: false}
 		target: {scope: "module-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: false, requiresRuntimeInstanceRef: false}
 		inputs: [{id: "backup-contract-ref", type: "opaque-reference", required: true, source: "approved-action-card", opaqueReferenceOnly: true, inlineMaterial: false}]
@@ -13639,7 +13639,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "start-host-container", version: "1.0.0", title:                               "Start one unmanaged container of a connected server's host", category: "service"
 		support: "executor-bound", executorRef:   "stackkits-guard-host-executor-v1", mutation: true, destructive:                                                      false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "host-container-start"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-container-start"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// host-container-ref names the exact unmanaged container (object:container/<container name or id>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
@@ -13651,7 +13651,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "stop-host-container", version: "1.0.0", title:                               "Stop one unmanaged container of a connected server's host", category: "service"
 		support: "executor-bound", executorRef:  "stackkits-guard-host-executor-v1", mutation: true, destructive:                                                     false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "host-container-stop"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-container-stop"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// host-container-ref names the exact unmanaged container (object:container/<container name or id>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
@@ -13663,7 +13663,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "restart-host-container", version: "1.0.0", title:                               "Restart one unmanaged container of a connected server's host", category: "service"
 		support: "executor-bound", executorRef:     "stackkits-guard-host-executor-v1", mutation: true, destructive:                                                        false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "host-container-restart"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-container-restart"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// host-container-ref names the exact unmanaged container (object:container/<container name or id>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
@@ -13675,7 +13675,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "start-host-unit", version:    "1.0.0", title:                               "Start one service unit of a connected server's host", category: "service"
 		support: "executor-bound", executorRef: "stackkits-guard-host-executor-v1", mutation: true, destructive:                                               false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "host-unit-start"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-unit-start"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// host-unit-ref names the exact service unit (object:unit/<unit name>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
@@ -13687,7 +13687,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "stop-host-unit", version:     "1.0.0", title:                               "Stop one service unit of a connected server's host", category: "service"
 		support: "executor-bound", executorRef: "stackkits-guard-host-executor-v1", mutation: true, destructive:                                              false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "host-unit-stop"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-unit-stop"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// host-unit-ref names the exact service unit (object:unit/<unit name>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.
@@ -13699,7 +13699,7 @@ _architectureV2RILActionPrimitives: [
 		id:      "restart-host-unit", version:  "1.0.0", title:                               "Restart one service unit of a connected server's host", category: "service"
 		support: "executor-bound", executorRef: "stackkits-guard-host-executor-v1", mutation: true, destructive:                                                 false, risk: "high"
 		owner: {authority: "stackkits", operationClass: "host-unit-restart"}
-		approval: {required: true, authority: "techstack", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
+		approval: {required: true, authority: "homelab", policyAuthority: "gateway", class: "agent-equipment", receiptRequired: true}
 		grant: {required: true, audience: "stackkits", scopes: ["stackkit-host-unit-restart"], connectorBindingRequired: false}
 		target: {scope: "runtime-instance", requiresStackID: true, requiresResolvedPlanHash: true, requiresNodeRef: true, requiresRuntimeInstanceRef: true}
 		// host-unit-ref names the exact service unit (object:unit/<unit name>); the Guard refuses a StackKits-managed or protected target and runs the one verb of this primitive.

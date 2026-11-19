@@ -336,7 +336,7 @@ cutoff, and manifest presence does not verify content blobs or restored user
 data. Recovery-time compliance remains `unverified` until a functional
 application recovery supplies separate duration and client evidence.
 
-Managed/provider-native backups remain Techstack-owned. Configuration and
+Managed/provider-native backups remain Homelab-owned. Configuration and
 receipts may be projected into StackKits, but must not become an account
 requirement for owner-held local recovery.
 
@@ -384,5 +384,5 @@ Findings:
 Not measured and not claimed: quota or capacity alerts, pruning by a separate
 maintenance identity, lock extension, a TLS endpoint, a managed provider, or
 bucket creation with Object Lock. Provisioning that bucket and its scoped
-credentials is Techstack's provider lifecycle, so the producer side of this
+credentials is Homelab's provider lifecycle, so the producer side of this
 slice spans both repositories.

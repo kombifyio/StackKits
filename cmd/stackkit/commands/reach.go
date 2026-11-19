@@ -96,7 +96,7 @@ func newReachEnableCommand() *cobra.Command {
 			"  --kombify-me                  tunnel mode of this homelab's kombify.me base with its Me registration; the token is\n" +
 			"                                rotated and sealed to a fresh key of this node's local custody\n" +
 			"  --wallet-item <tenant>/<item> a token the kombify Wallet delivered to this node (kombify-account tunnel mode, or a\n" +
-			"                                tunnel Techstack provisioned in the Owner's Cloudflare account)\n" +
+			"                                tunnel Homelab provisioned in the Owner's Cloudflare account)\n" +
 			"  --owner-token-file <file>     a tunnel token of the Owner's own Cloudflare account (Standard Mode); its ingress stays\n" +
 			"                                in the Owner's dashboard and must lead every public hostname to " + remotereach.ListenerService,
 		Args: cobra.NoArgs, SilenceUsage: true, SilenceErrors: true,

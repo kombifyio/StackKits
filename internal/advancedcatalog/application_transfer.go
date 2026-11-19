@@ -36,7 +36,7 @@ func applicationTransferReceiveEntry() Operation {
 	return Operation{
 		Operation: advancedcapability.OperationApplicationTransferReceive, Status: StatusAvailable, SinceRelease: SincePending,
 		Summary: "Receive a native application transfer on a managed node: import the authenticated archive into the prepared receiving application and sign the activated outcome only after the destination data readback. " +
-			"transfer-target (step admit: persist and generate the Techstack-approved candidate, issue the destination admission) and transfer-prepare (step prepare: adopt the transferred credentials before the first Apply) take a capability of their own step.",
+			"transfer-target (step admit: persist and generate the Homelab-approved candidate, issue the destination admission) and transfer-prepare (step prepare: adopt the transferred credentials before the first Apply) take a capability of their own step.",
 		Command: "stackkit backup transfer-import",
 		Argv: []string{"backup", "transfer-import", "--archive-sha256", "{archiveSha256}", "--source-receipt", "{sourceReceiptFile}",
 			"--source-owner", "{sourceOwnerRef}", "--source-fingerprint", "{sourceFingerprint}", "--transfer-id", "{transferId}",

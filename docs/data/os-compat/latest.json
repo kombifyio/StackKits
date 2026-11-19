@@ -62,7 +62,7 @@
     {
       "id": "proxmox-ve",
       "name": "Proxmox VE",
-      "rollout": "kombify Techstack or the Proxmox VE API creates a guest VM; the StackKit installs inside that guest and is reached from the home network.",
+      "rollout": "kombify Homelab or the Proxmox VE API creates a guest VM; the StackKit installs inside that guest and is reached from the home network.",
       "grade": "unverified",
       "reasonCodes": [
         "current-release-receipt-pending"

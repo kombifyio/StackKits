@@ -266,7 +266,7 @@ func (s *Server) handleRevealInitialAccess(w http.ResponseWriter, r *http.Reques
 		writeStructuredError(w, r, http.StatusConflict, skerrors.NewValidationError(
 			"initial_access_credentials_unavailable",
 			"Initial access credentials are not available on this node",
-			skerrors.WithSuggestion("Use the terminal output, recovery bundle, or Techstack Wallet for this deployment"),
+			skerrors.WithSuggestion("Use the terminal output, recovery bundle, or Homelab Wallet for this deployment"),
 		))
 		return
 	}

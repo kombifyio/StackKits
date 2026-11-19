@@ -96,7 +96,7 @@ func (p HostKeyPin) WriteKnownHosts(path string) error {
 }
 
 // ParseHostKey parses one OpenSSH public key line (authorized_keys format, the
-// shape Techstack persists at enrolment).
+// shape Homelab persists at enrolment).
 func ParseHostKey(line string) (ssh.PublicKey, error) {
 	line = strings.TrimSpace(line)
 	if line == "" || len(line) > 16*1024 || strings.ContainsAny(line, "\r\n") {

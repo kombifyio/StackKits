@@ -14,7 +14,7 @@ import (
 
 const (
 	// HomeDeviceClientID is the Pocket ID OIDC client through which a device
-	// client (Hub PWA, Companion, Techstack desktop) signs its person in with a
+	// client (Hub PWA, Companion, Homelab desktop) signs its person in with a
 	// passkey: for enrollment, for the 24 hour user verification of renewal and
 	// for a person's step-up from their own enrolled device. It is a public
 	// PKCE client that requires a fresh authentication on every sign-in and

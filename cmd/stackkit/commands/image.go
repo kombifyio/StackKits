@@ -27,7 +27,7 @@ provider VM. Ubuntu 26.04 is the default target; Ubuntu 24.04 remains compatible
 The manifest is unsigned cache metadata, never host conformance or Apply authority.
 The existing packaged OpenTofu provider closure is verified and reused. Network
 access remains necessary for first-boot service integrations and optional
-workloads. Techstack owns machine sysprep, VM images and enrollment.`}
+workloads. Homelab owns machine sysprep, VM images and enrollment.`}
 	var profile, root, target string
 	plan := &cobra.Command{Use: "plan", Short: "Print the authoritative neutral core cache profile", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		value, err := imagepreparation.Plan(profile, architecturev2.NeutralImageAuthority{})
@@ -150,8 +150,8 @@ func admitPreinstalledInit(cmd *cobra.Command, wd, kit string, canonical []byte,
 	if err := service.RequireSelectedImageProfile(canonical, manifest.Profile); err != nil {
 		return fmt.Errorf("preinstalled profile %s: %w", manifest.Profile.ID, err)
 	}
-	if techStackHandoffFromEnv().requested() && spec.Generation.Target != manifest.Profile.ManagedTarget {
-		return fmt.Errorf("Techstack managed first boot requires generation.target %s", manifest.Profile.ManagedTarget)
+	if homelabHandoffFromEnv().requested() && spec.Generation.Target != manifest.Profile.ManagedTarget {
+		return fmt.Errorf("Homelab managed first boot requires generation.target %s", manifest.Profile.ManagedTarget)
 	}
 	// Re-observe after release/cache verification as well. A target populated
 	// while admission ran must never become a fresh-create or replacement path.

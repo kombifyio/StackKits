@@ -45,7 +45,7 @@ type automaticOwnerSetupOutcome struct {
 // whose Plan declares one on-demand native owner setup action, after the
 // runtime of the plan converged. It is the product promise that the owner
 // is already set up in every tool, on every execution path: standalone
-// Apply, the Techstack-managed rollout, change-set apply and Advanced
+// Apply, the Homelab-managed rollout, change-set apply and Advanced
 // reconcile all end here, and each runs the same code as `stackkit setup`
 // (executeNativeSetup), recorded in the application lifecycle.
 //

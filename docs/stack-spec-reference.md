@@ -19,7 +19,7 @@ Older installations used this unversioned shape in `stack-spec.yaml`, with
 `kombination.yaml` accepted as a read alias. Native generation and execution do
 not silently reinterpret this legacy input as Architecture v2.
 
-Existing files may have been exported by Techstack or authored through an older
+Existing files may have been exported by Homelab or authored through an older
 CLI. Current `stackkit init` writes the native versioned schema instead.
 
 ## Schema
@@ -46,7 +46,7 @@ owner:
   username: string        # custom/local only
   displayName: string     # custom/local optional
   recoveryPassphraseHash: string  # argon2id PHC hash, never plaintext
-  recoveryMaterialRef: string     # TechStack/secret-store recovery reference
+  recoveryMaterialRef: string     # Homelab/secret-store recovery reference
 
 breakGlass:
   enabled: bool           # default true
@@ -182,7 +182,7 @@ subdomainPrefix: mylab
 owner:
   bootstrapMode: auto
   source: cloud
-  recoveryMaterialRef: techstack://recovery/stacks/mylab
+  recoveryMaterialRef: homelab://recovery/stacks/mylab
 ```
 
 - **Service URLs:** `mylab-service.kombify.me` (flat naming, single DNS level)
@@ -282,7 +282,7 @@ these manifests are allowed, but StackKit treats them as state-unmanaged.
 
 `mode` is the StackKit installation automation and lifecycle contract: `bare`, `bootstrapped`, or `advanced`. Legacy `simple` is accepted as an alias for `bootstrapped`; legacy `terramate` and `advanced-terramate` inputs normalize to `advanced`.
 
-`advanced` is the Terramate Plus lifecycle mode. It includes the bootstrapped baseline plus StackKit-packaged Terramate orchestration, drift/change/rollback/restore-drill operations, Runtime Intelligence, Frontend Intelligence, and managed TechStack lifecycle handoff. Treat it as one of the first rollout decisions, not as a late add-on toggle.
+`advanced` is the Terramate Plus lifecycle mode. It includes the bootstrapped baseline plus StackKit-packaged Terramate orchestration, drift/change/rollback/restore-drill operations, Runtime Intelligence, Frontend Intelligence, and managed Homelab lifecycle handoff. Treat it as one of the first rollout decisions, not as a late add-on toggle.
 
 `bootstrap` configures setup policy defaults, not a second mode. `bootstrap.platformPolicy` controls L1/L2 platform services and defaults to `automatic` outside `bare`. `bootstrap.applicationDefaultPolicy` controls L3 tools and defaults to `on_demand` in `bootstrapped` and `advanced`. More specific policies win in this order: `services.<tool>.setup.policy`, `application.<useCase>.setup.policy`, bootstrap default, mode default. Valid values are `manual`, `on_demand`, and `automatic`. `demoData.enabled` defaults to `false`.
 
@@ -304,7 +304,7 @@ stackkit init --catalog-defaults --owner-source=local --owner-email you@example.
 This establishes the local `ownerRef`, Ed25519/step-ca custody, PocketID Owner
 projection, and deterministic execution binding. The first Apply realizes the
 PocketID Owner and exact TinyAuth OIDC client; Verify checks their signed
-binding. Techstack and kombify Cloud can optionally supply a user-approved
+binding. Homelab and kombify Cloud can optionally supply a user-approved
 identity projection, but cannot supply or replace the local custody key.
 
 The table below is retained solely for v1 compatibility/migration. Stack specs
@@ -312,7 +312,7 @@ must never contain a plaintext recovery passphrase.
 
 | Mode | Lane | Required fields | Behavior |
 | --- | --- | --- | --- |
-| `auto` | TechStack SaaS / kombify Cloud | `source: cloud` or `source: first-run` | The owner comes from an external orchestrator; `stackkit apply` rejects this mode. `owner.email` and `owner.username` are not required or invented in the public spec. |
+| `auto` | Homelab SaaS / kombify Cloud | `source: cloud` or `source: first-run` | The owner comes from an external orchestrator; `stackkit apply` rejects this mode. `owner.email` and `owner.username` are not required or invented in the public spec. |
 | `custom` | Self-hosted / explicit local Owner | `source: local`, `email`, `username`, `recoveryPassphraseHash` | StackKits provisions the PocketID `owners` user locally and emits the one-time passkey setup URL. |
 | `none` | OSS/BYOS or manual identity | no owner identity or recovery fields | StackKits skips owner bootstrap. Use this only when another accepted process owns first-user setup. |
 
@@ -327,7 +327,7 @@ custody. Identity-bootstrap envelopes are not part of StackSpec exports.
 owner:
   bootstrapMode: auto
   source: cloud
-  recoveryMaterialRef: techstack://recovery/stacks/mylab
+  recoveryMaterialRef: homelab://recovery/stacks/mylab
 ```
 
 ### Self-hosted custom Owner

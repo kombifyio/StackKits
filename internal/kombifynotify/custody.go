@@ -6,7 +6,7 @@
 // manifest, in <workspace>/.stackkit/kombify-notify/:
 //
 //   - token holds the bearer secret that Home Assistant presents to the local
-//     Techstack agent. It is created once and never rotated by a re-apply.
+//     Homelab agent. It is created once and never rotated by a re-apply.
 //   - listen holds the single host:port the agent must bind. It is the
 //     gateway address of the Docker network Home Assistant is attached to, so
 //     the container can reach it and nothing else can.
@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	// Port is the node-local port the Techstack agent binds.
+	// Port is the node-local port the Homelab agent binds.
 	Port = 18741
 	// DirectoryRelPath is the custody directory beside .stackkit/access.json.
 	DirectoryRelPath = ".stackkit/kombify-notify"

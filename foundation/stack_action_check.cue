@@ -34,12 +34,12 @@ _validStackActionWithSupplementalNodes: #StackActionRequest & {
 			platform: {destination_uuid: "dest-storage-1"}
 		},
 	]
-	techstack_enrollment: {
+	homelab_enrollment: {
 		tenant_id:        "tenant-1"
 		owner_id:         "owner-1"
 		stack_id:         "stack-1"
 		lease_id:         "lease-1"
-		server_url:       "https://techstack.kombify.io"
+		server_url:       "https://homelab.kombify.io"
 		server_id:        "server-1"
 		runtime_agent_id: "runtime-1"
 		enrollment_access_ref: {
@@ -48,8 +48,8 @@ _validStackActionWithSupplementalNodes: #StackActionRequest & {
 			scopes: ["runtime:enroll"]
 			expires_at: "2099-01-01T00:00:00Z"
 		}
-		inventory_url: "https://techstack.kombify.io/api/v1/workers/runtime-1/inventory"
-		control_urls: ["wss://techstack.kombify.io/api/v1/workers/runtime-1/control/ws"]
+		inventory_url: "https://homelab.kombify.io/api/v1/workers/runtime-1/inventory"
+		control_urls: ["wss://homelab.kombify.io/api/v1/workers/runtime-1/control/ws"]
 	}
 }
 

@@ -2,7 +2,7 @@
 // product discriminator and does not select v2 topology, context, PaaS, or
 // runtime behavior. Modern is defined solely by required Home+Cloud federation.
 //
-// That federation is multi-site apply, which runs only under Techstack
+// That federation is multi-site apply, which runs only under Homelab
 // dispatch in Advanced Mode (STACKKITS-PRODUCT-BOUNDARY-STANDARD). Modern
 // therefore has no Standard Mode path: the standalone bare and bootstrapped
 // install cells are unsupported, and only install.advanced can ever be proven.

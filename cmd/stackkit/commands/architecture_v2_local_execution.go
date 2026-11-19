@@ -21,7 +21,7 @@ import (
 
 // architectureV2ProcessDispatchedOwners are the remote-only Runtime Owners an
 // Inventory-declared execution channel dispatches as a digest-pinned
-// operations process (Techstack-bound). In a multi-host StackInstance the
+// operations process (Homelab-bound). In a multi-host StackInstance the
 // Foundation Node dispatches them for every Site; a member never does.
 var architectureV2ProcessDispatchedOwners = []architecturev2.ProductRuntimeOwnerID{
 	architecturev2.ProductRuntimeOwnerModernHomeIdentity,
@@ -50,7 +50,7 @@ func architectureV2AdvancedDispatched(workspaceRoot string) bool {
 
 // architectureV2NodeLocalAdvancedOwners are the process-dispatched owners that
 // have a node-local implementation. Inside an Advanced workspace they run on
-// their own node under Techstack dispatch (N5), so their stacks need their
+// their own node under Homelab dispatch (N5), so their stacks need their
 // OpenTofu roots there.
 var architectureV2NodeLocalAdvancedOwners = []architecturev2.ProductRuntimeOwnerID{
 	architecturev2.ProductRuntimeOwnerFederationControlAgent,

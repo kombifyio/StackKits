@@ -39,7 +39,7 @@ fine.
 - The node needs a fixed public IPv4. IPv6-only is refused because mail from
   IPv4-only senders would be lost. Setup checks that `mail-server.<domain>`
   has a public IPv4 address record.
-- kombify-managed IONOS Cloud (DCD) mail nodes are provisioned by Techstack:
+- kombify-managed IONOS Cloud (DCD) mail nodes are provisioned by Homelab:
   a Basic Cube XS (1 vCPU, 2 GB, 60 GB), a reserved public IPv4, the PTR
   record through the IONOS Cloud DNS reverse-record API and a NIC firewall
   opening 25, 465, 587, 993, 4190 and 443. Whether DCD lets the node send on

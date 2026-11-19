@@ -163,11 +163,11 @@ func (r SetupPolicyResolver) modeApplicationPolicy(useCase, tool string) string 
 
 func isManagedRuntimeIntelligenceTool(useCase, tool string) bool {
 	switch normalizePolicyKey(useCase) {
-	case "techstack", "runtime-intelligence", "runtime_intelligence", "kombify-desk", "kombify_desk", "kombifydesk":
+	case "homelab", "runtime-intelligence", "runtime_intelligence", "kombify-desk", "kombify_desk", "kombifydesk":
 		return true
 	}
 	switch normalizePolicyKey(tool) {
-	case "techstack", "kombify-desk", "kombify_desk", "kombifydesk":
+	case "homelab", "kombify-desk", "kombify_desk", "kombifydesk":
 		return true
 	default:
 		return false

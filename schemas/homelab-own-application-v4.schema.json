@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://stackkit.cc/schemas/techstack-own-application-v4.schema.json",
-  "title": "Techstack own application v4",
+  "$id": "https://stackkit.cc/schemas/homelab-own-application-v4.schema.json",
+  "title": "Homelab own application v4",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,7 +14,7 @@
   ],
   "properties": {
     "apiVersion": {
-      "const": "techstack.own-application/v4"
+      "const": "homelab.own-application/v4"
     },
     "name": {
       "type": "string",

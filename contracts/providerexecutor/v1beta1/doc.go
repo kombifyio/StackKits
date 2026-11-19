@@ -5,7 +5,7 @@
 //
 // The providerexecutor/v1beta1 wire format is authoritative for canonical
 // digests, envelope validation, resource-graph invariants, and lifecycle
-// transitions. The owning control plane, Techstack, authorizes commands and is authoritative
+// transitions. The owning control plane, Homelab, authorizes commands and is authoritative
 // for the operation ledger and its projections.
 //
 // # Non-authority

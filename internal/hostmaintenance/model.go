@@ -1,7 +1,7 @@
 // Package hostmaintenance plans and carries out operating-system package
 // updates and reboots on one node.
 //
-// It is the node-side half of host maintenance: Techstack dispatches the typed
+// It is the node-side half of host maintenance: Homelab dispatches the typed
 // operation, the pinned StackKits CLI executes it here. Every host interaction
 // goes through the Host interface so the decisions (what is pending, what is
 // held, whether the node may be touched at all) are testable without root and

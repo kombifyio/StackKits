@@ -29,7 +29,7 @@ func basementCoreJoined(workspaceRoot string) bool {
 // Authority's client must be bound for TinyAuth before the core completes.
 func joinedBasementOwnerIdentity(workspaceRoot string) (localevidence.OwnerRuntimeBinding, error) {
 	if _, err := localevidence.LoadJoinedTinyAuthPocketIDBinding(workspaceRoot); err != nil {
-		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("this joined server's TinyAuth has no client of the Authority's Pocket ID yet (Techstack registers it at the Authority and delivers it through the Wallet): %w", err)
+		return localevidence.OwnerRuntimeBinding{}, fmt.Errorf("this joined server's TinyAuth has no client of the Authority's Pocket ID yet (Homelab registers it at the Authority and delivers it through the Wallet): %w", err)
 	}
 	return localevidence.JoinedOwnerRuntimeBinding(workspaceRoot)
 }

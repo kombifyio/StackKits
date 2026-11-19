@@ -28,7 +28,7 @@ func newHostDeliveryCommand() *cobra.Command {
 		Long: `Sealed host delivery brings Wallet items, backup targets and SSH access to
 this node. A delivering authority seals each value to this node's recipient key
 (HPKE, pkg/hostdelivery); only this node opens it into its own custody.
-Techstack and Guard carry ciphertext and references only.`,
+Homelab and Guard carry ciphertext and references only.`,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	}
 	delivery.AddCommand(newHostDeliveryRecipientCommand(), newHostDeliveryStatusCommand(), newHostDeliveryDetachCommand())

@@ -94,7 +94,7 @@ stackkit drift detect --json
 Classify the failure as host-prerequisite, docker-daemon, image-pull, network-or-dns, generated-config, opentofu-plan, opentofu-apply, service-health, or unknown.`,
 	"ssh-rollout": `Prepare an externally handed-over host for a governed Basement Kit rollout. Raw SSH target selection is not StackSpec intent.
 
-Require an observed Inventory plus any ExternalHostBinding/HostConformanceReceipt from the host or TechStack owner. Never put provider credentials, lifecycle, or management addresses into StackSpec.
+Require an observed Inventory plus any ExternalHostBinding/HostConformanceReceipt from the host or Homelab owner. Never put provider credentials, lifecycle, or management addresses into StackSpec.
 
 Run:
 ` + agentBasementInit + `

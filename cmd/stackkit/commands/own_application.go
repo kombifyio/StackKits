@@ -25,7 +25,7 @@ func newOwnApplicationCommand() *cobra.Command {
 	var action, name, document, installationFile, operation, review, resolvedImage, resolvedImagesFile, secretsFile, imageTag, capabilityFile, checkpoint string
 	var dry, approved, deleteData, keepSecrets, outputJSON, allowMajor bool
 	var adoption ownApplicationAdoptionFlags
-	c := &cobra.Command{Use: "own", Short: "Render or operate one Techstack-owned container or Compose project on this node, or adopt an existing container (--from-container)", Annotations: map[string]string{noDeployObservabilityAnnotation: "true"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+	c := &cobra.Command{Use: "own", Short: "Render or operate one Homelab-owned container or Compose project on this node, or adopt an existing container (--from-container)", Annotations: map[string]string{noDeployObservabilityAnnotation: "true"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if adoption.container != "" || adoption.release || adoption.restore {
 			if cmd.Flags().Changed("action") || document != "" || secretsFile != "" || resolvedImage != "" || resolvedImagesFile != "" || review != "" || dry || deleteData || keepSecrets || decisionReceiptPresented() {
 				return errors.New("--from-container takes --phase, --name, --plan-digest, --operation-id and --owner-approve; it renders its own document")
@@ -78,7 +78,7 @@ func newOwnApplicationCommand() *cobra.Command {
 			// adoptedFrom and published ports come from the observed container,
 			// never from a hand-written document. Update keeps both immutable.
 			if a.IsAdopted() && action == "create" {
-				return fail(ownAppReasonDocumentInvalid, errors.New("a techstack.own-application/v4 application is created only by --from-container adoption"))
+				return fail(ownAppReasonDocumentInvalid, errors.New("a homelab.own-application/v4 application is created only by --from-container adoption"))
 			}
 			req.Application = &a
 		}
@@ -183,7 +183,7 @@ func newOwnApplicationCommand() *cobra.Command {
 	}}
 	c.Flags().StringVar(&action, "action", "render", "create, update, rollback, start, stop, restart, remove, status, logs, render or discard-checkpoint")
 	c.Flags().StringVar(&name, "name", "", "Application DNS name, without the reserved own- prefix")
-	c.Flags().StringVar(&document, "document", "", "Techstack own-application/v1, v2 or v3 JSON document (v2 outbound requires managed host firewall)")
+	c.Flags().StringVar(&document, "document", "", "Homelab own-application/v1, v2 or v3 JSON document (v2 outbound requires managed host firewall)")
 	c.Flags().StringVar(&installationFile, "installation-file", "", "Offline installation context; dry-run only")
 	c.Flags().StringVar(&resolvedImage, "resolved-image", "", "Exact digest from dry review; required for executing a tagged image")
 	c.Flags().StringVar(&resolvedImagesFile, "resolved-images-file", "", "JSON object of service and digest pairs from dry review; required for executing a tagged project image")
@@ -198,7 +198,7 @@ func newOwnApplicationCommand() *cobra.Command {
 	c.Flags().StringVar(&imageTag, "image-tag", "", "Update only: move a one-container application to this newer version tag of its own image (re-resolved before stopping, data checkpoint, verify, automatic rollback of image and data)")
 	c.Flags().BoolVar(&allowMajor, "allow-major", false, "With --image-tag: admit a different major version, or a running image that names no version; never a downgrade or another variant")
 	c.Flags().StringVar(&checkpoint, "checkpoint", "", "Rollback: restore the data checkpoint this tag update operation took, then return to its prior image; discard-checkpoint: remove its retained copy")
-	c.Flags().StringVar(&capabilityFile, "capability", "", "Managed node: Techstack capability (own-application.lifecycle) for an executed start, stop, restart, update or rollback")
+	c.Flags().StringVar(&capabilityFile, "capability", "", "Managed node: Homelab capability (own-application.lifecycle) for an executed start, stop, restart, update or rollback")
 	c.Flags().StringVar(&adoption.container, "from-container", "", "Stack it: adopt this existing container (ID or name) StackKits did not install, rebuilt as an own application")
 	c.Flags().StringVar(&adoption.phase, "phase", "", "Adoption phase: inspect, plan, adopt or verify")
 	c.Flags().StringVar(&adoption.planDigest, "plan-digest", "", "Exact adoption plan digest returned by --phase plan; required for --phase adopt")

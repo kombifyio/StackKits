@@ -5,12 +5,12 @@ info:
   description: Provider-free StackKits action request and evidence contract generated from CUE.
 x-kombify-generator-version: "stackactiongen/v1"
 x-kombify-source-path: "foundation/stack_action.cue"
-x-kombify-source-sha256: "590d0803a54d4c89035fa38d90690b39838ff0d0f895b76c4f7e6006db29d863"
+x-kombify-source-sha256: "48c52ecc5dea9b37333f55633072ed59911ea0f68b6454c2ebd828bb7d3cebd2"
 paths:
   /api/v1/internal/stack-actions/stackkit-rollout:
     post:
       operationId: stackActionStackKitRollout
-      summary: "Run or dry-run StackKits rollout for TechStack"
+      summary: "Run or dry-run StackKits rollout for Homelab"
       tags: [StackAction]
       requestBody:
         required: true
@@ -36,7 +36,7 @@ paths:
   /api/v1/internal/stack-actions/stackkit-verify:
     post:
       operationId: stackActionStackKitVerify
-      summary: "Verify StackKits rollout state for TechStack"
+      summary: "Verify StackKits rollout state for Homelab"
       tags: [StackAction]
       requestBody:
         required: true
@@ -62,7 +62,7 @@ paths:
   /api/v1/internal/stack-actions/restore-drill:
     post:
       operationId: stackActionRestoreDrill
-      summary: "Run or dry-run StackKits restore drill for TechStack"
+      summary: "Run or dry-run StackKits restore drill for Homelab"
       tags: [StackAction]
       requestBody:
         required: true
@@ -317,7 +317,7 @@ components:
         expires_at:
           type: string
           format: date-time
-    StackActionTechStackEnrollment:
+    StackActionHomelabEnrollment:
       type: object
       description: "Generation-bound managed runtime enrollment and callback channels."
       additionalProperties: false
@@ -1096,8 +1096,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StackActionPlatformNode"
-        techstack_enrollment:
-          $ref: "#/components/schemas/StackActionTechStackEnrollment"
+        homelab_enrollment:
+          $ref: "#/components/schemas/StackActionHomelabEnrollment"
         backup:
           $ref: "#/components/schemas/StackActionBackupRequest"
         service:

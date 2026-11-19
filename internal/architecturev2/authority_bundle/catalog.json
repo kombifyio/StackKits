@@ -29967,7 +29967,7 @@
       "rilActionPrimitives": [
         {
           "approval": {
-            "authority": "techstack",
+            "authority": "homelab",
             "class": "owner-step-up",
             "policyAuthority": "gateway",
             "receiptRequired": true,
@@ -29978,7 +29978,7 @@
           "evidence": {
             "protectedDiagnostics": {
               "allowed": true,
-              "custodyAuthority": "techstack",
+              "custodyAuthority": "homelab",
               "directAccess": false,
               "inlineMaterial": false,
               "referenceScheme": "diagnostic",
@@ -59145,7 +59145,7 @@
   "rilActionPrimitives": [
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "owner-step-up",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59156,7 +59156,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59226,7 +59226,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "owner-step-up",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59237,7 +59237,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59319,7 +59319,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59330,7 +59330,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59401,7 +59401,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "break-glass",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59412,7 +59412,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59493,7 +59493,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59504,7 +59504,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59594,7 +59594,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59605,7 +59605,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59695,7 +59695,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59706,7 +59706,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59796,7 +59796,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59807,7 +59807,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59897,7 +59897,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "owner-step-up",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -59908,7 +59908,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -59989,7 +59989,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60000,7 +60000,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -60080,7 +60080,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60091,7 +60091,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -60173,7 +60173,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60184,7 +60184,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -60266,7 +60266,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60277,7 +60277,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -60359,7 +60359,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60370,7 +60370,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -60452,7 +60452,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60463,7 +60463,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -60545,7 +60545,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60556,7 +60556,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -60638,7 +60638,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "agent-equipment",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60649,7 +60649,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",
@@ -60731,7 +60731,7 @@
     },
     {
       "approval": {
-        "authority": "techstack",
+        "authority": "homelab",
         "class": "owner-step-up",
         "policyAuthority": "gateway",
         "receiptRequired": true,
@@ -60742,7 +60742,7 @@
       "evidence": {
         "protectedDiagnostics": {
           "allowed": true,
-          "custodyAuthority": "techstack",
+          "custodyAuthority": "homelab",
           "directAccess": false,
           "inlineMaterial": false,
           "referenceScheme": "diagnostic",

@@ -2,7 +2,7 @@
 // ordering rules for Architecture v2 plans generated under the `terramate`
 // target (ADR-0045 section 2 and section 5), and the machine-readable
 // `stackkit.terramate-stack-graph/v1` artifact that the Advanced executor and
-// Techstack consume. Generation renders one `stack.tm.hcl` per stack-bearing
+// Homelab consume. Generation renders one `stack.tm.hcl` per stack-bearing
 // render instance and one project root per host; this package is the single
 // authority both the renderer and the graph builder use, so the files and the
 // graph cannot disagree.

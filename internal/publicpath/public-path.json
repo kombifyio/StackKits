@@ -32,6 +32,6 @@
     "stackkit logs latest --json",
     "cat .stackkit/access.json"
   ],
-  "connectCommand": "sudo stackkit connect --server https://techstack.kombify.io",
+  "connectCommand": "sudo stackkit connect --server https://homelab.kombify.io",
   "accessEvidence": ".stackkit/access.json"
 }

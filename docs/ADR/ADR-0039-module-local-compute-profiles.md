@@ -135,7 +135,7 @@ use-case alternatives, CPU/RAM/storage sliders, assessment and reviewable
 executable browser handoff step. Unsupported or incomplete selections explain
 their blocked/unverified status rather than silently producing a command.
 
-StackKits owns profiles, public facts, validation and execution. Techstack owns
+StackKits owns profiles, public facts, validation and execution. Homelab owns
 the recommendation policy over those published facts and proposes explicit
 module-local choices with provenance. Cloud only projects the proposal; it
 does not introduce another solver. Missing AI/offload execution cannot be

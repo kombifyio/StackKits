@@ -5,22 +5,22 @@
   "source": {
     "repository": "github.com/kombifyio/stackkits",
     "path": "contracts/advancedcapability/contract.json",
-    "sha256": "ce11ef5e44034c611caae89e4ebbce0d4d0d1d12c5e83ed566a489ee163e0cb6"
+    "sha256": "014921c76cb7923b845ac5863619abbcc831af72f4dc01962995ae40aad98bf4"
   },
   "outputs": {
-    "advancedcapability_gen.go": "55442ecfd3464750e11ad9cc053ea37b1cbc10ab1a8ad39ac7a6c5fa8ab45686",
-    "schema.json": "7f06381fff691a2c06f24e1af0ccf0902cbd80b300cb2ac4e036407b16d4fe76",
-    "testdata/advanced-capability-v1.json": "c73754e797cd6904d5a9b26b85ad49ba56b82c6ba5950909bb638089706233d7",
-    "testdata/advanced-capability-v1.trust-bundle.json": "198cd10223a18e983f686ca9a3d8a8268dc288ef604f79f7edeaf951bb9feda7",
-    "testdata/application-release-v1.json": "c56c2a2718a8b18ea834ea7ba4b784d42f723075211da869f3865f45d2d72dd5",
-    "testdata/application-release-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
-    "testdata/backup-renewal-v1.json": "9f6e93318a81fe55897e3480e97487353fb13bd099a94d3cfab69e0aa917bc92",
-    "testdata/backup-renewal-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
-    "testdata/own-application-lifecycle-v1.json": "3ba8c200d689666efdee1961757c17ea211b41811d9e8efe7d5caf9198fca766",
-    "testdata/own-application-lifecycle-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
-    "testdata/transfer-receive-v1.json": "9858b816cc3d4893359100b5d3131a4b4704e5e8c6616d1a7a65e190d096c31e",
-    "testdata/transfer-receive-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062",
-    "testdata/transfer-retirement-v1.json": "5ae69e756d2f57bec3c573708821a84e727eacf048aceeb1318bdd298b86673e",
-    "testdata/transfer-retirement-v1.trust-bundle.json": "a36b41c2cae43f30e18b925922a2305dc97752cd86208accb424f73eaf6dc062"
+    "advancedcapability_gen.go": "c6535f35e18758c6a312ad1fc45176033fe6185c89cb9ea58576407e441ec11c",
+    "schema.json": "ff3bbf87e2edd75799c885461ec8576e5d550a5cb721e3ac5ce45bf7978bc1f5",
+    "testdata/advanced-capability-v1.json": "e5b6cae9c30171ef8965bbd440a607fca408659375c3d24ec0eb2d726cae632a",
+    "testdata/advanced-capability-v1.trust-bundle.json": "4add1a28ecffe1e958983255b6aee467c3c6c0a37f84e0ca5f18577ed4590cb7",
+    "testdata/application-release-v1.json": "c87f008b0a85187b24b0a1ba4030910c6e91379096f51efd33ba101da87e5513",
+    "testdata/application-release-v1.trust-bundle.json": "b14cda9a1c0d35c1da5a79d08fa6ef519c6f4ff8e4d174051ba0c3702965a8d7",
+    "testdata/backup-renewal-v1.json": "8b20e0e55aef406af6a5c932dcf82cd7d31ea42bbd02ddf6cfe3836fda265a19",
+    "testdata/backup-renewal-v1.trust-bundle.json": "b14cda9a1c0d35c1da5a79d08fa6ef519c6f4ff8e4d174051ba0c3702965a8d7",
+    "testdata/own-application-lifecycle-v1.json": "c3335608b9eaa5f567ef8496d9629e3d8ffa956b08339c12ef6e827a6e9adb5b",
+    "testdata/own-application-lifecycle-v1.trust-bundle.json": "b14cda9a1c0d35c1da5a79d08fa6ef519c6f4ff8e4d174051ba0c3702965a8d7",
+    "testdata/transfer-receive-v1.json": "f83b26438871c81bda22ce5d7d078ff065122f3306d60d29290946f19f4993bb",
+    "testdata/transfer-receive-v1.trust-bundle.json": "b14cda9a1c0d35c1da5a79d08fa6ef519c6f4ff8e4d174051ba0c3702965a8d7",
+    "testdata/transfer-retirement-v1.json": "8608b57963b207eb1f0560412973f784a9c8cf2611c6b0ec708d55f7f3536380",
+    "testdata/transfer-retirement-v1.trust-bundle.json": "b14cda9a1c0d35c1da5a79d08fa6ef519c6f4ff8e4d174051ba0c3702965a8d7"
   }
 }

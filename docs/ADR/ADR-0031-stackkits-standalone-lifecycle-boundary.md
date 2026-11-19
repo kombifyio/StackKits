@@ -16,7 +16,7 @@ three places:
 2. native-v2 Apply has no complete local owner-custody bootstrap;
 3. generation can report readiness without a concrete deployable workload.
 
-Techstack must be able to orchestrate the same lifecycle as an optional
+Homelab must be able to orchestrate the same lifecycle as an optional
 operator UI, but it must not become the source of StackKit content, local owner
 identity, node state, or evidence. Provider and server lifecycle also remain
 outside StackKits.
@@ -71,12 +71,12 @@ the embedded CUE-derived snapshot retain the publication evidence.
 
 The mode is chosen by who operates the deployment. A StackKit installed and
 operated with the standalone CLI or installer runs in Standard Mode: a one-shot
-configuration without Terramate. A deployment managed by kombify Techstack runs
+configuration without Terramate. A deployment managed by kombify Homelab runs
 in Advanced Mode, always, from its first rollout onward. Advanced Mode is
-Techstack's standard product path, not an optional add-on. It provides the
-wiring, Day-2 operations and drift detection that Techstack sells. Techstack
+Homelab's standard product path, not an optional add-on. It provides the
+wiring, Day-2 operations and drift detection that Homelab sells. Homelab
 must not roll out or operate a StackKit in Standard Mode. A Standard-only
-Techstack rollout is a defect, not a supported variant.
+Homelab rollout is a defect, not a supported variant.
 
 Standard Mode owns kombify-account-free executor-native apply, verify, upgrade,
 snapshot, rollback, backup, restore, drift detection, and approved standard
@@ -88,14 +88,14 @@ lifecycle side effects instead of manufacturing an empty state file.
 
 Advanced Mode adds StackKits-owned Terramate rendering and coordinated change
 sets, rollback, restore drills, and runtime-intelligence integration. It runs
-only under Techstack dispatch: Advanced operations require a short-lived
-Techstack-issued capability that StackKits validates offline before rendering
+only under Homelab dispatch: Advanced operations require a short-lived
+Homelab-issued capability that StackKits validates offline before rendering
 or side effects. Standard operations remain available without that capability.
 
 The Advanced executors (Terramate change sets, coordinated rollback, restore
 drills, origin-certificate operations) are compiled into the CLI binary; what
 gates them at runtime is the combination of that capability and Owner trust,
-not a build difference. The verifier pins the capability issuer to `techstack`
+not a build difference. The verifier pins the capability issuer to `homelab`
 (`advancedcapability.TrustedIssuerID`): a capability or an execution-channel
 digest signed by any other issuer is refused with
 `advanced_capability_untrusted_key`, even when the Owner trust bundle holds
@@ -106,16 +106,16 @@ removes the Advanced executors from the standalone artifact is an open owner
 decision and is not implemented. The capability wire shape is unchanged until
 `kombify-runtime-contracts-go` publishes the generated contract.
 
-### 5. Techstack and kombify Cloud integration
+### 5. Homelab and kombify Cloud integration
 
-Techstack is the optional Orchestrator UI over the standalone product. It
+Homelab is the optional Orchestrator UI over the standalone product. It
 consumes an exactly pinned published StackKits release plus versioned CLI
 JSON/JSONL contracts. The v0.9 target orchestration contract is:
 
 ```text
-Techstack Core/UI
-  -> closed StackKitCommand over Techstack-owned outbound/reverse mTLS gRPC
-  -> node-side Techstack Agent
+Homelab Core/UI
+  -> closed StackKitCommand over Homelab-owned outbound/reverse mTLS gRPC
+  -> node-side Homelab Agent
   -> locally revalidated, exactly pinned stackkit CLI subprocess
   -> stackkit.command-result/v1 + stackkit.rollout-event/v1 JSONL
 ```
@@ -123,14 +123,14 @@ Techstack Core/UI
 This is a target boundary, not delivery evidence.
 
 The Agent verifies the exact release pin, release index, receipt, and
-executable, removes Techstack/Kombify control-plane environment, and invokes no
+executable, removes Homelab/Kombify control-plane environment, and invokes no
 caller-selected command or binary. StackKits exposes no gRPC endpoint and owns
-no Techstack worker enrollment, certificates, transport, provider, or server
+no Homelab worker enrollment, certificates, transport, provider, or server
 lifecycle.
 
-Techstack may unify compatible configuration inputs, but Unifier output is a
+Homelab may unify compatible configuration inputs, but Unifier output is a
 review proposal rather than a ResolvedPlan. The local Owner approves it and the
-pinned CLI's CUE `validate`/`generate` path remains final authority. Techstack
+pinned CLI's CUE `validate`/`generate` path remains final authority. Homelab
 dispatches capability-gated Advanced operations for every deployment it
 manages, including the initial rollout, Terramate change sets, drift
 detection and reconciliation, coordinated rollback, restore drills, and RIL

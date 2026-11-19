@@ -21,7 +21,7 @@ import (
 
 // HouseholdProjection binds the Cloud owner/person generation to the node's
 // actual identity mutation. Key is SHA-256(owner subject + newline + member
-// subject), produced by Techstack after verifying Cloud's delegated owner.
+// subject), produced by Homelab after verifying Cloud's delegated owner.
 type HouseholdProjection struct {
 	Key      string
 	Revision uint64

@@ -14,7 +14,7 @@ import (
 // ExecutorStateReleaseRunningExecutable is the release authority of a
 // checkpoint whose prior release is the executable running the capture: a
 // host that runs the release it last applied, without a workspace release
-// cache (a Techstack-managed host, whose Agent verified the pinned release
+// cache (a Homelab-managed host, whose Agent verified the pinned release
 // before it started this executable). The snapshot then carries no archive,
 // SBOM, index or attestation identity; the captured executable blob digest
 // is its only release identity.

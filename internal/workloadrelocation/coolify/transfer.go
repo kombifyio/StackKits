@@ -57,7 +57,7 @@ func DeriveTransferSecretsForOperation(value []byte, operationID string) (Transf
 		return TransferSecrets{}, errors.New("invalid relocation transfer identity")
 	}
 	if len(bytes.TrimSpace(value)) < minTransferSecret {
-		return TransferSecrets{}, fmt.Errorf("the relocation Wallet item holds less than %d bytes; Techstack must deliver a random transfer secret", minTransferSecret)
+		return TransferSecrets{}, fmt.Errorf("the relocation Wallet item holds less than %d bytes; Homelab must deliver a random transfer secret", minTransferSecret)
 	}
 	derive := func(label string) string {
 		m := hmac.New(sha256.New, bytes.TrimSpace(value))

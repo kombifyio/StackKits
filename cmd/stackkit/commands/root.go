@@ -678,7 +678,7 @@ func getWorkDir() string {
 
 func rootLong() string {
 	return fmt.Sprintf(`Run your own services from a portable StackKit definition.
-The standalone local path needs no kombify account or Techstack.
+The standalone local path needs no kombify account or Homelab.
 
 Start in a dedicated deployment directory:
   %s

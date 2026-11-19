@@ -31,7 +31,7 @@ type osHomeHostSecurityOperations struct {
 // system as the closed Home host-security capability owner. Constructing an
 // executor does not grant this authority; product composition must opt in. The
 // mode is recorded in the evidence: standard for the account-free CLI,
-// advanced for a deployment dispatched by Techstack.
+// advanced for a deployment dispatched by Homelab.
 func NewOSHomeHostSecurityOperations(workspaceRoot string, mode hostsecurity.Mode) (*osHomeHostSecurityOperations, error) {
 	root, err := ownerWorkspaceRoot(workspaceRoot, "local Home host security")
 	if err != nil {

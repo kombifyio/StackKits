@@ -604,9 +604,9 @@ type AppHealthSpec struct {
 }
 
 // OwnerConfig holds the owner-provisioning fields that `stackkit init` captures
-// and TechStack may pass through stack-spec handoff. `bootstrapMode` is the
+// and Homelab may pass through stack-spec handoff. `bootstrapMode` is the
 // current lane selector:
-//   - auto: owner identity is resolved by kombify Cloud/TechStack. StackKits
+//   - auto: owner identity is resolved by kombify Cloud/Homelab. StackKits
 //     must not require or invent owner.email/owner.username in the public spec.
 //   - custom: explicit self-hosted/local Owner. Email and username are required.
 //   - none: no Owner bootstrap for OSS/BYOS or legacy/manual setups.

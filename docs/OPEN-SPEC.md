@@ -8,7 +8,7 @@ schema. The spec version follows the release tag it ships with, and changes
 within v0 are additive.
 
 Everything below works without a kombify account. Standard Mode needs no kombify account, no
-hosted kombify endpoint, and no Techstack.
+hosted kombify endpoint, and no Homelab.
 
 ## 1. Architecture snapshot
 

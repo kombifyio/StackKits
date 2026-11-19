@@ -11,19 +11,19 @@ import (
 // requires each to equal the normalized CUE catalog, and the catalog's
 // executor-bound set to equal exactly this set.
 const (
-	ProductRILCheckBackupHash          = "sha256:798902cba9b7483de4ad1ac95a2a2a8942a3cd699abce6dbf31e945647e57cbf"
-	ProductRILRestartHostContainerHash = "sha256:9a398fa9171765e6c2676a2409d4c2660b180c08a862fda24aa1e2fab0161081"
-	ProductRILRestartHostUnitHash      = "sha256:f0c233ba59b9f640f0389249db3a7a06a49637d8669b3e76a143f07b7c790da5"
-	ProductRILRestartServiceHash       = "sha256:ca3d0a38a48b908262c3bb83edd4fda11dd1da320e885ad0a7e948b6d7589e55"
-	ProductRILRunBackupHash            = "sha256:84fa1fdecf6c0b0031e119274b12d91eeaafd807ab1aa719c780a3fa87a9430c"
-	ProductRILStartHostContainerHash   = "sha256:91f2ee82035573d89800b05f8b93146a323f55a79923ed299260e37082dd8675"
-	ProductRILStartHostUnitHash        = "sha256:867a6b8955c6fd2a7878a309b1d1a567fcda2b771498e52b1cc22f4c610bbe2e"
-	ProductRILStartServiceHash         = "sha256:e07611a953a97430e034f4d81a287c3a8705653827530beeca1e5c8900098084"
-	ProductRILStopHostContainerHash    = "sha256:e25c920858d49d2a9b3663162fd28455d63863ff62285c4567b4e654e00e844d"
-	ProductRILStopHostUnitHash         = "sha256:6a91ca8f0fff176134a5943ad00a3f17bd81fb7623227cfae416f229b546d9d8"
-	ProductRILStopServiceHash          = "sha256:1aeca1fdf39612f9f60335bf93554efb6892ce740a6f1f05db0dda7fb01ef348"
-	ProductRILUpdateServiceHash        = "sha256:9ba98dc91a647a74135fc660ba4684ed398ac3b74a44e3f9409648f5bbdaa351"
-	ProductRILVerifyStackKitStateHash  = "sha256:8d38857c71ceec1b2558aa842dd04f31ec116e3dd0e7dd48eec3e592bccefabe"
+	ProductRILCheckBackupHash          = "sha256:0bc1dac961a60c086487af80ebbe38106240bc7c1bc6cdabe6d9e97b5516c72a"
+	ProductRILRestartHostContainerHash = "sha256:56fb634dc6aeb5e934b95656987eb5f47fb7708b120b7065a6551168d7da1660"
+	ProductRILRestartHostUnitHash      = "sha256:e4e885a4711a66268c4b11294f4a5161be4d4cd55183caf98aee7f599e020f7f"
+	ProductRILRestartServiceHash       = "sha256:4def0809246531f46d44a752ec32f479a9c76a52e4bd91621b059b7354aa0752"
+	ProductRILRunBackupHash            = "sha256:ec547bb419fd058f539bc21a526514a044d2aa163bffb31b04511c2198e00c3e"
+	ProductRILStartHostContainerHash   = "sha256:f6d39105e02350a5e3748cd77a7f7845a8e773ceba2c1e19ac210f0789526572"
+	ProductRILStartHostUnitHash        = "sha256:fa1f598d51c8576b40509e78ef4d3e165e8f8c5b29e6f582859ad68004269219"
+	ProductRILStartServiceHash         = "sha256:b67ddc33d3d1cf0aa571685ad7ca502a42250132d34dd1d4ee5c79ca6e6574d9"
+	ProductRILStopHostContainerHash    = "sha256:5515d4f14715da8ce8db700d1bd7ef8968352eb658aefd57ace6b48f052d1774"
+	ProductRILStopHostUnitHash         = "sha256:d6279a05a1fdfca016c2f9be4e8f38c54554ae9e8e7961d18c16b874437f5cc7"
+	ProductRILStopServiceHash          = "sha256:a847be7a4cae392e0f6f9f6d6baa42e8c82e69187418cf698259469abf20d766"
+	ProductRILUpdateServiceHash        = "sha256:f80c181503d9b3f710cadbd0cfc5812571fff518f3eda659b72e34c262ec3365"
+	ProductRILVerifyStackKitStateHash  = "sha256:0309f6453252e45cec967bb2c944872adc759f913a4911823ee8e52dcaf3887d"
 )
 
 const (

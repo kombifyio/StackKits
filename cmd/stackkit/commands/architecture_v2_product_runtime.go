@@ -57,7 +57,7 @@ func (a *architectureV2ProductRuntimeAuthority) LoadAppliedRuntimeRequest(ctx co
 // newArchitectureV2ProductRuntimeAuthority is the production CLI composition
 // admission. The standalone binary constructs its own evidence collector from
 // the local homelab owner's signing custody, so Apply stays available with no
-// Kombify account, endpoint, or TechStack present.
+// Kombify account, endpoint, or Homelab present.
 //
 // This is construction-owned evidence in the strict sense the contract
 // requires: the collector is built by the composition root, never accepted
@@ -425,7 +425,7 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 		},
 	}
 	// The Modern remote-only owners that have a node-local implementation run
-	// on their own node, and only inside an Advanced mutation Techstack
+	// on their own node, and only inside an Advanced mutation Homelab
 	// dispatches to that node's agent. A hybrid Inventory process channel keeps
 	// them remote, and a standalone apply never registers them.
 	if _, hybrid, err := architectureV2ConfiguredStandardRuntimeFromInventory(options); err != nil {
@@ -638,7 +638,7 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 	if active {
 		// Public TLS is a StackKits-owned edge operation. Keep it out of the
 		// remote static set so an Inventory-backed hybrid channel cannot route
-		// certificate verification through an unbound Techstack adapter.
+		// certificate verification through an unbound Homelab adapter.
 		remote, err := architecturev2.NewProductRemoteStaticRuntimeOwnerRegistrations(architectureV2ProcessDispatchedOwners...)
 		if err != nil {
 			return nil, fmt.Errorf("register Modern process runtime owners: %w", err)

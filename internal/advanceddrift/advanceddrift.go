@@ -55,7 +55,7 @@ func layoutRuntimeRoots(layout terramatehost.Layout) ([]string, error) {
 	return roots, nil
 }
 
-// EventPhase is the rollout event phase emitted once per stack, so Techstack
+// EventPhase is the rollout event phase emitted once per stack, so Homelab
 // can stream one drift subject per stack.
 const EventPhase = "advanced.drift.stack"
 

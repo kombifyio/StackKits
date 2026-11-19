@@ -25,13 +25,13 @@ var (
 
 var appCmd = &cobra.Command{
 	Use:   "app",
-	Short: "Inspect application delivery and run a Techstack own application",
+	Short: "Inspect application delivery and run a Homelab own application",
 	Long: `Inspect the governed Architecture v2 application-delivery matrix for
 Coolify, Komodo, and standalone Compose.
 
 Optional customer PaaS handoff metadata remains available only on the explicit
 v0.6 StackSpec compatibility line. StackKit-owned applications come from the CUE
-catalog. Customer-workload desired state belongs to Techstack: app own consumes
+catalog. Customer-workload desired state belongs to Homelab: app own consumes
 its versioned one-container document on an installed Direct Compose Home node.`,
 }
 
@@ -134,7 +134,7 @@ func applicationDeliverySupportWord(value bool) string {
 func runAppAdd(cmd *cobra.Command, args []string) error {
 	if err := requireLegacyV06Command(
 		"stackkit app add",
-		"StackKit-owned applications come from the governed CUE catalog; arbitrary customer workload desired state requires a future versioned TechStack contract",
+		"StackKit-owned applications come from the governed CUE catalog; arbitrary customer workload desired state requires a future versioned Homelab contract",
 	); err != nil {
 		return err
 	}

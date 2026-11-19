@@ -291,7 +291,7 @@ import "list"
 // #UseCaseAgentSurfaceV1 is what StackKits may generate after a use case is
 // selected: lifecycle MCP, product MCP only when the product owns one, APIs,
 // skills, client fragments, CLI helpers, and whether a config baseline exists.
-// Secrets never appear here. Techstack Unifier reads it; Apply does not.
+// Secrets never appear here. Homelab Unifier reads it; Apply does not.
 #UseCaseAgentSurfaceV1: {
 	equipPolicy:  "on-generate" | "on-apply" | "manual"
 	lifecycleMcp: #UseCaseLifecycleMCP

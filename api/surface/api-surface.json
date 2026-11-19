@@ -3,7 +3,7 @@
   "product": "stackkits",
   "source": {
     "path": "api/openapi/stackkits-v1.yaml",
-    "sha256": "df653653c32a9bf137e7c7e71d35b1706d3786fc74c222d3bf9aa17f1f2a3316"
+    "sha256": "9f2f484e67550a2baa65cc3156b7f4456339f9f8941a6c019288210c9965c2e5"
   },
   "envelope": "data",
   "cli": {
@@ -185,7 +185,7 @@
                 "type": "array"
               },
               "owner": {
-                "description": "Lane-aware Owner bootstrap contract. `auto` is for TechStack/kombify\nCloud handoff and must not require public owner email or username.\n`custom` is explicit self-hosted local Owner bootstrap. `none` skips\nOwner bootstrap. Plaintext recovery passphrases are never accepted.\n",
+                "description": "Lane-aware Owner bootstrap contract. `auto` is for Homelab/kombify\nCloud handoff and must not require public owner email or username.\n`custom` is explicit self-hosted local Owner bootstrap. `none` skips\nOwner bootstrap. Plaintext recovery passphrases are never accepted.\n",
                 "properties": {
                   "bootstrapMode": {
                     "enum": [
@@ -217,8 +217,8 @@
                     "type": "string"
                   },
                   "recoveryMaterialRef": {
-                    "description": "TechStack or secret-store reference to generated recovery material.",
-                    "pattern": "^(techstack|secret|doppler|vault)://.+|^(env|file):.+",
+                    "description": "Homelab or secret-store reference to generated recovery material.",
+                    "pattern": "^(homelab|secret|doppler|vault)://.+|^(env|file):.+",
                     "type": "string"
                   },
                   "recoveryPassphraseHash": {
@@ -437,7 +437,7 @@
                 "type": "array"
               },
               "owner": {
-                "description": "Lane-aware Owner bootstrap contract. `auto` is for TechStack/kombify\nCloud handoff and must not require public owner email or username.\n`custom` is explicit self-hosted local Owner bootstrap. `none` skips\nOwner bootstrap. Plaintext recovery passphrases are never accepted.\n",
+                "description": "Lane-aware Owner bootstrap contract. `auto` is for Homelab/kombify\nCloud handoff and must not require public owner email or username.\n`custom` is explicit self-hosted local Owner bootstrap. `none` skips\nOwner bootstrap. Plaintext recovery passphrases are never accepted.\n",
                 "properties": {
                   "bootstrapMode": {
                     "enum": [
@@ -469,8 +469,8 @@
                     "type": "string"
                   },
                   "recoveryMaterialRef": {
-                    "description": "TechStack or secret-store reference to generated recovery material.",
-                    "pattern": "^(techstack|secret|doppler|vault)://.+|^(env|file):.+",
+                    "description": "Homelab or secret-store reference to generated recovery material.",
+                    "pattern": "^(homelab|secret|doppler|vault)://.+|^(env|file):.+",
                     "type": "string"
                   },
                   "recoveryPassphraseHash": {
@@ -1153,7 +1153,7 @@
       "method": "POST",
       "path": "/api/v1/registry/instances",
       "summary": "Register a stackkit-server instance for Direct Connect",
-      "description": "Exact-v0.6 in-memory compatibility registry only. It does not publish\nto Kombify, Cloudflare, TechStack, or another central authority and\ncannot prove Direct Connect registration. Native v0.7 returns 501\nbefore payload decode or map mutation.",
+      "description": "Exact-v0.6 in-memory compatibility registry only. It does not publish\nto Kombify, Cloudflare, Homelab, or another central authority and\ncannot prove Direct Connect registration. Native v0.7 returns 501\nbefore payload decode or map mutation.",
       "tags": [
         "Registry"
       ],
@@ -1936,7 +1936,7 @@
                             },
                             "secretRefs": {
                               "additionalProperties": {
-                                "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                                "pattern": "^(secret|vault|doppler|homelab)://[^\\s]+$",
                                 "type": "string"
                               },
                               "type": "object"
@@ -3301,7 +3301,7 @@
                         },
                         "secretRefs": {
                           "additionalProperties": {
-                            "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                            "pattern": "^(secret|vault|doppler|homelab)://[^\\s]+$",
                             "type": "string"
                           },
                           "type": "object"
@@ -3922,7 +3922,7 @@
                             },
                             "secretRefs": {
                               "additionalProperties": {
-                                "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                                "pattern": "^(secret|vault|doppler|homelab)://[^\\s]+$",
                                 "type": "string"
                               },
                               "type": "object"
@@ -5362,7 +5362,7 @@
                         },
                         "secretRefs": {
                           "additionalProperties": {
-                            "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                            "pattern": "^(secret|vault|doppler|homelab)://[^\\s]+$",
                             "type": "string"
                           },
                           "type": "object"
@@ -5983,7 +5983,7 @@
                             },
                             "secretRefs": {
                               "additionalProperties": {
-                                "pattern": "^(secret|vault|doppler|techstack)://[^\\s]+$",
+                                "pattern": "^(secret|vault|doppler|homelab)://[^\\s]+$",
                                 "type": "string"
                               },
                               "type": "object"

@@ -147,9 +147,9 @@ stackActionContract: {
 	}
 
 	paths: [
-		{goConst: "PathStackKitRollout", suffix: "/stackkit-rollout", action: "stackkit_rollout", operationID: "stackActionStackKitRollout", summary: "Run or dry-run StackKits rollout for TechStack"},
-		{goConst: "PathStackKitVerify", suffix: "/stackkit-verify", action: "verify_rollout", operationID: "stackActionStackKitVerify", summary: "Verify StackKits rollout state for TechStack"},
-		{goConst: "PathRestoreDrill", suffix: "/restore-drill", action: "restore_drill", operationID: "stackActionRestoreDrill", summary: "Run or dry-run StackKits restore drill for TechStack"},
+		{goConst: "PathStackKitRollout", suffix: "/stackkit-rollout", action: "stackkit_rollout", operationID: "stackActionStackKitRollout", summary: "Run or dry-run StackKits rollout for Homelab"},
+		{goConst: "PathStackKitVerify", suffix: "/stackkit-verify", action: "verify_rollout", operationID: "stackActionStackKitVerify", summary: "Verify StackKits rollout state for Homelab"},
+		{goConst: "PathRestoreDrill", suffix: "/restore-drill", action: "restore_drill", operationID: "stackActionRestoreDrill", summary: "Run or dry-run StackKits restore drill for Homelab"},
 		{goConst: "PathBackupRun", suffix: "/backup-run", action: "backup_run", operationID: "stackActionBackupRun", summary: "Start a StackKits backup run"},
 		{goConst: "PathBackupStatus", suffix: "/backup-status", action: "backup_status", operationID: "stackActionBackupStatus", summary: "Inspect StackKits backup status"},
 		{goConst: "PathBackupRestore", suffix: "/backup-restore", action: "backup_restore", operationID: "stackActionBackupRestore", summary: "Restore a StackKits backup snapshot"},
@@ -171,8 +171,8 @@ stackActionContract: {
 				(#StackActionField & {json: "expires_at", goName: "ExpiresAt", goType: "time.Time", required: true, value: string, openapi: {kind: "string", format: "date-time"}}),
 			]
 		}
-		TechStackEnrollment: #StackActionType & {
-			order:       20, goName: "TechStackEnrollment", openapiName: "StackActionTechStackEnrollment"
+		HomelabEnrollment: #StackActionType & {
+			order:       20, goName: "HomelabEnrollment", openapiName: "StackActionHomelabEnrollment"
 			description: "Generation-bound managed runtime enrollment and callback channels."
 			anyOfRequired: [["heartbeat_url"], ["inventory_url"]]
 			fields: [
@@ -486,7 +486,7 @@ stackActionContract: {
 				(#StackActionField & {json: "owner_spec_ref", goName: "OwnerSpecRef", goType: "*ScopedReference", required: false, value: types.ScopedReference.schema, openapi: {kind: "ref", ref: "StackActionScopedReference"}}),
 				(#StackActionField & {json: "runtime_target", goName: "RuntimeTarget", goType: "*RuntimeTarget", required: false, value: types.RuntimeTarget.schema, openapi: {kind: "ref", ref: "StackActionTarget"}}),
 				(#StackActionField & {json: "platform_nodes", goName: "PlatformNodes", goType: "[]PlatformNode", required: false, value: [...#PlatformNodeHandoff], openapi: {kind: "array", itemsKind: "ref", itemsRef: "StackActionPlatformNode"}}),
-				(#StackActionField & {json: "techstack_enrollment", goName: "TechStackEnrollment", goType: "*TechStackEnrollment", required: false, value: #ManagedEnrollment, openapi: {kind: "ref", ref: "StackActionTechStackEnrollment"}}),
+				(#StackActionField & {json: "homelab_enrollment", goName: "HomelabEnrollment", goType: "*HomelabEnrollment", required: false, value: #ManagedEnrollment, openapi: {kind: "ref", ref: "StackActionHomelabEnrollment"}}),
 				(#StackActionField & {json: "backup", goName: "Backup", goType: "*BackupRequest", required: false, value: types.BackupRequest.schema, openapi: {kind: "ref", ref: "StackActionBackupRequest"}}),
 				(#StackActionField & {json: "service", goName: "Service", goType: "*ServiceActionRequest", required: false, value: types.ServiceActionRequest.schema, openapi: {kind: "ref", ref: "StackActionServiceActionRequest"}}),
 			]
@@ -518,7 +518,7 @@ stackActionContract: {
 #StackActionRequest:  stackActionContract.types.Request.schema
 #StackActionResponse: stackActionContract.types.Response.schema
 
-#ManagedEnrollment: stackActionContract.types.TechStackEnrollment.schema
+#ManagedEnrollment: stackActionContract.types.HomelabEnrollment.schema
 
 #PlatformNodeHandoff: stackActionContract.types.PlatformNode.schema
 

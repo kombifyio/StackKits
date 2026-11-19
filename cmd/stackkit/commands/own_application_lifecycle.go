@@ -30,7 +30,7 @@ const (
 
 // ownApplicationLifecycleAction names the executed own-application actions
 // that change the application's intent on a running node: its power state or
-// its image. On a Techstack-managed node each needs the exact Techstack
+// its image. On a Homelab-managed node each needs the exact Homelab
 // capability; create and remove keep their Owner and decision-receipt
 // admission, and reads never need one.
 func ownApplicationLifecycleAction(action string) bool {
@@ -55,12 +55,12 @@ func admitOwnApplicationLifecycle(authority nativeV2AppliedAuthority, capability
 	}
 	if !managed {
 		if capabilityFile != "" {
-			return errors.New("a standalone node runs own-application actions without a Techstack capability; this node has no Advanced trust")
+			return errors.New("a standalone node runs own-application actions without a Homelab capability; this node has no Advanced trust")
 		}
 		return nil
 	}
 	if capabilityFile == "" {
-		return &advancedcapability.Denial{Code: advancedcapability.ReasonCapabilityRequired, Field: "capability", Detail: "a managed node runs this own-application action only with its Techstack own-application.lifecycle capability; nothing changed"}
+		return &advancedcapability.Denial{Code: advancedcapability.ReasonCapabilityRequired, Field: "capability", Detail: "a managed node runs this own-application action only with its Homelab own-application.lifecycle capability; nothing changed"}
 	}
 	raw, err := readAdvancedRegular(resolvePathFromWorkDir(workspace, capabilityFile), maxAdvancedTrustBundleBytes, "Advanced capability")
 	if err != nil {

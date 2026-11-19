@@ -28,7 +28,7 @@ secret redaction.
 Apply evidence without making a fresh target call. Consumers must display that
 freshness state and must not promote it to current health. Provider inventory,
 lease state, enrollment, multi-server aggregation, and AI remediation remain
-Techstack responsibilities; StackKits emits only its provider-neutral local
+Homelab responsibilities; StackKits emits only its provider-neutral local
 lifecycle evidence.
 
 BaseKit may deploy Uptime Kuma and generated service URLs, but those observations do not replace the governed artifact and receipt chain. Extend the protected day-2 MCP surface only with read-only tools that consume those authorities; do not reconstruct state from legacy rollout files.

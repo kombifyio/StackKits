@@ -107,7 +107,7 @@ func inspectCurrentPreviewProgram(ctx context.Context, actualExecutableSHA256, w
 		IndexSHA256   string                `json:"indexSha256"`
 		ArchiveSHA256 string                `json:"archiveSha256"`
 	}
-	if json.Unmarshal(raw, &hint) != nil || hint.SchemaVersion != "techstack.stackkit-preview-candidate-pin/v1" {
+	if json.Unmarshal(raw, &hint) != nil || hint.SchemaVersion != "homelab.stackkit-preview-candidate-pin/v1" {
 		return nil, errors.New("current candidate source selector is invalid")
 	}
 	actual := strings.TrimPrefix(actualExecutableSHA256, "sha256:")

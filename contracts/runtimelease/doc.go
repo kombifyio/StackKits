@@ -4,7 +4,7 @@
 //
 // The runtimelease wire is authoritative for stable JSON field names,
 // snapshot signatures, and local validation rules. The owning runtime control
-// plane, Techstack, is authoritative for lease validity,
+// plane, Homelab, is authoritative for lease validity,
 // desired state, cancellation, revision issuance, enrollment admission, and
 // durable persistence.
 //

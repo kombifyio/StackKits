@@ -20,10 +20,10 @@ layer), ADR-0049 (Marketplace and platform scope).
 Standard Mode is the complete, kombify-account-free, standalone product. Docker
 Compose is its default workload payload on an admitted physical or virtual
 host; OpenTofu executes and tracks every deployment and Terramate orchestrates
-Techstack-managed deployments (ADR-0045), with containers running as Compose
+Homelab-managed deployments (ADR-0045), with containers running as Compose
 workloads inside the OpenTofu-tracked stack. Bare metal and VM/VPS describe
 target hosts, not alternative application managers. Standalone operation is
-Standard Mode; Techstack-managed operation is Advanced Mode. Techstack remains
+Standard Mode; Homelab-managed operation is Advanced Mode. Homelab remains
 optional and owns provider lifecycle and multi-server orchestration when used.
 
 Standalone Compose stays the default for new selections until further PaaS
@@ -110,7 +110,7 @@ Compose output must agree: a new default stack contains the full standalone
 core and no platform-manager services. Application defaults select Compose;
 explicit supported adapter selections remain explicit and valid.
 
-Techstack must consume the corresponding published catalog and CLI and emit
+Homelab must consume the corresponding published catalog and CLI and emit
 matching native intent. Producer-only publication does not close integration.
 Focused CLI/generate verification proves the rendered boundary; target runtime
 evidence must separately establish the affected lifecycle and ownership

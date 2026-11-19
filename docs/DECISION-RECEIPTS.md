@@ -32,7 +32,7 @@ or `--candidate-output`.
 
 ## Binding definition
 
-This section is the one definition the producer (Techstack, the ledger's only
+This section is the one definition the producer (Homelab, the ledger's only
 filer) and the workspace decision contract copy. A producer files exactly
 these facts; the consumer recomputes them from its own resolved call and
 compares the intent digest.
@@ -43,7 +43,7 @@ format, the arguments digest domain
 principal spellings) into its contract check
 (`scripts/check-decision-contract.mjs` and its vectors) in kombify-workspace
 #4836, which is in review. Until it merges, this section is the only
-definition, and the producer's own vectors (Techstack
+definition, and the producer's own vectors (Homelab
 `pkg/auth/stackkitdecision`) pin the same bytes.
 
 ### Digests and canonical form
@@ -124,7 +124,7 @@ with.
 | --- | --- |
 | a person (the installation's Owner) | `person:<platform subject>`: the Owner's subject as the platform authenticates it (for example `auth0\|owner-0001`), which the hosted enrollment pins as `ownerId` in the node's enrolled identity |
 | an agent reaching the node through the Gateway agent link | `agent_instance:gateway:<link ref>:<agent instance>/<account>`, the agent id the Gateway envelope names |
-| an agent the producer authenticated (Techstack route) | `agent_instance:<agent instance id>` as the Gateway origin proof names the instance; the producer passes the principal it filed unchanged |
+| an agent the producer authenticated (Homelab route) | `agent_instance:<agent instance id>` as the Gateway origin proof names the instance; the producer passes the principal it filed unchanged |
 
 The derivations on the consumer:
 
@@ -178,7 +178,7 @@ Everything a consumer trusts is node custody at fixed paths; no flag,
 environment variable or workspace selects one.
 
 - **Purpose keys**: `/etc/techstack/ril-purpose-keys.json`, the snapshot the
-  privileged refresher writes (Techstack `guard-executor ril-keys-refresh`:
+  privileged refresher writes (Homelab `guard-executor ril-keys-refresh`:
   root only, mode 0600, generation rollback refused). The reader requires the
   file and every parent directory to belong to root and to be writable by
   nobody else, the file to be a single-link regular file of mode 0600, and the
@@ -207,7 +207,7 @@ running as root, can use a receipt.
 
 ## A node without the hosted enrollment has no receipt path
 
-The ledger admits one filer: Techstack. A standalone installation, or a node
+The ledger admits one filer: Homelab. A standalone installation, or a node
 without the hosted enrollment, has no purpose-key snapshot and no enrolled
 identity, so every receipt is refused there, and nothing on that host can ask
 the ledger to file a decision.

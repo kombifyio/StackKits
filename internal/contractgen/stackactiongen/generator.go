@@ -178,7 +178,7 @@ func Run(options Options) error {
 		{path: openAPIPath, data: openAPI},
 	}
 	// The neutral contract bundle is the contracts/stackaction package that
-	// Techstack imports. The website's OpenAPI mirror is the public projection
+	// Homelab imports. The website's OpenAPI mirror is the public projection
 	// written by `mise run api:surface`, not a copy of this document.
 	outputs = append(outputs, bundle.outputs(filepath.Join(root, filepath.FromSlash(bundleOutput)))...)
 	if strings.TrimSpace(options.ExternalGoOutput) != "" {
@@ -593,7 +593,7 @@ func renderOpenAPIPaths(spec generationSpec) string {
 		fmt.Fprintf(&b, "      operationId: %s\n      summary: %s\n", path.OperationID, yamlString(path.Summary))
 		// Service-to-service only: excluded from every generated agent surface
 		// (API-FIRST-STANDARD §9.2); routing and authorization stay unchanged.
-		b.WriteString("      description: Requires X-Kombify-Service-Auth from caller techstack.\n      x-kombify-internal: true\n      tags: [StackAction]\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              allOf:\n                - $ref: ")
+		b.WriteString("      description: Requires X-Kombify-Service-Auth from caller homelab.\n      x-kombify-internal: true\n      tags: [StackAction]\n      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              allOf:\n                - $ref: ")
 		b.WriteString(yamlString("#/components/schemas/" + requestSchema))
 		b.WriteString("\n                - type: object\n                  properties:\n                    action:\n                      const: ")
 		b.WriteString(yamlString(path.Action))

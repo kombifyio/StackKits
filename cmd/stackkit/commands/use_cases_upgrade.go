@@ -75,12 +75,12 @@ to an earlier release.
 --finalize <operation-id> removes the retained data once the change is
 accepted (or after the rollback was applied). --status reads a record.
 
-On a node Techstack manages, a forward change also needs --capability: the
-exact Techstack-signed application-release.update capability for this use
+On a node Homelab manages, a forward change also needs --capability: the
+exact Homelab-signed application-release.update capability for this use
 case, release, digest and tested or untested kind, verified offline against
 the Owner-approved Advanced trust before the application is stopped. The
 record keeps that authority, and the result reports the prior and target
-StackSpec hashes so Techstack's desired state follows the override. A
+StackSpec hashes so Homelab's desired state follows the override. A
 standalone node takes no capability.`,
 		Example: `  # Move Vaultwarden to a tested catalog release, then apply it
   stackkit use-cases upgrade vault --to 1.37.5 --owner-approve
@@ -140,7 +140,7 @@ standalone node takes no capability.`,
 	cmd.Flags().BoolVar(&o.overrides, "overrides", false, "Report every application release override and whether this release keeps it")
 	cmd.Flags().StringVar(&o.operationID, "operation-id", "", "Resume this interrupted release checkpoint instead of starting a new one")
 	cmd.Flags().StringVar(&o.expectedHash, "expected-spec-hash", "", "Require the current canonical spec hash")
-	cmd.Flags().StringVar(&o.capability, "capability", "", "Techstack application-release.update capability file; required on a Techstack-managed node")
+	cmd.Flags().StringVar(&o.capability, "capability", "", "Homelab application-release.update capability file; required on a Homelab-managed node")
 	cmd.Flags().BoolVar(&o.ownerApprove, "owner-approve", false, "Approve stopping the application while its data is copied")
 	cmd.Flags().BoolVar(&o.json, "json", false, "Emit the release operation result as JSON")
 	return cmd
@@ -442,7 +442,7 @@ func resumeApplicationReleaseCheckpoint(ctx context.Context, slug string, o useC
 	if managed, err := applicationReleaseIntentManaged(wd, record.PriorSpec); err != nil {
 		return record, err
 	} else if managed && record.Managed == nil {
-		return record, refuseUpdate(updateRefusedIntent, "%s started without the Techstack authority this managed node requires", record.OperationID)
+		return record, refuseUpdate(updateRefusedIntent, "%s started without the Homelab authority this managed node requires", record.OperationID)
 	}
 	service, specPath, err := applicationReleaseIntentAuthority(wd)
 	if err != nil {
@@ -591,8 +591,8 @@ func persistApplicationReleaseIntent(wd string, service *architecturev2.Service,
 
 // admitApplicationReleaseIntent admits the intent change of one scoped release
 // change. A Standard single-node installation needs only the Owner's approval.
-// A node Techstack manages changes its intent only under the exact
-// application-release.update capability Techstack issued for this use case,
+// A node Homelab manages changes its intent only under the exact
+// application-release.update capability Homelab issued for this use case,
 // release, digest and release kind, verified offline against the
 // Owner-approved trust, as the managed transfer steps are; the returned
 // authority is kept in the owner-signed record. Both modes run on one node of
@@ -610,11 +610,11 @@ func admitApplicationReleaseIntent(workspace string, canonical []byte, plan gene
 		return nil, refuseUpdate(updateRefusedIntent, "%v", err)
 	}
 	if len(document.Nodes) != 1 || len(document.Sites) != 1 {
-		return nil, refuseUpdate(updateRefusedIntent, "a scoped release change runs on a single-node installation; a multi-node intent changes through Techstack Advanced change sets")
+		return nil, refuseUpdate(updateRefusedIntent, "a scoped release change runs on a single-node installation; a multi-node intent changes through Homelab Advanced change sets")
 	}
 	if !managed {
 		if strings.TrimSpace(capabilityPath) != "" {
-			return nil, refuseUpdate(updateRefusedIntent, "a standalone installation updates without a Techstack capability; this node holds no Advanced trust")
+			return nil, refuseUpdate(updateRefusedIntent, "a standalone installation updates without a Homelab capability; this node holds no Advanced trust")
 		}
 		return nil, nil
 	}
@@ -625,7 +625,7 @@ func admitApplicationReleaseIntent(workspace string, canonical []byte, plan gene
 		return refuseUpdate(updateRefusedIntent, "%v", err)
 	}
 	if strings.TrimSpace(capabilityPath) == "" {
-		return nil, refuse(&advancedcapability.Denial{Code: advancedcapability.ReasonCapabilityRequired, Field: "capability", Detail: "a release change on a Techstack-managed node requires its exact application-release.update capability; nothing was stopped"})
+		return nil, refuse(&advancedcapability.Denial{Code: advancedcapability.ReasonCapabilityRequired, Field: "capability", Detail: "a release change on a Homelab-managed node requires its exact application-release.update capability; nothing was stopped"})
 	}
 	raw, err := readAdvancedRegular(resolvePathFromWorkDir(workspace, capabilityPath), maxAdvancedTrustBundleBytes, "Advanced capability")
 	if err != nil {
@@ -662,7 +662,7 @@ func admitApplicationReleaseIntent(workspace string, canonical []byte, plan gene
 	return &applicationrelease.ManagedAuthority{CapabilityID: grant.CapabilityID, CapabilitySHA256: "sha256:" + hex.EncodeToString(digest[:]), IssuerID: grant.IssuerID, KeyID: grant.KeyID}, nil
 }
 
-// applicationReleaseIntentManaged reports whether the intent is Techstack
+// applicationReleaseIntentManaged reports whether the intent is Homelab
 // managed (Advanced): install.mode advanced or an imported Advanced trust.
 func applicationReleaseIntentManaged(workspace string, canonical []byte) (bool, error) {
 	var document struct {

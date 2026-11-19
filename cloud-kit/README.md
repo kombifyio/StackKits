@@ -44,7 +44,7 @@ Apply acceptance remains pending; Basement checkpoints do not establish it.
 
 ## Requirements
 
-| | Kit floor | Recommended | Managed VPS size (Techstack) |
+| | Kit floor | Recommended | Managed VPS size (Homelab) |
 |--|-----------|-------------|------------------------------|
 | CPU | 2 cores | 4 cores | 4 cores |
 | RAM | 4 GB | 4 GB | 8 GB |
@@ -57,9 +57,9 @@ supported. Compatibility evidence is published in [OS Compatibility](../docs/OS_
 
 The kit floor and recommendation come from `stackfile.cue`
 (`hostRequirements`); Cloud Kit has no smaller `low` profile. The managed VPS
-size is a Techstack sizing policy, not the kit floor: Kombify-operated and
-Techstack-managed Cloud Kit VPS use at least 4 cores, 8 GB RAM and 80 GB disk.
-See Techstack `docs/ARCHITECTURE.md` (Managed Cloud Kit VPS size).
+size is a Homelab sizing policy, not the kit floor: Kombify-operated and
+Homelab-managed Cloud Kit VPS use at least 4 cores, 8 GB RAM and 80 GB disk.
+See Homelab `docs/ARCHITECTURE.md` (Managed Cloud Kit VPS size).
 
 ### Hardware
 
@@ -87,12 +87,12 @@ are required so the generated public HTTPS routes resolve and ACME certificates 
 ## Status
 
 Cloud Kit is a Preview product derived from the shared Foundation. Its native
-core, guarded Product Apply, live Verify projection, and Techstack access
+core, guarded Product Apply, live Verify projection, and Homelab access
 manifest are implemented on current source. Graduation remains pending until
 an exact published release completes Product Apply and Verify on a prepared,
-authenticated Cloud host and Techstack reads back the four real services. The
+authenticated Cloud host and Homelab reads back the four real services. The
 provider lifecycle and its SK-S2/S2A and SK-S3/S3A evidence are owned by
-Techstack; historical provider runs do not promote current source.
+Homelab; historical provider runs do not promote current source.
 For a local homelab, use [basement-kit](../basement-kit/README.md).
 
 ## Development Gates

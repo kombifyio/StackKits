@@ -634,7 +634,7 @@ func isPublicAPIKeyExemptRoute(r *http.Request) bool {
 }
 
 // isServiceAuthenticatedRoute enumerates the only routes whose distinct
-// TechStack service-token middleware replaces the node API-key boundary.
+// Homelab service-token middleware replaces the node API-key boundary.
 func isServiceAuthenticatedRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false

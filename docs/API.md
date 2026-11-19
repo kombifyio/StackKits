@@ -6,16 +6,16 @@ This document summarizes the local and compatibility StackKits HTTP API. The
 general contract source is [api/openapi/stackkits-v1.yaml](../api/openapi/stackkits-v1.yaml);
 the server implementation lives in [cmd/stackkit-server](../cmd/stackkit-server)
 and [internal/api](../internal/api). This server is neither a standalone
-lifecycle dependency nor the v0.9 target Techstack orchestration boundary.
+lifecycle dependency nor the v0.9 target Homelab orchestration boundary.
 
-The HTTP server is not the standalone lifecycle authority or the Techstack
+The HTTP server is not the standalone lifecycle authority or the Homelab
 integration boundary. The supported standalone surface is the published
 `stackkit` binary, release index, `stackkit.command-result/v1` JSON, and
 versioned JSONL events.
 
-In the v0.9 target architecture, Techstack uses those artifacts through its own
-transport: Techstack Core/UI sends a closed `StackKitCommand` over a
-Techstack-owned outbound/reverse mTLS gRPC channel to the node-side Techstack
+In the v0.9 target architecture, Homelab uses those artifacts through its own
+transport: Homelab Core/UI sends a closed `StackKitCommand` over a
+Homelab-owned outbound/reverse mTLS gRPC channel to the node-side Homelab
 Agent, which revalidates and invokes the exact pinned `stackkit` CLI subprocess.
 gRPC terminates in that Agent, not in StackKits. The Agent returns bounded
 `stackkit.command-result/v1` and `stackkit.rollout-event/v1` JSONL.
@@ -44,7 +44,7 @@ StackAction, and Direct Connect registry routes.
 | Surface | Base URL | Purpose |
 | --- | --- | --- |
 | Local development | `http://localhost:8082` | Local `stackkit-server` process. |
-| Compatibility edge | `https://api.kombify.io/stackkits` | Optional legacy/compatibility route; not a standalone lifecycle or Techstack orchestration dependency. |
+| Compatibility edge | `https://api.kombify.io/stackkits` | Optional legacy/compatibility route; not a standalone lifecycle or Homelab orchestration dependency. |
 
 ## Capacity assessment
 
@@ -85,7 +85,7 @@ public representation; scoped references are resolved and revalidated only
 behind the internal `StackActionReferenceResolver` seam.
 
 StackKits has no RuntimeAction or RIL HTTP routes. It keeps the CUE
-action-catalog facts and its local execution/verification behavior. Techstack
+action-catalog facts and its local execution/verification behavior. Homelab
 owns RIL admission, idempotency, transport, and orchestration and consumes the
 published StackAction/CLI contracts. See
 [RIL_ACTION_EXECUTION.md](RIL_ACTION_EXECUTION.md) for the ownership boundary.
@@ -296,7 +296,7 @@ single contract; RuntimeAction envelopes are not accepted.
 ## Registry
 
 Registry endpoints retain exact-v0.6 in-process compatibility state only. They
-do not publish to Kombify, Cloudflare, TechStack, or another central registry
+do not publish to Kombify, Cloudflare, Homelab, or another central registry
 and therefore cannot claim Direct Connect registration. Native v0.7 returns
 typed 501 before decode or map mutation and omits these operations from
 capability discovery. A future registry must use a versioned external contract

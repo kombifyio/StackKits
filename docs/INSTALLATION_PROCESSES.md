@@ -8,7 +8,7 @@ target-server control surface.
 
 The standalone CLI runs **Standard Mode** with local Owner custody and no
 kombify account. Advanced Mode, provider execution and Modern multi-site apply
-belong to Techstack; installing Modern definitions admits no standalone
+belong to Homelab; installing Modern definitions admits no standalone
 Advanced executor. Owner email initializes the node's own identity, not a
 kombify signup. Standalone Compose is the complete primary experience,
 applications included; the CLI is an optional interface to the shared
@@ -19,7 +19,7 @@ current-pin receipt ([ADR-0042](ADR/ADR-0042-standalone-default-and-optional-pla
 Not implemented: managed-serverless provisioning, SaaS placement beyond S1, the
 legacy v0.6 `stackkit app add` PaaS handoff on native installations, internal
 kombify operator MCPs. Customer-app deployment is `stackkit app own` with a
-`techstack.own-application/v1`, `/v2` or `/v3` document: v1 and v2 run one
+`homelab.own-application/v1`, `/v2` or `/v3` document: v1 and v2 run one
 container, v3 runs a Compose project of several containers.
 
 ## User-Facing MCP Model
@@ -47,7 +47,7 @@ discover -> collect intent -> install toolchain -> init -> validate -> generate 
 | --- | --- | --- |
 | Owner/admin email | Local Owner identity and technical admin material | Guided installers require a real email; shared test identities serve engineering receipts |
 | StackKit | Kit to install | `basement-kit` |
-| Product mode | Execution boundary | Standard only; Advanced is Techstack-only |
+| Product mode | Execution boundary | Standard only; Advanced is Homelab-only |
 | Context | Target environment | `local`, `cloud` or `pi` |
 | Domain strategy | Routing and user links | device-enrolled `home`, `kombify.me`, or one custom domain |
 | Workspace/spec path | Where the contract lives | `./stack-spec.yaml` |
@@ -87,7 +87,7 @@ Two independent axes. Automation never enlarges the CLI's execution authority; m
 | `A1` | Manual CLI, user runs each command | `I1` | Owner email, stack name, workspace/spec path |
 | `A2` | Guided agent, user supplies intent and approvals | `I2` | Kit, use cases, module profiles |
 | `A3` | Autonomous approved rollout (one-liner, on-target agent) | `I3` | Domain, SSH target, custom DNS/TLS, PaaS |
-| `A4` | Durable connector day-2 (`stackkit-server /mcp` with token and write gate) | `I4` | Explicit Standard-Mode composition; Advanced topology needs Techstack |
+| `A4` | Durable connector day-2 (`stackkit-server /mcp` with token and write gate) | `I4` | Explicit Standard-Mode composition; Advanced topology needs Homelab |
 
 ## Installation Matrix
 
@@ -292,9 +292,9 @@ stackkit verify --http --json
 
 `stackkit prepare` inspects local host prerequisites (no Docker install, no package changes); run it on the target through the owner-managed channel. Module-local capacity admission uses the attested Inventory and ResolvedPlan. A non-root user needs Docker group access before apply (`sudo usermod -aG docker $USER` and re-login) or lets the full installer activate it.
 
-The shared installer accepts kit arguments (`sh -s -- basement-kit`, `sh -s -- all`); `all` installs definitions and is not a kit slug for `init`. Modern definitions can be authored and inspected through the admitted standalone preview path; Modern multi-site apply stays Techstack-owned.
+The shared installer accepts kit arguments (`sh -s -- basement-kit`, `sh -s -- all`); `all` installs definitions and is not a kit slug for `init`. Modern definitions can be authored and inspected through the admitted standalone preview path; Modern multi-site apply stays Homelab-owned.
 
-Debian 12 needs the Docker CLI plugin (`docker compose`); Bookworm's `docker-compose` package is Python Compose v1 and does not satisfy this prerequisite. The Techstack enrollment installer, rollout bootstrap and KVM host preparation use a distribution Compose v2 package when available, otherwise use Docker's apt repository with the host's `/etc/os-release` codename and a `signed-by` keyring. A host without a Docker CLI gets `docker-ce`, `docker-ce-cli`, `containerd.io` and `docker-compose-plugin` together; an existing Engine gets only the missing plugin and remains installed. Missing Compose is reported as runtime not ready.
+Debian 12 needs the Docker CLI plugin (`docker compose`); Bookworm's `docker-compose` package is Python Compose v1 and does not satisfy this prerequisite. The Homelab enrollment installer, rollout bootstrap and KVM host preparation use a distribution Compose v2 package when available, otherwise use Docker's apt repository with the host's `/etc/os-release` codename and a `signed-by` keyring. A host without a Docker CLI gets `docker-ce`, `docker-ce-cli`, `containerd.io` and `docker-compose-plugin` together; an existing Engine gets only the missing plugin and remains installed. Missing Compose is reported as runtime not ready.
 
 Native v2 init accepts the full authoring parameter surface (unknown values
 fail closed with the kit's declared choices):

@@ -18,7 +18,7 @@ type ownerReconciliationAPI interface {
 func newOwnerReconcileCommand(api householdAPI) *cobra.Command {
 	command := &cobra.Command{
 		Use: "reconcile", Short: "Enable legacy TinyAuth PKCE only against the verified existing Owner binding",
-		Long:        "Requires explicit Owner approval and an idle native lifecycle. Verifies every existing Owner, client, callback and group binding before enabling PKCE, then verifies again. Keeps Owner keys, users, groups, client secret, enrollment links, Plan and release pin. Other identity drift fails closed. On a managed server invoke through authorized Techstack server access; this performs no Advanced apply or provider execution.",
+		Long:        "Requires explicit Owner approval and an idle native lifecycle. Verifies every existing Owner, client, callback and group binding before enabling PKCE, then verifies again. Keeps Owner keys, users, groups, client secret, enrollment links, Plan and release pin. Other identity drift fails closed. On a managed server invoke through authorized Homelab server access; this performs no Advanced apply or provider execution.",
 		Args:        cobra.NoArgs,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {

@@ -31,7 +31,7 @@ modeMatrix: foundation.#KitModeSupport & {
 		// Implemented; the released-archive lifecycle has no receipt on the
 		// current release (see placement.standard: one ledger, the projection).
 		bootstrapped: "scaffolding"
-		// Techstack-dispatched Advanced lifecycle with full bootstrap on a real
+		// Homelab-dispatched Advanced lifecycle with full bootstrap on a real
 		// Proxmox VE host from the published v0.47.7 archive (managed lab run
 		// tsl_339d8557e0, 35/35 phases): apply, verify, per-stack drift detect,
 		// owner setup, a change set adding Photos/Files/Vault with application

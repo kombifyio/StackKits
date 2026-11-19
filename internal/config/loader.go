@@ -129,13 +129,13 @@ func (l *Loader) LoadLegacyStackSpec(path string) (*models.StackSpec, error) {
 //
 // stack-spec.yaml remains the canonical CLI file. If the caller asks for the
 // canonical default and it is missing, kombination.yaml is accepted as a
-// user-intent alias for TechStack/CLI interoperability.
+// user-intent alias for Homelab/CLI interoperability.
 func (l *Loader) LoadStackSpec(path string) (*models.StackSpec, error) {
 	return l.LoadLegacyStackSpec(path)
 }
 
 // ResolveStackSpecPathForRead resolves the spec path and reports whether the
-// TechStack/user-intent alias was selected.
+// Homelab/user-intent alias was selected.
 func (l *Loader) ResolveStackSpecPathForRead(path string) (string, string, bool, error) {
 	fullPath := l.resolvePath(path)
 	if path != defaultStackSpecPath {
@@ -423,7 +423,7 @@ func GetDefaultSpecPath() string {
 	return defaultStackSpecPath
 }
 
-// GetSpecAliasPath returns the accepted TechStack/user-intent alias path.
+// GetSpecAliasPath returns the accepted Homelab/user-intent alias path.
 func GetSpecAliasPath() string {
 	return stackSpecAliasPath
 }

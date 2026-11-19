@@ -2,7 +2,7 @@
 // databases and their data) from one server's platform to another's.
 //
 // Each step runs on exactly one server, as every StackKit operation does: the
-// source plans, the destination checks that plan, and Techstack carries the
+// source plans, the destination checks that plan, and Homelab carries the
 // plan between them. A plan holds names, sizes and fingerprints only; data
 // transfer keys and credentials travel separately through Wallet host
 // delivery, never inside a plan, check or log.

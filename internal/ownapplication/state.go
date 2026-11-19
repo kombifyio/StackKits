@@ -1,4 +1,4 @@
-// Package ownapplication records node custody for Techstack-owned application
+// Package ownapplication records node custody for Homelab-owned application
 // intent. Catalog and own workloads share the native Compose executor.
 package ownapplication
 

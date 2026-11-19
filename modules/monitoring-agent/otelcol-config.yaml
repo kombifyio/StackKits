@@ -6,9 +6,9 @@
 #
 # Environment variables respected:
 #   GOMEMLIMIT      — Go runtime memory ceiling (set in Docker env)
-#   OTEL_ENDPOINT   — OTLP/gRPC target (default: techstack:4317). Configurable so
+#   OTEL_ENDPOINT   — OTLP/gRPC target (default: homelab:4317). Configurable so
 #                     the local telemetry sink (127.0.0.1:4317) can replace it.
-#                     A host managed by Techstack (Advanced Mode) exports to the
+#                     A host managed by Homelab (Advanced Mode) exports to the
 #                     kombify Guard sink instead: OTEL_ENDPOINT=127.0.0.1:14317 with
 #                     KOMBIFY_OTEL_TLS_INSECURE=true. The sink accepts metrics only
 #                     and keeps only the Guard telemetry contract's metrics; the
@@ -66,8 +66,8 @@ receivers:
       - "^pause:"
 
   # Local OTLP receiver — allows services on this host to push traces/metrics
-  # to the agent, which forwards them to TechStack. Useful for instrumenting
-  # local apps (e.g., Home Assistant, Gitea) without direct TechStack access.
+  # to the agent, which forwards them to Homelab. Useful for instrumenting
+  # local apps (e.g., Home Assistant, Gitea) without direct Homelab access.
   otlp:
     protocols:
       grpc:
@@ -98,10 +98,10 @@ processors:
     send_batch_max_size: 2000
 
 exporters:
-  # Primary: push to TechStack OTLP/gRPC receiver.
+  # Primary: push to Homelab OTLP/gRPC receiver.
   # Swap endpoint for "monitoring-gateway:4317" when monitoring-core is deployed.
-  otlp/techstack:
-    endpoint: "${env:OTEL_ENDPOINT:-techstack:4317}"
+  otlp/homelab:
+    endpoint: "${env:OTEL_ENDPOINT:-homelab:4317}"
     # Verified TLS unless the endpoint is on loopback (see KOMBIFY_OTEL_TLS_INSECURE).
     tls:
       insecure: ${env:KOMBIFY_OTEL_TLS_INSECURE:-false}
@@ -138,9 +138,9 @@ service:
     metrics:
       receivers:  [hostmetrics, docker_stats, otlp]
       processors: [memory_limiter, resourcedetection, batch]
-      exporters:  [otlp/techstack]
-    # Traces forwarded from local apps (via otlp receiver) to TechStack
+      exporters:  [otlp/homelab]
+    # Traces forwarded from local apps (via otlp receiver) to Homelab
     traces:
       receivers:  [otlp]
       processors: [memory_limiter, batch]
-      exporters:  [otlp/techstack]
+      exporters:  [otlp/homelab]

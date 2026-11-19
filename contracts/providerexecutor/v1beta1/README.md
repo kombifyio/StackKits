@@ -6,7 +6,7 @@ provider SDK, database, adapter registry or vendor configuration.
 
 ## Ownership
 
-- **Techstack**: authorizes commands, selects adapters, owns leases, persists
+- **Homelab**: authorizes commands, selects adapters, owns leases, persists
   the append-only lifecycle and resource ledger, keeps cleanup handles until
   provider-native absence is proven.
 - **This package**: the `Executor` interface, command/receipt wire types,
@@ -45,13 +45,13 @@ provider SDK, database, adapter registry or vendor configuration.
   lies between command request and receipt issue and `EvidenceVerifier` must
   accept it (honors cancellation; typed-nil fails closed). Adapter-local
   assertions never complete cleanup.
-- **Chain**: Techstack's coordinator creates the sole initial receipt
+- **Chain**: Homelab's coordinator creates the sole initial receipt
   (`InitialReceipt`: sequence 1, `pending/requested`, no predecessor or
   resources) and persists it before invoking an executor. `ExecutionRequest`
   carries the immutable command and validated prior receipt; the executor
   returns an unchained `ExecutionResult` (one next transition; failures carry a
   secret-free `{code,retryable}` reason and partial bindings, diagnostics stay
-  in Techstack logs). The coordinator calls `AssembleReceipt` with its durable
+  in Homelab logs). The coordinator calls `AssembleReceipt` with its durable
   head. Receipts hash-chain through `Sequence` and `PreviousReceiptDigest`;
   `phase_entered_at` is set on transition and preserved on same-phase polling.
   `ValidateAppend` enforces exact sequence increments, monotone issue time,

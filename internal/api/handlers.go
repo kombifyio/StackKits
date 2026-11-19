@@ -117,9 +117,9 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 			{"name": "setup.base_hub.protection.apply", "description": "Protect Base Hub and the node-local API with TinyAuth", "method": "POST", "path": "/api/v1/setup/base-hub/protection"},
 			{"name": "setup.service.run", "description": "Run or request an on-demand first-run setup action for a service", "method": "POST", "path": "/api/v1/setup/services/{service}/run"},
 			// CUE-governed StackActions
-			{"name": "stackaction.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a TechStack-managed stack", "method": "POST", "path": stackaction.PathStackKitRollout},
-			{"name": "stackaction.verify_rollout", "description": "Verify StackKits rollout state for a TechStack-managed stack", "method": "POST", "path": stackaction.PathStackKitVerify},
-			{"name": "stackaction.restore_drill", "description": "Run or dry-run a StackKits restore drill for a TechStack-managed stack", "method": "POST", "path": stackaction.PathRestoreDrill},
+			{"name": "stackaction.stackkit_rollout", "description": "Run or dry-run StackKits rollout for a Homelab-managed stack", "method": "POST", "path": stackaction.PathStackKitRollout},
+			{"name": "stackaction.verify_rollout", "description": "Verify StackKits rollout state for a Homelab-managed stack", "method": "POST", "path": stackaction.PathStackKitVerify},
+			{"name": "stackaction.restore_drill", "description": "Run or dry-run a StackKits restore drill for a Homelab-managed stack", "method": "POST", "path": stackaction.PathRestoreDrill},
 			{"name": "stackaction.backup_run", "description": "Start a node-local StackKits backup run", "method": "POST", "path": stackaction.PathBackupRun},
 			{"name": "stackaction.backup_status", "description": "Inspect node-local StackKits backup state", "method": "POST", "path": stackaction.PathBackupStatus},
 			{"name": "stackaction.backup_restore", "description": "Restore a StackKits backup snapshot", "method": "POST", "path": stackaction.PathBackupRestore},

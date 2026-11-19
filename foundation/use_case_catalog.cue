@@ -36,7 +36,7 @@ import "list"
 // A decision an operator can make about a use case before it is installed.
 //
 // This is the product's answer to "what can I set and decide?" per use case.
-// Until it existed, every consumer surface (the Techstack creation wizard
+// Until it existed, every consumer surface (the Homelab creation wizard
 // first) could only show the same three facts for every use case, because the
 // catalog carried nothing else that differs between them (owner finding
 // 2026-09-05). Keep each list SHORT: a setting earns its place by being a

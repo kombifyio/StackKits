@@ -24,9 +24,9 @@ import (
 )
 
 // The agent link of a node (homelab identity target §7, §10; Gateway ADR 0042
-// "Agent node envelope contract"). When Techstack registers a Guard-managed
-// server as a Connect techstack-node, the Gateway answers with the node's agent
-// envelope verification key; Techstack stores it per server and hands that key
+// "Agent node envelope contract"). When Homelab registers a Guard-managed
+// server as a Connect homelab-node, the Gateway answers with the node's agent
+// envelope verification key; Homelab stores it per server and hands that key
 // document, the server and tenant it was issued for, the node owner's kombify
 // subject and the D10 references of the linked household members (kombify
 // subject and Pocket ID username) to the node over the Guard (the capability
@@ -35,7 +35,7 @@ import (
 // Pinning a key, re-keying and changing the owner's subject are Owner acts on
 // homelab identity: they need the Owner's passkey step-up at the Authority
 // (class agent-link, bound to exactly that request), approved in the Hub, never
-// Techstack's assertion alone. Under the pinned key Techstack may update the
+// Homelab's assertion alone. Under the pinned key Homelab may update the
 // D10-linked members (it is the D10 link authority) without a step-up. A
 // higher binding generation or a new Gateway master key id replaces the pin;
 // the same key id with another key, a lower generation, a key that was pinned
@@ -61,9 +61,9 @@ const (
 // The capabilities an envelope can carry (the Gateway's
 // AGENT_NODE_ENVELOPE_CAPABILITIES). Read is the ceiling of a read-only lease.
 const (
-	HomeAgentCapabilityRead        = "techstack.inventory.read"
-	HomeAgentCapabilityOperate     = "techstack.inventory.operate"
-	HomeAgentCapabilityMaintenance = "techstack.server.maintenance"
+	HomeAgentCapabilityRead        = "homelab.inventory.read"
+	HomeAgentCapabilityOperate     = "homelab.inventory.operate"
+	HomeAgentCapabilityMaintenance = "homelab.server.maintenance"
 )
 
 var (
@@ -105,14 +105,14 @@ type HomeAgentSubject struct {
 	Account      string `json:"account"`
 }
 
-// HomeAgentLinkMember is one linked household member as Techstack's D10
+// HomeAgentLinkMember is one linked household member as Homelab's D10
 // reference names it: the kombify account subject and the Pocket ID username.
 type HomeAgentLinkMember struct {
 	CloudSubject string `json:"cloudSubject"`
 	Username     string `json:"username"`
 }
 
-// HomeAgentLinkRequest is what Techstack hands the node at linking.
+// HomeAgentLinkRequest is what Homelab hands the node at linking.
 // OwnerSubject is the kombify subject of the node's owner (the Connect node
 // owner, the only person the Gateway issues envelopes for today); Members are
 // the household members whose D10 link is verified.
@@ -241,7 +241,7 @@ func prepareHomeAgentLink(root string, request HomeAgentLinkRequest, accounts Ho
 // act that needs the passkey step-up: always without a pinned link, and
 // whenever the key, the node, server or tenant, or the owner's subject would
 // change. Only a change of the D10-linked members under exactly the pinned key
-// and owner is Techstack's to deliver alone.
+// and owner is Homelab's to deliver alone.
 func HomeAgentLinkNeedsOwner(root string, request HomeAgentLinkRequest) bool {
 	prior, err := LoadHomeAgentLink(root)
 	return err != nil || prior.Key != request.AgentEnvelope || prior.ServerID != request.ServerID ||
@@ -322,14 +322,14 @@ func HomeAgentLinkPinned(root string, request HomeAgentLinkRequest, accounts Hom
 }
 
 // HomeAgentLinkRequestDigest is the "sha256:<hex>" digest of the exact request
-// bytes the node read; Techstack checks it against what it dispatched.
+// bytes the node read; Homelab checks it against what it dispatched.
 func HomeAgentLinkRequestDigest(raw []byte) string {
 	digest := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
 // RemoveHomeAgentLink deletes the pin (the node was unlinked: Connect revoke,
-// techstack-node.revoked or a Guard detach). Every envelope fails afterwards,
+// homelab-node.revoked or a Guard detach). Every envelope fails afterwards,
 // also one the gate admitted but the endpoint has not consumed yet.
 func RemoveHomeAgentLink(root string) (bool, error) {
 	err := os.Remove(filepath.Join(root, filepath.FromSlash(homeAgentLinkPath)))

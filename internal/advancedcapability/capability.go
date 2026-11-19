@@ -85,7 +85,7 @@ func Reason(err error) (ReasonCode, bool) {
 	return denial.Code, true
 }
 
-// TrustedKey is one explicitly trusted Techstack issuer key. PublicKey is the
+// TrustedKey is one explicitly trusted Homelab issuer key. PublicKey is the
 // raw 32-byte Ed25519 public key, never a credential or private key.
 type TrustedKey struct {
 	KeyID     string
@@ -94,7 +94,7 @@ type TrustedKey struct {
 }
 
 // TrustBundle is injected by the StackKits composition root. Verification
-// performs no network, environment, file, or Techstack-client discovery.
+// performs no network, environment, file, or Homelab-client discovery.
 type TrustBundle struct {
 	SchemaVersion string
 	Keys          []TrustedKey

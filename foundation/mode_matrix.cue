@@ -82,14 +82,14 @@ package foundation
 	// filed under, never a kit's other supported cells.
 	//
 	// install.advanced is the go-live gate cell (ADR-0045 Acceptance): its citations must resolve to an os-compat receipt
-	// with `dispatcher: "techstack-core"`, a real substrate (`"proxmox-ve"`
+	// with `dispatcher: "homelab-core"`, a real substrate (`"proxmox-ve"`
 	// for the Basement/Proxmox lane or `"managed-vps"` for the
-	// Techstack-managed Cloud VPS lane), overall `status: "passed"`, and a
+	// Homelab-managed Cloud VPS lane), overall `status: "passed"`, and a
 	// passed phase entry for every one of: apply, verify, drift-detect,
 	// change-set, reconcile, rollback, restore-drill. A receipt missing any
 	// one of those phases (for example the unmanaged proxmox-lab.py or
 	// managed-vps Standard lifecycle, which never runs change-set/
-	// reconcile/rollback/restore-drill, or a Techstack-dispatched run whose
+	// reconcile/rollback/restore-drill, or a Homelab-dispatched run whose
 	// change-set/reconcile/rollback failed) never satisfies install.advanced,
 	// no matter how many other phases passed.
 	evidence?: {

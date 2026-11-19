@@ -514,7 +514,7 @@ func (e *backupSourceUnavailableError) Guidance() []string {
 	return []string{
 		"This server has no local backup source: its applied kit core owns no backup repository, so there is nothing here to check.",
 		"Modern Homelab: the backup is made by the home server; run the check there.",
-		"Cloud Kit on the Coolify core: its recovery is the managed off-site backup that was provisioned before Apply; read it with the stack's backup status in Techstack.",
+		"Cloud Kit on the Coolify core: its recovery is the managed off-site backup that was provisioned before Apply; read it with the stack's backup status in Homelab.",
 	}
 }
 

@@ -43,7 +43,7 @@ type Graph struct {
 }
 
 // Host is one self-contained Terramate project: the executor-managed runtime
-// tree of one node. A Techstack-dispatched change set runs per host through
+// tree of one node. A Homelab-dispatched change set runs per host through
 // its execution channel, in RunOrder, after every cross-host `after` stack.
 type Host struct {
 	SiteRef             string   `json:"siteRef"`

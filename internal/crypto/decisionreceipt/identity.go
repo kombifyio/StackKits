@@ -24,7 +24,7 @@ type NodeIdentity struct {
 }
 
 // nodeIdentityDocument is the record the privileged installer pins after it
-// admitted the hosted enrollment (techstack/pkg/ril/nodeproof
+// admitted the hosted enrollment (homelab/pkg/ril/nodeproof
 // PinLocalIdentity). An empty record is the installer's tombstone after a
 // re-enrollment into a non-hosted authority.
 type nodeIdentityDocument struct {

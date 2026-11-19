@@ -467,8 +467,8 @@ func prepareLocalSystem(ctx context.Context, spec *models.StackSpec, loader *con
 		}
 		rolloutEvent("terramate.check", "succeeded", "Terramate is available for advanced lifecycle", nil)
 	}
-	if err := ensureTechStackGuardLocal(ctx, spec); err != nil {
-		rolloutFailure("techstack.guard", err)
+	if err := ensureHomelabGuardLocal(ctx, spec); err != nil {
+		rolloutFailure("homelab.guard", err)
 		return err
 	}
 	emitPrepareTelemetryHandshake()
@@ -706,8 +706,8 @@ func prepareRemoteSystem(ctx context.Context, spec *models.StackSpec) error {
 		}
 		rolloutEvent("terramate.check", "succeeded", "remote Terramate is available", nil)
 	}
-	if err := ensureTechStackGuardRemote(ctx, spec, sshClient); err != nil {
-		rolloutFailure("techstack.guard", err)
+	if err := ensureHomelabGuardRemote(ctx, spec, sshClient); err != nil {
+		rolloutFailure("homelab.guard", err)
 		return err
 	}
 
@@ -1178,7 +1178,7 @@ func ensurePackagedTerramateMatchesRemote(sysInfo *models.SystemInfo) error {
 	return nil
 }
 
-type techStackHandoff struct {
+type homelabHandoff struct {
 	ServerURL        string
 	ServerID         string
 	RuntimeAgentID   string
@@ -1192,68 +1192,68 @@ type techStackHandoff struct {
 	ChannelBootstrap string
 }
 
-func techStackHandoffFromEnv() techStackHandoff {
-	return techStackHandoff{
-		ServerURL:        strings.TrimRight(strings.TrimSpace(os.Getenv("TECHSTACK_SERVER_URL")), "/"),
-		ServerID:         strings.TrimSpace(os.Getenv("TECHSTACK_SERVER_ID")),
-		RuntimeAgentID:   strings.TrimSpace(os.Getenv("TECHSTACK_RUNTIME_AGENT_ID")),
-		AgentToken:       strings.TrimSpace(os.Getenv("TECHSTACK_AGENT_TOKEN")),
-		TenantID:         strings.TrimSpace(os.Getenv("TECHSTACK_TENANT_ID")),
-		OwnerID:          strings.TrimSpace(os.Getenv("TECHSTACK_OWNER_ID")),
-		StackID:          strings.TrimSpace(os.Getenv("TECHSTACK_STACK_ID")),
-		LeaseID:          strings.TrimSpace(os.Getenv("TECHSTACK_LEASE_ID")),
-		HeartbeatURL:     strings.TrimSpace(os.Getenv("TECHSTACK_HEARTBEAT_URL")),
-		InventoryURL:     strings.TrimSpace(os.Getenv("TECHSTACK_INVENTORY_URL")),
-		ChannelBootstrap: strings.TrimSpace(os.Getenv("TECHSTACK_CHANNEL_BOOTSTRAP")),
+func homelabHandoffFromEnv() homelabHandoff {
+	return homelabHandoff{
+		ServerURL:        strings.TrimRight(strings.TrimSpace(os.Getenv("HOMELAB_SERVER_URL")), "/"),
+		ServerID:         strings.TrimSpace(os.Getenv("HOMELAB_SERVER_ID")),
+		RuntimeAgentID:   strings.TrimSpace(os.Getenv("HOMELAB_RUNTIME_AGENT_ID")),
+		AgentToken:       strings.TrimSpace(os.Getenv("HOMELAB_AGENT_TOKEN")),
+		TenantID:         strings.TrimSpace(os.Getenv("HOMELAB_TENANT_ID")),
+		OwnerID:          strings.TrimSpace(os.Getenv("HOMELAB_OWNER_ID")),
+		StackID:          strings.TrimSpace(os.Getenv("HOMELAB_KIT_DEPLOYMENT_ID")),
+		LeaseID:          strings.TrimSpace(os.Getenv("HOMELAB_LEASE_ID")),
+		HeartbeatURL:     strings.TrimSpace(os.Getenv("HOMELAB_HEARTBEAT_URL")),
+		InventoryURL:     strings.TrimSpace(os.Getenv("HOMELAB_INVENTORY_URL")),
+		ChannelBootstrap: strings.TrimSpace(os.Getenv("HOMELAB_CHANNEL_BOOTSTRAP")),
 	}
 }
 
-func (h techStackHandoff) requested() bool {
-	if truthyEnv("TECHSTACK_MANAGED") {
+func (h homelabHandoff) requested() bool {
+	if truthyEnv("HOMELAB_MANAGED") {
 		return true
 	}
 	return h.ServerURL != "" || h.ServerID != "" || h.RuntimeAgentID != "" || h.AgentToken != "" || h.LeaseID != "" || h.HeartbeatURL != "" || h.InventoryURL != ""
 }
 
-func (h techStackHandoff) validateManaged() error {
+func (h homelabHandoff) validateManaged() error {
 	missing := []string{}
 	for name, value := range map[string]string{
-		"TECHSTACK_TENANT_ID":        h.TenantID,
-		"TECHSTACK_STACK_ID":         h.StackID,
-		"TECHSTACK_SERVER_URL":       h.ServerURL,
-		"TECHSTACK_SERVER_ID":        h.ServerID,
-		"TECHSTACK_RUNTIME_AGENT_ID": h.RuntimeAgentID,
-		"TECHSTACK_AGENT_TOKEN":      h.AgentToken,
+		"HOMELAB_TENANT_ID":         h.TenantID,
+		"HOMELAB_KIT_DEPLOYMENT_ID": h.StackID,
+		"HOMELAB_SERVER_URL":        h.ServerURL,
+		"HOMELAB_SERVER_ID":         h.ServerID,
+		"HOMELAB_RUNTIME_AGENT_ID":  h.RuntimeAgentID,
+		"HOMELAB_AGENT_TOKEN":       h.AgentToken,
 	} {
 		if strings.TrimSpace(value) == "" {
 			missing = append(missing, name)
 		}
 	}
 	if h.HeartbeatURL == "" && h.InventoryURL == "" {
-		missing = append(missing, "TECHSTACK_HEARTBEAT_URL or TECHSTACK_INVENTORY_URL")
+		missing = append(missing, "HOMELAB_HEARTBEAT_URL or HOMELAB_INVENTORY_URL")
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("techstack_orchestration_handoff_missing: TechStack-managed prepare requires %s", strings.Join(missing, ", "))
+		return fmt.Errorf("homelab_orchestration_handoff_missing: Homelab-managed prepare requires %s", strings.Join(missing, ", "))
 	}
 	return nil
 }
 
-func ensureTechStackGuardLocal(ctx context.Context, spec *models.StackSpec) error {
-	return ensureTechStackGuard(ctx, spec, nil)
+func ensureHomelabGuardLocal(ctx context.Context, spec *models.StackSpec) error {
+	return ensureHomelabGuard(ctx, spec, nil)
 }
 
-func ensureTechStackGuardRemote(ctx context.Context, spec *models.StackSpec, sshClient *ssh.Client) error {
-	return ensureTechStackGuard(ctx, spec, sshClient)
+func ensureHomelabGuardRemote(ctx context.Context, spec *models.StackSpec, sshClient *ssh.Client) error {
+	return ensureHomelabGuard(ctx, spec, sshClient)
 }
 
-func ensureTechStackGuard(ctx context.Context, spec *models.StackSpec, sshClient *ssh.Client) error {
-	handoff := techStackHandoffFromEnv()
+func ensureHomelabGuard(ctx context.Context, spec *models.StackSpec, sshClient *ssh.Client) error {
+	handoff := homelabHandoffFromEnv()
 	if !handoff.requested() {
 		attrs := map[string]string{}
 		if spec != nil {
 			attrs["mode"] = spec.EffectiveInstallMode()
 		}
-		rolloutEvent("techstack.guard", "skipped", "TechStack guard handoff not requested for standalone prepare", attrs)
+		rolloutEvent("homelab.guard", "skipped", "Homelab guard handoff not requested for standalone prepare", attrs)
 		return nil
 	}
 	if err := handoff.validateManaged(); err != nil {
@@ -1269,24 +1269,24 @@ func ensureTechStackGuard(ctx context.Context, spec *models.StackSpec, sshClient
 	if spec != nil {
 		attrs["mode"] = spec.EffectiveInstallMode()
 	}
-	rolloutEvent("techstack.guard", "started", "verifying canonical TechStack Guard", attrs)
+	rolloutEvent("homelab.guard", "started", "verifying canonical Homelab Guard", attrs)
 	if prepareDryRun {
-		rolloutEvent("techstack.guard", "skipped", "TechStack Guard verification skipped by dry-run", attrs)
+		rolloutEvent("homelab.guard", "skipped", "Homelab Guard verification skipped by dry-run", attrs)
 		return nil
 	}
 	target := "local"
-	probe := probeTechStackGuardLocal
+	probe := probeHomelabGuardLocal
 	if sshClient != nil {
 		target = "remote"
 		probe = func(ctx context.Context) ([]byte, error) {
-			stdout, _, err := sshClient.RunWithSudo(ctx, techStackGuardObservationScript)
+			stdout, _, err := sshClient.RunWithSudo(ctx, homelabGuardObservationScript)
 			return []byte(stdout), err
 		}
 	}
-	if err := verifyTechStackGuard(ctx, handoff, target, probe); err != nil {
+	if err := verifyHomelabGuard(ctx, handoff, target, probe); err != nil {
 		return err
 	}
-	rolloutEvent("techstack.guard", "succeeded", "Canonical TechStack Guard service and enrollment verified", attrs)
+	rolloutEvent("homelab.guard", "succeeded", "Canonical Homelab Guard service and enrollment verified", attrs)
 	return nil
 }
 

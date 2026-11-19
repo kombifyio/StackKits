@@ -2,7 +2,7 @@
 // local homelab owner's own signing custody.
 //
 // StackKits is an Open Source homelab standard that must operate with no
-// Kombify account, no Kombify endpoint, and no TechStack. ADR-0029 states the
+// Kombify account, no Kombify endpoint, and no Homelab. ADR-0029 states the
 // same requirement from the trust side: for a homelab the Authority Site is
 // home, "Enrollment and signing happen there", and conformance gates must
 // reject remote enrollment/signing. A collector that can only be constructed

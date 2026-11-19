@@ -1,5 +1,6 @@
 # Changelog
 
+- Changed (rename, D-2026-11-19-01): the orchestrator product formerly named Techstack is Homelab, and the public contracts that name it change with it: exported Go identifiers and constants in `contracts/` and `pkg/` (for example `IsHomelabIssuerID`), the `homelab.<x>/v1` schema ids, the `homelab-own-application-v<n>` schemas and the Homelab handoff environment. The `github.com/kombifyio/stackkits` module that a Homelab build pins must be this release or newer.
 - Added: `stackkit use-cases upgrade <slug> --to <release> --digest sha256:... --apply` runs on a node Techstack manages (platform-8gb0l5). Such a node refused it with `intent_refused` ("managed intent changes through Techstack Advanced dispatch"); it now admits the change under a new Advanced operation `application-release.update`: Techstack dispatches the command with `--capability <file>`, a capability carrying only that operation and an `applicationRelease` scope (`useCaseRef`, `targetRelease`, `targetDigest`, `releaseKind` tested or untested), at most 15 minutes valid. The node reconstructs the scope from its own command and catalog and verifies it offline against the Owner-approved trust, for its stack and Owner, before it stops the application; a missing, foreign or mismatching capability refuses with an `advanced_capability_*` reason and nothing is stopped. The owner-signed release record keeps the capability ID and digest (`managed`), and the result adds `prior_spec_hash`, `target_spec_hash` and `capability_id`, so Techstack's desired state follows the override and a later StackKits release supersedes it as on a standalone node. The Advanced operations catalog lists `application-release.update` (placeholders `releaseTag`, `imageDigest`). A standalone node keeps its behaviour and refuses `--capability`; a multi-node intent still changes through Advanced change sets.
 - Added: an own application, including one taken over with "Stack it", is operable like a catalog application (platform-o70q3u). `stackkit app own --action start` starts a stopped application and `--action restart` stops and starts a running one, both from the exact signed bundle and admitted local image; a firewalled application (outbound Internet or published ports) starts only through its host firewall watcher after the freshly reviewed rules are applied and verified, never by a plain `docker start`, which also brings it back after a kit rollback stopped it. `--action update --image-tag <tag>` moves a one-container application to a newer version tag of its own image (same major and variant unless `--allow-major`; an untagged adopted image is compared with its `org.opencontainers.image.version` label): the dry run resolves the tag to its digest, the execution resolves it again and refuses a moved tag before anything stops, stops an application with a volume and takes an application-scoped data checkpoint (an operation-bound copy of its volumes read back by digest; fails closed without the installed backup helper), requires the application running and, with an image healthcheck, healthy through a 30-second stability window, and otherwise stops it, restores the checkpoint data, returns to the prior image and verifies again. `rolled_back` means image and data are both back; a failed step reports `rollback_failed` with its reason code, the kept checkpoint and the exact `stackkit app own --action rollback --checkpoint <operation>` restore command, which also works on its own. The signed record keeps the checkpoint state (taken, retained, restored, kept, discarded): a kept or unfinished checkpoint refuses a new tag update (`checkpoint_unrestored`), an earlier copy is removed only after the new one read back and only when it was retained, restored or discarded, the free space is measured before anything stops (`checkpoint_space_insufficient`), the readback digest covers contents, mode, owner, symlink targets and empty directories, and `--action discard-checkpoint` removes a retained copy whose size every result reports (never one whose update has not finished; state, review, removal and record under one lifecycle lock). Checkpoint states move only along an explicit graph and never out of discarded; `remove --delete-data` refuses while a checkpoint is kept or unfinished; a tag update's dry run reports the copy it replaces (`replacesCheckpoint`). Its result `stackkit.own-application-update/v1` carries `outcome` (`reviewed`, `updated`, `refused`, `rolled_back`, `rollback_failed`), `reasonCode`, `allowMajor`, the checkpoint and `targetCheck: not_checked_by_kombify`. Every own-application result now carries an `outcome` code, and every refused, pending or denied call writes one result with a stable `reasonCode`. On a Techstack-managed node an executed start, stop, restart, update or rollback needs the new Advanced capability operation `own-application.lifecycle` (`--capability`), bound by its new `ownApplicationLifecycle` scope to the application, action, operation ID and review digest and valid for at most 15 minutes; a standalone node runs them under `--owner-approve` and refuses one. The Advanced catalog lists `own-application.status`, `.logs`, `.review`, `.start`, `.stop`, `.restart`, `.update.review`, `.update`, `.rollback`, `.checkpoint-rollback.review`, `.checkpoint-rollback` and `.backup`.
 - Added: every "Stack it" plan row carries a stable machine `code` (for example `image_pinned_by_digest`, `container_recreated`, `volume_copied_checksummed`, `port_kept`, `refused_host_network`) and structured `values` next to its English `reason`; the codes are listed in docs/APPLICATION_ADOPTION.md "Plan row codes" and in the adoption schema. The plan digest now covers them, so a plan reviewed with an earlier release is planned again.
@@ -476,6 +477,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.59.1 (2026-11-19)
+
+### Fixed
+
+* **release:** the public export manifest names the renamed own-application schemas
+
+## 0.59.0 (2026-11-19)
+
+### ⚠ BREAKING CHANGES
+
+* **contracts:** the StackKits root exports and contracts name Homelab instead of Techstack
+
+### Added
+
+* **contracts:** the StackKits root exports and contracts name Homelab instead of Techstack
+
+### Fixed
+
+* **ci:** GO111MODULE=off reaches only the checker compile, not mise's go: tool install
+* **delivery:** bind the GitHub delivery auth to GITHUB_TOKEN, not the retired GH_PAT
+
+
 
 ## 0.58.0 (2026-11-19)
 

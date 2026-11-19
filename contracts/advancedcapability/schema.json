@@ -55,7 +55,7 @@
         },
         "applicationRelease": {
           "$ref": "#/$defs/ApplicationRelease",
-          "description": "ApplicationRelease binds a short-lived scoped release update to one catalog use case and the exact release, manifest digest and tested or untested kind the Owner approved in Techstack."
+          "description": "ApplicationRelease binds a short-lived scoped release update to one catalog use case and the exact release, manifest digest and tested or untested kind the Owner approved in Homelab."
         },
         "audience": {
           "type": "string",
@@ -83,7 +83,7 @@
         "issuerId": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
-          "description": "IssuerID names a Techstack issuer (see IssuerClass)."
+          "description": "IssuerID names a Homelab issuer (see IssuerClass)."
         },
         "keyId": {
           "type": "string",
@@ -117,7 +117,7 @@
         },
         "transferReceive": {
           "$ref": "#/$defs/TransferReceive",
-          "description": "TransferReceive binds a short-lived receiving step to the exact receiving desired intent and the one source Owner Techstack admitted for this move."
+          "description": "TransferReceive binds a short-lived receiving step to the exact receiving desired intent and the one source Owner Homelab admitted for this move."
         },
         "transferRetirement": {
           "$ref": "#/$defs/TransferRetirement",
@@ -348,7 +348,7 @@
       }
     },
     "TrustBundleKey": {
-      "description": "TrustBundleKey binds one Techstack issuer to one raw Ed25519 public key.",
+      "description": "TrustBundleKey binds one Homelab issuer to one raw Ed25519 public key.",
       "type": "object",
       "additionalProperties": false,
       "required": [

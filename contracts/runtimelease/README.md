@@ -1,6 +1,6 @@
 # runtimelease
 
-Secret-free contract for the Runtime Lease Authority. Techstack owns the durable
+Secret-free contract for the Runtime Lease Authority. Homelab owns the durable
 lease state; this package defines the wire and local validation. The authority
 owns lease identity and validity window, caller-owned desired state (`running`,
 `stopped`, `absent`), cancellation and a monotonic non-zero `revision` for CAS.

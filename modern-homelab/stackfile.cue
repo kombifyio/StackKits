@@ -2,7 +2,7 @@
 // least one Home Site and one Cloud Site, while keeping Home as the control,
 // enrollment, and default data authority. Concrete transports, PaaS products,
 // server providers, host lifecycle, and workload realizations belong to their
-// catalog modules or to TechStack; they are not kit identity.
+// catalog modules or to Homelab; they are not kit identity.
 
 package modern_homelab
 

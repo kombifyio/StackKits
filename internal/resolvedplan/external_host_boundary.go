@@ -41,7 +41,7 @@ var externalHostReferencePatterns = map[string]*regexp.Regexp{
 var (
 	externalHostContractIDPattern  = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	externalHostContentHashPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
-	externalHostSecretRefPattern   = regexp.MustCompile(`^(secret|vault|doppler|techstack)://[^\s]+$`)
+	externalHostSecretRefPattern   = regexp.MustCompile(`^(secret|vault|doppler|homelab)://[^\s]+$`)
 	externalHostSemVerPattern      = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$`)
 )
 

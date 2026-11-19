@@ -25,7 +25,7 @@ import (
 const (
 	// maxPurposeKeyWindow is the longest window a published snapshot may
 	// carry. It is the window the privileged refresher admits and the RIL
-	// proof verifier enforces (techstack/pkg/ril/nodeproof).
+	// proof verifier enforces (homelab/pkg/ril/nodeproof).
 	maxPurposeKeyWindow = 45
 )
 

@@ -77,7 +77,7 @@ here.
   the container as the file `/run/secrets/immich-api-key`
   (`CONTENT_BRIDGE_IMMICH_API_KEY_FILE`). The bridge reads the file on every
   upstream read, so a rotation needs no restart. The key never reaches
-  Techstack, the Gateway, Cloud or a client.
+  Homelab, the Gateway, Cloud or a client.
 - **Memory and logs.** The bridge keeps an app answer for at most 60 seconds
   (a failure for 5 seconds, as a status only) and stores nothing. It logs the
   use case, the status, the tier and the latency, never a count, an identifier,

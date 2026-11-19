@@ -77,7 +77,7 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a new deployment from a StackKit",
 	Long: `Create a stack-spec.yaml in your deployment directory.
 This saves your choices; it does not install services or change the host.
-The standalone local path works without a kombify account or Techstack.
+The standalone local path works without a kombify account or Homelab.
 
 Start with the selected Kit's catalog defaults. --owner-source=local keeps the
 owner on this machine and needs --owner-email for the local PocketID owner.

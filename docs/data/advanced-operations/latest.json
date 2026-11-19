@@ -257,7 +257,7 @@
     },
     {
       "name": "certificateFile",
-      "description": "Path to the PEM origin certificate delivered by Techstack."
+      "description": "Path to the PEM origin certificate delivered by Homelab."
     },
     {
       "name": "hostsCsv",
@@ -316,7 +316,7 @@
       "operation": "advanced.trust.import",
       "status": "available",
       "sinceRelease": "v0.15.8",
-      "summary": "Import the exact pinned Techstack issuer trust bundle into local Owner custody; prerequisite of every capability-gated operation.",
+      "summary": "Import the exact pinned Homelab issuer trust bundle into local Owner custody; prerequisite of every capability-gated operation.",
       "command": "stackkit advanced trust import",
       "argv": [
         "advanced",
@@ -429,7 +429,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -505,7 +505,7 @@
       "operation": "application-transfer.receive",
       "status": "available",
       "sinceRelease": "pending",
-      "summary": "Receive a native application transfer on a managed node: import the authenticated archive into the prepared receiving application and sign the activated outcome only after the destination data readback. transfer-target (step admit: persist and generate the Techstack-approved candidate, issue the destination admission) and transfer-prepare (step prepare: adopt the transferred credentials before the first Apply) take a capability of their own step.",
+      "summary": "Receive a native application transfer on a managed node: import the authenticated archive into the prepared receiving application and sign the activated outcome only after the destination data readback. transfer-target (step admit: persist and generate the Homelab-approved candidate, issue the destination admission) and transfer-prepare (step prepare: adopt the transferred credentials before the first Apply) take a capability of their own step.",
       "command": "stackkit backup transfer-import",
       "argv": [
         "backup",
@@ -541,7 +541,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         },
         {
           "placeholder": "sourceReceiptFile",
@@ -1406,7 +1406,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         },
         {
           "placeholder": "candidateSpecFile",
@@ -1567,7 +1567,7 @@
             "--capability",
             "{capabilityFile}"
           ],
-          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+          "description": "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
         }
       ],
       "mutates": true,
@@ -1584,7 +1584,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -1677,7 +1677,7 @@
             "--capability",
             "{capabilityFile}"
           ],
-          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+          "description": "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
         }
       ],
       "mutates": true,
@@ -1694,7 +1694,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -1824,7 +1824,7 @@
             "--capability",
             "{capabilityFile}"
           ],
-          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+          "description": "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
         }
       ],
       "mutates": true,
@@ -1841,7 +1841,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -1930,7 +1930,7 @@
             "--capability",
             "{capabilityFile}"
           ],
-          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+          "description": "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
         }
       ],
       "mutates": true,
@@ -1947,7 +1947,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -1996,7 +1996,7 @@
             "--capability",
             "{capabilityFile}"
           ],
-          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+          "description": "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
         }
       ],
       "mutates": true,
@@ -2013,7 +2013,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -2101,7 +2101,7 @@
             "--capability",
             "{capabilityFile}"
           ],
-          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+          "description": "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
         }
       ],
       "mutates": true,
@@ -2118,7 +2118,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -2177,7 +2177,7 @@
             "--capability",
             "{capabilityFile}"
           ],
-          "description": "Managed node: the Techstack own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
+          "description": "Managed node: the Homelab own-application.lifecycle capability for exactly this application, action, operation ID and review digest (at most 15 minutes); required there, refused on a standalone node."
         }
       ],
       "mutates": true,
@@ -2194,7 +2194,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -2290,7 +2290,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         },
         {
           "placeholder": "certificateFile",
@@ -2327,7 +2327,7 @@
       "operation": "public-tls.origin-certificate.request",
       "status": "available",
       "sinceRelease": "pending",
-      "summary": "Generate the origin key pair on the node (custody, never exported) and return the CSR for a managed kombify.me origin certificate; Techstack has Cloudflare issue it.",
+      "summary": "Generate the origin key pair on the node (custody, never exported) and return the CSR for a managed kombify.me origin certificate; Homelab has Cloudflare issue it.",
       "command": "stackkit advanced origin-certificate request",
       "argv": [
         "advanced",
@@ -2354,7 +2354,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         },
         {
           "placeholder": "hostsCsv",
@@ -2432,7 +2432,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -2502,7 +2502,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         }
       ],
       "results": [
@@ -2577,7 +2577,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         },
         {
           "placeholder": "candidateSpecFile",
@@ -2686,7 +2686,7 @@
           "placeholder": "capabilityFile",
           "schemaVersion": "stackkit.advanced-capability/v1",
           "schema": "schemas/stackkit-advanced-capability-v1.schema.json",
-          "description": "Canonical Techstack-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
+          "description": "Canonical Homelab-signed capability whose allowedOperations contains the operation, verified offline against the imported trust."
         },
         {
           "placeholder": "candidateSpecFile",

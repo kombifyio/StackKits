@@ -21,8 +21,8 @@ import (
 // the Authority registers it in its Pocket ID under an Owner step-up of class
 // client-registration, and the secret reaches the joined server only through
 // the homelab's Wallet by host delivery. The Authority never prints the
-// secret: it seals it with HPKE to the carrier key Techstack generated for
-// this one registration and holds only in memory, and Techstack opens it only
+// secret: it seals it with HPKE to the carrier key Homelab generated for
+// this one registration and holds only in memory, and Homelab opens it only
 // to seal it straight into the Wallet. The joined server then binds TinyAuth
 // to the Wallet item it imported.
 const (
@@ -35,7 +35,7 @@ const (
 	homeJoinClientNamePrefix  = "stackkit-tinyauth-"
 )
 
-// HomeJoinClientRequest is what Techstack hands the Authority for one joined
+// HomeJoinClientRequest is what Homelab hands the Authority for one joined
 // server's TinyAuth client.
 type HomeJoinClientRequest struct {
 	Schema string `json:"schema"`

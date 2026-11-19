@@ -17,7 +17,7 @@
 //
 // The local provisioner only supports Source=="local" (a daily-admin owner
 // provisioned locally on the first node). Source=="cloud" is orchestrator
-// managed by TechStack/kombify Cloud and must not call this local provisioner.
+// managed by Homelab/kombify Cloud and must not call this local provisioner.
 package identity
 
 import (
@@ -41,7 +41,7 @@ type PocketIDClient interface {
 // OwnerSpec describes the daily-admin owner of a homelab instance.
 type OwnerSpec struct {
 	// Source controls the provisioning path. This local provisioner supports
-	// "local" only; "cloud" is handled by TechStack/kombify Cloud.
+	// "local" only; "cloud" is handled by Homelab/kombify Cloud.
 	Source string
 
 	// Email is the owner's address (also used as the WebAuthn account label).

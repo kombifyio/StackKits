@@ -23,15 +23,15 @@ writes:
 memory and fails on any difference. `wire.go` holds the hand-written rules:
 strict exact-bytes decoding, time and lifetime rules, logical-reference rules,
 signing digest `SHA-256(schemaVersion || 0x00 || unsigned JCS)`, signature
-checks. The existing conformance capabilities are byte-identical to the Techstack
+checks. The existing conformance capabilities are byte-identical to the Homelab
 (`internal/advancedissuer/testdata`) and StackKits
 (`internal/advancedcapability/testdata`) vectors.
 
 ## Issuer pin
 
-Advanced Mode is Techstack-only. A capability's `issuerId` and every
-trust-bundle key's `issuerId` must be `techstack` or `techstack.<suffix>`
-(`IssuerClass`, `IsTechstackIssuerID`); `ValidateClaims`, `DecodeCapability`,
+Advanced Mode is Homelab-only. A capability's `issuerId` and every
+trust-bundle key's `issuerId` must be `homelab` or `homelab.<suffix>`
+(`IssuerClass`, `IsHomelabIssuerID`); `ValidateClaims`, `DecodeCapability`,
 `TrustBundle.Validate` and `DecodeTrustBundle` enforce it, so a bundle naming
 another issuer is rejected before its digest can be approved. The verifier also
 keeps the Owner-approved bundle digest, issuer/key binding, trusted time and
@@ -39,7 +39,7 @@ local stack, Owner and operation scope.
 
 ## Ownership
 
-In-memory validation and encoding only. Techstack owns key custody, issuance and
+In-memory validation and encoding only. Homelab owns key custody, issuance and
 trust-binding records; StackKits owns trust import, Owner approval, trusted
 time, scope admission and CLI reason codes. Both consume this package.
 

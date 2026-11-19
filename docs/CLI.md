@@ -134,7 +134,7 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `vpn` | Switch the optional VPN add-on on with WireGuard, Headscale, Tailscale or Pangolin, list its peers, reconcile and switch it off (never a default). |
 | `network` | Move this server to another network: status, signed LAN re-bind, WiFi pre-staging and the self-re-binding watcher. |
 | `relocate` | Plan, check, drain, send and receive Coolify workloads moving to another server, with the pinned coolify-mirror engine and a Wallet-delivered transfer secret. |
-| `connect` | Bind this server, which already runs the public package, to the kombify account that created the pairing in the Techstack setup; a free account is enough. |
+| `connect` | Bind this server, which already runs the public package, to the kombify account that created the pairing in the Homelab setup; a free account is enough. |
 | `completion` | Generate shell completions. |
 | `version` | Print version, commit, build date, Go version, and OS/arch. |
 
@@ -154,7 +154,7 @@ create an empty deployment directory, and they make no generation/apply
 readiness claim. Topology belongs to the KitDefinition and observed host facts
 to Inventory. The local PocketID Owner projection and `ownerRef`/step-ca
 lifecycle authority are initialized as local custody outside StackSpec; an
-optional Techstack or kombify Cloud projection may propose user-approved
+optional Homelab or kombify Cloud projection may propose user-approved
 identity data but cannot replace that authority.
 
 For a published build, `init` first resolves its exact embedded SemVer through
@@ -208,7 +208,7 @@ case retains its current choices.
 If secret creation fails after intent persistence, retry the same add command
 to complete that use case's custody. No services are deployed by `add`.
 Legacy specs require explicit migration; Advanced and multi-site changes belong
-to Techstack dispatch.
+to Homelab dispatch.
 
 ### `stackkit use-cases upgrade <slug> --to <release>`
 
@@ -216,7 +216,7 @@ Move one selected application to a newer release of its entry image, with a
 rollback that restores the prior release and its data, independent of StackKits
 releases. Unrelated applications and their data are not touched. It applies to
 every catalog application on a single-node installation, a standalone Standard
-one or a node Techstack manages when Techstack dispatches the change with its
+one or a node Homelab manages when Homelab dispatches the change with its
 capability: each module's entry image is a release choice. Its tested releases
 are the catalog default plus any further `releases:` the catalog lists
 (Vaultwarden: `1.37.2` and `1.37.5`); its release track is the module's
@@ -248,9 +248,9 @@ are the catalog default plus any further `releases:` the catalog lists
   StackSpec hash (`prior_spec_hash`, `target_spec_hash`) and, on a managed
   node, `capability_id`. A successful update keeps the checkpoint open for a
   later `--rollback`; `--finalize` accepts it.
-- On a node Techstack manages (an imported Advanced trust or `install.mode:
+- On a node Homelab manages (an imported Advanced trust or `install.mode:
   advanced`), a forward change also needs `--capability <file>`: the
-  Techstack-signed `application-release.update` capability (Advanced operation
+  Homelab-signed `application-release.update` capability (Advanced operation
   of the same name) for exactly this use case, `--to` release, `--digest` and
   tested or untested kind, at most 15 minutes valid, verified offline against
   the Owner-approved trust before the application is stopped. Without it, or
@@ -271,7 +271,7 @@ are the catalog default plus any further `releases:` the catalog lists
   Layer-2 platform) updates the same way, independent of a StackKits release
   (D-2026-11-12-06). Its tested release is the catalog pin (Coolify `4.7.5`);
   any other Coolify 4.x release after it needs `--digest` and
-  `--accept-untested` (in Techstack: the untested-release setting, at the
+  `--accept-untested` (in Homelab: the untested-release setting, at the
   Owner's own responsibility). The checkpoint stops the whole installation
   (Coolify, PostgreSQL, Redis), retains and reads back its eight volumes,
   including Coolify's PostgreSQL database, and retains its private runtime
@@ -556,7 +556,7 @@ terminal absence evidence.
 `--json` keeps stdout for the one result document, so the human heartbeat is
 silent there. The machine counterpart is the `--progress-jsonl <file>` spool
 (`stackkit.rollout-event/v1`, `schemas/stackkit-rollout-event.schema.json`):
-a controller that already passes it, as Techstack does for every command, now
+a controller that already passes it, as Homelab does for every command, now
 also receives one event stream per runtime owner. Nothing is written to stdout
 or stderr, so the result document and the stderr log stream are unchanged, and
 a consumer that does not know the new phases reads them as ordinary rollout
@@ -675,7 +675,7 @@ issuer bundle:
 
 ```bash
 stackkit advanced trust import \
-  --bundle techstack-advanced-trust.json \
+  --bundle homelab-advanced-trust.json \
   --expect-sha256 sha256:<64-lowercase-hex> \
   --owner-approve \
   --json
@@ -690,7 +690,7 @@ and private keys are invalid inputs.
 
 `stackkit advanced trust inspect [--json]` is read-only and verifies the local
 Owner signature and file permissions before returning only the bundle digest,
-Owner reference, issuer IDs, and key IDs. Techstack may issue short-lived
+Owner reference, issuer IDs, and key IDs. Homelab may issue short-lived
 capabilities against one of these keys, but cannot install trust or replace
 local Owner custody.
 
@@ -719,7 +719,7 @@ custodied one is refused.
 
 Capability denial is emitted as `stackkit.operation-denial/v1` with a stable
 public reason code. Creating a change set does not invoke Terramate, OpenTofu,
-Docker, Techstack, or a network service.
+Docker, Homelab, or a network service.
 
 `stackkit advanced change-set apply` runs the approved candidate through the
 checkpointed generate, plan, apply and verify transaction. Before the target
@@ -811,7 +811,7 @@ next steps. Changing the selected workspace clears its previous status view.
 ### `stackkit app own --from-container <container>` ("Stack it")
 
 Rebuilds one existing single container that StackKits did not install as an own
-application (`techstack.own-application/v4`), so it gets the own-application
+application (`homelab.own-application/v4`), so it gets the own-application
 lifecycle: digest-pinned update and rollback, volume backup, logs, stop and
 status. Details and every refusal: [Run your own container](OWN_APPLICATIONS.md#stack-an-existing-container-v4).
 
@@ -1069,7 +1069,7 @@ Common commands:
 - `stackkit backup status [--json]` checks the exact local repository and reports the age of owner-signed snapshot and staged-restore receipts for its current source policy. It also lists authenticated recorded recovery points, newest first, with their snapshot-anchor IDs, dates and current/historical plan observation. JSON and `stackkit_backup_status` expose them as `data.history.recoveryPoints`. Choose an earlier ID with `stackkit backup restore <snapshot-anchor-id> --owner-approve`; the existing restore verifies its content before staging. Missing or unauthenticated history remains unverified; a future receipt timestamp reports clock skew. A listed point or receipt age does not prove retained content, application recovery, or an RPO/RTO objective.
 - `stackkit backup run [--operation-id ID] [--json]` quiesces the governed Core and selected application writers, then creates a crash-consistent snapshot. CUE retention is applied to ordinary snapshots; protected upgrade and restore-safety anchors are retained. Reusing an operation ID returns its recorded snapshot receipt, without claiming expired bytes remain available.
 - `stackkit backup target import --owner-approve --candidate-digest sha256:<digest>` reads the S3 target JSON on stdin (endpoint, bucket, prefix, region, accessKeyId, secretAccessKey, passphrase) into encrypted local custody and issues the node's own backup-target binding. The order is `init`, `trust`, `generate`, `import`, `generate`, `plan`, `apply`.
-- `stackkit backup target recipient --challenge <value> --owner-approve` creates this node's separate encryption recipient key once and prints a statement, signed by the local Owner key, that binds the public key to this Site and node and echoes the challenge. The private key never leaves local custody. A delivering authority such as Techstack seals the target JSON to that key (`pkg/hostdelivery`, HPKE with the exact tenant, server, binding generation, operation, recipient and expiry bound in), so only ciphertext and an opaque reference cross the control plane.
+- `stackkit backup target recipient --challenge <value> --owner-approve` creates this node's separate encryption recipient key once and prints a statement, signed by the local Owner key, that binds the public key to this Site and node and echoes the challenge. The private key never leaves local custody. A delivering authority such as Homelab seals the target JSON to that key (`pkg/hostdelivery`, HPKE with the exact tenant, server, binding generation, operation, recipient and expiry bound in), so only ciphertext and an opaque reference cross the control plane.
 - `stackkit backup target import --sealed --tenant-ref <tenant> --owner-approve --candidate-digest sha256:<digest>` reads that sealed envelope on stdin instead. The node opens it, records the delivery as consumed before using it, and imports it exactly like plain JSON. With `--rebind` it renews an expired node-issued binding over identical custody from a delivery sealed for the `backup-target-rebind` operation. A delivery for another node, tenant, generation or operation, an expired one, and a replay are all denied.
 - `stackkit backup restore sha256:<snapshot-anchor-id> --owner-approve [--operation-id ID] [--json]` verifies and extracts one signed snapshot into isolated CUE-owned staging. Reusing the operation ID returns the existing exact result.
 - `stackkit backup restore abandon <restore-operation-id> --owner-approve --json` signs terminal abandonment of an exact pending or staged restore journal without invoking Docker/Kopia or changing repository data or live volumes. It is idempotent and requires a new operation ID for any later restore.
@@ -1084,7 +1084,7 @@ exclusion, password, raw-snapshot, or restore-target overrides. The separate
 portable archive commands require explicit local sources and a new target;
 they cannot mutate a Kopia repository or activate restored services. See
 [Backup resilience](BACKUP-RESILIENCE.md) for their coverage and consistency
-limits. Techstack may dispatch this exact
+limits. Homelab may dispatch this exact
 published CLI and consume its versioned result; it does not replace local
 authority. kombify Cloud identity sync is an optional, user-approved
 convenience for the local PocketID/TinyAuth identity plane and is never required
@@ -1134,7 +1134,7 @@ destination WiFi beforehand. See [network-move.md](network-move.md).
 Prepare moving Coolify projects, applications and databases with their data to
 another server's Coolify. Each command acts only on the server it runs on and
 changes nothing: no file is written there, no container is paused, no port is
-opened. Techstack carries the plan between the servers.
+opened. Homelab carries the plan between the servers.
 
 - `relocate plan --project shop [-o plan.json]` runs on the source and writes
   the relocation plan: resources, volumes, host paths, images, database dumps
@@ -1160,7 +1160,7 @@ at `/usr/local/lib/stackkit/coolify-mirror`, `$STACKKIT_COOLIFY_MIRROR`,
 Move the planned workloads with their data. Both servers must hold the same
 Wallet item for this move (at least 16 bytes, named by `--tenant-ref` and
 `--secret-ref`),
-delivered by Techstack through Wallet host delivery (`stackkit host delivery
+delivered by Homelab through Wallet host delivery (`stackkit host delivery
 recipient`, then `stackkit wallet-item import`). StackKits derives the archive
 key and the share secret from it; neither appears in a command line, log,
 plan or file. Both commands change the server and need `--owner-approve`.
@@ -1176,7 +1176,7 @@ plan or file. Both commands change the server and need `--owner-approve`.
   destination while the source shares: it downloads, verifies and restores.
   `--on-conflict copy|skip` (default `copy`), `--no-start` and
   `--set-domain OLD=NEW` (repeatable) pass through to the restore.
-  `--wait 10m` waits for the source's share to come up first, so Techstack
+  `--wait 10m` waits for the source's share to come up first, so Homelab
   can start send and receive together. A restore needs the share to be up: it
   downloads the archive the source shares now, never an earlier move's.
 
@@ -1198,11 +1198,11 @@ the rollback when the destination does not take over.
 Every relocate command takes `--json`: stdout then carries one
 `stackkit.command-result/v1` document (the plan, the check with
 `status: failed` while blocked, the drain or undrain record, or the send and
-receive outcome) and engine progress goes to stderr. Techstack dispatches the
+receive outcome) and engine progress goes to stderr. Homelab dispatches the
 commands this way.
 
 A move with cutover: `plan` (source), `check` (destination), `drain`
-(source), `send` (source) with `receive` (destination), then Techstack points
+(source), `send` (source) with `receive` (destination), then Homelab points
 the domains at the destination. The source stays drained; `drain --undo`
 rolls back.
 
@@ -1255,10 +1255,10 @@ Remote reach of a home server's Basement core (root; `IDENTITY-STACKKITS.md` "Re
 ### `stackkit connect`
 
 Binds a server that already runs StackKits to your kombify account. In Cloud,
-choose **Techstack → Connect server**, then copy and run the complete command:
+choose **Homelab → Connect server**, then copy and run the complete command:
 
 ```sh
-sudo stackkit connect --server https://techstack.kombify.io
+sudo stackkit connect --server https://homelab.kombify.io
 ```
 
 Copy the one-time pairing from setup and paste it at **Pairing (hidden):**, then
@@ -1266,13 +1266,13 @@ press Enter. It is not echoed, written to a file or entered in shell history.
 Setup shows expiry and **Get a new pairing**. Automation can use a root-owned
 mode-0600 `--token-file`; `KOMBI_TOKEN` is also supported. Never put the pairing
 in an argument. Origin precedence is `--server`, `KOMBI_SERVER`, then
-`https://techstack.kombify.io`; copy the actual command from self-hosted setup.
+`https://homelab.kombify.io`; copy the actual command from self-hosted setup.
 Private LAN uses that setup’s pinned installer instead.
 
 The command fetches `/install.sh` over HTTPS (loopback HTTP is allowed, redirects
 are refused), installs and enrolls kombify Guard, and reports the binding.
 Only the origin, pairing and service switch reach the installer; other caller
-`KOMBI_*` and `TECHSTACK_*` variables are removed. An already bound server reports
+`KOMBI_*` and `HOMELAB_*` variables are removed. An already bound server reports
 its binding and changes nothing. A free account can connect and show state;
 operated changes need the appropriate paid plan.
 
@@ -1392,7 +1392,7 @@ remove.
 
 Continuous, versioned evidence of the host security baseline, and a repair that
 never cuts the management path. It works on its own (Standard Mode, no account)
-and is what Techstack runs through the pinned CLI (`--mode advanced`). The
+and is what Homelab runs through the pinned CLI (`--mode advanced`). The
 baseline itself is described in [SECURITY.md](SECURITY.md#host-security-baseline).
 
 - `host security verify [--json] [--mode standard|advanced] [--site-kind home|cloud] [--freshness 15m] [--exceptions <file>] [--resolved-plan <plan> --local-node <node>] [--declared-port tcp/443] [--management-source <cidr>] [--fail-on-drift [--drift-scope all|enforced]] [--no-record]`
@@ -1535,7 +1535,7 @@ recipient and ledger.
 ### `stackkit host updates` and `stackkit host reboot`
 
 Operating-system maintenance for one Debian or Ubuntu node with apt and
-systemd. Techstack dispatches these commands to its agent; an owner can run
+systemd. Homelab dispatches these commands to its agent; an owner can run
 them directly. Other package managers are refused with
 `unsupported_package_manager`.
 
@@ -1574,9 +1574,9 @@ autoremove and never reboots.
 Refusals exit `3` and change nothing: `unsupported_os`,
 `unsupported_package_manager`, `plan_stale`, `package_manager_busy` (apt or dpkg
 holds its lock past the wait, or a host update is running),
-`control_plane_host` (`techstack.service` is running or restarting, a
-`techstack serve` process runs, or a container of the Techstack image or
-Compose service runs; a `techstack agent` worker does not count), `dpkg_broken`, and `unattended_reboot_unsupported`
+`control_plane_host` (`homelab.service` is running or restarting, a
+`homelab serve` process runs, or a container of the Homelab image or
+Compose service runs; a `homelab agent` worker does not count), `dpkg_broken`, and `unattended_reboot_unsupported`
 (`/etc/crypttab` volumes whose key field is empty, `none` or `-`, or no apt).
 Reboot fails closed with `host_probe_failed` when it cannot rule out the
 control plane, for example when the Docker daemon does not answer.
@@ -1617,7 +1617,7 @@ stackkit agent mcp-config --client codex
 
 The write-capable MCP tools execute the native, identity-bound CLI operations
 individually. There is no combined MCP rollout macro or MCP update action.
-Techstack may sequence the same published commands through versioned JSON and
+Homelab may sequence the same published commands through versioned JSON and
 JSONL contracts, but it does not gain a second lifecycle implementation.
 
 ### `stackkit kit`
@@ -1760,7 +1760,7 @@ Prints version, commit, build date, Go version, and target OS/arch.
 | Path | Created by | Purpose |
 | --- | --- | --- |
 | `stack-spec.yaml` | `init` | Deployment spec. |
-| `kombination.yaml` | TechStack/user import | Read alias when `stack-spec.yaml` is missing. |
+| `kombination.yaml` | Homelab/user import | Read alias when `stack-spec.yaml` is missing. |
 | `deploy/` | `generate` | Generated rollout artifacts. |
 | `deploy/*.tf` | `generate` | Generated OpenTofu resources. |
 | `deploy/terraform.tfvars.json` | `generate` | Sensitive generated values. |

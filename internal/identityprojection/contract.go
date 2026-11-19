@@ -1,6 +1,6 @@
 // Package identityprojection owns the credential-free desired identity
 // projection accepted by a standalone StackKits installation. Cloud or
-// Techstack may sign a proposal, but only current local Owner custody can
+// Homelab may sign a proposal, but only current local Owner custody can
 // approve it for a later PocketID mutation.
 package identityprojection
 

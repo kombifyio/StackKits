@@ -1,6 +1,6 @@
 // Package hostdelivery is the public wire contract for sealed host delivery of
 // one input to the StackKit node that owns it. A delivering authority such as
-// Techstack or the kombify Wallet seals the value to a recipient key that the
+// Homelab or the kombify Wallet seals the value to a recipient key that the
 // node generated and proved; only that node opens it into its own custody. The
 // authority and every transport between them carry ciphertext and opaque
 // references only.

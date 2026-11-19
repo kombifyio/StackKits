@@ -123,7 +123,7 @@ Coolify 4.x release (tested = the catalog pin; anything else only with an
 exact digest and the Owner's accept-untested). It reuses the scoped
 application release record rather than a separate `marketplace upgrade`
 operation, because the record, its Apply guard, the automatic rollback, the
-Techstack `application-release.update` capability and the outcome codes are
+Homelab `application-release.update` capability and the outcome codes are
 already the one per-application update path. The Marketplace additions are
 the native recipe's release admission, a checkpoint of its private runtime
 files beside its volumes (Coolify migrates its database forward on start, so

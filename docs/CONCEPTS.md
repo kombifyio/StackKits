@@ -79,7 +79,7 @@ Canonical v2 separates facts that the legacy `context` enum combined:
 | Site kind | `home`, `cloud` | Explicit StackSpec/KitDefinition constraint |
 | Reachability | private, NAT/CGNAT, public-capable | Detected inventory + validated intent |
 | Hardware | amd64/arm64, `pi`, GPU, storage | Node inventory and hardware profile |
-| External host custody | Opaque host binding, observed failure domain | TechStack/external executor; StackKits receives only provider-neutral binding and conformance evidence |
+| External host custody | Opaque host binding, observed failure domain | Homelab/external executor; StackKits receives only provider-neutral binding and conformance evidence |
 | Exposure | local, remote-private, public | Per-service access/publication policy |
 
 Native v2 init rejects `--context`. The v1 migration maps it into typed
@@ -99,7 +99,7 @@ The following global graph model applies only to retained **v2alpha1** intent.
 Its Coolify-bearing graphs do not define defaults for new native stacks.
 
 `install.computeTier` (`low` | `standard` | `high`) is explicit intent. Init
-(`--compute-tier`) and the Techstack Unifier write it. Apply executes the
+(`--compute-tier`) and the Homelab Unifier write it. Apply executes the
 selected graph; it does not choose it. Inventory and `prepare` do not
 auto-detect or rewrite it.
 
@@ -120,7 +120,7 @@ which graph was selected.
 - `bare` = infrastructure and selected tools without Base Hub or setup automation
 - `advanced` = bootstrapped surface plus Terramate lifecycle orchestration,
   Runtime Intelligence Layer, and coordinated drift/change/rollback/restore
-  drills. Techstack can present these through its optional Orchestrator UI only
+  drills. Homelab can present these through its optional Orchestrator UI only
   with a short-lived offline-verifiable capability.
 
 **Module resources**: v2alpha2 uses module-local profiles; the v2alpha1

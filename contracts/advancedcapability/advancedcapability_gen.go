@@ -18,7 +18,7 @@ const (
 	// IssuerClass is the only issuer a verifier may trust: issuerId is either
 	// exactly this value or this value followed by a dot and a per-installation
 	// suffix.
-	IssuerClass = "techstack"
+	IssuerClass = "homelab"
 	// BackupRenewalRepositoryID is the only repository a backup renewal can
 	// name.
 	BackupRenewalRepositoryID = "kopia:local:cloud"
@@ -129,7 +129,7 @@ type Capability struct {
 	AllowedOperations []string `json:"allowedOperations"`
 	// ApplicationRelease binds a short-lived scoped release update to one
 	// catalog use case and the exact release, manifest digest and tested or
-	// untested kind the Owner approved in Techstack.
+	// untested kind the Owner approved in Homelab.
 	ApplicationRelease *ApplicationRelease `json:"applicationRelease,omitempty"`
 	Audience           string              `json:"audience"`
 	// BackupRenewal is present only on a single short-lived restore.drill
@@ -139,7 +139,7 @@ type Capability struct {
 	CapabilityID string `json:"capabilityId"`
 	ExpiresAt    string `json:"expiresAt"`
 	IssuedAt     string `json:"issuedAt"`
-	// IssuerID names a Techstack issuer (see IssuerClass).
+	// IssuerID names a Homelab issuer (see IssuerClass).
 	IssuerID string `json:"issuerId"`
 	// KeyID is ed25519://sha256/<hex SHA-256 of the raw public key>.
 	KeyID string `json:"keyId"`
@@ -155,7 +155,7 @@ type Capability struct {
 	Signature string `json:"signature"`
 	StackID   string `json:"stackId"`
 	// TransferReceive binds a short-lived receiving step to the exact receiving
-	// desired intent and the one source Owner Techstack admitted for this move.
+	// desired intent and the one source Owner Homelab admitted for this move.
 	TransferReceive *TransferReceive `json:"transferReceive,omitempty"`
 	// TransferRetirement binds a short-lived retirement to the exact existing
 	// held snapshot, signed peer outcome and canonical desired-intent
@@ -245,7 +245,7 @@ type TrustBundle struct {
 	SchemaVersion string           `json:"schemaVersion"`
 }
 
-// TrustBundleKey binds one Techstack issuer to one raw Ed25519 public key.
+// TrustBundleKey binds one Homelab issuer to one raw Ed25519 public key.
 type TrustBundleKey struct {
 	IssuerID string `json:"issuerId"`
 	KeyID    string `json:"keyId"`

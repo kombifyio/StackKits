@@ -41,7 +41,7 @@ package foundation
 }
 
 // #ClusterState records the source-of-truth shape mirrored into kombify
-// TechStack while keeping the node-local .stackkit/state.yaml as the recovery
+// Homelab while keeping the node-local .stackkit/state.yaml as the recovery
 // anchor.
 #ClusterState: {
 	homelabId:   string & =~"^[a-z][a-z0-9-]*$"

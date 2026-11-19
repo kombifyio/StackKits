@@ -475,7 +475,7 @@ func addRelocateCommonFlags(command *cobra.Command, options *relocateOptions) {
 }
 
 // addRelocateJSONFlag gives a relocate command the machine-readable
-// stackkit.command-result/v1 output Techstack consumes.
+// stackkit.command-result/v1 output Homelab consumes.
 func addRelocateJSONFlag(command *cobra.Command, options *relocateOptions) {
 	command.Flags().BoolVar(&options.json, "json", false, "Emit stackkit.command-result/v1 JSON (engine progress goes to stderr)")
 }

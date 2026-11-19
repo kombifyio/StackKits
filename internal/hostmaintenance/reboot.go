@@ -13,23 +13,23 @@ import (
 	"time"
 )
 
-// The Techstack control plane as it is shipped: the packaged systemd unit
-// (kombify-Techstack packaging/techstack.service, `/usr/bin/techstack serve`),
-// the container image (`/app/techstack serve` in ghcr.io/kombifyio/techstack)
-// and the self-hosted Compose service `techstack`. Every enrolled worker runs
-// the same binary as `techstack agent`, which is not a control plane.
+// The Homelab control plane as it is shipped: the packaged systemd unit
+// (kombify-Homelab packaging/homelab.service, `/usr/bin/homelab serve`),
+// the container image (`/app/homelab serve` in ghcr.io/kombifyio/homelab)
+// and the self-hosted Compose service `homelab`. Every enrolled worker runs
+// the same binary as `homelab agent`, which is not a control plane.
 const (
-	ControlPlaneUnit         = "techstack.service"
-	ControlPlaneExecutable   = "techstack"
+	ControlPlaneUnit         = "homelab.service"
+	ControlPlaneExecutable   = "homelab"
 	ControlPlaneCommand      = "serve"
-	ControlPlaneImage        = "ghcr.io/kombifyio/techstack"
-	ControlPlaneService      = "techstack"
+	ControlPlaneImage        = "ghcr.io/kombifyio/homelab"
+	ControlPlaneService      = "homelab"
 	controlPlaneComposeLabel = "com.docker.compose.service"
 )
 
 // Compose names a service container <project>-<service>-<n> (v2) or
-// <project>_<service>_<n> (v1); the self-hosted file names it kombify-techstack.
-var controlPlaneContainerName = regexp.MustCompile(`(^|[-_])techstack([-_][0-9]+)?$`)
+// <project>_<service>_<n> (v1); the self-hosted file names it kombify-homelab.
+var controlPlaneContainerName = regexp.MustCompile(`(^|[-_])homelab([-_][0-9]+)?$`)
 
 var dockerSockets = []string{"/var/run/docker.sock", "/run/docker.sock"}
 
@@ -127,12 +127,12 @@ func (e Engine) Reboot(ctx context.Context, delay time.Duration) (Result, error)
 func (e Engine) rebootBlocker(ctx context.Context, result *Result) error {
 	controlPlane, err := e.controlPlane(ctx)
 	if err != nil {
-		return fail(result, FailureHostProbe, "cannot rule out a Techstack control plane on this node: "+err.Error(),
+		return fail(result, FailureHostProbe, "cannot rule out a Homelab control plane on this node: "+err.Error(),
 			"Run the command as root with a responsive Docker daemon, or reboot the node from its console.")
 	}
 	if controlPlane != "" {
 		return refuse(result, CodeControlPlaneHost,
-			"this node runs the Techstack control plane ("+controlPlane+"); rebooting it would cut off the orchestrator that waits for it",
+			"this node runs the Homelab control plane ("+controlPlane+"); rebooting it would cut off the orchestrator that waits for it",
 			"Reboot the control plane node from its console or through its own maintenance procedure.")
 	}
 	if unit, err := e.activeUnit(ctx, UpdateUnitPrefix+"*", "service"); err != nil {
@@ -145,11 +145,11 @@ func (e Engine) rebootBlocker(ctx context.Context, result *Result) error {
 	return nil
 }
 
-// controlPlane names the Techstack control plane when it runs here: the
-// systemd unit in any running or restarting state, a `techstack serve`
+// controlPlane names the Homelab control plane when it runs here: the
+// systemd unit in any running or restarting state, a `homelab serve`
 // process (which also covers containers, whose processes are visible in
-// /proc), or a container of the Techstack image or Compose service. A
-// `techstack agent` worker is not a control plane.
+// /proc), or a container of the Homelab image or Compose service. A
+// `homelab agent` worker is not a control plane.
 func (e Engine) controlPlane(ctx context.Context) (string, error) {
 	output, err := e.Host.Run(ctx, Command{Name: "systemctl", Args: []string{
 		"show", "--property=ActiveState", "--property=SubState", ControlPlaneUnit,
@@ -181,7 +181,7 @@ func (e Engine) controlPlane(ctx context.Context) (string, error) {
 	}
 	for _, process := range processes {
 		// `serve` anywhere after the binary counts, so global flags before the
-		// subcommand cannot hide a control plane; workers run `techstack agent`.
+		// subcommand cannot hide a control plane; workers run `homelab agent`.
 		if filepath.Base(process.Exe) == ControlPlaneExecutable && len(process.Args) > 1 && slices.Contains(process.Args[1:], ControlPlaneCommand) {
 			return fmt.Sprintf("process %d: %s", process.PID, strings.Join(process.Args, " ")), nil
 		}

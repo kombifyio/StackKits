@@ -86,13 +86,13 @@ type rilAppliedAuthority struct {
 
 // RILWorkspaceConfigured is set only by the privileged Guard executor.
 func RILWorkspaceConfigured() bool {
-	return os.Geteuid() == 0 && os.Getenv("TECHSTACK_RIL_WORKSPACE_ROOT") != ""
+	return os.Geteuid() == 0 && os.Getenv("HOMELAB_RIL_WORKSPACE_ROOT") != ""
 }
 
 // Only the executor's canonical workspace can publish the host authority.
 // Admitted descendants still invalidate the previous authority before Apply.
 func RILCanonicalWorkspace(workspace string) bool {
-	configured := os.Getenv("TECHSTACK_RIL_WORKSPACE_ROOT")
+	configured := os.Getenv("HOMELAB_RIL_WORKSPACE_ROOT")
 	if !RILWorkspaceConfigured() || !filepath.IsAbs(configured) || filepath.Clean(configured) != configured {
 		return false
 	}
@@ -187,7 +187,7 @@ func PublishRILAuthority(workspace, planHash, resultHash, expiresAt string, path
 	if !RILWorkspaceConfigured() {
 		return nil
 	}
-	configured := os.Getenv("TECHSTACK_RIL_WORKSPACE_ROOT")
+	configured := os.Getenv("HOMELAB_RIL_WORKSPACE_ROOT")
 	if configured != workspace || (len(paths) != 7 && len(paths) != 8) || len(paths) != len(verified) {
 		return errors.New("RIL configured workspace or evidence invalid")
 	}
@@ -286,7 +286,7 @@ func BeginRILAuthorityApply() (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = parent.Mkdir("techstack-ril", 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+	if err = parent.Mkdir("homelab-ril", 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 		parent.Close()
 		return nil, err
 	}

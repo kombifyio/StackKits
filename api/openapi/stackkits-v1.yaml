@@ -1062,7 +1062,7 @@ paths:
       summary: Register a stackkit-server instance for Direct Connect
       description: |
         Exact-v0.6 in-memory compatibility registry only. It does not publish
-        to Kombify, Cloudflare, TechStack, or another central authority and
+        to Kombify, Cloudflare, Homelab, or another central authority and
         cannot prove Direct Connect registration. Native v0.7 returns 501
         before payload decode or map mutation.
       tags: [Registry]
@@ -1141,8 +1141,8 @@ paths:
   /api/v1/internal/stack-actions/stackkit-rollout:
     post:
       operationId: stackActionStackKitRollout
-      summary: "Run or dry-run StackKits rollout for TechStack"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      summary: "Run or dry-run StackKits rollout for Homelab"
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1173,8 +1173,8 @@ paths:
   /api/v1/internal/stack-actions/stackkit-verify:
     post:
       operationId: stackActionStackKitVerify
-      summary: "Verify StackKits rollout state for TechStack"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      summary: "Verify StackKits rollout state for Homelab"
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1205,8 +1205,8 @@ paths:
   /api/v1/internal/stack-actions/restore-drill:
     post:
       operationId: stackActionRestoreDrill
-      summary: "Run or dry-run StackKits restore drill for TechStack"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      summary: "Run or dry-run StackKits restore drill for Homelab"
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1238,7 +1238,7 @@ paths:
     post:
       operationId: stackActionBackupRun
       summary: "Start a StackKits backup run"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1270,7 +1270,7 @@ paths:
     post:
       operationId: stackActionBackupStatus
       summary: "Inspect StackKits backup status"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1302,7 +1302,7 @@ paths:
     post:
       operationId: stackActionBackupRestore
       summary: "Restore a StackKits backup snapshot"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1334,7 +1334,7 @@ paths:
     post:
       operationId: stackActionBackupWipe
       summary: "Wipe the configured StackKits backup repository"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1366,7 +1366,7 @@ paths:
     post:
       operationId: stackActionServiceStart
       summary: "Start one StackKits-managed service"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1398,7 +1398,7 @@ paths:
     post:
       operationId: stackActionServiceStop
       summary: "Stop one non-critical StackKits-managed service"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1430,7 +1430,7 @@ paths:
     post:
       operationId: stackActionServiceRestart
       summary: "Restart one StackKits-managed service"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -1462,7 +1462,7 @@ paths:
     post:
       operationId: stackActionServiceLogs
       summary: "Read bounded redacted logs for one StackKits-managed service"
-      description: Requires X-Kombify-Service-Auth from caller techstack.
+      description: Requires X-Kombify-Service-Auth from caller homelab.
       x-kombify-internal: true
       tags: [StackAction]
       requestBody:
@@ -7783,7 +7783,7 @@ components:
       type: object
       additionalProperties:
         type: string
-        pattern: "^(secret|vault|doppler|techstack)://[^\\s]+$"
+        pattern: "^(secret|vault|doppler|homelab)://[^\\s]+$"
     ArchitectureV2PlanValue:
       anyOf:
         - type: "null"
@@ -7988,7 +7988,7 @@ components:
     OwnerConfig:
       type: object
       description: |
-        Lane-aware Owner bootstrap contract. `auto` is for TechStack/kombify
+        Lane-aware Owner bootstrap contract. `auto` is for Homelab/kombify
         Cloud handoff and must not require public owner email or username.
         `custom` is explicit self-hosted local Owner bootstrap. `none` skips
         Owner bootstrap. Plaintext recovery passphrases are never accepted.
@@ -8014,8 +8014,8 @@ components:
           pattern: "^\\$argon2id\\$"
         recoveryMaterialRef:
           type: string
-          description: TechStack or secret-store reference to generated recovery material.
-          pattern: "^(techstack|secret|doppler|vault)://.+|^(env|file):.+"
+          description: Homelab or secret-store reference to generated recovery material.
+          pattern: "^(homelab|secret|doppler|vault)://.+|^(env|file):.+"
         cloudOidcIssuer:
           type: string
           format: uri
@@ -8646,7 +8646,7 @@ components:
         expires_at:
           type: string
           format: date-time
-    StackActionTechStackEnrollment:
+    StackActionHomelabEnrollment:
       type: object
       description: "Generation-bound managed runtime enrollment and callback channels."
       additionalProperties: false
@@ -9425,8 +9425,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StackActionPlatformNode"
-        techstack_enrollment:
-          $ref: "#/components/schemas/StackActionTechStackEnrollment"
+        homelab_enrollment:
+          $ref: "#/components/schemas/StackActionHomelabEnrollment"
         backup:
           $ref: "#/components/schemas/StackActionBackupRequest"
         service:
@@ -9585,6 +9585,6 @@ tags:
   - name: Setup
     description: Node-local service setup actions for Dashboard-triggered first-run bootstraps
   - name: Runtime
-    description: Servicecall-protected runtime actions consumed by TechStack
+    description: Servicecall-protected runtime actions consumed by Homelab
   - name: Registry
     description: Direct Connect instance registry — deployed stackkit-servers register here so the platform edge can proxy to them

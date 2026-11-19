@@ -2,7 +2,7 @@
 // (homelab identity target §7, §8, §14 decisions 4 and 10): kombify.me tunnel
 // mode (a remotely managed tunnel under the homelab's base, its token sealed to
 // this node's local custody or delivered through the kombify Wallet), or a
-// tunnel in the Owner's own Cloudflare account (provisioned by Techstack from a
+// tunnel in the Owner's own Cloudflare account (provisioned by Homelab from a
 // token in custody, or a tunnel token the Owner supplies in Standard Mode,
 // whose ingress stays in the Owner's dashboard).
 //
@@ -58,7 +58,7 @@ const (
 	// registration; the token is sealed to this node's local custody.
 	ModeKombifyMe = "kombify-me"
 	// ModeWalletItem takes the token from a Wallet item delivered to this node
-	// (a kombify account's kombify.me tunnel, or a tunnel Techstack
+	// (a kombify account's kombify.me tunnel, or a tunnel Homelab
 	// provisioned in the Owner's Cloudflare account).
 	ModeWalletItem = "wallet-item"
 	// ModeOwnerToken runs a tunnel token the Owner supplies (Standard Mode).

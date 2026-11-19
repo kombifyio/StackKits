@@ -42,7 +42,7 @@ type Mode string
 const (
 	// ModeStandard is the account-free standalone StackKits CLI.
 	ModeStandard Mode = "standard"
-	// ModeAdvanced is a deployment managed by Techstack through the pinned CLI.
+	// ModeAdvanced is a deployment managed by Homelab through the pinned CLI.
 	ModeAdvanced Mode = "advanced"
 )
 
@@ -55,7 +55,7 @@ const (
 	SiteUnknown SiteKind = "unknown"
 )
 
-// Control identifiers. They are stable: Techstack keys findings on them.
+// Control identifiers. They are stable: Homelab keys findings on them.
 const (
 	ControlFirewall          = "firewall.default_inbound"
 	ControlSSHPassword       = "ssh.password_authentication"

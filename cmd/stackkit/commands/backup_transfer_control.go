@@ -470,16 +470,16 @@ func configureApplicationTransferControlCommands() {
 	target := &cobra.Command{Use: "transfer-target", Short: "Issue a signed receiving-node admission for a private age identity", Args: machineAwareNoArgs, RunE: runApplicationTransferTarget}
 	target.Flags().String("identity-file", "", "Existing private receiving age identity (default: a new node-held identity)")
 	target.Flags().String("expected-plan-hash", "", "Exact receiving candidate Plan hash")
-	target.Flags().String("candidate-spec", "", "Managed node: the Techstack-approved receiving candidate StackSpec to persist and generate")
-	target.Flags().String("source-owner", "", "Managed node: the source Owner the Techstack receive capability names")
+	target.Flags().String("candidate-spec", "", "Managed node: the Homelab-approved receiving candidate StackSpec to persist and generate")
+	target.Flags().String("source-owner", "", "Managed node: the source Owner the Homelab receive capability names")
 	target.Flags().String("expected-spec-hash", "", "Managed node: the exact current intent the receiving candidate was authored from")
 	target.Flags().String("portable-configuration-digest", "", "Managed node: the canonical digest of the portable application configuration the receiving candidate carries")
-	target.Flags().String("capability", "", "Managed node: Techstack capability for this exact receiving admission")
+	target.Flags().String("capability", "", "Managed node: Homelab capability for this exact receiving admission")
 	finish := &cobra.Command{Use: "transfer-finish", Short: "Retire selected source intent after signed destination activation and retain all source data", Args: machineAwareNoArgs, RunE: runApplicationTransferFinish}
 	for _, f := range []string{"source-receipt", "target-outcome", "target-fingerprint", "candidate-output", "inventory"} {
 		finish.Flags().String(f, "", "Exact existing transfer/source retirement input")
 	}
-	finish.Flags().String("capability", "", "Techstack capability for the exact Advanced held transfer retirement")
+	finish.Flags().String("capability", "", "Homelab capability for the exact Advanced held transfer retirement")
 	finish.Flags().Bool("owner-approve", false, "Approve source intent retirement while preserving data")
 	backupCmd.AddCommand(target, finish)
 	abort := &cobra.Command{Use: "transfer-abort", Short: "Hold the receiving application stopped and issue signed abort evidence", Args: machineAwareNoArgs, RunE: runApplicationTransferAbort}
@@ -488,7 +488,7 @@ func configureApplicationTransferControlCommands() {
 	}
 	abort.Flags().String("candidate-output", "", "New candidate path for Advanced target abort retirement")
 	abort.Flags().String("inventory", "", "Existing local inventory for selected target intent retirement")
-	abort.Flags().String("capability", "", "Techstack capability for the exact Advanced held target retirement")
+	abort.Flags().String("capability", "", "Homelab capability for the exact Advanced held target retirement")
 	abort.Flags().Bool("owner-approve", false, "Stop and hold only the receiving application closure")
 	resume := &cobra.Command{Use: "transfer-resume", Short: "Resume held source only after independently verified stopped-destination evidence", Args: machineAwareNoArgs, RunE: runApplicationTransferResume}
 	for _, f := range []string{"source-receipt", "target-outcome", "target-fingerprint"} {
@@ -518,7 +518,7 @@ func runApplicationTransferTarget(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	nonceHex := hex.EncodeToString(nonce[:])
-	// A managed node receives only the exact Techstack-approved candidate:
+	// A managed node receives only the exact Homelab-approved candidate:
 	// the grant names its bytes and the source Owner. A standalone node keeps
 	// its operator-authored, already generated receiving plan.
 	// Every failure after a managed admit changed the desired intent returns
@@ -985,7 +985,7 @@ func admitApplicationTransferRetirement(cmd *cobra.Command, candidate []byte, ex
 		if err = writeCommandResultStatus(cmd, cmd.CommandPath(), "denied", map[string]any{"apiVersion": "stackkit.application-transfer-retirement-request/v1", "reasonCode": string(advancedcapability.ReasonCapabilityRequired), "status": "awaiting-capability", "stackId": local.StackID, "ownerRef": owner.OwnerRef, "transferRetirement": expected}); err != nil {
 			return err
 		}
-		return &advancedcapability.Denial{Code: advancedcapability.ReasonCapabilityRequired, Field: "capability", Detail: "exact Techstack transfer retirement capability is required; selected runtime remains stopped and data retained"}
+		return &advancedcapability.Denial{Code: advancedcapability.ReasonCapabilityRequired, Field: "capability", Detail: "exact Homelab transfer retirement capability is required; selected runtime remains stopped and data retained"}
 	}
 	raw, err := readAdvancedRegular(resolvePathFromWorkDir(getWorkDir(), path), maxAdvancedTrustBundleBytes, "Advanced capability")
 	if err != nil {

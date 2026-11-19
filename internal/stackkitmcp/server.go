@@ -134,7 +134,7 @@ func (a *App) OpenMCP() map[string]any {
 			"websiteSurface":          "read-only discovery only",
 			"localConnectorAuthority": "same-build sibling CLI required; mutating actions additionally require write mode",
 			"managedServerless":       "out-of-scope",
-			"providerLifecycle":       "out-of-scope; owned by TechStack or another external executor",
+			"providerLifecycle":       "out-of-scope; owned by Homelab or another external executor",
 		},
 		"modes":           enabledModes(a.opts.Modes),
 		"allowWrite":      a.opts.AllowWrite,

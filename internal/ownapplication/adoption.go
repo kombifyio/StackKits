@@ -1,7 +1,7 @@
 package ownapplication
 
 // "Stack it": rebuild one observed container StackKits did not install as an
-// own application (techstack.own-application/v4), so it gets the own-application
+// own application (homelab.own-application/v4), so it gets the own-application
 // lifecycle: digest-pinned update and rollback, volume backup, logs, stop and
 // status. The original is never edited; it is stopped and retained until the
 // owner releases it.

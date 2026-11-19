@@ -559,7 +559,7 @@ func withPreparedPublicUpgradeCapture(
 		})
 	}
 	// The applied release is the running release and the workspace holds no
-	// release cache for it (a Techstack-managed host: the Agent verified the
+	// release cache for it (a Homelab-managed host: the Agent verified the
 	// pinned release before starting this executable, and init creates no
 	// cache). The checkpoint then captures the running executable as the
 	// prior release. Any other applied release requires its verified cache.

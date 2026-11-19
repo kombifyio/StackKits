@@ -38,7 +38,7 @@ type applicationUpdateResult struct {
 	// effect (target when updated, prior when rolled back).
 	PriorSpecHash  string `json:"prior_spec_hash,omitempty"`
 	TargetSpecHash string `json:"target_spec_hash,omitempty"`
-	// CapabilityID names the Techstack capability that admitted the change on
+	// CapabilityID names the Homelab capability that admitted the change on
 	// a managed node.
 	CapabilityID string `json:"capability_id,omitempty"`
 }

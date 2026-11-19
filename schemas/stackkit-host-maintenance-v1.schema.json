@@ -96,7 +96,7 @@
       }
     },
     "failure": {
-      "description": "Present with envelope status failed. host_probe_failed is also how reboot fails closed when it cannot rule out a Techstack control plane (for example a Docker daemon that does not answer, or a process it may not read) or read /etc/crypttab.",
+      "description": "Present with envelope status failed. host_probe_failed is also how reboot fails closed when it cannot rule out a Homelab control plane (for example a Docker daemon that does not answer, or a process it may not read) or read /etc/crypttab.",
       "type": "object",
       "additionalProperties": false,
       "required": ["code", "message"],

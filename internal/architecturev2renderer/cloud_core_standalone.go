@@ -240,7 +240,7 @@ const (
 var standaloneOriginCertificateResolverLabel = regexp.MustCompile(`(?m)^            - traefik[.]http[.]routers[.][a-z-]+[.]tls[.]certresolver=stackkits\n`)
 
 // RenderCloudStandaloneCoreComposeForOriginCertificate renders the Advanced
-// (Terramate-generated, Techstack-dispatched) standalone Cloud core for a
+// (Terramate-generated, Homelab-dispatched) standalone Cloud core for a
 // managed kombify.me address (ADR-0047): no core router requests ACME and
 // the router serves the delivered Cloudflare Origin CA certificate mounted
 // read-only from owner custody through the file provider. Other domains keep

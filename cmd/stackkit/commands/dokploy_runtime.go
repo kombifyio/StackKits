@@ -50,7 +50,7 @@ func init() {
 					return err
 				}
 				if d.GenerationTarget != "opentofu" {
-					return errors.New("the local Dokploy command admits Standard Mode opentofu only; Advanced requires Techstack dispatch")
+					return errors.New("the local Dokploy command admits Standard Mode opentofu only; Advanced requires Homelab dispatch")
 				}
 				ctx, cancel := context.WithTimeout(cmd.Context(), 15*time.Minute)
 				defer cancel()

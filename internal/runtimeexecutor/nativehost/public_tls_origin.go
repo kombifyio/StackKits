@@ -93,7 +93,7 @@ func originCertificateMissing(workspace, host string) bool {
 
 // publicTLSOriginCertificatePendingError reports managed routes the local
 // router serves in origin-certificate mode (ADR-0047) while no installed
-// Cloudflare Origin CA certificate covers them. Techstack delivers the
+// Cloudflare Origin CA certificate covers them. Homelab delivers the
 // certificate through the origin-certificate operations; until then the
 // routes cannot terminate TLS, and no ACME issuance wait can change that.
 type publicTLSOriginCertificatePendingError struct {

@@ -15,7 +15,7 @@ const (
 	// stops waiting for an Advanced mutation (RFC 3339).
 	advancedMutationCommandDeadlineEnv = "STACKKIT_COMMAND_DEADLINE"
 	// advancedMutationCommandBudget is the default whole-command budget when
-	// no deadline is named. It stays inside Techstack's 30-minute Advanced
+	// no deadline is named. It stays inside Homelab's 30-minute Advanced
 	// mutation command timeout with room for process start and the result.
 	advancedMutationCommandBudget = 28 * time.Minute
 	// advancedTargetMinimumBudget is the least target time worth starting; a

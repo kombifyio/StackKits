@@ -7,7 +7,7 @@ import (
 )
 
 // advancedManagedIntent reports whether this workspace's desired intent is
-// Advanced: its StackSpec says install.mode advanced, or Techstack manages it.
+// Advanced: its StackSpec says install.mode advanced, or Homelab manages it.
 // Every managed rollout imports an Owner-signed Advanced trust bundle before
 // its first generate and never writes install.mode, so the imported record is
 // the marker. Without it, a removal retired the managed selection as a

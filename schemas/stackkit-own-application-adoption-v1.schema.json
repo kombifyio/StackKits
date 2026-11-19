@@ -143,7 +143,7 @@
               "tmpfs_mount_dropped",
               "volume_copied_checksummed"
             ],
-            "description": "Stable machine code of the row; Techstack and other clients translate by code and values, never by the English reason (docs/APPLICATION_ADOPTION.md, Plan row codes)."
+            "description": "Stable machine code of the row; Homelab and other clients translate by code and values, never by the English reason (docs/APPLICATION_ADOPTION.md, Plan row codes)."
           },
           "values": {
             "type": "object",
@@ -175,7 +175,7 @@
       }
     },
     "application": {
-      "$ref": "techstack-own-application-v4.schema.json"
+      "$ref": "homelab-own-application-v4.schema.json"
     },
     "hiddenKeys": {
       "type": "array",

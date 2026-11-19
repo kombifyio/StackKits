@@ -283,7 +283,7 @@ package foundation
 // #OtelCollectorConfig is the canonical per-node collector contract.
 #OtelCollectorConfig: {
 	enabled:  bool | *true
-	endpoint: string | *"techstack:4317"
+	endpoint: string | *"homelab:4317"
 	protocol: "grpc" | "http/protobuf" | *"grpc"
 	signals:  #MonitoringSignals
 	auth:     #OtelCollectorAuthConfig
@@ -315,8 +315,8 @@ package foundation
 	maxConcurrentStreams: int & >=1 & <=1000 | *50
 	memoryLimitMiB:       int & >=64 & <=4096 | *200
 	memorySpikeLimitMiB:  int & >=32 & <=2048 | *50
-	forwardToTechStack:   bool | *false
-	techStackEndpoint?:   string
+	forwardToHomelab:   bool | *false
+	homelabEndpoint?:   string
 	processing:           #OtelGatewayProcessingConfig
 }
 

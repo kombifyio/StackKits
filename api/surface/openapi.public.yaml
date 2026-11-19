@@ -1015,7 +1015,7 @@ paths:
       summary: Register a stackkit-server instance for Direct Connect
       description: |
         Exact-v0.6 in-memory compatibility registry only. It does not publish
-        to Kombify, Cloudflare, TechStack, or another central authority and
+        to Kombify, Cloudflare, Homelab, or another central authority and
         cannot prove Direct Connect registration. Native v0.7 returns 501
         before payload decode or map mutation.
       tags: [Registry]
@@ -7371,7 +7371,7 @@ components:
       type: object
       additionalProperties:
         type: string
-        pattern: "^(secret|vault|doppler|techstack)://[^\\s]+$"
+        pattern: "^(secret|vault|doppler|homelab)://[^\\s]+$"
     ArchitectureV2PlanValue:
       anyOf:
         - type: "null"
@@ -7576,7 +7576,7 @@ components:
     OwnerConfig:
       type: object
       description: |
-        Lane-aware Owner bootstrap contract. `auto` is for TechStack/kombify
+        Lane-aware Owner bootstrap contract. `auto` is for Homelab/kombify
         Cloud handoff and must not require public owner email or username.
         `custom` is explicit self-hosted local Owner bootstrap. `none` skips
         Owner bootstrap. Plaintext recovery passphrases are never accepted.
@@ -7602,8 +7602,8 @@ components:
           pattern: "^\\$argon2id\\$"
         recoveryMaterialRef:
           type: string
-          description: TechStack or secret-store reference to generated recovery material.
-          pattern: "^(techstack|secret|doppler|vault)://.+|^(env|file):.+"
+          description: Homelab or secret-store reference to generated recovery material.
+          pattern: "^(homelab|secret|doppler|vault)://.+|^(env|file):.+"
         cloudOidcIssuer:
           type: string
           format: uri
@@ -8233,7 +8233,7 @@ components:
         expires_at:
           type: string
           format: date-time
-    StackActionTechStackEnrollment:
+    StackActionHomelabEnrollment:
       type: object
       description: "Generation-bound managed runtime enrollment and callback channels."
       additionalProperties: false
@@ -9012,8 +9012,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StackActionPlatformNode"
-        techstack_enrollment:
-          $ref: "#/components/schemas/StackActionTechStackEnrollment"
+        homelab_enrollment:
+          $ref: "#/components/schemas/StackActionHomelabEnrollment"
         backup:
           $ref: "#/components/schemas/StackActionBackupRequest"
         service:
@@ -9171,6 +9171,6 @@ tags:
   - name: Setup
     description: Node-local service setup actions for Dashboard-triggered first-run bootstraps
   - name: Runtime
-    description: Servicecall-protected runtime actions consumed by TechStack
+    description: Servicecall-protected runtime actions consumed by Homelab
   - name: Registry
     description: Direct Connect instance registry — deployed stackkit-servers register here so the platform edge can proxy to them

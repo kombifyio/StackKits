@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:af2cd87bd5b8c8e97dc0b92120c20dd25f759ba7c3ea97cf44459e0531ae721d",
+  "contentDigest": "sha256:a7c98167862b95e554cb62b25b7e4bc97d4bb5af4be8479feac4f133fa34d067",
   "operations": [
     {
       "command": [
@@ -328,7 +328,7 @@
           "required": true
         },
         {
-          "description": "Local Techstack own-application/v1, v2 or v3 JSON file; custody references only",
+          "description": "Local Homelab own-application/v1, v2 or v3 JSON file; custody references only",
           "flag": "--document",
           "kind": "string",
           "name": "document_file"
@@ -370,7 +370,7 @@
           "name": "checkpoint"
         },
         {
-          "description": "Managed node only: Techstack own-application.lifecycle capability bound to this application, action, operation ID and review digest",
+          "description": "Managed node only: Homelab own-application.lifecycle capability bound to this application, action, operation ID and review digest",
           "flag": "--capability",
           "kind": "string",
           "name": "capability_file"

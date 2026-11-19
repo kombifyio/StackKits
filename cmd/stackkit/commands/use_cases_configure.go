@@ -183,7 +183,7 @@ func authorRetainedIntent(cmd *cobra.Command, o intentChangeOptions, author func
 			return err
 		}
 		if advanced || len(document.Nodes) != 1 || len(document.Sites) != 1 {
-			return errors.New("managed or multi-node intent requires --output <candidate.json>; retain the baseline and execute through Techstack Advanced dispatch")
+			return errors.New("managed or multi-node intent requires --output <candidate.json>; retain the baseline and execute through Homelab Advanced dispatch")
 		}
 	}
 	candidate, err := author(service, current.CanonicalStackSpec)

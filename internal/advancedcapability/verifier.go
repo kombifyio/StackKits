@@ -19,11 +19,11 @@ const (
 )
 
 // TrustedIssuerID is the only issuer identity whose Advanced capabilities and
-// execution-channel digests the standalone CLI accepts: Techstack is the
+// execution-channel digests the standalone CLI accepts: Homelab is the
 // Advanced control plane. A trust bundle can hold other issuer bindings (for
 // example the kombify Cloud issuer of desired identity projections), but none
 // of them is ever consulted for a capability or an execution channel.
-const TrustedIssuerID = "techstack"
+const TrustedIssuerID = "homelab"
 
 var (
 	stackIDPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,127}$`)
@@ -42,7 +42,7 @@ func Verify(raw []byte, request Request) (Grant, error) {
 		return Grant{}, err
 	}
 	issuedAt, expiresAt := document.IssuedAtTime(), document.ExpiresAtTime()
-	if err := requireTechstackIssuer(document.IssuerID); err != nil {
+	if err := requireHomelabIssuer(document.IssuerID); err != nil {
 		return Grant{}, err
 	}
 	trustedKey, err := resolveTrustedKey(request.TrustBundle, document.KeyID, document.IssuerID)
@@ -194,7 +194,7 @@ func decodeStrict(raw []byte) (wire.Capability, error) {
 				ExpiresAt string `json:"expiresAt"`
 			}
 			if json.Unmarshal(raw, &diagnostic) == nil {
-				if field == "issuerId" && issuerIDPattern.MatchString(diagnostic.IssuerID) && !wire.IsTechstackIssuerID(diagnostic.IssuerID) {
+				if field == "issuerId" && issuerIDPattern.MatchString(diagnostic.IssuerID) && !wire.IsHomelabIssuerID(diagnostic.IssuerID) {
 					reason = ReasonCapabilityUntrustedKey
 				}
 				if field == "expiresAt" {
@@ -210,10 +210,10 @@ func decodeStrict(raw []byte) (wire.Capability, error) {
 	return wire.Capability{}, deny(reason, field, detail)
 }
 
-// requireTechstackIssuer refuses any issuer other than the pinned Advanced
+// requireHomelabIssuer refuses any issuer other than the pinned Advanced
 // control plane. It guards capabilities and execution channels only; desired
 // identity projections stay bound to the Owner-approved trust-bundle binding.
-func requireTechstackIssuer(issuerID string) error {
+func requireHomelabIssuer(issuerID string) error {
 	if issuerID != TrustedIssuerID {
 		return deny(ReasonCapabilityUntrustedKey, "issuerId", "is not the pinned Advanced issuer")
 	}
@@ -289,7 +289,7 @@ func VerifyTrustedDigest(bundle *TrustBundle, issuerID, keyID string, digest, si
 	if bundle == nil {
 		return deny(ReasonTrustBundleUnavailable, "trustBundle", "is required")
 	}
-	if err := requireTechstackIssuer(issuerID); err != nil {
+	if err := requireHomelabIssuer(issuerID); err != nil {
 		return err
 	}
 	trustedKey, err := resolveTrustedKey(bundle, keyID, issuerID)

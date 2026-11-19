@@ -5,7 +5,7 @@ StackKits takes over an existing application in one of two ways:
 | Path | Container | Contract | Takes over |
 | --- | --- | --- | --- |
 | `stackkit application` (this page) | kept in place, same container ID | `home-assistant-container-in-place/v1` lifecycle profile | power control and source verification only |
-| `stackkit app own --from-container` ("Stack it") | **recreated** as a new container (new ID, bounded downtime); the original is stopped and retained | `techstack.own-application/v4`, profile `own-application-adopted/v1` | the full own-application lifecycle: update (also to a newer tag), rollback, start, stop, restart, backup, logs, status |
+| `stackkit app own --from-container` ("Stack it") | **recreated** as a new container (new ID, bounded downtime); the original is stopped and retained | `homelab.own-application/v4`, profile `own-application-adopted/v1` | the full own-application lifecycle: update (also to a newer tag), rollback, start, stop, restart, backup, logs, status |
 
 "Stack it" works for any single container that fits its rules and is described
 in [Run your own container](OWN_APPLICATIONS.md#stack-an-existing-container-v4).

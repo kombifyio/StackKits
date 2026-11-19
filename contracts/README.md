@@ -1,7 +1,7 @@
 # Runtime contracts
 
 Dependency-light Go contracts for the runtime boundary between StackKits and
-Techstack: stable type identities, closed validation rules, deterministic
+Homelab: stable type identities, closed validation rules, deterministic
 digests and Golden JSON. Not a service, control plane, provider adapter or
 state store. The packages are part of the StackKits module
 (`github.com/kombifyio/stackkits/contracts/...`) and ship with its versions;
@@ -11,15 +11,15 @@ they have no release line of their own.
 
 | Import path (below `contracts/`) | Contract | Owner of the authority behind the wire |
 | --- | --- | --- |
-| `runtimelease` | Secret-free lease identity, validation, enrollment and signed snapshot DTOs | Techstack: validity, cancellation, desired state, enrollment, persistence |
-| `providerexecutor/v1beta1` | Provider-neutral commands, receipts, evidence, digesting and lifecycle validation | Techstack: adapter selection, side effects, custody, durable ledger |
-| `runtimeinventory` | Secret-free inventory read model generated from the Techstack inventory schema | Techstack: schema, collection, freshness, authorization |
+| `runtimelease` | Secret-free lease identity, validation, enrollment and signed snapshot DTOs | Homelab: validity, cancellation, desired state, enrollment, persistence |
+| `providerexecutor/v1beta1` | Provider-neutral commands, receipts, evidence, digesting and lifecycle validation | Homelab: adapter selection, side effects, custody, durable ledger |
+| `runtimeinventory` | Secret-free inventory read model generated from the Homelab inventory schema | Homelab: schema, collection, freshness, authorization |
 | `stackaction` | Action wire generated from `foundation/stack_action.cue` | StackKits: lifecycle meaning, validation, execution, evidence |
 | `runtimeexecutor` | Execution SPI for an authorized Apply grant: sealed request, artifact transport, invocation, result digest | Control plane: authorization, registration, retries, state, policy |
 | `runtimeapply` | Durable operation journal and recovery contract for a sealed `runtimeexecutor` Apply | Consumer: persistence |
 | `applyevidence` | Producer contract for Ed25519-sealed pre-Apply evidence bundles | Evidence producer: enrollment, keys, observation |
 | `datasubject` | Account export and erasure request, signed receipt and completion rule | Coordinator and participants |
-| `advancedcapability` | Generated Advanced-capability and trust-bundle wire from `contract.json` | Techstack issues, StackKits verifies |
+| `advancedcapability` | Generated Advanced-capability and trust-bundle wire from `contract.json` | Homelab issues, StackKits verifies |
 
 `compatibility/` holds the consumer lock schema; it is not a Go package.
 
@@ -45,7 +45,7 @@ they have no release line of their own.
 - `advancedcapability`: edit `advancedcapability/contract.json` and run
   `mise run contracts:advancedcapability:generate`; never edit the generated
   outputs.
-- `runtimeinventory`: generated in Techstack from its inventory schema; the
+- `runtimeinventory`: generated in Homelab from its inventory schema; the
   checked-in `manifest.json` binds the schema and `types.go` digests.
 
 ## Compatibility

@@ -3,7 +3,7 @@
   "generatorVersion": "stackactiongen/v1",
   "source": {
     "path": "foundation/stack_action.cue",
-    "sha256": "590d0803a54d4c89035fa38d90690b39838ff0d0f895b76c4f7e6006db29d863"
+    "sha256": "48c52ecc5dea9b37333f55633072ed59911ea0f68b6454c2ebd828bb7d3cebd2"
   },
   "contract": {
     "wireVersion": "stackkit.stack-action/v1",
@@ -322,21 +322,21 @@
         "suffix": "/stackkit-rollout",
         "action": "stackkit_rollout",
         "operationID": "stackActionStackKitRollout",
-        "summary": "Run or dry-run StackKits rollout for TechStack"
+        "summary": "Run or dry-run StackKits rollout for Homelab"
       },
       {
         "goConst": "PathStackKitVerify",
         "suffix": "/stackkit-verify",
         "action": "verify_rollout",
         "operationID": "stackActionStackKitVerify",
-        "summary": "Verify StackKits rollout state for TechStack"
+        "summary": "Verify StackKits rollout state for Homelab"
       },
       {
         "goConst": "PathRestoreDrill",
         "suffix": "/restore-drill",
         "action": "restore_drill",
         "operationID": "stackActionRestoreDrill",
-        "summary": "Run or dry-run StackKits restore drill for TechStack"
+        "summary": "Run or dry-run StackKits restore drill for Homelab"
       },
       {
         "goConst": "PathBackupRun",
@@ -846,6 +846,127 @@
             "required": false,
             "openapi": {
               "kind": "string"
+            }
+          }
+        ]
+      },
+      "HomelabEnrollment": {
+        "order": 20,
+        "goName": "HomelabEnrollment",
+        "openapiName": "StackActionHomelabEnrollment",
+        "description": "Generation-bound managed runtime enrollment and callback channels.",
+        "anyOfRequired": [
+          [
+            "heartbeat_url"
+          ],
+          [
+            "inventory_url"
+          ]
+        ],
+        "fields": [
+          {
+            "json": "tenant_id",
+            "goName": "TenantID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "owner_id",
+            "goName": "OwnerID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "stack_id",
+            "goName": "StackID",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "lease_id",
+            "goName": "LeaseID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "server_url",
+            "goName": "ServerURL",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "server_id",
+            "goName": "ServerID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "runtime_agent_id",
+            "goName": "RuntimeAgentID",
+            "goType": "string",
+            "required": true,
+            "openapi": {
+              "kind": "string"
+            }
+          },
+          {
+            "json": "enrollment_access_ref",
+            "goName": "EnrollmentAccessRef",
+            "goType": "*ScopedReference",
+            "required": true,
+            "openapi": {
+              "kind": "ref",
+              "ref": "StackActionScopedReference"
+            }
+          },
+          {
+            "json": "heartbeat_url",
+            "goName": "HeartbeatURL",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "inventory_url",
+            "goName": "InventoryURL",
+            "goType": "string",
+            "required": false,
+            "openapi": {
+              "kind": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "json": "control_urls",
+            "goName": "ControlURLs",
+            "goType": "[]string",
+            "required": false,
+            "openapi": {
+              "kind": "array",
+              "itemsKind": "string",
+              "itemsFormat": "uri"
             }
           }
         ]
@@ -1647,13 +1768,13 @@
             }
           },
           {
-            "json": "techstack_enrollment",
-            "goName": "TechStackEnrollment",
-            "goType": "*TechStackEnrollment",
+            "json": "homelab_enrollment",
+            "goName": "HomelabEnrollment",
+            "goType": "*HomelabEnrollment",
             "required": false,
             "openapi": {
               "kind": "ref",
-              "ref": "StackActionTechStackEnrollment"
+              "ref": "StackActionHomelabEnrollment"
             }
           },
           {
@@ -2585,127 +2706,6 @@
             "openapi": {
               "kind": "object",
               "additionalProperties": "string"
-            }
-          }
-        ]
-      },
-      "TechStackEnrollment": {
-        "order": 20,
-        "goName": "TechStackEnrollment",
-        "openapiName": "StackActionTechStackEnrollment",
-        "description": "Generation-bound managed runtime enrollment and callback channels.",
-        "anyOfRequired": [
-          [
-            "heartbeat_url"
-          ],
-          [
-            "inventory_url"
-          ]
-        ],
-        "fields": [
-          {
-            "json": "tenant_id",
-            "goName": "TenantID",
-            "goType": "string",
-            "required": false,
-            "openapi": {
-              "kind": "string"
-            }
-          },
-          {
-            "json": "owner_id",
-            "goName": "OwnerID",
-            "goType": "string",
-            "required": false,
-            "openapi": {
-              "kind": "string"
-            }
-          },
-          {
-            "json": "stack_id",
-            "goName": "StackID",
-            "goType": "string",
-            "required": false,
-            "openapi": {
-              "kind": "string"
-            }
-          },
-          {
-            "json": "lease_id",
-            "goName": "LeaseID",
-            "goType": "string",
-            "required": true,
-            "openapi": {
-              "kind": "string"
-            }
-          },
-          {
-            "json": "server_url",
-            "goName": "ServerURL",
-            "goType": "string",
-            "required": true,
-            "openapi": {
-              "kind": "string",
-              "format": "uri"
-            }
-          },
-          {
-            "json": "server_id",
-            "goName": "ServerID",
-            "goType": "string",
-            "required": true,
-            "openapi": {
-              "kind": "string"
-            }
-          },
-          {
-            "json": "runtime_agent_id",
-            "goName": "RuntimeAgentID",
-            "goType": "string",
-            "required": true,
-            "openapi": {
-              "kind": "string"
-            }
-          },
-          {
-            "json": "enrollment_access_ref",
-            "goName": "EnrollmentAccessRef",
-            "goType": "*ScopedReference",
-            "required": true,
-            "openapi": {
-              "kind": "ref",
-              "ref": "StackActionScopedReference"
-            }
-          },
-          {
-            "json": "heartbeat_url",
-            "goName": "HeartbeatURL",
-            "goType": "string",
-            "required": false,
-            "openapi": {
-              "kind": "string",
-              "format": "uri"
-            }
-          },
-          {
-            "json": "inventory_url",
-            "goName": "InventoryURL",
-            "goType": "string",
-            "required": false,
-            "openapi": {
-              "kind": "string",
-              "format": "uri"
-            }
-          },
-          {
-            "json": "control_urls",
-            "goName": "ControlURLs",
-            "goType": "[]string",
-            "required": false,
-            "openapi": {
-              "kind": "array",
-              "itemsKind": "string",
-              "itemsFormat": "uri"
             }
           }
         ]

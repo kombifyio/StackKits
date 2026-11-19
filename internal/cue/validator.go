@@ -351,7 +351,7 @@ func validateOwnerConfig(owner models.OwnerConfig, result *models.ValidationResu
 			addOwnerError(result, "owner.recoveryPassphraseHash", "owner recoveryPassphraseHash must be an argon2id PHC string", "INVALID_VALUE")
 		}
 		if owner.RecoveryMaterialRef != "" && !isRecoveryMaterialRef(owner.RecoveryMaterialRef) {
-			addOwnerError(result, "owner.recoveryMaterialRef", "owner recoveryMaterialRef must be a secret or TechStack recovery reference", "INVALID_VALUE")
+			addOwnerError(result, "owner.recoveryMaterialRef", "owner recoveryMaterialRef must be a secret or Homelab recovery reference", "INVALID_VALUE")
 		}
 	case models.OwnerBootstrapModeCustom:
 		source := strings.ToLower(strings.TrimSpace(owner.Source))
@@ -513,7 +513,7 @@ func addOwnerError(result *models.ValidationResult, path, message, code string) 
 }
 
 func isRecoveryMaterialRef(value string) bool {
-	for _, prefix := range []string{"techstack://", "secret://", "doppler://", "vault://", "env:", "file:"} {
+	for _, prefix := range []string{"homelab://", "secret://", "doppler://", "vault://", "env:", "file:"} {
 		if strings.HasPrefix(value, prefix) && len(value) > len(prefix) {
 			return true
 		}

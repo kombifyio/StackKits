@@ -10,14 +10,14 @@ Current implementation overview. Normative product and module rules are summariz
 
 - Installers and the `stackkit` CLI invoke the shared rollout core directly. Standard Mode needs no hosted orchestrator; Advanced Mode may add registered external capabilities and orchestration around the same core.
 - The State Console is the MCP App for local state review, plan inspection, Owner evidence and operation-approval requests. It invokes only registered MCP operations and owns no lifecycle implementation.
-- The Easy/Techie Wizard, Finder, operator-capability scoring, recommendation, guidance and intent drafts belong exclusively to Techstack.
+- The Easy/Techie Wizard, Finder, operator-capability scoring, recommendation, guidance and intent drafts belong exclusively to Homelab.
 
-Standard Mode requires no Techstack, kombify Cloud, account, provider credentials or hosted state. Advanced Mode is the only sanctioned Techstack dependency and still leaves final validation and execution with the pinned StackKits CLI. Every Techstack-managed deployment runs Advanced Mode from its first rollout (ADR-0031 amendment 2026-09-24); Standard Mode is the standalone one-shot configuration without Terramate, and Techstack never operates a StackKit in Standard Mode.
+Standard Mode requires no Homelab, kombify Cloud, account, provider credentials or hosted state. Advanced Mode is the only sanctioned Homelab dependency and still leaves final validation and execution with the pinned StackKits CLI. Every Homelab-managed deployment runs Advanced Mode from its first rollout (ADR-0031 amendment 2026-09-24); Standard Mode is the standalone one-shot configuration without Terramate, and Homelab never operates a StackKit in Standard Mode.
 
 StackKits turns CUE-defined contracts into deployable homelab environments. [Neutral image preparation](GOLDEN_IMAGE_PREPARATION.md) may cache the attested release, its provider closure and CUE-pinned core images before per-clone init; the cache holds no Owner, runtime custody, journal or service volumes, and first boot reuses the normal init/apply lifecycle after fresh local admission.
 
 ```text
-operator intent / optional Techstack-approved intent
+operator intent / optional Homelab-approved intent
         |
         v
 canonical StackSpec v2 / versioned API request
@@ -42,9 +42,9 @@ CUE is the technical contract source. Lifecycle state and evidence stay bound to
 
 [ADR-0031](ADR/ADR-0031-stackkits-standalone-lifecycle-boundary.md) defines the boundary: StackKits provides a CLI-manageable Homelab rollout core. Standard Mode executes it directly; Advanced Mode adds registered authority and orchestration. CUE, StackSpec, immutable ResolvedPlan, lifecycle state, Owner custody and evidence stay bound to the same rollout. Attested GitHub Releases are the kombify-account-free distribution source.
 
-Target boundary (v0.9; executable Agent admission is Slice 2, so the channel is not claimed live): Techstack is the Orchestrator UI, Config Unifier and Advanced Day-2/RIL control plane. Techstack Core sends only a closed `StackKitCommand` over its own outbound/reverse mTLS gRPC worker channel to the node-side Techstack Agent, which revalidates the release pin, index, receipt and executable, scrubs Techstack/kombify control environment and starts the published CLI locally. Results return only as bounded `stackkit.command-result/v1` plus `stackkit.rollout-event/v1` JSONL. StackKits has no gRPC server and owns no worker enrollment, certificates or transport.
+Target boundary (v0.9; executable Agent admission is Slice 2, so the channel is not claimed live): Homelab is the Orchestrator UI, Config Unifier and Advanced Day-2/RIL control plane. Homelab Core sends only a closed `StackKitCommand` over its own outbound/reverse mTLS gRPC worker channel to the node-side Homelab Agent, which revalidates the release pin, index, receipt and executable, scrubs Homelab/kombify control environment and starts the published CLI locally. Results return only as bounded `stackkit.command-result/v1` plus `stackkit.rollout-event/v1` JSONL. StackKits has no gRPC server and owns no worker enrollment, certificates or transport.
 
-The Config Unifier emits a review proposal, not a ResolvedPlan; the local Owner approves it and the pinned CLI performs final CUE validation and generation. Advanced Terramate change sets, Advanced reconcile, coordinated rollback and restore drills require a short-lived offline-valid capability before rendering or side effects. Standard CLI apply, verify, upgrade, backup, restore and read-only drift detection need neither Techstack nor that capability (under Techstack management they run in Advanced Mode).
+The Config Unifier emits a review proposal, not a ResolvedPlan; the local Owner approves it and the pinned CLI performs final CUE validation and generation. Advanced Terramate change sets, Advanced reconcile, coordinated rollback and restore drills require a short-lived offline-valid capability before rendering or side effects. Standard CLI apply, verify, upgrade, backup, restore and read-only drift detection need neither Homelab nor that capability (under Homelab management they run in Advanced Mode).
 
 The Owner is local: PocketID holds the human directory, TinyAuth is the local protected-service login and policy broker, and StackKits binds the PocketID subject to `ownerRef` plus the local Ed25519 key and its step-ca certificate. kombify Cloud may offer only a signed, time-bounded desired identity projection for explicit local approval; outage, unlink, expiry, staleness or failed verification withdraws future Cloud mutation authority without deleting or disabling an approved local identity. Passwords, passkeys, sessions, private keys, CA material and recovery secrets never cross this boundary.
 
@@ -72,7 +72,7 @@ StackKits does not stop or reconfigure it.
 
 ### Provider-free external-host boundary
 
-StackKits never owns a server-provider resource. TechStack selects and
+StackKits never owns a server-provider resource. Homelab selects and
 manages provider accounts, regions, images, sizes, credentials, leases, ownership,
 cleanup, and native resource IDs. StackKits receives only an opaque
 `ExternalHostBinding` for a host that already exists. The binding is hash-bound to
@@ -207,7 +207,7 @@ Shadow Plan and generation output but add
 `external-home-access-binding-missing` to Apply readiness. Backup authority is
 deliberately excluded from this access seam and uses separate Home and Cloud
 target handshakes. Their infrastructure materialization belongs to the external
-TechStack/provider-management layer.
+Homelab/provider-management layer.
 
 Every native `StackSpecV2` also normalizes one closed
 `stackkit.backup-policy/v1` intent into `ResolvedPlan.backupPolicy`. It contains
@@ -421,7 +421,7 @@ and the shared Inventory the Home admitted (explicit `--inventory` or the
 admitted `.stackkit/inventory.yaml`); a changed plan needs a new admission and
 certificate. Once the Foundation Node holds a certificate record, its Apply
 executes its own tuple plus the remote-only process owners (federation control
-agent, bridge publication, and the other Techstack-bound owners) of every
+agent, bridge publication, and the other Homelab-bound owners) of every
 Site through their execution channels, and no longer runs a certified
 member's local owners in-process. A target that belongs to no certified member
 and not to the Foundation Node fails closed. Both hosts report the other
@@ -434,7 +434,7 @@ are unchanged.
 Not covered yet: member change sets (Advanced admission needs Owner custody
 and the Owner-approved local trust bundle on the member, and change-set
 records are Owner-signed), cross-host ordering of the two hosts' Apply runs
-(Techstack), key rotation or revocation before expiry, and runtime evidence.
+(Homelab), key rotation or revocation before expiry, and runtime evidence.
 
 ### Kit-specific workload runtime ownership
 
@@ -578,7 +578,7 @@ Cloud public DNS is separately selected through
 `stackkits-cloud-public-dns-contract`. It records that the Stack requires a
 public DNS capability, but produces no module, provider mutation, credential,
 runtime target, Health gate, or evidence claim. Provider-specific DNS
-materialization belongs to the external TechStack/provider-management layer.
+materialization belongs to the external Homelab/provider-management layer.
 
 Cloud public edge is separately owned by
 `stackkits-cloud-public-edge-runtime`. Its exact node-local executable contract
@@ -1472,7 +1472,7 @@ Compose fallback behind the `compose` unit (S-F structure rule, see
   owner's contract artifact, and applies it, so OpenTofu state records the
   contract the owner applied. The root starts no process because no CLI
   entrypoint re-applies a single owner safely from `local-exec`. The
-  federation control agent and bridge publication are Techstack process
+  federation control agent and bridge publication are Homelab process
   owners, registered only through a bound execution channel; their roots are
   not materialized by this executor.
 - **State custody.** Executor-state snapshots for the `opentofu` and
@@ -1594,7 +1594,7 @@ both use it, so the files and the graph cannot disagree.
   the host stack. The recorded host-security evidence is a signed control blob
   of every executor-state checkpoint of a Terramate install, so a coordinated
   rollback restores it with the other stacks' state. Guard bootstrap stays
-  Techstack-owned, and Standard Mode is unchanged.
+  Homelab-owned, and Standard Mode is unchanged.
 - Runtime roots: `.stackkit/runtime/<runtime>/opentofu` for cores (the P1.2
   wrapper roots), `.stackkit/runtime/applications/stackkit-<workloadRef>-<nodeRef>/opentofu`
   for workloads and `.stackkit/runtime/modules/<moduleRef>/opentofu` for
@@ -1724,8 +1724,8 @@ Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
   sha256 is re-checked before each use (a replaced binary fails closed), the
   lifecycle journal records it as `authority: running-executable` with the
   executable digest and no archive digest, and the joined children run that
-  same binary. This is the normal case on a Techstack-managed host: `stackkit
-  init` creates no release cache, and the Techstack Agent already verified
+  same binary. This is the normal case on a Homelab-managed host: `stackkit
+  init` creates no release cache, and the Homelab Agent already verified
   the pinned release, archive, index and executable before starting the CLI
   (ADR-0031 section 5). The rollback checkpoint follows the same rule for the
   prior release: when the applied release is the running one and no cache
@@ -1759,7 +1759,7 @@ Terramate (`stackkit apply` under `compose` or `opentofu` is unchanged).
   success and failure, and each step emits `advanced.change-set.materialize-host`,
   `advanced.change-set.run-order` and per-stack `advanced.change-set.converge`
   rollout events.
-- Not yet covered: cross-host dispatch of `other_host` stacks (Techstack,
+- Not yet covered: cross-host dispatch of `other_host` stacks (Homelab,
   P2). A failed change set whose checkpoint belongs to a `terramate` install
   rolls back per stack ("Coordinated rollback across stacks (Stage 1)"); every
   other checkpoint keeps the existing rollback, which after the target apply
@@ -1803,12 +1803,12 @@ drift detection. `stackkit drift detect` combines both in one
   `clean`.
 - Streaming: every stack entry is also one `advanced.drift.stack` rollout event
   (status is the stack status; attributes carry the entry fields), so
-  Techstack can map each stack to one drift subject.
+  Homelab can map each stack to one drift subject.
 - Reconcile: `stackkit drift reconcile --mode advanced` keeps the capability,
   candidate and Owner-signed change-set admission of `runAdvancedMutation`;
   a denial happens before any Terramate or OpenTofu process. Runtime drift (a
   stopped container, an edited `compose.yaml`) leaves the desired StackSpec
-  unchanged, so Techstack's `drift_reconcile` creates an empty change set
+  unchanged, so Homelab's `drift_reconcile` creates an empty change set
   from the applied StackSpec (allowed by the `drift.reconcile.advanced`
   capability, see the change-set create rule above) and reconciles through
   it. After admission and before the checkpoint the command observes the
@@ -1874,12 +1874,12 @@ drift detection. `stackkit drift detect` combines both in one
 - Not yet covered: the `opentofu` target has no stack graph, so its wrapper
   roots have no per-root plan yet; the saved-plan `tofu show -json` resource
   diff is not captured; stacks of other hosts are reported by their own host
-  (Techstack dispatch); automatic rollback of a non-converged Advanced
+  (Homelab dispatch); automatic rollback of a non-converged Advanced
   reconcile belongs to P1.6.
 
 ### Advanced operations catalog
 
-ADR-0031 section 5 has Techstack consume an exactly pinned StackKits release
+ADR-0031 section 5 has Homelab consume an exactly pinned StackKits release
 plus versioned CLI JSON contracts. `internal/advancedcatalog` is the single
 source of the `stackkit.advanced-operations/v1` catalog
 (`docs/data/advanced-operations/latest.json`, schema
@@ -1912,7 +1912,7 @@ source of the `stackkit.advanced-operations/v1` catalog
   packaged `stackkit docs emit-advanced-operations --check` against the
   archived catalog.
 - Pinning: the catalog and its schemas ship in every release archive. The
-  release index does not name the catalog, because Techstack and installed
+  release index does not name the catalog, because Homelab and installed
   StackKits CLIs decode `stackkits-release-index/v1` with unknown fields
   rejected; the index pins the archive digest, which pins the catalog.
 
@@ -2075,7 +2075,7 @@ of `stackkit advanced change-set apply` runs the same path.
   reconcile follows the same order by restoring governed files before its
   checkpoint.
 - Not yet covered: data volumes are not rolled back (the Kopia anchor stays
-  available for an explicit restore), `other_host` stacks need Techstack
+  available for an explicit restore), `other_host` stacks need Homelab
   dispatch, and there is no runtime evidence yet (P1.9).
 
 ### Bootstrap and configuration parity across execution paths
@@ -2119,7 +2119,7 @@ Paths: `nh` is `internal/runtimeexecutor/nativehost`, `ot` is
 | Application lifecycle record | `stackkit.apply`, stage `install` (`cmd/architecture_v2_execution.go:977`) | same | same | `stackkit.upgrade`, stage `upgrade` (`cmd/advanced_change_set_apply.go:267`) | same as change set (`cmd/drift.go:224`) | lifecycle mutation journal, no application record | `stackkit.restore` |
 
 - Owner setup runs automatically after the runtime converged, on every
-  path. A top-level `stackkit apply` (standalone, or the Techstack-managed
+  path. A top-level `stackkit apply` (standalone, or the Homelab-managed
   rollout), `stackkit advanced change-set apply` and `stackkit drift
   reconcile --mode advanced` end with `runAutomaticOwnerSetup`; a joined
   child apply leaves it to its parent. It runs, per workload whose Plan
@@ -2363,7 +2363,7 @@ constructs the embedded service. StackKits constructs the canonical
 `applyevidence.CollectionRequest` from `kombify-go-common` `2ef87ff`: it binds
 the shared exact expectation request, manifest hash, product-selected executor
 identity, one trusted UTC instant, and its own deterministic digest. The same
-value-only wire contract can therefore be consumed by a TechStack/host/device
+value-only wire contract can therefore be consumed by a Homelab/host/device
 integration without importing or copying StackKits-internal DTOs. StackKits
 validates the complete collection digest before invoking the collector and
 passes a defensive copy. Host inspection and private signing material stay
@@ -2442,11 +2442,11 @@ Execution mechanics:
 - **Node-local health.** CUE health contracts with `scope: each-node` materialize one contract-hash-bound gate per selected node (Security Baseline, Core host bootstrap, Home backup target). Aggregate health stays the default. Every node-local runtime target has exactly one independently receipted health target on the same Site and node, so no dispatcher can assign one shared gate to an arbitrary worker or fabricate aggregate success from partial results.
 - **Channel dispatcher.** `internal/runtimeexecutordispatch` accepts only a sealed parent request, groups exact single-node Runtime/Health pairs by opaque channel, filters each child to its immutable artifacts, plan metadata and Home access binding subset, re-seals the child under the child executor identity, keeps the parent's captured authorization instant, and verifies every child result through the shared runtime contract. Missing or unknown channels, aggregate health, cross-Site bindings, ambiguous owners, identity panics, partial authority sets and cross-node artifacts fail closed. It holds no transport or credentials. With the provider-neutral `runtimeapply.Journal` SPI fixed at construction, the sealed parent digest is the operation identity and each re-sealed child digest one fenced CAS step: completed children replay without re-execution, failed steps resume, an unresolved running step fails closed per the journal's abandoned-operation policy. A retried `stackkit apply` seals fresh evidence, opens a new operation and re-converges every owner; what a killed Apply strands is its application lifecycle operation, recorded as abandoned by a retry holding the lifecycle-mutation and output-root locks ([CLI.md](CLI.md)). Children report as `apply.channel` / `apply.owner` rollout events; execution is serial and no rollback is inferred.
 - **Owner router.** Several executable owners on one node are routed by a service-owned `OwnerRouter` bound at construction to the complete canonical `RuntimeTarget` and one typed executor; it accepts routes for exactly one Site/node and opaque channel, partitions Health/access/artifact authority and re-seals every child. Matching only an owner name, module or requirement ID is forbidden. Channel dispatcher and router compose without learning endpoints, credentials, provider lifecycle, leases, generations or transport; journaled routing records outer and inner operations separately so recovery never repeats a verified owner. Compensation is a closed per-route declaration (`none` or `explicit`); executing it is the owning integration's receipted operation.
-- **`ProductRuntimeOwnerRegistry`.** Immutable construction maps one closed CUE/catalog selector to an integration-owned local factory or an explicit `remote-only` registration (no local Operations dependency, no success stub); a request never contributes a factory or executor. It requires one service-owned execution-channel factory and fixes one root executor identity before authorization (a sealed request with another root identity fails). The channel DTO and factory/admission/local-builder interfaces are the canonical `runtimeexecutor.ExecutionChannel*` contract from `kombify-go-common` `791a699` (StackKits keeps Product-prefixed aliases for source compatibility), so Techstack or another authorized service can implement remote routing without importing StackKits internals. Preparation requires a registration and exact Health owner per target, rejects a channel spanning several Site/node authorities, admits every channel/Site/node scope before preparing any owner, and hands the channel admission a one-shot lazy builder for its `OwnerRouter`. Explicit local execution first requires a real local factory for every selected registration; an authenticated remote transport returns its own executor. Direct in-process execution is an explicit adapter choice, never inferred from an opaque channel ref. Repeated or failed local construction, panics, typed nils and missing executors fail closed. Endpoint, credential, transport, provider lifecycle, lease and generation authority stay private to the service-owned channel.
+- **`ProductRuntimeOwnerRegistry`.** Immutable construction maps one closed CUE/catalog selector to an integration-owned local factory or an explicit `remote-only` registration (no local Operations dependency, no success stub); a request never contributes a factory or executor. It requires one service-owned execution-channel factory and fixes one root executor identity before authorization (a sealed request with another root identity fails). The channel DTO and factory/admission/local-builder interfaces are the canonical `runtimeexecutor.ExecutionChannel*` contract from `kombify-go-common` `791a699` (StackKits keeps Product-prefixed aliases for source compatibility), so Homelab or another authorized service can implement remote routing without importing StackKits internals. Preparation requires a registration and exact Health owner per target, rejects a channel spanning several Site/node authorities, admits every channel/Site/node scope before preparing any owner, and hands the channel admission a one-shot lazy builder for its `OwnerRouter`. Explicit local execution first requires a real local factory for every selected registration; an authenticated remote transport returns its own executor. Direct in-process execution is an explicit adapter choice, never inferred from an opaque channel ref. Repeated or failed local construction, panics, typed nils and missing executors fail closed. Endpoint, credential, transport, provider lifecycle, lease and generation authority stay private to the service-owned channel.
 - **Static owner catalog and public facade.** `ProductStaticRuntimeOwnerCatalog` exposes value-only descriptors for every stable static Product factory (typed ID = the CUE/catalog owner ref); `NewProductRemoteStaticRuntimeOwnerRegistrations` resolves only an explicit service-owned allowlist and rejects blank, non-normalized, unknown or duplicate IDs. The Immich selected-PaaS owner needs its adapter ref and adapter-module ref. Cross-repository integrations use `pkg/productruntime`, never `internal/architecturev2`: it aliases the owner ID/selector/descriptor and the go-common channel, Apply-evidence Collector, Journal and recovery-custody interfaces and delegates catalog projections to the internal authority. `NewComposition` fixes an explicit remote-only allowlist, root identity, channel factory, Collector, Journal and Recovery store; `ApplyPrepared` and `ReconcilePrepared` accept an authenticated scope, a generated workspace, the current StackSpec/Inventory and (for reconcile) an exact recovery digest, re-resolve through the embedded CUE authority, require a byte-identical persisted plan, check compatibility, readiness and host-conformance freshness, take the held output lock and call the internal one-shot capability. Caller evidence and implicit local channels are absent from the request shape; evidence and recovery bytes are validated on both sides of the custody seams and only a hash-bound provider-neutral result returns. A continuation need surfaces as a typed `ReconcileRequiredError` with the opaque request digest.
-- **Product service and CLI composition.** A journal-required registry form fixes the integration-owned SPI across both dispatcher levels; a product-service constructor fixes root identity, owner set, channel factory and Journal together, and only that service selects the multi-owner registry in `ExecuteProductApply`. The ordinary embedded service keeps the single-owner pilot for compatibility; production `stackkit apply` no longer selects it. The standalone CLI builds the v0.8 single-node Basement authority from local custody (`init --owner-source=local`): signed Owner/runtime binding, exactly one derived Site/node/channel, a local Owner registry, workspace-bound file Journal/recovery custody and evidence signed with the local key. `--local-site`, `--local-node`, `--local-execution-channel` are equality-checked overrides, never routing or authority injection (`generate` takes the first two for the same attest binding); caller evidence and foreign channels are rejected. The authority is host-local and provider-free: it executes only the CUE-selected Basement owners with registered implementations, cannot create servers, discover provider credentials, manage leases or claim provider/PaaS lifecycle, and Techstack invoking the published CLI cannot inject an executor, mint evidence or expand the operation set. The CLI registers all factories and local transport for the closed single-node default graph and opts into the file Journal and local collector explicitly. Optional modules, Modern/HA plans and external adapters stay fail-closed until their owners, channels, compensation and evidence exist.
+- **Product service and CLI composition.** A journal-required registry form fixes the integration-owned SPI across both dispatcher levels; a product-service constructor fixes root identity, owner set, channel factory and Journal together, and only that service selects the multi-owner registry in `ExecuteProductApply`. The ordinary embedded service keeps the single-owner pilot for compatibility; production `stackkit apply` no longer selects it. The standalone CLI builds the v0.8 single-node Basement authority from local custody (`init --owner-source=local`): signed Owner/runtime binding, exactly one derived Site/node/channel, a local Owner registry, workspace-bound file Journal/recovery custody and evidence signed with the local key. `--local-site`, `--local-node`, `--local-execution-channel` are equality-checked overrides, never routing or authority injection (`generate` takes the first two for the same attest binding); caller evidence and foreign channels are rejected. The authority is host-local and provider-free: it executes only the CUE-selected Basement owners with registered implementations, cannot create servers, discover provider credentials, manage leases or claim provider/PaaS lifecycle, and Homelab invoking the published CLI cannot inject an executor, mint evidence or expand the operation set. The CLI registers all factories and local transport for the closed single-node default graph and opts into the file Journal and local collector explicitly. Optional modules, Modern/HA plans and external adapters stay fail-closed until their owners, channels, compensation and evidence exist.
 - **Workload removal** is a destructive protocol, never a negative Apply. `stackkit remove --workload <ref>` verifies the Plan/generation/Apply closure, loads the exact sealed request retained in Apply recovery custody (recovery expiry limits retry authority, not the historical record), reduces it to one workload target with its executable and selected-adapter artifacts, re-seals the child and signs a fresh five-minute authorization with local Owner custody. The digest-pinned Standard process receives `stackkit.standard-workload-removal-request/v1` and returns `-result/v1`; success needs selected-owner readback `absent` bound to the exact requirement, instance and applied artifact digest. The content-addressed request/result pair is local Owner evidence; the opt-in `stackkit.workload-removal-evidence/v1` projection (no applied artifact content, checked by a StackKits-owned parser for workload, Site, node, channel, owner, artifact, window and result equality) may cross a pinned channel. Its digest gives integrity, not authenticity: consumers authenticate the pinned producer channel, compare expected custody identity and verify the authorization bytes only against an Owner key established separately. Legacy `--purge`/`--force`, raw provider deletion, unselected targets and generic commands cannot enter this path.
-- **Backup path.** The v0.8 backup reuses that local authority. Before configure, status or snapshot side effects it binds the Plan identity, manifest and generation receipt, current Apply result and signed receipt, and the CUE-generated Kopia policy; the passphrase lives in owner-signed custody and crosses a redacted stdin boundary. Snapshots are journaled under `.stackkit/backups/` as owner-signed, operation-ID-idempotent `stackkit.local-backup-snapshot-anchor/v1` records. Techstack may display or dispatch the CLI but cannot supply repository credentials, rewrite the policy or replace local PocketID/TinyAuth/step-ca authority. Full and Lite Basement Core use the same Kopia implementation with distinct generated source policies: Full keeps its managed volumes and legacy source identity; Lite selects its PocketID, step-ca and TinyAuth volumes plus selected backup-enabled application volumes, with its own artifact path naming the Lite Core module, and admission binds the policy to that exact Core runtime. Neither includes the other's volumes; both share the dependency graph, writer custody, snapshot and restore lifecycle. Restore activation binds the complete source volume set to the selected Core and applications; missing or foreign volumes fail admission. Full and Lite share the runtime owner and verifier, which validate the selected profile's Compose output and health.
+- **Backup path.** The v0.8 backup reuses that local authority. Before configure, status or snapshot side effects it binds the Plan identity, manifest and generation receipt, current Apply result and signed receipt, and the CUE-generated Kopia policy; the passphrase lives in owner-signed custody and crosses a redacted stdin boundary. Snapshots are journaled under `.stackkit/backups/` as owner-signed, operation-ID-idempotent `stackkit.local-backup-snapshot-anchor/v1` records. Homelab may display or dispatch the CLI but cannot supply repository credentials, rewrite the policy or replace local PocketID/TinyAuth/step-ca authority. Full and Lite Basement Core use the same Kopia implementation with distinct generated source policies: Full keeps its managed volumes and legacy source identity; Lite selects its PocketID, step-ca and TinyAuth volumes plus selected backup-enabled application volumes, with its own artifact path naming the Lite Core module, and admission binds the policy to that exact Core runtime. Neither includes the other's volumes; both share the dependency graph, writer custody, snapshot and restore lifecycle. Restore activation binds the complete source volume set to the selected Core and applications; missing or foreign volumes fail admission. Full and Lite share the runtime owner and verifier, which validate the selected profile's Compose output and health.
 - **Upgrade recovery** follows the executor that performed Product Apply: Compose for the v0.8 Basement default, not the alternative OpenTofu renderer. `stackkit.executor-state-snapshot/v1` provides private content-addressed blobs, owner signatures, an operation marker as final commit, an offline-verified installed-release proof, recovery-executable byte matching and re-verification of the persisted Kopia anchor plus the current PocketID Owner binding; CAS objects publish atomically under one non-blocking store lock with directory durability sync where supported. The public upgrade checkpoint reaches it through the sealed current-state constructor, which re-runs the Plan/Generation/Apply gate and binds every captured artifact to its manifest and receipts; Full and Lite take their Compose and source-policy artifacts from the exact Plan-owned runtime and snapshots retain module and artifact identities (older snapshots without profile fields are Full-only). These are implementation and local verification claims; exact-candidate upgrade and rollback on a test host remain pending. OpenTofu state is required only when Apply selects an OpenTofu state owner; unsupported targets fail before side effects.
 - **Journal and recovery custody.** `ProductApplyFileJournal` is the provider-free durable option: it opens and validates the held workspace without creating files, lazily creates private control directories on first operation, stores one canonical private record per operation under the workspace control root, serializes each with a non-blocking cross-process advisory lock, atomically replaces and syncs `0600` state and rotates a random fence on every resume (the latest Begin owns recovery; older writers lose CAS; exact final state replays without re-executing). Corrupt or noncanonical records, foreign operations, stale tokens, invalid transitions, unsafe filesystem entries and uncertain atomic writes fail closed. A server may inject a DB-backed implementation of the same SPI. Operation state alone is not restart authority: a configured registry also requires a `ProductApplyRecoveryStore`, and before the first executor call the Shared bridge seals a recovery capsule (verified internal request, reconstructed Shared request, plan-owned output root, earliest evidence expiry) that the store must return byte-identical; missing custody, panics, substitutions or conflicts fail closed. The file Journal implements it beside the Journal record. An access-bound request cannot reuse its old `authorization_time`: the service builds a `stackkits.product-apply-continuation/v1alpha1` contract with freshly collected and verified evidence, keeping the original recovery lookup identity and immutable plan, artifact, executor and requirement bindings. The reconcile core loads one capsule after restart, rejects expired or foreign authority, rebuilds only the construction-owned routing tree and resumes through the fenced Journal; a persisted successful owner is not prepared again. `Service.ReconcileProductApply` wraps it with a fresh CurrentResolution, workspace/output-lock reacquisition and plan/manifest/receipt/artifact revalidation. Access- or backup-target-bound continuations need the service-owned evidence collector; verification time is sampled after collection and admission samples again after loading custody, and both the original authority and fresh evidence must be valid, so slow reads cannot extend an expired authorization (an expired capsule needs a new authorized Apply). A continuation's result binds its own request digest: the registry seals a capsule for it under that digest before the first executor call, valid no longer than the original authority; Verify, upgrade checkpoints and Advanced reconcile load the applied request by that digest.
 - **Partial failure** is not collapsed into a generic error: `ProductApplyReconcileRequiredError` exposes defensive copies of every validated `runtimeapply.Operation` and its `reconcile-required` Snapshot (for nested dispatch the outer channel and inner owner operations; the inner ID equals the outer child-step digest). Successful steps carry only their verified Shared Runtime result, failed steps one closed failure code, pending work stays explicit, and the typed executor error is the cause. Provider payloads, logs, endpoints, credentials, leases and handles cannot enter this evidence. Reconciliation itself is an explicit integration-owned operation, never an automatic retry or rollback.
@@ -2490,13 +2490,13 @@ a connector binding, and that binding must carry the primitive's own grant
 scope (for example `stackkit-service-restart`); a binding for any other scope
 cannot drive the primitive.
 
-Those facts are metadata, not a StackKits-hosted RIL executor. Techstack owns
+Those facts are metadata, not a StackKits-hosted RIL executor. Homelab owns
 action cards, admission, durable idempotency, dispatch, transport, runtime
 inventory, and provider/server lifecycle. StackKits exposes no RIL HTTP route
 or replay ledger. It executes its provider-neutral local behavior through the
 CUE-generated StackAction contract or the standalone CLI, revalidating local
 authority and producing local lifecycle evidence. Standard Mode remains
-independent of Techstack.
+independent of Homelab.
 
 ### External infrastructure authority
 
@@ -2504,7 +2504,7 @@ StackKits has no demo/test server-provider lifecycle authority: it defines no
 server cardinality, lease, provider-resource ownership, mutation, cleanup, or
 second-provider rules.
 
-TechStack owns provider adapters, execution authority, durable allocation and
+Homelab owns provider adapters, execution authority, durable allocation and
 cleanup ledgers, and native absence proof. Simulate may exercise those contracts
 as an optional harness. StackKits receives only an already supplied host through
 `ExternalHostBinding` and returns OS/host evidence through
@@ -2542,7 +2542,7 @@ do not define kit compatibility and do not gate pre-beta releases. Concrete
 addresses, provider/device locators, credentials, ownership, and cleanup state
 remain outside StackKits contracts and public evidence.
 
-Managed dispatch follows the same ownership boundary. Techstack selects and
+Managed dispatch follows the same ownership boundary. Homelab selects and
 transports a bounded operation; StackKits accepts only the generated
 `/api/v1/internal/stack-actions/*` vocabulary. The former RuntimeAction and RIL
 routes and their public Go projections are absent. Shared packages still owned
@@ -2578,7 +2578,7 @@ by StackKits are projected from the exact pinned module during OSS export.
 6. `stackkit verify` revalidates release receipt, generation/Apply lineage,
    Owner binding, selected services, Healthchecks, routes, and executable probes.
 7. `stackkit upgrade`, backup/restore, and drift operations extend that same
-   local evidence chain. Techstack may dispatch the pinned binary and display
+   local evidence chain. Homelab may dispatch the pinned binary and display
    results, but never becomes lifecycle authority.
 8. Provider creation, credentials, raw SSH transport, server allocation, and
    host lifecycle are external handoff concerns. They are not StackSpec intent
