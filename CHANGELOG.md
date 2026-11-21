@@ -478,6 +478,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.60.0 (2026-11-21)
+
+### ⚠ BREAKING CHANGES
+
+* **homelab:** Techstack becomes Homelab in every identifier and surface
+
+### Added
+
+* **homelab:** Techstack becomes Homelab in every identifier and surface
+
+### Fixed
+
+* **delivery:** the publication action pin reads a registry that names Homelab
+* **delivery:** the Render admission and the public publication read a workspace revision that names Homelab
+* **release:** the public export manifest names the renamed own-application schemas
+* **techstack:** a platform role changes nothing in the hosted product
+* **techstack:** Kombify.Client.Shell 0.1.0-alpha.9 publishes the device sign-in types; a merged shell change under a published version fails its package run
+* **techstack:** remove the staff-scoped Simulate client
+* **techstack:** stop capturing owner roles for Guard reach, drop owner_roles
+
+
+
 ## 0.59.2 (2026-11-20)
 
 ### Fixed

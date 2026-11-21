@@ -75,7 +75,7 @@ export function renderReleaseIndex({
   // below already used the canonical spelling.
   //
   // release.repository below stays lowercase on purpose: that identifier is
-  // compared against the lowercase spelling by both validate.go and Techstack's
+  // compared against the lowercase spelling by both validate.go and Homelab's
   // internal/stackkitrelease/cache.go, and GitHub never echoes it back.
   const expectedBaseURL = `https://github.com/kombifyio/StackKits/releases/download/${tag}`
   if (baseURL !== expectedBaseURL) {

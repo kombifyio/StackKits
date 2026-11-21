@@ -15,7 +15,7 @@ const sectionKinds = new Map([
 // Scopes of release engineering, not of a node: they never reach a proposal.
 const releaseEngineeringScopes = new Set([
   "affected-tests", "beads", "ci", "compat", "consolidation", "delivery", "deps", "docs", "e2e", "early-access", "matrix",
-  "preview", "public", "publicexport", "rack-kvm", "release", "techstack", "toolchain", "train", "website", "window",
+  "preview", "public", "publicexport", "rack-kvm", "release", "homelab", "toolchain", "train", "website", "window",
 ]);
 
 function versionTag(raw) {

@@ -43,7 +43,7 @@ or CA setup; these modes require their own domain/Me registration and reach setu
 ## Let kombify AI operate it
 
 The homelab runs on its own. To have kombify AI look after it, connect the server
-to your kombify account: start the Techstack setup for your own server at
+to your kombify account: start the Homelab setup for your own server at
 <https://app.kombify.io/dashboard/tools/stack/connect>. On the server where you
 installed StackKits, copy and run the setup’s complete command, then copy its
 one-time pairing and paste it when the terminal asks **Pairing (hidden):**.
@@ -51,16 +51,16 @@ Press Enter. The pairing is not displayed, saved to a file or entered in shell
 history. Never put it in a command argument. The setup shows when it expires
 and **Get a new pairing** replaces it when needed.
 
-The public command downloads the Techstack installer and runs it as root to
+The public command downloads the Homelab installer and runs it as root to
 install the kombify Guard service:
 
 <!-- public-path:begin connect -->
 ```sh
-sudo stackkit connect --server https://techstack.kombify.io
+sudo stackkit connect --server https://homelab.kombify.io
 ```
 <!-- public-path:end connect -->
 
-For self-hosted Techstack, copy the complete command from that installation's
+For self-hosted Homelab, copy the complete command from that installation's
 own-server setup; it includes its actual configured `--server` origin.
 `KOMBI_SERVER` also overrides the public default (plain sudo can drop environment
 variables, so prefer `--server`). If an origin is wrong or unreachable, the command
@@ -97,9 +97,9 @@ Select the kit with `stackkit init`:
 <!-- kit-support:begin -->
 | Kit | Target | Status |
 | --- | --- | --- |
-| Basement Kit | an existing Linux host at home | alpha at v0.59.2; no public-package pass recorded |
-| Cloud Kit | an existing VPS with your own domain | alpha at v0.59.2; no public-package pass recorded |
-| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.59.2; no public-package pass recorded |
+| Basement Kit | an existing Linux host at home | alpha at v0.60.0; no public-package pass recorded |
+| Cloud Kit | an existing VPS with your own domain | alpha at v0.60.0; no public-package pass recorded |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.60.0; no public-package pass recorded |
 <!-- kit-support:end -->
 
 A published release is source and distribution evidence, not runtime

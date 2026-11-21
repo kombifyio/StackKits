@@ -71,7 +71,7 @@ jq -e '
 ' "$output_dir/approve.json" >/dev/null
 
 # The issuer is a one-shot file producer, not an online dependency. From this
-# point onward no Cloud/Techstack process, URL, token, or credential exists.
+# point onward no Cloud/Homelab process, URL, token, or credential exists.
 "$harness" serve-pocketid \
   >"$output_dir/pocketid-fixture.log" 2>&1 &
 pocket_pid=$!
