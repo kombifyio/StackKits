@@ -478,6 +478,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.60.1 (2026-11-22)
+
+### Added
+
+* **contracts:** add managed_app_fit CUE schema and serviceregistry placement tests
+
 ## 0.60.0 (2026-11-21)
 
 ### ⚠ BREAKING CHANGES

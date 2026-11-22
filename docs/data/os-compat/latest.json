@@ -54,7 +54,7 @@
       },
       "grade": "unverified",
       "reasonCodes": [
-        "no-automated-lane"
+        "current-release-receipt-pending"
       ]
     }
   ],

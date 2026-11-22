@@ -4,6 +4,10 @@ Neutral `providerexecutor/v1beta1` contract for infrastructure-provider
 lifecycle execution: the only provider-control wire, not a service contract. No
 provider SDK, database, adapter registry or vendor configuration.
 
+A Homelab `managed_workload` service placement identifies a provider target
+without a server binding. It does not map to a v1beta1 command: even when a
+provider resource has that kind, the command must bind a runtime server lease.
+
 ## Ownership
 
 - **Homelab**: authorizes commands, selects adapters, owns leases, persists

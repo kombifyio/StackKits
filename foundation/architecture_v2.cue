@@ -4227,6 +4227,14 @@ _servicePublicationShape: {
 	high?:     #ModuleComputeProfileV2
 }
 
+#ManagedAppFitV1: {
+	computeProfile: "low" | "standard" | "high"
+	memoryMiB:      int & >=128 & <=512
+	runtimeProfiles: [...("fly-machines-v1" | "ionos-shared-pool-v1")] & list.MinItems(1)
+
+	_runtimeProfilesUnique: list.UniqueItems(runtimeProfiles) & true
+}
+
 // #RuntimeAdmissionV1 is the compiler-owned Apply decision for a module's
 // runtimeRequirements versus attested InventoryFacts. Missing facts are not a
 // pass. Generation may still be ready.
@@ -6267,6 +6275,13 @@ _otlpTransportPostureV1: {
 	if defaultComputeProfile != _|_ {
 		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
 		_defaultComputeProfileExact: [for id, _ in computeProfiles if id == defaultComputeProfile {id}] & list.MinItems(1) & list.MaxItems(1)
+	}
+	managed_app_fit?: #ManagedAppFitV1
+	if managed_app_fit != _|_ {
+		role: "workload"
+		runtime: {execution: "executable", kind: "container"}
+		computeProfiles: #ModuleComputeProfilesV2 & struct.MinFields(1)
+		_managedAppComputeProfileExact: [for id, profile in computeProfiles if id == managed_app_fit.computeProfile if profile.executable {id}] & list.MinItems(1)
 	}
 	storageProfiles?: [string]: #ModuleAxisProfileV2 & {accelerator?: _|_}
 	// Accelerator profiles are optional even when declared: no selection
