@@ -299,7 +299,7 @@ until deletion is confirmed). An interrupted rotation's token is deleted on
 the next call, never used and never issued again under the same name. The
 record (schema `stackkit.home-assistant-connector/v2`) binds the Guard
 identity the node reads from its own Guard enrollment
-(`/etc/techstack/agent-enrollment.json`: `guard:<server>/<worker>`), never
+(`/etc/homelab/agent-enrollment.json`: `guard:<server>/<worker>`), never
 from a request; `ensure` and opening the credential refuse on a node without a
 Guard enrollment or under another Guard identity
 (`home_assistant_connector_guard_changed`), while `revoke` still works. The

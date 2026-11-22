@@ -17,7 +17,7 @@ import (
 	"syscall"
 )
 
-const rilAuthorityDirectory = "/var/lib/techstack-guard-executor"
+const rilAuthorityDirectory = "/var/lib/homelab-guard-executor"
 const rilProfileFile = "ril-applied-profile.json"
 
 // InvalidateRILAuthority runs before Product Apply. A failed or interrupted
@@ -291,7 +291,7 @@ func BeginRILAuthorityApply() (func(), error) {
 		return nil, err
 	}
 	parent.Close()
-	const lockDirectory = "/run/techstack-ril"
+	const lockDirectory = "/run/homelab-ril"
 	info, err := os.Lstat(lockDirectory)
 	if err != nil {
 		return nil, err

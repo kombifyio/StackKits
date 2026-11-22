@@ -13,16 +13,16 @@ import (
 	"time"
 )
 
-const homelabGuardService = "techstack-agent.service"
+const homelabGuardService = "homelab-agent.service"
 
 // Homelab bootstraps Guard before invoking StackKits. Preparation only reads
 // that installation: restarting or replacing it here could interrupt the Guard
 // executing this command, or overwrite its host key and durable journal.
 const homelabGuardObservationScript = `set -eu
-systemctl is-active --quiet techstack-agent.service
-systemctl is-enabled --quiet techstack-agent.service
-file=/etc/techstack/agent-enrollment.json
-fallback=/var/lib/techstack/guard/agent-enrollment.json
+systemctl is-active --quiet homelab-agent.service
+systemctl is-enabled --quiet homelab-agent.service
+file=/etc/homelab/agent-enrollment.json
+fallback=/var/lib/homelab/guard/agent-enrollment.json
 if test -f "$fallback" && { test ! -f "$file" || test "$fallback" -nt "$file"; }; then
   file=$fallback
 fi

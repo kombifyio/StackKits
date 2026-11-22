@@ -17,7 +17,7 @@ import (
 //   - The purpose-key snapshot is the one file the privileged refresher
 //     writes (homelab/pkg/ril/nodeproof RefreshPurposeKeys: root only, file
 //     0600, a window of at most 45 seconds, generation rollback refused). The
-//     techstack-ril-keys.timer of a hosted node runs that refresher 15 seconds
+//     homelab-ril-keys.timer of a hosted node runs that refresher 15 seconds
 //     after boot and then 20 seconds after each run, so the snapshot a command
 //     reads is inside its window while the node reaches the platform. The same
 //     file is the RIL proof verifier's (nodeproof.Verify); there is no second
@@ -29,8 +29,8 @@ import (
 // A node without the hosted enrollment has none of the first two, so it has
 // no receipt path: the ledger's only filer is Homelab.
 const (
-	nodePurposeKeysPath = "/etc/techstack/ril-purpose-keys.json"
-	nodeIdentityPath    = "/var/lib/techstack-guard-executor/ril-local-identity.json"
+	nodePurposeKeysPath = "/etc/homelab/ril-purpose-keys.json"
+	nodeIdentityPath    = "/var/lib/homelab-guard-executor/ril-local-identity.json"
 	nodeJournalPath     = "/var/lib/stackkit/decision-receipts"
 )
 

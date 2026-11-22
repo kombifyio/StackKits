@@ -174,7 +174,7 @@ candidate outside the empty deployment directory:
 ```sh
 cd /srv/stackkit
 sudo stackkit init cloud-kit --non-interactive \
-  --candidate-spec /run/techstack/clone-candidate.yaml \
+  --candidate-spec /run/homelab/clone-candidate.yaml \
   --owner-source=local --owner-email "$OWNER_EMAIL" \
   --preinstalled-manifest /opt/stackkits-image/neutral-image.json
 # Continue through the existing capability-gated Advanced generate/apply flow.

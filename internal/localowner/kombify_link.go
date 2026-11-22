@@ -20,8 +20,8 @@ var kombifyLinkCallbackURLs = []string{
 // homelabEnrollmentPaths are the Homelab agent enrollment files; one of
 // them exists only on a node the owner connected to Homelab.
 var homelabEnrollmentPaths = []string{
-	"/etc/techstack/agent-enrollment.json",
-	"/var/lib/techstack/guard/agent-enrollment.json",
+	"/etc/homelab/agent-enrollment.json",
+	"/var/lib/homelab/guard/agent-enrollment.json",
 }
 
 func homelabConnected() bool {

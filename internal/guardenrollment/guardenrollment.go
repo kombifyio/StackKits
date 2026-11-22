@@ -16,8 +16,8 @@ import (
 
 // Paths are where a Guard keeps its enrollment; the first readable one wins.
 var Paths = []string{
-	"/etc/techstack/agent-enrollment.json",
-	"/var/lib/techstack/guard/agent-enrollment.json",
+	"/etc/homelab/agent-enrollment.json",
+	"/var/lib/homelab/guard/agent-enrollment.json",
 }
 
 // ErrAbsent means this node has no readable Guard enrollment.

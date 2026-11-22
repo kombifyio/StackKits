@@ -478,6 +478,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.61.0 (2026-11-22)
+
+### ⚠ BREAKING CHANGES
+
+* **homelab:** one Homelab host layout for Guard install, enrollment and re-enrollment
+
+### Added
+
+* **contracts:** add managed_app_fit CUE schema and serviceregistry placement tests
+* **homelab:** managed Guard re-enrollment over the execution channel
+
+### Fixed
+
+* **homelab:** move stored values to the Homelab spelling before 0.50.x serves
+* **homelab:** one Homelab host layout for Guard install, enrollment and re-enrollment
+* **homelab:** run the Render download admission at the workspace revision that qualified the new installer
+
+
+
 ## 0.60.1 (2026-11-22)
 
 ### Added
