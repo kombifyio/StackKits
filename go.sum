@@ -277,10 +277,10 @@ github.com/modelcontextprotocol/go-sdk v1.8.0 h1:KIvahhYqwtbeniWVPs3TcXEA7b8jEtw
 github.com/modelcontextprotocol/go-sdk v1.8.0/go.mod h1:dL7u98E/zjJTGzEq+j30jQ8K2k1mb6LeAH4inEcSGts=
 github.com/natefinch/atomic v1.0.1 h1:ZPYKxkqQOx3KZ+RsbnP/YsgvxWQPGxjC0oBt2AhwV0A=
 github.com/natefinch/atomic v1.0.1/go.mod h1:N/D/ELrljoqDyT3rZrsUmtsuzvHkeB/wWjHV22AZRbM=
-github.com/ncruces/go-sqlite3 v0.35.6 h1:0JGlMne89YzKNP2CJBuiH21EEzSQNuB7pfvCbKBn0Jg=
-github.com/ncruces/go-sqlite3 v0.35.6/go.mod h1:6MfWBOFbHJVSJxmTCIUKCJdLl4TKkgO895RHerlDVo8=
-github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304 h1:dBSZlcEFdtBMvNRg34y50mConBPO/petSddSwGQVlSI=
-github.com/ncruces/go-sqlite3-wasm/v6 v6.3.35304/go.mod h1:YvoJzbJpX6phd3BGdtiXu2NuD5RX6G8zsUdzt47GgOY=
+github.com/ncruces/go-sqlite3 v0.37.0 h1:Ps3EH70hhznZ+qkWIrTUlbTRlEv3dGTSQ/LOXlJxpaM=
+github.com/ncruces/go-sqlite3 v0.37.0/go.mod h1:GASdtn4/ABuWBpm283DX4XJymxoVdVqKYpIDEDjqcV0=
+github.com/ncruces/go-sqlite3-wasm/v6 v6.5.35401 h1:GM27MxQNSRvqi44IYsZANqQKGonIRjUcPojI67RJfq4=
+github.com/ncruces/go-sqlite3-wasm/v6 v6.5.35401/go.mod h1:zeroyGPjT3/xj22bhcPdlFLSYugMoi74v+aISTwWrtM=
 github.com/ncruces/julianday v1.0.0 h1:fH0OKwa7NWvniGQtxdJRxAgkBMolni2BjDHaWTxqt7M=
 github.com/ncruces/julianday v1.0.0/go.mod h1:Dusn2KvZrrovOMJuOt0TNXL6tB7U2E8kvza5fFc9G7g=
 github.com/oklog/ulid/v2 v2.1.2 h1:IEclFb9JNvzYA6MW2SCxbLzcHTVsfqm3PrqGQJH5zec=
