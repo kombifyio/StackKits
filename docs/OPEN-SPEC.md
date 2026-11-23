@@ -60,6 +60,16 @@ The open-source lifecycle realizes `local-only` and `standard`.
 StackKits and outside this spec. Kit-level placement appears in the snapshot's
 `placement_model`.
 
+`managed_app_fit` is a separate, default-false catalog fact, not a placement
+mode or a launch approval. A shared profile declares its total memory cap
+(128–512 MB), no Docker socket, and either an isolated volume or object storage.
+Vaultwarden fits with an isolated volume. Cloudreve does not qualify: the current
+profile uses a local volume and has a 768 MB memory cap. The capped R2 profile is
+tracked in `kombify-StackKits-fusz`. The current automation home profile includes
+PostgreSQL and has a combined 768 MB cap; it also does not qualify. A declared
+admission prerequisite blocks eligibility. Provider selection, backups, ingress
+and plan enforcement stay in the Homelab control plane.
+
 ## 4. Verification evidence
 
 Maturity words are evidence-backed, never declared. The evidence shapes are

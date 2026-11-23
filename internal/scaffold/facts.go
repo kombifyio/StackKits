@@ -67,9 +67,10 @@ type FactsInfra struct {
 // FactsPlacement is the module placement eligibility. managed_serverless stays
 // false unless the facts prove eligibility (and never with dockerSocket).
 type FactsPlacement struct {
-	LocalOnly         *bool `json:"localOnly,omitempty"`
-	Standard          *bool `json:"standard,omitempty"`
-	ManagedServerless bool  `json:"managedServerless,omitempty"`
+	LocalOnly                 *bool  `json:"localOnly,omitempty"`
+	Standard                  *bool  `json:"standard,omitempty"`
+	ManagedServerless         bool   `json:"managedServerless,omitempty"`
+	ManagedAppRejectionReason string `json:"managedAppRejectionReason,omitempty"`
 }
 
 // FactsService is one container the module deploys.

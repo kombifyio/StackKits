@@ -30,6 +30,8 @@ Contract: foundation.#ModuleContract & {
 		local_only:         true
 		standard:           true
 		managed_serverless: false
+		managed_app_fit:    false
+		rejection_reason:   "Ollama requires dedicated server memory for models and inference."
 	}
 
 	services: ollama: foundation.#ServiceDefinition & {

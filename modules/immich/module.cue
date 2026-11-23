@@ -8,6 +8,10 @@ import "github.com/kombifyio/stackkits/foundation"
 _runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-immich-runtime"]
 
 Contract: foundation.#ModuleContract & {
+	placementSupport: {
+		managed_app_fit:  false
+		rejection_reason: "Immich Full requires a dedicated server for media processing and persistent data."
+	}
 	metadata: {
 		name:        "immich"
 		displayName: "Immich"

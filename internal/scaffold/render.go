@@ -131,9 +131,10 @@ type infraModel struct {
 }
 
 type placementModel struct {
-	LocalOnly         bool
-	Standard          bool
-	ManagedServerless bool
+	LocalOnly                 bool
+	Standard                  bool
+	ManagedServerless         bool
+	ManagedAppRejectionReason string
 }
 
 type svcModel struct {
@@ -351,6 +352,7 @@ func buildPlacement(f *Facts) placementModel {
 		pm.LocalOnly = deref(f.Placement.LocalOnly, true)
 		pm.Standard = deref(f.Placement.Standard, true)
 		pm.ManagedServerless = f.Placement.ManagedServerless
+		pm.ManagedAppRejectionReason = strings.TrimSpace(f.Placement.ManagedAppRejectionReason)
 	}
 	if dockerSocket {
 		pm.ManagedServerless = false

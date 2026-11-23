@@ -30,7 +30,7 @@
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",
     "foundation/architecture_v2_storage.cue": "sha256:16991ed128af7038c62ca2e77d4c3dce1f9e429f6c8bf29413a1e13b531bfcd2",
     "foundation/architecture_v2_workbench_host.cue": "sha256:57eaa4fca77750d8ab6a00d0f7297ba4906a98d0bbea0f73961d4c9b623549f0",
-    "foundation/placement.cue": "sha256:d9dd94845668c7ec80cc3739340932232b168b805badcd32dbea3357b72ce13f",
+    "foundation/placement.cue": "sha256:dc8b4e7feb05168bb9e6270a98ee1f8c48fcf8040d01627ca9cee8440d341048",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"
   }
 }

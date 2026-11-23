@@ -11,6 +11,9 @@
       "minMemory": "1g"
     }
   },
+  "placement": {
+    "managedAppRejectionReason": "Ollama requires dedicated server memory for models and inference."
+  },
   "services": [
     {
       "name": "ollama",

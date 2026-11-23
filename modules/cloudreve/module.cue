@@ -8,6 +8,11 @@ import "github.com/kombifyio/stackkits/foundation"
 _runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-cloudreve-runtime"]
 
 Contract: foundation.#ModuleContract & {
+	placementSupport: {
+		managed_app_fit:        false
+		rejection_reason:       "Cloudreve requires 768 MB RAM (768m) and a local volume until kombify-StackKits-fusz delivers an R2 object-storage profile capped at 512 MB or less."
+		admission_prerequisite: "kombify-StackKits-fusz"
+	}
 	metadata: {
 		name:        "cloudreve"
 		displayName: "Cloudreve"

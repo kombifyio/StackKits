@@ -49,6 +49,8 @@ func ComputeCommandDigest(command Command) (string, error) {
 		LeaseID                string           `json:"lease_id"`
 		LeaseRevision          uint64           `json:"lease_revision"`
 		RuntimeServerID        string           `json:"runtime_server_id"`
+		TargetKind             TargetKind       `json:"target_kind,omitempty"`
+		IsolationClass         IsolationClass   `json:"isolation_class,omitempty"`
 		ResourceGenerationID   string           `json:"resource_generation_id"`
 		IdempotencyKey         string           `json:"idempotency_key"`
 		ProviderID             string           `json:"provider_id"`
@@ -70,6 +72,7 @@ func ComputeCommandDigest(command Command) (string, error) {
 		APIVersion: command.APIVersion, OperationID: command.OperationID, Operation: command.Operation,
 		TenantID: command.TenantID, LeaseID: command.LeaseID, LeaseRevision: command.LeaseRevision,
 		RuntimeServerID: command.RuntimeServerID, ResourceGenerationID: command.ResourceGenerationID,
+		TargetKind: command.TargetKind, IsolationClass: command.IsolationClass,
 		IdempotencyKey: command.IdempotencyKey, ProviderID: command.ProviderID, AdapterID: command.AdapterID,
 		CustodyRef: command.CustodyRef, CustodyHash: command.CustodyHash,
 		ConnectionRef: command.ConnectionRef, ConnectionHash: command.ConnectionHash,

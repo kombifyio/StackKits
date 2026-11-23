@@ -93,10 +93,12 @@ func (command Command) Validate() error {
 	if !validOperation(command.Operation) {
 		return invalidCommand("unsupported operation %q", command.Operation)
 	}
+	if err := validateCommandPlacement(command); err != nil {
+		return err
+	}
 	for _, field := range []struct{ name, value string }{
 		{"tenant_id", command.TenantID},
 		{"lease_id", command.LeaseID},
-		{"runtime_server_id", command.RuntimeServerID},
 		{"idempotency_key", command.IdempotencyKey},
 		{"provider_id", command.ProviderID},
 		{"adapter_id", command.AdapterID},
@@ -143,7 +145,8 @@ func (command Command) Validate() error {
 			return invalidCommand("%s must be a sha256 digest", field.name)
 		}
 	}
-	needsSpec := command.Operation == OperationPlan || command.Operation == OperationProvision || command.Operation == OperationReconcile
+	needsSpec := command.Operation == OperationPlan || command.Operation == OperationProvision ||
+		command.Operation == OperationReconcile || command.Operation == OperationBackup || command.Operation == OperationRestore
 	if needsSpec {
 		if err := validateLookupRef("desired_spec_ref", command.DesiredSpecRef, desiredSpecRefScheme); err != nil {
 			return err
@@ -154,7 +157,7 @@ func (command Command) Validate() error {
 	} else if command.DesiredSpecRef != "" || command.DesiredSpecHash != "" {
 		return invalidCommand("desired spec is not allowed for %q", command.Operation)
 	}
-	needsTargets := command.Operation == OperationObserve || command.Operation == OperationReconcile || command.Operation == OperationDecommission
+	needsTargets := targetBoundOperation(command.Operation)
 	if needsTargets && len(command.Targets) == 0 {
 		return invalidCommand("at least one resource target required for %q", command.Operation)
 	}
@@ -179,6 +182,36 @@ func (command Command) Validate() error {
 		return invalidCommand("command_digest mismatch")
 	}
 	return nil
+}
+
+func validateCommandPlacement(command Command) error {
+	switch command.TargetKind {
+	case "":
+		if command.IsolationClass != "" || managedOnlyOperation(command.Operation) {
+			return invalidCommand("isolation_class and %q require a managed_workload target", command.Operation)
+		}
+		return validateIdentifier("runtime_server_id", command.RuntimeServerID)
+	case TargetKindManagedWorkload:
+		if command.RuntimeServerID != "" || !command.IsolationClass.Valid() {
+			return invalidCommand("managed_workload requires a supported isolation_class and no runtime_server_id")
+		}
+		switch command.Operation {
+		case OperationPlan, OperationReconcile:
+			return invalidCommand("%q is not supported for a managed_workload", command.Operation)
+		}
+		return nil
+	default:
+		return invalidCommand("unsupported target_kind %q", command.TargetKind)
+	}
+}
+
+func managedOnlyOperation(operation Operation) bool {
+	switch operation {
+	case OperationStart, OperationStop, OperationWake, OperationBackup, OperationRestore:
+		return true
+	default:
+		return false
+	}
 }
 
 // ValidateReplay rejects reuse of an idempotency key for a different command.
@@ -513,9 +546,9 @@ func validateOperationResult(command Command, receipt Receipt) error {
 		if err := requireUniformObservation(receipt.Resources, ObservationPresent); err != nil {
 			return err
 		}
-	case OperationReconcile:
+	case OperationReconcile, OperationStart, OperationStop, OperationWake, OperationBackup, OperationRestore:
 		if receipt.Phase != PhasePresent {
-			return invalidReceipt("successful reconcile must be in present phase")
+			return invalidReceipt("successful %s must be in present phase", command.Operation)
 		}
 		if err := validateExactTargetCoverage(command.Targets, receipt.Resources); err != nil {
 			return err
@@ -606,7 +639,7 @@ func validateTargetSubset(targets []ResourceTarget, resources []ResourceBinding)
 }
 
 func targetBoundOperation(operation Operation) bool {
-	return operation == OperationObserve || operation == OperationReconcile || operation == OperationDecommission
+	return operation == OperationObserve || operation == OperationReconcile || operation == OperationDecommission || managedOnlyOperation(operation)
 }
 
 func sameResourceIdentity(target ResourceTarget, resource ResourceBinding) bool {
@@ -679,6 +712,8 @@ func preflightCommandBounds(command Command) error {
 		{"tenant_id", command.TenantID, maxIdentifierBytes},
 		{"lease_id", command.LeaseID, maxIdentifierBytes},
 		{"runtime_server_id", command.RuntimeServerID, maxIdentifierBytes},
+		{"target_kind", string(command.TargetKind), maxIdentifierBytes},
+		{"isolation_class", string(command.IsolationClass), maxIdentifierBytes},
 		{"resource_generation_id", command.ResourceGenerationID, maxIdentifierBytes},
 		{"idempotency_key", command.IdempotencyKey, maxIdentifierBytes},
 		{"provider_id", command.ProviderID, maxIdentifierBytes},
@@ -1119,6 +1154,8 @@ func normalizeCommand(command Command) Command {
 	command.TenantID = strings.TrimSpace(command.TenantID)
 	command.LeaseID = strings.TrimSpace(command.LeaseID)
 	command.RuntimeServerID = strings.TrimSpace(command.RuntimeServerID)
+	command.TargetKind = TargetKind(strings.TrimSpace(string(command.TargetKind)))
+	command.IsolationClass = IsolationClass(strings.TrimSpace(string(command.IsolationClass)))
 	command.ResourceGenerationID = normalizeResourceGenerationID(command.ResourceGenerationID)
 	command.IdempotencyKey = strings.TrimSpace(command.IdempotencyKey)
 	command.ProviderID = strings.TrimSpace(command.ProviderID)
@@ -1223,6 +1260,8 @@ func validateCommandUTF8(command Command) error {
 		{"tenant_id", command.TenantID},
 		{"lease_id", command.LeaseID},
 		{"runtime_server_id", command.RuntimeServerID},
+		{"target_kind", string(command.TargetKind)},
+		{"isolation_class", string(command.IsolationClass)},
 		{"resource_generation_id", command.ResourceGenerationID},
 		{"idempotency_key", command.IdempotencyKey},
 		{"provider_id", command.ProviderID},
@@ -1474,6 +1513,9 @@ func validResourceGenerationID(value string) bool {
 }
 
 func validOperation(value Operation) bool {
+	if managedOnlyOperation(value) {
+		return true
+	}
 	switch value {
 	case OperationPlan, OperationProvision, OperationObserve, OperationReconcile, OperationDecommission:
 		return true

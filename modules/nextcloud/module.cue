@@ -4,6 +4,10 @@ package nextcloud
 import "github.com/kombifyio/stackkits/foundation"
 
 Contract: foundation.#ModuleContract & {
+	placementSupport: {
+		managed_app_fit:  false
+		rejection_reason: "Nextcloud requires a dedicated server for its stateful service stack."
+	}
 	metadata: {
 		name:        "nextcloud"
 		displayName: "Nextcloud"

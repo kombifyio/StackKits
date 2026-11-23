@@ -214,6 +214,10 @@ package foundation
 	// Placement eligibility (publishable metadata) + optional per-unit override.
 	// MS/coupled realization is Control-Plane, not OSS. See foundation/placement.cue.
 	placementSupport?: #PlacementSupport
+	if placementSupport != _|_ && placementSupport.managed_app_fit {
+		requires: infrastructure: dockerSocket: false
+	}
+
 	// Mode-only shorthand (NOT #PlacementIntent like #FoundationStackKit.placementMode):
 	// at module level the sub-dimensions (exposure/coupling) are StackKit-managed,
 	// so the per-unit override is mode-only.

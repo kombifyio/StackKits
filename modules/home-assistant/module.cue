@@ -80,8 +80,9 @@ Contract: foundation.#ModuleContract & {
 		local_only:         true
 		standard:           true
 		managed_serverless: false
-		missing_adapters:   ["control-plane-managed-home-assistant"]
-		rejection_reason:   "Managed realization is control-plane owned; the OSS module only implements the self-hosted container profile."
+		managed_app_fit:    false
+		missing_adapters: ["control-plane-managed-home-assistant"]
+		rejection_reason: "The self-hosted Home Assistant container requires a dedicated server for persistent data and home integrations."
 	}
 
 	services: "home-assistant": foundation.#ServiceDefinition & {

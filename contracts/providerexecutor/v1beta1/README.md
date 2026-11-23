@@ -4,9 +4,18 @@ Neutral `providerexecutor/v1beta1` contract for infrastructure-provider
 lifecycle execution: the only provider-control wire, not a service contract. No
 provider SDK, database, adapter registry or vendor configuration.
 
-A Homelab `managed_workload` service placement identifies a provider target
-without a server binding. It does not map to a v1beta1 command: even when a
-provider resource has that kind, the command must bind a runtime server lease.
+A command with `target_kind: managed_workload` leaves `runtime_server_id` empty and
+requires `isolation_class` of `firecracker`, `gvisor` or `incus`. It still binds
+the tenant, lease and workload generation. A resource kind alone does not
+select this shape; commands without `target_kind` still bind a runtime server
+lease and keep their original wire encoding and digest.
+
+Managed Workloads support provision, start, stop, wake, observe, backup, restore
+and decommission. Backup and restore bind an opaque desired spec and hash; the
+control plane resolves the R2 custody policy and the exact restore input before
+dispatch. Start, stop, wake, backup and restore go through `requested → accepted
+→ present`, retaining the exact owned resource graph. `present` describes graph
+presence, not whether the workload is running. This contract admits no adapter.
 
 ## Ownership
 

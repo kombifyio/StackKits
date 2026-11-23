@@ -28,10 +28,31 @@ type Operation string
 const (
 	OperationPlan         Operation = "plan"
 	OperationProvision    Operation = "provision"
+	OperationStart        Operation = "start"
+	OperationStop         Operation = "stop"
+	OperationWake         Operation = "wake"
 	OperationObserve      Operation = "observe"
+	OperationBackup       Operation = "backup"
+	OperationRestore      Operation = "restore"
 	OperationReconcile    Operation = "reconcile"
 	OperationDecommission Operation = "decommission"
 )
+
+type TargetKind string
+
+const TargetKindManagedWorkload TargetKind = "managed_workload"
+
+type IsolationClass string
+
+const (
+	IsolationFirecracker IsolationClass = "firecracker"
+	IsolationGVisor      IsolationClass = "gvisor"
+	IsolationIncus       IsolationClass = "incus"
+)
+
+func (class IsolationClass) Valid() bool {
+	return class == IsolationFirecracker || class == IsolationGVisor || class == IsolationIncus
+}
 
 // Status reports the high-level outcome of one receipt.
 type Status string
@@ -124,9 +145,10 @@ type ResourceTarget struct {
 // a StackKit compatibility or architecture field. CustodyRef, ConnectionRef,
 // and DesiredSpecRef are hierarchical server-side lookup references whose
 // identifiers are opaque to this package; they must never contain raw
-// credentials. LeaseRevision, RuntimeServerID, and ResourceGenerationID fence
-// execution to the exact lease/server/generation aggregate that Homelab
-// admitted. ProviderID is the stable vendor identity; AdapterID selects the
+// credentials. LeaseRevision and ResourceGenerationID fence execution to the
+// exact lease and generation. Server commands additionally bind RuntimeServerID;
+// managed workloads bind TargetKind and IsolationClass instead. ProviderID is
+// the stable vendor identity; AdapterID selects the
 // Homelab implementation. CapabilitySnapshotHash and ExecutionProfileHash
 // retain the exact catalog/admission decision used for this operation.
 type Command struct {
@@ -137,6 +159,8 @@ type Command struct {
 	LeaseID                string           `json:"lease_id"`
 	LeaseRevision          uint64           `json:"lease_revision"`
 	RuntimeServerID        string           `json:"runtime_server_id"`
+	TargetKind             TargetKind       `json:"target_kind,omitempty"`
+	IsolationClass         IsolationClass   `json:"isolation_class,omitempty"`
 	ResourceGenerationID   string           `json:"resource_generation_id"`
 	IdempotencyKey         string           `json:"idempotency_key"`
 	ProviderID             string           `json:"provider_id"`

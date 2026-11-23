@@ -8,6 +8,12 @@ import "github.com/kombifyio/stackkits/foundation"
 _runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-vaultwarden-runtime"]
 
 Contract: foundation.#ModuleContract & {
+	placementSupport: {
+		managed_app_fit:        true
+		max_memory_mb:          256
+		requires_docker_socket: false
+		storage_class:          "isolated-volume"
+	}
 	metadata: {
 		name:        "vaultwarden"
 		displayName: "Vaultwarden"

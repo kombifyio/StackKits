@@ -8,6 +8,10 @@ import "github.com/kombifyio/stackkits/foundation"
 _runtimeImages: foundation.ArchitectureV2ModuleImages["stackkits-jellyfin-runtime"]
 
 Contract: foundation.#ModuleContract & {
+	placementSupport: {
+		managed_app_fit:  false
+		rejection_reason: "Jellyfin transcoding and media storage require a dedicated server."
+	}
 	metadata: {
 		name:        "jellyfin"
 		displayName: "Jellyfin"

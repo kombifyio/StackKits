@@ -24,6 +24,9 @@ func CanTransition(operation Operation, from, to Phase) bool {
 	if to == PhaseFailed {
 		return from != PhaseFailed && from != PhaseDenied && from != PhasePresent && from != PhaseAbsent && from != PhasePlanned
 	}
+	if managedOnlyOperation(operation) {
+		return (from == PhaseRequested && to == PhaseAccepted) || (from == PhaseAccepted && to == PhasePresent)
+	}
 	allowed := map[Operation]map[Phase]Phase{
 		OperationPlan: {
 			PhaseRequested: PhaseAccepted,
@@ -76,6 +79,9 @@ func ValidateTransition(operation Operation, from, to Phase) error {
 func phaseAllowedForOperation(operation Operation, phase Phase) bool {
 	if phase == PhaseFailed || phase == PhaseDenied || phase == PhaseRequested || phase == PhaseAccepted {
 		return validOperation(operation)
+	}
+	if managedOnlyOperation(operation) {
+		return phase == PhasePresent
 	}
 	switch operation {
 	case OperationPlan:

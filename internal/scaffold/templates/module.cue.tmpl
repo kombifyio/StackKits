@@ -59,6 +59,10 @@ Contract: foundation.#ModuleContract & {
 		local_only:         {{.Placement.LocalOnly}}
 		standard:           {{.Placement.Standard}}
 		managed_serverless: {{.Placement.ManagedServerless}}
+{{- if .Placement.ManagedAppRejectionReason}}
+		managed_app_fit:    false
+		rejection_reason:   {{quote .Placement.ManagedAppRejectionReason}}
+{{- end}}
 	}
 
 	services: {

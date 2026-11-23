@@ -43,11 +43,21 @@ package foundation
 // unless restricted; managed_serverless is opt-in (*false) and needs explicit
 // Control-Plane enablement — hence the asymmetric default.
 #PlacementSupport: {
-	local_only:         bool | *true
-	standard:           bool | *true
-	managed_serverless: bool | *false
+	local_only:              bool | *true
+	standard:                bool | *true
+	managed_serverless:      bool | *false
+	managed_app_fit:         bool | *false
+	max_memory_mb?:          int & >=128 & <=512
+	requires_docker_socket?: bool
+	storage_class?:          "isolated-volume" | "object-storage"
+	admission_prerequisite?: string & !=""
 	missing_adapters: [...string] | *[]
 	rejection_reason?: string
+	if managed_app_fit {
+		max_memory_mb!:          int
+		requires_docker_socket!: false
+		storage_class!:          _
+	}
 }
 
 // #ResolvedPlacement is the eligibility gate (catalog consistency, cue vet level).

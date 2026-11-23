@@ -28,11 +28,20 @@ type ModuleContract struct {
 // PlacementSupport mirrors foundation/placement.cue #PlacementSupport: publishable
 // eligibility metadata, not realization.
 type PlacementSupport struct {
-	LocalOnly         bool
-	Standard          bool
-	ManagedServerless bool
-	MissingAdapters   []string
-	RejectionReason   string
+	LocalOnly             bool
+	Standard              bool
+	ManagedServerless     bool
+	ManagedAppFit         bool
+	MaxMemoryMB           int64
+	RequiresDockerSocket  bool
+	StorageClass          string
+	AdmissionPrerequisite string
+	MissingAdapters       []string
+	RejectionReason       string
+}
+
+func (ps *PlacementSupport) IsManagedAppEligible() bool {
+	return ps != nil && ps.ManagedAppFit && strings.TrimSpace(ps.AdmissionPrerequisite) == ""
 }
 
 // EligibleForPlacement reports whether the module may be composed under the
@@ -251,6 +260,9 @@ func (r *ModuleReader) extractContract(v cue.Value) (ModuleContract, error) {
 
 	// Placement eligibility
 	if ps := v.LookupPath(cue.ParsePath("placementSupport")); ps.Exists() {
+		if err := ps.Validate(cue.Concrete(true)); err != nil {
+			return mc, fmt.Errorf("invalid placement support: %w", err)
+		}
 		mc.Placement = r.extractPlacementSupport(ps)
 	}
 
@@ -313,6 +325,11 @@ func (r *ModuleReader) extractPlacementSupport(v cue.Value) *PlacementSupport {
 			ps.ManagedServerless = val
 		}
 	}
+	ps.ManagedAppFit, _ = v.LookupPath(cue.ParsePath("managed_app_fit")).Bool()
+	ps.MaxMemoryMB, _ = v.LookupPath(cue.ParsePath("max_memory_mb")).Int64()
+	ps.RequiresDockerSocket, _ = v.LookupPath(cue.ParsePath("requires_docker_socket")).Bool()
+	ps.StorageClass, _ = v.LookupPath(cue.ParsePath("storage_class")).String()
+	ps.AdmissionPrerequisite, _ = v.LookupPath(cue.ParsePath("admission_prerequisite")).String()
 	if adapters := v.LookupPath(cue.ParsePath("missing_adapters")); adapters.Exists() {
 		iter, _ := adapters.List()
 		for iter.Next() {
