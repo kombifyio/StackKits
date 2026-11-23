@@ -135,7 +135,7 @@ func (s *Service) MaterializeUseCaseChange(raw []byte, slug string, change UseCa
 		if len(selection.RequiredSecretRefs) > 0 {
 			refs := map[string]any{}
 			for _, ref := range selection.RequiredSecretRefs {
-				refs[ref] = fmt.Sprintf("secret://workloads/%s/%s", id, ref)
+				refs[ref] = workloadSecretReference(id, ref)
 			}
 			entry["secretRefs"] = refs
 		}

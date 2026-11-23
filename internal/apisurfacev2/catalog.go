@@ -211,7 +211,7 @@ func riskFor(class string) string {
 }
 
 // capabilityFamily drops the capability's last dot segment (its verb):
-// techstack.inventory.read becomes techstack.inventory.
+// homelab.inventory.read becomes homelab.inventory.
 func capabilityFamily(capability string) string {
 	if i := strings.LastIndex(capability, "."); i >= 0 {
 		return capability[:i]

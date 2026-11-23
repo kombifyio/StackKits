@@ -20,8 +20,15 @@ import (
 	"github.com/kombifyio/stackkits/internal/editionv1"
 )
 
-// Version is the wire version of the encoded profile.
-const Version = 1
+// Version is the wire version of a profile without an ai scope member (v1).
+// VersionAI is the wire version that carries the optional trailing "ai" member
+// (D-2026-11-18-12). Signers emit v2 only when the ai scope differs from the
+// cloud scope, so rollout order never matters; verifiers accept both. A v1
+// profile means the ai scope equals the top-level (cloud) scope.
+const (
+	Version   = 1
+	VersionAI = 2
+)
 
 // Residency is the res axis.
 type Residency string
@@ -66,9 +73,29 @@ const BootEnvVar = "KOMBIFY_DATA_PROFILE"
 // FullLocal is the only accepted value of BootEnvVar.
 const FullLocal = "full-local"
 
+// AIScope is the res and ret pair of the account scope "ai": AI Platform,
+// hosted SpeechKit, model providers, AI Gateway logs and prompt telemetry.
+type AIScope struct {
+	Res Residency `json:"res"`
+	Ret Retention `json:"ret"`
+}
+
 // Profile is one resolved data protection profile. Rev is the revision of the
 // stored record (0 for Standard without a record); TS is the unix second it
 // was resolved.
+//
+// Res and Ret are the account scope "cloud" (data stored by Cloud, Paperwork,
+// Homelab and the other product stores). AI, when set, is the account scope
+// "ai" and the wire version is 2; when nil the ai scope equals Res and Ret
+// (v1). Read the scope of what a request touches with CloudScope or AIScopeOf;
+// when one request touches both, use Strictest. Loc is the edition's boot value
+// and applies to both scopes.
+//
+// Resolver contract (D-2026-11-18-11): an absent account row is Standard (the
+// Cloud resolver answers it); an absent or invalid signed header on a hosted
+// route is never Standard and denies; an unreadable profile denies. Subjects
+// with the "anonymous:" prefix and service subjects have no account and are
+// never resolved to Standard: the resolver refuses them and the request denies.
 type Profile struct {
 	V     int       `json:"v"`
 	Res   Residency `json:"res"`
@@ -77,6 +104,61 @@ type Profile struct {
 	Scope Scope     `json:"scope"`
 	Rev   int64     `json:"rev"`
 	TS    int64     `json:"ts"`
+	AI    *AIScope  `json:"ai,omitempty"`
+}
+
+// Equal reports whether two profiles carry the same values. Use it instead of
+// == because AI is a pointer.
+func (p Profile) Equal(o Profile) bool {
+	if (p.AI == nil) != (o.AI == nil) || (p.AI != nil && *p.AI != *o.AI) {
+		return false
+	}
+	p.AI, o.AI = nil, nil
+	return p == o
+}
+
+// WithAI returns p with the given ai scope: a v1 profile without an ai member
+// when the scope equals the cloud scope, a v2 profile otherwise.
+func (p Profile) WithAI(res Residency, ret Retention) Profile {
+	if res == p.Res && ret == p.Ret {
+		p.V, p.AI = Version, nil
+		return p
+	}
+	p.V, p.AI = VersionAI, &AIScope{Res: res, Ret: ret}
+	return p
+}
+
+// CloudScope is the profile for data stored by kombify products (Cloud,
+// Paperwork, Homelab): the top-level res and ret, without an ai member.
+func (p Profile) CloudScope() Profile {
+	p.V, p.AI = Version, nil
+	return p
+}
+
+// AIScopeOf is the profile for AI processing (AI Platform, hosted SpeechKit,
+// model providers, AI Gateway logs, prompt telemetry): res and ret come from
+// the ai member, or from the top level for a v1 profile.
+func (p Profile) AIScopeOf() Profile {
+	if p.AI != nil {
+		p.Res, p.Ret = p.AI.Res, p.AI.Ret
+	}
+	p.V, p.AI = Version, nil
+	return p
+}
+
+// Strictest is the profile for one request that touches both scopes: the
+// strictest value per axis of the cloud and ai scopes.
+func (p Profile) Strictest() Profile {
+	out := p.CloudScope()
+	if p.AI != nil {
+		if p.AI.Res == ResidencyEU {
+			out.Res = ResidencyEU
+		}
+		if p.AI.Ret == RetentionZero {
+			out.Ret = RetentionZero
+		}
+	}
+	return out
 }
 
 // Standard is the profile of a subject without a stored record.
@@ -84,9 +166,27 @@ func Standard() Profile {
 	return Profile{V: Version, Res: ResidencyGlobal, Ret: RetentionStandard, Loc: LocalityHosted, Scope: ScopeAccount}
 }
 
-// Validate fails on any value outside the vocabulary.
+// Validate fails on any value outside the vocabulary. A v1 profile has no ai
+// member; a v2 profile must have one that differs from the cloud scope (the
+// shape every signer emits, so all codecs agree on one canonical form).
 func (p Profile) Validate() error {
-	if p.V != Version {
+	switch {
+	case p.V == Version && p.AI == nil:
+	case p.V == VersionAI && p.AI != nil:
+		switch p.AI.Res {
+		case ResidencyGlobal, ResidencyEU:
+		default:
+			return fmt.Errorf("%s: ai residency %q", ReasonUnresolvable, p.AI.Res)
+		}
+		switch p.AI.Ret {
+		case RetentionStandard, RetentionZero:
+		default:
+			return fmt.Errorf("%s: ai retention %q", ReasonUnresolvable, p.AI.Ret)
+		}
+		if p.AI.Res == p.Res && p.AI.Ret == p.Ret {
+			return fmt.Errorf("%s: ai scope equals the cloud scope in a v2 profile", ReasonUnresolvable)
+		}
+	default:
 		return fmt.Errorf("%s: version %d", ReasonUnresolvable, p.V)
 	}
 	switch p.Res {
@@ -136,11 +236,19 @@ func Meet(profiles ...Profile) (Profile, error) {
 	if err := out.Validate(); err != nil {
 		return Profile{}, err
 	}
+	aiOut := out.AIScopeOf()
 	for _, p := range profiles[1:] {
 		if err := p.Validate(); err != nil {
 			return Profile{}, err
 		}
+		pa := p.AIScopeOf()
 		tightened := false
+		if pa.Res == ResidencyEU && aiOut.Res != ResidencyEU {
+			aiOut.Res, tightened = ResidencyEU, true
+		}
+		if pa.Ret == RetentionZero && aiOut.Ret != RetentionZero {
+			aiOut.Ret, tightened = RetentionZero, true
+		}
 		if p.Res == ResidencyEU && out.Res != ResidencyEU {
 			out.Res, tightened = ResidencyEU, true
 		}
@@ -160,7 +268,8 @@ func Meet(profiles ...Profile) (Profile, error) {
 			out.TS = p.TS
 		}
 	}
-	return out, nil
+	// The ai scope is met on its own; the result is v2 only when it differs.
+	return out.WithAI(aiOut.Res, aiOut.Ret), nil
 }
 
 // Canonical is the canonical JSON of p with a fixed key order; it is the
@@ -169,8 +278,12 @@ func (p Profile) Canonical() (string, error) {
 	if err := p.Validate(); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf(`{"v":%d,"res":%q,"ret":%q,"loc":%q,"scope":%q,"rev":%d,"ts":%d}`,
-		p.V, p.Res, p.Ret, p.Loc, p.Scope, p.Rev, p.TS), nil
+	out := fmt.Sprintf(`{"v":%d,"res":%q,"ret":%q,"loc":%q,"scope":%q,"rev":%d,"ts":%d`,
+		p.V, p.Res, p.Ret, p.Loc, p.Scope, p.Rev, p.TS)
+	if p.AI != nil {
+		out += fmt.Sprintf(`,"ai":{"res":%q,"ret":%q}`, p.AI.Res, p.AI.Ret)
+	}
+	return out + "}", nil
 }
 
 // Encode returns the base64url (unpadded) canonical JSON carried in headers

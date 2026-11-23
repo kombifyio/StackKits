@@ -986,6 +986,138 @@
         "informational": true
       },
       "installation": null
+    },
+    {
+      "runId": 45057458951,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-22T18:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.61.0",
+          "version": "0.61.0"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-22T18:55:04.477829+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "passed",
+            "seconds": 65.025,
+            "exitCode": 0,
+            "evidence": "public-path-install.json"
+          },
+          {
+            "phase": "public-path-init",
+            "status": "passed",
+            "seconds": 8.555,
+            "exitCode": 0,
+            "evidence": "public-path-init.json"
+          },
+          {
+            "phase": "public-path-generate",
+            "status": "passed",
+            "seconds": 6.897,
+            "exitCode": 0,
+            "evidence": "public-path-generate.json"
+          },
+          {
+            "phase": "public-path-apply",
+            "status": "failed",
+            "seconds": 5.943,
+            "exitCode": 1,
+            "evidence": "public-path-apply.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
+    },
+    {
+      "runId": 45127013498,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-23T06:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.61.0",
+          "version": "0.61.0"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-23T06:54:59.271168+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "passed",
+            "seconds": 50.46,
+            "exitCode": 0,
+            "evidence": "public-path-install.json"
+          },
+          {
+            "phase": "public-path-init",
+            "status": "passed",
+            "seconds": 5.192,
+            "exitCode": 0,
+            "evidence": "public-path-init.json"
+          },
+          {
+            "phase": "public-path-generate",
+            "status": "passed",
+            "seconds": 10.56,
+            "exitCode": 0,
+            "evidence": "public-path-generate.json"
+          },
+          {
+            "phase": "public-path-apply",
+            "status": "failed",
+            "seconds": 5.894,
+            "exitCode": 1,
+            "evidence": "public-path-apply.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
+    },
+    {
+      "runId": 45166313209,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-23T11:30:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.61.2",
+          "version": "0.61.2"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-23T11:39:19.954072+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "failed",
+            "seconds": 181.236,
+            "exitCode": 1,
+            "evidence": "public-path-install.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
     }
   ]
 }

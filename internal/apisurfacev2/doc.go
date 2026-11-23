@@ -10,10 +10,10 @@
 // Root extension (required):
 //
 //	x-kombify-surface:
-//	  product: techstack
-//	  capability: techstack.inventory.read
+//	  product: homelab
+//	  capability: homelab.inventory.read
 //	  envelope: data
-//	  cli: { command: techstack }
+//	  cli: { command: homelab }
 //	  mcp: { transport: streamable-http, endpoint: /api/v1/mcp, protocolVersion: "2026-07-28" }
 //
 // x-kombify-surface.mcp may add defaults (tools derived for operations

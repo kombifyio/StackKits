@@ -10,6 +10,7 @@ import (
 
 	"github.com/kombifyio/stackkits/contracts/runtimeexecutor"
 	"github.com/kombifyio/stackkits/internal/architecturev2"
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/federationcontrol"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/hostsecurity"
@@ -618,6 +619,11 @@ func architectureV2RuntimeOwnerRegistrations(workspaceRoot, runtimeVersion strin
 				runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations,
 			)
 		},
+	}
+	if len(architecturev2renderer.AdmittedWorkloadReleases("stackkits-wiki-runtime")) > 0 {
+		standaloneApplications = append(standaloneApplications, func() (architecturev2.ProductRuntimeOwnerRegistration, error) {
+			return architecturev2.NewProductWikiSelectedPaaSRegistration(runtimeVersion, architectureV2StandaloneApplicationAdapterRef, architectureV2StandaloneApplicationAdapterModuleRef, standaloneOperations)
+		})
 	}
 	for _, application := range standaloneApplications {
 		registration, err := application()

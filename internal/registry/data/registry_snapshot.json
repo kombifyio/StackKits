@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-11-23T06:50:41Z",
+  "generated_at": "2026-11-23T18:52:23Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1997,6 +1997,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "wiki",
+      "display_name": "kombify Wiki",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Personal IT source of truth: one SQLite Wiki and a small binary with a reader and native MCP.",
+      "contract_hash": "4c44bf82caf7edbfbea06b413aec8c35c4453c5477b5f86016fd4b77486d701b",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "workbench-host",

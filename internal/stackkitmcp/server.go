@@ -76,6 +76,9 @@ func (a *App) Server() *mcp.Server {
 			a.addActions(server)
 		}
 	}
+	if a.opts.Modes["actions"] || a.opts.Modes["server"] {
+		a.addWiki(server)
+	}
 	return server
 }
 

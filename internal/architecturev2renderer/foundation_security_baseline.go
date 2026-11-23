@@ -236,6 +236,12 @@ func NewProductRegistry() (*Registry, error) {
 			return nil, err
 		}
 	}
+	if len(AdmittedWorkloadReleases(wikiWorkloadModuleID)) > 0 {
+		renderer := newAIAddOnWorkloadBundleRenderer(wikiWorkload())
+		if err := registry.Register(renderer.contract, renderer); err != nil {
+			return nil, err
+		}
+	}
 	giteaWorkload := newGiteaWorkloadBundleRenderer()
 	if err := registry.Register(giteaWorkload.contract, giteaWorkload); err != nil {
 		return nil, err

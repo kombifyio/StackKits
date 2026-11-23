@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:a29e45b66ac758b0bafd659e58886b46c501d7bbd83299e55a2662999430dea1",
+  "contentDigest": "sha256:f5e4e14456c875248805119467e559fbb3533be3c6fd4b7a9ab564c76cbb2af8",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -5570,6 +5570,51 @@
       ],
       "title": "Password Vault",
       "workloadRef": "vault"
+    },
+    {
+      "components": [
+        {
+          "id": "wiki",
+          "kind": "application",
+          "name": "kombify Wiki",
+          "role": "primary"
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "included": false,
+          "reason": "No separately measured high capability."
+        },
+        "low": {
+          "included": false,
+          "reason": "No measured small-device profile."
+        },
+        "standard": {
+          "functions": [
+            "wiki-read",
+            "wiki-search",
+            "wiki-graph"
+          ],
+          "included": true,
+          "load": {
+            "baseline": "idle-resident",
+            "burst": "interactive",
+            "residency": "always-on"
+          },
+          "moduleSlug": "wiki",
+          "notes": [
+            "Policy allocation, not a measured capacity claim. linux/amd64 only at the current artifact pin."
+          ]
+        }
+      },
+      "description": "The source of truth for personal IT, on this server as one SQLite Wiki file.",
+      "docs": "/guides/stackkits/use-cases/wiki",
+      "id": "wiki",
+      "mainUseCase": {
+        "id": "wiki",
+        "title": "Wiki"
+      },
+      "title": "Personal IT Wiki"
     }
   ]
 }

@@ -6037,8 +6037,8 @@ _cloudCoreVerificationRuntimeListeners: list.Concat([_cloudCoreRuntimeListeners,
 
 // Home diagnostics are read by the node inside router loopback, never published.
 _basementCoreRuntimeListeners: list.Concat([[
- for listener in _cloudCoreRuntimeListeners
- if listener.id != "router-admin" {listener},
+	for listener in _cloudCoreRuntimeListeners
+	if listener.id != "router-admin" {listener},
 ], [
 	{id: "step-ca-direct", componentRef: "step-ca", transport: "tcp", bindAddress: "127.0.0.1", port: 9000, targetPort: 9000, sharing: "exclusive", exposure: "remote-private", sourceServiceRefs: []},
 	{id: "lan-dns-udp", componentRef: "lan-dns", bindAddressSource: "node-site", transport: "udp", bindAddress: "0.0.0.0", port: 53, targetPort: 53, sharing: "exclusive", exposure: "lan", sourceServiceRefs: []},
@@ -13777,11 +13777,11 @@ ArchitectureV2InternalHomeWorkloadRefs: _architectureV2InternalHomeWorkloadRefs
 
 ArchitectureV2Catalog: #ArchitectureV2CatalogContract & {
 	capabilities: [for contract in _architectureV2Capabilities {#CapabilityContract & contract}]
-	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2MarketplaceProviders, _architectureV2DokployProviders, _architectureV2HomeAssistantInstanceProviders, _architectureV2GuacamoleProviders, _architectureV2NtfyLiveProviders, _architectureV2WorkbenchHostProviders, _architectureV2AdguardHomeProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
+	providers: [for contract in list.Concat([_architectureV2Providers, _architectureV2MarketplaceProviders, _architectureV2DokployProviders, _architectureV2HomeAssistantInstanceProviders, _architectureV2GuacamoleProviders, _architectureV2NtfyLiveProviders, _architectureV2WorkbenchHostProviders, _architectureV2WikiProviders, _architectureV2AdguardHomeProviders, _architectureV2InternalProviders]) {#CapabilityProvider & contract}]
 	addons: [for contract in _architectureV2AddOns {#AddOnContract & contract}]
-	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2MarketplaceModules, _architectureV2KomodoBootstrapModules, _architectureV2DokployModules, _architectureV2HomeAssistantInstanceModules, _architectureV2GuacamoleModules, _architectureV2NtfyLiveModules, _architectureV2WorkbenchHostModules, _architectureV2AdguardHomeModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
-	workloads: list.Concat([_architectureV2WorkloadContracts, _architectureV2MarketplaceWorkloads, _architectureV2GuacamoleWorkloads, _architectureV2NtfyLiveWorkloads, _architectureV2WorkbenchHostWorkloads, _architectureV2AdguardHomeWorkloads, _architectureV2InternalWorkloadContracts])
-	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2GuacamoleLifecycles, _architectureV2NtfyLiveLifecycles, _architectureV2WorkbenchHostLifecycles, _architectureV2AdguardHomeLifecycles, _architectureV2MarketplaceLifecycles, _architectureV2InternalApplicationLifecycleContracts])
+	modules: [for contract in list.Concat([_architectureV2Modules, _architectureV2MarketplaceModules, _architectureV2KomodoBootstrapModules, _architectureV2DokployModules, _architectureV2HomeAssistantInstanceModules, _architectureV2GuacamoleModules, _architectureV2NtfyLiveModules, _architectureV2WorkbenchHostModules, _architectureV2WikiModules, _architectureV2AdguardHomeModules, _architectureV2InternalModules]) {#ModuleContractV2 & contract}]
+	workloads: list.Concat([_architectureV2WorkloadContracts, _architectureV2MarketplaceWorkloads, _architectureV2GuacamoleWorkloads, _architectureV2NtfyLiveWorkloads, _architectureV2WorkbenchHostWorkloads, _architectureV2WikiWorkloads, _architectureV2AdguardHomeWorkloads, _architectureV2InternalWorkloadContracts])
+	applicationLifecycles: list.Concat([_architectureV2ApplicationLifecycleContracts, _architectureV2GuacamoleLifecycles, _architectureV2NtfyLiveLifecycles, _architectureV2WorkbenchHostLifecycles, _architectureV2WikiLifecycles, _architectureV2AdguardHomeLifecycles, _architectureV2MarketplaceLifecycles, _architectureV2InternalApplicationLifecycleContracts])
 	privilegedInterfaceApprovals: [for contract in _architectureV2PrivilegedInterfaceApprovals {#PrivilegedInterfaceApprovalV2 & contract}]
 	rilActionExecutors: [for contract in _architectureV2RILActionExecutors {#RILActionExecutorContractV1 & contract}]
 	rilActionPrimitives: list.Concat([

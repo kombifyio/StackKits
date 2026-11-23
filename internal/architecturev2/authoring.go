@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/productkits"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
@@ -322,7 +323,8 @@ func workloadAlternativeAllowedAdapterRefs(contract map[string]any, alternativeI
 // workloadAlternativeRequiredSecretRefs returns the secret input refs the
 // selected alternative declares as required (alternative.inputs.secretInputs.
 // requiredRefs). The initial spec satisfies them with the canonical opaque
-// convention secret://workloads/<workload>/<ref>.
+// convention secret://workloads/<workload>/<ref>, except fixed platform custody
+// slots selected by workloadSecretReference.
 func workloadAlternativeRequiredSecretRefs(contract map[string]any, alternativeID string) []string {
 	alternatives, _ := contract["alternatives"].([]any)
 	for _, raw := range alternatives {
@@ -601,7 +603,7 @@ func materializeInitialStackSpec(
 			if len(selection.RequiredSecretRefs) > 0 {
 				secretRefs := map[string]any{}
 				for _, ref := range selection.RequiredSecretRefs {
-					secretRefs[ref] = fmt.Sprintf("secret://workloads/%s/%s", id, ref)
+					secretRefs[ref] = workloadSecretReference(id, ref)
 				}
 				entry["secretRefs"] = secretRefs
 			}
@@ -1033,4 +1035,11 @@ func applyOwnerNtfyNotifications(spec map[string]any, topic, serverURL string) {
 	spec["notifications"] = map[string]any{
 		"channels": []any{map[string]any{"name": "ntfy", "type": "ntfy", "ntfy": ntfy}},
 	}
+}
+
+func workloadSecretReference(workloadRef, slot string) string {
+	if workloadRef == "wiki" && slot == "registry-auth" {
+		return architecturev2renderer.WikiRegistrySecretRef
+	}
+	return fmt.Sprintf("secret://workloads/%s/%s", workloadRef, slot)
 }

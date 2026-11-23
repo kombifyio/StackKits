@@ -8,9 +8,9 @@ Standard Mode remains standalone. The optional Homelab Advanced consumer
 proposes intent and sequences the exact published CLI; it consumes released
 catalog facts and never resolves CUE or interprets ResolvedPlan itself. The
 neutral Go wire's exact consumer version and checksum live in Homelab's
-[consumer lock](https://github.com/kombify/kombify-Techstack/blob/main/internal/runtimecontractcompat/consumer-lock.json).
-See its [architecture](https://github.com/kombify/kombify-Techstack/blob/main/docs/ARCHITECTURE.md)
-and [execution authority](https://github.com/kombify/kombify-Techstack/blob/main/docs/EXECUTION_AUTHORITY.md)
+[consumer lock](https://github.com/kombifyio/stackKits/blob/main/homelab/internal/runtimecontractcompat/consumer-lock.json).
+See its [architecture](https://github.com/kombifyio/stackKits/blob/main/homelab/docs/ARCHITECTURE.md)
+and [execution authority](https://github.com/kombifyio/stackKits/blob/main/homelab/docs/EXECUTION_AUTHORITY.md)
 for orchestration and release-bound evidence.
 
 For a Wallet host item, Homelab and Guard transport only node-recipient-sealed

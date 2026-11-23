@@ -18,6 +18,7 @@ import (
 type SelectedPaaSApplication string
 
 const (
+	SelectedPaaSApplicationWiki              SelectedPaaSApplication = "wiki"
 	SelectedPaaSApplicationAdguardHome       SelectedPaaSApplication = "adguard-home"
 	SelectedPaaSApplicationNtfyLive          SelectedPaaSApplication = "ntfy-live"
 	SelectedPaaSApplicationWorkbenchHost     SelectedPaaSApplication = "workbench-host"
@@ -398,6 +399,11 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
+	case SelectedPaaSApplicationWiki:
+		return selectedPaaSApplicationSpec{name: "Wiki", providerRef: "stackkits-wiki", moduleRef: "stackkits-wiki-runtime", unitRef: "wiki", workloadRef: "wiki", artifactRef: "wiki-workload-bundle", outputRef: "workloads/wiki/bundle.json", healthRef: "wiki-http", expectedStatuses: []int{200}, rendererContract: architecturev2renderer.WikiWorkloadBundleRendererContract, parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+			d, err := architecturev2renderer.ParseWikiWorkloadBundle(content)
+			return selectedPaaSApplicationIdentity{workloadRef: d.WorkloadRef, moduleRef: d.ModuleRef, siteRef: d.SiteRef, nodeRef: d.NodeRef, instanceRef: d.InstanceRef}, err
+		}}, true
 	case SelectedPaaSApplicationWorkbenchHost:
 		return selectedPaaSApplicationSpec{name: "Workbench host", providerRef: "stackkits-workbench-host", moduleRef: "stackkits-workbench-host-runtime", unitRef: "workbench-host", workloadRef: "dev-workbench", artifactRef: "workbench-host-workload-bundle", outputRef: "workloads/workbench-host/bundle.json", healthRef: "workbench-host-http", expectedStatuses: []int{200}, rendererContract: architecturev2renderer.WorkbenchHostWorkloadBundleRendererContract, parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 			d, err := architecturev2renderer.ParseWorkbenchHostWorkloadBundle(content)

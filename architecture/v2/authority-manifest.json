@@ -24,7 +24,8 @@
     "foundation/image_preparation.cue",
     "foundation/architecture_v2_adguard_home.cue",
     "foundation/architecture_v2_ntfy.cue",
-    "foundation/architecture_v2_workbench_host.cue"
+    "foundation/architecture_v2_workbench_host.cue",
+    "foundation/architecture_v2_wiki.cue"
   ],
   "openAPI": "api/openapi/stackkits-v1.yaml",
   "profiles": [

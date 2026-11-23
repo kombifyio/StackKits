@@ -378,6 +378,9 @@ func (w aiAddOnWorkload) validateUnit(unit RenderUnit, contract RendererContract
 }
 
 func (w aiAddOnWorkload) validSecretRefs(refs map[string]string) bool {
+	if w.moduleID == wikiWorkloadModuleID && refs["registry-auth"] != WikiRegistrySecretRef {
+		return false
+	}
 	if len(refs) != len(w.secretRefs) {
 		return false
 	}

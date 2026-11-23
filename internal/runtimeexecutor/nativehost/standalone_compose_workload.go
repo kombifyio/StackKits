@@ -685,6 +685,17 @@ func (o *osStandaloneComposeWorkloadOperations) prepareWithIdentityMutation(
 	if err != nil {
 		return standaloneComposeProject{}, err
 	}
+	// Pull configuration belongs to Apply. Readback must not resolve or
+	// compare renewable grants with the installed application files.
+	if bundle.ModuleRef == "stackkits-wiki-runtime" && ensureIdentity {
+		registryFiles, err := o.wikiRegistryFiles(bundle)
+		if err != nil {
+			return standaloneComposeProject{}, err
+		}
+		for name, data := range registryFiles {
+			configFiles[name] = data
+		}
+	}
 	name := "stackkit-" + bundle.WorkloadRef + "-" + bundle.NodeRef
 	directory := filepath.Join(o.workspaceRoot, ".stackkit", "runtime", "applications", name)
 	return standaloneComposeProject{
@@ -1678,9 +1689,16 @@ func (r osStandaloneComposeProcessRunner) RunStreaming(
 			return nil, err
 		}
 	}
-	command := exec.CommandContext(ctx, executable, append([]string{"--host", ownLocalDockerEndpoint()}, fullLocalComposeUpArgs(args, 7)...)...)
+	args, registry, err := wikiRegistryCommand(fullLocalComposeUpArgs(args, 7), directory)
+	if err != nil {
+		return nil, err
+	}
+	command := exec.CommandContext(ctx, executable, append([]string{"--host", ownLocalDockerEndpoint()}, args...)...)
 	command.Dir = directory
 	command.Env = []string{"LANG=C", "LC_ALL=C"}
+	if registry != "" {
+		command.Env = append(command.Env, "DOCKER_CONFIG="+registry)
+	}
 	// Docker discovers system-wide Windows plugins below ProgramFiles. Keep
 	// user profiles/config and transport overrides out of this local runner.
 	if runtime.GOOS == "windows" {

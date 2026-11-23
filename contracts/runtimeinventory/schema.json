@@ -3,7 +3,7 @@
   "generatorVersion": "runtimeinventorygen/v1",
   "wireVersion": "runtimeinventory/v1",
   "packageName": "runtimeinventory",
-  "sourceRepository": "github.com/kombify/kombify-Techstack",
+  "sourceRepository": "github.com/kombify/kombify-StackKits",
   "sourcePath": "contracts/runtimeinventory/v1/schema.json",
   "imports": [
     "time"

@@ -242,6 +242,7 @@ import "list"
 // until their compatibility migrations merge them (files + documents, dev +
 // remote); network has no catalog entry yet.
 #MainUseCaseTitles: {
+	wiki:              "Wiki"
 	photos:            "Photos"
 	"documents-files": "Documents & Files"
 	vault:             "Vault"
@@ -1076,5 +1077,10 @@ UseCaseCatalog: #UseCaseCatalog & {
 			// StackSpec and destination credentials are prompted, never stored.
 			notApplicable: "setup-network-auth-data-backup": reason: "No persistent user data: Guacamole runs from tmpfs with connections rendered from the StackSpec and prompted destination credentials; the owner password is node custody; setup is the declared owner-login check."
 		}
+		wiki: {
+			slug: "wiki", displayName: "Personal IT Wiki", description: "The source of truth for personal IT, on this server as one SQLite Wiki file.", owner: "stackkits", mainUseCase: id: "wiki", docs: "/guides/stackkits/use-cases/wiki"
+			components: wiki: {id: "wiki", name: "kombify Wiki", role: "primary", kind: "application"}
+		}
+
 	}
 }

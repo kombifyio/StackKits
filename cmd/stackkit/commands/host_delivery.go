@@ -12,6 +12,7 @@ import (
 	"github.com/kombifyio/stackkits/internal/backupcustody"
 	"github.com/kombifyio/stackkits/internal/hostcustody"
 	"github.com/kombifyio/stackkits/internal/hostsecurity"
+	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/pkg/hostdelivery"
 	"github.com/spf13/cobra"
 )
@@ -184,7 +185,7 @@ func newWalletItemCommand() *cobra.Command {
 }
 
 func newWalletItemImportCommand() *cobra.Command {
-	var tenantRef string
+	var tenantRef, wikiRegistryItem string
 	var approved bool
 	cmd := &cobra.Command{
 		Use:   "import",
@@ -213,6 +214,25 @@ names the reference and version only.`,
 					return err
 				}
 				defer backupcustody.Clear(delivery.Plaintext)
+				if wikiRegistryItem != "" {
+					if delivery.Context.DeliveryRef != wikiRegistryItem {
+						return errors.New("wiki registry delivery item does not match the requested item")
+					}
+					grant, err := hostdelivery.ParseWikiRegistryGrant(delivery.Plaintext, now, 2*time.Minute)
+					if err != nil {
+						return err
+					}
+					previous, _ := localevidence.ResolveEncryptedLocalIssuedSecret(workspace, hostdelivery.WikiRegistrySecretRef)
+					current, currentErr := hostdelivery.ParseWikiRegistryGrant(previous, now, 2*time.Minute)
+					backupcustody.Clear(previous)
+					if currentErr != nil || !current.ExpiresAt.After(grant.ExpiresAt) {
+						if err := localevidence.StoreEncryptedLocalIssuedSecret(workspace, hostdelivery.WikiRegistrySecretRef, delivery.Plaintext); err != nil {
+							return err
+						}
+					}
+					receipt := hostcustody.WalletItemReceipt{TenantRef: tenantRef, ItemRef: wikiRegistryItem, Version: delivery.Context.ItemVersion}
+					return writeCommandResult(cmd, cmd.CommandPath(), receipt)
+				}
 				receipt, err := hostcustody.StoreWalletItem(store, delivery, now)
 				if err != nil {
 					return err
@@ -222,6 +242,7 @@ names the reference and version only.`,
 		},
 	}
 	cmd.Flags().StringVar(&tenantRef, "tenant-ref", "", "Tenant the sealed delivery must be addressed to")
+	cmd.Flags().StringVar(&wikiRegistryItem, "wiki-registry-item", "", "Bind the expected Wallet item to the Wiki registry pull slot")
 	cmd.Flags().BoolVar(&approved, "owner-approve", false, "Authorize storing this Wallet item")
 	return cmd
 }

@@ -9,13 +9,13 @@
   "schemaVersion": "stackkit.architecture-authority-bundle/v2",
   "sourceHashes": {
     "architecture/v2/contractfixture/catalog.cue": "sha256:6cb117f10b2206414547112f5b0d76865f291b58236b198a7581f20ca6b1c4f3",
-    "basement-kit/stackfile.cue": "sha256:4807b8c8d4cf2b469790ff45074086bc4fbc5c023d1be57e29bc82dfb9e8e2e9",
+    "basement-kit/stackfile.cue": "sha256:4331f50aec4f6ded83a77fec876976fc47fdb6062fecbbd830d8216e3d422128",
     "cue.mod/module.cue": "sha256:887bfba5db0867aa819b90fb01a39b94b7d3c3f2917a4434e8fe23abccb345ee",
     "foundation/application_lifecycle.cue": "sha256:5b44bd67fa75dc8263b08a554e808368db56f5e4dbbb0e2a80e111bbfc997941",
     "foundation/architecture_v2.cue": "sha256:741b946e3919345c7cce95a5123611b8a714bc45ffa916c411170d6b5b3dfc1e",
     "foundation/architecture_v2_adguard_home.cue": "sha256:b50f0c5eb0769992be391a4d91a73af219dd26203e6b502087f20e5cb31c9072",
     "foundation/architecture_v2_backup.cue": "sha256:73dfa6982480000ad2fff19b3d1d8a352b3b92d6ca30bce2c94d86e38a4245a0",
-    "foundation/architecture_v2_catalog.cue": "sha256:1239d0d9cdc144e36703bb70ef5e0fd8e42b599336729033c644704c7c38c233",
+    "foundation/architecture_v2_catalog.cue": "sha256:b4b3a0ffc69315d7cce931b80ac7d0d376c0a05d8ac35e0a50176c9e561ea68d",
     "foundation/architecture_v2_cloud_core.cue": "sha256:e62ffb36ef1305078274022932bf41bf7e0737b0402254fcdbe8c1f3f1e5500a",
     "foundation/architecture_v2_definition_binding.cue": "sha256:a4af8adb34097cbdf1c6f034937ec9b94b8f253aa5ed4e93c8d071e7a6e8c2cd",
     "foundation/architecture_v2_dokploy.cue": "sha256:94cb91bd95450128ffa257bed6dd49253e5372393de9280f4d04328ae98fffa3",
@@ -29,6 +29,7 @@
     "foundation/architecture_v2_runtipi.cue": "sha256:baf3cd55909849bfae9eccc29d30aed5e5207c60bb84334471cf52acf4daa9d5",
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",
     "foundation/architecture_v2_storage.cue": "sha256:16991ed128af7038c62ca2e77d4c3dce1f9e429f6c8bf29413a1e13b531bfcd2",
+    "foundation/architecture_v2_wiki.cue": "sha256:cc8850a8dc8e28b1b8f81a1f1308fff61afacfcbbe7531b51c90bf76c6b5d48b",
     "foundation/architecture_v2_workbench_host.cue": "sha256:57eaa4fca77750d8ab6a00d0f7297ba4906a98d0bbea0f73961d4c9b623549f0",
     "foundation/placement.cue": "sha256:dc8b4e7feb05168bb9e6270a98ee1f8c48fcf8040d01627ca9cee8440d341048",
     "foundation/use_case_identity.cue": "sha256:69434bf7d383b41ae037fad46003b1196e219025895d81c603fd398cfc461b87"

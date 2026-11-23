@@ -31,7 +31,7 @@ const (
 
 // Config binds the generated commands to a product runtime.
 type Config struct {
-	// BaseURL returns the API origin, e.g. "https://api.kombify.io/v1/techstack".
+	// BaseURL returns the API origin, e.g. "https://api.kombify.io/v1/homelab".
 	BaseURL func(ctx context.Context) (string, error)
 	// ResolvePath optionally maps the contract path (parameters substituted)
 	// to the path under BaseURL, e.g. to strip a prefix the edge re-adds.

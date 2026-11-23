@@ -659,6 +659,50 @@
         "status": "omitted",
         "reason": "Vault runtime is the digest-pinned selected-PaaS bundle. StackKits does not author a separate Vaultwarden configuration file."
       }
+    },
+    "wiki": {
+      "ref": "wiki",
+      "equipPolicy": "on-generate",
+      "lifecycleMcp": {
+        "ref": "stackkit",
+        "owner": "stackkit",
+        "endpoint": "/mcp",
+        "transport": "streamable-http",
+        "auth": "stackkit-mcp-token",
+        "generateClientConfig": true
+      },
+      "productMcps": [
+        {
+          "id": "wiki",
+          "owner": "product",
+          "endpoint": "/mcp",
+          "transport": "streamable-http",
+          "auth": "node-custodied-read-bearer",
+          "generateClientConfig": false,
+          "reason": "The server's StackKits MCP registers wiki_read and resolves its read credential locally; no credential reaches a generated client file."
+        }
+      ],
+      "apis": [
+        {
+          "id": "wiki",
+          "protocol": "rest",
+          "purpose": "Read, search and graph the person's Wiki.",
+          "auth": "node-custodied-read-bearer"
+        }
+      ],
+      "skills": [
+        {
+          "id": "wiki-first",
+          "audience": "stack-operator",
+          "source": "stackkits",
+          "path": "use-cases/wiki/agent/wiki-first/SKILL.md"
+        }
+      ],
+      "cliHelpers": [],
+      "configBaseline": {
+        "status": "omitted",
+        "reason": "The native workload owns the closed environment and uses opaque node-custody references."
+      }
     }
   }
 }
