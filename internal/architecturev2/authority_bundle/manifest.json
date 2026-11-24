@@ -1,10 +1,10 @@
 {
   "documentHashes": {
-    "catalog.json": "sha256:4f5fed1e9c36c6bbfa5d7faaed410a043c967719f735aabfb659d13a4490ac84",
-    "compute-tier-fits.json": "sha256:ef720fddc8560b2bdfff7d572d3fc4d8dcd9a06784b85e9dfc8b5019936c0c24",
-    "definitions/basement-kit.json": "sha256:a5d271788c46f6e9c803d94e03bd05f881fce2602ed279645dde9f5716bf4435",
+    "catalog.json": "sha256:bb90d39ee5d7deac05e83637608f06e4bc3d7752311c0586b7f2eb58cff25387",
+    "compute-tier-fits.json": "sha256:11031a141e126745e36e7e597beff1281e00ad9ae83d7675413d07b7d9aa4f38",
+    "definitions/basement-kit.json": "sha256:e609a4aa526b418bfb9ab190ff6992d00e30df6ba2334e931db7a4bc194412a3",
     "definitions/cloud-kit.json": "sha256:39e862bb11c5efd37edda928d12cac5c93b907b65f3ecf41b1ffacffa08f372a",
-    "definitions/modern-homelab.json": "sha256:6d5d34ecfdd53bea3bc7c2eacb6efca5753a2522e94eca62d196f3564e624443",
+    "definitions/modern-homelab.json": "sha256:33a4456786506177ca2fd0e7f2572a1a73da5fba0acaf0bc97c6297f80f386e9",
     "neutral-image-profiles.json": "sha256:2ca95c342bb95f090ec52369dd9a97b506bd2f68070a75e5deab58e978441f33",
     "operations.json": "sha256:135a24f97dbf2a9888c2266a2507ec078c5ae71b3249d5f1ad41fcd4fe98e4ab"
   },
@@ -43,7 +43,7 @@
     "foundation/architecture_v2_runtipi.cue": "sha256:baf3cd55909849bfae9eccc29d30aed5e5207c60bb84334471cf52acf4daa9d5",
     "foundation/architecture_v2_smart_home.cue": "sha256:3b570fb719b18d9d1f14d8123e3494279c3baa491906eb606c0851e1065e3fa8",
     "foundation/architecture_v2_storage.cue": "sha256:16991ed128af7038c62ca2e77d4c3dce1f9e429f6c8bf29413a1e13b531bfcd2",
-    "foundation/architecture_v2_wiki.cue": "sha256:cc8850a8dc8e28b1b8f81a1f1308fff61afacfcbbe7531b51c90bf76c6b5d48b",
+    "foundation/architecture_v2_wiki.cue": "sha256:81a1aed295805f3c06b7eeb54552e8867ad4490f921424ced6cd575741d06a25",
     "foundation/architecture_v2_workbench_host.cue": "sha256:57eaa4fca77750d8ab6a00d0f7297ba4906a98d0bbea0f73961d4c9b623549f0",
     "foundation/image_preparation.cue": "sha256:726e4700a7df03bf215d8c3da6deada7eea64ee04d13ff1a4e8cf2146bdf2945",
     "foundation/placement.cue": "sha256:dc8b4e7feb05168bb9e6270a98ee1f8c48fcf8040d01627ca9cee8440d341048",

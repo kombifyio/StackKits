@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "88e24417bcea5b0aa23a0f9b3de05ea952c83030",
-  "authority_bundle_sha256": "b6a5663b3db61170383eea0743942f17cba9456655deb82a1e832b9f379163d6",
+  "source_sha": "f774bd1e3d0198e8247d182267b64594adcfe69a",
+  "authority_bundle_sha256": "e05691b5949e03c8455ae62ec7410b1002273eb447e98ff2ff32705c071fd96e",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -4666,6 +4666,56 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-wiki-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "wiki"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Personal IT Wiki: one SQLite file, local reader and native MCP. Replica connection stays off until the account bundle route is admitted.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [
+                "amd64"
+              ],
+              "virtualization": [],
+              "components": [
+                "wiki"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "3a7ce435c45987817612a78989d9b3fc8cde1fee37152c8d64622a7a48bc4014"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-workbench-host-runtime",
           "role": "workload",
           "required": false,
@@ -5821,6 +5871,31 @@
                 "password-manager",
                 "secure-notes",
                 "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "wiki",
+          "title": "Personal IT Wiki",
+          "description": "The source of truth for personal IT, on this server as one SQLite Wiki file.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "wiki",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "wiki",
+              "module_id": "stackkits-wiki-runtime",
+              "functions": [
+                "wiki-graph",
+                "wiki-read",
+                "wiki-search"
               ],
               "load": {
                 "residency": "always-on",
@@ -15818,6 +15893,56 @@
           "accelerator_profiles": []
         },
         {
+          "module_id": "stackkits-wiki-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "wiki"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "experimental",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "Personal IT Wiki: one SQLite file, local reader and native MCP. Replica connection stays off until the account bundle route is admitted.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "ram_gb": 0.125
+              },
+              "architectures": [
+                "amd64"
+              ],
+              "virtualization": [],
+              "components": [
+                "wiki"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Kombify reservation policy; declared, not a sum of component limits"
+                }
+              },
+              "profile_sha256": "3a7ce435c45987817612a78989d9b3fc8cde1fee37152c8d64622a7a48bc4014"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
           "module_id": "stackkits-workbench-host-runtime",
           "role": "workload",
           "required": false,
@@ -16867,6 +16992,31 @@
                 "password-manager",
                 "secure-notes",
                 "totp"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "interactive"
+              }
+            }
+          ]
+        },
+        {
+          "use_case_id": "wiki",
+          "title": "Personal IT Wiki",
+          "description": "The source of truth for personal IT, on this server as one SQLite Wiki file.",
+          "required": false,
+          "selected_by_default": false,
+          "default_alternative_id": "wiki",
+          "availability": "available",
+          "alternatives": [
+            {
+              "alternative_id": "wiki",
+              "module_id": "stackkits-wiki-runtime",
+              "functions": [
+                "wiki-graph",
+                "wiki-read",
+                "wiki-search"
               ],
               "load": {
                 "residency": "always-on",
@@ -18398,5 +18548,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "34b4dfffcfc136ce0967740327baff8230333cde602f20401ee420c4fb957295"
+  "catalog_sha256": "6ec1664bbb0aa995c062668edbe7282e919d3f183a2bc76c7f60dbbe024b960c"
 }

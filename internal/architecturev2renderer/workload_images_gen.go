@@ -357,6 +357,9 @@ var workloadEntryReleases = map[string]workloadEntryRelease{
 		{Release: "1.37.2", Ref: "ghcr.io/dani-garcia/vaultwarden:1.37.2", Digest: "sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912"},
 		{Release: "1.37.5", Ref: "ghcr.io/dani-garcia/vaultwarden:1.37.5", Digest: "sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f"},
 	}},
+	"stackkits-wiki-runtime": {Component: "wiki", Images: []workloadReleaseImage{
+		{Release: "git-092c18ccacfaa36acfa7cefa424c1136c0092481", Ref: "api.kombify.io/kombiverselabs/kombify-knowledge-node:git-092c18ccacfaa36acfa7cefa424c1136c0092481", Digest: "sha256:cd0cbd69cf48dd03530d9054d1c2831f7b03c7b724f4fce593c8283a9a78699b"},
+	}},
 	"stackkits-workbench-host-runtime": {Component: "workbench-host", Images: []workloadReleaseImage{
 		{Release: "3.14.10-trixie", Ref: "docker.io/library/python:3.14.10-trixie", Digest: "sha256:8e4ff723e809a8e3bbd61bdceb92e9031689ad11edccff3306c0b3ebe60704ff"},
 	}},

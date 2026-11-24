@@ -1,5 +1,6 @@
-// Wiki admission stays closed until the existing exact-main Delivery image
-// receipt is recorded. A missing artifact never becomes a placeholder pin.
+// Wiki admission is pinned to the exact-main Delivery image the AI Platform
+// published and the authenticated mirror copied. A missing artifact never
+// becomes a placeholder pin.
 package foundation
 
 import (
@@ -13,9 +14,16 @@ import (
 	receipt:   =~"^https://github.com/kombify/kombify-AI-Platform/actions/runs/[0-9]+$"
 }
 
-// Replace null with #WikiPublishedArtifact and the independently read-back
-// source, digest and Delivery run after the producer is published from main.
-_architectureV2WikiPublication: null
+// The admitted artifact is the exact-main ai-knowledge-node Delivery image:
+// parent publication run 45242842246 built it, and the authenticated mirror
+// child run 45243200601 (delivery-knowledge-node-image.yml, artifact
+// 14853710294) read the same immutable digest back. GHCR stays private
+// upstream; the customer pull reference is the api.kombify.io OCI endpoint.
+_architectureV2WikiPublication: #WikiPublishedArtifact & {
+	sourceSHA: "092c18ccacfaa36acfa7cefa424c1136c0092481"
+	digest:    "sha256:cd0cbd69cf48dd03530d9054d1c2831f7b03c7b724f4fce593c8283a9a78699b"
+	receipt:   "https://github.com/kombify/kombify-AI-Platform/actions/runs/45242842246"
+}
 
 // Bind names outside the conditional scopes so other catalog files can use them.
 ArchitectureV2WikiWorkloadRefs:    _

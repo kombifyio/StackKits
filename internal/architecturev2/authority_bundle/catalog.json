@@ -6814,6 +6814,219 @@
         }
       },
       "metadata": {
+        "description": "Personal IT Wiki: one SQLite file, local reader and native MCP. Replica connection stays off until the account bundle route is admitted.",
+        "id": "wiki",
+        "version": "1.0.0"
+      },
+      "packageRef": "wiki",
+      "useCaseRef": "wiki",
+      "workloadRef": "wiki"
+    },
+    {
+      "lifecycle": {
+        "referenceVertical": false,
+        "stages": {
+          "backup": {
+            "destructive": false,
+            "evidence": [
+              "snapshot-anchor"
+            ],
+            "mutation": true,
+            "name": "backup",
+            "operations": [
+              "stackkit.backup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "snapshot",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "drift": {
+            "destructive": false,
+            "evidence": [
+              "drift-report"
+            ],
+            "mutation": false,
+            "name": "drift",
+            "operations": [
+              "stackkit.drift"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "compare"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "install": {
+            "destructive": false,
+            "evidence": [
+              "resolved-plan",
+              "generation-receipt",
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "install",
+            "operations": [
+              "stackkit.init",
+              "stackkit.validate",
+              "stackkit.resolve",
+              "stackkit.generate",
+              "stackkit.plan",
+              "stackkit.apply",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "resolve",
+              "generate",
+              "apply",
+              "verify"
+            ],
+            "surfaces": [
+              "installer",
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "manage": {
+            "destructive": false,
+            "evidence": [
+              "apply-result",
+              "owner-observation"
+            ],
+            "mutation": false,
+            "name": "manage",
+            "operations": [
+              "stackkit.status",
+              "stackkit.logs",
+              "stackkit.verify"
+            ],
+            "ownerApproval": false,
+            "phases": [
+              "observe",
+              "inspect",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "remove": {
+            "destructive": true,
+            "evidence": [
+              "removal-result"
+            ],
+            "mutation": true,
+            "name": "remove",
+            "operations": [
+              "stackkit.remove"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "remove",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "restore": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "restore-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "restore",
+            "operations": [
+              "stackkit.restore",
+              "stackkit.verify"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "stage",
+              "safety-snapshot",
+              "activate",
+              "verify",
+              "recover"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "setup": {
+            "destructive": false,
+            "evidence": [
+              "setup-result"
+            ],
+            "mutation": true,
+            "name": "setup",
+            "operations": [
+              "stackkit.setup"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "authorize",
+              "configure",
+              "verify"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          },
+          "upgrade": {
+            "destructive": true,
+            "evidence": [
+              "snapshot-anchor",
+              "upgrade-result",
+              "owner-observation"
+            ],
+            "mutation": true,
+            "name": "upgrade",
+            "operations": [
+              "stackkit.upgrade"
+            ],
+            "ownerApproval": true,
+            "phases": [
+              "preflight",
+              "snapshot",
+              "update",
+              "migrate",
+              "verify",
+              "rollback"
+            ],
+            "surfaces": [
+              "cli",
+              "mcp",
+              "state-console"
+            ]
+          }
+        }
+      },
+      "metadata": {
         "description": "AdGuard Home filters only explicitly selected private clients. The plan owns DNS policy; existing LAN DNS and DHCP remain untouched. Policy reservation is unmeasured.",
         "id": "network",
         "version": "1.0.0"
@@ -10098,6 +10311,16 @@
       },
       {
         "governanceMatches": [
+          "stackkits-wiki-runtime"
+        ],
+        "matches": [
+          "stackkits-wiki"
+        ],
+        "module": "stackkits-wiki-runtime",
+        "provider": "stackkits-wiki"
+      },
+      {
+        "governanceMatches": [
           "stackkits-adguard-home-runtime"
         ],
         "matches": [
@@ -11118,6 +11341,12 @@
             "dev-workbench"
           ],
           "providerID": "stackkits-workbench-host"
+        },
+        {
+          "contracts": [
+            "wiki"
+          ],
+          "providerID": "stackkits-wiki"
         },
         {
           "contracts": [
@@ -12312,6 +12541,13 @@
         ],
         "module": "stackkits-workbench-host-runtime",
         "provider": "stackkits-workbench-host"
+      },
+      {
+        "matches": [
+          "stackkits-wiki-runtime"
+        ],
+        "module": "stackkits-wiki-runtime",
+        "provider": "stackkits-wiki"
       },
       {
         "matches": [
@@ -14231,6 +14467,34 @@
         "matches": [
           "runtime-paas"
         ],
+        "provider": "stackkits-wiki"
+      },
+      {
+        "capability": "service-catalog",
+        "matches": [
+          "service-catalog"
+        ],
+        "provider": "stackkits-wiki"
+      },
+      {
+        "capability": "storage-data-policy",
+        "matches": [
+          "storage-data-policy"
+        ],
+        "provider": "stackkits-wiki"
+      },
+      {
+        "capability": "backup-core",
+        "matches": [
+          "backup-core"
+        ],
+        "provider": "stackkits-wiki"
+      },
+      {
+        "capability": "runtime-paas",
+        "matches": [
+          "runtime-paas"
+        ],
         "provider": "stackkits-adguard-home"
       },
       {
@@ -15000,6 +15264,12 @@
           "issuerBindings": [],
           "issuerIDsUnique": true,
           "provider": "stackkits-workbench-host"
+        },
+        {
+          "capabilityBindings": [],
+          "issuerBindings": [],
+          "issuerIDsUnique": true,
+          "provider": "stackkits-wiki"
         },
         {
           "capabilityBindings": [],
@@ -19701,6 +19971,118 @@
             }
           ],
           "workloadID": "dev-workbench"
+        },
+        {
+          "alternativeID": "wiki",
+          "moduleMatches": [
+            {
+              "capabilityProvides": [],
+              "moduleID": "stackkits-wiki-runtime",
+              "moduleSiteKinds": [
+                {
+                  "kind": "home",
+                  "matches": [
+                    "home"
+                  ]
+                },
+                {
+                  "kind": "cloud",
+                  "matches": [
+                    "cloud"
+                  ]
+                }
+              ],
+              "providerSiteKinds": [
+                {
+                  "workloadCoverage": [
+                    {
+                      "kind": "home",
+                      "matches": [
+                        "home"
+                      ]
+                    },
+                    {
+                      "kind": "cloud",
+                      "matches": [
+                        "cloud"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "runtimeDelivery": [
+                "application-adapter"
+              ],
+              "runtimeKind": [
+                "container"
+              ],
+              "secretRefs": [
+                {
+                  "matches": [
+                    "wiki"
+                  ],
+                  "ref": "read-bearer"
+                },
+                {
+                  "matches": [
+                    "wiki"
+                  ],
+                  "ref": "write-bearer"
+                },
+                {
+                  "matches": [
+                    "wiki"
+                  ],
+                  "ref": "connection"
+                },
+                {
+                  "matches": [
+                    "wiki"
+                  ],
+                  "ref": "registry-auth"
+                }
+              ],
+              "serviceMatches": [
+                {
+                  "dataContract": {
+                    "bindingRef": "wiki",
+                    "locality": "primary-site",
+                    "requiredClasses": [
+                      "personal"
+                    ]
+                  },
+                  "endpointDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ],
+                  "unitID": "wiki",
+                  "workloadDataClasses": [
+                    {
+                      "class": "personal",
+                      "matches": [
+                        "personal"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "settingsRefs": []
+            }
+          ],
+          "providerMatches": [
+            {
+              "capabilityAliasForbidden": [],
+              "providerID": "stackkits-wiki",
+              "workloadOwnership": [
+                "wiki"
+              ]
+            }
+          ],
+          "workloadID": "wiki"
         },
         {
           "alternativeID": "adguard-home",
@@ -53381,6 +53763,391 @@
     },
     {
       "computeProfiles": {
+        "standard": {
+          "components": [
+            "wiki"
+          ],
+          "description": "Personal IT Wiki: one SQLite file, local reader and native MCP. Replica connection stays off until the account bundle route is admitted.",
+          "executable": true,
+          "hostFloor": {
+            "allowedArchitectures": [
+              "amd64"
+            ],
+            "minCpuCores": 2,
+            "minRamGB": 4,
+            "minStorageGB": 20
+          },
+          "maturity": "experimental",
+          "provenance": {
+            "hostFloor": {
+              "ref": "Kombify host floor support policy",
+              "source": "policy"
+            },
+            "reservation": {
+              "ref": "Kombify reservation policy; declared, not a sum of component limits",
+              "source": "policy"
+            }
+          },
+          "realization": "apply-ready",
+          "reservation": {
+            "ramGB": 0.125
+          }
+        }
+      },
+      "defaultComputeProfile": "standard",
+      "evidence": [
+        "wiki-selected-paas-runtime-contract"
+      ],
+      "health": [
+        {
+          "expectedStatuses": [
+            200
+          ],
+          "id": "wiki-http",
+          "kind": "http",
+          "path": "/health",
+          "phase": "continuous",
+          "port": 8484,
+          "timeoutSeconds": 10
+        }
+      ],
+      "metadata": {
+        "description": "Personal IT Wiki: one SQLite file, local reader and native MCP. Replica connection stays off until the account bundle route is admitted.",
+        "id": "stackkits-wiki-runtime",
+        "version": "1.0.0"
+      },
+      "nodeSelection": {
+        "authority": "control-authority-site",
+        "controlPlaneMembers": "any",
+        "requiredRoles": [
+          "worker"
+        ]
+      },
+      "providerRef": "stackkits-wiki",
+      "provides": [],
+      "realizationSupport": {
+        "artifacts": {
+          "contracts": [
+            {
+              "compatibleTargets": [
+                "compose",
+                "opentofu"
+              ],
+              "format": "json",
+              "id": "wiki-workload-bundle",
+              "kind": "native-config",
+              "mode": "0640",
+              "outputRef": "workloads/wiki/bundle.json",
+              "required": true,
+              "unitRef": "wiki"
+            },
+            {
+              "compatibleTargets": [
+                "terramate"
+              ],
+              "format": "hcl",
+              "id": "wiki-terramate-stack",
+              "kind": "terramate",
+              "mode": "0640",
+              "outputRef": "platform/applications/wiki/stack.tm.hcl",
+              "required": true,
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "outputBindings": [
+            {
+              "artifactRef": "wiki-workload-bundle",
+              "outputRef": "workloads/wiki/bundle.json",
+              "unitRef": "wiki"
+            },
+            {
+              "artifactRef": "wiki-terramate-stack",
+              "outputRef": "platform/applications/wiki/stack.tm.hcl",
+              "unitRef": "terramate-stack"
+            }
+          ],
+          "requiredRefs": [
+            "wiki-workload-bundle",
+            "wiki-terramate-stack"
+          ]
+        },
+        "compatibleRendererRefs": [
+          "stackkit"
+        ],
+        "contractVersion": "1.0.0",
+        "evidence": {
+          "requiredRefs": [
+            "wiki-selected-paas-runtime-contract"
+          ]
+        },
+        "inputs": {
+          "contractComplete": true,
+          "requiredRefs": [
+            "read-bearer",
+            "write-bearer",
+            "connection",
+            "registry-auth"
+          ]
+        },
+        "level": "apply-ready",
+        "planInputs": {
+          "contractComplete": true,
+          "requiredRefs": []
+        },
+        "scope": "concrete"
+      },
+      "renderUnits": [
+        {
+          "applyMode": "runtime",
+          "compatibleTargets": [
+            "compose",
+            "opentofu"
+          ],
+          "contractHash": "sha256:404d941300683ffe59c4738bb44424b74e7aedb1220e0c7b5f9f87b840e53104",
+          "id": "wiki",
+          "inputBindings": [
+            {
+              "cardinality": "single",
+              "defaultValue": null,
+              "required": false,
+              "sourceRef": "network.moduleRoute",
+              "targetRef": "delivery-route",
+              "valueType": "authority-bound-module-route-v1"
+            }
+          ],
+          "kind": "native-config",
+          "outputs": [
+            "workloads/wiki/bundle.json"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [
+            "read-bearer",
+            "write-bearer",
+            "connection",
+            "registry-auth"
+          ],
+          "serviceEndpoints": [
+            {
+              "allowedExposures": [
+                "local",
+                "remote-private"
+              ],
+              "allowedIngressProtocols": [
+                "https"
+              ],
+              "data": {
+                "bindingRef": "wiki",
+                "locality": "primary-site",
+                "requiredClasses": [
+                  "personal"
+                ]
+              },
+              "healthRef": "wiki-http",
+              "ingressAuth": "native",
+              "originSelector": "control-authority-site",
+              "requiredPrivilege": "user",
+              "serviceRef": "wiki",
+              "targetPort": 8484,
+              "upstreamProtocol": "http"
+            }
+          ],
+          "templateRef": "builtin://workloads/wiki/bundle/v2.json",
+          "version": "2.0.0"
+        },
+        {
+          "applyMode": "artifact-only",
+          "compatibleTargets": [
+            "terramate"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate-stack",
+          "inputBindings": [],
+          "kind": "terramate",
+          "outputs": [
+            "platform/applications/wiki/stack.tm.hcl"
+          ],
+          "placement": {
+            "cardinality": "one-per-node",
+            "scope": "node-local"
+          },
+          "planInputRefs": [],
+          "providesInterfaces": [],
+          "publicInputRefs": [],
+          "rendererRef": "stackkit",
+          "requiresInterfaces": [],
+          "runtimeListeners": [],
+          "secretInputBindings": {},
+          "secretInputRefs": [],
+          "serviceEndpoints": [],
+          "templateRef": "builtin://terramate/stack/workload/v1",
+          "version": "1.0.0"
+        }
+      ],
+      "renderVariants": [
+        {
+          "artifactRefs": [
+            "wiki-workload-bundle"
+          ],
+          "contractHash": "sha256:66aa1152e7d87b3292a2eefbcca398746546e6499c60b70000a0a7cb34704f02",
+          "id": "compose",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "read-bearer",
+            "write-bearer",
+            "connection",
+            "registry-auth"
+          ],
+          "target": "compose",
+          "unitRefs": [
+            "wiki"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "wiki-workload-bundle"
+          ],
+          "contractHash": "sha256:52e50871398d3f1fc5bca11be237abce135bdb39157fa33bc23b6b3d18bd0e41",
+          "id": "opentofu",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "read-bearer",
+            "write-bearer",
+            "connection",
+            "registry-auth"
+          ],
+          "target": "opentofu",
+          "unitRefs": [
+            "wiki"
+          ]
+        },
+        {
+          "artifactRefs": [
+            "wiki-workload-bundle",
+            "wiki-terramate-stack"
+          ],
+          "contractHash": "sha256:8687273722f07c5bed8eb4c3e7c7615eff7beea8d60fd2406da30f2489992d88",
+          "id": "terramate",
+          "planInputRefs": [],
+          "publicInputRefs": [
+            "delivery-route"
+          ],
+          "rendererRef": "stackkit",
+          "secretInputRefs": [
+            "read-bearer",
+            "write-bearer",
+            "connection",
+            "registry-auth"
+          ],
+          "target": "terramate",
+          "unitRefs": [
+            "wiki",
+            "terramate-stack"
+          ]
+        }
+      ],
+      "rilActionPrimitives": [],
+      "role": "workload",
+      "runtime": {
+        "components": [
+          {
+            "command": [
+              "serve",
+              "-initialize"
+            ],
+            "dependsOn": [],
+            "egress": true,
+            "entrypoint": [
+              "/app/wiki"
+            ],
+            "environment": {
+              "WIKI_FILE": "/var/lib/wiki/wiki.db",
+              "WIKI_LISTEN": "0.0.0.0:8484"
+            },
+            "health": {
+              "kind": "http",
+              "path": "/health",
+              "port": 8484
+            },
+            "id": "wiki",
+            "image": {
+              "digest": "sha256:cd0cbd69cf48dd03530d9054d1c2831f7b03c7b724f4fce593c8283a9a78699b",
+              "ref": "api.kombify.io/kombiverselabs/kombify-knowledge-node:git-092c18ccacfaa36acfa7cefa424c1136c0092481"
+            },
+            "lifecycle": "daemon",
+            "networkRefs": [
+              "wiki-internal"
+            ],
+            "resources": {
+              "memoryLimit": "512m",
+              "memoryReservation": "128m"
+            },
+            "role": "application",
+            "secretEnvironment": {
+              "WIKI_READ_BEARER": "read-bearer",
+              "WIKI_WRITE_BEARER": "write-bearer"
+            },
+            "secretFiles": [
+              {
+                "gid": 65532,
+                "pathEnvironment": "WIKI_CONNECTION_FILE",
+                "slot": "connection",
+                "target": "/run/secrets/wiki-connection",
+                "uid": 65532
+              }
+            ],
+            "volumes": [
+              {
+                "backup": true,
+                "class": "persistent",
+                "id": "state",
+                "target": "/var/lib/wiki"
+              }
+            ]
+          }
+        ],
+        "delivery": "application-adapter",
+        "engine": "docker",
+        "entryComponentRef": "wiki",
+        "execution": "executable",
+        "image": {
+          "digest": "sha256:cd0cbd69cf48dd03530d9054d1c2831f7b03c7b724f4fce593c8283a9a78699b",
+          "ref": "api.kombify.io/kombiverselabs/kombify-knowledge-node:git-092c18ccacfaa36acfa7cefa424c1136c0092481"
+        },
+        "kind": "container"
+      },
+      "runtimeRequirements": {
+        "allowedArchitectures": [
+          "amd64"
+        ]
+      },
+      "serviceControls": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ]
+    },
+    {
+      "computeProfiles": {
         "high": {
           "components": [
             "adguard-home"
@@ -59020,6 +59787,54 @@
       ],
       "workloadRefs": [
         "dev-workbench"
+      ]
+    },
+    {
+      "certificateIssuers": [],
+      "evidence": [
+        "wiki-selected-paas-runtime-contract"
+      ],
+      "metadata": {
+        "id": "stackkits-wiki",
+        "version": "1.0.0"
+      },
+      "overlayContracts": [],
+      "provides": [],
+      "realization": {
+        "kind": "modules",
+        "moduleRefs": {
+          "optional": [
+            "stackkits-wiki-runtime"
+          ],
+          "required": []
+        }
+      },
+      "remoteActionContracts": [],
+      "requires": [
+        {
+          "id": "runtime-paas",
+          "optional": false
+        },
+        {
+          "id": "service-catalog",
+          "optional": false
+        },
+        {
+          "id": "storage-data-policy",
+          "optional": false
+        },
+        {
+          "id": "backup-core",
+          "optional": false
+        }
+      ],
+      "runtimeAdapterRefs": [],
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "workloadRefs": [
+        "wiki"
       ]
     },
     {
@@ -67292,6 +68107,152 @@
         "cloud"
       ],
       "useCaseRef": "dev"
+    },
+    {
+      "alternatives": [
+        {
+          "id": "wiki",
+          "infrastructure": {
+            "backupSource": {
+              "allocations": [
+                {
+                  "backupDataClass": "secret-material",
+                  "componentRef": "wiki",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "volumeRef": "state"
+                }
+              ],
+              "moduleRef": "stackkits-backup-source"
+            },
+            "dataBinding": {
+              "bindingRef": "wiki",
+              "classes": [
+                "personal"
+              ],
+              "locality": "primary-site",
+              "moduleRef": "stackkits-workload-data-binding"
+            },
+            "recovery": {
+              "moduleRef": "stackkits-recovery"
+            },
+            "restore": {
+              "moduleRef": "stackkits-restore"
+            },
+            "snapshot": {
+              "moduleRef": "stackkits-snapshot"
+            },
+            "storageAllocation": {
+              "allocations": [
+                {
+                  "backup": true,
+                  "class": "persistent",
+                  "componentRef": "wiki",
+                  "dataBindingRef": "wiki",
+                  "dataClasses": [
+                    "personal"
+                  ],
+                  "target": "/var/lib/wiki",
+                  "volumeRef": "state"
+                }
+              ],
+              "moduleRef": "stackkits-storage-allocation"
+            }
+          },
+          "inputs": {
+            "secretInputs": {
+              "allowedRefs": [
+                "read-bearer",
+                "write-bearer",
+                "connection",
+                "registry-auth"
+              ],
+              "requiredRefs": [
+                "read-bearer",
+                "write-bearer",
+                "connection",
+                "registry-auth"
+              ]
+            },
+            "settings": {
+              "allowedRefs": [],
+              "descriptors": [],
+              "requiredRefs": []
+            }
+          },
+          "moduleRef": "stackkits-wiki-runtime",
+          "providerRef": "stackkits-wiki",
+          "route": {
+            "healthRef": "wiki-http",
+            "serviceRef": "wiki"
+          },
+          "runtime": {
+            "allowedAdapterRefs": [
+              "standalone-compose"
+            ],
+            "allowedDeliveries": [
+              "application-adapter"
+            ],
+            "allowedKinds": [
+              "container"
+            ],
+            "compatibility": [
+              {
+                "adapterRef": "standalone-compose",
+                "capabilities": {
+                  "backupRestore": true,
+                  "deployment": true,
+                  "routeTLS": true,
+                  "statusEvidence": true
+                },
+                "maturity": "beta"
+              }
+            ],
+            "defaultAdapterRef": "standalone-compose",
+            "defaultFallbackAdapterRefs": []
+          },
+          "setup": {
+            "actionRefs": [],
+            "mode": "manual",
+            "owner": "operator"
+          }
+        }
+      ],
+      "computeTiers": {
+        "high": {
+          "included": false,
+          "reason": "No named measured high capability; standard is not copied as high."
+        },
+        "low": {
+          "included": false,
+          "reason": "No independently measured low variant."
+        },
+        "standard": {
+          "alternativeID": "wiki",
+          "included": true
+        }
+      },
+      "dataClasses": [
+        "personal"
+      ],
+      "defaultAlternative": "wiki",
+      "functionalCapabilities": [
+        "wiki-read",
+        "wiki-search",
+        "wiki-graph"
+      ],
+      "kind": "application",
+      "metadata": {
+        "description": "Personal IT Wiki: one SQLite file, local reader and native MCP. Replica connection stays off until the account bundle route is admitted.",
+        "id": "wiki",
+        "version": "1.0.0"
+      },
+      "supportedSiteKinds": [
+        "home",
+        "cloud"
+      ],
+      "useCaseRef": "wiki"
     },
     {
       "alternatives": [

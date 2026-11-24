@@ -434,7 +434,8 @@
         "ai-assistant",
         "ai-harness",
         "ai-control-plane",
-        "ai-gateway"
+        "ai-gateway",
+        "wiki"
       ]
     },
     "standaloneOwner": {
@@ -1287,7 +1288,8 @@
       "ai-control-plane",
       "ai-gateway",
       "ai-vectors",
-      "dev-workbench"
+      "dev-workbench",
+      "wiki"
     ],
     "required": [
       "basement-core"

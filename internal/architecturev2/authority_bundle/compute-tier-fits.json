@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:f5e4e14456c875248805119467e559fbb3533be3c6fd4b7a9ab564c76cbb2af8",
+  "contentDigest": "sha256:3bbc33468ebce067ff234011b5724d10866745ace547862eb8ae7ccc42f83796",
   "schemaVersion": "stackkits-webmcp-compute-tier-fits/v1",
   "sourceSchema": "stackkits-use-case-catalog/v1",
   "useCases": [
@@ -5572,6 +5572,48 @@
       "workloadRef": "vault"
     },
     {
+      "alternatives": [
+        {
+          "id": "wiki",
+          "modules": [
+            {
+              "computeProfileFacts": {
+                "standard": {
+                  "executable": true,
+                  "hostFloor": {
+                    "allowedArchitectures": [
+                      "amd64"
+                    ],
+                    "minCpuCores": 2,
+                    "minRamGB": 4,
+                    "minStorageGB": 20
+                  },
+                  "maturity": "experimental",
+                  "provenance": {
+                    "hostFloor": {
+                      "ref": "Kombify host floor support policy",
+                      "source": "policy"
+                    },
+                    "reservation": {
+                      "ref": "Kombify reservation policy; declared, not a sum of component limits",
+                      "source": "policy"
+                    }
+                  },
+                  "realization": "apply-ready",
+                  "reservation": {
+                    "ramGB": 0.125
+                  }
+                }
+              },
+              "computeProfiles": [
+                "standard"
+              ],
+              "id": "stackkits-wiki-runtime"
+            }
+          ],
+          "name": "wiki"
+        }
+      ],
       "components": [
         {
           "id": "wiki",
@@ -5607,6 +5649,7 @@
           ]
         }
       },
+      "defaultAlternative": "wiki",
       "description": "The source of truth for personal IT, on this server as one SQLite Wiki file.",
       "docs": "/guides/stackkits/use-cases/wiki",
       "id": "wiki",
@@ -5614,7 +5657,8 @@
         "id": "wiki",
         "title": "Wiki"
       },
-      "title": "Personal IT Wiki"
+      "title": "Personal IT Wiki",
+      "workloadRef": "wiki"
     }
   ]
 }
