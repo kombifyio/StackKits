@@ -18,7 +18,9 @@ Package: foundation.#UseCasePackage & {
 	evidence: {healthChecks: ["wiki-http"], required: ["route", "backup", "runtime-owner", "removal"]}
 	setup: {defaultPolicy: "on_demand", drops: []}
 	journey: {outcome: "Open a local Wiki, read its IT page, back it up and restore the same SQLite data.", invariantData: ["wiki/state/wiki.db"]}
-	recovery: sequence: ["wiki/state"]
+	// No recovery sequence and no committed cell while runtime admission is closed: the recovery
+	// validator needs a committed alternative whose backed-up volume (wiki/state) it can check.
+	// Declare both together when the published artifact is admitted.
 	agentSurface: {
 		equipPolicy: "on-generate", lifecycleMcp: {}
 		productMcps: [{id: "wiki", owner: "product", endpoint: "/mcp", transport: "streamable-http", auth: "node-custodied-read-bearer", generateClientConfig: false, reason: "The server's StackKits MCP registers wiki_read and resolves its read credential locally; no credential reaches a generated client file."}]

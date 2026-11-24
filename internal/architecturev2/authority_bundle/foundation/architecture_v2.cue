@@ -4230,7 +4230,7 @@ _servicePublicationShape: {
 #ManagedAppFitV1: {
 	computeProfile: "low" | "standard" | "high"
 	memoryMiB:      int & >=128 & <=512
-	runtimeProfiles: [...("fly-machines-v1" | "ionos-shared-pool-v1")] & list.MinItems(1)
+	runtimeProfiles: [...("fly-machines-v1" | "ionos-shared-pool-v1" | "cloud-run-v1")] & list.MinItems(1)
 
 	_runtimeProfilesUnique: list.UniqueItems(runtimeProfiles) & true
 }
