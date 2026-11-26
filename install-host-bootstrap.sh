@@ -2,6 +2,40 @@
 # Inlined into all website entrypoints; sourced beside explicitly invoked local
 # scripts. Shell journals never replace native Apply recovery or node custody.
 
+# Explicit opt-in for the published CLI path on a fresh Linux target. CLI-only
+# still stops before kit installation; prepare and apply keep their own contracts.
+prepare_install_runtime() (
+  stop_on_hypervisor_host
+  [ "$(uname -s)" = Linux ] || {
+    printf 'Host preparation requires Linux. Install Docker on the target before apply.\n' >&2
+    exit 1
+  }
+  _runtime_root=""
+  if [ "$(id -u)" -ne 0 ]; then
+    command -v sudo >/dev/null 2>&1 && sudo -n true || {
+      printf 'Host preparation needs root or non-interactive sudo on the target.\n' >&2
+      exit 1
+    }
+    _runtime_root='sudo -n'
+  fi
+  if ! command -v docker >/dev/null 2>&1; then
+    _runtime_script=$(mktemp) || exit 1
+    trap 'rm -f "$_runtime_script"' EXIT
+    curl -fsSL https://get.docker.com -o "$_runtime_script" && [ -s "$_runtime_script" ] || {
+      printf 'Docker installer download failed; no installer was executed.\n' >&2
+      exit 1
+    }
+    $_runtime_root sh "$_runtime_script" || exit 1
+  fi
+  if ! docker --host unix:///var/run/docker.sock info >/dev/null 2>&1; then
+    $_runtime_root systemctl enable --now docker || exit 1
+  fi
+  docker --host unix:///var/run/docker.sock info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 || {
+    printf 'Docker and Compose must be reachable by this user before apply. Re-login after granting Docker group access, or use the full installer.\n' >&2
+    exit 1
+  }
+)
+
 installer_journal_read() {
   [ -f "${INSTALLER_JOURNAL:-}" ] || return 0
   awk -F '\t' -v key="$1" '$1 == key { sub(/^[^\t]*\t/, ""); print; exit }' "$INSTALLER_JOURNAL"

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"slices"
 	"sort"
 	"time"
@@ -32,7 +33,7 @@ this node. A delivering authority seals each value to this node's recipient key
 Homelab and Guard carry ciphertext and references only.`,
 		Annotations: map[string]string{noDeployObservabilityAnnotation: "true"},
 	}
-	delivery.AddCommand(newHostDeliveryRecipientCommand(), newHostDeliveryStatusCommand(), newHostDeliveryDetachCommand())
+	delivery.AddCommand(newHostDeliveryRecipientCommand(), newHostDeliveryStatusCommand(), newHostDeliveryDetachCommand(), newVerifyPaperworkBundleCommand(), newInstallPaperworkBundleCommand(), newApplyPaperworkSignInCommand())
 	return delivery
 }
 
@@ -185,7 +186,7 @@ func newWalletItemCommand() *cobra.Command {
 }
 
 func newWalletItemImportCommand() *cobra.Command {
-	var tenantRef, wikiRegistryItem string
+	var tenantRef, wikiRegistryItem, paperworkRegistryItem, paperworkMoveItem string
 	var approved bool
 	cmd := &cobra.Command{
 		Use:   "import",
@@ -201,6 +202,12 @@ names the reference and version only.`,
 			if !approved || tenantRef == "" {
 				return errors.New("wallet-item import requires --tenant-ref and --owner-approve")
 			}
+			if (wikiRegistryItem != "" && paperworkRegistryItem != "") || (paperworkMoveItem != "" && (wikiRegistryItem != "" || paperworkRegistryItem != "")) {
+				return errors.New("wallet-item import takes only one purpose item")
+			}
+			if paperworkMoveItem != "" && os.Getenv("STACKKIT_PAPERWORK_MOVE_ENABLED") != "true" {
+				return errors.New("Paperwork move lifecycle is disabled")
+			}
 			raw, err := readSealedEnvelope(cmd)
 			if err != nil {
 				return err
@@ -208,34 +215,51 @@ names the reference and version only.`,
 			workspace := getWorkDir()
 			return withLifecycleMutation(workspace, "wallet-item import", func() error {
 				store := backupcustody.HostStore(workspace)
+				if paperworkMoveItem != "" {
+					_, held, heldErr := hostcustody.LoadWalletItem(store, tenantRef, paperworkMoveItem)
+					backupcustody.Clear(held)
+					if heldErr == nil {
+						return runCustodiedPaperworkMove(cmd, workspace, tenantRef, paperworkMoveItem)
+					}
+				}
 				now := time.Now().UTC()
 				delivery, err := hostcustody.OpenDelivery(store, raw, hostcustody.Expectation{TenantRef: tenantRef, Operations: []string{hostdelivery.OperationWalletItemImport, hostdelivery.OperationWalletItemRotate}}, now)
 				if err != nil {
 					return err
 				}
 				defer backupcustody.Clear(delivery.Plaintext)
-				if wikiRegistryItem != "" {
-					if delivery.Context.DeliveryRef != wikiRegistryItem {
-						return errors.New("wiki registry delivery item does not match the requested item")
+				if wikiRegistryItem != "" || paperworkRegistryItem != "" {
+					item, slot, parse := wikiRegistryItem, hostdelivery.WikiRegistrySecretRef, hostdelivery.ParseWikiRegistryGrant
+					if paperworkRegistryItem != "" {
+						item, slot, parse = paperworkRegistryItem, hostdelivery.PaperworkRegistrySecretRef, hostdelivery.ParsePaperworkRegistryGrant
 					}
-					grant, err := hostdelivery.ParseWikiRegistryGrant(delivery.Plaintext, now, 2*time.Minute)
+					if delivery.Context.DeliveryRef != item {
+						return errors.New("registry delivery item does not match the requested item")
+					}
+					grant, err := parse(delivery.Plaintext, now, 2*time.Minute)
 					if err != nil {
 						return err
 					}
-					previous, _ := localevidence.ResolveEncryptedLocalIssuedSecret(workspace, hostdelivery.WikiRegistrySecretRef)
-					current, currentErr := hostdelivery.ParseWikiRegistryGrant(previous, now, 2*time.Minute)
+					previous, _ := localevidence.ResolveEncryptedLocalIssuedSecret(workspace, slot)
+					current, currentErr := parse(previous, now, 2*time.Minute)
 					backupcustody.Clear(previous)
 					if currentErr != nil || !current.ExpiresAt.After(grant.ExpiresAt) {
-						if err := localevidence.StoreEncryptedLocalIssuedSecret(workspace, hostdelivery.WikiRegistrySecretRef, delivery.Plaintext); err != nil {
+						if err := localevidence.StoreEncryptedLocalIssuedSecret(workspace, slot, delivery.Plaintext); err != nil {
 							return err
 						}
 					}
-					receipt := hostcustody.WalletItemReceipt{TenantRef: tenantRef, ItemRef: wikiRegistryItem, Version: delivery.Context.ItemVersion}
+					receipt := hostcustody.WalletItemReceipt{TenantRef: tenantRef, ItemRef: item, Version: delivery.Context.ItemVersion}
 					return writeCommandResult(cmd, cmd.CommandPath(), receipt)
+				}
+				if paperworkMoveItem != "" && delivery.Context.DeliveryRef != paperworkMoveItem {
+					return errors.New("move delivery item differs from admitted reference")
 				}
 				receipt, err := hostcustody.StoreWalletItem(store, delivery, now)
 				if err != nil {
 					return err
+				}
+				if paperworkMoveItem != "" {
+					return runCustodiedPaperworkMove(cmd, workspace, tenantRef, paperworkMoveItem)
 				}
 				return writeCommandResult(cmd, cmd.CommandPath(), receipt)
 			})
@@ -243,6 +267,8 @@ names the reference and version only.`,
 	}
 	cmd.Flags().StringVar(&tenantRef, "tenant-ref", "", "Tenant the sealed delivery must be addressed to")
 	cmd.Flags().StringVar(&wikiRegistryItem, "wiki-registry-item", "", "Bind the expected Wallet item to the Wiki registry pull slot")
+	cmd.Flags().StringVar(&paperworkRegistryItem, "paperwork-registry-item", "", "Bind the expected Wallet item to the Paperwork registry pull slot")
+	cmd.Flags().StringVar(&paperworkMoveItem, "paperwork-move-item", "", "Run or resume the admitted Paperwork move from this sealed Wallet item")
 	cmd.Flags().BoolVar(&approved, "owner-approve", false, "Authorize storing this Wallet item")
 	return cmd
 }

@@ -278,7 +278,7 @@ provider/device/compatibility acceptance remains test-window work.
 ## P2: Shared CLI Installer Plus Direct CLI
 
 ```bash
-curl -sSL https://install.stackkit.cc | sh
+curl -sSL https://install.stackkit.cc | STACKKIT_CLI_ONLY=1 STACKKIT_PREPARE_HOST=1 sh
 mkdir my-homelab
 cd my-homelab
 stackkit init basement-kit --owner-source=local \
@@ -291,6 +291,8 @@ stackkit verify --http --json
 ```
 
 `stackkit prepare` inspects local host prerequisites (no Docker install, no package changes); run it on the target through the owner-managed channel. Module-local capacity admission uses the attested Inventory and ResolvedPlan. A non-root user needs Docker group access before apply (`sudo usermod -aG docker $USER` and re-login) or lets the full installer activate it.
+
+The separate Linux-target CLI command sets `STACKKIT_PREPARE_HOST=1` to install a missing Docker runtime and require a reachable local daemon and Compose before it finishes, including in `STACKKIT_CLI_ONLY=1` mode. Run it on the target as root or with non-interactive sudo and Docker socket access. Without that opt-in the core installer installs only the toolchain and catalog; native `prepare` remains read-only. Download failures stop before any Docker installer runs.
 
 The shared installer accepts kit arguments (`sh -s -- basement-kit`, `sh -s -- all`); `all` installs definitions and is not a kit slug for `init`. Modern definitions can be authored and inspected through the admitted standalone preview path; Modern multi-site apply stays Homelab-owned.
 

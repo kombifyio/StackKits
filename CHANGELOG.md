@@ -1,5 +1,15 @@
 # Changelog
 
+- Fixed: the public OSS release no longer embeds the private kombify registry endpoint, so the published stackkit binaries pass the release boundary gate again. The Paperwork bundle download and image pull take the registry host from the admitted image reference, and the sealed grant's signed audience must name that same registry before the CLI uses its bearer; the private caller keeps pinning the image (platform-tkrb8).
+
+- Fixed: linked Paperwork credential delivery can retry after a Guard crash. The encrypted credential record is the revision and replay authority; the CLI confirms it with a local readback before reporting success (platform-m09kf.3.1).
+
+- Added: default-off admitted Paperwork move execution opens an encrypted Wallet job, pulls through bound Guard proofs and resumes the internal import from private receipts. Docker retries remove only an exactly owned container; runtime provisioning and live acceptance remain separate.
+
+- Added: a default-off linked-node installer starts the pinned Paperwork Compose bundle from the local pull grant. It is an operator acceptance command; it does not select Paperwork on server link or move hosted data (platform-m09kf.3.1).
+
+- Added: a linked node accepts a sealed Paperwork registry grant into a separate encrypted slot. The delivery probe verifies the exact Compose archive and its image against admitted mirror pins; this does not install Paperwork or enable it in the catalog.
+
 
 - Changed (rename, D-2026-11-19-01): the orchestrator product formerly named Techstack is Homelab, and the public contracts that name it change with it: exported Go identifiers and constants in `contracts/` and `pkg/` (for example `IsHomelabIssuerID`), the `homelab.<x>/v1` schema ids, the `homelab-own-application-v<n>` schemas and the Homelab handoff environment. The `github.com/kombifyio/stackkits` module that a Homelab build pins must be this release or newer.
 - Added: `stackkit use-cases upgrade <slug> --to <release> --digest sha256:... --apply` runs on a node Techstack manages (platform-8gb0l5). Such a node refused it with `intent_refused` ("managed intent changes through Techstack Advanced dispatch"); it now admits the change under a new Advanced operation `application-release.update`: Techstack dispatches the command with `--capability <file>`, a capability carrying only that operation and an `applicationRelease` scope (`useCaseRef`, `targetRelease`, `targetDigest`, `releaseKind` tested or untested), at most 15 minutes valid. The node reconstructs the scope from its own command and catalog and verifies it offline against the Owner-approved trust, for its stack and Owner, before it stops the application; a missing, foreign or mismatching capability refuses with an `advanced_capability_*` reason and nothing is stopped. The owner-signed release record keeps the capability ID and digest (`managed`), and the result adds `prior_spec_hash`, `target_spec_hash` and `capability_id`, so Techstack's desired state follows the override and a later StackKits release supersedes it as on a standalone node. The Advanced operations catalog lists `application-release.update` (placeholders `releaseTag`, `imageDigest`). A standalone node keeps its behaviour and refuses `--capability`; a multi-node intent still changes through Advanced change sets.
@@ -478,6 +488,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.61.8 (2026-11-26)
+
+### Fixed
+
+* **ci:** carry the pre-merge owning-workspace install fix
+* **ci:** the Go job compiles with the toolchain the tree requires and shows the compiler output
+* **ci:** the Go job keeps a pull request's own version lag red
+* **stackkits:** keep hosted edge URL out of public archives
+* **stackkits:** keep the private registry endpoint out of the public binaries
+
+## 0.61.7 (2026-11-25)
+
+### Fixed
+
+* **security:** bump compress, Go 1.27.4, homelab npm floors, static-check fixes
+
+## 0.61.6 (2026-11-25)
+
+### Added
+
+* **homelab:** release the isolated IONOS shared worker agent
+* **homelab:** run admitted resumable Paperwork node moves
+* **homelab:** sign request-bound Paperwork pull proofs
+* **stackkits:** keep linked Paperwork sign-in in node custody
+* **stackkits:** start a verified Paperwork bundle on a linked node
+* verify Paperwork delivery on linked servers
+
+### Fixed
+
+* **deps:** update module golang.org/x/crypto to v0.59.0 [security]
+* **installer:** prepare fresh Linux targets before the public package journey
+* **stackkits:** retry Paperwork sign-in custody after interruption
 
 ## 0.61.5 (2026-11-24)
 

@@ -1118,6 +1118,159 @@
         "informational": true
       },
       "installation": null
+    },
+    {
+      "runId": 45243059899,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-23T18:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.61.2",
+          "version": "0.61.2"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-23T18:56:21.007515+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "passed",
+            "seconds": 55.632,
+            "exitCode": 0,
+            "evidence": "public-path-install.json"
+          },
+          {
+            "phase": "public-path-init",
+            "status": "passed",
+            "seconds": 4.1,
+            "exitCode": 0,
+            "evidence": "public-path-init.json"
+          },
+          {
+            "phase": "public-path-generate",
+            "status": "passed",
+            "seconds": 13.073,
+            "exitCode": 0,
+            "evidence": "public-path-generate.json"
+          },
+          {
+            "phase": "public-path-apply",
+            "status": "failed",
+            "seconds": 5.943,
+            "exitCode": 1,
+            "evidence": "public-path-apply.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
+    },
+    {
+      "runId": 45343655225,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-24T06:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.61.3",
+          "version": "0.61.3"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-24T06:55:17.222025+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "passed",
+            "seconds": 49.551,
+            "exitCode": 0,
+            "evidence": "public-path-install.json"
+          },
+          {
+            "phase": "public-path-init",
+            "status": "passed",
+            "seconds": 5.845,
+            "exitCode": 0,
+            "evidence": "public-path-init.json"
+          },
+          {
+            "phase": "public-path-generate",
+            "status": "passed",
+            "seconds": 10.199,
+            "exitCode": 0,
+            "evidence": "public-path-generate.json"
+          },
+          {
+            "phase": "public-path-apply",
+            "status": "failed",
+            "seconds": 5.943,
+            "exitCode": 1,
+            "evidence": "public-path-apply.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
+    },
+    {
+      "runId": 45385379661,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-24T11:30:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "v0.61.4",
+          "version": "0.61.4"
+        },
+        "result": "failed",
+        "failure": "command_failed",
+        "recordedAt": "2026-11-24T11:37:29.625422+00:00",
+        "phases": [
+          {
+            "phase": "public-path-install",
+            "status": "passed",
+            "seconds": 52.317,
+            "exitCode": 0,
+            "evidence": "public-path-install.json"
+          },
+          {
+            "phase": "public-path-init",
+            "status": "passed",
+            "seconds": 9.117,
+            "exitCode": 0,
+            "evidence": "public-path-init.json"
+          },
+          {
+            "phase": "public-path-generate",
+            "status": "passed",
+            "seconds": 6.747,
+            "exitCode": 0,
+            "evidence": "public-path-generate.json"
+          },
+          {
+            "phase": "public-path-apply",
+            "status": "failed",
+            "seconds": 5.994,
+            "exitCode": 1,
+            "evidence": "public-path-apply.json"
+          }
+        ],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
     }
   ]
 }

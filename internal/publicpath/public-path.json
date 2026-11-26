@@ -33,5 +33,6 @@
     "cat .stackkit/access.json"
   ],
   "connectCommand": "sudo stackkit connect --server https://homelab.kombify.io",
-  "accessEvidence": ".stackkit/access.json"
+  "accessEvidence": ".stackkit/access.json",
+  "linuxTargetInstallCommand": "curl -sSL https://install.stackkit.cc | STACKKIT_CLI_ONLY=1 STACKKIT_PREPARE_HOST=1 sh"
 }

@@ -39,12 +39,10 @@ Implementation note: `internal/api/server.go` registers health, capabilities,
 catalog, validation, generation, node-local management, log, node-local setup,
 StackAction, and Direct Connect registry routes.
 
-## Surfaces
+## Server URL
 
-| Surface | Base URL | Purpose |
-| --- | --- | --- |
-| Local development | `http://localhost:8082` | Local `stackkit-server` process. |
-| Compatibility edge | `https://api.kombify.io/stackkits` | Optional legacy/compatibility route; not a standalone lifecycle or Homelab orchestration dependency. |
+The local `stackkit-server` uses `http://localhost:8082` by default. To call a
+different instance with `stackkit api`, set `STACKKITS_SERVER_URL` to its base URL.
 
 ## Capacity assessment
 

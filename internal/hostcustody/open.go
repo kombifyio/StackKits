@@ -52,9 +52,17 @@ type consumedDelivery struct {
 // secret one in the delivered registry) before the plaintext is returned, so
 // a replay, including one after a crash, is denied and the delivering
 // authority must seal a fresh one.
-//
-//nolint:gocyclo // One linear sequence of independent refusals before decryption.
 func OpenDelivery(store Store, raw []byte, expect Expectation, now time.Time) (Delivery, error) {
+	return openDelivery(store, raw, expect, now, true)
+}
+
+func OpenPaperworkSignInDelivery(store Store, raw []byte, tenant string, now time.Time) (Delivery, error) {
+	return openDelivery(store, raw, Expectation{TenantRef: tenant,
+		Operations: []string{hostdelivery.OperationPaperworkSignIn, hostdelivery.OperationPaperworkSignOut}}, now, false)
+}
+
+//nolint:gocyclo // One linear sequence of independent refusals before decryption.
+func openDelivery(store Store, raw []byte, expect Expectation, now time.Time, consume bool) (Delivery, error) {
 	if expect.TenantRef == "" || len(expect.Operations) == 0 {
 		return Delivery{}, errors.New("hostcustody: opening a delivery requires the expected tenant and operations")
 	}
@@ -136,9 +144,11 @@ func OpenDelivery(store Store, raw []byte, expect Expectation, now time.Time) (D
 			return Delivery{}, err
 		}
 	}
-	if err := consumeDelivery(store, current.Generation, context, now); err != nil {
-		clearBytes(plaintext)
-		return Delivery{}, err
+	if consume {
+		if err := consumeDelivery(store, current.Generation, context, now); err != nil {
+			clearBytes(plaintext)
+			return Delivery{}, err
+		}
 	}
 	if spec.Secret {
 		if err := writeState(store, state, stateExisting); err != nil {

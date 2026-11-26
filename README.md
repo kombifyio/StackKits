@@ -40,6 +40,15 @@ kombify account is required for this private home mode. Public-domain or
 kombify.me installations use the printed HTTPS Hub directly, with no client DNS
 or CA setup; these modes require their own domain/Me registration and reach setup.
 
+For a fresh Linux target, prepare Docker and the CLI as root or with passwordless
+sudo and Docker socket access before following the steps by hand:
+
+<!-- public-path:begin linux-target -->
+```sh
+curl -sSL https://install.stackkit.cc | STACKKIT_CLI_ONLY=1 STACKKIT_PREPARE_HOST=1 sh
+```
+<!-- public-path:end linux-target -->
+
 ## Let kombify AI operate it
 
 The homelab runs on its own. To have kombify AI look after it, connect the server
@@ -97,9 +106,9 @@ Select the kit with `stackkit init`:
 <!-- kit-support:begin -->
 | Kit | Target | Status |
 | --- | --- | --- |
-| Basement Kit | an existing Linux host at home | alpha at v0.61.5; no public-package pass recorded |
-| Cloud Kit | an existing VPS with your own domain | alpha at v0.61.5; no public-package pass recorded |
-| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.61.5; no public-package pass recorded |
+| Basement Kit | an existing Linux host at home | alpha at v0.61.8; no public-package pass recorded |
+| Cloud Kit | an existing VPS with your own domain | alpha at v0.61.8; no public-package pass recorded |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.61.8; no public-package pass recorded |
 <!-- kit-support:end -->
 
 A published release is source and distribution evidence, not runtime

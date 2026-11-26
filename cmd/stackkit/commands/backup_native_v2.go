@@ -329,7 +329,7 @@ func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpe
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
-	policyArtifact, policyDigest, policy, err := readNativeV2BackupPolicyForArtifact(
+	_, _, policy, err := readNativeV2BackupPolicyForArtifact(
 		transaction, applied.Manifest, policyArtifactRequirement.ID,
 	)
 	if err != nil {
@@ -348,11 +348,11 @@ func inspectNativeV2BackupAuthority(ctx context.Context, workspace, requestedSpe
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
-	policyArtifact, err = localbackuppolicy.ArtifactBytes(policy)
+	policyArtifact, err := localbackuppolicy.ArtifactBytes(policy)
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}
-	policyDigest, err = localbackuppolicy.Digest(policyArtifact)
+	policyDigest, err := localbackuppolicy.Digest(policyArtifact)
 	if err != nil {
 		return nativeV2BackupAuthority{}, err
 	}

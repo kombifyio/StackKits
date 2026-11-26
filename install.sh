@@ -614,6 +614,14 @@ if [ -n "$INSTALL_KITS" ]; then
 fi
 fi
 command -v stackkit >/dev/null 2>&1 || { printf 'stackkit is not on PATH; add %s and re-run this installer.\n' "$INSTALL_DIR" >&2; exit 1; }
+case "${STACKKIT_PREPARE_HOST:-0}" in
+  1)
+    installer_phase prepare-runtime
+    prepare_install_runtime
+    ;;
+  0) ;;
+  *) printf 'STACKKIT_PREPARE_HOST must be 0 or 1.\n' >&2; exit 1 ;;
+esac
 installer_complete
 
 # --- Summary ------------------------------------------------------------------
@@ -644,7 +652,7 @@ print_cli_chain() {
     echo "  Modern multi-site apply requires Homelab. The standalone CLI runs Standard Mode only."
     return 0
   fi
-  echo "    stackkit apply --auto-approve                # deploy (installs Docker on demand)"
+  echo "    stackkit apply --auto-approve                # deploy on the prepared Docker host"
   echo "    stackkit verify --json                       # inspect the observed result"
 }
 

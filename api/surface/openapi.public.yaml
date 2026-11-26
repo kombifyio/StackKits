@@ -4,8 +4,8 @@ info:
   version: "1.0.0"
   description: |
     kombify StackKits HTTP API — pre-packaged homelab infrastructure templates
-    with CUE schema validation and OpenTofu generation. Designed for consumption
-    by the kombify Stack control plane and AI agents via the kombify Gateway.
+    with CUE schema validation and OpenTofu generation. Call this API on the
+    configured stackkit-server instance.
   contact:
     name: kombify
     url: https://kombify.io
@@ -14,8 +14,6 @@ info:
 servers:
   - url: http://localhost:8082
     description: Local development
-  - url: https://api.kombify.io/stackkits
-    description: Production (via Cloudflare Edge)
 paths:
   /api/v1/identity/step-up:
     post:

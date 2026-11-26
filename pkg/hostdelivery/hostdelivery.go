@@ -66,6 +66,8 @@ const (
 	// OperationSSHHostCertificate delivers an SSH host certificate for one of
 	// this server's host keys (SSHHostCertificate).
 	OperationSSHHostCertificate = "ssh-host-certificate"
+	OperationPaperworkSignIn    = "paperwork-sign-in-import"
+	OperationPaperworkSignOut   = "paperwork-sign-in-remove"
 
 	// MaxLifetime bounds how long one sealed delivery stays openable.
 	MaxLifetime = 15 * time.Minute
@@ -104,6 +106,8 @@ var operations = map[string]OperationSpec{
 	OperationSSHCATrust:         {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true},
 	OperationSSHCARevoke:        {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true},
 	OperationSSHHostCertificate: {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true},
+	OperationPaperworkSignIn:    {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true, Secret: true},
+	OperationPaperworkSignOut:   {MaxPlaintextBytes: MaxPlaintextBytes, AuthoritySigned: true},
 }
 
 // LookupOperation returns the contract of a known operation. An unknown
