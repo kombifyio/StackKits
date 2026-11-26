@@ -489,6 +489,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.61.10 (2026-11-26)
+
+### Fixed
+
+* **release:** keep Homelab notices out of the StackKits export
+
+## 0.61.9 (2026-11-26)
+
+### Added
+
+* **homelab:** tunnel IONOS pool mTLS through userspace WireGuard
+* **lan:** rack-capture-relay lane for rack RUN browser captures
+
+### Fixed
+
+* **homelab:** run the Render download admission at the workspace revision that qualified the 4ee1cabc recipe
+* **release:** publish installers with the public StackKits release
+
 ## 0.61.8 (2026-11-26)
 
 ### Fixed
