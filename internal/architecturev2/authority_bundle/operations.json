@@ -1,5 +1,5 @@
 {
-  "contentDigest": "sha256:a7c98167862b95e554cb62b25b7e4bc97d4bb5af4be8479feac4f133fa34d067",
+  "contentDigest": "sha256:dfacf8840729eee02e45bea166aa8581e93f7245c30e356493adc15713095f50",
   "operations": [
     {
       "command": [
@@ -179,6 +179,12 @@
           "flag": "--operation-id",
           "kind": "string",
           "name": "operation_id"
+        },
+        {
+          "description": "recover and verify one PostgreSQL-backed application into an isolated clone target",
+          "flag": "--workload",
+          "kind": "string",
+          "name": "workload"
         }
       ],
       "command": [

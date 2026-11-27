@@ -32,6 +32,16 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/stackkits/apps/gitea"
+		vendor: {
+			name:    "Gitea"
+			website: "https://gitea.com"
+			docs:    "https://docs.gitea.com"
+			license: "MIT"
+		}
+	}
+
 	services: gitea: foundation.#ServiceDefinition & {
 		name:     "gitea"
 		type:     "application"

@@ -60,6 +60,10 @@ Contract: foundation.#ModuleContract & {
 		pi: {}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/node-hub"
+	}
+
 	services: dashboard: foundation.#ServiceDefinition & {
 		name:     "dashboard"
 		type:     "dashboard"
@@ -122,7 +126,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "base", nested: "base", flat: "base"}
-		dashboard: {icon: "&#128421;", order: 0, section: "Platform", badge: "L2 \u00b7 Node Hub", enableVar: "enable_dashboard", guideUrl: "https://docs.kombify.io/guides/stackkits/node-hub"}
+		dashboard: {icon: "&#128421;", order: 0, section: "Platform", badge: "L2 \u00b7 Node Hub", enableVar: "enable_dashboard"}
 
 		output: {
 			url:         "https://base.{{.domain}}"

@@ -32,6 +32,15 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/game"
+		vendor: {
+			name:    "Pelican"
+			website: "https://pelican.dev"
+			license: "AGPL-3.0"
+		}
+	}
+
 	services: {
 		panel: foundation.#ServiceDefinition & {
 			name:     "panel"

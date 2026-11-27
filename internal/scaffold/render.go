@@ -75,17 +75,18 @@ func renderTemplate(file string, rm *renderModel) (string, error) {
 // --- deterministic render model ---
 
 type renderModel struct {
-	Package     string
-	Slug        string
-	DisplayName string
-	Description string
-	Version     string
-	Layer       string
-	Core        bool
-	Maturity    string
-	Requires    *reqModel
-	Placement   placementModel
-	Services    []svcModel
+	Package      string
+	Slug         string
+	DisplayName  string
+	Description  string
+	Version      string
+	Layer        string
+	Core         bool
+	Maturity     string
+	Requires     *reqModel
+	Placement    placementModel
+	Presentation *presentationModel
+	Services     []svcModel
 	// ComposeServices are the services the reference compose starts;
 	// SmokeExcluded names the others.
 	ComposeServices []svcModel
@@ -135,6 +136,14 @@ type placementModel struct {
 	Standard                  bool
 	ManagedServerless         bool
 	ManagedAppRejectionReason string
+}
+
+// presentationModel renders the module-level #ApplicationPresentation block.
+// Empty slices keep optional CUE fields out of the output.
+type presentationModel struct {
+	GuideURL string
+	Clients  []FactsClient
+	Vendor   *FactsVendor
 }
 
 type svcModel struct {
@@ -259,6 +268,7 @@ func buildRenderModel(f *Facts) *renderModel {
 
 	rm.Requires = buildRequires(f)
 	rm.Placement = buildPlacement(f)
+	rm.Presentation = buildPresentation(f)
 
 	// services
 	var healthy, security, readonly, isolated []string
@@ -341,6 +351,19 @@ func buildRequires(f *Facts) *reqModel {
 		req.HasInfra = true
 	}
 	return req
+}
+
+// buildPresentation copies the validated facts presentation verbatim; the
+// order of the client list is the author's display order.
+func buildPresentation(f *Facts) *presentationModel {
+	if f.Presentation == nil {
+		return nil
+	}
+	return &presentationModel{
+		GuideURL: f.Presentation.GuideURL,
+		Clients:  f.Presentation.Clients,
+		Vendor:   f.Presentation.Vendor,
+	}
 }
 
 // buildPlacement resolves eligibility; managed-serverless is forced off when a

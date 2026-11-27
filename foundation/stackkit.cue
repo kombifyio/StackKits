@@ -292,16 +292,6 @@ package foundation
 		badge: string
 		// Terraform enable variable name. Omit for always-shown services.
 		enableVar?: =~"^enable_[a-z_]+$"
-		// Public Mintlify guide for the service row in the generated Node Hub.
-		guideUrl?: =~"^https://docs[.]kombify[.]io/.+"
-		// Official end-user clients for this application (store entries and
-		// installer downloads), shown as "Apps & Downloads" next to the card.
-		// Only vendor-published URLs; never a mirror or a guessed link.
-		clients?: [...#ServiceClient]
-		// The upstream project behind the application: who makes it, where its
-		// own documentation and website live, its license, and where users can
-		// support its developers. Vendor-published URLs only.
-		vendor?: #ServiceVendor
 	}
 
 	// Allow additional custom fields for service-specific extensions
@@ -314,6 +304,22 @@ package foundation
 	platform: "android" | "ios" | "windows" | "macos" | "linux"
 	kind:     "store" | "download"
 	url:      =~"^https://.+"
+}
+
+// #ApplicationPresentation is the catalog presentation of one application:
+// our guide for it, its official clients (store entries and installer
+// downloads) and the upstream vendor. It lives on the module (keyed by the
+// catalog application id, metadata.name), separate from the Node Hub
+// dashboard card. Vendor-published URLs only; never a mirror or a guess.
+#ApplicationPresentation: {
+	// Public kombify guide for the application (the Mintlify use-case or app guide).
+	guideUrl?: =~"^https://docs[.]kombify[.]io/.+"
+	// Official end-user clients: store entries and installer downloads.
+	clients?: [...#ServiceClient]
+	// The upstream project behind the application: who makes it, where its
+	// own documentation and website live, its license, and where users can
+	// support its developers.
+	vendor?: #ServiceVendor
 }
 
 // #ServiceVendor describes the upstream project of an application.

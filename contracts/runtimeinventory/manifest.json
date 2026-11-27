@@ -3,11 +3,11 @@
   "generatorVersion": "runtimeinventorygen/v1",
   "wireVersion": "runtimeinventory/v1",
   "source": {
-    "repository": "github.com/kombify/kombify-StackKits",
+    "repository": "github.com/KombiverseLabs/kombify-StackKits",
     "path": "contracts/runtimeinventory/v1/schema.json",
     "sha256": "12016ae1644a530ed0fe638866537bf53a0d2bb57d906ba5e497d03a5ee3e4f4"
   },
   "outputs": {
-    "types.go": "3116ac7ebbe60256384e6cb63093179445fd3a4f78286acd9fabcb87bb957e69"
+    "types.go": "4c0cc5afd6bad998c4dcfd55e235500e59022b82f30ba59a42bf00d21275daba"
   }
 }

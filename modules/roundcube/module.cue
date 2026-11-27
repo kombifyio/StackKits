@@ -32,6 +32,15 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/mail"
+		vendor: {
+			name:    "Roundcube"
+			website: "https://roundcube.net"
+			license: "GPL-3.0"
+		}
+	}
+
 	services: roundcube: foundation.#ServiceDefinition & {
 		name:     "roundcube"
 		type:     "application"

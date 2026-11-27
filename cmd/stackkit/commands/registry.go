@@ -17,8 +17,10 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -351,7 +353,7 @@ func serviceCatalogEntriesFromContracts(contracts []skcue.ModuleContract) []skcu
 			if description == "" {
 				description = svc.OutputDesc
 			}
-			entries = append(entries, skcue.CatalogEntry{
+			entry := skcue.CatalogEntry{
 				Key:         svc.SubdomainKey,
 				Nested:      svc.SubdomainNested,
 				Flat:        svc.SubdomainFlat,
@@ -364,60 +366,92 @@ func serviceCatalogEntriesFromContracts(contracts []skcue.ModuleContract) []skcu
 				Section:     svc.DashboardSection,
 				Order:       svc.DashboardOrder,
 				EnableVar:   svc.DashboardEnableVar,
-				GuideURL:    svc.DashboardGuideURL,
-				Clients:     append([]skcue.ServiceClient(nil), svc.DashboardClients...),
-				Vendor:      svc.DashboardVendor,
-			})
+			}
+			// Guide, clients and vendor are application-level facts on the
+			// module (#ApplicationPresentation), shared by its service rows.
+			if contract.Presentation != nil {
+				entry.GuideURL = contract.Presentation.GuideURL
+				entry.Clients = append([]skcue.ServiceClient(nil), contract.Presentation.Clients...)
+				entry.Vendor = contract.Presentation.Vendor
+			}
+			entries = append(entries, entry)
 		}
 	}
 	return entries
 }
 
-// registryApplicationsFromContracts projects every module service that
-// declares presentation facts (guide URL, clients or vendor) into one entry
-// keyed by its tool name. Unlike the service slots, applications that share a
-// subdomain (cloudreve, opencloud, nextcloud on "files") each keep their own
-// entry, and applications without a subdomain are included too.
+// registryApplicationsFromContracts projects every module that declares
+// application presentation (#ApplicationPresentation) into one entry keyed by
+// the catalog application id (the module slug). Unlike the service slots,
+// applications that share a subdomain (cloudreve, opencloud, nextcloud on
+// "files") each keep their own entry, and applications without a subdomain are
+// included too. The service key is the module's subdomain slot when all its
+// routed services agree on one key.
 func registryApplicationsFromContracts(contracts []skcue.ModuleContract) ([]registry.Application, error) {
-	byTool := map[string]string{}
+	byID := map[string]string{}
 	var applications []registry.Application
 	for _, contract := range contracts {
-		for _, svc := range contract.Services {
-			if svc.DashboardGuideURL == "" && len(svc.DashboardClients) == 0 && svc.DashboardVendor == nil {
-				continue
-			}
-			if svc.Name == "" {
-				return nil, fmt.Errorf("module %s declares application metadata on a service without a name", contract.Metadata.Name)
-			}
-			if owner, dup := byTool[svc.Name]; dup {
-				return nil, fmt.Errorf("application %s declares presentation metadata in both %s and %s", svc.Name, owner, contract.Metadata.Name)
-			}
-			byTool[svc.Name] = contract.Metadata.Name
-			displayName := contract.Metadata.DisplayName
-			if displayName == "" {
-				displayName = svc.DisplayName
-			}
-			app := registry.Application{
-				ToolName:    svc.Name,
-				ModuleSlug:  contract.Metadata.Name,
-				DisplayName: displayName,
-				ServiceKey:  svc.SubdomainKey,
-				GuideURL:    svc.DashboardGuideURL,
-			}
-			for _, client := range svc.DashboardClients {
-				app.Clients = append(app.Clients, registry.AppClient{Platform: client.Platform, Kind: client.Kind, URL: client.URL})
-			}
-			if v := svc.DashboardVendor; v != nil {
-				vendor := &registry.AppVendor{Name: v.Name, Website: v.Website, Docs: v.Docs, License: v.License}
-				for _, link := range v.Support {
-					vendor.Support = append(vendor.Support, registry.AppSupportLink{Kind: link.Kind, URL: link.URL})
-				}
-				app.Vendor = vendor
-			}
-			applications = append(applications, app)
+		pres := contract.Presentation
+		if pres == nil || (pres.GuideURL == "" && len(pres.Clients) == 0 && pres.Vendor == nil) {
+			continue
 		}
+		id := contract.Metadata.Name
+		if id == "" {
+			return nil, fmt.Errorf("module without a name declares application presentation")
+		}
+		if _, dup := byID[id]; dup {
+			return nil, fmt.Errorf("application %s declares presentation metadata twice", id)
+		}
+		byID[id] = id
+		serviceKey, err := moduleApplicationServiceKey(contract)
+		if err != nil {
+			return nil, err
+		}
+		app := registry.Application{
+			ToolName:    id,
+			ModuleSlug:  id,
+			DisplayName: contract.Metadata.DisplayName,
+			ServiceKey:  serviceKey,
+			GuideURL:    pres.GuideURL,
+		}
+		for _, client := range pres.Clients {
+			app.Clients = append(app.Clients, registry.AppClient{Platform: client.Platform, Kind: client.Kind, URL: client.URL})
+		}
+		if v := pres.Vendor; v != nil {
+			vendor := &registry.AppVendor{Name: v.Name, Website: v.Website, Docs: v.Docs, License: v.License}
+			for _, link := range v.Support {
+				vendor.Support = append(vendor.Support, registry.AppSupportLink{Kind: link.Kind, URL: link.URL})
+			}
+			app.Vendor = vendor
+		}
+		applications = append(applications, app)
 	}
 	return applications, nil
+}
+
+// moduleApplicationServiceKey returns the subdomain key the application fills:
+// the single key every routed service of the module agrees on, empty when the
+// module routes nothing, and an error when the services disagree (the address
+// slot of one application must not be ambiguous).
+func moduleApplicationServiceKey(contract skcue.ModuleContract) (string, error) {
+	keys := make([]string, 0, 2)
+	for _, name := range slices.Sorted(maps.Keys(contract.Services)) {
+		key := contract.Services[name].SubdomainKey
+		if key == "" {
+			continue
+		}
+		if !slices.Contains(keys, key) {
+			keys = append(keys, key)
+		}
+	}
+	switch len(keys) {
+	case 0:
+		return "", nil
+	case 1:
+		return keys[0], nil
+	default:
+		return "", fmt.Errorf("application %s routes its services under several subdomain keys (%s); the catalog cannot derive one address slot", contract.Metadata.Name, strings.Join(keys, ", "))
+	}
 }
 
 func registryServicesFromCatalog(catalog []servicecatalog.Service) []registry.Service {

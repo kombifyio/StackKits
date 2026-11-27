@@ -55,9 +55,16 @@ type ServiceDef struct {
 	DashboardSection   string
 	DashboardBadge     string
 	DashboardEnableVar string
-	DashboardGuideURL  string
-	DashboardClients   []ServiceClient
-	DashboardVendor    *ServiceVendor
+}
+
+// ApplicationPresentation mirrors #ApplicationPresentation: the catalog
+// presentation of one application — our guide for it, its official clients
+// (store entries and installer downloads) and its upstream vendor. It lives
+// on the module, keyed by the catalog application id (the module slug).
+type ApplicationPresentation struct {
+	GuideURL string
+	Clients  []ServiceClient
+	Vendor   *ServiceVendor
 }
 
 // ServiceVendor mirrors #ServiceVendor: the upstream project of an application.
@@ -468,32 +475,6 @@ func (e *Extractor) extractService(v cue.Value) (ServiceDef, error) {
 		svc.DashboardSection = stringField(dash, "section")
 		svc.DashboardBadge = stringField(dash, "badge")
 		svc.DashboardEnableVar = stringField(dash, "enableVar")
-		svc.DashboardGuideURL = stringField(dash, "guideUrl")
-		if list, err := dash.LookupPath(cue.ParsePath("clients")).List(); err == nil {
-			for list.Next() {
-				item := list.Value()
-				svc.DashboardClients = append(svc.DashboardClients, ServiceClient{
-					Platform: stringField(item, "platform"),
-					Kind:     stringField(item, "kind"),
-					URL:      stringField(item, "url"),
-				})
-			}
-		}
-		if vendor := dash.LookupPath(cue.ParsePath("vendor")); vendor.Exists() {
-			v := &ServiceVendor{
-				Name:    stringField(vendor, "name"),
-				Website: stringField(vendor, "website"),
-				Docs:    stringField(vendor, "docs"),
-				License: stringField(vendor, "license"),
-			}
-			if list, err := vendor.LookupPath(cue.ParsePath("support")).List(); err == nil {
-				for list.Next() {
-					item := list.Value()
-					v.Support = append(v.Support, ServiceSupportLink{Kind: stringField(item, "kind"), URL: stringField(item, "url")})
-				}
-			}
-			svc.DashboardVendor = v
-		}
 		if order := dash.LookupPath(cue.ParsePath("order")); order.Exists() {
 			n, _ := order.Int64()
 			svc.DashboardOrder = int(n)

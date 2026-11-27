@@ -2416,6 +2416,13 @@
             "{operationId}"
           ],
           "description": "Stable drill ID; generated when omitted."
+        },
+        {
+          "argv": [
+            "--workload",
+            "{workloadRef}"
+          ],
+          "description": "Recover and verify one PostgreSQL-backed application into an isolated clone target."
         }
       ],
       "mutates": true,

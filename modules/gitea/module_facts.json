@@ -68,5 +68,15 @@
         "appAuth": "self-auth"
       }
     }
-  ]
+  ],
+  "presentation": {
+    "guideUrl": "https://docs.kombify.io/stackkits/apps/gitea",
+    "clients": [],
+    "vendor": {
+      "name": "Gitea",
+      "website": "https://gitea.com",
+      "docs": "https://docs.gitea.com",
+      "license": "MIT"
+    }
+  }
 }

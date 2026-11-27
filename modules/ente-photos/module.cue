@@ -32,6 +32,37 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/photos"
+		clients: [{
+			platform: "android"
+			kind:     "store"
+			url:      "https://play.google.com/store/apps/details?id=io.ente.photos"
+		}, {
+			platform: "ios"
+			kind:     "store"
+			url:      "https://apps.apple.com/app/id1542026904"
+		}, {
+			platform: "windows"
+			kind:     "download"
+			url:      "https://ente.com/download/desktop"
+		}, {
+			platform: "macos"
+			kind:     "download"
+			url:      "https://ente.com/download/desktop"
+		}, {
+			platform: "linux"
+			kind:     "download"
+			url:      "https://ente.com/download/desktop"
+		}]
+		vendor: {
+			name:    "Ente"
+			website: "https://ente.com"
+			docs:    "https://ente.com/help"
+			license: "AGPL-3.0"
+		}
+	}
+
 	services: {
 		museum: foundation.#ServiceDefinition & {
 			name:     "museum"
@@ -57,7 +88,7 @@ Contract: foundation.#ModuleContract & {
 			}
 
 			upstream: {
-				github: repo: "ente-io/ente"
+				github: repo:    "ente-io/ente"
 				registry: image: "ghcr.io/ente/server"
 				track: "minor"
 			}
@@ -119,7 +150,7 @@ Contract: foundation.#ModuleContract & {
 			}
 
 			upstream: {
-				github: repo: "ente-io/ente"
+				github: repo:    "ente-io/ente"
 				registry: image: "ghcr.io/ente/web"
 				track: "minor"
 			}
@@ -159,7 +190,7 @@ Contract: foundation.#ModuleContract & {
 			network: networks: ["ente-internal"]
 
 			upstream: {
-				github: repo: "postgres/postgres"
+				github: repo:    "postgres/postgres"
 				registry: image: "postgres"
 				track: "minor"
 			}

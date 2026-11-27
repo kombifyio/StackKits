@@ -37,8 +37,43 @@ type Facts struct {
 	// its catalog component: entrypoint and command come from the catalog,
 	// and host networking, environment, volume targets, needs and the HTTP
 	// health port must agree with it, or rendering fails.
-	CatalogExact bool           `json:"catalogExact,omitempty"`
-	Services     []FactsService `json:"services"`
+	CatalogExact bool `json:"catalogExact,omitempty"`
+	// Presentation is the module's application presentation for the shared
+	// catalog (guide, official clients, vendor). Optional; rendered as the
+	// module-level presentation block keyed by the module slug.
+	Presentation *FactsPresentation `json:"presentation,omitempty"`
+	Services     []FactsService     `json:"services"`
+}
+
+// FactsPresentation is the catalog presentation of one application: our guide
+// for it, its official clients (store entries and installer downloads) and the
+// upstream vendor. Vendor-published URLs only.
+type FactsPresentation struct {
+	GuideURL string        `json:"guideUrl,omitempty"`
+	Clients  []FactsClient `json:"clients,omitempty"`
+	Vendor   *FactsVendor  `json:"vendor,omitempty"`
+}
+
+// FactsClient is one official client of an application for one platform.
+type FactsClient struct {
+	Platform string `json:"platform"`
+	Kind     string `json:"kind"`
+	URL      string `json:"url"`
+}
+
+// FactsVendor describes the upstream project of an application.
+type FactsVendor struct {
+	Name    string             `json:"name"`
+	Website string             `json:"website,omitempty"`
+	Docs    string             `json:"docs,omitempty"`
+	License string             `json:"license,omitempty"`
+	Support []FactsSupportLink `json:"support,omitempty"`
+}
+
+// FactsSupportLink is one place to support the developers.
+type FactsSupportLink struct {
+	Kind string `json:"kind"`
+	URL  string `json:"url"`
 }
 
 // FactsRequires declares dependency + infrastructure needs.
@@ -269,6 +304,65 @@ func (f *Facts) validate() error {
 		}
 		if s.Routed && s.Traefik == nil {
 			return fmt.Errorf("service %q: routed service needs traefik {rule, port}", s.Name)
+		}
+	}
+	if p := f.Presentation; p != nil {
+		if err := p.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// presentationURLRe accepts only https URLs; the catalog never carries an
+// insecure or guessed link.
+var presentationURLRe = regexp.MustCompile(`^https://[^\s"'<>]+$`)
+
+func (p *FactsPresentation) validate() error {
+	if p.GuideURL != "" && !presentationURLRe.MatchString(p.GuideURL) {
+		return fmt.Errorf("presentation.guideUrl %q must be an https URL", p.GuideURL)
+	}
+	seen := map[string]bool{}
+	for i := range p.Clients {
+		c := &p.Clients[i]
+		switch c.Platform {
+		case "android", "ios", "windows", "macos", "linux":
+		default:
+			return fmt.Errorf("presentation.clients[%d].platform %q must be android, ios, windows, macos or linux", i, c.Platform)
+		}
+		switch c.Kind {
+		case "store", "download":
+		default:
+			return fmt.Errorf("presentation.clients[%d].kind %q must be store or download", i, c.Kind)
+		}
+		if !presentationURLRe.MatchString(c.URL) {
+			return fmt.Errorf("presentation.clients[%d].url %q must be an https URL", i, c.URL)
+		}
+		id := c.Platform + "/" + c.Kind + " " + c.URL
+		if seen[id] {
+			return fmt.Errorf("presentation.clients[%d]: duplicate client %q", i, id)
+		}
+		seen[id] = true
+	}
+	if p.Vendor != nil {
+		if p.Vendor.Name == "" {
+			return fmt.Errorf("presentation.vendor.name is required")
+		}
+		for _, field := range []struct{ name, value string }{{"website", p.Vendor.Website}, {"docs", p.Vendor.Docs}} {
+			if field.value != "" && !presentationURLRe.MatchString(field.value) {
+				return fmt.Errorf("presentation.vendor.%s %q must be an https URL", field.name, field.value)
+			}
+		}
+		for i := range p.Vendor.Support {
+			l := &p.Vendor.Support[i]
+			switch l.Kind {
+			case "donate", "sponsor", "purchase":
+			default:
+				return fmt.Errorf("presentation.vendor.support[%d].kind %q must be donate, sponsor or purchase", i, l.Kind)
+			}
+			if !presentationURLRe.MatchString(l.URL) {
+				return fmt.Errorf("presentation.vendor.support[%d].url %q must be an https URL", i, l.URL)
+			}
 		}
 	}
 	return nil

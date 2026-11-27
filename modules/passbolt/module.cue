@@ -32,6 +32,29 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/vault"
+		clients: [{
+			platform: "android"
+			kind:     "store"
+			url:      "https://play.google.com/store/apps/details?id=com.passbolt.mobile.android"
+		}, {
+			platform: "ios"
+			kind:     "store"
+			url:      "https://apps.apple.com/app/id1569629432"
+		}, {
+			platform: "windows"
+			kind:     "store"
+			url:      "https://apps.microsoft.com/detail/9pfxs2wvkvpb"
+		}]
+		vendor: {
+			name:    "Passbolt"
+			website: "https://www.passbolt.com"
+			docs:    "https://help.passbolt.com"
+			license: "AGPL-3.0"
+		}
+	}
+
 	services: {
 		passbolt: foundation.#ServiceDefinition & {
 			name:     "passbolt"
@@ -57,7 +80,7 @@ Contract: foundation.#ModuleContract & {
 			}
 
 			upstream: {
-				github: repo: "passbolt/passbolt_api"
+				github: repo:    "passbolt/passbolt_api"
 				registry: image: "passbolt/passbolt"
 				track: "minor"
 			}
@@ -112,7 +135,7 @@ Contract: foundation.#ModuleContract & {
 			network: networks: ["vault-internal"]
 
 			upstream: {
-				github: repo: "MariaDB/server"
+				github: repo:    "MariaDB/server"
 				registry: image: "mariadb"
 				track: "minor"
 			}

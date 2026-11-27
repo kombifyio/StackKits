@@ -56,7 +56,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		upstream: {
-			github: repo: "damongolding/immich-kiosk"
+			github: repo:    "damongolding/immich-kiosk"
 			registry: image: "ghcr.io/damongolding/immich-kiosk"
 			track: "minor"
 		}

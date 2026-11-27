@@ -100,6 +100,7 @@ var operatorOperations = []Contract{
 			requiredFlagArg("capability_file", ArgumentString, "--capability", "path to a canonical stackkit.advanced-capability/v1 file that allows restore.drill"),
 			flagArg("anchor", ArgumentString, "--anchor", "existing sha256 snapshot-anchor ID; a new backup anchor is created when omitted"),
 			flagArg("operation_id", ArgumentString, "--operation-id", "stable lowercase drill ID; generated when omitted"),
+			flagArg("workload", ArgumentString, "--workload", "recover and verify one PostgreSQL-backed application into an isolated clone target"),
 		},
 	},
 	{

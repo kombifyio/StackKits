@@ -44,12 +44,12 @@ Contract: foundation.#ModuleContract & {
 
 	provides: {
 		capabilities: {
-			"smart-home":             true
-			"home-automation":        true
-			"native-product-mcp":     true
-			"home-assistant-rest":    true
-			"home-assistant-ws":      true
-			"home-assistant-assist":  true
+			"smart-home":            true
+			"home-automation":       true
+			"native-product-mcp":    true
+			"home-assistant-rest":   true
+			"home-assistant-ws":     true
+			"home-assistant-assist": true
 		}
 		endpoints: {
 			ui: {
@@ -85,14 +85,33 @@ Contract: foundation.#ModuleContract & {
 		rejection_reason: "The self-hosted Home Assistant container requires a dedicated server for persistent data and home integrations."
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/smart-home"
+		clients: [{
+			platform: "android"
+			kind:     "store"
+			url:      "https://play.google.com/store/apps/details?id=io.homeassistant.companion.android"
+		}, {
+			platform: "ios"
+			kind:     "store"
+			url:      "https://apps.apple.com/app/id1099568401"
+		}]
+		vendor: {
+			name:    "Home Assistant"
+			website: "https://www.home-assistant.io"
+			docs:    "https://www.home-assistant.io/docs/"
+			license: "Apache-2.0"
+		}
+	}
+
 	services: "home-assistant": foundation.#ServiceDefinition & {
 		name:        "home-assistant"
 		displayName: "Home Assistant"
 		type:        "application"
-		image: _runtimeImages["home-assistant"].image
-		tag: _runtimeImages["home-assistant"].tag
+		image:       _runtimeImages["home-assistant"].image
+		tag:         _runtimeImages["home-assistant"].tag
 		upstream: {
-			github:  {repo: "home-assistant/core"}
+			github: {repo: "home-assistant/core"}
 		}
 		description: "Home Assistant smart-home hub"
 		required:    false
@@ -146,8 +165,8 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		config: {
-			serviceGroup: "smart-home"
-			routeRole:    "smart-home"
+			serviceGroup:   "smart-home"
+			routeRole:      "smart-home"
 			runtimeProfile: "self-hosted-container"
 			productMcp: {
 				type:     "home-assistant-native"
@@ -159,8 +178,8 @@ Contract: foundation.#ModuleContract & {
 				websocket: "/api/websocket"
 			}
 			replacementContract: {
-				stableRouteKey:       "smart-home"
-				stableLocalSlug:      "smart-home"
+				stableRouteKey:  "smart-home"
+				stableLocalSlug: "smart-home"
 				requiredCapabilities: ["smart-home", "native-product-mcp"]
 				bootstrapRequirements: ["verify-home-assistant-auth", "verify-native-mcp", "record-exposed-entity-policy"]
 				note: "Any replacement Smart Home module must preserve Home Assistant native MCP/API semantics or document an equivalent product-native MCP surface."
@@ -179,17 +198,17 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		labels: {
-			"traefik.enable":                                                  "true"
-			"traefik.http.routers.home-assistant.rule":                       "Host(`smart-home.{{.domain}}`)"
-			"traefik.http.routers.home-assistant.entrypoints":                "web"
-			"traefik.http.services.home-assistant.loadbalancer.server.port":  "8123"
-			"stackkit.layer":                                                  "3-application"
-			"stackkit.managed-by":                                             "selected-paas"
-			"stackkit.product-mcp":                                            "home-assistant-native"
+			"traefik.enable":                                                "true"
+			"traefik.http.routers.home-assistant.rule":                      "Host(`smart-home.{{.domain}}`)"
+			"traefik.http.routers.home-assistant.entrypoints":               "web"
+			"traefik.http.services.home-assistant.loadbalancer.server.port": "8123"
+			"stackkit.layer":                                                "3-application"
+			"stackkit.managed-by":                                           "selected-paas"
+			"stackkit.product-mcp":                                          "home-assistant-native"
 		}
 
 		subdomain: {key: "smart_home", nested: "smart-home", flat: "smart-home"}
-		dashboard: {icon: "&#127968;", order: 55, section: "Applications", badge: "L3 · Smart Home", enableVar: "enable_home_assistant", guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/smart-home", clients: [{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=io.homeassistant.companion.android"}, {platform: "ios", kind: "store", url: "https://apps.apple.com/app/id1099568401"}], vendor: {name: "Home Assistant", website: "https://www.home-assistant.io", docs: "https://www.home-assistant.io/docs/", license: "Apache-2.0"}}
+		dashboard: {icon: "&#127968;", order: 55, section: "Applications", badge: "L3 · Smart Home", enableVar: "enable_home_assistant"}
 
 		output: {
 			url:         "https://smart-home.{{.domain}}"

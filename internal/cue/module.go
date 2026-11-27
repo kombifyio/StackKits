@@ -23,6 +23,11 @@ type ModuleContract struct {
 	// nil means the module did not declare it; the CUE safe-open defaults
 	// apply (eligible for local-only/standard, not managed-serverless).
 	Placement *PlacementSupport
+	// Presentation is the application presentation (#ApplicationPresentation):
+	// the catalog facts for the application this module ships — guide, clients
+	// and vendor — keyed by the catalog application id (Metadata.Name). nil
+	// means the module declares none and the catalog omits the application.
+	Presentation *ApplicationPresentation
 }
 
 // PlacementSupport mirrors foundation/placement.cue #PlacementSupport: publishable
@@ -258,6 +263,11 @@ func (r *ModuleReader) extractContract(v cue.Value) (ModuleContract, error) {
 		}
 	}
 
+	// Application presentation
+	if pres := v.LookupPath(cue.ParsePath("presentation")); pres.Exists() {
+		mc.Presentation = extractPresentation(pres)
+	}
+
 	// Placement eligibility
 	if ps := v.LookupPath(cue.ParsePath("placementSupport")); ps.Exists() {
 		if err := ps.Validate(cue.Concrete(true)); err != nil {
@@ -340,6 +350,40 @@ func (r *ModuleReader) extractPlacementSupport(v cue.Value) *PlacementSupport {
 	}
 	ps.RejectionReason = stringField(v, "rejection_reason")
 	return ps
+}
+
+// extractPresentation decodes a #ApplicationPresentation value: guide URL,
+// official clients and the upstream vendor.
+func extractPresentation(v cue.Value) *ApplicationPresentation {
+	p := &ApplicationPresentation{
+		GuideURL: stringField(v, "guideUrl"),
+	}
+	if list, err := v.LookupPath(cue.ParsePath("clients")).List(); err == nil {
+		for list.Next() {
+			item := list.Value()
+			p.Clients = append(p.Clients, ServiceClient{
+				Platform: stringField(item, "platform"),
+				Kind:     stringField(item, "kind"),
+				URL:      stringField(item, "url"),
+			})
+		}
+	}
+	if vendor := v.LookupPath(cue.ParsePath("vendor")); vendor.Exists() {
+		nv := &ServiceVendor{
+			Name:    stringField(vendor, "name"),
+			Website: stringField(vendor, "website"),
+			Docs:    stringField(vendor, "docs"),
+			License: stringField(vendor, "license"),
+		}
+		if list, err := vendor.LookupPath(cue.ParsePath("support")).List(); err == nil {
+			for list.Next() {
+				item := list.Value()
+				nv.Support = append(nv.Support, ServiceSupportLink{Kind: stringField(item, "kind"), URL: stringField(item, "url")})
+			}
+		}
+		p.Vendor = nv
+	}
+	return p
 }
 
 func (r *ModuleReader) extractDelivery(v cue.Value) *ModuleDelivery {

@@ -70,7 +70,7 @@ func (p servicePlanProjection) applicationServiceControls(declared []serviceDefi
 	result := make([]serviceDefinition, 0)
 	for _, workload := range p.Workloads {
 		adapterID := workload.Alternative.Runtime.Adapter.ID
-		if (adapterID != standaloneComposeRuntimeAdapter && adapterID != "komodo" && adapterID != "coolify") || len(workload.NodeRefs) != 1 {
+		if (adapterID != standaloneComposeRuntimeAdapter && adapterID != "komodo" && adapterID != "coolify" && adapterID != dokployServiceAdapter) || len(workload.NodeRefs) != 1 {
 			continue
 		}
 		serviceRef := workload.Alternative.Route.ServiceRef
@@ -105,13 +105,10 @@ func (p servicePlanProjection) applicationServiceControls(declared []serviceDefi
 		taken["key\x00"+workload.ID] = struct{}{}
 		taken["ref\x00"+serviceRef] = struct{}{}
 		controlAdapter := applicationComposeAdapter
-		if adapterID == "komodo" || adapterID == "coolify" {
+		if adapterID == "komodo" || adapterID == "coolify" || adapterID == dokployServiceAdapter {
 			controlAdapter = adapterID
 		}
 		actions := []string{ActionLogs, ActionRestart, ActionStart, ActionStop}
-		if adapterID == "coolify" {
-			actions = []string{ActionRestart, ActionStart, ActionStop}
-		}
 		result = append(result, serviceDefinition{
 			ModuleID: workload.Alternative.ModuleRef,
 			Key:      workload.ID, ServiceRef: serviceRef, Adapter: controlAdapter,
@@ -145,16 +142,31 @@ func applicationComposePath(workspace, runtimeRef string) string {
 // runApplicationCompose runs one bounded Compose command against the
 // adapter-owned application project, with the project's own env file.
 func runApplicationCompose(ctx context.Context, request runtimeCommandRequest) (runtimeCommandOutput, error) {
-	directory := filepath.Dir(request.ComposePath)
-	if filepath.Base(request.ComposePath) != "compose.yaml" || filepath.Base(directory) != "stackkit-"+request.RuntimeRef ||
-		filepath.Base(filepath.Dir(directory)) != "applications" {
-		return runtimeCommandOutput{}, errors.New("service control rejected an unbounded application runtime")
+	directory, workspace, err := applicationComposeBounds(request)
+	if err != nil {
+		return runtimeCommandOutput{}, err
 	}
-	workspace := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(directory))))
 	if err := platformdeploy.RequireComposeWorkloadOwner(workspace, filepath.Base(directory)); err != nil {
 		return runtimeCommandOutput{}, &Error{ReasonCode: "workload_manager_conflict", Message: err.Error()}
 	}
-	prefix := []string{"compose", "--project-name", "stackkit-" + request.RuntimeRef, "--env-file", filepath.Join(directory, ".env"), "-f", request.ComposePath}
+	return runBoundedCompose(ctx, request, directory, "stackkit-"+request.RuntimeRef)
+}
+
+// applicationComposeBounds proves the request names the adapter-owned
+// application directory and returns that directory and its workspace.
+func applicationComposeBounds(request runtimeCommandRequest) (directory, workspace string, err error) {
+	directory = filepath.Dir(request.ComposePath)
+	if filepath.Base(request.ComposePath) != "compose.yaml" || filepath.Base(directory) != "stackkit-"+request.RuntimeRef ||
+		filepath.Base(filepath.Dir(directory)) != "applications" {
+		return "", "", errors.New("service control rejected an unbounded application runtime")
+	}
+	return directory, filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(directory)))), nil
+}
+
+// runBoundedCompose runs one finite Compose command on the named project with
+// the application directory's env file and recipe.
+func runBoundedCompose(ctx context.Context, request runtimeCommandRequest, directory, project string) (runtimeCommandOutput, error) {
+	prefix := []string{"compose", "--project-name", project, "--env-file", filepath.Join(directory, ".env"), "-f", request.ComposePath}
 	command := exec.CommandContext(ctx, "docker", append(prefix, request.Args...)...) //nolint:gosec // finite arguments validated by the caller
 	command.Dir = directory
 	command.Env = []string{"LANG=C", "LC_ALL=C"}

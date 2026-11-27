@@ -56,7 +56,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		upstream: {
-			github: repo: "varun-raj/immich-power-tools"
+			github: repo:    "varun-raj/immich-power-tools"
 			registry: image: "ghcr.io/immich-power-tools/immich-power-tools"
 			track: "minor"
 		}

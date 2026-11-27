@@ -100,6 +100,10 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/stackkits/apps/tinyauth"
+	}
+
 	services: tinyauth: foundation.#ServiceDefinition & {
 		name: "tinyauth"
 		type: "auth"
@@ -193,7 +197,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "auth", nested: "auth", flat: "auth"}
-		dashboard: {icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth", guideUrl: "https://docs.kombify.io/stackkits/apps/tinyauth"}
+		dashboard: {icon: "&#128274;", order: 20, section: "Platform", badge: "L1 \u00b7 ForwardAuth"}
 
 		output: {
 			url:         "https://auth.{{.domain}}"

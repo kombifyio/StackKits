@@ -32,6 +32,15 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/documents-and-files"
+		vendor: {
+			name:    "Paperless-ngx"
+			docs:    "https://docs.paperless-ngx.com"
+			license: "GPL-3.0"
+		}
+	}
+
 	services: {
 		paperless: foundation.#ServiceDefinition & {
 			name:     "paperless"

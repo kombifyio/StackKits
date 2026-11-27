@@ -179,6 +179,7 @@ check_archive_contents() {
     schemas/stackkit-change-set-result-v1.schema.json \
     schemas/stackkit-drift-report-v1.schema.json \
     schemas/stackkit-restore-drill-report-v1.schema.json \
+    schemas/stackkit-application-recovery-receipt-v1.schema.json \
     schemas/stackkit-rollback-result-v1.schema.json \
     scripts/e2e/validate-standalone-oss-e2e.mjs \
     scripts/e2e/validate-standalone-runtime-e2e.mjs \

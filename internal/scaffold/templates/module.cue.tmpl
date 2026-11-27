@@ -64,6 +64,42 @@ Contract: foundation.#ModuleContract & {
 		rejection_reason:   {{quote .Placement.ManagedAppRejectionReason}}
 {{- end}}
 	}
+{{- if .Presentation}}
+
+	presentation: {
+{{- if .Presentation.GuideURL}}
+		guideUrl: {{quote .Presentation.GuideURL}}
+{{- end}}
+{{- if .Presentation.Clients}}
+		clients: [
+{{- range .Presentation.Clients}}
+			{platform: {{quote .Platform}}, kind: {{quote .Kind}}, url: {{quote .URL}}},
+{{- end}}
+		]
+{{- end}}
+{{- if .Presentation.Vendor}}
+		vendor: {
+			name: {{quote .Presentation.Vendor.Name}}
+{{- if .Presentation.Vendor.Website}}
+			website: {{quote .Presentation.Vendor.Website}}
+{{- end}}
+{{- if .Presentation.Vendor.Docs}}
+			docs: {{quote .Presentation.Vendor.Docs}}
+{{- end}}
+{{- if .Presentation.Vendor.License}}
+			license: {{quote .Presentation.Vendor.License}}
+{{- end}}
+{{- if .Presentation.Vendor.Support}}
+			support: [
+{{- range .Presentation.Vendor.Support}}
+				{kind: {{quote .Kind}}, url: {{quote .URL}}},
+{{- end}}
+			]
+{{- end}}
+		}
+{{- end}}
+	}
+{{end}}
 
 	services: {
 {{- range .Services}}

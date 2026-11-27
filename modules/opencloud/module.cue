@@ -58,6 +58,41 @@ Contract: foundation.#ModuleContract & {
 		pi: {}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/files"
+		clients: [{
+			platform: "android"
+			kind:     "store"
+			url:      "https://play.google.com/store/apps/details?id=eu.opencloud.android"
+		}, {
+			platform: "android"
+			kind:     "store"
+			url:      "https://f-droid.org/packages/eu.opencloud.android/"
+		}, {
+			platform: "ios"
+			kind:     "store"
+			url:      "https://apps.apple.com/app/id6743121005"
+		}, {
+			platform: "windows"
+			kind:     "store"
+			url:      "https://apps.microsoft.com/detail/9pbx43hcmldq"
+		}, {
+			platform: "macos"
+			kind:     "download"
+			url:      "https://github.com/opencloud-eu/desktop/releases/latest"
+		}, {
+			platform: "linux"
+			kind:     "download"
+			url:      "https://github.com/opencloud-eu/desktop/releases/latest"
+		}]
+		vendor: {
+			name:    "OpenCloud"
+			website: "https://opencloud.eu"
+			docs:    "https://docs.opencloud.eu"
+			license: "Apache-2.0"
+		}
+	}
+
 	services: opencloud: foundation.#ServiceDefinition & {
 		name:        "opencloud"
 		displayName: "Files"
@@ -139,7 +174,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "files", nested: "files", flat: "files"}
-		dashboard: {icon: "&#128193;", order: 60, section: "Applications", badge: "L3 \u00b7 Files", enableVar: "enable_files", guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/files", vendor: {name: "OpenCloud", website: "https://opencloud.eu", docs: "https://docs.opencloud.eu", license: "Apache-2.0"}}
+		dashboard: {icon: "&#128193;", order: 60, section: "Applications", badge: "L3 \u00b7 Files", enableVar: "enable_files"}
 
 		output: {
 			url:         "https://files.{{.domain}}"

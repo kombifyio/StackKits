@@ -146,15 +146,18 @@ type Error struct {
 func (e *Error) Error() string { return e.Message }
 
 // runtimeCommandRequest is the fully bounded adapter invocation derived from
-// one canonical ResolvedPlan service-control declaration.
+// one canonical ResolvedPlan service-control declaration. RuntimeProject is the
+// physical Compose project of a Dokploy-managed workload and is empty for every
+// other adapter.
 type runtimeCommandRequest struct {
-	Adapter       string
-	RuntimeRef    string
-	ComposePath   string
-	ExternalID    string
-	HTTPConfig    platformdeploy.HTTPConfig
-	Args          []string
-	ComponentRefs []string
+	Adapter        string
+	RuntimeRef     string
+	ComposePath    string
+	ExternalID     string
+	RuntimeProject string
+	HTTPConfig     platformdeploy.HTTPConfig
+	Args           []string
+	ComponentRefs  []string
 }
 
 type runtimeCommandOutput struct {
@@ -278,7 +281,7 @@ func (c *Controller) mutateLocked(ctx context.Context, result Result) (Result, e
 		return result, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "service action failed: " + logging.RedactText(err.Error())}
 	}
 	observed := strings.TrimSpace(actionOutput.ObservedState)
-	if target.Adapter == "compose" || target.Adapter == applicationComposeAdapter {
+	if target.Adapter == "compose" || target.Adapter == applicationComposeAdapter || target.Adapter == dokployServiceAdapter {
 		observed, err = c.observe(ctx, target, definition.ComponentRefs)
 		if err != nil {
 			return result, err
@@ -428,12 +431,16 @@ type runtimeAuthority struct {
 	Services            map[string]serviceDefinition
 }
 
+// runtimeTarget is the resolved runtime of one declared service. RuntimeProject
+// is the signed physical Compose project of a Dokploy workload and is empty for
+// every other adapter.
 type runtimeTarget struct {
-	Adapter     string
-	RuntimeRef  string
-	ComposePath string
-	ExternalID  string
-	HTTPConfig  platformdeploy.HTTPConfig
+	Adapter        string
+	RuntimeRef     string
+	ComposePath    string
+	ExternalID     string
+	RuntimeProject string
+	HTTPConfig     platformdeploy.HTTPConfig
 }
 
 func (c *Controller) authority() (runtimeAuthority, error) {
@@ -532,7 +539,7 @@ func normalizeServiceDefinition(candidate serviceDefinition) (serviceDefinition,
 	if !contractIDPattern.MatchString(candidate.Key) || !contractIDPattern.MatchString(candidate.ServiceRef) || !contractIDPattern.MatchString(candidate.RuntimeRef) {
 		return serviceDefinition{}, errors.New("canonical ResolvedPlan has an invalid service-control identity")
 	}
-	if candidate.Adapter != "compose" && candidate.Adapter != "komodo" && candidate.Adapter != "coolify" && candidate.Adapter != applicationComposeAdapter {
+	if candidate.Adapter != "compose" && candidate.Adapter != "komodo" && candidate.Adapter != "coolify" && candidate.Adapter != dokployServiceAdapter && candidate.Adapter != applicationComposeAdapter {
 		return serviceDefinition{}, errors.New("canonical ResolvedPlan has an unsupported service-control adapter")
 	}
 	componentRefs, err := normalizedContractIDs(candidate.ComponentRefs)
@@ -612,6 +619,9 @@ func serviceContractHash(definitions []serviceDefinition) (string, error) {
 }
 
 func (c *Controller) runtimeTarget(definition serviceDefinition, authority runtimeAuthority) (runtimeTarget, error) {
+	if definition.Adapter == dokployServiceAdapter {
+		return c.dokployRuntimeTarget(definition)
+	}
 	if definition.Adapter == applicationComposeAdapter || definition.Adapter == "komodo" || definition.Adapter == "coolify" {
 		project := "stackkit-" + definition.RuntimeRef
 		present, err := platformdeploy.HasOwnerHostDeployment(c.workspace, project)
@@ -772,7 +782,7 @@ func readOwnerFile(workspace, relative string) ([]byte, error) {
 }
 
 func runtimeCommand(target runtimeTarget, args, componentRefs []string) runtimeCommandRequest {
-	return runtimeCommandRequest{Adapter: target.Adapter, RuntimeRef: target.RuntimeRef, ComposePath: target.ComposePath, ExternalID: target.ExternalID, HTTPConfig: target.HTTPConfig, Args: args, ComponentRefs: append([]string(nil), componentRefs...)}
+	return runtimeCommandRequest{Adapter: target.Adapter, RuntimeRef: target.RuntimeRef, ComposePath: target.ComposePath, ExternalID: target.ExternalID, RuntimeProject: target.RuntimeProject, HTTPConfig: target.HTTPConfig, Args: args, ComponentRefs: append([]string(nil), componentRefs...)}
 }
 
 func (c *Controller) loadState(authority runtimeAuthority, serviceKey string) (DesiredState, error) {
@@ -1043,6 +1053,9 @@ func (osRunner) Run(ctx context.Context, request runtimeCommandRequest) (runtime
 	}
 	if request.Adapter == "coolify" {
 		return runCoolifyService(ctx, request)
+	}
+	if request.Adapter == dokployServiceAdapter {
+		return runDokployService(ctx, request)
 	}
 	if request.Adapter != "compose" || filepath.Base(request.ComposePath) != "compose.yaml" || filepath.Base(filepath.Dir(request.ComposePath)) != request.RuntimeRef {
 		return runtimeCommandOutput{}, errors.New("service control rejected an unbounded runtime adapter")

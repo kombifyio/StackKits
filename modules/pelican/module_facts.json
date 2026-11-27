@@ -88,5 +88,14 @@
         "registryImage": "ghcr.io/pelican/wings"
       }
     }
-  ]
+  ],
+  "presentation": {
+    "guideUrl": "https://docs.kombify.io/guides/stackkits/use-cases/game",
+    "clients": [],
+    "vendor": {
+      "name": "Pelican",
+      "website": "https://pelican.dev",
+      "license": "AGPL-3.0"
+    }
+  }
 }

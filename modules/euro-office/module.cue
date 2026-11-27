@@ -32,6 +32,15 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/documents-and-files"
+		vendor: {
+			name:    "Euro-Office"
+			docs:    "https://euro-office.github.io/documentation/"
+			license: "AGPL-3.0"
+		}
+	}
+
 	services: documentserver: foundation.#ServiceDefinition & {
 		name:     "documentserver"
 		type:     "application"
@@ -56,7 +65,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		upstream: {
-			github: repo: "Euro-Office/DocumentServer"
+			github: repo:    "Euro-Office/DocumentServer"
 			registry: image: "ghcr.io/euro-office/documentserver"
 			track: "minor"
 		}

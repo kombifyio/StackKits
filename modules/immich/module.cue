@@ -75,12 +75,39 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/stackkits/apps/immich"
+		clients: [{
+			platform: "android"
+			kind:     "store"
+			url:      "https://play.google.com/store/apps/details?id=app.alextran.immich"
+		}, {
+			platform: "android"
+			kind:     "download"
+			url:      "https://github.com/immich-app/immich/releases/latest/download/app-release.apk"
+		}, {
+			platform: "ios"
+			kind:     "store"
+			url:      "https://apps.apple.com/us/app/immich/id1613945652"
+		}]
+		vendor: {
+			name:    "Immich"
+			website: "https://immich.app"
+			docs:    "https://docs.immich.app/"
+			license: "AGPL-3.0"
+			support: [{
+				kind: "purchase"
+				url:  "https://buy.immich.app/"
+			}]
+		}
+	}
+
 	services: {
 		immich: foundation.#ServiceDefinition & {
 			name:  "immich"
 			type:  "application"
 			image: _runtimeImages["immich-server"].image
-			tag: _runtimeImages["immich-server"].tag
+			tag:   _runtimeImages["immich-server"].tag
 			upstream: {
 				github: {repo: "immich-app/immich"}
 				track:   "patch"
@@ -174,7 +201,7 @@ Contract: foundation.#ModuleContract & {
 			}
 
 			subdomain: {key: "photos", nested: "photos", flat: "photos"}
-			dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich", guideUrl: "https://docs.kombify.io/stackkits/apps/immich", clients: [{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=app.alextran.immich"}, {platform: "android", kind: "download", url: "https://github.com/immich-app/immich/releases/latest/download/app-release.apk"}, {platform: "ios", kind: "store", url: "https://apps.apple.com/us/app/immich/id1613945652"}], vendor: {name: "Immich", website: "https://immich.app", docs: "https://docs.immich.app/", license: "AGPL-3.0", support: [{kind: "purchase", url: "https://buy.immich.app/"}]}}
+			dashboard: {icon: "&#128247;", order: 50, section: "Applications", badge: "L3 \u00b7 Photos", enableVar: "enable_immich"}
 
 			output: {
 				url:         "https://photos.{{.domain}}"
@@ -186,7 +213,7 @@ Contract: foundation.#ModuleContract & {
 			name:  "immich-machine-learning"
 			type:  "application"
 			image: _runtimeImages["immich-machine-learning"].image
-			tag: _runtimeImages["immich-machine-learning"].tag
+			tag:   _runtimeImages["immich-machine-learning"].tag
 			upstream: {
 				github: {repo: "immich-app/immich"}
 				track:   "patch"

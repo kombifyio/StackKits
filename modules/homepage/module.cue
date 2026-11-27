@@ -64,12 +64,16 @@ Contract: foundation.#ModuleContract & {
 		pi: {}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/stackkits/apps/homepage"
+	}
+
 	services: {
 		homepage: foundation.#ServiceDefinition & {
-			name:     "homepage"
-			type:     "dashboard"
-			image:    "ghcr.io/gethomepage/homepage"
-			tag:      "latest"
+			name:  "homepage"
+			type:  "dashboard"
+			image: "ghcr.io/gethomepage/homepage"
+			tag:   "latest"
 			upstream: {
 				github: {repo: "gethomepage/homepage"}
 			}
@@ -151,7 +155,6 @@ Contract: foundation.#ModuleContract & {
 				section:   "Platform"
 				badge:     "L3 \u00b7 Start"
 				enableVar: "enable_homepage"
-				guideUrl:  "https://docs.kombify.io/stackkits/apps/homepage"
 			}
 
 			output: {
@@ -161,10 +164,10 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		"homepage-socket-proxy": foundation.#ServiceDefinition & {
-			name:     "homepage-socket-proxy"
-			type:     "infrastructure"
-			image:    "tecnativa/docker-socket-proxy"
-			tag:      "latest"
+			name:  "homepage-socket-proxy"
+			type:  "infrastructure"
+			image: "tecnativa/docker-socket-proxy"
+			tag:   "latest"
 			upstream: {
 				github: {repo: "Tecnativa/docker-socket-proxy"}
 			}

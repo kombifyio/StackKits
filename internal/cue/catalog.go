@@ -121,6 +121,16 @@ func dedupeCatalogEntries(entries []CatalogEntry) []CatalogEntry {
 }
 
 func catalogEntryForService(mc ModuleContract, svc ServiceDef) CatalogEntry {
+	// Guide, clients and vendor are application-level facts on the module
+	// (#ApplicationPresentation), shared by every card the module renders.
+	var guideURL string
+	var clients []ServiceClient
+	var vendor *ServiceVendor
+	if mc.Presentation != nil {
+		guideURL = mc.Presentation.GuideURL
+		clients = append([]ServiceClient(nil), mc.Presentation.Clients...)
+		vendor = mc.Presentation.Vendor
+	}
 	return CatalogEntry{
 		Key:         svc.SubdomainKey,
 		Nested:      svc.SubdomainNested,
@@ -134,9 +144,9 @@ func catalogEntryForService(mc ModuleContract, svc ServiceDef) CatalogEntry {
 		Section:     svc.DashboardSection,
 		Order:       svc.DashboardOrder,
 		EnableVar:   svc.DashboardEnableVar,
-		GuideURL:    svc.DashboardGuideURL,
-		Clients:     append([]ServiceClient(nil), svc.DashboardClients...),
-		Vendor:      svc.DashboardVendor,
+		GuideURL:    guideURL,
+		Clients:     clients,
+		Vendor:      vendor,
 	}
 }
 

@@ -359,6 +359,7 @@ func New() Catalog {
 				OptionalArgs: []OptionalArgs{
 					{Argv: []string{"--anchor", "{anchorId}"}, Description: "Drill an existing snapshot anchor in local custody instead of creating one."},
 					{Argv: []string{"--operation-id", "{operationId}"}, Description: "Stable drill ID; generated when omitted."},
+					{Argv: []string{"--workload", "{workloadRef}"}, Description: "Recover and verify one PostgreSQL-backed application into an isolated clone target."},
 				},
 				Mutates: true,
 				Requires: Requirements{

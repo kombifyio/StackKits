@@ -225,6 +225,13 @@ package foundation
 	// so the per-unit override is mode-only.
 	placementMode?: #PlacementMode
 
+	// Application presentation for the shared catalog: our guide for the
+	// application, its official clients (store entries and installer downloads)
+	// and its upstream vendor. Keyed by the catalog application id, which is
+	// this module's metadata.name — one block per module, separate from the
+	// Node Hub dashboard card on a service. Only vendor-published URLs.
+	presentation?: #ApplicationPresentation
+
 	// The service definition(s) this module deploys
 	services: [string]: #ServiceDefinition
 

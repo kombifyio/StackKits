@@ -56,7 +56,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		upstream: {
-			github: repo: "alangrainger/immich-public-proxy"
+			github: repo:    "alangrainger/immich-public-proxy"
 			registry: image: "ghcr.io/alangrainger/immich-public-proxy"
 			track: "minor"
 		}

@@ -32,6 +32,16 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/media"
+		vendor: {
+			name:    "Navidrome"
+			website: "https://www.navidrome.org"
+			docs:    "https://www.navidrome.org/docs"
+			license: "GPL-3.0"
+		}
+	}
+
 	services: navidrome: foundation.#ServiceDefinition & {
 		name:     "navidrome"
 		type:     "application"
@@ -56,7 +66,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		upstream: {
-			github: repo: "navidrome/navidrome"
+			github: repo:    "navidrome/navidrome"
 			registry: image: "deluan/navidrome"
 			track: "minor"
 		}

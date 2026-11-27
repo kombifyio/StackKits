@@ -32,6 +32,21 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/personal-ai"
+		clients: [
+			{platform: "windows", kind: "download", url: "https://www.comfy.org/download"},
+			{platform: "macos", kind: "download", url: "https://www.comfy.org/download"},
+			{platform: "linux", kind: "download", url: "https://www.comfy.org/download"},
+		]
+		vendor: {
+			name:    "ComfyUI"
+			website: "https://www.comfy.org"
+			docs:    "https://docs.comfy.org"
+			license: "GPL-3.0"
+		}
+	}
+
 	services: comfyui: foundation.#ServiceDefinition & {
 		name:     "comfyui"
 		type:     "application"

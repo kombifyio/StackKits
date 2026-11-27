@@ -457,6 +457,12 @@
           "type": "bool",
           "description": "Explicitly approve the drill's backup and staged restore side effects",
           "required": false
+        },
+        {
+          "name": "workload",
+          "type": "string",
+          "description": "Recover and verify one PostgreSQL-backed application into an isolated clone target",
+          "required": false
         }
       ],
       "subcommands": []
@@ -12960,9 +12966,27 @@
           "required": false
         },
         {
+          "name": "paperwork-move-item",
+          "type": "string",
+          "description": "Run or resume the admitted Paperwork move from this sealed Wallet item",
+          "required": false
+        },
+        {
+          "name": "paperwork-registry-item",
+          "type": "string",
+          "description": "Bind the expected Wallet item to the Paperwork registry pull slot",
+          "required": false
+        },
+        {
           "name": "tenant-ref",
           "type": "string",
           "description": "Tenant the sealed delivery must be addressed to",
+          "required": false
+        },
+        {
+          "name": "wiki-registry-item",
+          "type": "string",
+          "description": "Bind the expected Wallet item to the Wiki registry pull slot",
           "required": false
         }
       ],

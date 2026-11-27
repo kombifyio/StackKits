@@ -73,6 +73,7 @@
               "select-anchor",
               "stage-restore",
               "verify-staged-restore",
+              "recover-isolated-app",
               "cleanup-staging",
               "verify-live-unchanged"
             ]
@@ -96,6 +97,9 @@
           "detail": { "type": "string" }
         }
       }
+    },
+    "applicationRecovery": {
+      "$ref": "stackkit-application-recovery-receipt-v1.schema.json"
     },
     "startedAt": { "type": "string", "format": "date-time" },
     "completedAt": { "type": "string", "format": "date-time" }

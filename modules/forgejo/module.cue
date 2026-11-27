@@ -32,6 +32,16 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/development"
+		vendor: {
+			name:    "Forgejo"
+			website: "https://forgejo.org"
+			docs:    "https://forgejo.org/docs/latest/"
+			license: "GPL-3.0"
+		}
+	}
+
 	services: forgejo: foundation.#ServiceDefinition & {
 		name:     "forgejo"
 		type:     "application"
@@ -56,7 +66,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		upstream: {
-			github: repo: "forgejo/forgejo"
+			github: repo:    "forgejo/forgejo"
 			registry: image: "codeberg.org/forgejo/forgejo"
 			track: "minor"
 		}

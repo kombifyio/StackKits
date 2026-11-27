@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stackkits.dev/schemas/stackkit-application-recovery-receipt-v1.schema.json",
+  "title": "StackKit isolated application recovery receipt v1",
+  "description": "Structured evidence receipt emitted by `stackkit advanced restore-drill run --workload <workloadRef>` proving isolated application recovery of a PostgreSQL-backed workload without touching the live runtime or emitting outbound notifications.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "drillId",
+    "status",
+    "receiptPath",
+    "workloadRef",
+    "moduleRef",
+    "appRelease",
+    "postgresImage",
+    "dependencyVersions",
+    "scope",
+    "versions",
+    "evidenceAge",
+    "isolation",
+    "readiness",
+    "dataReadback",
+    "unknowns"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "stackkit.application-recovery-receipt/v1" },
+    "drillId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{7,99}$" },
+    "status": { "enum": ["succeeded", "failed"] },
+    "failureCode": { "type": "string", "minLength": 1 },
+    "error": { "type": "string" },
+    "receiptPath": { "type": "string", "minLength": 1 },
+    "workloadRef": { "type": "string", "minLength": 1 },
+    "moduleRef": { "type": "string" },
+    "appRelease": { "type": "string" },
+    "postgresImage": { "type": "string" },
+    "dependencyVersions": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "siteRef",
+        "nodeRef",
+        "linuxProfile",
+        "liveProject",
+        "cloneProject",
+        "backedUpVolumes",
+        "stagedVolumes",
+        "restoredVolumes",
+        "verifiedDependencies",
+        "configFilesVerified",
+        "secretSlotsVerified"
+      ],
+      "properties": {
+        "siteRef": { "type": "string" },
+        "nodeRef": { "type": "string" },
+        "linuxProfile": { "type": "string" },
+        "liveProject": { "type": "string" },
+        "cloneProject": { "type": "string" },
+        "backedUpVolumes": { "type": "array", "items": { "type": "string" } },
+        "stagedVolumes": { "type": "array", "items": { "type": "string" } },
+        "restoredVolumes": { "type": "array", "items": { "type": "string" } },
+        "verifiedDependencies": { "type": "array", "items": { "type": "string" } },
+        "configFilesVerified": { "type": "array", "items": { "type": "string" } },
+        "secretSlotsVerified": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stackkitVersion",
+        "planHash",
+        "manifestHash",
+        "policyArtifactDigest",
+        "kopiaHelperImage"
+      ],
+      "properties": {
+        "stackkitVersion": { "type": "string" },
+        "planHash": { "type": "string" },
+        "manifestHash": { "type": "string" },
+        "policyArtifactDigest": { "type": "string" },
+        "kopiaHelperImage": { "type": "string" }
+      }
+    },
+    "evidenceAge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshotAnchorId",
+        "snapshotCreatedAt",
+        "snapshotAgeSeconds",
+        "restoreResultId",
+        "restoreCompletedAt",
+        "drillStartedAt",
+        "drillCompletedAt",
+        "drillDurationMs"
+      ],
+      "properties": {
+        "snapshotAnchorId": { "type": "string" },
+        "snapshotCreatedAt": { "type": "string", "format": "date-time" },
+        "snapshotAgeSeconds": { "type": "integer", "minimum": 0 },
+        "restoreResultId": { "type": "string" },
+        "restoreCompletedAt": { "type": "string", "format": "date-time" },
+        "drillStartedAt": { "type": "string", "format": "date-time" },
+        "drillCompletedAt": { "type": "string", "format": "date-time" },
+        "drillDurationMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cloneProject",
+        "liveProjectUntouched",
+        "liveVolumesUnmounted",
+        "internalNetworksOnly",
+        "masqueradeDisabled",
+        "routingLabelsStripped",
+        "publishedHostPortsOnlyLoopback",
+        "outboundNotificationsProhibited",
+        "outboundNotificationsDetected",
+        "cloneResourcesCleanedUp"
+      ],
+      "properties": {
+        "cloneProject": { "type": "string" },
+        "liveProjectUntouched": { "type": "boolean" },
+        "liveVolumesUnmounted": { "type": "boolean" },
+        "internalNetworksOnly": { "type": "boolean" },
+        "masqueradeDisabled": { "type": "boolean" },
+        "routingLabelsStripped": { "type": "boolean" },
+        "publishedHostPortsOnlyLoopback": { "type": "boolean" },
+        "outboundNotificationsProhibited": { "type": "boolean" },
+        "outboundNotificationsDetected": { "type": "boolean" },
+        "cloneResourcesCleanedUp": { "type": "boolean" }
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "databaseReady",
+        "databaseName",
+        "publicTableCount",
+        "entryHttpStatus",
+        "entryHttpReady",
+        "dependencyChecks"
+      ],
+      "properties": {
+        "databaseReady": { "type": "boolean" },
+        "databaseName": { "type": "string" },
+        "publicTableCount": { "type": "integer", "minimum": 0 },
+        "entryHttpStatus": { "type": "integer", "minimum": 0 },
+        "entryHttpReady": { "type": "boolean" },
+        "dependencyChecks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["componentRef", "role", "lifecycle", "state", "exitCode", "ready"],
+            "properties": {
+              "componentRef": { "type": "string" },
+              "role": { "type": "string" },
+              "lifecycle": { "type": "string" },
+              "state": { "type": "string" },
+              "health": { "type": "string" },
+              "exitCode": { "type": "integer" },
+              "ready": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "dataReadback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "volumes"],
+      "properties": {
+        "method": { "const": "volume-file-tree-sha256/v1" },
+        "volumes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["liveName", "cloneName", "files", "bytes", "digest", "matchesStaged"],
+            "properties": {
+              "liveName": { "type": "string" },
+              "cloneName": { "type": "string" },
+              "files": { "type": "integer", "minimum": 0 },
+              "bytes": { "type": "integer", "minimum": 0 },
+              "digest": { "type": "string" },
+              "matchesStaged": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

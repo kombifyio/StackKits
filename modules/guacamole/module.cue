@@ -32,6 +32,16 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/development"
+		vendor: {
+			name:    "Apache Guacamole"
+			website: "https://guacamole.apache.org"
+			docs:    "https://guacamole.apache.org/doc/gug/"
+			license: "Apache-2.0"
+		}
+	}
+
 	services: {
 		guacd: foundation.#ServiceDefinition & {
 			name:     "guacd"

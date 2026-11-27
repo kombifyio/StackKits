@@ -60,6 +60,41 @@ Contract: foundation.#ModuleContract & {
 		cloud: {}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/files"
+		clients: [{
+			platform: "android"
+			kind:     "store"
+			url:      "https://play.google.com/store/apps/details?id=com.nextcloud.client"
+		}, {
+			platform: "android"
+			kind:     "store"
+			url:      "https://f-droid.org/packages/com.nextcloud.client/"
+		}, {
+			platform: "ios"
+			kind:     "store"
+			url:      "https://apps.apple.com/app/id1125420102"
+		}, {
+			platform: "windows"
+			kind:     "download"
+			url:      "https://nextcloud.com/install/#install-clients"
+		}, {
+			platform: "macos"
+			kind:     "download"
+			url:      "https://nextcloud.com/install/#install-clients"
+		}, {
+			platform: "linux"
+			kind:     "download"
+			url:      "https://nextcloud.com/install/#install-clients"
+		}]
+		vendor: {
+			name:    "Nextcloud"
+			website: "https://nextcloud.com"
+			docs:    "https://docs.nextcloud.com"
+			license: "AGPL-3.0"
+		}
+	}
+
 	services: nextcloud: foundation.#ServiceDefinition & {
 		name:        "nextcloud"
 		displayName: "Files"
@@ -68,11 +103,11 @@ Contract: foundation.#ModuleContract & {
 		image:       "nextcloud"
 		tag:         "30-apache"
 		upstream: {
-			github:  {repo: "nextcloud/server"}
+			github: {repo: "nextcloud/server"}
 			pinLine: "30-apache"
 		}
-		required:    false
-		status:      "implemented"
+		required: false
+		status:   "implemented"
 		needs: ["traefik"]
 
 		placement: {
@@ -160,7 +195,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "files", nested: "files", flat: "files"}
-		dashboard: {icon: "&#128193;", order: 60, section: "Applications", badge: "L3 \u00b7 Files", enableVar: "enable_files", guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/files", clients: [{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=com.nextcloud.client"}, {platform: "android", kind: "store", url: "https://f-droid.org/packages/com.nextcloud.client/"}, {platform: "ios", kind: "store", url: "https://apps.apple.com/app/id1125420102"}, {platform: "windows", kind: "download", url: "https://nextcloud.com/install/#install-clients"}, {platform: "macos", kind: "download", url: "https://nextcloud.com/install/#install-clients"}, {platform: "linux", kind: "download", url: "https://nextcloud.com/install/#install-clients"}], vendor: {name: "Nextcloud", website: "https://nextcloud.com", docs: "https://docs.nextcloud.com", license: "AGPL-3.0"}}
+		dashboard: {icon: "&#128193;", order: 60, section: "Applications", badge: "L3 \u00b7 Files", enableVar: "enable_files"}
 
 		output: {
 			url:         "https://files.{{.domain}}"

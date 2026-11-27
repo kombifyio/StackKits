@@ -32,6 +32,23 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/media"
+		clients: [{
+			platform: "android"
+			kind:     "store"
+			url:      "https://play.google.com/store/apps/details?id=com.mb.android"
+		}, {
+			platform: "ios"
+			kind:     "store"
+			url:      "https://apps.apple.com/us/app/emby/id992180193"
+		}]
+		vendor: {
+			name:    "Emby"
+			website: "https://emby.media"
+		}
+	}
+
 	services: emby: foundation.#ServiceDefinition & {
 		name:     "emby"
 		type:     "application"
@@ -56,7 +73,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		upstream: {
-			github: repo: "MediaBrowser/Emby.Releases"
+			github: repo:    "MediaBrowser/Emby.Releases"
 			registry: image: "emby/embyserver"
 			track: "minor"
 		}

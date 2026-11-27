@@ -64,12 +64,28 @@ Contract: foundation.#ModuleContract & {
 		pi: {}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/stackkits/apps/uptime-kuma"
+		vendor: {
+			name:    "Uptime Kuma"
+			website: "https://uptime.kuma.pet"
+			license: "MIT"
+			support: [{
+				kind: "donate"
+				url:  "https://opencollective.com/uptime-kuma"
+			}, {
+				kind: "sponsor"
+				url:  "https://github.com/sponsors/louislam"
+			}]
+		}
+	}
+
 	services: "uptime-kuma": foundation.#ServiceDefinition & {
 		name: "uptime-kuma"
 		type: "monitoring"
 		// Pin matches the release pre-pull list (cmd/stackkit/commands/prepare_docker.go).
-		image:    "ghcr.io/louislam/uptime-kuma"
-		tag:      "2.0.2"
+		image: "ghcr.io/louislam/uptime-kuma"
+		tag:   "2.0.2"
 		upstream: {
 			github: {repo: "louislam/uptime-kuma"}
 		}
@@ -145,7 +161,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "kuma", nested: "kuma", flat: "kuma"}
-		dashboard: {icon: "&#128202;", order: 10, section: "Platform", badge: "L2 \u00b7 Monitoring", enableVar: "enable_uptime_kuma", guideUrl: "https://docs.kombify.io/stackkits/apps/uptime-kuma", vendor: {name: "Uptime Kuma", website: "https://uptime.kuma.pet", license: "MIT", support: [{kind: "donate", url: "https://opencollective.com/uptime-kuma"}, {kind: "sponsor", url: "https://github.com/sponsors/louislam"}]}}
+		dashboard: {icon: "&#128202;", order: 10, section: "Platform", badge: "L2 \u00b7 Monitoring", enableVar: "enable_uptime_kuma"}
 
 		output: {
 			url:         "https://kuma.{{.domain}}"

@@ -59,6 +59,16 @@
       }
     },
     "catalogExact": { "type": "boolean", "description": "Every imageSource service is an exact projection of its catalog component: entrypoint and command come from the catalog; host networking, environment, volume targets, needs and the HTTP health port must agree." },
+    "presentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Application presentation for the shared catalog (guide, official clients, upstream vendor), rendered as the module-level presentation block keyed by the module slug. Vendor-published URLs only.",
+      "properties": {
+        "guideUrl": { "type": "string", "pattern": "^https://[^\\s\"'<>]+$", "description": "Public kombify guide for the application." },
+        "clients": { "type": "array", "items": { "$ref": "#/$defs/client" } },
+        "vendor": { "$ref": "#/$defs/vendor" }
+      }
+    },
     "placement": {
       "type": "object",
       "additionalProperties": false,
@@ -77,6 +87,41 @@
     }
   },
   "$defs": {
+    "client": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "kind", "url"],
+      "description": "One official client of the application: a store entry or an installer download for one platform.",
+      "properties": {
+        "platform": { "type": "string", "enum": ["android", "ios", "windows", "macos", "linux"] },
+        "kind": { "type": "string", "enum": ["store", "download"] },
+        "url": { "type": "string", "pattern": "^https://[^\\s\"'<>]+$" }
+      }
+    },
+    "vendor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "description": "The upstream project behind the application.",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "website": { "type": "string", "pattern": "^https://[^\\s\"'<>]+$" },
+        "docs": { "type": "string", "pattern": "^https://[^\\s\"'<>]+$" },
+        "license": { "type": "string", "description": "SPDX license identifier, e.g. \"AGPL-3.0\"." },
+        "support": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "url"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["donate", "sponsor", "purchase"] },
+              "url": { "type": "string", "pattern": "^https://[^\\s\"'<>]+$" }
+            }
+          }
+        }
+      }
+    },
     "service": {
       "type": "object",
       "additionalProperties": false,

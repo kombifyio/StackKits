@@ -32,6 +32,15 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/personal-ai"
+		vendor: {
+			name:    "Open WebUI"
+			website: "https://openwebui.com"
+			docs:    "https://docs.openwebui.com"
+		}
+	}
+
 	services: "open-webui": foundation.#ServiceDefinition & {
 		name:     "open-webui"
 		type:     "application"

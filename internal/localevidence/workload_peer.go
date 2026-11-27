@@ -55,7 +55,14 @@ func AdmitWorkloadPeer(workspaceRoot string, admission WorkloadPeerAdmission) er
 }
 
 func admitWorkloadPeer(workspaceRoot string, admission WorkloadPeerAdmission, expectedState *string) error {
-	now := time.Now().UTC()
+	return admitWorkloadPeerAt(workspaceRoot, admission, expectedState, time.Now().UTC())
+}
+
+func admitWorkloadPeerAt(workspaceRoot string, admission WorkloadPeerAdmission, expectedState *string, now time.Time) error {
+	if now.IsZero() {
+		return errors.New("localevidence: workload peer admission requires valid clock")
+	}
+	now = now.UTC()
 	if !validWorkloadPeerRef(admission.PeerRef) || !validWorkloadPeerRef(admission.ServiceRef) || !validWorkloadPeerRef(admission.EdgeSiteRef) || strings.TrimSpace(admission.Audience) == "" || len(admission.Audience) > 512 {
 		return errors.New("localevidence: workload peer requires exact identity and publication scope")
 	}

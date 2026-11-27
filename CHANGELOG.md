@@ -1,5 +1,7 @@
 # Changelog
 
+- Added: `stackkit service logs <workload>` reads a bounded tail of a Coolify-managed workload's component containers, and `stackkit service start|stop|restart` now controls the service's database components (for example Immich's postgres and redis) as well as its applications, as the quiesce path already did. Coolify has no log endpoint for service components, so the node's Docker engine reads the containers of the signed service UUID's Compose project (kombify-StackKits-2ujh.3.7). Source only; no Coolify support claim, no mode_matrix change.
+
 - Fixed: the public OSS release no longer embeds the private kombify registry endpoint, so the published stackkit binaries pass the release boundary gate again. The Paperwork bundle download and image pull take the registry host from the admitted image reference, and the sealed grant's signed audience must name that same registry before the CLI uses its bearer; the private caller keeps pinning the image (platform-tkrb8).
 
 - Fixed: linked Paperwork credential delivery can retry after a Guard crash. The encrypted credential record is the revision and replay authority; the CLI confirms it with a local readback before reporting success (platform-m09kf.3.1).
@@ -488,6 +490,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.61.12 (2026-11-27)
+
+### Added
+
+* **catalog:** module-level application presentation for one shared app-details source
+* **coolify:** service logs and database-component control for Coolify-managed workloads
+* **dokploy:** service controls for Dokploy-managed workloads
+* **guard:** add fenced multi-site recovery and failback admission state machine
+* **guard:** add Guard D short-lived workload identity qualification
+* **guard:** add two-tenant live tenant-isolation suite and native receipt
+* **guard:** backup survival proof under source-node compromise
+* **guard:** explain attack paths and verify their repair
+* **guard:** prove IPv6 and origin-bypass exposure of owned endpoints (Guard J source slice)
+* **restore-drill:** add isolated PostgreSQL app recovery drill
+
+### Fixed
+
+* **contracts:** preserve runtimeinventory export digests and rename StackKits test ref
+* **marketplace:** retry the remaining post-bootstrap Coolify readiness steps
 
 ## 0.61.11 (2026-11-27)
 

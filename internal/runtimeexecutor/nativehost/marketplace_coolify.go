@@ -272,17 +272,10 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 		return MarketplaceObservation{}, err
 	}
 	for _, image := range d.Components {
-		raw, err := o.compose(ctx, directory, nil, "ps", "--quiet", image.ID)
-		if err != nil {
-			return MarketplaceObservation{}, marketplaceStepFailed("image-pin", err)
-		}
-		id := strings.TrimSpace(string(raw))
-		if len(id) != 64 {
-			return MarketplaceObservation{}, marketplaceStepFailed("image-pin", errors.New("Marketplace component has no single running identity"))
-		}
-		actual, err := o.run(ctx, []string{"inspect", "--format", "{{.Config.Image}}", id}, nil, directory)
-		if err != nil || strings.TrimSpace(string(actual)) != image.ImageRef+"@"+image.ImageDigest {
-			return MarketplaceObservation{}, marketplaceStepFailed("image-pin", errors.New("Marketplace running image differs from its selected pin"))
+		if err := retryMarketplaceStep(ctx, "image-pin", 30*time.Second, 2*time.Second, func(ctx context.Context) error {
+			return o.verifyMarketplaceImagePin(ctx, directory, image)
+		}); err != nil {
+			return MarketplaceObservation{}, err
 		}
 	}
 	if d.Route.ID != "" {
@@ -308,6 +301,25 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 		}
 	}
 	return result.Observation, nil
+}
+
+// verifyMarketplaceImagePin reads one component's running container back and
+// compares its image with the selected pin. It only reads, so the post-start
+// readiness retry may repeat it while a recreated container settles.
+func (o *osMarketplaceOperations) verifyMarketplaceImagePin(ctx context.Context, directory string, image architecturev2renderer.KomodoBootstrapImage) error {
+	raw, err := o.compose(ctx, directory, nil, "ps", "--quiet", image.ID)
+	if err != nil {
+		return err
+	}
+	id := strings.TrimSpace(string(raw))
+	if len(id) != 64 {
+		return errors.New("Marketplace component has no single running identity")
+	}
+	actual, err := o.run(ctx, []string{"inspect", "--format", "{{.Config.Image}}", id}, nil, directory)
+	if err != nil || strings.TrimSpace(string(actual)) != image.ImageRef+"@"+image.ImageDigest {
+		return errors.New("Marketplace running image differs from its selected pin")
+	}
+	return nil
 }
 
 func (o *osMarketplaceOperations) loadMarketplaceCustody(ctx context.Context, view confinedfs.View, owner string, d architecturev2renderer.MarketplaceCoolifyDocument) (marketplaceCustody, error) {

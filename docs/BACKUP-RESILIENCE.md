@@ -386,3 +386,36 @@ maintenance identity, lock extension, a TLS endpoint, a managed provider, or
 bucket creation with Object Lock. Provisioning that bucket and its scoped
 credentials is Homelab's provider lifecycle, so the producer side of this
 slice spans both repositories.
+
+### Guard G survival proof (source slice)
+
+`internal/backupsurvival` is the deterministic, fail-closed judge of the table
+above. It holds no credential and no backend client; a caller supplies a
+`Backend` port that enforces the real policy, and the package decides what the
+backend observably did.
+
+- **Binding.** Three identities with three distinct credential fingerprints:
+  the source-node writer (put, get, list and the marker-only delete Kopia needs,
+  never delete-version, bypass, retention, versioning, lock or prune), an
+  independent read-only recovery identity with point-in-time reads, and the
+  maintenance authority that prunes and renews locks. Retention must be a
+  versioned, object-locked bucket in GOVERNANCE or COMPLIANCE mode with a
+  minimum number of days. The canary prefix must be a disposable
+  `survival-canary/` path, so no real recovery point is ever named.
+- **Proof.** Capacity gate, a canary snapshot committed by the writer, the
+  retention check, then eight writer attacks. Delete-object and overwrite may be
+  absorbed as a marker or a new version; delete-version, bypass, shortening,
+  versioning, lock and prune must be denied. A non-denial error is inconclusive
+  and fails. The recovery identity then verifies the version, its bytes and its
+  retention, restores into an isolated empty directory and compares SHA-256; the
+  maintenance authority prunes a second disposable canary while the first stays.
+- **Receipt.** `stackkit.guard-backup-survival-receipt/v1` is hash-chained from
+  the binding digest, carries identity IDs and credential fingerprints only, and
+  `Verify` rejects an altered, truncated or over-claiming receipt. A receipt that
+  omits any of the required `notClaimed` bounds is invalid: backup-admin and
+  provider-account compromise, real recovery points, lock renewal, application
+  recovery and any target other than the bound backend.
+
+Not yet: the object-lock backend adapter, its provisioning (Homelab provider
+lifecycle) and the live hosted-target run. The bead stays open until a Guard G
+backup-survival test-window receipt exists.

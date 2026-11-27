@@ -16,17 +16,52 @@
       "name": "paperless",
       "type": "application",
       "required": false,
-      "imageSource": {"moduleRef": "stackkits-paperless-runtime", "componentRef": "paperless"},
-      "networks": ["paperless-internal"],
-      "volumes": [
-        {"source": "paperless-data", "target": "/usr/src/paperless/data", "type": "volume", "backup": true},
-        {"source": "paperless-media", "target": "/usr/src/paperless/media", "type": "volume", "backup": true},
-        {"source": "paperless-consume", "target": "/usr/src/paperless/consume", "type": "volume", "backup": true},
-        {"source": "paperless-export", "target": "/usr/src/paperless/export", "type": "volume", "backup": false}
+      "imageSource": {
+        "moduleRef": "stackkits-paperless-runtime",
+        "componentRef": "paperless"
+      },
+      "networks": [
+        "paperless-internal"
       ],
-      "healthCheck": {"type": "http", "path": "/", "port": 8000},
-      "resources": {"memory": "768m", "memoryMax": "2g"},
-      "upstream": {"github": "paperless-ngx/paperless-ngx", "registryImage": "ghcr.io/paperless-ngx/paperless-ngx"},
+      "volumes": [
+        {
+          "source": "paperless-data",
+          "target": "/usr/src/paperless/data",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "paperless-media",
+          "target": "/usr/src/paperless/media",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "paperless-consume",
+          "target": "/usr/src/paperless/consume",
+          "type": "volume",
+          "backup": true
+        },
+        {
+          "source": "paperless-export",
+          "target": "/usr/src/paperless/export",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "healthCheck": {
+        "type": "http",
+        "path": "/",
+        "port": 8000
+      },
+      "resources": {
+        "memory": "768m",
+        "memoryMax": "2g"
+      },
+      "upstream": {
+        "github": "paperless-ngx/paperless-ngx",
+        "registryImage": "ghcr.io/paperless-ngx/paperless-ngx"
+      },
       "environment": {
         "PAPERLESS_REDIS": "redis://paperless-valkey:6379",
         "PAPERLESS_DBHOST": "paperless-postgres",
@@ -36,31 +71,90 @@
         "PAPERLESS_ADMIN_USER": "owner"
       },
       "routed": true,
-      "traefik": {"rule": "Host(`documents.{{.domain}}`)", "port": 8000},
-      "accessPolicy": {"outerAuth": "self", "appAuth": "self-auth"}
+      "traefik": {
+        "rule": "Host(`documents.{{.domain}}`)",
+        "port": 8000
+      },
+      "accessPolicy": {
+        "outerAuth": "self",
+        "appAuth": "self-auth"
+      }
     },
     {
       "name": "paperless-postgres",
       "type": "database",
       "required": false,
-      "imageSource": {"moduleRef": "stackkits-paperless-runtime", "componentRef": "paperless-postgres"},
-      "networks": ["paperless-internal"],
-      "volumes": [{"source": "paperless-postgres-data", "target": "/var/lib/postgresql", "type": "volume", "backup": true}],
-      "healthCheck": {"type": "command", "command": "pg_isready -U paperless -d paperless"},
-      "resources": {"memory": "384m", "memoryMax": "1g"},
-      "upstream": {"registryImage": "docker.io/library/postgres"},
-      "environment": {"POSTGRES_DB": "paperless", "POSTGRES_USER": "paperless"}
+      "imageSource": {
+        "moduleRef": "stackkits-paperless-runtime",
+        "componentRef": "paperless-postgres"
+      },
+      "networks": [
+        "paperless-internal"
+      ],
+      "volumes": [
+        {
+          "source": "paperless-postgres-data",
+          "target": "/var/lib/postgresql",
+          "type": "volume",
+          "backup": true
+        }
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "pg_isready -U paperless -d paperless"
+      },
+      "resources": {
+        "memory": "384m",
+        "memoryMax": "1g"
+      },
+      "upstream": {
+        "registryImage": "docker.io/library/postgres"
+      },
+      "environment": {
+        "POSTGRES_DB": "paperless",
+        "POSTGRES_USER": "paperless"
+      }
     },
     {
       "name": "paperless-valkey",
       "type": "cache",
       "required": false,
-      "imageSource": {"moduleRef": "stackkits-paperless-runtime", "componentRef": "paperless-valkey"},
-      "networks": ["paperless-internal"],
-      "volumes": [{"source": "paperless-valkey-data", "target": "/data", "type": "volume", "backup": false}],
-      "healthCheck": {"type": "command", "command": "valkey-cli ping"},
-      "resources": {"memory": "128m", "memoryMax": "512m"},
-      "upstream": {"github": "valkey-io/valkey", "registryImage": "docker.io/valkey/valkey"}
+      "imageSource": {
+        "moduleRef": "stackkits-paperless-runtime",
+        "componentRef": "paperless-valkey"
+      },
+      "networks": [
+        "paperless-internal"
+      ],
+      "volumes": [
+        {
+          "source": "paperless-valkey-data",
+          "target": "/data",
+          "type": "volume",
+          "backup": false
+        }
+      ],
+      "healthCheck": {
+        "type": "command",
+        "command": "valkey-cli ping"
+      },
+      "resources": {
+        "memory": "128m",
+        "memoryMax": "512m"
+      },
+      "upstream": {
+        "github": "valkey-io/valkey",
+        "registryImage": "docker.io/valkey/valkey"
+      }
     }
-  ]
+  ],
+  "presentation": {
+    "guideUrl": "https://docs.kombify.io/guides/stackkits/use-cases/documents-and-files",
+    "clients": [],
+    "vendor": {
+      "name": "Paperless-ngx",
+      "docs": "https://docs.paperless-ngx.com",
+      "license": "GPL-3.0"
+    }
+  }
 }

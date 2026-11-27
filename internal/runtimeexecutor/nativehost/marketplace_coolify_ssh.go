@@ -33,30 +33,14 @@ type marketplaceSSHObservation struct {
 
 func (o *osMarketplaceOperations) ensureMarketplaceSSH(ctx context.Context, view confinedfs.View, state marketplaceCustody) (marketplaceSSHObservation, error) {
 	directory := filepath.Join(o.workspace, filepath.FromSlash(marketplaceDirectory))
-	raw, err := o.compose(ctx, directory, nil, "ps", "--quiet", "coolify")
-	if err != nil {
+	// The recreated application's container identity and bridge address can lag
+	// its start (kombify-StackKits-ytlt); the observation only reads.
+	var address, gateway netip.Addr
+	if err := retryMarketplaceStep(ctx, "own-host-ssh-observe", 30*time.Second, 2*time.Second, func(ctx context.Context) (err error) {
+		address, gateway, err = o.observeMarketplaceBridge(ctx, directory)
+		return err
+	}); err != nil {
 		return marketplaceSSHObservation{}, err
-	}
-	id := strings.TrimSpace(string(raw))
-	if len(id) != 64 {
-		return marketplaceSSHObservation{}, errors.New("Marketplace SSH requires its single application container")
-	}
-	raw, err = o.run(ctx, []string{"inspect", "--format", "{{json .NetworkSettings.Networks}}", id}, nil, directory)
-	if err != nil {
-		return marketplaceSSHObservation{}, err
-	}
-	var networks map[string]struct {
-		IPAddress, Gateway string
-		IPPrefixLen        int
-	}
-	if json.Unmarshal(raw, &networks) != nil {
-		return marketplaceSSHObservation{}, errors.New("Marketplace Docker interface observation is invalid")
-	}
-	network, exists := networks[marketplaceProject+"_marketplace"]
-	address, addressErr := netip.ParseAddr(network.IPAddress)
-	gateway, gatewayErr := netip.ParseAddr(network.Gateway)
-	if !exists || addressErr != nil || gatewayErr != nil || !address.Is4() || !gateway.Is4() || !address.IsPrivate() || !gateway.IsPrivate() || network.IPPrefixLen < 16 || network.IPPrefixLen > 30 || !netip.PrefixFrom(address, network.IPPrefixLen).Contains(gateway) {
-		return marketplaceSSHObservation{}, errors.New("Marketplace SSH requires the application's own observed Docker bridge and host gateway")
 	}
 	private, err := loadMarketplaceSSHPrivateKey(view)
 	if err != nil {
@@ -68,8 +52,13 @@ func (o *osMarketplaceOperations) ensureMarketplaceSSH(ctx context.Context, view
 		return marketplaceSSHObservation{}, errors.New("Marketplace node SSH key is invalid")
 	}
 	engine := hostsecurity.Engine{Host: hostsecurity.LocalHost{}}
-	policy, err := engine.EnsureMarketplaceRootSSH(ctx, hostsecurity.MarketplaceRootSSH{OwnerRef: state.OwnerRef, Address: address.String(), PublicKey: string(ssh.MarshalAuthorizedKey(signer.PublicKey()))})
-	if err != nil {
+	// EnsureMarketplaceRootSSH restores the owner's sshd files on every failure,
+	// so a bounded repeat leaves no partial policy behind.
+	var policy hostsecurity.MarketplaceRootSSHObservation
+	if err := retryMarketplaceStep(ctx, "own-host-ssh-policy", 30*time.Second, 3*time.Second, func(ctx context.Context) (err error) {
+		policy, err = engine.EnsureMarketplaceRootSSH(ctx, hostsecurity.MarketplaceRootSSH{OwnerRef: state.OwnerRef, Address: address.String(), PublicKey: string(ssh.MarshalAuthorizedKey(signer.PublicKey()))})
+		return err
+	}); err != nil {
 		return marketplaceSSHObservation{}, err
 	}
 	hostPublic, err := engine.Host.ReadFile("/etc/ssh/ssh_host_ed25519_key.pub")
@@ -82,13 +71,21 @@ func (o *osMarketplaceOperations) ensureMarketplaceSSH(ctx context.Context, view
 	}
 	input, _ := json.Marshal(map[string]any{"privateKey": string(private), "gateway": gateway.String(), "port": policy.Port, "serverId": state.ServerID})
 	defer clear(input)
-	raw, err = o.compose(ctx, directory, input, "exec", "-T", "coolify", "php", "-r", strings.TrimPrefix(marketplaceSSHBindingPHP, "<?php\n"))
-	if err != nil {
-		return marketplaceSSHObservation{}, err
-	}
+	// The binding is idempotent (it reuses the named key and re-saves the
+	// server), so it repeats while the application's database settles.
 	var binding struct{ Path, ServerID string }
-	if json.Unmarshal(raw, &binding) != nil || binding.ServerID != state.ServerID || !strings.HasPrefix(binding.Path, "/var/www/html/storage/app/ssh/") || filepath.Clean(binding.Path) != binding.Path || strings.ContainsAny(binding.Path, "\r\n\x00") {
-		return marketplaceSSHObservation{}, errors.New("Marketplace own-host SSH key binding failed closed")
+	if err := retryMarketplaceStep(ctx, "own-host-ssh-binding", 30*time.Second, 3*time.Second, func(ctx context.Context) error {
+		raw, err := o.compose(ctx, directory, input, "exec", "-T", "coolify", "php", "-r", strings.TrimPrefix(marketplaceSSHBindingPHP, "<?php\n"))
+		if err != nil {
+			return err
+		}
+		binding = struct{ Path, ServerID string }{}
+		if json.Unmarshal(raw, &binding) != nil || binding.ServerID != state.ServerID || !strings.HasPrefix(binding.Path, "/var/www/html/storage/app/ssh/") || filepath.Clean(binding.Path) != binding.Path || strings.ContainsAny(binding.Path, "\r\n\x00") {
+			return errors.New("Marketplace own-host SSH key binding failed closed")
+		}
+		return nil
+	}); err != nil {
+		return marketplaceSSHObservation{}, err
 	}
 	knownHost := gateway.String()
 	if policy.Port != 22 {
@@ -119,6 +116,37 @@ func (o *osMarketplaceOperations) ensureMarketplaceSSH(ctx context.Context, view
 		return marketplaceSSHObservation{}, err
 	}
 	return marketplaceSSHObservation{ApplicationAddress: address.String(), HostGateway: gateway.String(), Port: policy.Port, KeyFingerprint: policy.KeyFingerprint, HostKeyFingerprint: ssh.FingerprintSHA256(hostKey), OwnHostAuthenticated: true, OutsidePolicyPreserved: policy.OutsidePolicyPreserved}, nil
+}
+
+// observeMarketplaceBridge reads the application's own Docker bridge address
+// and host gateway back from its single running container.
+func (o *osMarketplaceOperations) observeMarketplaceBridge(ctx context.Context, directory string) (netip.Addr, netip.Addr, error) {
+	raw, err := o.compose(ctx, directory, nil, "ps", "--quiet", "coolify")
+	if err != nil {
+		return netip.Addr{}, netip.Addr{}, err
+	}
+	id := strings.TrimSpace(string(raw))
+	if len(id) != 64 {
+		return netip.Addr{}, netip.Addr{}, errors.New("Marketplace SSH requires its single application container")
+	}
+	raw, err = o.run(ctx, []string{"inspect", "--format", "{{json .NetworkSettings.Networks}}", id}, nil, directory)
+	if err != nil {
+		return netip.Addr{}, netip.Addr{}, err
+	}
+	var networks map[string]struct {
+		IPAddress, Gateway string
+		IPPrefixLen        int
+	}
+	if json.Unmarshal(raw, &networks) != nil {
+		return netip.Addr{}, netip.Addr{}, errors.New("Marketplace Docker interface observation is invalid")
+	}
+	network, exists := networks[marketplaceProject+"_marketplace"]
+	address, addressErr := netip.ParseAddr(network.IPAddress)
+	gateway, gatewayErr := netip.ParseAddr(network.Gateway)
+	if !exists || addressErr != nil || gatewayErr != nil || !address.Is4() || !gateway.Is4() || !address.IsPrivate() || !gateway.IsPrivate() || network.IPPrefixLen < 16 || network.IPPrefixLen > 30 || !netip.PrefixFrom(address, network.IPPrefixLen).Contains(gateway) {
+		return netip.Addr{}, netip.Addr{}, errors.New("Marketplace SSH requires the application's own observed Docker bridge and host gateway")
+	}
+	return address, gateway, nil
 }
 
 func loadMarketplaceSSHPrivateKey(view confinedfs.View) ([]byte, error) {

@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-11-27T06:50:09Z",
+  "generated_at": "2026-11-27T11:35:27Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -460,6 +460,13 @@
       "order": 60,
       "enable_var": "enable_files",
       "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/files",
+      "clients": [
+        {
+          "platform": "windows",
+          "kind": "store",
+          "url": "https://apps.microsoft.com/store/detail/9p3gh5rnnzfd"
+        }
+      ],
       "vendor": {
         "name": "Cloudreve",
         "website": "https://cloudreve.org",
@@ -878,11 +885,71 @@
   ],
   "applications": [
     {
+      "tool_name": "anythingllm",
+      "module_slug": "anythingllm",
+      "display_name": "AnythingLLM",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/personal-ai",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=com.anythingllm"
+        },
+        {
+          "platform": "windows",
+          "kind": "download",
+          "url": "https://anythingllm.com/download"
+        },
+        {
+          "platform": "macos",
+          "kind": "download",
+          "url": "https://anythingllm.com/download"
+        },
+        {
+          "platform": "linux",
+          "kind": "download",
+          "url": "https://anythingllm.com/download"
+        }
+      ],
+      "vendor": {
+        "name": "AnythingLLM",
+        "website": "https://anythingllm.com",
+        "docs": "https://docs.anythingllm.com",
+        "license": "MIT"
+      }
+    },
+    {
+      "tool_name": "audiobookshelf",
+      "module_slug": "audiobookshelf",
+      "display_name": "Audiobookshelf",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/media",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=com.audiobookshelf.app"
+        }
+      ],
+      "vendor": {
+        "name": "Audiobookshelf",
+        "website": "https://www.audiobookshelf.org",
+        "docs": "https://www.audiobookshelf.org/docs/documentation/introduction",
+        "license": "GPL-3.0"
+      }
+    },
+    {
       "tool_name": "cloudreve",
       "module_slug": "cloudreve",
       "display_name": "Cloudreve",
       "service_key": "files",
       "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/files",
+      "clients": [
+        {
+          "platform": "windows",
+          "kind": "store",
+          "url": "https://apps.microsoft.com/store/detail/9p3gh5rnnzfd"
+        }
+      ],
       "vendor": {
         "name": "Cloudreve",
         "website": "https://cloudreve.org",
@@ -894,6 +961,35 @@
             "url": "https://cloudreve.org/pricing"
           }
         ]
+      }
+    },
+    {
+      "tool_name": "comfyui",
+      "module_slug": "comfyui",
+      "display_name": "ComfyUI",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/personal-ai",
+      "clients": [
+        {
+          "platform": "windows",
+          "kind": "download",
+          "url": "https://www.comfy.org/download"
+        },
+        {
+          "platform": "macos",
+          "kind": "download",
+          "url": "https://www.comfy.org/download"
+        },
+        {
+          "platform": "linux",
+          "kind": "download",
+          "url": "https://www.comfy.org/download"
+        }
+      ],
+      "vendor": {
+        "name": "ComfyUI",
+        "website": "https://www.comfy.org",
+        "docs": "https://docs.comfy.org",
+        "license": "GPL-3.0"
       }
     },
     {
@@ -909,6 +1005,114 @@
       "display_name": "Dokploy",
       "service_key": "dokploy",
       "guide_url": "https://docs.kombify.io/stackkits/apps/overview"
+    },
+    {
+      "tool_name": "emby",
+      "module_slug": "emby",
+      "display_name": "Emby",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/media",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=com.mb.android"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/us/app/emby/id992180193"
+        }
+      ],
+      "vendor": {
+        "name": "Emby",
+        "website": "https://emby.media"
+      }
+    },
+    {
+      "tool_name": "ente-photos",
+      "module_slug": "ente-photos",
+      "display_name": "Ente Photos",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/photos",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=io.ente.photos"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/app/id1542026904"
+        },
+        {
+          "platform": "windows",
+          "kind": "download",
+          "url": "https://ente.com/download/desktop"
+        },
+        {
+          "platform": "macos",
+          "kind": "download",
+          "url": "https://ente.com/download/desktop"
+        },
+        {
+          "platform": "linux",
+          "kind": "download",
+          "url": "https://ente.com/download/desktop"
+        }
+      ],
+      "vendor": {
+        "name": "Ente",
+        "website": "https://ente.com",
+        "docs": "https://ente.com/help",
+        "license": "AGPL-3.0"
+      }
+    },
+    {
+      "tool_name": "euro-office",
+      "module_slug": "euro-office",
+      "display_name": "Euro-Office",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/documents-and-files",
+      "vendor": {
+        "name": "Euro-Office",
+        "docs": "https://euro-office.github.io/documentation/",
+        "license": "AGPL-3.0"
+      }
+    },
+    {
+      "tool_name": "forgejo",
+      "module_slug": "forgejo",
+      "display_name": "Forgejo",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/development",
+      "vendor": {
+        "name": "Forgejo",
+        "website": "https://forgejo.org",
+        "docs": "https://forgejo.org/docs/latest/",
+        "license": "GPL-3.0"
+      }
+    },
+    {
+      "tool_name": "gitea",
+      "module_slug": "gitea",
+      "display_name": "Gitea",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/gitea",
+      "vendor": {
+        "name": "Gitea",
+        "website": "https://gitea.com",
+        "docs": "https://docs.gitea.com",
+        "license": "MIT"
+      }
+    },
+    {
+      "tool_name": "guacamole",
+      "module_slug": "guacamole",
+      "display_name": "Apache Guacamole",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/development",
+      "vendor": {
+        "name": "Apache Guacamole",
+        "website": "https://guacamole.apache.org",
+        "docs": "https://guacamole.apache.org/doc/gug/",
+        "license": "Apache-2.0"
+      }
     },
     {
       "tool_name": "home-assistant",
@@ -1022,6 +1226,18 @@
       "guide_url": "https://docs.kombify.io/stackkits/apps/kombify-point"
     },
     {
+      "tool_name": "navidrome",
+      "module_slug": "navidrome",
+      "display_name": "Navidrome",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/media",
+      "vendor": {
+        "name": "Navidrome",
+        "website": "https://www.navidrome.org",
+        "docs": "https://www.navidrome.org/docs",
+        "license": "GPL-3.0"
+      }
+    },
+    {
       "tool_name": "nextcloud",
       "module_slug": "nextcloud",
       "display_name": "Nextcloud",
@@ -1067,11 +1283,54 @@
       }
     },
     {
+      "tool_name": "open-webui",
+      "module_slug": "open-webui",
+      "display_name": "Open WebUI",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/personal-ai",
+      "vendor": {
+        "name": "Open WebUI",
+        "website": "https://openwebui.com",
+        "docs": "https://docs.openwebui.com"
+      }
+    },
+    {
       "tool_name": "opencloud",
       "module_slug": "opencloud",
       "display_name": "OpenCloud",
       "service_key": "files",
       "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/files",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=eu.opencloud.android"
+        },
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://f-droid.org/packages/eu.opencloud.android/"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/app/id6743121005"
+        },
+        {
+          "platform": "windows",
+          "kind": "store",
+          "url": "https://apps.microsoft.com/detail/9pbx43hcmldq"
+        },
+        {
+          "platform": "macos",
+          "kind": "download",
+          "url": "https://github.com/opencloud-eu/desktop/releases/latest"
+        },
+        {
+          "platform": "linux",
+          "kind": "download",
+          "url": "https://github.com/opencloud-eu/desktop/releases/latest"
+        }
+      ],
       "vendor": {
         "name": "OpenCloud",
         "website": "https://opencloud.eu",
@@ -1080,11 +1339,84 @@
       }
     },
     {
+      "tool_name": "paperless-ngx",
+      "module_slug": "paperless-ngx",
+      "display_name": "Paperless-ngx",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/documents-and-files",
+      "vendor": {
+        "name": "Paperless-ngx",
+        "docs": "https://docs.paperless-ngx.com",
+        "license": "GPL-3.0"
+      }
+    },
+    {
+      "tool_name": "passbolt",
+      "module_slug": "passbolt",
+      "display_name": "Passbolt CE",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/vault",
+      "clients": [
+        {
+          "platform": "android",
+          "kind": "store",
+          "url": "https://play.google.com/store/apps/details?id=com.passbolt.mobile.android"
+        },
+        {
+          "platform": "ios",
+          "kind": "store",
+          "url": "https://apps.apple.com/app/id1569629432"
+        },
+        {
+          "platform": "windows",
+          "kind": "store",
+          "url": "https://apps.microsoft.com/detail/9pfxs2wvkvpb"
+        }
+      ],
+      "vendor": {
+        "name": "Passbolt",
+        "website": "https://www.passbolt.com",
+        "docs": "https://help.passbolt.com",
+        "license": "AGPL-3.0"
+      }
+    },
+    {
+      "tool_name": "pelican",
+      "module_slug": "pelican",
+      "display_name": "Pelican Panel",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/game",
+      "vendor": {
+        "name": "Pelican",
+        "website": "https://pelican.dev",
+        "license": "AGPL-3.0"
+      }
+    },
+    {
       "tool_name": "pocketid",
       "module_slug": "pocketid",
       "display_name": "PocketID",
       "service_key": "id",
       "guide_url": "https://docs.kombify.io/stackkits/apps/pocketid"
+    },
+    {
+      "tool_name": "pterodactyl",
+      "module_slug": "pterodactyl",
+      "display_name": "Pterodactyl",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/game",
+      "vendor": {
+        "name": "Pterodactyl",
+        "website": "https://pterodactyl.io",
+        "license": "MIT"
+      }
+    },
+    {
+      "tool_name": "roundcube",
+      "module_slug": "roundcube",
+      "display_name": "Roundcube Webmail",
+      "guide_url": "https://docs.kombify.io/guides/stackkits/use-cases/mail",
+      "vendor": {
+        "name": "Roundcube",
+        "website": "https://roundcube.net",
+        "license": "GPL-3.0"
+      }
     },
     {
       "tool_name": "tinyauth",

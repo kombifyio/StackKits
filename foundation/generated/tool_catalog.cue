@@ -5,7 +5,7 @@
 //   stackkit registry bake-from-cue
 //   stackkit registry emit-cue
 //
-// Snapshot: source=cue generated_at=2026-10-24T10:25:17Z
+// Snapshot: source=cue generated_at=2026-11-27T08:49:39Z
 // Snapshot content_hash: (none — CUE-baked snapshot)
 // Services: rendered from CUE module contracts (modules/<slug>/module.cue),
 // the same source 'registry bake-from-cue' uses.
@@ -448,6 +448,9 @@ package foundation
 		order:            60
 		enableVar:        "enable_files"
 		guideUrl:         "https://docs.kombify.io/guides/stackkits/use-cases/files"
+		clients: [
+			{platform: "windows", kind: "store", url: "https://apps.microsoft.com/store/detail/9p3gh5rnnzfd"},
+		]
 		vendor: {
 			name:    "Cloudreve"
 			website: "https://cloudreve.org"

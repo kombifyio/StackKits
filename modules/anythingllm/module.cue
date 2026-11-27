@@ -32,6 +32,22 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/personal-ai"
+		clients: [
+			{platform: "android", kind: "store", url: "https://play.google.com/store/apps/details?id=com.anythingllm"},
+			{platform: "windows", kind: "download", url: "https://anythingllm.com/download"},
+			{platform: "macos", kind: "download", url: "https://anythingllm.com/download"},
+			{platform: "linux", kind: "download", url: "https://anythingllm.com/download"},
+		]
+		vendor: {
+			name:    "AnythingLLM"
+			website: "https://anythingllm.com"
+			docs:    "https://docs.anythingllm.com"
+			license: "MIT"
+		}
+	}
+
 	services: anythingllm: foundation.#ServiceDefinition & {
 		name:     "anythingllm"
 		type:     "application"

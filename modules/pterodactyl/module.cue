@@ -32,6 +32,15 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/game"
+		vendor: {
+			name:    "Pterodactyl"
+			website: "https://pterodactyl.io"
+			license: "MIT"
+		}
+	}
+
 	services: {
 		panel: foundation.#ServiceDefinition & {
 			name:     "panel"

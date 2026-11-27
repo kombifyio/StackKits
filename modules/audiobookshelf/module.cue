@@ -32,6 +32,21 @@ Contract: foundation.#ModuleContract & {
 		managed_serverless: false
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/media"
+		clients: [{
+			platform: "android"
+			kind:     "store"
+			url:      "https://play.google.com/store/apps/details?id=com.audiobookshelf.app"
+		}]
+		vendor: {
+			name:    "Audiobookshelf"
+			website: "https://www.audiobookshelf.org"
+			docs:    "https://www.audiobookshelf.org/docs/documentation/introduction"
+			license: "GPL-3.0"
+		}
+	}
+
 	services: audiobookshelf: foundation.#ServiceDefinition & {
 		name:     "audiobookshelf"
 		type:     "application"
@@ -56,7 +71,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		upstream: {
-			github: repo: "advplyr/audiobookshelf"
+			github: repo:    "advplyr/audiobookshelf"
 			registry: image: "ghcr.io/advplyr/audiobookshelf"
 			track: "minor"
 		}

@@ -69,18 +69,37 @@ Contract: foundation.#ModuleContract & {
 		pi: {}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/files"
+		clients: [{
+			platform: "windows"
+			kind:     "store"
+			url:      "https://apps.microsoft.com/store/detail/9p3gh5rnnzfd"
+		}]
+		vendor: {
+			name:    "Cloudreve"
+			website: "https://cloudreve.org"
+			docs:    "https://docs.cloudreve.org"
+			license: "GPL-3.0"
+			support: [{
+				kind: "purchase"
+				url:  "https://cloudreve.org/pricing"
+			}]
+		}
+	}
+
 	services: cloudreve: foundation.#ServiceDefinition & {
 		name:        "cloudreve"
 		displayName: "Files"
 		description: "Document management and file sharing backed by Cloudreve"
 		type:        "storage"
-		image: _runtimeImages["cloudreve"].image
-		tag: _runtimeImages["cloudreve"].tag
+		image:       _runtimeImages["cloudreve"].image
+		tag:         _runtimeImages["cloudreve"].tag
 		upstream: {
 			github: {repo: "cloudreve/Cloudreve"}
 		}
-		required:    false
-		status:      "implemented"
+		required: false
+		status:   "implemented"
 		needs: ["traefik"]
 
 		placement: {
@@ -156,7 +175,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "files", nested: "files", flat: "files"}
-		dashboard: {icon: "&#128193;", order: 60, section: "Applications", badge: "L3 \u00b7 Files", enableVar: "enable_files", guideUrl: "https://docs.kombify.io/guides/stackkits/use-cases/files", vendor: {name: "Cloudreve", website: "https://cloudreve.org", docs: "https://docs.cloudreve.org", license: "GPL-3.0", support: [{kind: "purchase", url: "https://cloudreve.org/pricing"}]}}
+		dashboard: {icon: "&#128193;", order: 60, section: "Applications", badge: "L3 \u00b7 Files", enableVar: "enable_files"}
 
 		output: {
 			url:         "https://files.{{.domain}}"

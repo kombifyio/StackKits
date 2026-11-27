@@ -54,6 +54,7 @@ var (
 	advancedRestoreDrillCapability   string
 	advancedRestoreDrillAnchor       string
 	advancedRestoreDrillOperationID  string
+	advancedRestoreDrillWorkload     string
 	advancedRestoreDrillOwnerApprove bool
 	advancedRestoreDrillJSON         bool
 )
@@ -87,6 +88,8 @@ func init() {
 		"Existing sha256 snapshot-anchor ID to drill; a new backup anchor is created when omitted")
 	flags.StringVar(&advancedRestoreDrillOperationID, "operation-id", "",
 		"Stable lowercase drill ID (8-100 characters); generated when omitted")
+	flags.StringVar(&advancedRestoreDrillWorkload, "workload", "",
+		"Recover and verify one PostgreSQL-backed application into an isolated clone target")
 	flags.BoolVar(&advancedRestoreDrillOwnerApprove, "owner-approve", false,
 		"Explicitly approve the drill's backup and staged restore side effects")
 	flags.BoolVar(&advancedRestoreDrillJSON, "json", false,
@@ -97,24 +100,25 @@ func init() {
 
 // restoreDrillReport is the stackkit.restore-drill-report/v1 subject.
 type restoreDrillReport struct {
-	BackupRenewal    *wire.BackupRenewal `json:"backupRenewal,omitempty"`
-	SchemaVersion    string              `json:"schemaVersion"`
-	Mode             string              `json:"mode"`
-	Operation        string              `json:"operation"`
-	DrillID          string              `json:"drillId"`
-	Status           string              `json:"status"`
-	CapabilityID     string              `json:"capabilityId"`
-	AnchorID         string              `json:"anchorId"`
-	AnchorSource     string              `json:"anchorSource"`
-	KopiaSnapshotIDs []string            `json:"kopiaSnapshotIds"`
-	RestoreResultID  string              `json:"restoreResultId"`
-	StagingPath      string              `json:"stagingPath"`
-	StagingRemoved   bool                `json:"stagingRemoved"`
-	Activated        bool                `json:"activated"`
-	Phases           []restoreDrillPhase `json:"phases"`
-	Verification     []restoreDrillCheck `json:"verification"`
-	StartedAt        time.Time           `json:"startedAt"`
-	CompletedAt      time.Time           `json:"completedAt"`
+	BackupRenewal       *wire.BackupRenewal         `json:"backupRenewal,omitempty"`
+	ApplicationRecovery *applicationRecoveryReceipt `json:"applicationRecovery,omitempty"`
+	SchemaVersion       string                      `json:"schemaVersion"`
+	Mode                string                      `json:"mode"`
+	Operation           string                      `json:"operation"`
+	DrillID             string                      `json:"drillId"`
+	Status              string                      `json:"status"`
+	CapabilityID        string                      `json:"capabilityId"`
+	AnchorID            string                      `json:"anchorId"`
+	AnchorSource        string                      `json:"anchorSource"`
+	KopiaSnapshotIDs    []string                    `json:"kopiaSnapshotIds"`
+	RestoreResultID     string                      `json:"restoreResultId"`
+	StagingPath         string                      `json:"stagingPath"`
+	StagingRemoved      bool                        `json:"stagingRemoved"`
+	Activated           bool                        `json:"activated"`
+	Phases              []restoreDrillPhase         `json:"phases"`
+	Verification        []restoreDrillCheck         `json:"verification"`
+	StartedAt           time.Time                   `json:"startedAt"`
+	CompletedAt         time.Time                   `json:"completedAt"`
 }
 
 type restoreDrillPhase struct {
@@ -203,6 +207,10 @@ func runAdvancedRestoreDrill(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return writeRestoreDrillDenialCode(cmd, "restore_drill_request_invalid", err.Error())
 	}
+	workloadRef, err := validateRestoreDrillWorkloadFlag(advancedRestoreDrillWorkload)
+	if err != nil {
+		return writeRestoreDrillDenialCode(cmd, "restore_drill_request_invalid", err.Error())
+	}
 
 	workspace := getWorkDir()
 	now := advancedRestoreDrillDeps.now().UTC().Truncate(time.Second)
@@ -221,7 +229,7 @@ func runAdvancedRestoreDrill(cmd *cobra.Command, _ []string) error {
 		KopiaSnapshotIDs: []string{}, Phases: []restoreDrillPhase{},
 		Verification: []restoreDrillCheck{}, StartedAt: time.Now().UTC(),
 	}
-	drillErr := executeAdvancedRestoreDrill(ctx, workspace, capabilityFile, now, admission, anchorID, &report)
+	drillErr := executeAdvancedRestoreDrill(ctx, workspace, capabilityFile, now, admission, anchorID, workloadRef, &report)
 	report.CompletedAt = time.Now().UTC()
 	report.Activated = false
 	if drillErr == nil {
@@ -237,7 +245,7 @@ func executeAdvancedRestoreDrill(
 	workspace, capabilityFile string,
 	now time.Time,
 	admission advancedRestoreDrillAdmission,
-	anchorID string,
+	anchorID, workloadRef string,
 	report *restoreDrillReport,
 ) error {
 	initial, err := inspectNativeV2BackupAuthorityForRequest(ctx, workspace, specFile)
@@ -246,6 +254,11 @@ func executeAdvancedRestoreDrill(
 	}
 	if initial.LegacyBeta4 != nil || initial.HistoricalStable != nil {
 		return errors.New("restore drill requires a native v2 applied authority")
+	}
+	if workloadRef != "" {
+		if _, _, err := admitRestoreDrillWorkloadTarget(initial, workloadRef); err != nil {
+			return err
+		}
 	}
 	if err := verifyRestoreDrillBackupRenewal(initial, admission.grant, report.DrillID, advancedRestoreDrillDeps.now().UTC()); err != nil {
 		return err
@@ -280,7 +293,7 @@ func executeAdvancedRestoreDrill(
 				}
 				report.BackupRenewal = revalidated.grant.BackupRenewal
 			}
-			return runRestoreDrillPhases(ctx, workspace, current, anchorID, report)
+			return runRestoreDrillPhases(ctx, workspace, current, anchorID, workloadRef, report)
 		})
 	})
 }
@@ -289,7 +302,7 @@ func runRestoreDrillPhases(
 	ctx context.Context,
 	workspace string,
 	authority nativeV2BackupAuthority,
-	anchorID string,
+	anchorID, workloadRef string,
 	report *restoreDrillReport,
 ) error {
 	deps := advancedRestoreDrillDeps
@@ -307,8 +320,13 @@ func runRestoreDrillPhases(
 		report.addCheck("live-runtime", err)
 		return err
 	}); err != nil {
-		report.skipRemaining(anchorPhase, restoreDrillPhaseStageRestore,
-			restoreDrillPhaseVerifyStaged, restoreDrillPhaseCleanupStaging, restoreDrillPhaseVerifyLiveUnchanged)
+		if workloadRef != "" {
+			report.skipRemaining(anchorPhase, restoreDrillPhaseStageRestore,
+				restoreDrillPhaseVerifyStaged, restoreDrillPhaseRecoverIsolated, restoreDrillPhaseCleanupStaging, restoreDrillPhaseVerifyLiveUnchanged)
+		} else {
+			report.skipRemaining(anchorPhase, restoreDrillPhaseStageRestore,
+				restoreDrillPhaseVerifyStaged, restoreDrillPhaseCleanupStaging, restoreDrillPhaseVerifyLiveUnchanged)
+		}
 		return err
 	}
 
@@ -318,7 +336,11 @@ func runRestoreDrillPhases(
 		anchor, err = restoreDrillAnchor(ctx, workspace, authority, anchorID, drillID)
 		return err
 	}); err != nil {
-		report.skipRemaining(restoreDrillPhaseStageRestore, restoreDrillPhaseVerifyStaged, restoreDrillPhaseCleanupStaging)
+		if workloadRef != "" {
+			report.skipRemaining(restoreDrillPhaseStageRestore, restoreDrillPhaseVerifyStaged, restoreDrillPhaseRecoverIsolated, restoreDrillPhaseCleanupStaging)
+		} else {
+			report.skipRemaining(restoreDrillPhaseStageRestore, restoreDrillPhaseVerifyStaged, restoreDrillPhaseCleanupStaging)
+		}
 		return errors.Join(err, restoreDrillVerifyLive(ctx, workspace, authority, report))
 	}
 	report.AnchorID = anchor.ID
@@ -365,6 +387,17 @@ func runRestoreDrillPhases(
 		report.skipRemaining(restoreDrillPhaseVerifyStaged)
 	}
 
+	var isolateErr error
+	if workloadRef != "" {
+		if stageErr == nil && verifyErr == nil {
+			isolateErr = restoreDrillRunPhase(report, restoreDrillPhaseRecoverIsolated, func() error {
+				return executeIsolatedApplicationRecoveryPhase(ctx, workspace, authority, anchor, restored, stagingPath, workloadRef, report)
+			})
+		} else {
+			report.skipRemaining(restoreDrillPhaseRecoverIsolated)
+		}
+	}
+
 	var cleanupErr error
 	if staging != nil {
 		cleanupErr = restoreDrillRunPhase(report, restoreDrillPhaseCleanupStaging, func() error {
@@ -379,7 +412,7 @@ func runRestoreDrillPhases(
 	} else {
 		report.skipRemaining(restoreDrillPhaseCleanupStaging)
 	}
-	return errors.Join(stageErr, verifyErr, cleanupErr, restoreDrillVerifyLive(ctx, workspace, authority, report))
+	return errors.Join(stageErr, verifyErr, isolateErr, cleanupErr, restoreDrillVerifyLive(ctx, workspace, authority, report))
 }
 
 func restoreDrillAnchor(

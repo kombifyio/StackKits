@@ -57,11 +57,15 @@ Contract: foundation.#ModuleContract & {
 		pi: {}
 	}
 
+	presentation: {
+		guideUrl: "https://docs.kombify.io/stackkits/apps/whoami"
+	}
+
 	services: whoami: foundation.#ServiceDefinition & {
-		name:     "whoami"
-		type:     "test"
-		image:    "traefik/whoami"
-		tag:      "latest"
+		name:  "whoami"
+		type:  "test"
+		image: "traefik/whoami"
+		tag:   "latest"
 		upstream: {
 			github: {repo: "traefik/whoami"}
 		}
@@ -112,7 +116,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "whoami", nested: "whoami", flat: "whoami"}
-		dashboard: {icon: "&#129302;", order: 20, section: "Platform", badge: "L2 \u00b7 Routing test", enableVar: "enable_whoami", guideUrl: "https://docs.kombify.io/stackkits/apps/whoami"}
+		dashboard: {icon: "&#129302;", order: 20, section: "Platform", badge: "L2 \u00b7 Routing test", enableVar: "enable_whoami"}
 
 		output: {
 			url:         "https://whoami.{{.domain}}"

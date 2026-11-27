@@ -102,11 +102,15 @@ Contract: foundation.#ModuleContract & {
 	// Service definition describes the PaaS-shipped Traefik's expected config.
 	// In production this container is managed by the selected router, not by StackKit.
 	// The service definition is used for: label generation, middleware config, tests.
+	presentation: {
+		guideUrl: "https://docs.kombify.io/stackkits/apps/traefik"
+	}
+
 	services: traefik: foundation.#ServiceDefinition & {
-		name:     "traefik"
-		type:     "reverse-proxy"
-		image:    "traefik"
-		tag:      "v3.6.13"
+		name:  "traefik"
+		type:  "reverse-proxy"
+		image: "traefik"
+		tag:   "v3.6.13"
 		upstream: {
 			github: {repo: "traefik/traefik"}
 		}
@@ -171,7 +175,7 @@ Contract: foundation.#ModuleContract & {
 		}
 
 		subdomain: {key: "traefik", nested: "traefik", flat: "traefik"}
-		dashboard: {icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy", guideUrl: "https://docs.kombify.io/stackkits/apps/traefik"}
+		dashboard: {icon: "&#9889;", order: 30, section: "Platform", badge: "L2 \u00b7 Reverse Proxy"}
 
 		output: {
 			url:         "https://traefik.{{.domain}}"
