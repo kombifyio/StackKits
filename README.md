@@ -1,13 +1,16 @@
 # StackKits
 
-**A professional homelab on a computer you already have, with one command.**
-StackKits sets up a secured, backed-up homelab at home or in the cloud and keeps
-the whole setup as one blueprint you can read, version and take anywhere. The
-standard is open and works entirely on its own.
+**StackKits turns a spare computer, a mini PC or a Proxmox VE guest into a
+running homelab with Photos, Files and Vault — on your own hardware, with no
+kombify account required.**
+
+One command installs the CLI and the kit. You get running services, an owner
+passkey you create yourself, and your access details in one file. The whole
+homelab stays one readable blueprint you can keep, version and take anywhere.
 
 ## Install
 
-Run this on the computer that becomes your homelab, as a user who can use `sudo`:
+On a spare Linux machine, mini PC or appliance (as a user who can use `sudo`):
 
 <!-- public-path:begin install -->
 ```sh
@@ -15,11 +18,30 @@ curl -sSL https://install.stackkit.cc | sh
 ```
 <!-- public-path:end install -->
 
-The installer asks a few questions and every one has a default you accept with
-Enter, except your email address, which becomes your owner login. It
-installs the kit that fits the computer (Basement Kit at home, Cloud Kit on a
-public server) and ends with your access details in one file. You get running
-services and a sign-in for you.
+On Proxmox VE, create an Ubuntu 24.04 or 26.04 guest VM first and run the same
+command inside it. StackKits never installs on the Proxmox host itself. The
+installer asks for your email address, shows the use-case selection and starts
+the services.
+
+![Photos running in the homelab after setup](https://docs.kombify.io/images/guides/photos/immich/web-01-photo.webp)
+
+## What you get in about ten minutes
+
+The installer picks the address zone that fits the host it detects, so there is
+no domain to configure before you start:
+
+| Mode | Addresses | What you get |
+| --- | --- | --- |
+| Public names | `*.kombify.me` | The default on a public VPS or cloud host: HTTPS names that need no DNS change and no certificate on your devices. On a home server, set `DOMAIN=kombify.me` and turn on a reach path with `stackkit reach`. |
+| Local network only | `*.lab.home` | The default on a home server, and an explicit choice anywhere with `DOMAIN=lab.home`. A private home zone for devices on your own network. The kit runs standalone with no kombify account. |
+
+Three use cases are checked by default and need nothing from you:
+
+| Use case | What you get |
+| --- | --- |
+| Photos | Your family photos, backed up and reachable from your phone |
+| Files | Your documents, shared across the household |
+| Vault | Your passwords, behind a passkey sign-in with no default passwords |
 
 It installs the recommended release: the newest one on which every declared
 test lane passed. While no release is recommended it installs the newest release
@@ -39,6 +61,21 @@ in `.stackkit/access.json`, and the Hub links back to setup. No router change or
 kombify account is required for this private home mode. Public-domain or
 kombify.me installations use the printed HTTPS Hub directly, with no client DNS
 or CA setup; these modes require their own domain/Me registration and reach setup.
+
+## The six commands
+
+If you want to drive the lifecycle yourself instead of taking the guided path,
+these six commands cover standalone setup, day-2 operation and the optional
+connection to kombify:
+
+| Command | Purpose |
+| --- | --- |
+| `stackkit init` | Initialize a new deployment from a StackKit |
+| `stackkit apply` | Apply infrastructure changes |
+| `stackkit status` | Show deployment status |
+| `stackkit verify` | Run post-deployment verification checks |
+| `stackkit backup` | Manage backups (Kopia engine) |
+| `stackkit connect` | Bind the server to your kombify account for public `*.kombify.me` names |
 
 For a fresh Linux target, prepare Docker and the CLI as root or with passwordless
 sudo and Docker socket access before following the steps by hand:
@@ -106,9 +143,9 @@ Select the kit with `stackkit init`:
 <!-- kit-support:begin -->
 | Kit | Target | Status |
 | --- | --- | --- |
-| Basement Kit | an existing Linux host at home | alpha at v0.61.10; no public-package pass recorded |
-| Cloud Kit | an existing VPS with your own domain | alpha at v0.61.10; no public-package pass recorded |
-| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.61.10; no public-package pass recorded |
+| Basement Kit | an existing Linux host at home | alpha at v0.61.11; no public-package pass recorded |
+| Cloud Kit | an existing VPS with your own domain | alpha at v0.61.11; no public-package pass recorded |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.61.11; no public-package pass recorded |
 <!-- kit-support:end -->
 
 A published release is source and distribution evidence, not runtime

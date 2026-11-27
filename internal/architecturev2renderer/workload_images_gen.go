@@ -39,6 +39,23 @@ const (
 	nextcloudValkeyImageDigest     = "sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b"
 	nextcloudValkeyRelease         = "9-alpine"
 	nextcloudValkeyCommandJSON     = "[\"valkey-server\"]"
+	enteGatewayImageRef            = "docker.io/library/nginx:alpine"
+	enteGatewayImageDigest         = "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"
+	enteGatewayRelease             = "alpine"
+	enteWebImageRef                = "ghcr.io/ente/web:1a623f325ad9b6ba68e23c1298eb6cf4486f27c8"
+	enteWebImageDigest             = "sha256:200a1d33e369459662177ec601f8b267e088f4966f7124562aa81cd0528cea52"
+	enteWebRelease                 = "1a623f325ad9b6ba68e23c1298eb6cf4486f27c8"
+	enteMuseumImageRef             = "ghcr.io/ente/server:163f45c26f130090abed03649530f53d2d976565"
+	enteMuseumImageDigest          = "sha256:3511ff25db3bf950abeb3983928eeadeed7f53b690ee94704c14be72fa719b1d"
+	enteMuseumRelease              = "163f45c26f130090abed03649530f53d2d976565"
+	enteMuseumCommandJSON          = "[\"export ENTE_DB_PASSWORD=\\\"$(cat \\\"$STACKKIT_DB_PASSWORD_FILE\\\")\\\"; export ENTE_KEY_ENCRYPTION=\\\"$(cat \\\"$STACKKIT_ENCRYPTION_KEY_FILE\\\")\\\"; export ENTE_KEY_HASH=\\\"$(cat \\\"$STACKKIT_HASH_KEY_FILE\\\")\\\"; export ENTE_JWT_SECRET=\\\"$(cat \\\"$STACKKIT_JWT_SECRET_FILE\\\")\\\"; export ENTE_S3_B2_EU_CEN_KEY=\\\"$(cat \\\"$STACKKIT_S3_ACCESS_KEY_FILE\\\")\\\"; export ENTE_S3_B2_EU_CEN_SECRET=\\\"$(cat \\\"$STACKKIT_S3_SECRET_KEY_FILE\\\")\\\"; exec ./museum\"]"
+	entePostgresImageRef           = "docker.io/library/postgres:17.6-alpine"
+	entePostgresImageDigest        = "sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94"
+	entePostgresRelease            = "17.6-alpine"
+	enteS3ImageRef                 = "docker.io/versity/versitygw:v1.0.15"
+	enteS3ImageDigest              = "sha256:19149f23f9ccf8fd37ed65ef9d2279b6e558e5e4cc78049531c3f1848b740d46"
+	enteS3Release                  = "v1.0.15"
+	enteS3CommandJSON              = "[\"mkdir -p /data/s3/ente-photos; export ROOT_ACCESS_KEY=\\\"$(cat \\\"$STACKKIT_S3_ACCESS_KEY_FILE\\\")\\\"; export ROOT_SECRET_KEY=\\\"$(cat \\\"$STACKKIT_S3_SECRET_KEY_FILE\\\")\\\"; exec /app/versitygw --port :7070 --region eu-central-1 posix /data/s3\"]"
 	navidromeImageRef              = "docker.io/deluan/navidrome:0.64.2"
 	navidromeImageDigest           = "sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52"
 	navidromeRelease               = "0.64.2"
@@ -247,6 +264,9 @@ var workloadEntryReleases = map[string]workloadEntryRelease{
 	}},
 	"stackkits-emby-runtime": {Component: "emby", Images: []workloadReleaseImage{
 		{Release: "4.10.0.40", Ref: "docker.io/emby/embyserver:4.10.0.40", Digest: "sha256:3aafff933d3f28d23ed0bc201022abe71c0aa80deb17177566c726b9bbc686c6"},
+	}},
+	"stackkits-ente-photos-runtime": {Component: "ente-gateway", Images: []workloadReleaseImage{
+		{Release: "alpine", Ref: "docker.io/library/nginx:alpine", Digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"},
 	}},
 	"stackkits-esphome-runtime": {Component: "esphome", Images: []workloadReleaseImage{
 		{Release: "2026.9.0", Ref: "ghcr.io/esphome/esphome:2026.9.0", Digest: "sha256:f6509fcf917a732fd80058567b237d5b9286b9dc6c8dde1b655fbb69ebd600ad"},

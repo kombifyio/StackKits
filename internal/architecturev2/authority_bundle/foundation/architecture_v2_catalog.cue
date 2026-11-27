@@ -19,6 +19,16 @@ import (
 // and restore drill passes. Kiosk >= 0.40 and Power Tools >= 0.22 require v3.
 _architectureV2ImmichServerImage: {ref: "ghcr.io/immich-app/immich-server:v3.3.4", digest: "sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f"}
 
+// Ente Photos native alternative (end-to-end encrypted photo library, fits Basic Cube S 4 GiB).
+// Pinned to verified GHCR/Docker Hub manifest index digests: Ente server & web
+// commits from examples/ente-photos/compose.cue, PostgreSQL 17.6-alpine,
+// nginx:alpine gateway, and VersityGW v1.0.15 POSIX S3 object storage.
+_architectureV2EnteGatewayImage: {ref: "docker.io/library/nginx:alpine", digest: "sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752"}
+_architectureV2EnteWebImage: {ref: "ghcr.io/ente/web:1a623f325ad9b6ba68e23c1298eb6cf4486f27c8", digest: "sha256:200a1d33e369459662177ec601f8b267e088f4966f7124562aa81cd0528cea52"}
+_architectureV2EnteMuseumImage: {ref: "ghcr.io/ente/server:163f45c26f130090abed03649530f53d2d976565", digest: "sha256:3511ff25db3bf950abeb3983928eeadeed7f53b690ee94704c14be72fa719b1d"}
+_architectureV2EntePostgresImage: {ref: "docker.io/library/postgres:17.6-alpine", digest: "sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94"}
+_architectureV2EnteS3Image: {ref: "docker.io/versity/versitygw:v1.0.15", digest: "sha256:19149f23f9ccf8fd37ed65ef9d2279b6e558e5e4cc78049531c3f1848b740d46"}
+
 _architectureV2PrivateAIImage: {ref: "ghcr.io/open-webui/open-webui:v0.11.3", digest: "sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933"}
 
 // AnythingLLM (MIT) is the chat alternative of Private AI (owner decision
@@ -1093,6 +1103,32 @@ _architectureV2WorkloadContracts: [
 				}
 			}
 			infrastructure: _architectureV2PhotosLiteInfrastructure
+		}, {
+			id:          "ente-photos"
+			providerRef: "stackkits-ente-photos"
+			moduleRef:   "stackkits-ente-photos-runtime"
+			route: {serviceRef: "photos", healthRef: "ente-photos-http"}
+			runtime: {
+				allowedKinds: ["container"]
+				allowedDeliveries: ["application-adapter"]
+				allowedAdapterRefs: ["standalone-compose"]
+				defaultAdapterRef: "standalone-compose"
+				defaultFallbackAdapterRefs: []
+				compatibility: [
+					{adapterRef: "standalone-compose", maturity: "beta", capabilities: {deployment: true, routeTLS: true, statusEvidence: true, backupRestore: true}},
+				]
+			}
+			// Ente accounts hold client-side E2EE keys; owner bootstrap runs via
+			// standard Ente client signup after first start.
+			setup: {mode: "manual", owner: "operator", actionRefs: []}
+			inputs: {
+				settings: {allowedRefs: [], requiredRefs: []}
+				secretInputs: {
+					allowedRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"]
+					requiredRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"]
+				}
+			}
+			infrastructure: _architectureV2PhotosEnteInfrastructure
 		}]
 	},
 	#WorkloadContractV2 & {
@@ -3220,6 +3256,26 @@ _architectureV2Providers: list.Concat([[
 		evidence: ["SK-S1", "SK-S2", "SK-S4"]
 	},
 	{
+		metadata: {id: "stackkits-ente-photos", version: "1.0.0"}
+		provides: []
+		workloadRefs: ["photos"]
+		requires: [
+			{id: "runtime-paas"},
+			{id: "service-catalog"},
+			{id: "storage-data-policy"},
+			{id: "backup-core"},
+		]
+		supportedSiteKinds: ["home", "cloud"]
+		realization: {
+			kind: "modules"
+			moduleRefs: {
+				required: []
+				optional: ["stackkits-ente-photos-runtime"]
+			}
+		}
+		evidence: ["ente-photos-selected-paas-runtime-contract"]
+	},
+	{
 		metadata: {id: "stackkits-nextcloud", version: "1.0.0"}
 		provides: []
 		workloadRefs: ["files"]
@@ -4686,6 +4742,7 @@ _architectureV2WorkloadTerramateStack: _architectureV2TerramateStack & {
 
 _architectureV2ImmichTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2ImmichLiteTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "immich-lite", _placement: {scope: "node-local", cardinality: "one-per-node"}}
+_architectureV2EntePhotosTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "ente-photos", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2CloudreveTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "cloudreve", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2NextcloudTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "nextcloud", _placement: {scope: "node-local", cardinality: "one-per-node"}}
 _architectureV2VaultwardenTerramateStack: _architectureV2WorkloadTerramateStack & {_slug: "vaultwarden", _placement: {scope: "node-local", cardinality: "one-per-node"}}
@@ -4843,6 +4900,36 @@ _architectureV2ImmichLiteSupport: #ModuleRealizationSupportV2 & {
 		}, _architectureV2ImmichLiteTerramateStack.contract]
 	}
 	evidence: requiredRefs: ["immich-selected-paas-runtime-contract"]
+}
+
+_architectureV2EntePhotosSupport: #ModuleRealizationSupportV2 & {
+	contractVersion: "1.0.0"
+	scope:           "concrete"
+	level:           "apply-ready"
+	compatibleRendererRefs: ["stackkit"]
+	inputs: {
+		contractComplete: true
+		requiredRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"]
+	}
+	artifacts: {
+		requiredRefs: ["ente-photos-workload-bundle", _architectureV2EntePhotosTerramateStack.contract.id]
+		outputBindings: [{
+			artifactRef: "ente-photos-workload-bundle"
+			unitRef:     "ente-gateway"
+			outputRef:   "workloads/ente-photos/bundle.json"
+		}, _architectureV2EntePhotosTerramateStack.binding]
+		contracts: [{
+			id:       "ente-photos-workload-bundle"
+			kind:     "native-config"
+			format:   "json"
+			mode:     "0640"
+			required: true
+			compatibleTargets: ["compose", "opentofu"]
+			unitRef:   "ente-gateway"
+			outputRef: "workloads/ente-photos/bundle.json"
+		}, _architectureV2EntePhotosTerramateStack.contract]
+	}
+	evidence: requiredRefs: ["ente-photos-selected-paas-runtime-contract"]
 }
 
 // Cloudreve is the second Application Kit vertical on the reusable lifecycle.
@@ -5918,6 +6005,47 @@ _architectureV2PhotosLiteInfrastructure: #WorkloadInfrastructureV1 & {
 		allocations: [
 			for allocation in _architectureV2PhotosInfrastructure.storageAllocation.allocations
 			if allocation.componentRef != "immich-machine-learning" {allocation},
+		]
+	}
+	dataBinding: _architectureV2PhotosInfrastructure.dataBinding
+	backupSource: {
+		moduleRef: "stackkits-backup-source"
+		allocations: [
+			for allocation in storageAllocation.allocations
+			if allocation.backup {
+				componentRef: allocation.componentRef
+				volumeRef:    allocation.volumeRef
+				dataClasses:  allocation.dataClasses
+			},
+		]
+	}
+	snapshot: moduleRef: "stackkits-snapshot"
+	restore: moduleRef:  "stackkits-restore"
+	recovery: moduleRef: "stackkits-recovery"
+}
+
+// Ente Photos keeps encrypted photo blobs in its same-host S3 volume, metadata
+// in PostgreSQL, and Museum state in /data; all three are backed up together.
+_architectureV2PhotosEnteInfrastructure: #WorkloadInfrastructureV1 & {
+	storageAllocation: {
+		moduleRef: "stackkits-storage-allocation"
+		allocations: [
+			{
+				componentRef: "ente-gateway", volumeRef: "config", target: "/etc/nginx/conf.d"
+				class:        "cache", backup: false, dataClasses: []
+			},
+			{
+				componentRef: "ente-museum", volumeRef: "data", target: "/data"
+				class:        "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "photos"
+			},
+			{
+				componentRef: "ente-postgres", volumeRef: "database", target: "/var/lib/postgresql/data"
+				class:        "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "photos"
+			},
+			{
+				componentRef: "ente-s3", volumeRef: "objects", target: "/data/s3"
+				class:        "persistent", backup: true, dataClasses: ["personal"], dataBindingRef: "photos"
+			},
 		]
 	}
 	dataBinding: _architectureV2PhotosInfrastructure.dataBinding
@@ -8519,6 +8647,185 @@ _architectureV2Modules: list.Concat([[
 			expectedStatuses: [200]
 		}]
 		evidence: ["SK-S1", "SK-S2", "SK-S4", "immich-selected-paas-runtime-contract"]
+	},
+	{
+		metadata: {
+			id:          "stackkits-ente-photos-runtime"
+			version:     "1.0.0"
+			description: "End-to-end encrypted Ente Photos with Museum API, Web (Photos & Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway."
+		}
+		role:        "workload"
+		providerRef: "stackkits-ente-photos"
+		provides: []
+		supportedSiteKinds: ["home", "cloud"]
+		nodeSelection: {
+			authority: "control-authority-site"
+			requiredRoles: ["worker"]
+		}
+		computeProfiles:       _architectureV2EntePhotosComputeProfiles
+		defaultComputeProfile: "standard"
+		runtime: {
+			kind:              "container"
+			delivery:          "application-adapter"
+			engine:            "docker"
+			image:             _architectureV2EnteGatewayImage
+			entryComponentRef: "ente-gateway"
+			components: [
+				{
+					id:    "ente-gateway", role: "application", lifecycle: "daemon"
+					image: _architectureV2EnteGatewayImage
+					dependsOn: ["ente-web", "ente-museum", "ente-s3"]
+					networkRefs: ["ente-internal"]
+					volumes: [for allocation in _architectureV2PhotosEnteInfrastructure.storageAllocation.allocations if allocation.componentRef == "ente-gateway" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/stackkit-healthz", port: 8080}
+					resources: {memoryLimit: "128m", memoryReservation: "16m"}
+				},
+				{
+					id:    "ente-web", role: "application", lifecycle: "daemon"
+					image: _architectureV2EnteWebImage
+					dependsOn: ["ente-museum"]
+					networkRefs: ["ente-internal"]
+					health: {kind: "http", path: "/", port: 3000}
+					resources: {memoryLimit: "384m", memoryReservation: "64m"}
+				},
+				{
+					id:     "ente-museum", role: "application", lifecycle: "daemon"
+					image:  _architectureV2EnteMuseumImage
+					egress: true
+					dependsOn: ["ente-postgres", "ente-s3"]
+					networkRefs: ["ente-internal"]
+					entrypoint: ["/bin/sh", "-ec"]
+					command: [
+						"export ENTE_DB_PASSWORD=\"$(cat \"$STACKKIT_DB_PASSWORD_FILE\")\"; export ENTE_KEY_ENCRYPTION=\"$(cat \"$STACKKIT_ENCRYPTION_KEY_FILE\")\"; export ENTE_KEY_HASH=\"$(cat \"$STACKKIT_HASH_KEY_FILE\")\"; export ENTE_JWT_SECRET=\"$(cat \"$STACKKIT_JWT_SECRET_FILE\")\"; export ENTE_S3_B2_EU_CEN_KEY=\"$(cat \"$STACKKIT_S3_ACCESS_KEY_FILE\")\"; export ENTE_S3_B2_EU_CEN_SECRET=\"$(cat \"$STACKKIT_S3_SECRET_KEY_FILE\")\"; exec ./museum",
+					]
+					environment: {
+						ENTE_DB_HOST:                "ente-postgres"
+						ENTE_DB_PORT:                "5432"
+						ENTE_DB_NAME:                "ente_db"
+						ENTE_DB_USER:                "pguser"
+						ENTE_DB_SSLMODE:             "disable"
+						ENTE_S3_ARE_LOCAL_BUCKETS:   "false"
+						ENTE_S3_USE_PATH_STYLE_URLS: "true"
+						ENTE_S3_B2_EU_CEN_REGION:    "eu-central-1"
+						ENTE_S3_B2_EU_CEN_BUCKET:    "ente-photos"
+					}
+					secretFiles: [
+						{slot: "database-password", target: "/run/secrets/database-password", pathEnvironment: "STACKKIT_DB_PASSWORD_FILE", uid: 0, gid: 0},
+						{slot: "encryption-key", target: "/run/secrets/encryption-key", pathEnvironment: "STACKKIT_ENCRYPTION_KEY_FILE", uid: 0, gid: 0},
+						{slot: "hash-key", target: "/run/secrets/hash-key", pathEnvironment: "STACKKIT_HASH_KEY_FILE", uid: 0, gid: 0},
+						{slot: "jwt-secret", target: "/run/secrets/jwt-secret", pathEnvironment: "STACKKIT_JWT_SECRET_FILE", uid: 0, gid: 0},
+						{slot: "s3-access-key", target: "/run/secrets/s3-access-key", pathEnvironment: "STACKKIT_S3_ACCESS_KEY_FILE", uid: 0, gid: 0},
+						{slot: "s3-secret-key", target: "/run/secrets/s3-secret-key", pathEnvironment: "STACKKIT_S3_SECRET_KEY_FILE", uid: 0, gid: 0},
+					]
+					volumes: [for allocation in _architectureV2PhotosEnteInfrastructure.storageAllocation.allocations if allocation.componentRef == "ente-museum" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "http", path: "/ping", port: 8080}
+					resources: {memoryLimit: "768m", memoryReservation: "128m"}
+				},
+				{
+					id:    "ente-postgres", role: "database", lifecycle: "daemon"
+					image: _architectureV2EntePostgresImage
+					dependsOn: []
+					networkRefs: ["ente-internal"]
+					environment: {POSTGRES_USER: "pguser", POSTGRES_DB: "ente_db"}
+					secretEnvironment: POSTGRES_PASSWORD: "database-password"
+					volumes: [for allocation in _architectureV2PhotosEnteInfrastructure.storageAllocation.allocations if allocation.componentRef == "ente-postgres" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["pg_isready", "-U", "pguser", "-d", "ente_db"]}
+					resources: {memoryLimit: "512m", memoryReservation: "128m"}
+				},
+				{
+					id:    "ente-s3", role: "application", lifecycle: "daemon"
+					image: _architectureV2EnteS3Image
+					dependsOn: []
+					networkRefs: ["ente-internal"]
+					entrypoint: ["/bin/sh", "-ec"]
+					command: [
+						"mkdir -p /data/s3/ente-photos; export ROOT_ACCESS_KEY=\"$(cat \"$STACKKIT_S3_ACCESS_KEY_FILE\")\"; export ROOT_SECRET_KEY=\"$(cat \"$STACKKIT_S3_SECRET_KEY_FILE\")\"; exec /app/versitygw --port :7070 --region eu-central-1 posix /data/s3",
+					]
+					secretFiles: [
+						{slot: "s3-access-key", target: "/run/secrets/s3-access-key", pathEnvironment: "STACKKIT_S3_ACCESS_KEY_FILE", uid: 0, gid: 0},
+						{slot: "s3-secret-key", target: "/run/secrets/s3-secret-key", pathEnvironment: "STACKKIT_S3_SECRET_KEY_FILE", uid: 0, gid: 0},
+					]
+					volumes: [for allocation in _architectureV2PhotosEnteInfrastructure.storageAllocation.allocations if allocation.componentRef == "ente-s3" {
+						id: allocation.volumeRef, target: allocation.target, class: allocation.class, backup: allocation.backup
+					}]
+					health: {kind: "command", command: ["sh", "-c", "nc -z 127.0.0.1 7070"]}
+					resources: {memoryLimit: "256m", memoryReservation: "64m"}
+				},
+			]
+		}
+		renderUnits: [{
+			id:          "ente-gateway"
+			kind:        "native-config"
+			rendererRef: "stackkit"
+			compatibleTargets: ["compose", "opentofu"]
+			templateRef:  "builtin://workloads/ente-photos/bundle/v1.json"
+			version:      "1.0.0"
+			contractHash: "sha256:440129dce7de499b4422b49b7fb314466a6574af1325c9081f5918a0aa5b316a"
+			publicInputRefs: ["delivery-route"]
+			inputBindings: [{
+				targetRef: "delivery-route", sourceRef:                    "network.moduleRoute"
+				valueType: "authority-bound-module-route-v1", cardinality: "single", required: false, defaultValue: null
+			}]
+			secretInputRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"]
+			outputs: ["workloads/ente-photos/bundle.json"]
+			placement: {
+				scope:       "node-local"
+				cardinality: "one-per-node"
+			}
+			serviceEndpoints: [{
+				serviceRef:        "photos"
+				upstreamProtocol:  "http"
+				targetPort:        8080
+				requiredPrivilege: "user"
+				ingressAuth:       "native"
+				allowedIngressProtocols: ["https"]
+				allowedExposures: ["local", "remote-private", "public"]
+				originSelector: "control-authority-site"
+				healthRef:      "ente-photos-http"
+				data: {
+					bindingRef:      _architectureV2PhotosEnteInfrastructure.dataBinding.bindingRef
+					requiredClasses: _architectureV2PhotosEnteInfrastructure.dataBinding.classes
+					locality:        _architectureV2PhotosEnteInfrastructure.dataBinding.locality
+				}
+			}]
+		}, _architectureV2EntePhotosTerramateStack.unit]
+		renderVariants: [
+			{
+				id:           "compose", target: "compose", rendererRef: "stackkit"
+				contractHash: "sha256:440129dce7de499b4422b49b7fb314466a6574af1325c9081f5918a0aa5b316a"
+				unitRefs: ["ente-gateway"], artifactRefs: ["ente-photos-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"], planInputRefs: []
+			},
+			{
+				id:           "opentofu", target: "opentofu", rendererRef: "stackkit"
+				contractHash: "sha256:440129dce7de499b4422b49b7fb314466a6574af1325c9081f5918a0aa5b316a"
+				unitRefs: ["ente-gateway"], artifactRefs: ["ente-photos-workload-bundle"]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"], planInputRefs: []
+			},
+			{
+				id:           "terramate", target: "terramate", rendererRef: "stackkit"
+				contractHash: _architectureV2TerramateStackHashes.workload
+				unitRefs: ["ente-gateway", "terramate-stack"], artifactRefs: ["ente-photos-workload-bundle", _architectureV2EntePhotosTerramateStack.contract.id]
+				publicInputRefs: ["delivery-route"], secretInputRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"], planInputRefs: []
+			},
+		]
+		realizationSupport: _architectureV2EntePhotosSupport
+		health: [{
+			id:             "ente-photos-http"
+			phase:          "continuous"
+			kind:           "http"
+			path:           "/stackkit-healthz"
+			port:           8080
+			timeoutSeconds: 10
+			expectedStatuses: [200]
+		}]
+		evidence: ["ente-photos-selected-paas-runtime-contract"]
 	},
 	{
 		metadata: {

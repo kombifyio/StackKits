@@ -401,6 +401,9 @@ func nativeAppliedWorkloadDeploymentDataForLifecycle(authority nativeAppliedWork
 		if requireLocalAPI && !target.RuntimeAdapter.HasCapability(generationartifact.ApplicationSetupLocalAPICapability) {
 			return nativehost.SelectedPaaSWorkloadDeployment{}, fmt.Errorf("local application operation requires a runtime adapter with the %q capability, which the selected adapter does not declare", generationartifact.ApplicationSetupLocalAPICapability)
 		}
+		if target.RuntimeAdapter == nil {
+			continue
+		}
 		if len(target.SiteRefs) != 1 || len(target.NodeRefs) != 1 || target.SiteRefs[0] != authority.Owner.Binding.SiteRef || target.NodeRefs[0] != authority.Owner.Binding.NodeRef {
 			return nativehost.SelectedPaaSWorkloadDeployment{}, errors.New("native application setup requires the exact local owner-bound placement")
 		}

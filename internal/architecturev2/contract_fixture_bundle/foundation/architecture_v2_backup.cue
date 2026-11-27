@@ -75,6 +75,9 @@ package foundation
 _architectureV2VolumeBackupClasses: {
 	"immich-server/library":       "photos"
 	"immich-postgres/database":    "database"
+	"ente-s3/objects":             "photos"
+	"ente-museum/data":            "config"
+	"ente-postgres/database":      "database"
 	"cloudreve/data":              "user-content"
 	"opencloud/config":            "config"
 	"opencloud/data":              "user-content"

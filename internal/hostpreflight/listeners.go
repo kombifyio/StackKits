@@ -89,14 +89,13 @@ func ObserveListeners(ctx context.Context, workspace string, listeners []Listene
 }
 
 func observeListenersWithPriorCompose(ctx context.Context, workspace string, listeners []ListenerRequirement, priorCompose string) []PortFact {
-	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
-	defer cancel()
 	facts := make([]PortFact, 0, len(listeners))
 	if len(listeners) == 0 {
 		return facts
 	}
 	containers, containersObserved := inspectHostContainers(ctx, workspace)
 	intents, intentsObserved := observeSocketIntents(ctx, workspace)
+	hashCache := newComposeHashCache()
 	for _, listener := range listeners {
 		fact := PortFact{ListenerID: listener.ID, Transport: listener.Transport, BindAddress: listener.BindAddress, Port: listener.Port, Namespace: "host"}
 		address, err := listenerAddress(listener)
@@ -109,20 +108,22 @@ func observeListenersWithPriorCompose(ctx context.Context, workspace string, lis
 				}
 			}
 			endpoint := net.JoinHostPort(address.String(), strconv.Itoa(listener.Port))
+			listenCtx, listenCancel := context.WithTimeout(ctx, probeTimeout)
 			var config net.ListenConfig
 			if listener.Transport == "tcp" {
 				var socket net.Listener
-				socket, err = config.Listen(ctx, network, endpoint)
+				socket, err = config.Listen(listenCtx, network, endpoint)
 				if err == nil {
 					err = socket.Close()
 				}
 			} else {
 				var socket net.PacketConn
-				socket, err = config.ListenPacket(ctx, network, endpoint)
+				socket, err = config.ListenPacket(listenCtx, network, endpoint)
 				if err == nil {
 					err = socket.Close()
 				}
 			}
+			listenCancel()
 		}
 		fact.Observed = err == nil || errors.Is(err, syscall.EADDRINUSE)
 		fact.InUse = errors.Is(err, syscall.EADDRINUSE)
@@ -138,9 +139,11 @@ func observeListenersWithPriorCompose(ctx context.Context, workspace string, lis
 			fact.Detail = boundedDiagnostic(err.Error())
 		}
 		matching := 0
+		var matchedContainer inspectedRuntimeContainer
 		for _, container := range containers {
 			if containerBindingOverlaps(container, listener) {
 				matching++
+				matchedContainer = container
 				fact.InUse = true
 				fact.Detail = "Existing container binding or stopped-container intent: " + container.ID
 			}
@@ -155,7 +158,7 @@ func observeListenersWithPriorCompose(ctx context.Context, workspace string, lis
 			// A stopped own container retains a publication intent, not a live
 			// socket. Admit that exact intent only when the bind probe is free;
 			// it cannot authorize replacing a process that now owns the port.
-			fact.OwnedByCurrentRuntime = currentWorkspaceOwnsListenerWithStoppedIntent(ctx, workspace, listener, priorCompose, !socketInUse)
+			fact.OwnedByCurrentRuntime = currentWorkspaceOwnsContainerListener(ctx, workspace, listener, matchedContainer, priorCompose, !socketInUse, hashCache)
 		}
 		for _, intent := range intents {
 			if socketIntentOverlaps(intent, listener) {

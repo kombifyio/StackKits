@@ -1,7 +1,7 @@
 {
   "schema_version": "stackkits-webmcp/v2alpha1",
-  "source_sha": "470c5b149acf0a3982efdaf9b1494ba197b749c0",
-  "authority_bundle_sha256": "e05691b5949e03c8455ae62ec7410b1002273eb447e98ff2ff32705c071fd96e",
+  "source_sha": "ed8142a8844886d710120e25b5ec1d0ec641837d",
+  "authority_bundle_sha256": "dc5763d08b0251e059f8cb69ddc49499365a3f447cdb2a163c26ce7367970d31",
   "kits": [
     {
       "stackkit_id": "basement-kit",
@@ -1234,6 +1234,161 @@
                 }
               },
               "profile_sha256": "4349006ab02837602f6910471cef767fe9e02ce7b950fec245c162cac6e77a6d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-ente-photos-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "87075047a9fbcdaa3839a4f0980ee2fb4599f2db1c8ae61be41bbdfc1b7be113"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "ce3fcdbb4342f0bdd20cdf77c2862b6f34d8d1a886472a01324c49f5bd2d87ea"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "55f4a389e347defba29b8d00224d7a899075b804a1a733e9e2dceecdc9a15d31"
             }
           ],
           "storage_profiles": [],
@@ -5586,6 +5741,20 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "ente-photos",
+              "module_id": "stackkits-ente-photos-runtime",
+              "functions": [
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              }
+            },
+            {
               "alternative_id": "immich",
               "module_id": "stackkits-immich-runtime",
               "functions": [
@@ -6951,6 +7120,161 @@
                 }
               },
               "profile_sha256": "4349006ab02837602f6910471cef767fe9e02ce7b950fec245c162cac6e77a6d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-ente-photos-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "87075047a9fbcdaa3839a4f0980ee2fb4599f2db1c8ae61be41bbdfc1b7be113"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "ce3fcdbb4342f0bdd20cdf77c2862b6f34d8d1a886472a01324c49f5bd2d87ea"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "55f4a389e347defba29b8d00224d7a899075b804a1a733e9e2dceecdc9a15d31"
             }
           ],
           "storage_profiles": [],
@@ -11352,6 +11676,20 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "ente-photos",
+              "module_id": "stackkits-ente-photos-runtime",
+              "functions": [
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              }
+            },
+            {
               "alternative_id": "immich",
               "module_id": "stackkits-immich-runtime",
               "functions": [
@@ -12795,6 +13133,161 @@
                 }
               },
               "profile_sha256": "4349006ab02837602f6910471cef767fe9e02ce7b950fec245c162cac6e77a6d"
+            }
+          ],
+          "storage_profiles": [],
+          "accelerator_profiles": []
+        },
+        {
+          "module_id": "stackkits-ente-photos-runtime",
+          "role": "workload",
+          "required": false,
+          "use_case_ids": [
+            "photos"
+          ],
+          "capabilities": [],
+          "default_compute_profile": "standard",
+          "compute_profiles": [
+            {
+              "id": "low",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "87075047a9fbcdaa3839a4f0980ee2fb4599f2db1c8ae61be41bbdfc1b7be113"
+            },
+            {
+              "id": "standard",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "ce3fcdbb4342f0bdd20cdf77c2862b6f34d8d1a886472a01324c49f5bd2d87ea"
+            },
+            {
+              "id": "high",
+              "capacity_declaration": "declared",
+              "maturity": "beta",
+              "executable": true,
+              "realization": "apply-ready",
+              "description": "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget.",
+              "host_floor": {
+                "cpu_cores": 2,
+                "ram_gb": 4,
+                "storage_gb": 20
+              },
+              "reservation": {
+                "cpu_cores": 0.1,
+                "ram_gb": 0.5
+              },
+              "recommended": {
+                "cpu_cores": 0.5,
+                "ram_gb": 0.875
+              },
+              "architectures": [],
+              "virtualization": [],
+              "components": [
+                "ente-gateway",
+                "ente-museum",
+                "ente-postgres",
+                "ente-s3",
+                "ente-web"
+              ],
+              "capabilities": [],
+              "degradations": [],
+              "provenance": {
+                "host_floor": {
+                  "source": "policy",
+                  "ref": "Kombify host floor support policy"
+                },
+                "reservation": {
+                  "source": "policy",
+                  "ref": "Sum of pinned Compose component memoryReservation limits in foundation/architecture_v2_catalog.cue"
+                },
+                "recommended": {
+                  "source": "policy",
+                  "ref": "Kombify recommended sizing policy"
+                }
+              },
+              "profile_sha256": "55f4a389e347defba29b8d00224d7a899075b804a1a733e9e2dceecdc9a15d31"
             }
           ],
           "storage_profiles": [],
@@ -16731,6 +17224,20 @@
           "availability": "available",
           "alternatives": [
             {
+              "alternative_id": "ente-photos",
+              "module_id": "stackkits-ente-photos-runtime",
+              "functions": [
+                "media-backup",
+                "photo-management",
+                "photos"
+              ],
+              "load": {
+                "residency": "always-on",
+                "baseline": "idle-resident",
+                "burst": "ingest"
+              }
+            },
+            {
               "alternative_id": "immich",
               "module_id": "stackkits-immich-runtime",
               "functions": [
@@ -18548,5 +19055,5 @@
       "owner_approval": false
     }
   ],
-  "catalog_sha256": "ceef9a3bad140c5855c45dd74b268d640a4154ea08cf9709b47f847dbf9422c0"
+  "catalog_sha256": "55cf6e113dd235b539fb2983547be4a69cc9ed8fe92b7c328b44c3780ac1b91c"
 }

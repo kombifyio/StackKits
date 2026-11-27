@@ -116,6 +116,9 @@ func ParseCloudreveWorkloadBundle(data []byte) (CloudreveWorkloadBundleDescripto
 			ImageRef: component.Image.Ref, ImageDigest: component.Image.Digest,
 		}
 	}
+	if err := applySelectedPaaSReleaseOverride(descriptor.ModuleRef, bundle.Workload.EntryComponent, &descriptor.Release, descriptor.Components, bundle.Workload.ReleaseOverride, path+".workload.releaseOverride"); err != nil {
+		return CloudreveWorkloadBundleDescriptor{}, err
+	}
 	return descriptor, nil
 }
 

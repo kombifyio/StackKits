@@ -46,13 +46,22 @@ type HALabel struct {
 
 // HADevice is a Home Assistant device registry entry.
 type HADevice struct {
-	ID           string   `json:"id"`
-	Name         *string  `json:"name"`
-	NameByUser   *string  `json:"name_by_user"`
-	AreaID       *string  `json:"area_id"`
-	Labels       []string `json:"labels"`
-	Manufacturer *string  `json:"manufacturer"`
-	Model        *string  `json:"model"`
+	ID           string     `json:"id"`
+	Name         *string    `json:"name"`
+	NameByUser   *string    `json:"name_by_user"`
+	AreaID       *string    `json:"area_id"`
+	Labels       []string   `json:"labels"`
+	Manufacturer *string    `json:"manufacturer"`
+	Model        *string    `json:"model"`
+	Identifiers  [][]string `json:"identifiers,omitempty"`
+	Connections  [][]string `json:"connections,omitempty"`
+}
+
+// HAEntity is the subset of a Home Assistant entity registry entry used to
+// classify its device for mirroring (HOME-GRAPH-TARGET.md section 6).
+type HAEntity struct {
+	EntityID string  `json:"entity_id"`
+	DeviceID *string `json:"device_id"`
 }
 
 // DisplayName is the name the person sees in Home Assistant.
@@ -66,12 +75,14 @@ func (d HADevice) DisplayName() string {
 	return d.ID
 }
 
-// HASnapshot is one read of the four registries.
+// HASnapshot is one read of the five registries (floor, area, label, device
+// and entity).
 type HASnapshot struct {
-	Floors  []HAFloor
-	Areas   []HAArea
-	Labels  []HALabel
-	Devices []HADevice
+	Floors   []HAFloor
+	Areas    []HAArea
+	Labels   []HALabel
+	Devices  []HADevice
+	Entities []HAEntity
 }
 
 // Registry is the Home Assistant registry surface the sync needs; *Client
@@ -255,7 +266,7 @@ func (c *Client) Call(ctx context.Context, typ string, params map[string]any, ou
 	}
 }
 
-// Snapshot reads the floor, area, label and device registries.
+// Snapshot reads the floor, area, label, device and entity registries.
 func (c *Client) Snapshot(ctx context.Context) (HASnapshot, error) {
 	var s HASnapshot
 	for _, q := range []struct {
@@ -266,6 +277,7 @@ func (c *Client) Snapshot(ctx context.Context) (HASnapshot, error) {
 		{"config/area_registry/list", &s.Areas},
 		{"config/label_registry/list", &s.Labels},
 		{"config/device_registry/list", &s.Devices},
+		{"config/entity_registry/list", &s.Entities},
 	} {
 		if err := c.Call(ctx, q.typ, nil, q.out); err != nil {
 			return HASnapshot{}, err

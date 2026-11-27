@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-11-26T18:50:33Z",
+  "generated_at": "2026-11-27T06:50:09Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -1320,7 +1320,7 @@
       "version": "1.0.0",
       "layer": "L2-platform-paas",
       "description": "Self-hosted PaaS with PostgreSQL and Redis for deploying applications",
-      "contract_hash": "b3273da1ccbea2c905cc410ceffdf223993a23cd2c9c2aff1cf9cad3e51341e1",
+      "contract_hash": "24fd82cbe80064977dc8344b789f521bbb2d592da760425104493ec632a80e58",
       "supported_contexts": [
         "local",
         "cloud",
@@ -1600,7 +1600,7 @@
       "version": "2.0.0",
       "layer": "L2-platform-ingress",
       "description": "OpenTelemetry Collector agent — collects host and container metrics and pushes via OTLP/gRPC to Homelab or monitoring-core",
-      "contract_hash": "a43b47a44833128bd4d278190799d42e8f3c2562c2d38bfbc01931bdafb84447",
+      "contract_hash": "756a36cc4dae76c1bb748746e48ccd0db11a40f51d22ede1b92f121e1b5b41dd",
       "supported_contexts": [
         "local",
         "cloud",
@@ -1853,7 +1853,7 @@
       "version": "1.0.0",
       "layer": "L1-foundation",
       "description": "Filtering proxy for Docker socket — eliminates root-equivalent socket exposure",
-      "contract_hash": "91544ea5a774b3e30e6e89c5f24dc92f105ab4e6f9abed9ca43af7a17cdf1fbd",
+      "contract_hash": "88931cf5c780d13804e19407b6761d112bc5a92f639d1ff962078c7f89582b0a",
       "supported_contexts": [
         "local",
         "cloud",

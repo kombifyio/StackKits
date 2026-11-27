@@ -149,6 +149,9 @@ func ParsePrivateAIWorkloadBundle(data []byte) (PrivateAIWorkloadBundleDescripto
 			ImageRef: component.Image.Ref, ImageDigest: component.Image.Digest,
 		}
 	}
+	if err := applySelectedPaaSReleaseOverride(descriptor.ModuleRef, bundle.Workload.EntryComponent, &descriptor.Release, descriptor.Components, bundle.Workload.ReleaseOverride, path+".workload.releaseOverride"); err != nil {
+		return PrivateAIWorkloadBundleDescriptor{}, err
+	}
 	return descriptor, nil
 }
 

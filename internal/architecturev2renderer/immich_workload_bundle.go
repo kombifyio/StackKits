@@ -345,6 +345,9 @@ func ParseImmichWorkloadBundle(data []byte) (ImmichWorkloadBundleDescriptor, err
 	for index, component := range components {
 		descriptor.Components[index] = SelectedPaaSWorkloadComponentDescriptor{ID: component.ID, Lifecycle: component.Lifecycle, HealthFailure: component.HealthFailure, ImageRef: component.Image.Ref, ImageDigest: component.Image.Digest}
 	}
+	if err := applySelectedPaaSReleaseOverride(descriptor.ModuleRef, bundle.Workload.EntryComponent, &descriptor.Release, descriptor.Components, bundle.Workload.ReleaseOverride, path+".workload.releaseOverride"); err != nil {
+		return ImmichWorkloadBundleDescriptor{}, err
+	}
 	return descriptor, nil
 }
 

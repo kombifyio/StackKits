@@ -168,6 +168,10 @@ func NewProductRegistry() (*Registry, error) {
 	if err := registry.Register(nextcloudWorkload.contract, nextcloudWorkload); err != nil {
 		return nil, err
 	}
+	entePhotosWorkload := newEntePhotosWorkloadBundleRenderer()
+	if err := registry.Register(entePhotosWorkload.contract, entePhotosWorkload); err != nil {
+		return nil, err
+	}
 	navidromeWorkload := newNavidromeWorkloadBundleRenderer()
 	if err := registry.Register(navidromeWorkload.contract, navidromeWorkload); err != nil {
 		return nil, err

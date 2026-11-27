@@ -1435,27 +1435,60 @@ func standaloneComposeRouteLabels(route architecturev2renderer.ApplicationDelive
 		// one, so the remote Access Gate is in front of every route and
 		// TinyAuth's parent-domain cookie is never consulted.
 		labels["traefik.http.routers."+router+".middlewares"] = "stackkit-access-gate-remote@docker"
-		return labels
+	} else {
+		// LAN listener: the Access Gate decides first, then TinyAuth checks the
+		// session and the route's groups. A native endpoint authenticates itself.
+		if route.IngressAuth == "forward-auth" {
+			labels["traefik.http.routers."+router+".middlewares"] = "stackkit-access-gate-lan@docker,stackkit-forward-auth@docker"
+		}
+		// Remote listener: the remote router binds the Access Gate to its only
+		// entrypoint for every route, native endpoints included. Only a host
+		// rule is published there: a host-less path rule could outrank another
+		// host's router. The remote router reads only labelled containers.
+		if route.Host != "" && (route.Exposure == "remote-private" || route.Exposure == "public") {
+			remote := router + "-remote"
+			labels[standaloneComposeRemoteListenerLabel] = "true"
+			labels["traefik.http.routers."+remote+".entrypoints"] = "remote"
+			labels["traefik.http.routers."+remote+".rule"] = rule
+			labels["traefik.http.routers."+remote+".service"] = router
+		}
+		if route.ModuleRef == "stackkits-own-application-runtime" {
+			for key, value := range ownApplicationRouteLabels(route, originServed) {
+				labels[key] = value
+			}
+		}
 	}
-	// LAN listener: the Access Gate decides first, then TinyAuth checks the
-	// session and the route's groups. A native endpoint authenticates itself.
-	if route.IngressAuth == "forward-auth" {
-		labels["traefik.http.routers."+router+".middlewares"] = "stackkit-access-gate-lan@docker,stackkit-forward-auth@docker"
-	}
-	// Remote listener: the remote router binds the Access Gate to its only
-	// entrypoint for every route, native endpoints included. Only a host
-	// rule is published there: a host-less path rule could outrank another
-	// host's router. The remote router reads only labelled containers.
-	if route.Host != "" && (route.Exposure == "remote-private" || route.Exposure == "public") {
-		remote := router + "-remote"
-		labels[standaloneComposeRemoteListenerLabel] = "true"
-		labels["traefik.http.routers."+remote+".entrypoints"] = "remote"
-		labels["traefik.http.routers."+remote+".rule"] = rule
-		labels["traefik.http.routers."+remote+".service"] = router
-	}
-	if route.ModuleRef == "stackkits-own-application-runtime" {
-		for key, value := range ownApplicationRouteLabels(route, originServed) {
-			labels[key] = value
+	if route.ModuleRef == "stackkits-ente-photos-runtime" && route.Host != "" {
+		if endpoints, err := architecturev2renderer.EntePhotosEndpointsForHost(route.Host); err == nil {
+			companions := []struct {
+				suffix string
+				host   string
+			}{
+				{suffix: "accounts", host: endpoints.AccountsHost},
+				{suffix: "api", host: endpoints.APIHost},
+				{suffix: "s3", host: endpoints.S3Host},
+			}
+			for _, companion := range companions {
+				subRouter := router + "-" + companion.suffix
+				subRule := "Host(`" + companion.host + "`)"
+				labels["traefik.http.routers."+subRouter+".entrypoints"] = entrypoint
+				labels["traefik.http.routers."+subRouter+".rule"] = subRule
+				labels["traefik.http.routers."+subRouter+".service"] = router
+				if route.TLSRequired {
+					labels["traefik.http.routers."+subRouter+".tls"] = "true"
+					if route.TLSIssuerRef != "" && !originServed {
+						labels["traefik.http.routers."+subRouter+".tls.certresolver"] = "stackkits"
+					}
+				}
+				if !standaloneComposeHomeCore(route.CoreModuleRef) {
+					labels["traefik.http.routers."+subRouter+".middlewares"] = "stackkit-access-gate-remote@docker"
+				} else if route.Exposure == "remote-private" || route.Exposure == "public" {
+					subRemote := subRouter + "-remote"
+					labels["traefik.http.routers."+subRemote+".entrypoints"] = "remote"
+					labels["traefik.http.routers."+subRemote+".rule"] = subRule
+					labels["traefik.http.routers."+subRemote+".service"] = router
+				}
+			}
 		}
 	}
 	return labels

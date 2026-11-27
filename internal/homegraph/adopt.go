@@ -203,13 +203,327 @@ func matchObjects(ks []objK, hs []objH, mapped map[string]string, firstRun, byNa
 	return res
 }
 
+// entityDomainClass maps a Home Assistant entity_id domain to a kombify device
+// class (HOME-GRAPH-TARGET.md section 6).
+func entityDomainClass(entityID string) string {
+	domain, _, ok := strings.Cut(strings.ToLower(strings.TrimSpace(entityID)), ".")
+	if !ok || domain == "" {
+		return ClassOther
+	}
+	switch domain {
+	case "camera":
+		return ClassCamera
+	case "lock":
+		return ClassLock
+	case "alarm_control_panel":
+		return ClassAlarm
+	case "media_player":
+		return ClassSpeaker
+	case "light", "switch", "cover", "climate", "fan":
+		return ClassActuator
+	case "sensor", "binary_sensor":
+		return ClassSensor
+	default:
+		return ClassOther
+	}
+}
+
+// isPrivateMirrorClass reports whether class requires explicit opt-in via
+// Graph.MirrorClasses before mirroring from Home Assistant.
+func isPrivateMirrorClass(class string) bool {
+	return class == ClassCamera || class == ClassLock || class == ClassAlarm
+}
+
+// deviceClassPriority resolves mixed-domain Home Assistant devices
+// deterministically: private classes always win over non-private classes.
+var deviceClassPriority = map[string]int{
+	ClassCamera:   6,
+	ClassLock:     5,
+	ClassAlarm:    4,
+	ClassSpeaker:  3,
+	ClassActuator: 2,
+	ClassSensor:   1,
+	ClassOther:    0,
+}
+
+type deviceClasses struct {
+	primary string
+	private map[string]bool
+}
+
+func indexDeviceClasses(entities []HAEntity) map[string]deviceClasses {
+	idx := map[string]deviceClasses{}
+	for _, e := range entities {
+		if e.DeviceID == nil || *e.DeviceID == "" {
+			continue
+		}
+		cls := entityDomainClass(e.EntityID)
+		cur, ok := idx[*e.DeviceID]
+		if !ok {
+			cur = deviceClasses{primary: ClassOther}
+		}
+		if deviceClassPriority[cls] > deviceClassPriority[cur.primary] {
+			cur.primary = cls
+		}
+		if isPrivateMirrorClass(cls) {
+			if cur.private == nil {
+				cur.private = map[string]bool{}
+			}
+			cur.private[cls] = true
+		}
+		idx[*e.DeviceID] = cur
+	}
+	return idx
+}
+
+func classifyHADevice(haDeviceID string, idx map[string]deviceClasses) string {
+	if c, ok := idx[haDeviceID]; ok && c.primary != "" {
+		return c.primary
+	}
+	return ClassOther
+}
+
+func mirrorClassAllowed(haDeviceID string, idx map[string]deviceClasses, mirrorClasses []string) bool {
+	c, ok := idx[haDeviceID]
+	if !ok || len(c.private) == 0 {
+		return true
+	}
+	allowed := setOf(mirrorClasses...)
+	for cls := range c.private {
+		if !allowed[cls] {
+			return false
+		}
+	}
+	return true
+}
+
+func deviceClassCompatible(kombifyClass, haClass string) bool {
+	return kombifyClass == haClass || kombifyClass == ClassOther || haClass == ClassOther
+}
+
+func normMAC(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if strings.HasPrefix(s, "mac:") {
+		s = strings.TrimPrefix(s, "mac:")
+	}
+	var b strings.Builder
+	b.Grow(12)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == ':' || c == '-' {
+			continue
+		}
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
+			b.WriteByte(c)
+			continue
+		}
+		return ""
+	}
+	if b.Len() != 12 {
+		return ""
+	}
+	return "mac:" + b.String()
+}
+
+func addIdentityKey(m map[string]bool, raw string) {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	if v == "" {
+		return
+	}
+	m[v] = true
+	if mac := normMAC(v); mac != "" {
+		m[mac] = true
+	}
+}
+
+func deviceIdentityKeys(d Device) map[string]bool {
+	m := map[string]bool{}
+	addIdentityKey(m, d.ID)
+	addIdentityKey(m, "kombify:"+d.ID)
+	addIdentityKey(m, d.Identity.Ref)
+	return m
+}
+
+func haDeviceIdentityKeys(d HADevice, allowDirectID bool) map[string]bool {
+	m := map[string]bool{}
+	if allowDirectID {
+		addIdentityKey(m, d.ID)
+	}
+	for _, pair := range d.Identifiers {
+		if len(pair) < 2 {
+			continue
+		}
+		a, b := strings.TrimSpace(pair[0]), strings.TrimSpace(pair[1])
+		addIdentityKey(m, b)
+		if a != "" && b != "" {
+			addIdentityKey(m, a+":"+b)
+		}
+	}
+	for _, pair := range d.Connections {
+		if len(pair) < 2 {
+			continue
+		}
+		a, b := strings.TrimSpace(pair[0]), strings.TrimSpace(pair[1])
+		addIdentityKey(m, b)
+		if a != "" && b != "" {
+			addIdentityKey(m, a+":"+b)
+		}
+	}
+	return m
+}
+
+func matchDevices(g Graph, snap HASnapshot, mapped map[string]string, devClasses map[string]deviceClasses, firstRun bool) matchRes {
+	res := matchRes{coll: map[string][]string{}}
+	hIdx := make(map[string]HADevice, len(snap.Devices))
+	for _, h := range snap.Devices {
+		hIdx[h.ID] = h
+	}
+	kIDs := make(map[string]bool, len(g.Devices))
+	for _, k := range g.Devices {
+		kIDs[k.ID] = true
+	}
+	rev := make(map[string]string, len(mapped))
+	for k, h := range mapped {
+		rev[h] = k
+	}
+	used := map[string]bool{}
+	collided := map[string]bool{}
+
+	// 1. Match by stored mapping or explicit Home Assistant external_ref.
+	var pending []Device
+	for _, k := range g.Devices {
+		hid := mapped[k.ID]
+		fromMap := hid != ""
+		if hid == "" {
+			hid = haRef(k.ExternalRefs)
+		}
+		if hid != "" {
+			_, ok := hIdx[hid]
+			if ok && !used[hid] {
+				res.pairs = append(res.pairs, [2]string{k.ID, hid})
+				used[hid] = true
+				continue
+			}
+			if fromMap && !firstRun && !ok {
+				res.delHA = append(res.delHA, k.ID)
+				continue
+			}
+		}
+		pending = append(pending, k)
+	}
+
+	// 2. Match by device identity (kombify id, external id, HA identifiers and connections).
+	idCands := make(map[string][]string, len(pending))
+	kCountByH := map[string]int{}
+	for _, k := range pending {
+		kk := deviceIdentityKeys(k)
+		directID := k.Identity.Kind == IdentityExt
+		for _, h := range snap.Devices {
+			if used[h.ID] {
+				continue
+			}
+			for key := range haDeviceIdentityKeys(h, directID) {
+				if kk[key] {
+					idCands[k.ID] = append(idCands[k.ID], h.ID)
+					kCountByH[h.ID]++
+					break
+				}
+			}
+		}
+	}
+	var pendingName []Device
+	for _, k := range pending {
+		cands := idCands[k.ID]
+		switch {
+		case len(cands) == 0:
+			pendingName = append(pendingName, k)
+		case len(cands) == 1 && kCountByH[cands[0]] == 1 && !used[cands[0]]:
+			res.pairs = append(res.pairs, [2]string{k.ID, cands[0]})
+			used[cands[0]] = true
+		default:
+			sort.Strings(cands)
+			res.coll[k.ID] = cands
+			res.collOrder = append(res.collOrder, k.ID)
+			for _, c := range cands {
+				collided[c] = true
+			}
+		}
+	}
+
+	// 3. Match remaining active external kombify devices by normalized name
+	// when unambiguous and class-compatible.
+	nameCount := map[string]int{}
+	for _, k := range pendingName {
+		if k.Identity.Kind == IdentityExt && k.Status == StatusActive {
+			nameCount[normName(k.Name)]++
+		}
+	}
+	for _, k := range pendingName {
+		if k.Identity.Kind != IdentityExt || k.Status != StatusActive {
+			res.onlyK = append(res.onlyK, k.ID)
+			continue
+		}
+		kn := normName(k.Name)
+		var cands []string
+		for _, h := range snap.Devices {
+			if used[h.ID] {
+				continue
+			}
+			if !mirrorClassAllowed(h.ID, devClasses, g.MirrorClasses) {
+				continue
+			}
+			if !deviceClassCompatible(k.Class, classifyHADevice(h.ID, devClasses)) {
+				continue
+			}
+			if normName(h.DisplayName()) == kn {
+				cands = append(cands, h.ID)
+			}
+		}
+		switch {
+		case len(cands) == 0:
+			res.onlyK = append(res.onlyK, k.ID)
+		case len(cands) == 1 && nameCount[kn] == 1:
+			res.pairs = append(res.pairs, [2]string{k.ID, cands[0]})
+			used[cands[0]] = true
+		default:
+			sort.Strings(cands)
+			res.coll[k.ID] = cands
+			res.collOrder = append(res.collOrder, k.ID)
+			for _, c := range cands {
+				collided[c] = true
+			}
+		}
+	}
+
+	// 4. Unmatched HA devices: private classes (camera, lock, alarm) stay out
+	// of the mirror unless Graph.MirrorClasses explicitly opts into them.
+	for _, h := range snap.Devices {
+		if used[h.ID] || collided[h.ID] {
+			continue
+		}
+		if !mirrorClassAllowed(h.ID, devClasses, g.MirrorClasses) {
+			continue
+		}
+		if kid, ok := rev[h.ID]; ok && !firstRun && !kIDs[kid] {
+			res.delK = append(res.delK, h.ID)
+			continue
+		}
+		res.onlyH = append(res.onlyH, h.ID)
+	}
+	return res
+}
+
 // PlanAdoption inventories and matches kombify's graph and a Home Assistant
-// snapshot (HOME-GRAPH-TARGET.md section 8). Floors and rooms match by mapping,
-// external reference, then normalized name and alias; devices match by the
-// Home Assistant device id in their external_refs. It writes nothing.
+// snapshot (HOME-GRAPH-TARGET.md sections 6 and 8). Floors and rooms match by
+// mapping, external reference, then normalized name and alias; devices match by
+// mapping, external reference, device identity (kombify id, identifiers,
+// connections) and, for active external devices, unambiguous class-compatible
+// name. Camera, lock and alarm devices from Home Assistant are skipped unless
+// g.MirrorClasses explicitly names them. It writes nothing.
 func PlanAdoption(g Graph, snap HASnapshot, m Mapping, firstRun bool) AdoptionPlan {
 	m = m.Clone()
 	ap := AdoptionPlan{Graph: g, Snapshot: snap, Mapping: m, FirstRun: firstRun, Leading: g.LeadingSystem}
+	devClasses := indexDeviceClasses(snap.Entities)
 
 	fName := map[string]string{}
 	var fk []objK
@@ -265,23 +579,19 @@ func PlanAdoption(g Graph, snap HASnapshot, m Mapping, firstRun bool) AdoptionPl
 			Subject: "room", KombifyID: p[0], HAID: p[1], Name: r.Name, Kombify: kFloorName, HA: haFloorName})
 	}
 
-	var dk []objK
 	devByID := map[string]Device{}
 	dName := map[string]string{}
 	for _, d := range g.Devices {
 		devByID[d.ID] = d
 		dName[d.ID] = d.Name
-		dk = append(dk, objK{id: d.ID, name: d.Name, ref: haRef(d.ExternalRefs)})
 	}
 	haDev := map[string]HADevice{}
 	hdName := map[string]string{}
-	var dh []objH
 	for _, d := range snap.Devices {
 		haDev[d.ID] = d
 		hdName[d.ID] = d.DisplayName()
-		dh = append(dh, objH{id: d.ID, name: d.DisplayName()})
 	}
-	dr := matchObjects(dk, dh, m.Devices, firstRun, false)
+	dr := matchDevices(g, snap, m.Devices, devClasses, firstRun)
 	ap.collect("device", dr, dName, hdName)
 	for _, p := range dr.pairs {
 		d, hd := devByID[p[0]], haDev[p[1]]
@@ -349,17 +659,18 @@ func (ap *AdoptionPlan) collect(kind string, r matchRes, kName, hName map[string
 //
 // Semantics: matched objects are linked in the mapping and get a Home
 // Assistant external_ref; objects only in Home Assistant are imported into the
-// graph (devices as external, class other, role control); objects only in
-// kombify are projected. For room/device placement conflicts the chosen side's
-// value wins. A name_collision resolved for Home Assistant links the kombify
-// object to the first candidate; resolved for kombify it leaves both unlinked
-// and the projection reports the collision as drift. A deletion in Home
-// Assistant resolved for Home Assistant removes the kombify object, resolved
-// for kombify it is recreated; a deletion in kombify resolved for Home
-// Assistant re-imports the object, resolved for kombify leaves the Home
-// Assistant object alone (the plan never deletes there). When Home Assistant
-// leads, a matched object's name is taken from Home Assistant; when kombify
-// leads, a differing Home Assistant name is renamed by the projection.
+// graph (devices as external, classified from their Home Assistant entity
+// domains with camera, lock and alarm gated on mirror_classes, role control);
+// objects only in kombify are projected. For room/device placement conflicts the
+// chosen side's value wins. A name_collision resolved for Home Assistant links
+// the kombify object to the first unused candidate; resolved for kombify it
+// leaves both unlinked and the projection reports the collision as drift. A
+// deletion in Home Assistant resolved for Home Assistant removes the kombify
+// object, resolved for kombify it is recreated; a deletion in kombify resolved
+// for Home Assistant re-imports the object, resolved for kombify leaves the
+// Home Assistant object alone (the plan never deletes there). When Home
+// Assistant leads, a matched object's name is taken from Home Assistant; when
+// kombify leads, a differing Home Assistant name is renamed by the projection.
 //
 // The merged graph is validated; a validation error is returned together with
 // the graph and an empty plan, and nothing should be written.
@@ -394,9 +705,10 @@ type resolver struct {
 	g   Graph
 	dec func(string) Side
 
-	haFloor map[string]HAFloor
-	haArea  map[string]HAArea
-	haDev   map[string]HADevice
+	haFloor    map[string]HAFloor
+	haArea     map[string]HAArea
+	haDev      map[string]HADevice
+	devClasses map[string]deviceClasses
 }
 
 func copyGraph(g Graph) Graph {
@@ -455,8 +767,27 @@ func (r *resolver) link(kind, kid, hid string) {
 
 func (r *resolver) leadHA() bool { return r.ap.Leading == LeadingHomeAssistant }
 
+func (r *resolver) firstUnusedCandidate(subject string, candidates []string) string {
+	var mapped map[string]string
+	switch subject {
+	case "floor":
+		mapped = r.m.Floors
+	case "room":
+		mapped = r.m.Areas
+	case "device":
+		mapped = r.m.Devices
+	}
+	for _, cand := range candidates {
+		if reverse(mapped, cand) == "" {
+			return cand
+		}
+	}
+	return ""
+}
+
 func (r *resolver) run() {
 	r.haFloor, r.haArea, r.haDev = map[string]HAFloor{}, map[string]HAArea{}, map[string]HADevice{}
+	r.devClasses = indexDeviceClasses(r.ap.Snapshot.Entities)
 	for _, f := range r.ap.Snapshot.Floors {
 		r.haFloor[f.FloorID] = f
 	}
@@ -478,7 +809,9 @@ func (r *resolver) run() {
 		switch c.Kind {
 		case ConflictNameCollision:
 			if side == SideHA && len(c.Candidates) > 0 {
-				r.link(c.Subject, c.KombifyID, c.Candidates[0])
+				if cand := r.firstUnusedCandidate(c.Subject, c.Candidates); cand != "" {
+					r.link(c.Subject, c.KombifyID, cand)
+				}
 			}
 		case ConflictDeletedOnOneSide:
 			r.deleted(c, side, reimport)
@@ -707,6 +1040,9 @@ func (r *resolver) importHA(reimport map[string]bool) {
 		if !want("device", d.ID) || !reExtRef.MatchString(d.ID) || !reIdentRef.MatchString(d.ID) {
 			continue
 		}
+		if !mirrorClassAllowed(d.ID, r.devClasses, r.g.MirrorClasses) {
+			continue
+		}
 		name := clipName(d.DisplayName())
 		if utf8.RuneCountInString(name) == 0 {
 			continue
@@ -718,7 +1054,8 @@ func (r *resolver) importHA(reimport map[string]bool) {
 				rid = &k
 			}
 		}
-		r.g.Devices = append(r.g.Devices, Device{ID: id, Name: name, Class: ClassOther, Roles: []string{RoleControl}, RoomID: rid,
+		cls := classifyHADevice(d.ID, r.devClasses)
+		r.g.Devices = append(r.g.Devices, Device{ID: id, Name: name, Class: cls, Roles: []string{RoleControl}, RoomID: rid,
 			Identity:     Identity{Kind: IdentityExt, Ref: d.ID},
 			ExternalRefs: []ExternalRef{{System: SystemHomeAssistant, Ref: d.ID}}, Status: StatusActive})
 		r.m.Devices[id] = d.ID

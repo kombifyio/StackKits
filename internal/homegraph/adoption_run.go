@@ -253,11 +253,22 @@ func (ap AdoptionPlan) Digest() string {
 	snapshot.Floors = append([]HAFloor{}, snapshot.Floors...)
 	snapshot.Areas = append([]HAArea{}, snapshot.Areas...)
 	snapshot.Devices = append([]HADevice{}, snapshot.Devices...)
+	for i := range snapshot.Devices {
+		snapshot.Devices[i].Identifiers = sortedPairs(snapshot.Devices[i].Identifiers)
+		snapshot.Devices[i].Connections = sortedPairs(snapshot.Devices[i].Connections)
+	}
 	snapshot.Labels = append([]HALabel{}, snapshot.Labels...)
+	snapshot.Entities = append([]HAEntity{}, snapshot.Entities...)
 	sort.Slice(snapshot.Floors, func(i, j int) bool { return snapshot.Floors[i].FloorID < snapshot.Floors[j].FloorID })
 	sort.Slice(snapshot.Areas, func(i, j int) bool { return snapshot.Areas[i].AreaID < snapshot.Areas[j].AreaID })
 	sort.Slice(snapshot.Devices, func(i, j int) bool { return snapshot.Devices[i].ID < snapshot.Devices[j].ID })
 	sort.Slice(snapshot.Labels, func(i, j int) bool { return snapshot.Labels[i].LabelID < snapshot.Labels[j].LabelID })
+	sort.Slice(snapshot.Entities, func(i, j int) bool {
+		if snapshot.Entities[i].EntityID != snapshot.Entities[j].EntityID {
+			return snapshot.Entities[i].EntityID < snapshot.Entities[j].EntityID
+		}
+		return deref(snapshot.Entities[i].DeviceID) < deref(snapshot.Entities[j].DeviceID)
+	})
 	raw, _ := json.Marshal(struct {
 		Graph       Graph
 		Snapshot    HASnapshot
@@ -269,6 +280,25 @@ func (ap AdoptionPlan) Digest() string {
 	}{graph, snapshot, ap.FirstRun, matched, sortOnly(ap.OnlyKombify), sortOnly(ap.OnlyHA), conflicts})
 	sum := sha256.Sum256(raw)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func sortedPairs(in [][]string) [][]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([][]string, len(in))
+	for i, p := range in {
+		out[i] = append([]string(nil), p...)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		for k := 0; k < len(out[i]) && k < len(out[j]); k++ {
+			if out[i][k] != out[j][k] {
+				return out[i][k] < out[j][k]
+			}
+		}
+		return len(out[i]) < len(out[j])
+	})
+	return out
 }
 
 // IsFirstAdoption reports whether kombify has never linked or adopted

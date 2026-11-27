@@ -163,10 +163,6 @@ func currentWorkspaceOwnsListenerWithStoppedIntent(ctx context.Context, workspac
 	if err != nil || root == "" || port < 1 || port > 65535 {
 		return false
 	}
-	directories := coreRuntimeDirectories(root)
-	if len(directories) == 0 {
-		return false
-	}
 	var container inspectedRuntimeContainer
 	if allowStopped {
 		// Docker's publish filter omits stopped containers, whose host-side
@@ -205,6 +201,27 @@ func currentWorkspaceOwnsListenerWithStoppedIntent(ctx context.Context, workspac
 		}
 		container = containers[0]
 	}
+	return currentWorkspaceOwnsContainerListener(ctx, root, listener, container, priorCompose, allowStopped, nil)
+}
+
+func currentWorkspaceOwnsContainerListener(
+	ctx context.Context,
+	workspace string,
+	listener ListenerRequirement,
+	container inspectedRuntimeContainer,
+	priorCompose string,
+	allowStopped bool,
+	cache *composeHashCache,
+) bool {
+	port := listener.Port
+	root, err := filepath.Abs(strings.TrimSpace(workspace))
+	if err != nil || root == "" || port < 1 || port > 65535 {
+		return false
+	}
+	directories := coreRuntimeDirectories(root)
+	if len(directories) == 0 {
+		return false
+	}
 	if !container.State.Running && !allowStopped {
 		return false
 	}
@@ -222,12 +239,12 @@ func currentWorkspaceOwnsListenerWithStoppedIntent(ctx context.Context, workspac
 	// this workspace's Compose file for the claimed service is what turns that
 	// claim into proof: a container that did not come from this definition
 	// cannot reproduce its config hash.
-	expectedHash, ok := runtimeConfigHash(ctx, root, runtimeDir, project, service)
+	expectedHash, ok := runtimeConfigHashCached(ctx, root, runtimeDir, filepath.Join(runtimeDir, "compose.yaml"), project, service, false, cache)
 	if !ok || labels["com.docker.compose.config-hash"] != expectedHash {
-		if priorCompose == "" || !isKitCoreRuntimeDirectory(root, runtimeDir) {
+		if priorCompose == "" || !isKitCoreRuntimeDirectory(root, runtimeDir) || !filepath.IsAbs(priorCompose) {
 			return false
 		}
-		expectedHash, ok = runtimeConfigHashFromPath(ctx, root, runtimeDir, priorCompose, project, service)
+		expectedHash, ok = runtimeConfigHashCached(ctx, root, runtimeDir, priorCompose, project, service, true, cache)
 		if !ok || labels["com.docker.compose.config-hash"] != expectedHash {
 			return false
 		}
@@ -245,16 +262,6 @@ func isKitCoreRuntimeDirectory(root, runtimeDir string) bool {
 		}
 	}
 	return false
-}
-
-// A verified upgrade snapshot stores the prior Compose bytes under a content
-// address. Compose must resolve relative mounts against the original runtime
-// directory or the historical config hash would describe a different service.
-func runtimeConfigHashFromPath(ctx context.Context, root, runtimeDir, composePath, project, service string) (string, bool) {
-	if !filepath.IsAbs(composePath) {
-		return "", false
-	}
-	return runtimeConfigHashWithFile(ctx, root, runtimeDir, composePath, project, service, true)
 }
 
 // publishesHostPort proves the container publishes exactly this host port on a
@@ -313,9 +320,122 @@ func claimedRuntimeDirectory(labels map[string]string, directories []string) (st
 	return "", false
 }
 
-func runtimeConfigHash(ctx context.Context, root, runtimeDir, project, service string) (string, bool) {
-	composePath := filepath.Join(runtimeDir, "compose.yaml")
-	return runtimeConfigHashWithFile(ctx, root, runtimeDir, composePath, project, service, false)
+type composeHashCacheKey struct {
+	runtimeDir       string
+	composePath      string
+	project          string
+	projectDirectory bool
+}
+
+type composeHashCacheEntry struct {
+	ok          bool
+	resolved    []byte
+	environment []string
+	hashes      map[string]string
+}
+
+type composeHashCache struct {
+	entries map[composeHashCacheKey]*composeHashCacheEntry
+}
+
+func newComposeHashCache() *composeHashCache {
+	return &composeHashCache{entries: map[composeHashCacheKey]*composeHashCacheEntry{}}
+}
+
+func runtimeConfigHashCached(
+	ctx context.Context,
+	root, runtimeDir, composePath, project, service string,
+	projectDirectory bool,
+	cache *composeHashCache,
+) (string, bool) {
+	if cache == nil {
+		return runtimeConfigHashWithFile(ctx, root, runtimeDir, composePath, project, service, projectDirectory)
+	}
+	key := composeHashCacheKey{
+		runtimeDir:       runtimeDir,
+		composePath:      composePath,
+		project:          project,
+		projectDirectory: projectDirectory,
+	}
+	entry, loaded := cache.entries[key]
+	if !loaded {
+		entry = &composeHashCacheEntry{hashes: map[string]string{}}
+		cache.entries[key] = entry
+		interpolation, err := localevidence.ComposeInterpolationEnvironment(root)
+		if err != nil {
+			return "", false
+		}
+		environment := append(os.Environ(), interpolation...)
+		args := []string{"compose", "--project-name", project}
+		if projectDirectory {
+			args = append(args, "--project-directory", runtimeDir)
+		}
+		// Compose's config --hash does not resolve env_file the same way as up:
+		// its hash can differ from the running container's config-hash label even
+		// when both use this exact definition. Resolve the complete model once
+		// per Compose file, then hash all services without persisting secrets.
+		args = append(args, "-f", composePath, "config")
+		resolved, ok := boundedDockerOutput(ctx, runtimeDir, environment, args...)
+		if !ok || len(resolved) == 0 {
+			return "", false
+		}
+		entry.ok = true
+		entry.resolved = resolved
+		entry.environment = environment
+		if rawAll, okAll := boundedDockerOutputWithInput(ctx, runtimeDir, environment, resolved,
+			"compose", "--project-name", project, "-f", "-", "config", "--hash", "*"); okAll {
+			for name, hash := range parseComposeServiceHashes(rawAll) {
+				entry.hashes[name] = hash
+			}
+		}
+	}
+	if !entry.ok {
+		return "", false
+	}
+	if hash, exists := entry.hashes[service]; exists {
+		return hash, hash != ""
+	}
+	raw, ok := boundedDockerOutputWithInput(ctx, runtimeDir, entry.environment, entry.resolved,
+		"compose", "--project-name", project, "-f", "-", "config", "--hash", service)
+	hash, parsed := parseSingleComposeServiceHash(raw, service)
+	if !ok || !parsed {
+		entry.hashes[service] = ""
+		return "", false
+	}
+	entry.hashes[service] = hash
+	return hash, true
+}
+
+func isLowerHex64(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for _, ch := range value {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func parseSingleComposeServiceHash(raw []byte, service string) (string, bool) {
+	fields := strings.Fields(string(raw))
+	if len(fields) != 2 || fields[0] != service || !isLowerHex64(fields[1]) {
+		return "", false
+	}
+	return fields[1], true
+}
+
+func parseComposeServiceHashes(raw []byte) map[string]string {
+	hashes := map[string]string{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || !composeService.MatchString(fields[0]) || !isLowerHex64(fields[1]) {
+			continue
+		}
+		hashes[fields[0]] = fields[1]
+	}
+	return hashes
 }
 
 func runtimeConfigHashWithFile(ctx context.Context, root, runtimeDir, composePath, project, service string, projectDirectory bool) (string, bool) {
@@ -339,16 +459,10 @@ func runtimeConfigHashWithFile(ctx context.Context, root, runtimeDir, composePat
 	}
 	raw, ok := boundedDockerOutputWithInput(ctx, runtimeDir, environment, resolved,
 		"compose", "--project-name", project, "-f", "-", "config", "--hash", service)
-	fields := strings.Fields(string(raw))
-	if !ok || len(fields) != 2 || fields[0] != service || len(fields[1]) != 64 {
+	if !ok {
 		return "", false
 	}
-	for _, value := range fields[1] {
-		if (value < '0' || value > '9') && (value < 'a' || value > 'f') {
-			return "", false
-		}
-	}
-	return fields[1], true
+	return parseSingleComposeServiceHash(raw, service)
 }
 
 func boundedDockerOutput(ctx context.Context, directory string, environment []string, args ...string) ([]byte, bool) {

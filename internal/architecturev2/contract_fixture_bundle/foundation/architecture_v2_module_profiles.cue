@@ -160,6 +160,29 @@ _architectureV2ImmichLiteComputeProfiles: low: #ModuleComputeProfileV2 & {
 	}
 }
 
+_architectureV2EntePhotosComputeProfile: #ModuleComputeProfileV2 & {
+	description: "End-to-end encrypted photo library with Ente Museum API, Ente Web (Photos and Accounts), PostgreSQL, same-host S3 object storage, and multi-endpoint TLS gateway. Fits a 4 GiB host alongside Files and Media; photo-library growth needs a separate data budget."
+	maturity:    "beta", executable: true, realization: "apply-ready"
+	hostFloor: {
+		minCpuCores:  2
+		minRamGB:     4
+		minStorageGB: _architectureV2CoreComputeProfile.hostFloor.minStorageGB
+	}
+	reservation: {ramGB: 0.5, cpuCores: 0.1}
+	recommended: {ramGB: 0.875, cpuCores: 0.5}
+	components: ["ente-gateway", "ente-web", "ente-museum", "ente-postgres", "ente-s3"]
+	provenance: {
+		hostFloor:   _architectureV2PolicyFloorProvenance
+		reservation: _architectureV2ComponentReservationProvenance
+		recommended: _architectureV2PolicyRecommendedProvenance
+	}
+}
+_architectureV2EntePhotosComputeProfiles: {
+	low:      _architectureV2EntePhotosComputeProfile
+	standard: _architectureV2EntePhotosComputeProfile
+	high:     _architectureV2EntePhotosComputeProfile
+}
+
 _architectureV2CloudreveComputeProfile: #ModuleComputeProfileV2 & {
 	description: "File storage and sharing through Cloudreve. All profiles run the same application; low declares a smaller host floor and binds its own measured footprint. Standard and high are equivalent. Nextcloud, collaboration and OCR are not added by selecting high. File growth needs a separate data budget."
 	maturity:    "supported", executable: true, realization: "apply-ready"

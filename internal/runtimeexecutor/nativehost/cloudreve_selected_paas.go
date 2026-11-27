@@ -22,8 +22,6 @@ const (
 	cloudreveOutputRef      = "workloads/cloudreve/bundle.json"
 	cloudreveHealthID       = "module-stackkits-cloudreve-runtime-cloudreve-http"
 	cloudreveHealthRef      = "cloudreve-http"
-	cloudreveImageRef       = "docker.io/cloudreve/cloudreve:4.18.0"
-	cloudreveImageDigest    = "sha256:f7a464100bf6325e9ba58cb2b0ee60f9a24c58fc2eb90647720bc4b8f3cddd9a"
 	cloudreveMaxBytes       = 128 << 10
 )
 
@@ -89,7 +87,7 @@ func validateCloudreveSelectedPaaSRequest(request runtimeexecutor.ExecutionReque
 		target.ModuleRef != cloudreveModuleRef || target.ModuleContractHash != authority.ModuleContractHash ||
 		target.UnitRef != cloudreveUnitRef || target.UnitContractHash != authority.UnitContractHash ||
 		target.RuntimeKind != "container" || target.RuntimeDelivery != "selected-paas" || target.RuntimeEngine != "docker" ||
-		target.WorkloadRef != cloudreveWorkloadRef || target.ImageRef != cloudreveImageRef || target.ImageDigest != cloudreveImageDigest ||
+		target.WorkloadRef != cloudreveWorkloadRef || !entryImageAdmitted(cloudreveModuleRef, target.ImageRef, target.ImageDigest) ||
 		target.InstanceRef != cloudreveInstancePrefix+binding.NodeRef || target.ExecutionChannelRef != binding.ExecutionChannelRef ||
 		!slices.Equal(target.SiteRefs, []string{binding.SiteRef}) || !slices.Equal(target.NodeRefs, []string{binding.NodeRef}) ||
 		len(target.DaemonBindings) != 0 || len(target.AccessCapabilities) != 0 || len(target.AccessBindingRefs) != 0 ||
@@ -139,6 +137,9 @@ func validateCloudreveSelectedPaaSRequest(request runtimeexecutor.ExecutionReque
 	descriptor, err := architecturev2renderer.ParseCloudreveWorkloadBundle(artifact.Content)
 	if err != nil {
 		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, fmt.Errorf("validate closed Cloudreve workload bundle: %w", err)
+	}
+	if descriptor.Release, descriptor.Components, err = effectiveEntryRelease(artifact.Content, descriptor.Release, descriptor.Components, target); err != nil {
+		return emptyTarget, emptyHealth, emptyDeployment, emptyDescriptor, fmt.Errorf("Cloudreve workload bundle release: %w", err)
 	}
 	if descriptor.WorkloadRef != target.WorkloadRef || descriptor.ModuleRef != target.ModuleRef ||
 		descriptor.SiteRef != binding.SiteRef || descriptor.NodeRef != binding.NodeRef ||

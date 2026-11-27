@@ -146,6 +146,26 @@ _assertPhotosWorkloadContract: [
 	setup: {mode: "on-demand", owner: "module", actionRefs: ["immich-owner-bootstrap"]}
 	settings: {allowedRefs: [], requiredRefs: []}
 	secretInputs: {allowedRefs: ["database-password"], requiredRefs: ["database-password"]}
+}, {
+	id:   "photos"
+	kind: "application"
+	functionalCapabilities: ["photo-library", "mobile-photo-backup"]
+	siteKinds: ["home", "cloud"]
+	dataClasses: ["personal"]
+	defaultAlternative: "immich"
+	alternativeID:      "ente-photos"
+	providerRef:        "stackkits-ente-photos"
+	moduleRef:          "stackkits-ente-photos-runtime"
+	serviceRef:         "photos"
+	healthRef:          "ente-photos-http"
+	runtimeKinds: ["container"]
+	runtimeDeliveries: ["application-adapter"]
+	setup: {mode: "manual", owner: "operator", actionRefs: []}
+	settings: {allowedRefs: [], requiredRefs: []}
+	secretInputs: {
+		allowedRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"]
+		requiredRefs: ["database-password", "encryption-key", "hash-key", "jwt-secret", "s3-access-key", "s3-secret-key"]
+	}
 }]
 
 _assertPhotosComputeTierAlternatives: [

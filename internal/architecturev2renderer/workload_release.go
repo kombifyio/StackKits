@@ -246,6 +246,39 @@ func applyWorkloadReleaseOverride(descriptor *ApplicationDeliveryBundleDescripto
 	return fail(ErrInvalidPlan, path, "entry component is absent")
 }
 
+// applySelectedPaaSReleaseOverride puts a bundle's recorded override on the
+// entry component of a module-specific SelectedPaaS descriptor after checking
+// it against the generated catalog authority.
+func applySelectedPaaSReleaseOverride(
+	moduleRef, entryComponent string,
+	release *string,
+	components []SelectedPaaSWorkloadComponentDescriptor,
+	override *WorkloadReleaseOverride,
+	path string,
+) error {
+	if override == nil {
+		return nil
+	}
+	effectiveRelease, isDefault, ok := WorkloadEntryImageRelease(moduleRef, override.Ref, override.Digest)
+	entry := workloadEntryReleases[moduleRef]
+	if !ok || isDefault || effectiveRelease != override.Release || entry.Component != entryComponent || *release != entry.Images[0].Release {
+		return fail(ErrInvalidPlan, path, "release override is not a tested or in-track release of the entry image")
+	}
+	for index := range components {
+		component := &components[index]
+		if component.ID != entryComponent {
+			continue
+		}
+		if component.ImageRef != entry.Images[0].Ref || component.ImageDigest != entry.Images[0].Digest {
+			return fail(ErrInvalidPlan, path, "entry component image differs from the catalog default the override replaces")
+		}
+		component.ImageRef, component.ImageDigest = override.Ref, override.Digest
+		*release = override.Release
+		return nil
+	}
+	return fail(ErrInvalidPlan, path, "entry component is absent")
+}
+
 // EffectiveWorkloadRelease reads the effective release and component pins of
 // a closed workload bundle for a module-specific executor whose own parser
 // reports the catalog default: with a recorded override, the entry

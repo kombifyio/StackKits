@@ -489,6 +489,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.61.11 (2026-11-27)
+
+### Added
+
+* **homegraph:** classify HA devices by entity domain, enforce mirror_classes, and match device identity
+* **photos:** add native Ente Photos Architecture v2 alternative
+
+### Fixed
+
+* **ci:** download paired StackKits runtime archives for Guard verification in golden-prepare
+* **day2:** guard nil runtime adapter, honor workload release overrides, cache preflight port hashes
+* **docs:** refresh StackKits product-facts and CUE generator for standards fan-out
+* **security:** clear the Trivy findings on main
+
 ## 0.61.10 (2026-11-26)
 
 ### Fixed

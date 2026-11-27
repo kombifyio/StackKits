@@ -232,6 +232,8 @@ func ValidateSelectedPaaSWorkloadObservation(
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationPassbolt, deployment, observation)
 	case "stackkits-nextcloud-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationNextcloud, deployment, observation)
+	case "stackkits-ente-photos-runtime":
+		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationEntePhotos, deployment, observation)
 	case "stackkits-navidrome-runtime":
 		return validateSelectedPaaSApplicationObservation(SelectedPaaSApplicationNavidrome, deployment, observation)
 	case "stackkits-audiobookshelf-runtime":

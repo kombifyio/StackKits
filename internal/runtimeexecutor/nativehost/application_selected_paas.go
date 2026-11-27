@@ -29,6 +29,7 @@ const (
 	SelectedPaaSApplicationEmby              SelectedPaaSApplication = "emby"
 	SelectedPaaSApplicationPassbolt          SelectedPaaSApplication = "passbolt"
 	SelectedPaaSApplicationNextcloud         SelectedPaaSApplication = "nextcloud"
+	SelectedPaaSApplicationEntePhotos        SelectedPaaSApplication = "ente-photos"
 	SelectedPaaSApplicationNavidrome         SelectedPaaSApplication = "navidrome"
 	SelectedPaaSApplicationAudiobookshelf    SelectedPaaSApplication = "audiobookshelf"
 	SelectedPaaSApplicationEsphome           SelectedPaaSApplication = "esphome"
@@ -146,6 +147,17 @@ func selectedPaaSApplicationSpecFor(application SelectedPaaSApplication) (select
 			rendererContract: architecturev2renderer.NextcloudWorkloadBundleRendererContract,
 			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
 				descriptor, err := architecturev2renderer.ParseNextcloudWorkloadBundle(content)
+				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
+			},
+		}, true
+	case SelectedPaaSApplicationEntePhotos:
+		return selectedPaaSApplicationSpec{
+			name: "Ente Photos", providerRef: "stackkits-ente-photos", moduleRef: "stackkits-ente-photos-runtime",
+			unitRef: "ente-gateway", workloadRef: "photos", artifactRef: "ente-photos-workload-bundle",
+			outputRef: "workloads/ente-photos/bundle.json", healthRef: "ente-photos-http", expectedStatuses: []int{200},
+			rendererContract: architecturev2renderer.EntePhotosWorkloadBundleRendererContract,
+			parse: func(content []byte) (selectedPaaSApplicationIdentity, error) {
+				descriptor, err := architecturev2renderer.ParseEntePhotosWorkloadBundle(content)
 				return selectedPaaSApplicationIdentity{workloadRef: descriptor.WorkloadRef, moduleRef: descriptor.ModuleRef, siteRef: descriptor.SiteRef, nodeRef: descriptor.NodeRef, instanceRef: descriptor.InstanceRef}, err
 			},
 		}, true
