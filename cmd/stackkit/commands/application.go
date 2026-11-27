@@ -180,7 +180,11 @@ func inspectApplicationPlan(ctx context.Context, workspace string, contract appl
 		return applicationlifecycle.AdoptionPlan{}, fmt.Errorf("missing_native_grant: existing private native Owner grant is unavailable: %w", err)
 	}
 	defer func() { grant.AccessToken = "" }()
-	owner, err := appsetup.VerifyHomeAssistantExistingOwner(ctx, nil, observed.Endpoint, grant.AccessToken, contract.Adoption.Version)
+	expectedVersion := contract.Adoption.Version
+	if observed.Source.VersionDrift {
+		expectedVersion = ""
+	}
+	owner, err := appsetup.VerifyHomeAssistantExistingOwner(ctx, nil, observed.Endpoint, grant.AccessToken, expectedVersion)
 	if err != nil {
 		return applicationlifecycle.AdoptionPlan{}, fmt.Errorf("missing_native_grant: existing native Owner grant could not be verified: %w", err)
 	}
@@ -191,7 +195,7 @@ func inspectApplicationPlan(ctx context.Context, workspace string, contract appl
 	if err != nil {
 		return applicationlifecycle.AdoptionPlan{}, err
 	}
-	if final.Source != observed.Source {
+	if !final.Source.Equal(observed.Source) {
 		return applicationlifecycle.AdoptionPlan{}, errors.New("stale_revision: application changed during source assessment; inspect again")
 	}
 	return applicationlifecycle.NewAdoptionPlan(contract, final.Source, owner.UserID)
@@ -225,7 +229,7 @@ func executeApplication(ctx context.Context, workspace, workload, verb string, o
 		if err != nil {
 			return nil, err
 		}
-		if plan.Source != receipt.Result.Source || plan.VerifiedOwnerRef != receipt.Result.VerifiedOwnerRef || plan.PlanDigest != receipt.Result.PlanDigest {
+		if !plan.Source.Equal(receipt.Result.Source) || plan.VerifiedOwnerRef != receipt.Result.VerifiedOwnerRef || plan.PlanDigest != receipt.Result.PlanDigest {
 			return nil, errors.New("stale_revision: adopted source or native Owner changed")
 		}
 		return map[string]any{"schemaVersion": applicationlifecycle.AdoptionSchemaVersion, "apiVersion": "stackkit.application-adoption-verification/v1", "signatureVerified": true, "receipt": receipt, "currentSource": plan.Source}, nil
@@ -281,7 +285,7 @@ func executeApplication(ctx context.Context, workspace, workload, verb string, o
 			if plan.PlanDigest != o.planDigest {
 				return errors.New("stale_revision: reviewed adoption plan no longer matches source and resolved authority")
 			}
-			adopted = applicationlifecycle.AdoptionResult{APIVersion: "stackkit.application-adoption-result/v1", Authority: plan.Authority, WorkloadRef: workload, ProfileRef: plan.ProfileRef, Mode: plan.Mode, PlanDigest: plan.PlanDigest, Source: plan.Source, OwnedFields: plan.OwnedFields, PreservedFields: plan.PreservedFields, AdmittedOperations: plan.AdmittedOperations, VerifiedOwnerRef: plan.VerifiedOwnerRef, Status: "verified"}
+			adopted = applicationlifecycle.AdoptionResult{APIVersion: "stackkit.application-adoption-result/v1", Authority: plan.Authority, WorkloadRef: workload, ProfileRef: plan.ProfileRef, Mode: plan.Mode, PlanDigest: plan.PlanDigest, Source: plan.Source, OwnedFields: plan.OwnedFields, PreservedFields: plan.PreservedFields, AdmittedOperations: plan.AdmittedOperations, VerifiedOwnerRef: plan.VerifiedOwnerRef, Notices: plan.Notices, Status: "verified"}
 		} else {
 			if !bound {
 				return errors.New("application has no verified adoption binding")
@@ -406,7 +410,7 @@ func applicationCommandError(err error) error {
 		return nil
 	}
 	for _, detail := range []struct{ reason, message, guidance string }{
-		{"unsupported_source", "The existing application is outside the supported adoption profile.", "Use the admitted immutable Home Assistant Compose source with one exclusive /config mount and unmodified image startup configuration."},
+		{"unsupported_source", "The existing application is outside the supported adoption profile.", "Use an admitted official Home Assistant container (Compose or standalone Docker) with one exclusive /config mount, non-privileged runtime, and supported listener or host networking."},
 		{"missing_native_grant", "The existing native Owner grant is missing, private custody is invalid, or authentication could not be verified.", "Place a current existing Home Assistant Owner accessToken in the private workspace-relative --owner-file; keep native sign-in and token issuance in Home Assistant."},
 		{"source_identity_conflict", "The inspected application does not match the approved source identity.", "Select the full immutable container ID, exact admitted image and matching native Owner, then inspect again."},
 		{"stale_revision", "The application or resolved lifecycle authority changed after approval.", "Inspect the current source and authority and review the new plan digest before a new adoption attempt."},

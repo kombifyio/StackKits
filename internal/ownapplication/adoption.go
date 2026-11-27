@@ -50,15 +50,17 @@ type AdoptionRequest struct {
 	Container string
 	// SecretEnv marks further variable names as credentials. Every value is
 	// already hidden; a marked name is also classified as a secret.
-	SecretEnv     []string
-	Name          string
-	HTTPPort      int
-	NoOutbound    bool
-	MemoryMiB     int
-	CPUs          float64
-	PlanDigest    string
-	OperationID   string
-	OwnerApproved bool
+	SecretEnv           []string
+	Name                string
+	HTTPPort            int
+	HTTPService         string
+	AdoptComposeProject bool
+	NoOutbound          bool
+	MemoryMiB           int
+	CPUs                float64
+	PlanDigest          string
+	OperationID         string
+	OwnerApproved       bool
 	// HelperImage is the installed, digest-pinned backup helper that measures,
 	// copies and checksums data. Empty only for an offline plan.
 	HelperImage  string
@@ -86,6 +88,7 @@ type AdoptionRow struct {
 }
 
 type AdoptionData struct {
+	Service   string `json:"service,omitempty"`
 	Source    string `json:"source"`
 	MountPath string `json:"mountPath"`
 	Volume    string `json:"volume"`
@@ -96,22 +99,51 @@ type AdoptionData struct {
 	Digest    string `json:"digest,omitempty"`
 }
 
+// AdoptionOriginalContainer records one retained original container of a
+// multi-service Compose project adoption so rollback, restore and release
+// operate on every container of the project.
+type AdoptionOriginalContainer struct {
+	Service       string `json:"service,omitempty"`
+	ContainerID   string `json:"containerId"`
+	Running       bool   `json:"running"`
+	RestartPolicy string `json:"restartPolicy"`
+	DataSource    string `json:"dataSource,omitempty"`
+	DataVolume    string `json:"dataVolume,omitempty"`
+	DataDigest    string `json:"dataDigest,omitempty"`
+}
+
 type AdoptionCheckpoint struct {
-	APIVersion            string    `json:"apiVersion"`
-	Name                  string    `json:"name"`
-	ContainerID           string    `json:"containerId"`
-	PlanDigest            string    `json:"planDigest"`
-	OperationID           string    `json:"operationId"`
-	OriginalRunning       bool      `json:"originalRunning"`
-	OriginalRestartPolicy string    `json:"originalRestartPolicy"`
-	DataSource            string    `json:"dataSource,omitempty"`
-	DataVolume            string    `json:"dataVolume,omitempty"`
-	DataDigest            string    `json:"dataDigest,omitempty"`
-	Phase                 string    `json:"phase"`
-	Error                 string    `json:"error,omitempty"`
-	At                    time.Time `json:"at"`
+	APIVersion            string                      `json:"apiVersion"`
+	Name                  string                      `json:"name"`
+	ContainerID           string                      `json:"containerId"`
+	ComposeProject        string                      `json:"composeProject,omitempty"`
+	OriginalContainers    []AdoptionOriginalContainer `json:"originalContainers,omitempty"`
+	PlanDigest            string                      `json:"planDigest"`
+	OperationID           string                      `json:"operationId"`
+	OriginalRunning       bool                        `json:"originalRunning"`
+	OriginalRestartPolicy string                      `json:"originalRestartPolicy"`
+	DataSource            string                      `json:"dataSource,omitempty"`
+	DataVolume            string                      `json:"dataVolume,omitempty"`
+	DataDigest            string                      `json:"dataDigest,omitempty"`
+	Phase                 string                      `json:"phase"`
+	Error                 string                      `json:"error,omitempty"`
+	At                    time.Time                   `json:"at"`
 	// RetainUntil ends the --restore-original window of an adopted original.
 	RetainUntil time.Time `json:"retainUntil,omitzero"`
+}
+
+func (c AdoptionCheckpoint) originals() []AdoptionOriginalContainer {
+	if len(c.OriginalContainers) > 0 {
+		return c.OriginalContainers
+	}
+	return []AdoptionOriginalContainer{{
+		ContainerID:   c.ContainerID,
+		Running:       c.OriginalRunning,
+		RestartPolicy: c.OriginalRestartPolicy,
+		DataSource:    c.DataSource,
+		DataVolume:    c.DataVolume,
+		DataDigest:    c.DataDigest,
+	}}
 }
 
 type AdoptionResult struct {
@@ -139,6 +171,7 @@ type AdoptionResult struct {
 	OutboundInternet bool                     `json:"outboundInternet"`
 	PublishedPorts   []contract.PublishedPort `json:"publishedPorts"`
 	Data             *AdoptionData            `json:"data,omitempty"`
+	ServiceData      []AdoptionData           `json:"serviceData,omitempty"`
 	// DowntimeSeconds estimates the downtime of the recreation (stop, copy,
 	// start); the stability window follows it with the application running.
 	DowntimeSeconds int64               `json:"downtimeSeconds,omitempty"`
@@ -239,12 +272,15 @@ type observedImage struct {
 // adoptionPlan is the deterministic part of a plan plus the private secret
 // values that never leave the process.
 type adoptionPlan struct {
-	result  AdoptionResult
-	source  *nativehost.OwnAdoptionMount
-	secrets map[string]string
-	running bool
-	restart string
-	address string
+	result         AdoptionResult
+	source         *nativehost.OwnAdoptionMount
+	serviceSources map[string]nativehost.OwnAdoptionMount
+	composeProject string
+	originals      []AdoptionOriginalContainer
+	secrets        map[string]string
+	running        bool
+	restart        string
+	address        string
 }
 
 // rowValues pairs keys and values into a row's structured values.
@@ -274,9 +310,11 @@ func restartCode(policy string) string {
 	return "restart_unless_stopped"
 }
 
+var newAdoptionDocker = nativehost.NewOwnAdoptionDocker
+
 // Adopt runs one phase of a container adoption.
 func Adopt(ctx context.Context, workspace string, req AdoptionRequest, hooks AdoptionHooks) (AdoptionResult, error) {
-	docker := nativehost.NewOwnAdoptionDocker()
+	docker := newAdoptionDocker()
 	switch req.Phase {
 	case "inspect":
 		p, err := observe(ctx, docker, req)
@@ -350,11 +388,40 @@ func observe(ctx context.Context, docker nativehost.OwnAdoptionDocker, req Adopt
 	}
 	configRef := "docker:" + p.result.ContainerName
 	if project != "" {
-		// A Compose-launched container is part of a project whose other
-		// services (often a database) link to it by name; rebuilding one
-		// service alone would break them silently.
-		configRef = "compose:" + project + "/" + service
-		p.refuse("refused_compose_project", "compose", project+"/"+service, "the container belongs to a Compose project; Stack it adopts plain single containers (Compose projects come later)", "project", project, "service", service)
+		peers, err := docker.ComposePeers(ctx, project)
+		if err != nil {
+			return nil, fmt.Errorf("inspect compose project %s: %w", project, err)
+		}
+		seen := map[string]bool{c.ID: true}
+		allPeers := []string{c.ID}
+		siblings := 0
+		for _, peer := range peers {
+			if peer == "" || seen[peer] {
+				continue
+			}
+			seen[peer] = true
+			allPeers = append(allPeers, peer)
+			siblings++
+		}
+		if service != "" {
+			configRef = "compose:" + project + "/" + service
+		} else {
+			configRef = "compose:" + project
+		}
+		switch {
+		case siblings == 0:
+			// Standalone 1-service Compose project: no sibling services to
+			// break, so adopt seamlessly as homelab.own-application/v4.
+			observed := project
+			if service != "" {
+				observed = project + "/" + service
+			}
+			p.row("compose_single_service_adopted", "compose", RowKept, observed, "single container (homelab.own-application/v4)", "the Compose project has no sibling services; adopted cleanly as a standalone own application", "project", project, "service", service)
+		case req.AdoptComposeProject:
+			return observeComposeProject(ctx, docker, req, project, c, image, allPeers)
+		default:
+			p.refuse("refused_compose_project", "compose", project+"/"+service, fmt.Sprintf("the container belongs to Compose project %s with %d sibling service(s); pass --adopt-compose-project to adopt the full project as homelab.own-application/v3", project, siblings), "project", project, "service", service, "siblings", strconv.Itoa(siblings))
+		}
 	}
 	for network := range c.NetworkSettings.Networks {
 		if network == "bridge" || network == "host" || network == "none" {
@@ -944,7 +1011,7 @@ func saveCheckpoint(workspace string, checkpoint AdoptionCheckpoint) error {
 		return err
 	}
 	t.Close()
-	view, err := root.View("")
+	view, err := root.View(".")
 	if err != nil {
 		return err
 	}

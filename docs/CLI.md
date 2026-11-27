@@ -128,9 +128,9 @@ bounded logs are the first post-install evidence; `status` and HTTP `verify` rem
 | `logs` | List and read structured deploy logs. |
 | `registry` | Inspect or reproduce the embedded Git/CUE registry snapshot. |
 | `secrets` | Establish owner-bound local custody for secret references in canonical StackSpec intent. |
-| `wallet-item` | Import sealed Wallet item deliveries into encrypted local custody, remove them on a signed removal, and list them by reference and version. |
+| `wallet-item` | Import sealed kombify Vault (Wallet Store) item deliveries into encrypted local custody, remove them on a signed removal, and list them by reference and version. |
 | `user` | Invite, list, and remove PocketID household users. Mutations require `--owner-approve`. |
-| `reach` | Remote reach of a home server: kombify.me tunnel mode with the homelab's own Me registration, a Cloudflare Tunnel token from the kombify Wallet or the Owner, and the LAN-name certificate (never in local-only). |
+| `reach` | Remote reach of a home server: kombify.me tunnel mode with the homelab's own Me registration, a Cloudflare Tunnel token from kombify Vault (Wallet Store) or the Owner, and the LAN-name certificate (never in local-only). |
 | `vpn` | Switch the optional VPN add-on on with WireGuard, Headscale, Tailscale or Pangolin, list its peers, reconcile and switch it off (never a default). |
 | `network` | Move this server to another network: status, signed LAN re-bind, WiFi pre-staging and the self-re-binding watcher. |
 | `relocate` | Plan, check, drain, send and receive Coolify workloads moving to another server, with the pinned coolify-mirror engine and a Wallet-delivered transfer secret. |

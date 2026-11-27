@@ -491,6 +491,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
 
+## 0.61.13 (2026-11-27)
+
+### Added
+
+* **guard:** add Guard C producer Sigstore image admission and unhealthy rollback
+* **guard:** run bounded cached recovery offline
+* **stackkits,homelab:** NAT-capable age-encrypted HTTPS ciphertext relay transport for native app transfers
+* **stackkits:** pragmatic Home Assistant in-place adoption (host net, USB devices, TZ env, HACS, official image drift)
+* **stackkits:** support single-service and multi-service Docker Compose project adoption in stackkit app own
+
+### Fixed
+
+* **offlinerecovery:** admit local ownerRef format and valid offline authority age
+* **owner:** return typed not-bound status before Apply in owner status ( / 42)
+
 ## 0.61.12 (2026-11-27)
 
 ### Added

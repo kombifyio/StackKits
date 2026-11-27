@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,47 +33,119 @@ type AdoptionContract struct {
 // AdoptionSource contains hashes of inspected configuration, never environment
 // values or account material. Revision excludes changing runtime power state.
 type AdoptionSource struct {
-	ContainerID         string `json:"containerId"`
-	ImageID             string `json:"imageId"`
-	ImageDigest         string `json:"imageDigest"`
-	Revision            string `json:"revision"`
-	ConfigMount         string `json:"configMount"`
-	ConfigurationDigest string `json:"configurationDigest"`
-	AccountsDigest      string `json:"accountsDigest"`
+	ContainerID         string   `json:"containerId"`
+	ImageID             string   `json:"imageId"`
+	ImageDigest         string   `json:"imageDigest"`
+	Revision            string   `json:"revision"`
+	ConfigMount         string   `json:"configMount"`
+	ConfigurationDigest string   `json:"configurationDigest"`
+	AccountsDigest      string   `json:"accountsDigest"`
+	SourceOrigin        string   `json:"sourceOrigin,omitempty"`
+	NetworkMode         string   `json:"networkMode,omitempty"`
+	PreservedDevices    []string `json:"preservedDevices,omitempty"`
+	HasCustomComponents bool     `json:"hasCustomComponents,omitempty"`
+	HasExternalRecorder bool     `json:"hasExternalRecorder,omitempty"`
+	VersionDrift        bool     `json:"versionDrift,omitempty"`
+	ObservedImageDigest string   `json:"observedImageDigest,omitempty"`
+}
+
+func (s AdoptionSource) Equal(other AdoptionSource) bool {
+	return s.ContainerID == other.ContainerID &&
+		s.ImageID == other.ImageID &&
+		s.ImageDigest == other.ImageDigest &&
+		s.Revision == other.Revision &&
+		s.ConfigMount == other.ConfigMount &&
+		s.ConfigurationDigest == other.ConfigurationDigest &&
+		s.AccountsDigest == other.AccountsDigest &&
+		s.SourceOrigin == other.SourceOrigin &&
+		s.NetworkMode == other.NetworkMode &&
+		slices.Equal(s.PreservedDevices, other.PreservedDevices) &&
+		s.HasCustomComponents == other.HasCustomComponents &&
+		s.HasExternalRecorder == other.HasExternalRecorder &&
+		s.VersionDrift == other.VersionDrift &&
+		s.ObservedImageDigest == other.ObservedImageDigest
+}
+
+type AdoptionNotice struct {
+	Code     string `json:"code"`
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+}
+
+func adoptionNotices(source AdoptionSource) []AdoptionNotice {
+	var notices []AdoptionNotice
+	if source.HasCustomComponents {
+		notices = append(notices, AdoptionNotice{
+			Code:     "custom_components_preserved",
+			Severity: "warning",
+			Message:  "Home Assistant custom_components/ (such as HACS) detected in /config; preserved read-only under native ownership.",
+		})
+	}
+	if source.HasExternalRecorder {
+		notices = append(notices, AdoptionNotice{
+			Code:     "external_recorder_preserved",
+			Severity: "warning",
+			Message:  "External recorder configuration (db_url) detected in /config; preserved read-only under native ownership.",
+		})
+	}
+	if source.VersionDrift {
+		notices = append(notices, AdoptionNotice{
+			Code:     "image_version_drift",
+			Severity: "warning",
+			Message:  "Running official Home Assistant image digest differs from the catalog pin; in-place power control is admitted without container recreation.",
+		})
+	}
+	if len(source.PreservedDevices) > 0 {
+		notices = append(notices, AdoptionNotice{
+			Code:     "usb_serial_devices_preserved",
+			Severity: "info",
+			Message:  "Attached USB/serial radio devices are preserved in place without container recreation.",
+		})
+	}
+	if source.NetworkMode == "host" {
+		notices = append(notices, AdoptionNotice{
+			Code:     "host_network_preserved",
+			Severity: "info",
+			Message:  "Host networking is preserved in place; owner verification probed http://127.0.0.1:8123.",
+		})
+	}
+	return notices
 }
 
 type AdoptionPlan struct {
-	SchemaVersion      string         `json:"schemaVersion"`
-	APIVersion         string         `json:"apiVersion"`
-	Authority          Authority      `json:"authority"`
-	WorkloadRef        string         `json:"workloadRef"`
-	ProfileRef         string         `json:"profileRef"`
-	Mode               string         `json:"mode"`
-	Source             AdoptionSource `json:"source"`
-	OwnedFields        []string       `json:"ownedFields"`
-	PreservedFields    []string       `json:"preservedFields"`
-	AdmittedOperations []string       `json:"admittedOperations"`
-	VerifiedOwnerRef   string         `json:"verifiedOwnerRef"`
-	PlanDigest         string         `json:"planDigest,omitempty"`
+	SchemaVersion      string           `json:"schemaVersion"`
+	APIVersion         string           `json:"apiVersion"`
+	Authority          Authority        `json:"authority"`
+	WorkloadRef        string           `json:"workloadRef"`
+	ProfileRef         string           `json:"profileRef"`
+	Mode               string           `json:"mode"`
+	Source             AdoptionSource   `json:"source"`
+	OwnedFields        []string         `json:"ownedFields"`
+	PreservedFields    []string         `json:"preservedFields"`
+	AdmittedOperations []string         `json:"admittedOperations"`
+	VerifiedOwnerRef   string           `json:"verifiedOwnerRef"`
+	Notices            []AdoptionNotice `json:"notices,omitempty"`
+	PlanDigest         string           `json:"planDigest,omitempty"`
 }
 
 type AdoptionResult struct {
-	APIVersion         string         `json:"apiVersion"`
-	Authority          Authority      `json:"authority"`
-	WorkloadRef        string         `json:"workloadRef"`
-	OperationID        string         `json:"operationId"`
-	ProfileRef         string         `json:"profileRef"`
-	Mode               string         `json:"mode"`
-	PlanDigest         string         `json:"planDigest"`
-	Source             AdoptionSource `json:"source"`
-	OwnedFields        []string       `json:"ownedFields"`
-	PreservedFields    []string       `json:"preservedFields"`
-	AdmittedOperations []string       `json:"admittedOperations"`
-	VerifiedOwnerRef   string         `json:"verifiedOwnerRef"`
-	Status             string         `json:"status"`
-	Action             string         `json:"action,omitempty"`
-	PowerState         string         `json:"powerState,omitempty"`
-	VerifiedAt         time.Time      `json:"verifiedAt"`
+	APIVersion         string           `json:"apiVersion"`
+	Authority          Authority        `json:"authority"`
+	WorkloadRef        string           `json:"workloadRef"`
+	OperationID        string           `json:"operationId"`
+	ProfileRef         string           `json:"profileRef"`
+	Mode               string           `json:"mode"`
+	PlanDigest         string           `json:"planDigest"`
+	Source             AdoptionSource   `json:"source"`
+	OwnedFields        []string         `json:"ownedFields"`
+	PreservedFields    []string         `json:"preservedFields"`
+	AdmittedOperations []string         `json:"admittedOperations"`
+	VerifiedOwnerRef   string           `json:"verifiedOwnerRef"`
+	Notices            []AdoptionNotice `json:"notices,omitempty"`
+	Status             string           `json:"status"`
+	Action             string           `json:"action,omitempty"`
+	PowerState         string           `json:"powerState,omitempty"`
+	VerifiedAt         time.Time        `json:"verifiedAt"`
 }
 
 type AdoptionReceipt struct {
@@ -87,7 +160,7 @@ func NewAdoptionPlan(contract Contract, source AdoptionSource, ownerRef string) 
 		return AdoptionPlan{}, errors.New("application adoption is unsupported for the selected lifecycle and runtime adapter")
 	}
 	a := contract.Adoption
-	p := AdoptionPlan{SchemaVersion: AdoptionSchemaVersion, APIVersion: "stackkit.application-adoption-plan/v1", Authority: authorityFromContract(contract), WorkloadRef: contract.WorkloadRef, ProfileRef: a.ProfileRef, Mode: a.Mode, Source: source, OwnedFields: a.OwnedFields, PreservedFields: a.PreservedFields, AdmittedOperations: a.Operations, VerifiedOwnerRef: ownerRef}
+	p := AdoptionPlan{SchemaVersion: AdoptionSchemaVersion, APIVersion: "stackkit.application-adoption-plan/v1", Authority: authorityFromContract(contract), WorkloadRef: contract.WorkloadRef, ProfileRef: a.ProfileRef, Mode: a.Mode, Source: source, OwnedFields: a.OwnedFields, PreservedFields: a.PreservedFields, AdmittedOperations: a.Operations, VerifiedOwnerRef: ownerRef, Notices: adoptionNotices(source)}
 	raw, err := resolvedplan.CanonicalJSON(p)
 	if contract.AdoptionBaselinePlanHash != "" {
 		raw, err = resolvedplan.CanonicalJSON(map[string]any{"plan": p, "baselinePlanHash": contract.AdoptionBaselinePlanHash})

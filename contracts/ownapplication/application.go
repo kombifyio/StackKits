@@ -697,12 +697,14 @@ func (b Bundle) Validate() error {
 }
 
 // validateProjectImages admits the node-observed image custody of every
-// service of a project. An unresolved project is still a valid desired state.
+// service of a project. An unresolved project is still a valid desired state,
+// and node-derived ImageIDs are checked once admitted (matching single-container
+// ImageID).
 func (b Bundle) validateProjectImages() error {
 	if len(b.ResolvedImages) == 0 && len(b.ImageIDs) == 0 {
 		return nil
 	}
-	if len(b.ResolvedImages) != len(b.Application.Services) || len(b.ImageIDs) != len(b.Application.Services) {
+	if len(b.ResolvedImages) != len(b.Application.Services) || (len(b.ImageIDs) != 0 && len(b.ImageIDs) != len(b.Application.Services)) {
 		return errors.New("a resolved project carries the image custody of every service")
 	}
 	for _, s := range b.Application.Services {
@@ -713,9 +715,11 @@ func (b Bundle) validateProjectImages() error {
 		if err := validateResolvedImage(s.Image, resolved); err != nil {
 			return fmt.Errorf("service %s: %w", s.Name, err)
 		}
-		id, ok := b.ImageIDs[s.Name]
-		if !ok || !digest.MatchString(id) {
-			return fmt.Errorf("service %s has an invalid node-derived image identity", s.Name)
+		if len(b.ImageIDs) != 0 {
+			id, ok := b.ImageIDs[s.Name]
+			if !ok || !digest.MatchString(id) {
+				return fmt.Errorf("service %s has an invalid node-derived image identity", s.Name)
+			}
 		}
 	}
 	return nil
@@ -725,11 +729,11 @@ func (b Bundle) validateProjectImages() error {
 // carries its node-observed image custody.
 func (b Bundle) ImagesResolved() bool {
 	if b.Application.IsProject() {
-		if len(b.ResolvedImages) != len(b.Application.Services) || len(b.ImageIDs) != len(b.Application.Services) {
+		if len(b.ResolvedImages) != len(b.Application.Services) || (len(b.ImageIDs) != 0 && len(b.ImageIDs) != len(b.Application.Services)) {
 			return false
 		}
 		for _, s := range b.Application.Services {
-			if b.ResolvedImages[s.Name] == "" || b.ImageIDs[s.Name] == "" {
+			if b.ResolvedImages[s.Name] == "" || (len(b.ImageIDs) != 0 && b.ImageIDs[s.Name] == "") {
 				return false
 			}
 		}

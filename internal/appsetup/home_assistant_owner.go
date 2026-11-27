@@ -553,7 +553,8 @@ func readHomeAssistantCurrentUser(ctx context.Context, client *http.Client, base
 	if err := wsjson.Read(wsCtx, conn, &greeting); err != nil {
 		return homeAssistantCurrentUser{}, "", homeAssistantWebSocketError(wsCtx, "Home Assistant WebSocket greeting failed", err)
 	}
-	if greeting.Type != "auth_required" || greeting.HAVersion != expectedVersion {
+	observedVersion := strings.TrimSpace(greeting.HAVersion)
+	if greeting.Type != "auth_required" || observedVersion == "" || (expectedVersion != "" && observedVersion != expectedVersion) {
 		return homeAssistantCurrentUser{}, "", fmt.Errorf("Home Assistant WebSocket version changed before owner readback")
 	}
 	if err := wsjson.Write(wsCtx, conn, map[string]string{"type": "auth", "access_token": accessToken}); err != nil {
@@ -563,7 +564,7 @@ func readHomeAssistantCurrentUser(ctx context.Context, client *http.Client, base
 	if err := wsjson.Read(wsCtx, conn, &authResult); err != nil {
 		return homeAssistantCurrentUser{}, "", homeAssistantWebSocketError(wsCtx, "Home Assistant WebSocket authentication readback failed", err)
 	}
-	if authResult.Type != "auth_ok" || authResult.HAVersion != expectedVersion {
+	if authResult.Type != "auth_ok" || strings.TrimSpace(authResult.HAVersion) != observedVersion {
 		return homeAssistantCurrentUser{}, "", errors.New("Home Assistant rejected the authenticated WebSocket session or changed version")
 	}
 

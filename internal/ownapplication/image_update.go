@@ -36,6 +36,11 @@ type ImageUpdateRequest struct {
 	OwnerApproved bool
 	HelperImage   string
 	PlanHash      string
+	// ImageIdentity is the Guard C evidence of the candidate image. When it is
+	// present the update verifies the signer, issuer and digest against the
+	// node's installed trust before anything stops, and the admitted identity is retained
+	// with the previous image for a deterministic reversal.
+	ImageIdentity *ImageIdentityEvidence
 }
 
 type ImageUpdateImage struct {
@@ -80,6 +85,9 @@ type ImageUpdateResult struct {
 	ReplacesCheckpoint *ImageUpdateCheckpoint `json:"replacesCheckpoint,omitempty"`
 	Update             *Result                `json:"update,omitempty"`
 	Rollback           *Result                `json:"rollback,omitempty"`
+	// Admission is the admitted image identity the update retains. A dry run
+	// previews it without the execution operation ID; the execution carries it.
+	Admission *ImageAdmission `json:"admission,omitempty"`
 }
 
 // Outcome and reason codes of a tag update and of a checkpoint rollback.
@@ -300,8 +308,17 @@ func UpdateImage(ctx context.Context, workspace string, installation contract.In
 		if req.ResolvedImage != "" || req.ReviewDigest != "" || req.OperationID != "" {
 			return refuse(ReasonTagInvalid, "a dry run resolves its own digest; it takes no resolved image, review digest or operation ID")
 		}
+		if req.ImageIdentity != nil {
+			if hasVolume {
+				return refuse(ReasonIdentityRefused, "an image identity admission covers one stateless one-container update; this application declares a volume and takes a data checkpoint")
+			}
+			if _, e := loadNodeImageTrust(workspace); e != nil {
+				return refuse(ReasonIdentityRefused, e.Error()+"; nothing changed")
+			}
+		}
 		review := update
 		review.DryRun = true
+		review.ImageIdentity = req.ImageIdentity
 		reviewed, e := executeOwnApplication(ctx, workspace, installation, review)
 		if e != nil {
 			return refuse(ReasonResolveFailed, e.Error())
@@ -309,6 +326,7 @@ func UpdateImage(ctx context.Context, workspace string, installation contract.In
 		out.Outcome = UpdateReviewed
 		out.ReviewDigest = reviewed.ReviewDigest
 		out.Target.Resolved = reviewed.Record.Bundle.ResolvedImage
+		out.Admission = reviewed.Record.Admission
 		if hasVolume {
 			out.Checkpoint = &ImageUpdateCheckpoint{State: "planned", Volumes: applicationVolumes(current.Bundle)}
 			if current.Checkpoint != nil && current.Checkpoint.State != CheckpointDiscarded {
@@ -332,6 +350,20 @@ func UpdateImage(ctx context.Context, workspace string, installation contract.In
 	}
 	if pinned != req.ResolvedImage {
 		return refuse(ReasonTagMoved, "the tag now resolves to a different digest than the review; review the update again")
+	}
+	if req.ImageIdentity != nil {
+		if hasVolume {
+			return refuse(ReasonIdentityRefused, "an image identity admission covers one stateless one-container update; this application declares a volume and takes a data checkpoint")
+		}
+		trust, e := loadNodeImageTrust(workspace)
+		if e != nil {
+			return refuse(ReasonIdentityRefused, e.Error()+"; nothing changed")
+		}
+		receipt, e := admitImageIdentity(ctx, *req.ImageIdentity, trust, req.Name, req.OperationID, out.Target.Image, req.ResolvedImage, admittedImage(current.Bundle, current.Revision))
+		if e != nil {
+			return refuse(ReasonIdentityRefused, e.Error()+"; nothing changed")
+		}
+		out.Admission = &receipt
 	}
 
 	var checkpoint *DataCheckpoint
@@ -385,8 +417,12 @@ func UpdateImage(ctx context.Context, workspace string, installation contract.In
 
 	run := update
 	run.ResolvedImage, run.OperationID, run.ReviewDigest, run.OwnerApproved = req.ResolvedImage, req.OperationID, req.ReviewDigest, true
+	run.ImageIdentity = req.ImageIdentity
 	updated, err := executeOwnApplication(ctx, workspace, installation, run)
 	out.Update = &updated
+	if updated.Record.Admission != nil {
+		out.Admission = updated.Record.Admission
+	}
 	reason := ReasonUpdateFailed
 	if err != nil && !errors.Is(err, ErrPending) {
 		// Nothing of the update ran; a stopped application starts again with
@@ -427,6 +463,11 @@ func UpdateImage(ctx context.Context, workspace string, installation contract.In
 	}
 	out.Rollback = &rolled
 	out.Reason = reason
+	if rolled.Record.Admission != nil {
+		out.Admission = rolled.Record.Admission
+	} else {
+		out.Admission = nil
+	}
 	if rollbackErr != nil {
 		out.Outcome = UpdateRollbackFailed
 		out.Reason = rollbackReason

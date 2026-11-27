@@ -43,7 +43,12 @@ type Record struct {
 	// project, keyed by service name.
 	PreviousImages         map[string]string `json:"previousImages,omitempty"`
 	PreviousResolvedImages map[string]string `json:"previousResolvedImages,omitempty"`
-	State                  string            `json:"state"`
+	// Admission is the Guard C image identity of the running image, when the
+	// update that installed it supplied one. PreviousAdmission is the identity
+	// of the image a rollback restores, retained next to the image custody.
+	Admission         *ImageAdmission `json:"admission,omitempty"`
+	PreviousAdmission *ImageAdmission `json:"previousAdmission,omitempty"`
+	State             string          `json:"state"`
 	// Checkpoint is the data checkpoint of the latest tag update; its retained
 	// copies stay until a later checkpoint or a data-deleting removal.
 	Checkpoint *DataCheckpoint `json:"checkpoint,omitempty"`
@@ -85,6 +90,12 @@ type Request struct {
 	ImageTag   string `json:"imageTag,omitempty"`
 	AllowMajor bool   `json:"allowMajor,omitempty"`
 	Checkpoint string `json:"checkpoint,omitempty"`
+	// ImageIdentity is the Guard C evidence of a tag update; Admission and
+	// Canary are the receipt and failed-canary evidence of a reversal. Each is
+	// part of the request and so of the review digest.
+	ImageIdentity *ImageIdentityEvidence `json:"imageIdentity,omitempty"`
+	Admission     *ImageAdmission        `json:"admission,omitempty"`
+	Canary        *CanaryOutcome         `json:"canary,omitempty"`
 }
 type Result struct {
 	FirewallRulesetDigest string                 `json:"firewallRulesetDigest,omitempty"`
@@ -232,6 +243,18 @@ func validateRecord(name string, r Record) error {
 	if name != r.Bundle.Application.Name || r.Bundle.Validate() != nil || !r.Bundle.ImagesResolved() || r.Revision != hash(r.Bundle) || !regexp.MustCompile(`^sha256:[a-f0-9]{64}$`).MatchString(r.Generation) {
 		return errors.New("own application custody differs from its admitted bundle")
 	}
+	if r.Admission != nil {
+		if r.Bundle.Application.IsProject() || r.Admission.Validate() != nil || r.Admission.Name != name || r.Admission.Resolved != r.Bundle.ResolvedImage ||
+			r.Admission.ReviewDigest == "" || (r.Operation.Action == "update" && r.Admission.OperationID != r.Operation.ID) ||
+			(r.Admission.ImageID != "" && r.Bundle.ImageID != "" && r.Admission.ImageID != r.Bundle.ImageID) {
+			return errors.New("invalid admitted image identity custody")
+		}
+	}
+	if r.PreviousAdmission != nil {
+		if r.Bundle.Application.IsProject() || r.PreviousAdmission.Validate() != nil || r.PreviousAdmission.Name != name || r.PreviousResolvedImage == "" || r.PreviousAdmission.Resolved != r.PreviousResolvedImage {
+			return errors.New("invalid previous admitted image identity custody")
+		}
+	}
 	return nil
 }
 func Load(workspace string) (State, error) {
@@ -248,6 +271,11 @@ func Load(workspace string) (State, error) {
 }
 
 func save(workspace string, s State) error {
+	for name, record := range s.Applications {
+		if err := validateRecord(name, record); err != nil {
+			return fmt.Errorf("own application %s custody is inconsistent: %w", name, err)
+		}
+	}
 	sig, err := localevidence.SignOwnerLifecycleMutation(workspace, signingBytes(s))
 	if err != nil {
 		return err
@@ -274,7 +302,7 @@ func save(workspace string, s State) error {
 		return err
 	}
 	t.Close()
-	view, err := root.View("")
+	view, err := root.View(".")
 	if err != nil {
 		return err
 	}
@@ -323,6 +351,20 @@ func Execute(ctx context.Context, workspace string, installation contract.Instal
 	}
 	if req.Checkpoint != "" && req.Action != "rollback" {
 		return Result{}, errors.New("checkpoint belongs to a rollback that restores data")
+	}
+	if req.ImageIdentity != nil && req.Action != "update" {
+		return Result{}, errors.New("image identity evidence belongs to one tag update")
+	}
+	if req.Admission != nil && req.Action != "rollback" {
+		return Result{}, errors.New("image admission belongs to the reversal of one update")
+	}
+	if (req.Canary == nil) != (req.Admission == nil) {
+		return Result{}, errors.New("a reversal requires both the image admission and the failed canary outcome")
+	}
+	if req.Canary != nil {
+		if err := req.Canary.validate(time.Now().UTC()); err != nil {
+			return Result{}, err
+		}
 	}
 	if req.DeleteData && req.Action != "remove" {
 		return Result{}, errors.New("delete-data is only admitted for remove")
@@ -382,6 +424,14 @@ func execute(ctx context.Context, workspace string, i contract.Installation, req
 			return out, nil
 		}
 		return out, errors.New("operation outcome is uncertain; inspect status before a new reviewed operation")
+	}
+	if req.Canary != nil {
+		if !exists || current.State == "removed" {
+			return out, errors.New("own application is absent")
+		}
+		if err := validateReverseState(current, *req.Admission, *req.Canary, req.Name, req.OperationID); err != nil {
+			return out, err
+		}
 	}
 	b := current.Bundle
 	if req.Application != nil {
@@ -524,6 +574,8 @@ func execute(ctx context.Context, workspace string, i contract.Installation, req
 			return out, errors.New("create requires private secret input for each declared own-application secret")
 		}
 	}
+	var admittedIdentity *ImageAdmission
+	identityTrustDigest := ""
 	if req.Action == "create" || req.Action == "update" || req.Action == "render" {
 		if b.Application.IsProject() {
 			if err = resolveProjectImages(ctx, &b, req); err != nil {
@@ -560,6 +612,21 @@ func execute(ctx context.Context, workspace string, i contract.Installation, req
 		if err = b.Validate(); err != nil {
 			return out, err
 		}
+		if req.ImageIdentity != nil {
+			if b.Application.IsProject() || len(applicationVolumes(b)) != 0 || b.Application.HasVolume() {
+				return out, errors.New("image identity admission covers one stateless one-container image change; this application declares a project or a volume")
+			}
+			trust, trustErr := loadNodeImageTrust(workspace)
+			if trustErr != nil {
+				return out, trustErr
+			}
+			receipt, e := admitImageIdentity(ctx, *req.ImageIdentity, trust, req.Name, req.OperationID, b.Application.Image, b.ResolvedImage, admittedImage(current.Bundle, current.Revision))
+			if e != nil {
+				return out, e
+			}
+			identityTrustDigest = trust.Digest()
+			admittedIdentity = &receipt
+		}
 	}
 	policyDigest, rulesetDigest := "", ""
 	if b.Application.Firewalled() {
@@ -585,9 +652,10 @@ func execute(ctx context.Context, workspace string, i contract.Installation, req
 			PriorFirewall  *ownappfirewall.Receipt
 			Request        any
 			Revision       string
+			ImageTrust     string
 			Installation   contract.Installation
 			ResolvedImages map[string]string
-		}{policyDigest, rulesetDigest, current.Operation.Firewall, input, current.Revision, i, b.ResolvedImages})
+		}{policyDigest, rulesetDigest, current.Operation.Firewall, input, current.Revision, identityTrustDigest, i, b.ResolvedImages})
 	} else {
 		out.ReviewDigest = hash(struct {
 			FirewallPolicy string
@@ -595,12 +663,19 @@ func execute(ctx context.Context, workspace string, i contract.Installation, req
 			PriorFirewall  *ownappfirewall.Receipt
 			Request        any
 			Revision       string
+			ImageTrust     string
 			Installation   contract.Installation
 			ResolvedImage  string
-		}{policyDigest, rulesetDigest, current.Operation.Firewall, input, current.Revision, i, b.ResolvedImage})
+		}{policyDigest, rulesetDigest, current.Operation.Firewall, input, current.Revision, identityTrustDigest, i, b.ResolvedImage})
+	}
+	if admittedIdentity != nil {
+		admittedIdentity.ReviewDigest = out.ReviewDigest
 	}
 	out.Record = current
 	out.Record.Bundle = b
+	if admittedIdentity != nil {
+		out.Record.Admission = admittedIdentity
+	}
 	route := architecturev2renderer.OwnApplicationAccessRoute(b)
 	out.Route = &route
 	if b.Application.IsProject() {
@@ -640,6 +715,10 @@ func execute(ctx context.Context, workspace string, i contract.Installation, req
 		if b, err = runtime.AdmitImage(ctx, b); err != nil {
 			return out, err
 		}
+		if admittedIdentity != nil {
+			admittedIdentity.ImageID = b.ImageID
+			admittedIdentity.BundleRevision = hash(b)
+		}
 	}
 	next := current
 	next.Bundle = b
@@ -656,17 +735,7 @@ func execute(ctx context.Context, workspace string, i contract.Installation, req
 		clearPreviousImageCustody(&next)
 	}
 	next.Revision = hash(b)
-	if (req.Action == "update" || req.Action == "rollback") && current.Operation.Status != "pending" {
-		if b.Application.IsProject() {
-			if !ownApplicationSameImages(current.Bundle.Application, b.Application) {
-				next.PreviousImages = ownApplicationServiceImages(current.Bundle.Application)
-				next.PreviousResolvedImages = maps.Clone(current.Bundle.ResolvedImages)
-			}
-		} else if current.Bundle.Application.Image != b.Application.Image {
-			next.PreviousImage = current.Bundle.Application.Image
-			next.PreviousResolvedImage = current.Bundle.ResolvedImage
-		}
-	}
+	advanceImageCustody(current, &next, b, req.Action, admittedIdentity)
 	next.Operation = Operation{ID: req.OperationID, Action: req.Action, RequestDigest: requestDigest, ReviewDigest: req.ReviewDigest, Status: "pending", At: time.Now().UTC()}
 	next.Operation.Firewall = current.Operation.Firewall
 	// Write-ahead custody prevents a crashed or failed call being replayed as
@@ -944,6 +1013,52 @@ func resolveProjectImages(ctx context.Context, b *contract.Bundle, req Request) 
 	return nil
 }
 
+// advanceImageCustody rotates the previous image and identity custody in
+// lockstep. The previous image fields rotate only for a settled operation; a
+// pending write-ahead record keeps the earlier previous side. The admission
+// receipts follow exactly that rotation, so a rollback of a failed, still
+// pending update never leaves an admission describing an image the record no
+// longer names.
+func advanceImageCustody(current Record, next *Record, b contract.Bundle, action string, admitted *ImageAdmission) {
+	rotated := false
+	if (action == "update" || action == "rollback") && current.Operation.Status != "pending" {
+		if b.Application.IsProject() {
+			if !ownApplicationSameImages(current.Bundle.Application, b.Application) {
+				next.PreviousImages = ownApplicationServiceImages(current.Bundle.Application)
+				next.PreviousResolvedImages = maps.Clone(current.Bundle.ResolvedImages)
+				rotated = true
+			}
+		} else if current.Bundle.Application.Image != b.Application.Image {
+			next.PreviousImage = current.Bundle.Application.Image
+			next.PreviousResolvedImage = current.Bundle.ResolvedImage
+			rotated = true
+			if action == "update" {
+				next.PreviousAdmission = current.Admission
+			}
+		}
+	}
+	switch action {
+	case "update":
+		// An admitted image carries its identity receipt into custody. An
+		// unadmitted image change drops the earlier receipt rather than letting
+		// it describe an image the application no longer runs.
+		if admitted != nil {
+			next.Admission = admitted
+		} else if current.Bundle.ResolvedImage != b.ResolvedImage {
+			next.Admission = nil
+		}
+	case "rollback":
+		if current.Bundle.ResolvedImage != b.ResolvedImage {
+			// The restored image's receipt becomes current. Only a rotated
+			// previous side can also receive the failed image's receipt.
+			next.Admission = current.PreviousAdmission
+			if rotated {
+				next.PreviousAdmission = current.Admission
+			}
+		}
+	}
+}
+
 // clearPreviousImageCustody drops the previous generation's image custody from
 // a record. A create starts a new generation, and the removed record's custody
 // belongs to the old form: the one-container custody names an image and a port
@@ -954,6 +1069,8 @@ func clearPreviousImageCustody(r *Record) {
 	r.PreviousResolvedImage = ""
 	r.PreviousImages = nil
 	r.PreviousResolvedImages = nil
+	r.Admission = nil
+	r.PreviousAdmission = nil
 }
 
 // ownApplicationServiceImages maps every declared project service to its

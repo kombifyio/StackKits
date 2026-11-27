@@ -28,15 +28,17 @@ reason text may change between releases, the codes do not.
 
 | Code | Status | Values |
 | --- | --- | --- |
-| `image_pinned_by_digest` | kept | `image`, `pinned` |
-| `volume_copied_checksummed` | kept | `source`, `mountPath`, `madeWritable` |
+| `compose_single_service_adopted` | kept | `project`, `service` |
+| `compose_project_adopted` | kept | `project`, `services`, `count` |
+| `image_pinned_by_digest` | kept | `image`, `pinned` (plus `service` for v3 projects) |
+| `volume_copied_checksummed` | kept | `source`, `mountPath`, `madeWritable` (plus `service` for v3 projects) |
 | `data_size_measured` / `data_size_not_measured` | kept | `bytes`, `files`, `freeBytes` / `source` |
 | `environment_empty_kept` | kept | `names` |
 | `environment_values_to_custody` | changed | `names` |
 | `secrets_classified` | kept | `names` |
-| `http_port_routed` | kept | `port`, `candidates` |
+| `http_port_routed` | kept | `port`, `candidates` (plus `service` for v3 projects) |
 | `port_kept` | kept | `hostIP`, `hostPort`, `containerPort`, `protocol` |
-| `port_random_dropped`, `port_ipv6_only_dropped` | changed | `binding` |
+| `port_random_dropped`, `port_ipv6_only_dropped`, `port_dropped_v3_project` | changed | `binding` |
 | `port_router_owned_dropped` | changed | `binding`, `hostPort` |
 | `outbound_none_kept`, `outbound_kept_firewalled`, `outbound_turned_off` | kept / changed | none |
 | `restart_unless_stopped`, `restart_by_firewall_watcher` | changed | `from`, `to` |
@@ -54,7 +56,9 @@ reason text may change between releases, the codes do not.
 | `data_volume_replaced` | changed | `volume` |
 
 Refusals (status `refused`): `refused_already_managed` (`container`),
-`refused_compose_project` (`project`, `service`),
+`refused_compose_project` (`project`, `service`, `siblings`),
+`refused_compose_too_many_services` (`project`, `count`, `limit`),
+`refused_http_service_ambiguous` (`candidates`),
 `refused_shared_user_network` (`network`, `containers`),
 `refused_local_only_image` and `refused_image_reference` (`image`),
 `refused_registry_image` (`image`), `refused_custom_command` (`arguments`),
@@ -79,11 +83,22 @@ Refusals (status `refused`): `refused_already_managed` (`container`),
 
 `stackkit application` adopts a supported existing native application without
 recreating its container or bootstrapping native accounts. The first admitted
-profile is Home Assistant Container 2026.9.4 at the exact CUE-owned image digest,
-with one initialized, exclusive persistent `/config` mount, unchanged image
-startup configuration and a published local listener. Host networking, shared
-configuration, multi-container dependencies, custom integrations, external
-recorders and unqualified images remain unsupported and unstacked.
+profile is Home Assistant Container from an official image repository
+(`ghcr.io/home-assistant/home-assistant`, `homeassistant/home-assistant`, or
+`lscr.io/linuxserver/homeassistant`) with an immutable `RepoDigest` on
+`linux/amd64` or `linux/arm64`, run either via Compose or standalone `docker run`,
+with one initialized, exclusive persistent `/config` mount, non-privileged
+execution, either host networking (`http://127.0.0.1:8123`) or a locally bound
+published `8123/tcp` listener, optional USB/serial radio devices
+(`/dev/ttyUSB*`, `/dev/ttyACM*`, `/dev/ttyAMA*`, `/dev/serial/by-id/*`,
+`/dev/serial/by-path/*`, `/dev/hidraw*`), and optional benign runtime
+environment overrides (`TZ`, `LANG`, `LC_ALL`, `PUID`, `PGID`, `UMASK`,
+`DISABLE_JEMALLOC`). Custom integrations (`custom_components/`), external
+recorders (`db_url:`), and official image digest drift are recorded as
+structured preservation notices while keeping `/config` read-only and hashed.
+Privileged containers, raw disk/memory devices, shared `/config` mounts,
+modified image entrypoints/commands, and unqualified or local-only images remain
+refused.
 
 The workspace needs its existing canonical StackSpec, resolved plan and local
 Owner custody. Smart Home need not already be selected: inspection prepares its

@@ -33,8 +33,8 @@ func VerifyHomeAssistantExistingOwner(ctx context.Context, client *http.Client, 
 	if err := homeAssistantJSONRequest(ctx, client, baseURL, http.MethodGet, "/api/config", nil, token, &config); err != nil {
 		return HomeAssistantOwnerResult{}, err
 	}
-	if config.Version != version || observed != version || !strings.EqualFold(config.State, "RUNNING") {
+	if strings.TrimSpace(config.Version) == "" || config.Version != observed || (version != "" && config.Version != version) || !strings.EqualFold(config.State, "RUNNING") {
 		return HomeAssistantOwnerResult{}, errors.New("source_identity_conflict: authenticated Home Assistant version/state differs from the admitted module")
 	}
-	return HomeAssistantOwnerResult{UserID: user.ID, UserIsOwner: true, UserIsAdmin: true, ServerInitialized: true, Version: version}, nil
+	return HomeAssistantOwnerResult{UserID: user.ID, UserIsOwner: true, UserIsAdmin: true, ServerInitialized: true, Version: config.Version}, nil
 }

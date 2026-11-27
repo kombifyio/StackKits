@@ -94,6 +94,15 @@ type OwnAdoptionDocker struct {
 
 func NewOwnAdoptionDocker() OwnAdoptionDocker { return OwnAdoptionDocker{run: runClosedDockerCLI} }
 
+// NewOwnAdoptionDockerWithRunner builds an OwnAdoptionDocker backed by run,
+// falling back to the closed Docker CLI when run is nil.
+func NewOwnAdoptionDockerWithRunner(run func(context.Context, []string) ([]byte, error)) OwnAdoptionDocker {
+	if run == nil {
+		run = runClosedDockerCLI
+	}
+	return OwnAdoptionDocker{run: run}
+}
+
 func validOwnAdoptionContainerID(id string) bool {
 	return validStandaloneComposeContainerID(id) && id == strings.ToLower(id)
 }

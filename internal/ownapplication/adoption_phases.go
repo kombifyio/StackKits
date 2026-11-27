@@ -31,6 +31,7 @@ const (
 )
 
 var operationID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,100}$`)
+var verifyAdoptionImageDigest = nativehost.VerifyOwnApplicationImageDigest
 
 // plan adds the node: the admitted document, its own-application review, the
 // registry check, the data copy size and the expected downtime.
@@ -42,7 +43,30 @@ func plan(ctx context.Context, workspace string, docker nativehost.OwnAdoptionDo
 	app := p.result.Application
 	i := req.Installation
 	app.Hostname = app.WorkloadRef() + "." + i.Domain
-	if p.result.Data != nil {
+	if app.IsProject() {
+		for idx := range p.result.ServiceData {
+			sd := &p.result.ServiceData[idx]
+			volume := localbackuppolicy.StandaloneComposeVolumeName(app.WorkloadRef(), i.NodeRef, sd.Service, "data")
+			sd.Volume = volume
+			if _, err := docker.InspectVolume(ctx, volume); err == nil {
+				prior, found, err := loadCheckpoint(workspace, app.Name)
+				reusable := false
+				if err == nil && found && prior.ContainerID == p.result.ContainerID && prior.Phase == "rolled-back" {
+					for _, orig := range prior.originals() {
+						if orig.DataVolume == volume {
+							reusable = true
+							break
+						}
+					}
+				}
+				if reusable {
+					p.row("data_volume_replaced", sd.Service+".data-volume", RowChanged, volume, "replaced", "the copy a rolled-back adoption of this project left is replaced by a fresh copy", "volume", volume, "service", sd.Service)
+				} else {
+					p.refuse("refused_existing_application_volume", sd.Service+".data-volume", volume, "the application volume already exists and may hold retained data (for example of a removed or restored application); remove it yourself or choose another --name", "volume", volume, "service", sd.Service)
+				}
+			}
+		}
+	} else if p.result.Data != nil {
 		volume := localbackuppolicy.StandaloneComposeVolumeName(app.WorkloadRef(), i.NodeRef, "app", "data")
 		p.result.Data.Volume = volume
 		// The copy empties its destination first, so an existing volume is
@@ -66,7 +90,14 @@ func plan(ctx context.Context, workspace string, docker nativehost.OwnAdoptionDo
 		}
 	}
 	if admissible {
-		if err := nativehost.VerifyOwnApplicationImageDigest(ctx, app.Image); err != nil {
+		if app.IsProject() {
+			for _, svc := range app.Services {
+				if err := verifyAdoptionImageDigest(ctx, svc.Image); err != nil {
+					p.refuse("refused_registry_image", svc.Name+".registry", svc.Image, err.Error(), "image", svc.Image, "service", svc.Name)
+					admissible = false
+				}
+			}
+		} else if err := verifyAdoptionImageDigest(ctx, app.Image); err != nil {
 			p.refuse("refused_registry_image", "registry", app.Image, err.Error(), "image", app.Image)
 			admissible = false
 		}
@@ -89,7 +120,37 @@ func plan(ctx context.Context, workspace string, docker nativehost.OwnAdoptionDo
 		}
 	}
 	var copySeconds int64
-	if p.source != nil {
+	if app.IsProject() && len(p.result.ServiceData) > 0 {
+		var totalBytes, minFree int64
+		hasFree := false
+		for idx := range p.result.ServiceData {
+			sd := &p.result.ServiceData[idx]
+			switch {
+			case req.Offline || req.HelperImage == "":
+				p.volatile("data_size_not_measured", sd.Service+".data-size", RowKept, sd.Source, "", "not measured: an offline plan has no installed backup helper", "source", sd.Source, "service", sd.Service)
+			default:
+				files, bytes, free, err := docker.Measure(ctx, req.HelperImage, "measure-"+app.Name+"-"+sd.Service, p.serviceSources[sd.Service])
+				if err != nil {
+					p.volatile("refused_data_unmeasurable", sd.Service+".data-size", RowRefused, sd.Source, "", "the data source could not be measured: "+err.Error(), "source", sd.Source, "service", sd.Service)
+					admissible = false
+					continue
+				}
+				totalBytes += bytes
+				if !hasFree || free < minFree {
+					minFree = free
+					hasFree = true
+				}
+				if 2*bytes > free || 2*totalBytes > minFree {
+					p.volatile("refused_data_disk_space", sd.Service+".data-size", RowRefused, fmt.Sprintf("%d bytes", totalBytes), fmt.Sprintf("%d bytes free", minFree), "the copy needs at least twice its size free on the Docker volume filesystem", "bytes", strconv.FormatInt(totalBytes, 10), "freeBytes", strconv.FormatInt(minFree, 10), "service", sd.Service)
+					admissible = false
+					continue
+				}
+				sd.Measured, sd.Files, sd.Bytes, sd.FreeBytes = true, files, bytes, free
+				copySeconds += 2 * bytes / adoptionCopyRate
+				p.volatile("data_size_measured", sd.Service+".data-size", RowKept, fmt.Sprintf("%d bytes in %d files", bytes, files), fmt.Sprintf("%d bytes free (at least 2x needed)", free), "copied with the source mounted read-only and checked by checksum; the original volume is never changed or renamed", "bytes", strconv.FormatInt(bytes, 10), "files", strconv.FormatInt(files, 10), "freeBytes", strconv.FormatInt(free, 10), "service", sd.Service)
+			}
+		}
+	} else if p.source != nil {
 		switch {
 		case req.Offline || req.HelperImage == "":
 			p.volatile("data_size_not_measured", "data-size", RowKept, p.result.Data.Source, "", "not measured: an offline plan has no installed backup helper", "source", p.result.Data.Source)
@@ -112,7 +173,13 @@ func plan(ctx context.Context, workspace string, docker nativehost.OwnAdoptionDo
 	downtime := 30 + copySeconds + 60
 	p.result.DowntimeSeconds = downtime
 	p.volatile("downtime_estimated", "downtime", RowChanged, "running", fmt.Sprintf("about %d s, at most %d s before rollback", downtime, downtime+int64(adoptionStabilityWindow.Seconds())), "stop (up to 30 s), data copy and checksum, start and HTTP readiness (up to 60 s); the new container then has to stay up for a 2-minute stability window", "seconds", strconv.FormatInt(downtime, 10), "maxSeconds", strconv.FormatInt(downtime+int64(adoptionStabilityWindow.Seconds()), 10))
-	p.result.Rows = append(p.result.Rows, readinessRow(ctx, p, app.HTTPPort))
+	readinessPort := app.HTTPPort
+	if app.IsProject() {
+		if routed, ok := app.RoutedService(); ok {
+			readinessPort = routed.HTTPPort
+		}
+	}
+	p.result.Rows = append(p.result.Rows, readinessRow(ctx, p, readinessPort))
 	p.result.Admissible = admissible
 	p.result.PlanDigest = planDigest(p, req)
 	p.result.Outcome = "planned"
@@ -180,16 +247,20 @@ func planDigest(p *adoptionPlan, req AdoptionRequest) string {
 		}
 	}
 	return hash(struct {
-		ContainerID  string
-		Application  *contract.Application
-		HiddenKeys   []string
-		SecretKeys   []string
-		Rows         []AdoptionRow
-		Source       *nativehost.OwnAdoptionMount
-		Installation contract.Installation
-		HelperImage  string
-		Offline      bool
-	}{p.result.ContainerID, p.result.Application, p.result.HiddenKeys, p.result.SecretKeys, rows, p.source, req.Installation, req.HelperImage, req.Offline})
+		ContainerID         string
+		Application         *contract.Application
+		HiddenKeys          []string
+		SecretKeys          []string
+		Rows                []AdoptionRow
+		Source              *nativehost.OwnAdoptionMount
+		ServiceSources      map[string]nativehost.OwnAdoptionMount
+		Originals           []AdoptionOriginalContainer
+		AdoptComposeProject bool
+		HTTPService         string
+		Installation        contract.Installation
+		HelperImage         string
+		Offline             bool
+	}{p.result.ContainerID, p.result.Application, p.result.HiddenKeys, p.result.SecretKeys, rows, p.source, p.serviceSources, p.originals, req.AdoptComposeProject, req.HTTPService, req.Installation, req.HelperImage, req.Offline})
 }
 
 func adopt(ctx context.Context, workspace string, docker nativehost.OwnAdoptionDocker, req AdoptionRequest, hooks AdoptionHooks) (AdoptionResult, error) {
@@ -242,9 +313,22 @@ func adopt(ctx context.Context, workspace string, docker nativehost.OwnAdoptionD
 		result.Outcome = "refused"
 		return result, errors.New("the plan is not admissible; see the refused rows (nothing was stopped)")
 	}
-	checkpoint := AdoptionCheckpoint{APIVersion: adoptionCheckpointVersion, Name: app.Name, ContainerID: result.ContainerID, PlanDigest: req.PlanDigest, OperationID: req.OperationID, OriginalRunning: p.running, OriginalRestartPolicy: p.restart, Phase: "stopping-original", At: time.Now().UTC()}
+	checkpoint := AdoptionCheckpoint{APIVersion: adoptionCheckpointVersion, Name: app.Name, ContainerID: result.ContainerID, ComposeProject: p.composeProject, PlanDigest: req.PlanDigest, OperationID: req.OperationID, OriginalRunning: p.running, OriginalRestartPolicy: p.restart, Phase: "stopping-original", At: time.Now().UTC()}
 	if result.Data != nil {
 		checkpoint.DataSource, checkpoint.DataVolume = result.Data.Source, result.Data.Volume
+	}
+	if len(p.originals) > 0 {
+		origs := append([]AdoptionOriginalContainer(nil), p.originals...)
+		volByService := map[string]string{}
+		for _, sd := range result.ServiceData {
+			volByService[sd.Service] = sd.Volume
+		}
+		for idx := range origs {
+			if vol, ok := volByService[origs[idx].Service]; ok {
+				origs[idx].DataVolume = vol
+			}
+		}
+		checkpoint.OriginalContainers = origs
 	}
 	if hooks.BeforeCreate != nil {
 		if err := hooks.BeforeCreate(app); err != nil {
@@ -273,15 +357,54 @@ func adopt(ctx context.Context, workspace string, docker nativehost.OwnAdoptionD
 		return result, fmt.Errorf("rolled_back: adoption failed and was rolled back; the original runs as before: %w", cause)
 	}
 
-	// Stop the original and keep it from returning after a reboot. It is
-	// never edited otherwise, and its volumes are never changed or renamed.
-	if err := docker.SetRestartPolicy(ctx, result.ContainerID, "no"); err != nil {
-		return fail(fmt.Errorf("disable the original's restart policy: %w", err))
+	// Stop the original(s) and keep them from returning after a reboot. They
+	// are never edited otherwise, and their volumes are never changed or renamed.
+	for _, orig := range checkpoint.originals() {
+		if err := docker.SetRestartPolicy(ctx, orig.ContainerID, "no"); err != nil {
+			return fail(fmt.Errorf("disable the original's restart policy: %w", err))
+		}
+		if err := docker.Stop(ctx, orig.ContainerID); err != nil {
+			return fail(fmt.Errorf("stop the original: %w", err))
+		}
 	}
-	if err := docker.Stop(ctx, result.ContainerID); err != nil {
-		return fail(fmt.Errorf("stop the original: %w", err))
-	}
-	if p.source != nil {
+	if app.IsProject() && len(result.ServiceData) > 0 {
+		checkpoint.Phase = "copying-data"
+		if err := saveCheckpoint(workspace, checkpoint); err != nil {
+			return fail(err)
+		}
+		project := localbackuppolicy.StandaloneComposeProjectName(app.WorkloadRef(), req.Installation.NodeRef)
+		for idx := range result.ServiceData {
+			sd := &result.ServiceData[idx]
+			logicalKey := localbackuppolicy.StandaloneComposeLogicalVolumeName(sd.Service, "data")
+			if _, err := docker.InspectVolume(ctx, sd.Volume); err != nil {
+				if err = docker.CreateComposeVolume(ctx, sd.Volume, project, logicalKey); err != nil {
+					return fail(fmt.Errorf("create the application volume for %s: %w", sd.Service, err))
+				}
+			}
+			src := p.serviceSources[sd.Service]
+			label := "copy-" + app.Name + "-" + sd.Service
+			if err := docker.Copy(ctx, req.HelperImage, label, src, sd.Volume); err != nil {
+				return fail(fmt.Errorf("copy data for %s: %w", sd.Service, err))
+			}
+			before, err := docker.Digest(ctx, req.HelperImage, label, src)
+			if err != nil {
+				return fail(fmt.Errorf("checksum the source for %s: %w", sd.Service, err))
+			}
+			after, err := docker.Digest(ctx, req.HelperImage, label, nativehost.OwnAdoptionMount{Type: "volume", Source: sd.Volume})
+			if err != nil {
+				return fail(fmt.Errorf("checksum the copy for %s: %w", sd.Service, err))
+			}
+			if before != after {
+				return fail(fmt.Errorf("the copy for %s differs from its source (%s != %s)", sd.Service, after, before))
+			}
+			sd.Digest = after
+			for j := range checkpoint.OriginalContainers {
+				if checkpoint.OriginalContainers[j].Service == sd.Service {
+					checkpoint.OriginalContainers[j].DataDigest = after
+				}
+			}
+		}
+	} else if p.source != nil {
 		checkpoint.Phase = "copying-data"
 		if err := saveCheckpoint(workspace, checkpoint); err != nil {
 			return fail(err)
@@ -360,21 +483,31 @@ func verifyRebuilt(ctx context.Context, workspace string, docker nativehost.OwnA
 	}
 	project := localbackuppolicy.StandaloneComposeProjectName(app.WorkloadRef(), installation.NodeRef)
 	ids, err := docker.ComposePeers(ctx, project)
-	if err != nil || len(ids) != 1 {
-		return fmt.Errorf("the rebuilt container of %s is not observable", project)
+	expected := 1
+	if app.IsProject() {
+		expected = len(app.Services)
 	}
-	first, err := containerHealth(ctx, docker, ids[0])
-	if err != nil {
-		return err
+	if err != nil || len(ids) != expected {
+		return fmt.Errorf("the rebuilt containers of %s are not observable (expected %d, got %d)", project, expected, len(ids))
 	}
-	deadline := time.Now().Add(window)
-	for {
-		current, err := containerHealth(ctx, docker, ids[0])
+	first := make(map[string]containerHealthObservation, len(ids))
+	for _, id := range ids {
+		obs, err := containerHealth(ctx, docker, id)
 		if err != nil {
 			return err
 		}
-		if !current.running || current.restarts != first.restarts {
-			return fmt.Errorf("the rebuilt container did not stay up (state %s, restarts %d -> %d)", current.status, first.restarts, current.restarts)
+		first[id] = obs
+	}
+	deadline := time.Now().Add(window)
+	for {
+		for _, id := range ids {
+			current, err := containerHealth(ctx, docker, id)
+			if err != nil {
+				return err
+			}
+			if !current.running || current.restarts != first[id].restarts {
+				return fmt.Errorf("the rebuilt container did not stay up (state %s, restarts %d -> %d)", current.status, first[id].restarts, current.restarts)
+			}
 		}
 		if !time.Now().Before(deadline) {
 			break
@@ -421,21 +554,23 @@ func containerHealth(ctx context.Context, docker nativehost.OwnAdoptionDocker, i
 }
 
 // rollbackAdoption removes the new workload when one was started and starts
-// the original again with its original restart policy.
+// the original(s) again with their original restart policies.
 func rollbackAdoption(ctx context.Context, workspace string, docker nativehost.OwnAdoptionDocker, req AdoptionRequest, app contract.Application, checkpoint AdoptionCheckpoint, created bool, hooks AdoptionHooks) error {
 	ctx = context.WithoutCancel(ctx)
 	var problems []string
 	if created {
-		if err := removeAdopted(ctx, workspace, req, app.Name, checkpoint.ContainerID, req.OperationID+".rollback", hooks); err != nil {
+		if err := removeAdopted(ctx, workspace, req, app.Name, checkpoint, req.OperationID+".rollback", hooks); err != nil {
 			problems = append(problems, err.Error())
 		}
 	}
-	if err := docker.SetRestartPolicy(ctx, checkpoint.ContainerID, checkpoint.OriginalRestartPolicy); err != nil {
-		problems = append(problems, "restore the original's restart policy: "+err.Error())
-	}
-	if checkpoint.OriginalRunning {
-		if err := docker.Start(ctx, checkpoint.ContainerID); err != nil {
-			problems = append(problems, "start the original: "+err.Error())
+	for _, orig := range checkpoint.originals() {
+		if err := docker.SetRestartPolicy(ctx, orig.ContainerID, orig.RestartPolicy); err != nil {
+			problems = append(problems, "restore the original's restart policy: "+err.Error())
+		}
+		if orig.Running {
+			if err := docker.Start(ctx, orig.ContainerID); err != nil {
+				problems = append(problems, "start the original: "+err.Error())
+			}
 		}
 	}
 	if len(problems) != 0 {
@@ -444,11 +579,18 @@ func rollbackAdoption(ctx context.Context, workspace string, docker nativehost.O
 	return nil
 }
 
+func matchesAdoptedRecord(app contract.Application, checkpoint AdoptionCheckpoint) bool {
+	if app.IsAdopted() {
+		return app.AdoptedFrom != nil && app.AdoptedFrom.ContainerID == checkpoint.ContainerID
+	}
+	return app.IsProject() && checkpoint.ComposeProject != ""
+}
+
 // removeAdopted removes the rebuilt application through the reviewed
 // own-application remove. Its named volume is retained (backup keeps it).
-// It removes only an application adopted from exactly this container: an
-// unrelated application of the same name is never touched.
-func removeAdopted(ctx context.Context, workspace string, req AdoptionRequest, name, containerID, operation string, hooks AdoptionHooks) error {
+// It removes only an application adopted from this checkpoint: an unrelated
+// application of the same name is never touched.
+func removeAdopted(ctx context.Context, workspace string, req AdoptionRequest, name string, checkpoint AdoptionCheckpoint, operation string, hooks AdoptionHooks) error {
 	state, err := Load(workspace)
 	if err != nil {
 		return errors.New("read own-application custody: " + err.Error())
@@ -457,8 +599,7 @@ func removeAdopted(ctx context.Context, workspace string, req AdoptionRequest, n
 	if !exists || record.State == "removed" {
 		return nil
 	}
-	adopted := record.Bundle.Application
-	if !adopted.IsAdopted() || adopted.AdoptedFrom == nil || adopted.AdoptedFrom.ContainerID != containerID {
+	if !matchesAdoptedRecord(record.Bundle.Application, checkpoint) {
 		return nil
 	}
 	review, err := Execute(ctx, workspace, req.Installation, Request{Action: "remove", Name: name, DryRun: true})
@@ -484,13 +625,13 @@ func verifyAdoption(ctx context.Context, workspace string, docker nativehost.Own
 	if !checkpoint.RetainUntil.IsZero() {
 		result.RetainUntil = &checkpoint.RetainUntil
 	}
-	result.OriginalState = originalState(ctx, docker, checkpoint.ContainerID)
+	result.OriginalState = originalsState(ctx, docker, checkpoint)
 	state, err := Load(workspace)
 	if err != nil {
 		return result, err
 	}
 	record, exists := state.Applications[checkpoint.Name]
-	if !exists || !record.Bundle.Application.IsAdopted() || record.Bundle.Application.AdoptedFrom.ContainerID != checkpoint.ContainerID {
+	if !exists || !matchesAdoptedRecord(record.Bundle.Application, checkpoint) {
 		result.Outcome = outcomeForPhase(checkpoint.Phase)
 		result.Notice = "No adopted application is recorded for this container (adoption " + checkpoint.Phase + ")."
 		return result, nil
@@ -546,7 +687,7 @@ func restoreOriginal(ctx context.Context, workspace string, docker nativehost.Ow
 	result.Checkpoint, result.Name, result.ContainerID = &checkpoint, checkpoint.Name, checkpoint.ContainerID
 	switch checkpoint.Phase {
 	case "restored", "rolled-back":
-		result.Outcome, result.OriginalState = outcomeForPhase(checkpoint.Phase), originalState(ctx, docker, checkpoint.ContainerID)
+		result.Outcome, result.OriginalState = outcomeForPhase(checkpoint.Phase), originalsState(ctx, docker, checkpoint)
 		result.Notice = "The original is already back (" + checkpoint.Phase + ")."
 		return result, nil
 	case "released":
@@ -555,23 +696,27 @@ func restoreOriginal(ctx context.Context, workspace string, docker nativehost.Ow
 		if time.Now().After(checkpoint.RetainUntil) {
 			return result, fmt.Errorf("the retention window ended at %s; the original is still kept, but restoring it now would discard more than a week of the application's changes; adopt again or release it", checkpoint.RetainUntil.Format(time.RFC3339))
 		}
-		if state := originalState(ctx, docker, checkpoint.ContainerID); state != "exited" && state != "created" {
-			return result, fmt.Errorf("the original is %s; only a stopped original is restored", state)
+		for _, orig := range checkpoint.originals() {
+			if state := originalState(ctx, docker, orig.ContainerID); state != "exited" && state != "created" {
+				return result, fmt.Errorf("the original is %s; only a stopped original is restored", state)
+			}
 		}
 	default:
 		// An interrupted adoption (process killed, host rebooted) or a failed
 		// rollback: recover exactly as the in-process rollback would have.
 	}
 	operation := req.OperationID + ".restore"
-	if err := removeAdopted(ctx, workspace, req, checkpoint.Name, checkpoint.ContainerID, operation, hooks); err != nil {
+	if err := removeAdopted(ctx, workspace, req, checkpoint.Name, checkpoint, operation, hooks); err != nil {
 		return result, err
 	}
-	if err := docker.SetRestartPolicy(ctx, checkpoint.ContainerID, checkpoint.OriginalRestartPolicy); err != nil {
-		return result, fmt.Errorf("restore the original's restart policy: %w", err)
-	}
-	if checkpoint.OriginalRunning {
-		if err := docker.Start(ctx, checkpoint.ContainerID); err != nil {
-			return result, fmt.Errorf("start the original: %w", err)
+	for _, orig := range checkpoint.originals() {
+		if err := docker.SetRestartPolicy(ctx, orig.ContainerID, orig.RestartPolicy); err != nil {
+			return result, fmt.Errorf("restore the original's restart policy: %w", err)
+		}
+		if orig.Running {
+			if err := docker.Start(ctx, orig.ContainerID); err != nil {
+				return result, fmt.Errorf("start the original: %w", err)
+			}
 		}
 	}
 	recovered := checkpoint.Phase != "adopted"
@@ -582,7 +727,7 @@ func restoreOriginal(ctx context.Context, workspace string, docker nativehost.Ow
 	if err := saveCheckpoint(workspace, checkpoint); err != nil {
 		return result, err
 	}
-	result.Outcome, result.OriginalState = outcomeForPhase(checkpoint.Phase), originalState(ctx, docker, checkpoint.ContainerID)
+	result.Outcome, result.OriginalState = outcomeForPhase(checkpoint.Phase), originalsState(ctx, docker, checkpoint)
 	result.Notice = "The original is back with its own restart policy. The rebuilt application is removed; its named volume " + checkpoint.DataVolume + " is retained"
 	if !recovered {
 		result.Notice += " with any data written since the adoption"
@@ -616,14 +761,18 @@ func releaseOriginal(ctx context.Context, workspace string, docker nativehost.Ow
 		return result, err
 	}
 	record, exists := state.Applications[checkpoint.Name]
-	if !exists || record.State != "running" || record.Operation.Status != "succeeded" || !record.Bundle.Application.IsAdopted() || record.Bundle.Application.AdoptedFrom.ContainerID != checkpoint.ContainerID {
+	if !exists || record.State != "running" || record.Operation.Status != "succeeded" || !matchesAdoptedRecord(record.Bundle.Application, checkpoint) {
 		return result, errors.New("the adopted application is not running from this container in signed custody; the original stays")
 	}
-	if state := originalState(ctx, docker, checkpoint.ContainerID); state != "exited" && state != "created" {
-		return result, fmt.Errorf("the original is %s; only a stopped original is released", state)
+	for _, orig := range checkpoint.originals() {
+		if state := originalState(ctx, docker, orig.ContainerID); state != "exited" && state != "created" {
+			return result, fmt.Errorf("the original is %s; only a stopped original is released", state)
+		}
 	}
-	if err := docker.Remove(ctx, checkpoint.ContainerID); err != nil {
-		return result, fmt.Errorf("remove the original: %w", err)
+	for _, orig := range checkpoint.originals() {
+		if err := docker.Remove(ctx, orig.ContainerID); err != nil {
+			return result, fmt.Errorf("remove the original: %w", err)
+		}
 	}
 	checkpoint.Phase, checkpoint.At = "released", time.Now().UTC()
 	if err := saveCheckpoint(workspace, checkpoint); err != nil {
@@ -647,7 +796,7 @@ func checkpointForContainer(ctx context.Context, workspace string, docker native
 		if !found {
 			return checkpoint, errors.New("no adoption is recorded for this name")
 		}
-		if req.Container != "" && !matchesContainer(ctx, docker, req.Container, checkpoint.ContainerID) {
+		if req.Container != "" && !matchesCheckpointContainer(ctx, docker, req.Container, checkpoint) {
 			return checkpoint, errors.New("the container differs from the recorded adoption")
 		}
 		return checkpoint, nil
@@ -657,11 +806,50 @@ func checkpointForContainer(ctx context.Context, workspace string, docker native
 		return AdoptionCheckpoint{}, err
 	}
 	for _, checkpoint := range checkpoints {
-		if matchesContainer(ctx, docker, req.Container, checkpoint.ContainerID) {
+		if matchesCheckpointContainer(ctx, docker, req.Container, checkpoint) {
 			return checkpoint, nil
 		}
 	}
 	return AdoptionCheckpoint{}, errors.New("no adoption is recorded for this container; pass --name")
+}
+
+func matchesCheckpointContainer(ctx context.Context, docker nativehost.OwnAdoptionDocker, ref string, checkpoint AdoptionCheckpoint) bool {
+	if matchesContainer(ctx, docker, ref, checkpoint.ContainerID) {
+		return true
+	}
+	for _, orig := range checkpoint.OriginalContainers {
+		if matchesContainer(ctx, docker, ref, orig.ContainerID) {
+			return true
+		}
+	}
+	return false
+}
+
+func originalsState(ctx context.Context, docker nativehost.OwnAdoptionDocker, checkpoint AdoptionCheckpoint) string {
+	origs := checkpoint.originals()
+	if len(origs) == 1 {
+		return originalState(ctx, docker, origs[0].ContainerID)
+	}
+	states := make([]string, 0, len(origs))
+	uniform := ""
+	allSame := true
+	for i, orig := range origs {
+		st := originalState(ctx, docker, orig.ContainerID)
+		if i == 0 {
+			uniform = st
+		} else if st != uniform {
+			allSame = false
+		}
+		label := orig.Service
+		if label == "" {
+			label = orig.ContainerID[:min(12, len(orig.ContainerID))]
+		}
+		states = append(states, label+":"+st)
+	}
+	if allSame {
+		return uniform
+	}
+	return strings.Join(states, ", ")
 }
 
 // matchesContainer reports whether ref (ID, unique ID prefix or name) selects

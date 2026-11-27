@@ -1275,7 +1275,7 @@ func validateStandaloneComposeDockerArgs(args []string) error {
 			return nil
 		}
 	case "exec":
-		if len(args) == 7 && validStandaloneComposeContainerID(args[1]) && args[2] == "/usr/local/bin/python3" && args[3] == "-I" && args[4] == "-S" && args[5] == "-c" && args[6] == adoptionConfigProbe {
+		if len(args) == 7 && validStandaloneComposeContainerID(args[1]) && (args[2] == "/usr/local/bin/python3" || args[2] == "/usr/bin/python3") && args[3] == "-I" && args[4] == "-S" && args[5] == "-c" && args[6] == adoptionConfigProbe {
 			return nil
 		}
 	case "volume":

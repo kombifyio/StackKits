@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,13 +34,16 @@ import (
 // one admitted peer address, once, and the destination keeps it only when its
 // digest matches.
 const (
-	applicationTransferInboxDir     = ".stackkit/backups/transfer-inbox"
-	applicationTransferDefaultPort  = 8124
-	applicationTransferPathPrefix   = "/application-transfer/"
-	applicationTransferServeAPI     = "stackkit.application-transfer-serve/v1"
-	applicationTransferFetchAPI     = "stackkit.application-transfer-fetch/v1"
-	applicationTransferWithdrawAPI  = "stackkit.application-transfer-withdraw/v1"
-	applicationTransferFirewallNote = "stackkit-transfer-"
+	applicationTransferInboxDir            = ".stackkit/backups/transfer-inbox"
+	applicationTransferDefaultPort         = 8124
+	applicationTransferPathPrefix          = "/application-transfer/"
+	applicationTransferServeAPI            = "stackkit.application-transfer-serve/v1"
+	applicationTransferPushAPI             = "stackkit.application-transfer-push/v1"
+	applicationTransferFetchAPI            = "stackkit.application-transfer-fetch/v1"
+	applicationTransferWithdrawAPI         = "stackkit.application-transfer-withdraw/v1"
+	applicationTransferFirewallNote        = "stackkit-transfer-"
+	applicationTransferHeaderArchiveSHA256 = "X-Transfer-Archive-SHA256"
+	applicationTransferMaxTokenFileBytes   = 8 << 10
 )
 
 var applicationTransferSHA256Pattern = regexp.MustCompile(`^(sha256:)?[0-9a-f]{64}$`)
@@ -55,15 +59,144 @@ func configureApplicationTransferTransportCommands() {
 	serve.Flags().Int("port", applicationTransferDefaultPort, "TCP port of the one-shot share")
 	serve.Flags().Duration("ttl", 30*time.Minute, "Stop sharing after this long without a complete download")
 	serve.Flags().Bool("open-firewall", false, "Admit the peer on the port in the host firewall while sharing")
-	fetch := &cobra.Command{Use: "transfer-fetch", Short: "Download one transfer archive from the source node and keep it only when its digest matches", Args: machineAwareNoArgs, RunE: runApplicationTransferFetch}
-	fetch.Flags().String("from", "", "Source HOST:PORT that transfer-serve shares on")
+
+	push := &cobra.Command{Use: "transfer-push", Short: "Upload one exported transfer ciphertext to an HTTPS relay URL", Args: machineAwareNoArgs, RunE: runApplicationTransferPush}
+	push.Flags().String("target", "", "Export directory transfer-export wrote")
+	push.Flags().String("to", "", "HTTPS relay URL to upload the encrypted transfer archive to")
+	push.Flags().String("token-file", "", "File containing the single-use Bearer upload token")
+	push.Flags().String("bearer-env", "", "Environment variable containing the single-use Bearer upload token")
+	push.Flags().Duration("ttl", 30*time.Minute, "Maximum time allowed for the relay upload (up to 2h)")
+	push.Flags().Bool("allow-insecure-loopback", false, "Allow http://127.0.0.1, http://[::1], or http://localhost for local testing only")
+
+	fetch := &cobra.Command{Use: "transfer-fetch", Short: "Download one transfer archive from the source node or HTTPS relay and keep it only when its digest matches", Args: machineAwareNoArgs, RunE: runApplicationTransferFetch}
+	fetch.Flags().String("from", "", "Source HOST:PORT that transfer-serve shares on (mutually exclusive with --from-url)")
+	fetch.Flags().String("from-url", "", "HTTPS relay URL to download the encrypted transfer archive from (mutually exclusive with --from)")
+	fetch.Flags().String("token-file", "", "File containing the single-use Bearer download token (only with --from-url)")
+	fetch.Flags().String("bearer-env", "", "Environment variable containing the single-use Bearer download token (only with --from-url)")
+	fetch.Flags().Bool("allow-insecure-loopback", false, "Allow http://127.0.0.1, http://[::1], or http://localhost for local testing only")
 	fetch.Flags().String("archive-sha256", "", "Exact ciphertext digest from the source's signed receipt")
-	fetch.Flags().Duration("wait", 2*time.Minute, "Wait this long for the source share to come up")
+	fetch.Flags().Duration("wait", 2*time.Minute, "Wait this long for the source share or relay upload to become ready")
 	fetch.Flags().Int64("max-bytes", 512<<30, "Maximum ciphertext bytes")
+
 	withdraw := &cobra.Command{Use: "transfer-withdraw", Short: "Withdraw an unused receiving admission and restore the intent its admit replaced", Args: machineAwareNoArgs, RunE: runApplicationTransferWithdraw}
 	withdraw.Flags().String("nonce", "", "Nonce of the receiving admission")
 	withdraw.Flags().Bool("owner-approve", false, "Approve withdrawing the receiving admission")
-	backupCmd.AddCommand(serve, fetch, withdraw)
+	backupCmd.AddCommand(serve, push, fetch, withdraw)
+}
+
+type verifiedTransferExport struct {
+	transferID string
+	digest     string
+	archive    string
+	size       int64
+}
+
+func verifyLocalApplicationTransferExport(target string) (verifiedTransferExport, error) {
+	raw, err := os.ReadFile(filepath.Join(target, "application-transfer-receipt.json"))
+	if err != nil {
+		return verifiedTransferExport{}, err
+	}
+	var receipt backuplifecycle.ApplicationTransferExportReceipt
+	if err = json.Unmarshal(raw, &receipt); err != nil {
+		return verifiedTransferExport{}, err
+	}
+	if receipt.Export.Manifest.ApplicationTransfer == nil {
+		return verifiedTransferExport{}, errors.New("export directory holds no application transfer")
+	}
+	key, err := localevidence.LoadOwnerKey(getWorkDir())
+	if err != nil {
+		return verifiedTransferExport{}, err
+	}
+	t, err := backuplifecycle.VerifyApplicationTransferExportReceipt(receipt, key.OwnerRef, localevidence.ApplicationTransferFingerprint(key.Public()), receipt.Export.Manifest.ApplicationTransfer.ID, receipt.Export.ArchiveSHA256)
+	if err != nil {
+		return verifiedTransferExport{}, err
+	}
+	digest := trimSHA256(receipt.Export.ArchiveSHA256)
+	archive := filepath.Join(target, backuplifecycle.EmergencyArchive)
+	size, actual, err := applicationTransferFileDigest(archive)
+	if err != nil {
+		return verifiedTransferExport{}, err
+	}
+	if actual != digest {
+		return verifiedTransferExport{}, errors.New("export ciphertext differs from its signed receipt")
+	}
+	return verifiedTransferExport{
+		transferID: t.ID,
+		digest:     digest,
+		archive:    archive,
+		size:       size,
+	}, nil
+}
+
+func validateApplicationTransferURL(raw string, allowInsecureLoopback bool) (*url.URL, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, errors.New("relay URL is required")
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" {
+		return nil, errors.New("relay URL must be a valid absolute URL")
+	}
+	if parsed.User != nil {
+		return nil, errors.New("relay URL must not embed credentials")
+	}
+	if parsed.Fragment != "" {
+		return nil, errors.New("relay URL must not include a fragment")
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	switch scheme {
+	case "https":
+		return parsed, nil
+	case "http":
+		if !allowInsecureLoopback {
+			return nil, errors.New("relay URL must use https:// (pass --allow-insecure-loopback for local loopback testing)")
+		}
+		host := strings.ToLower(parsed.Hostname())
+		if host == "localhost" {
+			return parsed, nil
+		}
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			return parsed, nil
+		}
+		return nil, errors.New("--allow-insecure-loopback permits http:// only for localhost, 127.0.0.1, or ::1")
+	default:
+		return nil, errors.New("relay URL scheme must be https")
+	}
+}
+
+func resolveApplicationTransferBearerToken(tokenFile, bearerEnv string) (string, error) {
+	tokenFile = strings.TrimSpace(tokenFile)
+	bearerEnv = strings.TrimSpace(bearerEnv)
+	if tokenFile != "" && bearerEnv != "" {
+		return "", errors.New("--token-file and --bearer-env are mutually exclusive")
+	}
+	if tokenFile == "" && bearerEnv == "" {
+		return "", nil
+	}
+	var token string
+	if tokenFile != "" {
+		info, err := os.Stat(tokenFile)
+		if err != nil {
+			return "", fmt.Errorf("read bearer token file: %w", err)
+		}
+		if info.IsDir() || info.Size() > applicationTransferMaxTokenFileBytes {
+			return "", errors.New("bearer token file is invalid or exceeds maximum size")
+		}
+		raw, err := os.ReadFile(tokenFile)
+		if err != nil {
+			return "", fmt.Errorf("read bearer token file: %w", err)
+		}
+		token = strings.TrimSpace(string(raw))
+	} else {
+		token = strings.TrimSpace(os.Getenv(bearerEnv))
+	}
+	if token == "" {
+		return "", errors.New("bearer token is empty")
+	}
+	if strings.ContainsAny(token, "\r\n\x00") {
+		return "", errors.New("bearer token contains invalid control characters")
+	}
+	return token, nil
 }
 
 func runApplicationTransferServe(cmd *cobra.Command, _ []string) error {
@@ -76,34 +209,11 @@ func runApplicationTransferServe(cmd *cobra.Command, _ []string) error {
 	if target == "" || peer == nil || peer.IsUnspecified() || peer.IsMulticast() || port < 1024 || port > 65535 || ttl <= 0 || ttl > 2*time.Hour {
 		return errors.New("transfer-serve requires --target, one exact --peer address, a port 1024-65535 and a TTL up to 2h")
 	}
-	raw, err := os.ReadFile(filepath.Join(target, "application-transfer-receipt.json"))
+	exp, err := verifyLocalApplicationTransferExport(target)
 	if err != nil {
 		return err
 	}
-	var receipt backuplifecycle.ApplicationTransferExportReceipt
-	if err = json.Unmarshal(raw, &receipt); err != nil {
-		return err
-	}
-	if receipt.Export.Manifest.ApplicationTransfer == nil {
-		return errors.New("export directory holds no application transfer")
-	}
-	key, err := localevidence.LoadOwnerKey(getWorkDir())
-	if err != nil {
-		return err
-	}
-	t, err := backuplifecycle.VerifyApplicationTransferExportReceipt(receipt, key.OwnerRef, localevidence.ApplicationTransferFingerprint(key.Public()), receipt.Export.Manifest.ApplicationTransfer.ID, receipt.Export.ArchiveSHA256)
-	if err != nil {
-		return err
-	}
-	digest := trimSHA256(receipt.Export.ArchiveSHA256)
-	archive := filepath.Join(target, backuplifecycle.EmergencyArchive)
-	size, actual, err := applicationTransferFileDigest(archive)
-	if err != nil {
-		return err
-	}
-	if actual != digest {
-		return errors.New("export ciphertext differs from its signed receipt")
-	}
+	digest, archive, size := exp.digest, exp.archive, exp.size
 	listener, err := net.Listen("tcp", net.JoinHostPort("", strconv.Itoa(port)))
 	if err != nil {
 		return err
@@ -161,20 +271,113 @@ func runApplicationTransferServe(cmd *cobra.Command, _ []string) error {
 	if serveErr != nil {
 		return serveErr
 	}
-	return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{"apiVersion": applicationTransferServeAPI, "transferId": t.ID, "archiveSha256": "sha256:" + digest, "bytes": size, "peer": peer.String(), "delivered": true})
+	return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{"apiVersion": applicationTransferServeAPI, "transferId": exp.transferID, "archiveSha256": "sha256:" + digest, "bytes": size, "peer": peer.String(), "delivered": true})
+}
+
+func runApplicationTransferPush(cmd *cobra.Command, _ []string) error {
+	target, _ := cmd.Flags().GetString("target")
+	toRaw, _ := cmd.Flags().GetString("to")
+	tokenFile, _ := cmd.Flags().GetString("token-file")
+	bearerEnv, _ := cmd.Flags().GetString("bearer-env")
+	ttl, _ := cmd.Flags().GetDuration("ttl")
+	allowInsecureLoopback, _ := cmd.Flags().GetBool("allow-insecure-loopback")
+	if target == "" || ttl <= 0 || ttl > 2*time.Hour {
+		return errors.New("transfer-push requires --target, --to <https-url>, and a TTL up to 2h")
+	}
+	targetURL, err := validateApplicationTransferURL(toRaw, allowInsecureLoopback)
+	if err != nil {
+		return err
+	}
+	token, err := resolveApplicationTransferBearerToken(tokenFile, bearerEnv)
+	if err != nil {
+		return err
+	}
+	exp, err := verifyLocalApplicationTransferExport(target)
+	if err != nil {
+		return err
+	}
+	file, err := os.Open(exp.archive)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	ctx, cancel := context.WithTimeout(cmd.Context(), ttl)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, targetURL.String(), file)
+	if err != nil {
+		return err
+	}
+	request.ContentLength = exp.size
+	request.Header.Set("Content-Type", "application/octet-stream")
+	request.Header.Set(applicationTransferHeaderArchiveSHA256, exp.digest)
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	client := &http.Client{
+		Transport: &http.Transport{DisableCompression: true},
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("relay upload failed: %w", err)
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("relay upload answered HTTP %d", response.StatusCode)
+	}
+	return writeCommandResult(cmd, cmd.CommandPath(), map[string]any{
+		"apiVersion":    applicationTransferPushAPI,
+		"transferId":    exp.transferID,
+		"archiveSha256": "sha256:" + exp.digest,
+		"bytes":         exp.size,
+		"uploaded":      true,
+	})
 }
 
 func runApplicationTransferFetch(cmd *cobra.Command, _ []string) error {
 	from, _ := cmd.Flags().GetString("from")
+	fromURLRaw, _ := cmd.Flags().GetString("from-url")
+	tokenFile, _ := cmd.Flags().GetString("token-file")
+	bearerEnv, _ := cmd.Flags().GetString("bearer-env")
+	allowInsecureLoopback, _ := cmd.Flags().GetBool("allow-insecure-loopback")
 	expected, _ := cmd.Flags().GetString("archive-sha256")
 	wait, _ := cmd.Flags().GetDuration("wait")
 	maxBytes, _ := cmd.Flags().GetInt64("max-bytes")
 	if !applicationTransferSHA256Pattern.MatchString(expected) || maxBytes <= 0 {
 		return errors.New("transfer-fetch requires --archive-sha256 sha256:<64 hex> and a positive --max-bytes")
 	}
-	host, port, err := net.SplitHostPort(from)
-	if err != nil || net.ParseIP(strings.Trim(host, "[]")) == nil {
-		return errors.New("transfer-fetch requires --from <ip>:<port>")
+	from = strings.TrimSpace(from)
+	fromURLRaw = strings.TrimSpace(fromURLRaw)
+	if (from == "") == (fromURLRaw == "") {
+		return errors.New("transfer-fetch requires exactly one of --from <ip>:<port> or --from-url <https-url>")
+	}
+	var (
+		directAddress string
+		relayURL      *url.URL
+		bearerToken   string
+	)
+	if from != "" {
+		if strings.TrimSpace(tokenFile) != "" || strings.TrimSpace(bearerEnv) != "" {
+			return errors.New("--token-file and --bearer-env are only valid with --from-url")
+		}
+		host, port, err := net.SplitHostPort(from)
+		if err != nil || net.ParseIP(strings.Trim(host, "[]")) == nil {
+			return errors.New("transfer-fetch requires --from <ip>:<port>")
+		}
+		directAddress = net.JoinHostPort(strings.Trim(host, "[]"), port)
+	} else {
+		var err error
+		relayURL, err = validateApplicationTransferURL(fromURLRaw, allowInsecureLoopback)
+		if err != nil {
+			return err
+		}
+		bearerToken, err = resolveApplicationTransferBearerToken(tokenFile, bearerEnv)
+		if err != nil {
+			return err
+		}
 	}
 	digest := trimSHA256(expected)
 	workspace := getWorkDir()
@@ -184,31 +387,86 @@ func runApplicationTransferFetch(cmd *cobra.Command, _ []string) error {
 	}
 	ctx, cancel := context.WithTimeout(cmd.Context(), wait+backupLongOperationTimeout)
 	defer cancel()
-	address := net.JoinHostPort(strings.Trim(host, "[]"), port)
 	deadline := time.Now().Add(wait)
-	for {
-		conn, dialErr := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", address)
-		if dialErr == nil {
-			_ = conn.Close()
-			break
+	var response *http.Response
+	if directAddress != "" {
+		for {
+			conn, dialErr := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", directAddress)
+			if dialErr == nil {
+				_ = conn.Close()
+				break
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("the source share at %s did not come up within %s: %w", directAddress, wait, dialErr)
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(2 * time.Second):
+			}
 		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("the source share at %s did not come up within %s: %w", address, wait, dialErr)
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+directAddress+applicationTransferPathPrefix+digest, nil)
+		if err != nil {
+			return err
 		}
-		time.Sleep(2 * time.Second)
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+address+applicationTransferPathPrefix+digest, nil)
-	if err != nil {
-		return err
-	}
-	response, err := (&http.Client{Transport: &http.Transport{Proxy: nil, DisableCompression: true}}).Do(request)
-	if err != nil {
-		return err
+		var errDo error
+		response, errDo = (&http.Client{Transport: &http.Transport{Proxy: nil, DisableCompression: true}}).Do(request)
+		if errDo != nil {
+			return errDo
+		}
+		if response.StatusCode != http.StatusOK {
+			response.Body.Close()
+			return fmt.Errorf("source share answered HTTP %d", response.StatusCode)
+		}
+	} else {
+		client := &http.Client{
+			Transport: &http.Transport{DisableCompression: true},
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
+		for {
+			request, err := http.NewRequestWithContext(ctx, http.MethodGet, relayURL.String(), nil)
+			if err != nil {
+				return err
+			}
+			request.Header.Set(applicationTransferHeaderArchiveSHA256, digest)
+			if bearerToken != "" {
+				request.Header.Set("Authorization", "Bearer "+bearerToken)
+			}
+			resp, errDo := client.Do(request)
+			if errDo != nil {
+				if time.Now().After(deadline) {
+					return fmt.Errorf("relay download did not succeed within %s: %w", wait, errDo)
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(2 * time.Second):
+				}
+				continue
+			}
+			if resp.StatusCode == http.StatusOK {
+				response = resp
+				break
+			}
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusServiceUnavailable {
+				if time.Now().After(deadline) {
+					return fmt.Errorf("relay ciphertext was not ready within %s (last HTTP %d)", wait, resp.StatusCode)
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(2 * time.Second):
+				}
+				continue
+			}
+			return fmt.Errorf("relay download answered HTTP %d", resp.StatusCode)
+		}
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("source share answered HTTP %d", response.StatusCode)
-	}
 	if response.ContentLength > maxBytes {
 		return errors.New("transfer archive exceeds --max-bytes")
 	}

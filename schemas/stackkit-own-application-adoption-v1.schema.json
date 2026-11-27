@@ -74,6 +74,8 @@
             "enum": [
               "capabilities_fixed_policy",
               "cgroupns_daemon_default",
+              "compose_project_adopted",
+              "compose_single_service_adopted",
               "container_recreated",
               "data_size_measured",
               "data_size_not_measured",
@@ -90,6 +92,8 @@
               "outbound_none_kept",
               "outbound_turned_off",
               "own_private_network",
+              "port_dropped_v3_project",
+              "port_ipv6_only_dropped",
               "port_kept",
               "port_random_dropped",
               "port_router_owned_dropped",
@@ -102,6 +106,7 @@
               "refused_already_managed",
               "refused_bind_outside_data_roots",
               "refused_compose_project",
+              "refused_compose_too_many_services",
               "refused_container_network",
               "refused_contract",
               "refused_custom_command",
@@ -117,6 +122,7 @@
               "refused_host_network",
               "refused_host_user_namespace",
               "refused_http_port_ambiguous",
+              "refused_http_service_ambiguous",
               "refused_image_reference",
               "refused_image_volume",
               "refused_legacy_links",
@@ -175,7 +181,14 @@
       }
     },
     "application": {
-      "$ref": "homelab-own-application-v4.schema.json"
+      "oneOf": [
+        {
+          "$ref": "homelab-own-application-v4.schema.json"
+        },
+        {
+          "$ref": "homelab-own-application-v3.schema.json"
+        }
+      ]
     },
     "hiddenKeys": {
       "type": "array",
@@ -200,6 +213,9 @@
     "data": {
       "type": "object",
       "properties": {
+        "service": {
+          "type": "string"
+        },
         "source": {
           "type": "string"
         },
@@ -223,6 +239,42 @@
         },
         "digest": {
           "type": "string"
+        }
+      }
+    },
+    "serviceData": {
+      "type": "array",
+      "description": "Per-service data sources copied into named volumes for a homelab.own-application/v3 Compose project adoption.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "mountPath": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "string"
+          },
+          "measured": {
+            "type": "boolean"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "freeBytes": {
+            "type": "integer"
+          },
+          "digest": {
+            "type": "string"
+          }
         }
       }
     },

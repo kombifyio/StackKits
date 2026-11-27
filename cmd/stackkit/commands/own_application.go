@@ -36,8 +36,8 @@ func newOwnApplicationCommand() *cobra.Command {
 		fail := func(code string, err error) error {
 			return writeOwnApplicationFailure(cmd, action, name, imageTag != "" || checkpoint != "", code, err)
 		}
-		if adoption.phase != "" || adoption.planDigest != "" {
-			return fail(ownAppReasonInvalidRequest, errors.New("--phase and --plan-digest belong to --from-container"))
+		if adoption.phase != "" || adoption.planDigest != "" || adoption.adoptComposeProject || adoption.httpService != "" {
+			return fail(ownAppReasonInvalidRequest, errors.New("--phase, --plan-digest, --adopt-compose-project and --http-service belong to --from-container"))
 		}
 		if imageTag != "" && (action != "update" || document != "" || secretsFile != "" || resolvedImagesFile != "" || installationFile != "") {
 			return fail(ownAppReasonInvalidRequest, errors.New("--image-tag is a tag update of the application's own image: --action update without --document, --secrets-file, --resolved-images-file or --installation-file"))
@@ -207,6 +207,8 @@ func newOwnApplicationCommand() *cobra.Command {
 	c.Flags().StringArrayVar(&adoption.secretEnv, "secret-env", nil, "Adoption: also classify this environment variable as a credential (repeatable); every value is hidden anyway")
 	c.Flags().BoolVar(&adoption.noOutbound, "no-outbound", false, "Adopt without outbound Internet; published host ports stay and only answer connections made to them")
 	c.Flags().IntVar(&adoption.httpPort, "http-port", 0, "Adoption: the container's web port when it exposes several")
+	c.Flags().BoolVar(&adoption.adoptComposeProject, "adopt-compose-project", false, "Adoption: adopt all services (2..8) of the container's Compose project as a homelab.own-application/v3 project")
+	c.Flags().StringVar(&adoption.httpService, "http-service", "", "Adoption (--adopt-compose-project): the Compose service that serves the routed HTTP port when multiple candidates exist")
 	c.Flags().IntVar(&adoption.memoryMiB, "memory-mib", 0, "Adoption: memory limit (64..8192 MiB; default the original's limit or 2048)")
 	c.Flags().Float64Var(&adoption.cpus, "cpus", 0, "Adoption: CPU limit (0.1..4; default the original's limit or 2)")
 	addDecisionReceiptFlags(c)
@@ -239,11 +241,11 @@ func ownApplicationDecisionRequest(workspace, name, operationID, reviewDigest st
 }
 
 type ownApplicationAdoptionFlags struct {
-	container, phase, planDigest string
-	release, restore, noOutbound bool
-	secretEnv                    []string
-	httpPort, memoryMiB          int
-	cpus                         float64
+	container, phase, planDigest, httpService         string
+	release, restore, noOutbound, adoptComposeProject bool
+	secretEnv                                         []string
+	httpPort, memoryMiB                               int
+	cpus                                              float64
 }
 
 // runOwnApplicationAdoption runs one phase of "Stack it": an existing
@@ -262,7 +264,7 @@ func runOwnApplicationAdoption(cmd *cobra.Command, f ownApplicationAdoptionFlags
 	if phase == "" {
 		phase = "inspect"
 	}
-	req := ownapplication.AdoptionRequest{Phase: phase, Container: f.container, Name: name, HTTPPort: f.httpPort, NoOutbound: f.noOutbound, MemoryMiB: f.memoryMiB, CPUs: f.cpus, PlanDigest: f.planDigest, OperationID: operation, OwnerApproved: approved, SecretEnv: f.secretEnv}
+	req := ownapplication.AdoptionRequest{Phase: phase, Container: f.container, Name: name, HTTPPort: f.httpPort, HTTPService: f.httpService, AdoptComposeProject: f.adoptComposeProject, NoOutbound: f.noOutbound, MemoryMiB: f.memoryMiB, CPUs: f.cpus, PlanDigest: f.planDigest, OperationID: operation, OwnerApproved: approved, SecretEnv: f.secretEnv}
 	if f.container == "" {
 		return errors.New("--from-container is required")
 	}

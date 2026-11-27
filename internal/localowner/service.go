@@ -129,28 +129,51 @@ type Result struct {
 	EnrollmentPath string
 }
 
+// OwnerActivationState is the typed owner passkey lifecycle reported by status.
+type OwnerActivationState string
+
+const (
+	OwnerActivationNotBound             OwnerActivationState = "not-bound"
+	OwnerActivationPending              OwnerActivationState = "pending"
+	OwnerActivationActive               OwnerActivationState = "active"
+	OwnerActivationExpired              OwnerActivationState = "expired"
+	OwnerActivationReenrollmentRequired OwnerActivationState = "reenrollment-required"
+)
+
 // OwnerActivation is the owner-bound passkey enrollment state. SetupURL is
 // returned only by the explicit activation operation and must remain transient.
 type OwnerActivation struct {
-	Status    string
+	Status    OwnerActivationState
 	Origin    string
 	ExpiresAt time.Time
 	SetupURL  string
 }
 
 // OwnerActivationStatus verifies the exact owner runtime binding and reports
-// completion from PocketID's passkey records.
+// completion from PocketID's passkey records. A missing binding before Apply is
+// the expected not-bound state; every other local custody or read error remains
+// fatal and no PocketID request is made until the binding verifies.
 func (s *Service) OwnerActivationStatus(ctx context.Context) (OwnerActivation, error) {
 	owner, client, err := s.ready(ctx)
 	if err != nil {
 		return OwnerActivation{}, err
 	}
-	binding, err := s.Verify(ctx)
+	binding, err := localevidence.LoadOwnerRuntimeBinding(s.workspaceRoot)
+	if errors.Is(err, localevidence.ErrOwnerRuntimeBindingMissing) {
+		address, addressErr := localevidence.LocalIdentityRuntimeAddress(s.workspaceRoot)
+		if addressErr != nil {
+			return OwnerActivation{}, addressErr
+		}
+		return OwnerActivation{Status: OwnerActivationNotBound, Origin: address.PocketIDOrigin()}, nil
+	}
 	if err != nil {
 		return OwnerActivation{}, err
 	}
 	if binding.OwnerRef != owner.OwnerRef {
 		return OwnerActivation{}, errors.New("localowner: owner activation binding mismatch")
+	}
+	if err := s.verifyBoundOwnerRuntime(ctx, owner, client, binding, true); err != nil {
+		return OwnerActivation{}, err
 	}
 	address, err := localevidence.LocalIdentityRuntimeAddress(s.workspaceRoot)
 	if err != nil {
@@ -166,12 +189,12 @@ func (s *Service) OwnerActivationStatus(ctx context.Context) (OwnerActivation, e
 		return OwnerActivation{}, err
 	}
 	if active {
-		activation.Status = "active"
+		activation.Status = OwnerActivationActive
 		return activation, nil
 	}
 	enrollment, err := localevidence.LoadPocketIDOwnerEnrollment(s.workspaceRoot)
 	if errors.Is(err, os.ErrNotExist) && migrated {
-		activation.Status = "reenrollment-required"
+		activation.Status = OwnerActivationReenrollmentRequired
 		return activation, nil
 	}
 	if err != nil || enrollment.OwnerRef != owner.OwnerRef || enrollment.PocketIDSubject != binding.PocketIDSubject {
@@ -179,14 +202,14 @@ func (s *Service) OwnerActivationStatus(ctx context.Context) (OwnerActivation, e
 	}
 	parsed, parseErr := url.Parse(enrollment.SetupURL)
 	if migrated && (parseErr != nil || parsed.Scheme+"://"+parsed.Host != activation.Origin) {
-		activation.Status = "reenrollment-required"
+		activation.Status = OwnerActivationReenrollmentRequired
 		return activation, nil
 	}
 	activation.ExpiresAt = enrollment.ExpiresAt
 	if enrollment.ExpiresAt.After(s.now().UTC()) {
-		activation.Status = "pending"
+		activation.Status = OwnerActivationPending
 	} else {
-		activation.Status = "expired"
+		activation.Status = OwnerActivationExpired
 	}
 	return activation, nil
 }
@@ -198,8 +221,11 @@ func (s *Service) OwnerActivationStatus(ctx context.Context) (OwnerActivation, e
 // never mints a link for an active owner.
 func (s *Service) IssueOwnerActivation(ctx context.Context) (OwnerActivation, error) {
 	status, err := s.OwnerActivationStatus(ctx)
-	if err != nil || status.Status == "active" {
+	if err != nil || status.Status == OwnerActivationActive {
 		return status, err
+	}
+	if status.Status == OwnerActivationNotBound {
+		return status, errors.New("localowner: owner activation requires an applied owner runtime binding; run stackkit apply")
 	}
 	owner, client, err := s.ready(ctx)
 	if err != nil {
@@ -227,7 +253,7 @@ func (s *Service) IssueOwnerActivation(ctx context.Context) (OwnerActivation, er
 	}); err != nil {
 		return OwnerActivation{}, err
 	}
-	status.Status = "pending"
+	status.Status = OwnerActivationPending
 	return status, nil
 }
 
@@ -464,20 +490,30 @@ func (s *Service) verifyOwnerRuntime(ctx context.Context, requirePKCE bool) (loc
 	if err != nil {
 		return localevidence.OwnerRuntimeBinding{}, err
 	}
-	if err := verifyPocketIDAdmin(ctx, client); err != nil {
-		return localevidence.OwnerRuntimeBinding{}, err
-	}
-	if err := s.verifyBoundOwner(ctx, client, owner, binding); err != nil {
-		return localevidence.OwnerRuntimeBinding{}, err
-	}
-	groupIDs, err := exactRequiredGroupIDs(ctx, client)
-	if err != nil {
-		return localevidence.OwnerRuntimeBinding{}, err
-	}
-	if err := s.verifyTinyAuthPocketIDBindingPolicy(ctx, client, owner, groupIDs, requirePKCE); err != nil {
+	if err := s.verifyBoundOwnerRuntime(ctx, owner, client, binding, requirePKCE); err != nil {
 		return localevidence.OwnerRuntimeBinding{}, err
 	}
 	return binding, nil
+}
+
+func (s *Service) verifyBoundOwnerRuntime(
+	ctx context.Context,
+	owner localevidence.OwnerCustody,
+	client pocketIDOwnerClient,
+	binding localevidence.OwnerRuntimeBinding,
+	requirePKCE bool,
+) error {
+	if err := verifyPocketIDAdmin(ctx, client); err != nil {
+		return err
+	}
+	if err := s.verifyBoundOwner(ctx, client, owner, binding); err != nil {
+		return err
+	}
+	groupIDs, err := exactRequiredGroupIDs(ctx, client)
+	if err != nil {
+		return err
+	}
+	return s.verifyTinyAuthPocketIDBindingPolicy(ctx, client, owner, groupIDs, requirePKCE)
 }
 
 func (s *Service) ensureTinyAuthPocketIDBinding(

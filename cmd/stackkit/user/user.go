@@ -215,7 +215,7 @@ lists each revocation-registry artifact and what the chain did for it.`,
 }
 
 func writeOwnerActivation(cmd *cobra.Command, activation localowner.OwnerActivation, includeURL bool) error {
-	data := map[string]string{"status": activation.Status, "origin": activation.Origin}
+	data := map[string]string{"status": string(activation.Status), "origin": activation.Origin}
 	if !activation.ExpiresAt.IsZero() {
 		data["expiresAt"] = activation.ExpiresAt.UTC().Format(time.RFC3339)
 	}

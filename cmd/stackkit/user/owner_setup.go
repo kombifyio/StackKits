@@ -61,14 +61,14 @@ func newOwnerSetupCommand(api householdAPI) *cobra.Command {
 			} else {
 				activation, activationErr := service.OwnerActivationStatus(cmd.Context())
 				switch {
-				case errors.Is(activationErr, localevidence.ErrOwnerRuntimeBindingMissing):
+				case activationErr == nil && activation.Status == localowner.OwnerActivationNotBound:
 					mark(&steps[1], false, "", "run stackkit apply: Pocket ID must run before the Owner registers a passkey")
 				case activationErr != nil:
 					// Pocket ID is not reachable (a move quiesced the Core): the passkey
 					// step is the next one, once the StackKit is applied again.
 					mark(&steps[1], false, "", "Pocket ID cannot be read ("+activationErr.Error()+"); run stackkit apply")
 				default:
-					mark(&steps[1], activation.Status == "active" && activation.Origin == origin, activation.Origin, activation.Status+"; run stackkit user owner activate --owner-approve")
+					mark(&steps[1], activation.Status == localowner.OwnerActivationActive && activation.Origin == origin, activation.Origin, string(activation.Status)+"; run stackkit user owner activate --owner-approve")
 				}
 				if blocked {
 					steps[2].Status, steps[3].Status = "waiting", "waiting"
