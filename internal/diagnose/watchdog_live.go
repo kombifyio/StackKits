@@ -341,28 +341,29 @@ func probeUDPDNS(ctx context.Context, addr string) bool {
 	return err == nil && n >= 12
 }
 
-// ReconcileCoolifyProxyLive stops any running `coolify-proxy` container that
-// drifted onto the host, returning the affected container names.
+// ReconcileCoolifyProxyLive removes any running, stopped, or created
+// `coolify-proxy` container that drifted onto the host, returning the affected
+// container names.
 func ReconcileCoolifyProxyLive(ctx context.Context) ([]string, error) {
-	rows, err := listDockerContainers(ctx, false)
+	rows, err := listDockerContainers(ctx, true)
 	if err != nil {
 		return nil, err
 	}
-	var stopped []string
+	var removed []string
 	for _, row := range rows {
 		if !strings.Contains(strings.ToLower(row.Name), "coolify-proxy") {
 			continue
 		}
-		if stopErr := runDockerCommand(ctx, "stop", row.ID); stopErr != nil {
-			return stopped, fmt.Errorf("stop drifting coolify-proxy %s: %w", row.Name, stopErr)
+		if rmErr := runDockerCommand(ctx, "rm", "-f", row.ID); rmErr != nil {
+			return removed, fmt.Errorf("remove drifting coolify-proxy %s: %w", row.Name, rmErr)
 		}
-		stopped = append(stopped, row.Name)
+		removed = append(removed, row.Name)
 	}
-	return stopped, nil
+	return removed, nil
 }
 
 func reconcileCoolifyProxyWithPolicy(ctx context.Context, policy RepairPolicy) (WatchdogRepairOutcome, bool) {
-	rows, err := listDockerContainers(ctx, false)
+	rows, err := listDockerContainers(ctx, true)
 	if err != nil {
 		return WatchdogRepairOutcome{}, false
 	}
@@ -384,7 +385,7 @@ func reconcileCoolifyProxyWithPolicy(ctx context.Context, policy RepairPolicy) (
 		}, true
 	}
 	for _, row := range drifting {
-		if err := runDockerCommand(ctx, "stop", row.ID); err != nil {
+		if err := runDockerCommand(ctx, "rm", "-f", row.ID); err != nil {
 			return WatchdogRepairOutcome{
 				Effect: string(RepairReconcileCoolifyProxy),
 				Target: row.Name,
@@ -397,7 +398,7 @@ func reconcileCoolifyProxyWithPolicy(ctx context.Context, policy RepairPolicy) (
 		Effect: string(RepairReconcileCoolifyProxy),
 		Target: drifting[0].Name,
 		Status: "executed",
-		Reason: "stopped drifting coolify-proxy to preserve Kit-Traefik port ownership",
+		Reason: "removed drifting coolify-proxy to preserve Kit-Traefik port ownership",
 	}, true
 }
 

@@ -175,6 +175,9 @@ archives:
         dst: licenses/coolify-mirror/LICENSE
       - docs/CLI.md
       - docs/OPEN-SPEC.md
+      - docs/ADR/ADR-0051-server-mcp-host-execution-authority.md
+      - docs/ADR/ADR-0054-single-core-engine-and-coolify-extensibility-boundary.md
+      - docs/ADR/ADR-0055-declarative-app-module-v3-and-three-zone-lifecycle.md
       - docs/OS_COMPATIBILITY.md
       - architecture-snapshot.json
       - architecture-snapshot.schema.json
@@ -275,6 +278,9 @@ archives:
         dst: licenses/coolify-mirror/LICENSE
       - docs/CLI.md
       - docs/OPEN-SPEC.md
+      - docs/ADR/ADR-0051-server-mcp-host-execution-authority.md
+      - docs/ADR/ADR-0054-single-core-engine-and-coolify-extensibility-boundary.md
+      - docs/ADR/ADR-0055-declarative-app-module-v3-and-three-zone-lifecycle.md
       - docs/OS_COMPATIBILITY.md
       - architecture-snapshot.json
       - architecture-snapshot.schema.json
@@ -372,6 +378,9 @@ archives:
         dst: licenses/coolify-mirror/LICENSE
       - docs/CLI.md
       - docs/OPEN-SPEC.md
+      - docs/ADR/ADR-0051-server-mcp-host-execution-authority.md
+      - docs/ADR/ADR-0054-single-core-engine-and-coolify-extensibility-boundary.md
+      - docs/ADR/ADR-0055-declarative-app-module-v3-and-three-zone-lifecycle.md
       - docs/OS_COMPATIBILITY.md
       - architecture-snapshot.json
       - architecture-snapshot.schema.json
@@ -469,6 +478,9 @@ archives:
         dst: licenses/coolify-mirror/LICENSE
       - docs/CLI.md
       - docs/OPEN-SPEC.md
+      - docs/ADR/ADR-0051-server-mcp-host-execution-authority.md
+      - docs/ADR/ADR-0054-single-core-engine-and-coolify-extensibility-boundary.md
+      - docs/ADR/ADR-0055-declarative-app-module-v3-and-three-zone-lifecycle.md
       - docs/OS_COMPATIBILITY.md
       - architecture-snapshot.json
       - architecture-snapshot.schema.json

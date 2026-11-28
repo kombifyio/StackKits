@@ -218,7 +218,7 @@ check_archive_contents() {
   mkdir -p "$spec_dir"
   tar xzf "$archive" -C "$spec_dir" --wildcards \
     'docs/*' 'schemas/*' 'architecture-snapshot*' \
-    'architecture/v2/authority-manifest.json' 'foundation/placement.cue'
+    'architecture/v2/authority-manifest.json' 'foundation/placement.cue' 'foundation/app_module_v3.cue'
   node "$source_dir/scripts/release/check-markdown-links.mjs" "$spec_dir" docs/OPEN-SPEC.md
 }
 
