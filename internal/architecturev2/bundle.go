@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kombifyio/stackkits"
 	"github.com/kombifyio/stackkits/internal/architecturev2/authoritysources"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/stackspecmigration"
@@ -23,17 +24,14 @@ import (
 const (
 	embeddedProductBundleRoot         = "authority_bundle"
 	embeddedContractFixtureBundleRoot = "contract_fixture_bundle"
-	embeddedBundleRoot                = embeddedProductBundleRoot // compatibility name for product-bundle tests
 	embeddedBundleSchemaVersion       = "stackkit.architecture-authority-bundle/v2"
 )
 
-// Product and contract-fixture authorities are deliberately embedded as two
-// independent roots. Loading the product service never parses, hashes, walks,
-// or validates the fixture root, so fixture drift cannot affect product/API
-// startup.
-//
-//go:embed authority_bundle contract_fixture_bundle
+//go:embed authority_bundle
 var embeddedBundleFS embed.FS
+
+//go:embed contract_fixture_bundle
+var embeddedFixtureBundleFS embed.FS
 
 type authorityBundleManifest struct {
 	SchemaVersion  string            `json:"schemaVersion"`
@@ -101,17 +99,14 @@ func loadEmbeddedAuthorityForRole(role embeddedAuthorityRole) (*cueAuthority, er
 	if err != nil {
 		return nil, err
 	}
-	if err := verifyEmbeddedSourceHashesForRoot(role.root, manifest); err != nil {
-		return nil, err
-	}
 	if err := verifyEmbeddedDocumentHashesForRoot(role.root, manifest); err != nil {
 		return nil, err
 	}
-	digest, err := embeddedBundleDigestForRoot(role.root)
+	contractSources, err := verifiedEmbeddedSources(role, manifest)
 	if err != nil {
 		return nil, err
 	}
-	contractSources, err := embeddedContractSourcesForRoot(role.root, manifest)
+	digest, err := embeddedBundleDigest(role, contractSources)
 	if err != nil {
 		return nil, err
 	}
@@ -169,13 +164,17 @@ func readEmbeddedManifest() (authorityBundleManifest, error) {
 	return readEmbeddedManifestForRole(productAuthorityRole)
 }
 
-func readEmbeddedContractFixtureManifest() (authorityBundleManifest, error) {
-	return readEmbeddedManifestForRole(contractFixtureAuthorityRole)
+func bundleDocuments(root string) embed.FS {
+	if root == embeddedContractFixtureBundleRoot {
+		return embeddedFixtureBundleFS
+	}
+	return embeddedBundleFS
 }
 
 //nolint:gocyclo // Manifest decoding intentionally validates every role-specific allowlist and embedded-file invariant before returning authority data.
 func readEmbeddedManifestForRole(role embeddedAuthorityRole) (authorityBundleManifest, error) {
-	data, err := embeddedBundleFS.ReadFile(role.root + "/manifest.json")
+	documents := bundleDocuments(role.root)
+	data, err := documents.ReadFile(role.root + "/manifest.json")
 	if err != nil {
 		return authorityBundleManifest{}, err
 	}
@@ -227,7 +226,7 @@ func readEmbeddedManifestForRole(role embeddedAuthorityRole) (authorityBundleMan
 	if err := validateAuthorityRoleManifest(role, manifest); err != nil {
 		return authorityBundleManifest{}, err
 	}
-	if err := verifyBundleFileSet(embeddedBundleFS, role.root, manifest); err != nil {
+	if err := verifyBundleFileSet(documents, role.root, manifest); err != nil {
 		return authorityBundleManifest{}, err
 	}
 	if err := verifyEmbeddedAuthorityRoleContent(role, manifest); err != nil {
@@ -365,19 +364,26 @@ func verifyEmbeddedAuthorityRoleContent(role embeddedAuthorityRole, manifest aut
 		if relativePath == "manifest.json" {
 			continue
 		}
-		data, err := embeddedBundleFS.ReadFile(role.root + "/" + filepath.ToSlash(relativePath))
+		data, err := bundleDocuments(role.root).ReadFile(role.root + "/" + relativePath)
 		if err != nil {
 			return err
 		}
-		for _, forbidden := range []string{
-			"stackkits-contract-fixture/",
-			"stackkit-contract-fixture",
-			"ArchitectureV2ContractFixtureCatalog",
-			"ContractFixtureDefinition",
-		} {
-			if bytes.Contains(data, []byte(forbidden)) {
-				return fmt.Errorf("embedded product authority file %s contains forbidden contract-fixture namespace %q", relativePath, forbidden)
-			}
+		if err := rejectEmbeddedFixtureNamespace(relativePath, data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rejectEmbeddedFixtureNamespace(relativePath string, data []byte) error {
+	for _, forbidden := range []string{
+		"stackkits-contract-fixture/",
+		"stackkit-contract-fixture",
+		"ArchitectureV2ContractFixtureCatalog",
+		"ContractFixtureDefinition",
+	} {
+		if bytes.Contains(data, []byte(forbidden)) {
+			return fmt.Errorf("embedded product authority file %s contains forbidden contract-fixture namespace %q", relativePath, forbidden)
 		}
 	}
 	return nil
@@ -416,13 +422,6 @@ func verifyBundleFileSet(bundleFS fs.FS, bundleRoot string, manifest authorityBu
 
 func expectedBundleFiles(manifest authorityBundleManifest) (map[string]struct{}, error) {
 	expected := map[string]struct{}{"manifest.json": {}}
-	for relativePath := range manifest.SourceHashes {
-		clean, err := cleanBundleRelativePath(relativePath)
-		if err != nil {
-			return nil, err
-		}
-		expected[clean] = struct{}{}
-	}
 	for _, relativePath := range manifest.Documents {
 		clean, err := cleanBundleRelativePath(relativePath)
 		if err != nil {
@@ -456,7 +455,7 @@ func readEmbeddedUseCaseProjection(root, relativePath string) (map[string][]usec
 	if err != nil {
 		return nil, nil, err
 	}
-	data, err := embeddedBundleFS.ReadFile(root + "/" + clean)
+	data, err := bundleDocuments(root).ReadFile(root + "/" + clean)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -480,16 +479,21 @@ func readEmbeddedDocumentForRoot(root, relativePath string) (map[string]any, err
 	if err != nil {
 		return nil, err
 	}
-	data, err := embeddedBundleFS.ReadFile(root + "/" + clean)
+	data, err := bundleDocuments(root).ReadFile(root + "/" + clean)
 	if err != nil {
 		return nil, err
 	}
 	return resolvedplan.DecodeDocument[map[string]any](data)
 }
 
-func embeddedBundleDigestForRoot(root string) (string, error) {
-	var paths []string
-	err := fs.WalkDir(embeddedBundleFS, root, func(path string, entry fs.DirEntry, err error) error {
+func embeddedBundleDigest(role embeddedAuthorityRole, sources map[string][]byte) (string, error) {
+	root := role.root
+	documents := bundleDocuments(root)
+	paths := make([]string, 0, len(sources))
+	for path := range sources {
+		paths = append(paths, root+"/"+path)
+	}
+	err := fs.WalkDir(documents, root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -504,9 +508,13 @@ func embeddedBundleDigestForRoot(root string) (string, error) {
 	sort.Strings(paths)
 	hash := sha256.New()
 	for _, path := range paths {
-		data, err := embeddedBundleFS.ReadFile(path)
-		if err != nil {
-			return "", err
+		data, ok := sources[strings.TrimPrefix(path, root+"/")]
+		if !ok {
+			var err error
+			data, err = documents.ReadFile(path)
+			if err != nil {
+				return "", err
+			}
 		}
 		_, _ = hash.Write([]byte(path))
 		_, _ = hash.Write([]byte{0})
@@ -516,16 +524,27 @@ func embeddedBundleDigestForRoot(root string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func embeddedContractSourcesForRoot(root string, manifest authorityBundleManifest) (map[string][]byte, error) {
+func verifiedEmbeddedSources(role embeddedAuthorityRole, manifest authorityBundleManifest) (map[string][]byte, error) {
 	sources := make(map[string][]byte, len(manifest.SourceHashes))
-	for relativePath := range manifest.SourceHashes {
+	for relativePath, wantHash := range manifest.SourceHashes {
 		clean, err := cleanBundleRelativePath(relativePath)
 		if err != nil {
 			return nil, err
 		}
-		data, err := embeddedBundleFS.ReadFile(root + "/" + clean)
+		if clean != relativePath {
+			return nil, fmt.Errorf("non-canonical embedded %s source path %q", role.name, relativePath)
+		}
+		data, err := stackkits.ReadAuthorityCUESource(clean, role.fixture)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("read embedded %s source %s: %w", role.name, clean, err)
+		}
+		if gotHash := sha256ContentHash(data); gotHash != wantHash {
+			return nil, fmt.Errorf("embedded %s source %s hash is %s, manifest requires %s", role.name, clean, gotHash, wantHash)
+		}
+		if !role.fixture {
+			if err := rejectEmbeddedFixtureNamespace(clean, data); err != nil {
+				return nil, err
+			}
 		}
 		sources[clean] = data
 	}
@@ -540,26 +559,13 @@ func embeddedVirtualModuleRoot(role, digest string) string {
 	return filepath.Join(string(filepath.Separator), "__stackkits_cue_overlay__", role, digest)
 }
 
-func verifyEmbeddedSourceHashesForRoot(root string, manifest authorityBundleManifest) error {
-	for relativePath, wantHash := range manifest.SourceHashes {
-		data, err := embeddedBundleFS.ReadFile(root + "/" + filepath.ToSlash(relativePath))
-		if err != nil {
-			return fmt.Errorf("read embedded source %s/%s: %w", root, relativePath, err)
-		}
-		if gotHash := sha256ContentHash(data); gotHash != wantHash {
-			return fmt.Errorf("embedded source %s/%s hash is %s, manifest requires %s", root, relativePath, gotHash, wantHash)
-		}
-	}
-	return nil
-}
-
 func verifyEmbeddedDocumentHashesForRoot(root string, manifest authorityBundleManifest) error {
 	for relativePath, wantHash := range manifest.DocumentHashes {
 		clean, err := cleanBundleRelativePath(relativePath)
 		if err != nil {
 			return err
 		}
-		data, err := embeddedBundleFS.ReadFile(root + "/" + clean)
+		data, err := bundleDocuments(root).ReadFile(root + "/" + clean)
 		if err != nil {
 			return fmt.Errorf("read embedded generated document %s/%s: %w", root, clean, err)
 		}

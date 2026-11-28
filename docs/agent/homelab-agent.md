@@ -40,4 +40,4 @@ registry manifest; inspect `record.bundle.resolvedImage` and repeat that exact
 router network cannot be loosened. Removal deletes secrets unless `keep_secrets`
 explicitly accompanies a retained volume.
 
-V1 has no outbound Internet. Offline render/Homelab authoring requires a digest-pinned image; only create/update dry review resolves tags, from public DNS registries over HTTPS port 443. A private bridge blocks direct service peering; router web ports remain reachable as an anonymous LAN client, including published applications without sign-in. Optional outbound Internet is tracked on platform-ndawck and is not available in v1.
+V1 has no outbound Internet. Offline render/Homelab authoring requires a digest-pinned image; only create/update dry review resolves tags, from public DNS registries over HTTPS port 443. A private bridge blocks direct service peering; router web ports remain reachable as an anonymous LAN client, including published applications without sign-in. Optional outbound Internet is not available in v1.

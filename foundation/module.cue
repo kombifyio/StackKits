@@ -66,9 +66,14 @@ package foundation
 // #DeliveryManager identifies the runtime owner for a delivered module.
 #DeliveryManager: "stackkit" | "selected-paas" | "external-paas"
 
-// #ModuleDelivery declares the delivery boundary for a module. Layer-3
+// #ModuleDelivery declares the legacy delivery boundary for a module. Layer-3
 // applications may emit compose manifests, but those manifests are PaaS input;
-// OpenTofu/local-exec must not start L3 applications directly.
+// OpenTofu/local-exec must not start L3 applications directly. The one
+// exception is a module that also declares an `AppModuleV3` value
+// (foundation/app_module_v3.cue): internal/engine renders it and its
+// delivery contract ("opentofu-stage1" or "compose") applies the Compose
+// project through the ADR-0045 Stage 1 wrapper or the standalone Compose
+// owner (scripts/release/check-l3-paas-contract.mjs admits both).
 #ModuleDelivery: {
 	type:      #DeliveryType
 	managedBy: #DeliveryManager

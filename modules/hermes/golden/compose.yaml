@@ -1,0 +1,49 @@
+name: stackkit-ai-main
+services:
+    hermes:
+        image: docker.io/nousresearch/hermes-agent:v2026.9.24@sha256:fca358f12efd65bfaaca05884166f15c0e2788375ca30d77061ac1ebc96452b7
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 3g
+                reservations:
+                    memory: 512m
+        command:
+            - gateway
+            - run
+        entrypoint:
+            - /bin/sh
+            - /opt/stackkit/start.sh
+        environment:
+            HERMES_DASHBOARD: "1"
+            HERMES_DASHBOARD_BASIC_AUTH_USERNAME: owner
+            HERMES_DASHBOARD_HOST: 0.0.0.0
+            HERMES_DASHBOARD_PORT: "9119"
+            SEARXNG_URL: http://searxng:8080
+        volumes:
+            - hermes-data:/opt/data
+            - hermes-policy:/opt/stackkit
+        networks:
+            - hermes-internal
+            - stackkit-workload-egress
+            - stackkit-workload-health
+        ports:
+            - 127.0.0.1::9119
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    hermes-internal:
+        internal: true
+    stackkit-workload-egress: {}
+    stackkit-workload-health: {}
+volumes:
+    hermes-data: {}
+    hermes-policy: {}

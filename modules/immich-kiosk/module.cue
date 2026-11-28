@@ -86,3 +86,60 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Immich Kiosk dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of immich-kiosk (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-immich-kiosk-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-immich-kiosk-runtime"
+	workloadRef:    "photos"
+	alternativeRef: "immich-kiosk"
+	release:        "0.45.0"
+	entryComponent: "immich-kiosk"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "kiosk"
+		targetPort:        3000
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "immich-kiosk-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"immich-api-key": purpose: "Custody secret slot immich-api-key for immich-kiosk"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "immich-kiosk", volumeRef: "config"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"immich-kiosk-internal": {}
+	}
+	components: [
+		{
+			id:        "immich-kiosk"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["immich-kiosk"]
+			environment: {
+				KIOSK_IMMICH_URL: "http://immich-server:2283"
+			}
+			secretEnvironment: {
+				KIOSK_IMMICH_API_KEY: "immich-api-key"
+			}
+			volumes: [
+				{id: "config", target: "/config", class: "persistent", backup: true},
+			]
+			networks: ["immich-kiosk-internal"]
+			health: {kind: "http", path: "/health", port: 3000}
+			resources: {memoryLimit: "256m", memoryReservation: "64m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

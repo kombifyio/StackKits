@@ -22,10 +22,13 @@ func init() {
 	agentPromptBodies["homelab-agent"] = string(raw)
 }
 func newOwnApplicationCommand() *cobra.Command {
-	var action, name, document, installationFile, operation, review, resolvedImage, resolvedImagesFile, secretsFile, imageTag, capabilityFile, checkpoint string
+	var action, name, document, installationFile, operation, review, resolvedImage, resolvedImagesFile, secretsFile, imageTag, capabilityFile, checkpoint, imageIdentityFile string
 	var dry, approved, deleteData, keepSecrets, outputJSON, allowMajor bool
 	var adoption ownApplicationAdoptionFlags
 	c := &cobra.Command{Use: "own", Short: "Render or operate one Homelab-owned container or Compose project on this node, or adopt an existing container (--from-container)", Annotations: map[string]string{noDeployObservabilityAnnotation: "true"}, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
+		if imageIdentityFile != "" && (action != "update" || adoption.container != "" || adoption.release || adoption.restore) {
+			return writeOwnApplicationFailure(cmd, action, name, imageTag != "", ownAppReasonInvalidRequest, errors.New("--image-identity-file belongs to an image update"))
+		}
 		if adoption.container != "" || adoption.release || adoption.restore {
 			if cmd.Flags().Changed("action") || document != "" || secretsFile != "" || resolvedImage != "" || resolvedImagesFile != "" || review != "" || dry || deleteData || keepSecrets || decisionReceiptPresented() {
 				return errors.New("--from-container takes --phase, --name, --plan-digest, --operation-id and --owner-approve; it renders its own document")
@@ -65,6 +68,16 @@ func newOwnApplicationCommand() *cobra.Command {
 			}
 		}
 		req := ownapplication.Request{Action: action, Name: name, OperationID: operation, ReviewDigest: review, DryRun: dry, OwnerApproved: approved || receipted, DeleteData: deleteData, KeepSecrets: keepSecrets, ResolvedImage: resolvedImage, Checkpoint: checkpoint}
+		if imageIdentityFile != "" {
+			raw, err := readAdvancedRegular(resolvePathFromWorkDir(getWorkDir(), imageIdentityFile), 2<<20, "image identity bundle")
+			if err != nil {
+				return fail(ownapplication.ReasonIdentityRefused, err)
+			}
+			req.ImageIdentity = &ownapplication.ImageIdentityEvidence{Bundle: raw}
+			if err := req.ImageIdentity.Validate(); err != nil {
+				return fail(ownapplication.ReasonIdentityRefused, err)
+			}
+		}
 		if document != "" {
 			raw, err := readOwnApplicationDocument(document)
 			if err != nil {
@@ -159,7 +172,7 @@ func newOwnApplicationCommand() *cobra.Command {
 			}
 		}
 		if imageTag != "" {
-			return runOwnApplicationImageUpdate(cmd, i, ownapplication.ImageUpdateRequest{Name: name, Tag: imageTag, AllowMajor: allowMajor, DryRun: dry, ResolvedImage: resolvedImage, OperationID: operation, ReviewDigest: review, OwnerApproved: approved, HelperImage: helperImage, PlanHash: planHash})
+			return runOwnApplicationImageUpdate(cmd, i, ownapplication.ImageUpdateRequest{Name: name, Tag: imageTag, AllowMajor: allowMajor, DryRun: dry, ResolvedImage: resolvedImage, OperationID: operation, ReviewDigest: review, OwnerApproved: approved, HelperImage: helperImage, PlanHash: planHash, ImageIdentity: req.ImageIdentity})
 		}
 		if action == "discard-checkpoint" {
 			return writeOwnApplicationUpdateResult(cmd, func() (ownapplication.ImageUpdateResult, error) {
@@ -195,6 +208,7 @@ func newOwnApplicationCommand() *cobra.Command {
 	c.Flags().BoolVar(&approved, "owner-approve", false, "Approve this exact local operation")
 	c.Flags().BoolVar(&deleteData, "delete-data", false, "Delete the named volume on remove; default retains it in backup")
 	c.Flags().BoolVar(&outputJSON, "json", false, "Return the versioned result as JSON")
+	c.Flags().StringVar(&imageIdentityFile, "image-identity-file", "", "Sigstore bundle for a stateless one-container image change; required with installed node image trust or retained image admission")
 	c.Flags().StringVar(&imageTag, "image-tag", "", "Update only: move a one-container application to this newer version tag of its own image (re-resolved before stopping, data checkpoint, verify, automatic rollback of image and data)")
 	c.Flags().BoolVar(&allowMajor, "allow-major", false, "With --image-tag: admit a different major version, or a running image that names no version; never a downgrade or another variant")
 	c.Flags().StringVar(&checkpoint, "checkpoint", "", "Rollback: restore the data checkpoint this tag update operation took, then return to its prior image; discard-checkpoint: remove its retained copy")
@@ -212,6 +226,7 @@ func newOwnApplicationCommand() *cobra.Command {
 	c.Flags().IntVar(&adoption.memoryMiB, "memory-mib", 0, "Adoption: memory limit (64..8192 MiB; default the original's limit or 2048)")
 	c.Flags().Float64Var(&adoption.cpus, "cpus", 0, "Adoption: CPU limit (0.1..4; default the original's limit or 2)")
 	addDecisionReceiptFlags(c)
+	c.AddCommand(newOwnApplicationImageTrustCommand())
 	return c
 }
 

@@ -77,6 +77,10 @@ type AuthoringOverrides struct {
 	// Credentials never travel here; CUE validates the resulting intent.
 	NtfyTopic     string
 	NtfyServerURL string
+	// SetupStyle selects Tier-2 automatic app personalization ("bootstrapped"
+	// default vs. "clean" Clean Rollout). Persisted into
+	// install.platform.setupPolicy.applicationDefault ("on-demand" vs. "manual").
+	SetupStyle string
 }
 
 // InitialStackSpecAuthoring exposes only the workflow metadata a CLI or UI
@@ -533,6 +537,9 @@ func materializeInitialStackSpec(
 		return StackSpecValidation{}, err
 	}
 	applyOwnerNtfyNotifications(spec, overrides.NtfyTopic, overrides.NtfyServerURL)
+	if err := applyInitialSetupStyle(spec, overrides.SetupStyle); err != nil {
+		return StackSpecValidation{}, resolveError(ErrInvalidStackSpec, err.Error(), err)
+	}
 	if strings.TrimSpace(overrides.Name) != "" {
 		if err := setNestedString(spec, overrides.Name, "metadata", "name"); err != nil {
 			return StackSpecValidation{}, resolveError(ErrAuthorityLoad, "apply metadata.name override: "+err.Error(), err)

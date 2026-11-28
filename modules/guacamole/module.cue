@@ -131,3 +131,63 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of guacamole (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-guacamole-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-guacamole-runtime"
+	workloadRef:    "remote"
+	alternativeRef: "guacamole"
+	release:        "1.6.0"
+	entryComponent: "guacamole"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "remote"
+		targetPort:        8080
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "guacamole-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	networks: {
+		"guacamole-internal": {}
+	}
+	components: [
+		{
+			id:        "guacd"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["guacd"]
+			environment: {}
+			secretEnvironment: {}
+			networks: ["guacamole-internal"]
+			egress: true
+			health: {kind: "command", command: ["nc", "-z", "127.0.0.1", "4822"]}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "guacamole"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["guacamole"]
+			command: ["/bin/sh", "-ec", "set +x; set -eu; umask 077; [ \"$GUACAMOLE_HOME\" = /dev/shm/stackkits-guacamole ]; [ \"$(stat -f -c %T /dev/shm)\" = tmpfs ]; [ \"$STACKKITS_OWNER_PASSWORD_FILE\" = /run/secrets/owner-password ]; [ -s \"$STACKKITS_OWNER_PASSWORD_FILE\" ]; [ -n \"$STACKKITS_REMOTE_CONNECTION_XML\" ]; [ ! -L \"$GUACAMOLE_HOME\" ]; mkdir -p \"$GUACAMOLE_HOME\"; chmod 700 \"$GUACAMOLE_HOME\"; sum=$(sha256sum < \"$STACKKITS_OWNER_PASSWORD_FILE\"); hash=${sum%% *}; [ \"${#hash}\" = 64 ]; case \"$hash\" in *[!0-9a-f]*) exit 1 ;; esac; mapping=$(mktemp \"$GUACAMOLE_HOME/.user-mapping.XXXXXX\"); trap 'rm -f \"$mapping\"' EXIT HUP INT TERM; printf '<?xml version=\"1.0\" encoding=\"UTF-8\"?><user-mapping><authorize username=\"owner\" password=\"%s\" encoding=\"sha256\">%s</authorize></user-mapping>\\n' \"$hash\" \"$STACKKITS_REMOTE_CONNECTION_XML\" > \"$mapping\"; chmod 600 \"$mapping\"; mv -f \"$mapping\" \"$GUACAMOLE_HOME/user-mapping.xml\"; trap - EXIT HUP INT TERM; unset hash sum mapping STACKKITS_REMOTE_CONNECTION_XML STACKKITS_OWNER_PASSWORD_FILE; exec /opt/guacamole/bin/entrypoint.sh"]
+			dependsOn: ["guacd"]
+			environment: {
+				GUACAMOLE_HOME: "/dev/shm/stackkits-guacamole"
+				GUACD_HOSTNAME: "guacd"
+				GUACD_PORT: "4822"
+				WEBAPP_CONTEXT: "ROOT"
+			}
+			secretEnvironment: {}
+			networks: ["guacamole-internal"]
+			health: {kind: "http", path: "/", port: 8080}
+			labels: {}
+			traits: {}
+		},
+	]
+}

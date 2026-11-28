@@ -1,0 +1,36 @@
+name: stackkit-ai-main
+services:
+    qdrant:
+        image: docker.io/qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 256m
+        environment:
+            QDRANT__SERVICE__API_KEY: ${STACKKIT_SECRET_QDRANT_QDRANT__SERVICE__API_KEY:?required}
+            QDRANT__TELEMETRY_DISABLED: "true"
+        volumes:
+            - qdrant-storage:/qdrant/storage
+        networks:
+            - qdrant-internal
+            - stackkit-workload-health
+        ports:
+            - 127.0.0.1::6333
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    qdrant-internal:
+        internal: true
+    stackkit-workload-health: {}
+volumes:
+    qdrant-storage: {}

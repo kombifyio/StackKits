@@ -82,7 +82,8 @@ type SSHAccessState struct {
 
 // SSHAccessResult reports one SSH access change.
 type SSHAccessResult struct {
-	Changes []string `json:"changes,omitempty"`
+	Changes        []string `json:"changes,omitempty"`
+	ObserveFailure string   `json:"observeFailure,omitempty"`
 	// CleanupPending names a revocation effect that could not be completed;
 	// the revocation itself already holds (the CA keys file is empty).
 	CleanupPending []string `json:"cleanupPending,omitempty"`
@@ -121,9 +122,12 @@ func NormalizeSSHUserCATrust(caKeys []string, principals map[string][]string) ([
 		if !sshUserName.MatchString(user) || user == "root" {
 			return nil, nil, fmt.Errorf("local user %q cannot accept CA-signed logins (a valid non-root user name is required)", user)
 		}
+		if user == observeUser && (len(names) != 1 || !observePrincipalPattern.MatchString(names[0])) {
+			return nil, nil, errors.New("the observe account requires exactly one generation-bound observe principal")
+		}
 		var list []string
 		for _, name := range names {
-			if !sshPrincipal.MatchString(name) {
+			if !sshPrincipal.MatchString(name) || (user != observeUser && strings.HasPrefix(strings.ToLower(name), observePrefix)) {
 				return nil, nil, fmt.Errorf("principal %q of user %s is not a plain principal name", name, user)
 			}
 			list = append(list, name)
@@ -383,6 +387,15 @@ func (e Engine) convergeUserCA(ctx context.Context, caKeys []string, principals 
 		return SSHAccessResult{}, fmt.Errorf("read the installed SSH CA trust: %w", err)
 	}
 	files := &sshFiles{engine: e, apply: apply}
+	principal := observePrincipal(wanted)
+	delete(wanted, observeUser)
+	if _, err := e.Host.Stat(observePrincipalPath); err == nil {
+		if err := files.remove(observePrincipalPath); err != nil {
+			return SSHAccessResult{Changes: files.changes}, err
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return SSHAccessResult{}, err
+	}
 	keptKeys, keptPrincipals := intersectKeys(installed.keys, keys), intersectPrincipals(installed.principals, wanted)
 	if apply && (len(keptKeys) < len(installed.keys) || !samePrincipals(keptPrincipals, installed.principals)) {
 		if installed.hasKeys {
@@ -434,6 +447,10 @@ func (e Engine) convergeUserCA(ctx context.Context, caKeys []string, principals 
 	}
 	result := SSHAccessResult{Changes: files.changes}
 	if !apply {
+		if principal != "" {
+			err := e.stageObserve(ctx, files, principal)
+			return SSHAccessResult{Changes: files.changes}, err
+		}
 		return result, nil
 	}
 	if err := e.testSSHD(ctx); err != nil {
@@ -457,6 +474,12 @@ func (e Engine) convergeUserCA(ctx context.Context, caKeys []string, principals 
 		_ = e.reloadSSHD(ctx)
 		return result, errors.New("another sshd setting overrides TrustedUserCAKeys or AuthorizedPrincipalsFile; remove it so the StackKits drop-in takes effect")
 	}
+	if principal != "" {
+		if err := e.stageObserve(ctx, files, principal); err != nil {
+			result.ObserveFailure = err.Error()
+		}
+		result.Changes = files.changes
+	}
 	return result, nil
 }
 
@@ -466,7 +489,7 @@ func (e Engine) convergeUserCA(ctx context.Context, caKeys []string, principals 
 // remaining cleanup is reported instead of an error.
 func (e Engine) revokeUserCA(ctx context.Context, files *sshFiles, installed installedUserCA) (SSHAccessResult, error) {
 	if !installed.any() {
-		return SSHAccessResult{}, nil
+		return SSHAccessResult{Changes: files.changes}, nil
 	}
 	if installed.hasKeys {
 		if err := files.write(SSHTrustedUserCAKeysPath, renderCAKeys(nil), 0o644); err != nil {
@@ -745,6 +768,7 @@ func (o *observation) sshUserCA(ctx context.Context, state SSHAccessState) (Cont
 		c.Remediation = Remediation{Capability: RemediationManual, Action: "deliver the SSH CA trust again (ssh-ca-trust)"}
 		return o.finish(c, StateDrifted, "the recorded SSH CA trust is invalid", normalizeErr.Error()), true
 	}
+	delete(principals, observeUser)
 	if len(state.CleanupPending) > 0 {
 		c.ReasonCode = ReasonSSHCleanupPending
 		return o.finish(c, StateDrifted, "an SSH CA revocation is not fully cleaned up", strings.Join(state.CleanupPending, "; ")), true
@@ -876,7 +900,7 @@ func (r *repairer) sshAccessDesired() (*SSHAccessState, error) {
 	return state, nil
 }
 
-func (r *repairer) repairSSHUserCA(ctx context.Context) error {
+func (r *repairer) repairSSHUserCA(ctx context.Context, control string) error {
 	state, err := r.sshAccessDesired()
 	if err != nil {
 		return err
@@ -885,6 +909,9 @@ func (r *repairer) repairSSHUserCA(ctx context.Context) error {
 	r.changes = append(r.changes, result.Changes...)
 	if err != nil {
 		return err
+	}
+	if control == ControlSSHObserve && result.ObserveFailure != "" {
+		return errors.New(result.ObserveFailure)
 	}
 	if len(result.CleanupPending) > 0 {
 		return errors.New(strings.Join(result.CleanupPending, "; "))

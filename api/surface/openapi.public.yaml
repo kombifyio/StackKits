@@ -551,68 +551,6 @@ paths:
                           - $ref: "#/components/schemas/ArchitectureV2InitialAuthoringValidation"
         "400":
           $ref: "#/components/responses/BadRequest"
-  /api/v1/generate/tfvars:
-    post:
-      operationId: generateTFVars
-      summary: Generate terraform.tfvars from a validated spec
-      description: >-
-        Exact-v0.6 compatibility endpoint only. Native v0.7 does not advertise this capability and returns a typed migration/not-supported error before composition. Architecture v2 generation consumes an Inventory-bound ResolvedPlan through the governed CLI/executor path.
-      deprecated: true
-      tags: [Generation]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GenerateRequest"
-      responses:
-        "200":
-          description: Generated tfvars
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/GenerateResult"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/UnprocessableEntity"
-  /api/v1/generate/preview:
-    post:
-      operationId: generatePreview
-      summary: Preview generated infrastructure without writing files
-      description: >-
-        Exact-v0.6 compatibility endpoint only. Native v0.7 does not advertise this capability and never treats spec-only input as generation-ready.
-      deprecated: true
-      tags: [Generation]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/GenerateRequest"
-      responses:
-        "200":
-          description: Preview of generated output
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: "#/components/schemas/SuccessEnvelope"
-                  - properties:
-                      data:
-                        $ref: "#/components/schemas/PreviewResult"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "422":
-          $ref: "#/components/responses/UnprocessableEntity"
   /api/v1/status:
     get:
       operationId: getManagementStatus
@@ -7726,35 +7664,6 @@ components:
           type: string
         code:
           type: string
-    GenerateRequest:
-      type: object
-      required: [spec]
-      properties:
-        spec:
-          $ref: "#/components/schemas/StackSpec"
-        outputDir:
-          type: string
-          description: Custom output directory (server-side only)
-    GenerateResult:
-      type: object
-      properties:
-        tfvars:
-          type: object
-          description: Generated terraform variable values
-        outputDir:
-          type: string
-        file:
-          type: string
-    PreviewResult:
-      type: object
-      properties:
-        tfvars:
-          type: object
-        preview:
-          type: boolean
-          const: true
-        stackkit:
-          $ref: "#/components/schemas/StackKitSummary"
     VerifyRequest:
       type: object
       properties:
@@ -9160,8 +9069,6 @@ tags:
     description: StackKit catalog — browse, search, and inspect available templates
   - name: Validation
     description: CUE-based spec validation
-  - name: Generation
-    description: OpenTofu variable generation from validated specs
   - name: Management
     description: Node-local read-only management endpoints for agents, dashboards, and MCP tools
   - name: Logs

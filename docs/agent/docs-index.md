@@ -20,10 +20,12 @@ is whatever `releases/latest` resolves to in `kombifyio/stackKits`; documentatio
 does not restate that number. Modern Homelab is a definition archive and graduates
 only the Runtime owners whose exact boundaries are bound; remaining publication,
 Cloud-verifier, backend-Health, and live-evidence surfaces stay fail-closed.
-Product-bundled applications use standalone Compose by default until further
-PaaS platforms are available; 1.0 requires both paths.
-Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and later runtime
-targets; Marketplace additionally uses Coolify. Current-pin release evidence
+Product-bundled applications render to Docker Compose and run as OpenTofu
+Stage 1 roots.
+Komodo, Dokploy and legacy core Coolify `4.1.2` are Layer-2 PaaS engines
+retired from 1.0 core execution by ADR-0054; OpenTofu Stage 1 over Compose is the single core
+engine, and Coolify `4.7.5+` is only the optional Layer-3 Marketplace and
+custom-apps extension. Current-pin release evidence
 focuses on owner/passkey activation, exact application setup, protected app health,
 retryable L3 setup actions, and seeded content only when demo data is
 explicitly enabled. User-installed apps outside that path are state-unmanaged.

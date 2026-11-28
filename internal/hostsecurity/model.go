@@ -220,6 +220,7 @@ type Evidence struct {
 	Controls        []Control         `json:"controls"`
 	Exceptions      []ExceptionRecord `json:"exceptions,omitempty"`
 	Notices         []string          `json:"notices,omitempty"`
+	ObserveSSH      *ObserveSSH       `json:"observe_ssh,omitempty"`
 }
 
 // Judge returns the overall state of the evidence at the given time. It never
@@ -249,6 +250,7 @@ func (e Evidence) AtTime(now time.Time) Evidence {
 	}
 	e.Controls = stale
 	e.Overall = StateUnknown
+	e.ObserveSSH = nil
 	return e
 }
 

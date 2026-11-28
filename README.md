@@ -28,12 +28,15 @@ the services.
 ## What you get in about ten minutes
 
 The installer picks the address zone that fits the host it detects, so there is
-no domain to configure before you start:
+no domain to configure before you start. All three zones are equal first-class
+modes; choose one explicitly with `stackkit init --address-zone`
+(`custom-domain`, `kombify-me` or `local-only`):
 
-| Mode | Addresses | What you get |
+| Zone | Addresses | What you get |
 | --- | --- | --- |
-| Public names | `*.kombify.me` | The default on a public VPS or cloud host: HTTPS names that need no DNS change and no certificate on your devices. On a home server, set `DOMAIN=kombify.me` and turn on a reach path with `stackkit reach`. |
-| Local network only | `*.lab.home` | The default on a home server, and an explicit choice anywhere with `DOMAIN=lab.home`. A private home zone for devices on your own network. The kit runs standalone with no kombify account. |
+| Custom domain | `*.example.com` | Your own domain. Kit-Traefik requests certificates directly (ACME HTTP-01 or DNS-01) and serves sign-in at `id.example.com` and `auth.example.com`, with no `kombify.me` dependency. |
+| kombify.me | `*.kombify.me` | The default on a public VPS or cloud host: HTTPS names that need no own domain, no DNS change and no certificate on your devices. On a home server, set `DOMAIN=kombify.me` and turn on a reach path with `stackkit reach`. |
+| Local only | `*.lab.home` | The default on a home server, and an explicit choice anywhere with `DOMAIN=lab.home`. A private home zone with a local owner CA and resolver for devices on your own network; it needs no internet service and no kombify account. |
 
 Three use cases are checked by default and need nothing from you:
 
@@ -58,9 +61,10 @@ before running it with sudo. It has instructions for iPhone,
 Android, Windows, macOS and Linux. Then open the HTTPS Hub, create your Pocket ID
 owner passkey on first use and sign in. The address is also `secondDevice.setupUrl`
 in `.stackkit/access.json`, and the Hub links back to setup. No router change or
-kombify account is required for this private home mode. Public-domain or
+kombify account is required for this private home mode. Custom-domain and
 kombify.me installations use the printed HTTPS Hub directly, with no client DNS
-or CA setup; these modes require their own domain/Me registration and reach setup.
+or CA setup; they need the domain or the kombify.me registration and a reach
+path.
 
 ## The six commands
 
@@ -143,9 +147,9 @@ Select the kit with `stackkit init`:
 <!-- kit-support:begin -->
 | Kit | Target | Status |
 | --- | --- | --- |
-| Basement Kit | an existing Linux host at home | alpha at v0.61.13; no public-package pass recorded |
-| Cloud Kit | an existing VPS with your own domain | alpha at v0.61.13; no public-package pass recorded |
-| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.61.13; no public-package pass recorded |
+| Basement Kit | an existing Linux host at home | alpha at v0.61.18; no public-package pass recorded |
+| Cloud Kit | an existing VPS with your own domain | alpha at v0.61.18; no public-package pass recorded |
+| Modern Homelab | Home + Cloud, joined by an explicit federation bridge | alpha definition archive at v0.61.18; no public-package pass recorded |
 <!-- kit-support:end -->
 
 A published release is source and distribution evidence, not runtime
@@ -156,12 +160,42 @@ definition archive for authoring and validation; it is not an install target.
 
 ## How it works
 
-Every deployment is executed and tracked by OpenTofu; managed deployments are
-orchestrated by Terramate (ADR-0045). Docker Compose workloads run inside that
-tracked stack, and CUE files are the technical source of truth for schemas,
-defaults and kit composition. Komodo and Coolify are explicit opt-in
-integrations. See [the standalone decision](docs/ADR/ADR-0042-standalone-default-and-optional-platforms.md)
-for the application-default contract.
+CUE files are the technical source of truth for schemas, defaults and kit
+composition. Every curated workload is a typed application module
+([`#AppModuleV3`](foundation/app_module_v3.cue)) that the CLI renders into
+Docker Compose and executes as OpenTofu Stage 1 per-stack roots
+([ADR-0054](docs/ADR/ADR-0054-single-core-engine-and-coolify-extensibility-boundary.md),
+[ADR-0055](docs/ADR/ADR-0055-declarative-app-module-v3-and-three-zone-lifecycle.md)).
+Standard mode runs those roots one after another; Homelab-managed advanced mode
+orchestrates the same roots with Terramate. Status and diagnosis always pair the
+OpenTofu plan with live container, image-digest, health and route observation.
+
+A rollout has two tiers:
+
+- **Tier 1, always:** core rollout plus the required safety setup
+  (digest-pinned images, private networks, generated secrets, no default
+  passwords, closed open registration, Pocket ID with the access gate,
+  private-by-default routing). A failure here fails the rollout.
+- **Tier 2, Bootstrapped only (the default):** per-app personalization such as
+  the owner account and single sign-on wiring. A Tier-2 failure never fails
+  the rollout: the app stays private behind the access gate and
+  `stackkit retry-appsetup` runs the step again. Choose `--setup-style clean`
+  (or `--clean-rollout`) on `stackkit init` or `stackkit apply` for a Clean
+  Rollout, which runs Tier 1 only.
+
+On the host, `stackkit diagnose` writes a redacted, secret-free health snapshot
+and `stackkit repair <action>` runs bounded, effect-classified repairs behind a
+repair policy and circuit breaker; a watchdog timer refreshes the snapshot
+([ADR-0051](docs/ADR/ADR-0051-server-mcp-host-execution-authority.md)).
+
+Coolify `4.7.5+` is an optional Layer-3 extension for its template marketplace
+and your own custom or Git-built apps. It never manages the curated apps and
+holds no custody: Kit-Traefik and the access gate keep sole ownership of host
+ports 80/443, certificates and sign-in policy in every address zone, and
+Coolify's own proxy runs HTTP-only behind them. See
+[the standalone decision](docs/ADR/ADR-0042-standalone-default-and-optional-platforms.md)
+for the application-default contract and the [ADR index](docs/ADR/README.md)
+for all public decisions.
 
 ## Website, docs and community
 
@@ -194,12 +228,15 @@ stackkit agent prompt --list
 - [Architecture](docs/ARCHITECTURE.md)
 - [Concepts](docs/CONCEPTS.md)
 - [Stack spec reference](docs/stack-spec-reference.md)
+- [Architecture decisions](docs/ADR/README.md)
+- [Moving a legacy PaaS install to OpenTofu](docs/runbooks/paas-to-opentofu-restore-cutover.md)
 
 ## Source Of Truth
 
 CUE files are the technical source of truth for schemas, defaults,
-constraints, module contracts, and kit composition. Generated OpenTofu,
-Compose, tfvars, state, and rollout snapshots are build output.
+constraints, module contracts (`#ModuleContract`, `#AppModuleV3`), and kit
+composition. Generated OpenTofu, Compose, tfvars, state, and rollout snapshots
+are build output.
 
 The [Architecture v2 contract proof](architecture/v2/fixtures/contract-fixtures.manifest.json)
 reproducibly binds a two-node Basement topology, named runtime daemons,

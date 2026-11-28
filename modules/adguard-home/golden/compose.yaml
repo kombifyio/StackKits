@@ -1,0 +1,75 @@
+name: stackkit-network-main
+services:
+    adguard-home:
+        image: docker.io/adguard/adguardhome:v0.107.79@sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+                reservations:
+                    memory: 128m
+        command:
+            - -ec
+            - set +x; set -eu; umask 077; [ "$$STACKKITS_OWNER_HASH_FILE" = /run/secrets/adguard-owner-bcrypt ]; [ -s "$$STACKKITS_OWNER_HASH_FILE" ]; [ -n "$$STACKKITS_DNS_CONFIG_JSON" ]; hash=$$(base64 -d < "$$STACKKITS_OWNER_HASH_FILE"); case "$$hash" in '$$2a$$'*|'$$2b$$'*|'$$2y$$'*) ;; *) exit 1 ;; esac; [ "$${#hash}" = 60 ]; case "$$hash" in *[!A-Za-z0-9./$$]*) exit 1 ;; esac; conf=/opt/adguardhome/conf; [ ! -L "$$conf" ]; mkdir -p "$$conf"; chmod 700 "$$conf"; file=$$(mktemp "$$conf/.AdGuardHome.XXXXXX"); trap 'rm -f "$$file"' EXIT HUP INT TERM; printf '%s\n' "$$STACKKITS_DNS_CONFIG_JSON" | sed "s|@@OWNER_BCRYPT@@|$$hash|g" > "$$file"; chmod 600 "$$file"; mv -f "$$file" "$$conf/AdGuardHome.yaml"; trap - EXIT HUP INT TERM; unset hash file STACKKITS_DNS_CONFIG_JSON STACKKITS_OWNER_HASH_FILE; exec /opt/adguardhome/AdGuardHome -c "$$conf/AdGuardHome.yaml" -w /opt/adguardhome/work --no-check-update
+        entrypoint:
+            - /bin/sh
+        environment:
+            STACKKITS_OWNER_HASH_FILE: ${STACKKIT_SECRET_ADGUARD_HOME_STACKKITS_OWNER_HASH_FILE:?required}
+        volumes:
+            - adguard-home-config:/opt/adguardhome/conf
+            - adguard-home-work:/opt/adguardhome/work
+        networks:
+            - adguard-home-internal
+            - stackkit-routing
+            - stackkit-workload-egress
+        ports:
+            - 127.0.0.1::8080
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: dns-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-dns
+            io.stackkit.route.id: dns-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8080"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-dns-remote.entrypoints: remote
+            traefik.http.routers.stackkit-dns-remote.rule: Host(`dns.home.example`)
+            traefik.http.routers.stackkit-dns-remote.service: stackkit-dns
+            traefik.http.routers.stackkit-dns.entrypoints: websecure
+            traefik.http.routers.stackkit-dns.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-dns.rule: Host(`dns.home.example`)
+            traefik.http.routers.stackkit-dns.tls: "true"
+            traefik.http.routers.stackkit-dns.tls.certresolver: stackkits
+            traefik.http.services.stackkit-dns.loadbalancer.server.port: "8080"
+            traefik.http.services.stackkit-dns.loadbalancer.server.scheme: http
+networks:
+    adguard-home-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    adguard-home-config: {}
+    adguard-home-work: {}

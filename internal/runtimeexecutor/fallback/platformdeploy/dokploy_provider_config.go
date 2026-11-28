@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 )
 
 // DokployBootstrapConfig is the existing qpb.6 bootstrap's private output.
@@ -28,8 +29,8 @@ type DokployBootstrapConfig struct {
 }
 
 func (c DokployBootstrapConfig) HTTPConfig() (HTTPConfig, error) {
-	if c.Platform != "dokploy" || !dokployIDPattern.MatchString(c.ProjectID) || !dokployIDPattern.MatchString(c.EnvironmentID) ||
-		(c.ServerID != "" && !dokployIDPattern.MatchString(c.ServerID)) {
+	if c.Platform != "dokploy" || !deploymentcontract.ValidDokployID(c.ProjectID) || !deploymentcontract.ValidDokployID(c.EnvironmentID) ||
+		(c.ServerID != "" && !deploymentcontract.ValidDokployID(c.ServerID)) {
 		return HTTPConfig{}, errors.New("Dokploy bootstrap requires exact platform, project, environment and optional server identities")
 	}
 	if c.Token != "" && c.APIKey != "" && c.Token != c.APIKey {

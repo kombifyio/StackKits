@@ -82,3 +82,57 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Workbench headless host application (internal)"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of workbench-host (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-workbench-host-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-workbench-host-runtime"
+	workloadRef:    "dev"
+	alternativeRef: "workbench-host"
+	release:        "3.14.10-trixie"
+	entryComponent: "workbench-host"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "workbench"
+		targetPort:        3773
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "workbench-host-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "workbench-host", volumeRef: "state"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"workbench-host-internal": {}
+	}
+	components: [
+		{
+			id:        "workbench-host"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["workbench-host"]
+			command: ["python3", "-c", "exec(\"import hashlib, os, pathlib, platform, tarfile, tempfile, urllib.request\\nif platform.machine() != \\\"x86_64\\\":\\n    raise SystemExit(\\\"Workbench host archive requires linux-x64\\\")\\nclass Redirect(urllib.request.HTTPRedirectHandler):\\n    def redirect_request(self, req, fp, code, msg, headers, newurl):\\n        if not newurl.startswith(\\\"https://\\\"):\\n            raise RuntimeError(\\\"Release redirect must use HTTPS\\\")\\n        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)\\n        redirected.remove_header(\\\"Authorization\\\")\\n        return redirected\\ncache = pathlib.Path(\\\"/var/cache/workbench-host\\\")\\nif cache.is_symlink():\\n    raise RuntimeError(\\\"Archive cache must not be a symlink\\\")\\ncache.mkdir(exist_ok=True, mode=0o700)\\nos.chmod(cache, 0o700)\\ndigest_pin = \\\"1737877513d211db6175c0c1e0537888467d371875e433ea6ada0ee3d9db27df\\\"\\narchive_path = cache / (digest_pin + \\\".tar.gz\\\")\\nif archive_path.is_symlink():\\n    raise RuntimeError(\\\"Archive cache entry must not be a symlink\\\")\\ntoken_path = os.environ.pop(\\\"STACKKIT_RELEASE_TOKEN_FILE\\\")\\ndef verified(path):\\n    if not path.is_file() or path.stat().st_size > 1073741824:\\n        return False\\n    with path.open(\\\"rb\\\") as cached:\\n        return hashlib.file_digest(cached, \\\"sha256\\\").hexdigest() == digest_pin\\nif not verified(archive_path):\\n    for stale in cache.glob(\\\"tmp*\\\"):\\n        if stale.is_file() and not stale.is_symlink():\\n            stale.unlink()\\n    opener = urllib.request.build_opener(Redirect())\\n    req = urllib.request.Request(\\\"https://api.github.com/repositories/1347582990/releases/assets/730476591\\\", headers={\\\"Accept\\\": \\\"application/octet-stream\\\", \\\"Authorization\\\": \\\"Bearer \\\" + pathlib.Path(token_path).read_text().strip(), \\\"User-Agent\\\": \\\"stackkits-workbench-host\\\"})\\n    download = tempfile.NamedTemporaryFile(dir=cache, delete=False)\\n    try:\\n        with download, opener.open(req, timeout=60) as response:\\n            size = 0\\n            while chunk := response.read(1048576):\\n                size += len(chunk)\\n                if size > 1073741824:\\n                    raise RuntimeError(\\\"Archive exceeds 1 GiB\\\")\\n                download.write(chunk)\\n        candidate = pathlib.Path(download.name)\\n        if not verified(candidate):\\n            raise RuntimeError(\\\"Published Workbench archive digest mismatch\\\")\\n        os.replace(candidate, archive_path)\\n    finally:\\n        pathlib.Path(download.name).unlink(missing_ok=True)\\nwith archive_path.open(\\\"rb\\\") as archive:\\n    if hashlib.file_digest(archive, \\\"sha256\\\").hexdigest() != digest_pin:\\n        raise RuntimeError(\\\"Published Workbench archive digest mismatch\\\")\\n    archive.seek(0)\\n    with tarfile.open(fileobj=archive, mode=\\\"r:gz\\\") as payload:\\n        payload.extractall(\\\"/opt/workbench-host\\\", filter=\\\"data\\\")\\nroot = pathlib.Path(\\\"/opt/workbench-host/kombify-workbench-host-cloud-0.3.4-linux-x64\\\")\\nstate = pathlib.Path(\\\"/var/lib/workbench-host\\\")\\nfor name in (\\\"home\\\", \\\"workspace\\\", \\\"bin\\\"):\\n    directory = state / name\\n    if directory.is_symlink():\\n        raise RuntimeError(\\\"Workbench state directory must not be a symlink\\\")\\n    directory.mkdir(exist_ok=True, mode=0o700)\\n    os.chmod(directory, 0o700)\\n    os.chown(directory, 10000, 10000)\\nos.setgroups([])\\nos.setgid(10000)\\nos.setuid(10000)\\nos.environ.update(HOME=str(state / \\\"home\\\"), PATH=str(state / \\\"bin\\\") + \\\":\\\" + str(root) + \\\":\\\" + os.environ[\\\"PATH\\\"])\\nos.chdir(state / \\\"workspace\\\")\\nos.execv(str(root / \\\"t3\\\"), [str(root / \\\"t3\\\"), \\\"serve\\\", \\\"--no-browser\\\", \\\"--host\\\", \\\"0.0.0.0\\\", \\\"--port\\\", \\\"3773\\\"])\")"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "state", target: "/var/lib/workbench-host", class: "persistent", backup: true},
+				{id: "archive-cache", target: "/var/cache/workbench-host", class: "cache"},
+			]
+			networks: ["workbench-host-internal"]
+			egress: true
+			health: {kind: "http", path: "/.well-known/kombify-workbench-host", port: 3773}
+			resources: {memoryLimit: "4g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

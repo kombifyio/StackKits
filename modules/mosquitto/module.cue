@@ -84,3 +84,46 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Eclipse Mosquitto application (internal)"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of mosquitto (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-mosquitto-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-mosquitto-runtime"
+	workloadRef:    "smart-home"
+	alternativeRef: "mosquitto"
+	release:        "2.1.2-alpine"
+	entryComponent: "mosquitto"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "mosquitto", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"mosquitto-internal": {}
+	}
+	components: [
+		{
+			id:        "mosquitto"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["mosquitto"]
+			command: ["/bin/sh", "-ec", "printf 'per_listener_settings true\\npersistence true\\npersistence_location /mosquitto/data/\\nlistener 1883\\nallow_anonymous false\\npassword_file /mosquitto/data/passwd\\nlistener 8080\\nprotocol http_api\\nallow_anonymous true\\n' > /mosquitto/data/mosquitto.conf && password=$(cat \"$MQTT_PASSWORD_FILE\") && rm -f /mosquitto/data/passwd && mosquitto_passwd -b -c /mosquitto/data/passwd stackkit \"$password\" && chown mosquitto:mosquitto /mosquitto/data/mosquitto.conf /mosquitto/data/passwd && exec mosquitto -c /mosquitto/data/mosquitto.conf"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/mosquitto/data", class: "persistent", backup: true},
+			]
+			networks: ["mosquitto-internal"]
+			health: {kind: "http", path: "/api/v1/systree", port: 8080}
+			resources: {memoryLimit: "128m", memoryReservation: "32m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

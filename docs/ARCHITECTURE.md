@@ -50,7 +50,7 @@ The Owner is local: PocketID holds the human directory, TinyAuth is the local pr
 
 ## Architecture v2 Keystone
 
-The Keystone decision is the private ADR-0029 decision record; its implementation epic (Beads `kombify-StackKits-dqcp`) is closed provenance. Milestones live in the [ROADMAP](../ROADMAP.md), executable work in Beads. The runtime still contains transitional global-`context`, independent Go validation and legacy Modern/HA surfaces; new work MUST target the v2 spine, not add consumers to those paths.
+The Keystone decision is the private ADR-0029 decision record; its implementation epic is closed provenance. Milestones live in the [ROADMAP](../ROADMAP.md), executable work in Beads. The runtime still contains transitional global-`context`, independent Go validation and legacy Modern/HA surfaces; new work MUST target the v2 spine, not add consumers to those paths.
 
 1. Kit selection chooses a concrete `#KitDefinition` with required, default, optional and forbidden capabilities.
 2. Site locality, trust/failure domains, node hardware, reachability, placement and availability are independent typed axes.
@@ -2435,7 +2435,7 @@ The v0.8 single-node Basement plan has a complete local Product Apply compositio
 | `stackkits-local-autonomy-policy-manifest` | Policy JSON plus unbound-owner requirement; isolated typed adapter | Bind an authenticated backend only with observable link-loss and local-control evidence |
 
 
-`internal/attackpath` (Guard B, `kombify-StackKits-oiwq`) is a pure read-side library, not a runtime owner: from one `Snapshot` (host-security evidence, access-gate route table, container inspection, backup credential locations) it builds a deterministic, bounded graph whose edges are `open`, `closed` or `unknown` with basis (observed, configured, inferred), source and observation time, and reports `confirmed` paths (every edge open) and `unresolved` paths (exactly one unknown edge). Missing, stale or unreadable evidence stays unknown. `Closure(before, after, path, intents)` reports `repaired` only when an edge of the path is observed closed after the before report and every named intended access is still observed working. It probes, scans and exploits nothing and claims no absence of other paths. Live attack-path repair receipt pending.
+`internal/guardproof/attackpath` (Guard B) is a pure read-side library, not a runtime owner: from one `Snapshot` (host-security evidence, access-gate route table, container inspection, backup credential locations) it builds a deterministic, bounded graph whose edges are `open`, `closed` or `unknown` with basis (observed, configured, inferred), source and observation time, and reports `confirmed` paths (every edge open) and `unresolved` paths (exactly one unknown edge). Missing, stale or unreadable evidence stays unknown. `Closure(before, after, path, intents)` reports `repaired` only when an edge of the path is observed closed after the before report and every named intended access is still observed working. It probes, scans and exploits nothing and claims no absence of other paths. Live attack-path repair receipt pending.
 These are three implementation classes, not seven bespoke CLI branches: Core host execution is limited to the separately selected Security Baseline and Host Bootstrap; Home-local host execution and policy enforcement stay separate. A generic renderer or no-op policy adapter must never promote generation-only output to Apply-ready (Beads `.8.9`, `.8.10`, `.8.11`; evidence producer/trust graduation `.8.8`). The generation-only `stackkits-local-runtime` and `stackkits-home-extensions` umbrellas are no longer selectable: LAN DNS is contract-only, and private remote access, public publication egress and encrypted offsite backup each have separate generation contracts and typed owners.
 
 Execution mechanics:
@@ -2686,6 +2686,7 @@ The implemented top-level command groups are documented in [CLI.md](CLI.md):
 | Concern | Source |
 | --- | --- |
 | Technical deployment contract | CUE files in this repo |
+| Workload Compose rendering (migrated modules) | `AppModuleV3` in `modules/<module>/module.cue`, rendered by `internal/engine`; Core rendering through `internal/engine/core` |
 | Registry and catalog | Embedded CUE-derived public registry snapshot |
 | Installed release and lifecycle state | Verified GitHub Release Index cache plus local `.stackkit/` state and evidence |
 | API wire shape | `api/openapi/stackkits-v1.yaml` plus server tests |

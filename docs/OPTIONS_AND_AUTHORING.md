@@ -23,7 +23,7 @@ depend on them.
 | Default core and application realization | Standalone Compose is the complete primary experience. New Basement and Cloud core choices resolve to `standalone-compose`; application delivery defaults to Compose. No Coolify or Komodo services are installed by the default core. |
 | Optional application and operations | Marketplace owns the optional Coolify application outside default core; Komodo is the planned operations platform without a store. Existing explicit compatibility adapters retain one execution and routing owner per workload. See ADR-0042 and ADR-0049. |
 | Komodo compatibility metadata | `komodo` is labelled Beta in the native workload compatibility contract; this does not prove current-pin runtime support or application backup/restore parity. |
-| Layer-2 PaaS platforms | Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and later runtime targets; Dokploy's historical draft does not establish current-pin support. |
+| Layer-2 PaaS platforms | Komodo, Dokploy and legacy core Coolify `4.1.2` are retired from 1.0 core execution by ADR-0054; remaining adapter values are legacy compatibility metadata and establish no support. Coolify `4.7.5+` is only the optional Layer-3 Marketplace and custom-apps extension. |
 | Legacy PaaS values | Historical `paas: none` is not the native `standalone-compose` alternative. `dockge` is not a native platform alternative. |
 | Dockge status | Experimental/constrained Compose manager service only; not a normal Basement Kit PaaS. |
 | Native module profiles | `stackkit/v2alpha2` selects each module's `computeProfile` explicitly. The default standalone core supports its declared profiles without becoming a reduced edition. Historical `lite` module IDs remain stable; they do not force Photos or Media to the same profile. Immich Lite is a separate workload alternative. See ADR-0039 and ADR-0042. |
@@ -205,6 +205,31 @@ owned by the [Architecture v2 catalog](../foundation/architecture_v2_catalog.cue
 4. Update docs and website copy only after the source contract is decided.
 5. Run the affected behavioral gate. Packaging, activation, and stable promotion
    use their separately declared evidence paths.
+
+### AppModuleV3 declarations (Stage 1 pilots)
+
+A module can also declare a top-level `AppModuleV3` value typed by
+[`foundation.#AppModuleV3`](../foundation/app_module_v3.cue). It is the complete
+container contract (images by catalog reference, security fields, health,
+volumes, networks, secrets by slot, route endpoint, two-tier lifecycle, backup
+hook and probe references, generated config files and the eight governed trait
+families) that `internal/engine` renders into the workload Compose project
+without a module-specific Go renderer. Its `delivery.contract` is
+`opentofu-stage1` (the ADR-0045 Stage 1 OpenTofu wrapper) or `compose`.
+
+- `cloudreve`, `immich` and `home-assistant` are the pilots. Each keeps its
+  legacy `Contract` until Phase 2 and pins its rendered Compose in
+  `modules/<module>/golden/compose.yaml`; `internal/engine/pilot_golden_test.go`
+  proves the engine output is byte-identical to that baseline and that the
+  declaration matches the authority catalog component graph.
+- Setup actions, backup hooks, probes and config renderers are references into
+  closed engine registries (`setup/*`, `hook/*`, `probe/*`, `config/*`); a new
+  reference needs its registry entry first.
+- Traits that need workspace custody (home identity, Pocket ID client, bundled
+  plugins, kombify notify, Docker lifecycle, own host SSH) are declared for
+  completeness and bound by the node adapter at Apply.
+- `tmpfs`, `shmSize`, `ulimits` and `readOnly` are typed but fail the render
+  closed until the workload Compose model gains those keys.
 
 ## Promotion Gates
 

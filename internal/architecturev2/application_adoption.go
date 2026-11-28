@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
@@ -11,9 +12,11 @@ import (
 // the same CUE workload selection and access projection as initial authoring;
 // it neither persists desired intent nor generates or applies runtime files.
 func (s *Service) PrepareApplicationAdoption(raw []byte, workload, siteRef, nodeRef string) (StackSpecValidation, error) {
-	if workload != "smart-home" {
+	adoptionProfile, ok := applicationlifecycle.LookupAdoptionProfileByWorkload(workload)
+	if !ok {
 		return StackSpecValidation{}, fmt.Errorf("unsupported_source: no application adoption preparation profile exists")
 	}
+	workload = adoptionProfile.WorkloadRef
 	validation, err := s.ValidateStackSpec(raw)
 	if err != nil {
 		return StackSpecValidation{}, err
@@ -30,7 +33,7 @@ func (s *Service) PrepareApplicationAdoption(raw []byte, workload, siteRef, node
 		return StackSpecValidation{}, fmt.Errorf("unsupported_source: application adoption preparation requires native v2alpha2 intent")
 	}
 	definition := s.authority.definitions[validation.KitProfile]
-	overrides := AuthoringOverrides{CatalogDefaults: true, APIVersion: "stackkit/v2alpha2", ModuleProfiles: map[string]ModuleProfileOverride{}, UseCaseAlternatives: map[string]string{workload: "home-assistant"}, UseCases: []string{workload}}
+	overrides := AuthoringOverrides{CatalogDefaults: true, APIVersion: "stackkit/v2alpha2", ModuleProfiles: map[string]ModuleProfileOverride{}, UseCaseAlternatives: map[string]string{workload: adoptionProfile.Alternative}, UseCases: []string{workload}}
 	for id, raw := range workloads {
 		entry, _ := raw.(map[string]any)
 		alternative, _ := entry["alternative"].(string)

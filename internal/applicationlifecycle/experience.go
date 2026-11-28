@@ -15,12 +15,13 @@ import (
 const ExperienceSchemaVersion = "stackkit.application-experience/v1"
 
 const (
-	AxisVerified    = "verified"
-	AxisUnverified  = "unverified"
-	AxisRequired    = "required"
-	AxisBlocked     = "blocked"
-	AxisAbsent      = "absent"
-	AxisNotRequired = "not-required"
+	AxisVerified          = "verified"
+	AxisUnverified        = "unverified"
+	AxisRequired          = "required"
+	AxisBlocked           = "blocked"
+	AxisBootstrapDegraded = StatusBootstrapDegraded
+	AxisAbsent            = "absent"
+	AxisNotRequired       = "not-required"
 
 	FreshnessLive       = "live"
 	FreshnessHistorical = "historical"
@@ -424,18 +425,28 @@ func setupAxis(contract Contract, input SetupInput) ExperienceAxis {
 		axis.Freshness = FreshnessHistorical
 		axis.Evidence = append(axis.Evidence, run.Evidence...)
 		switch {
+		case strings.EqualFold(strings.TrimSpace(run.Status), StatusBootstrapDegraded):
+			if axis.Status != AxisBlocked {
+				axis.Status = AxisBootstrapDegraded
+				axis.Reason = firstNonEmpty(run.Error, run.Message, "Tier-2 automatic app personalization degraded; application remains private behind Access Gate")
+			}
+		case strings.EqualFold(strings.TrimSpace(run.Status), StatusSkippedCleanRollout):
+			if axis.Status != AxisBlocked && axis.Status != AxisBootstrapDegraded {
+				axis.Status = AxisRequired
+				axis.Reason = firstNonEmpty(run.Message, "Clean Rollout skipped Tier-2 automatic app personalization; application remains private behind Access Gate for its own first-run wizard")
+			}
 		case strings.EqualFold(strings.TrimSpace(run.Status), "failed"):
 			axis.Status = AxisBlocked
 			axis.Reason = firstNonEmpty(run.Error, run.Message, "setup action failed")
 		case strings.EqualFold(strings.TrimSpace(run.Status), "running") || strings.EqualFold(strings.TrimSpace(run.Status), "waiting"):
-			if axis.Status != AxisBlocked {
+			if axis.Status != AxisBlocked && axis.Status != AxisBootstrapDegraded {
 				axis.Status = AxisUnverified
 				axis.Reason = firstNonEmpty(run.Message, "setup action is still in progress")
 			}
 		case strings.EqualFold(strings.TrimSpace(run.Status), "completed") && strings.EqualFold(strings.TrimSpace(run.Phase), "verified"):
 			if run.authenticated && run.PlanHash == input.PlanHash && run.PlanHash == contract.PlanHash && (run.WorkloadRef == contract.WorkloadRef || run.AppName == contract.WorkloadRef) {
 				seenCompleted[action] = true
-			} else if axis.Status != AxisBlocked {
+			} else if axis.Status != AxisBlocked && axis.Status != AxisBootstrapDegraded {
 				axis.Status = AxisUnverified
 				axis.Reason = "setup completed, but its record is not bound to the current Plan"
 			}
@@ -500,7 +511,7 @@ func usableAxis(experience ApplicationExperience, observation *runtimeobservatio
 		axis.Status, axis.Reason = AxisUnverified, "reachability is not verified"
 		return axis
 	}
-	if experience.Setup.Status == AxisRequired || experience.Setup.Status == AxisBlocked {
+	if experience.Setup.Status == AxisRequired || experience.Setup.Status == AxisBlocked || experience.Setup.Status == AxisBootstrapDegraded {
 		axis.Status, axis.Reason = experience.Setup.Status, "setup must be completed before the application is usable"
 		return axis
 	}
@@ -667,7 +678,13 @@ func experienceNextActions(experience ApplicationExperience) []string {
 	}
 	switch experience.Setup.Status {
 	case AxisRequired:
-		add("Complete the declared setup action in the State Console.")
+		if strings.Contains(experience.Setup.Reason, "Clean Rollout") {
+			add("Clean Rollout kept this application private behind Access Gate: complete its first-run wizard behind Access Gate, or run `stackkit setup " + experience.WorkloadRef + " --owner-approve`.")
+		} else {
+			add("Complete the declared setup action in the State Console.")
+		}
+	case AxisBootstrapDegraded:
+		add("Tier-2 app personalization degraded; retry with `stackkit retry-appsetup " + experience.WorkloadRef + "` or `stackkit setup " + experience.WorkloadRef + " --owner-approve`, or complete its first-run wizard behind Access Gate.")
 	case AxisBlocked:
 		add("Review the failed setup action and retry it after correcting the reported cause.")
 	case AxisUnverified:

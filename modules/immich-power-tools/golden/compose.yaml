@@ -1,0 +1,72 @@
+name: stackkit-photos-main
+services:
+    immich-power-tools:
+        image: ghcr.io/immich-power-tools/immich-power-tools:0.24.0@sha256:0bb87c70270ee7a95848a5b8ecbd90cd850e7bdacc0f64b70e33e4524f123fa4
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        environment:
+            DB_DATABASE_NAME: immich
+            DB_HOST: immich-postgres
+            DB_PASSWORD: ${STACKKIT_SECRET_IMMICH_POWER_TOOLS_DB_PASSWORD:?required}
+            DB_PORT: "5432"
+            DB_USERNAME: immich
+            IMMICH_API_KEY: ${STACKKIT_SECRET_IMMICH_POWER_TOOLS_IMMICH_API_KEY:?required}
+            IMMICH_URL: http://immich-server:2283
+        volumes:
+            - immich-power-tools-data:/app/data
+        networks:
+            - immich-power-tools-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::3000
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: immich-tools-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-immich-tools
+            io.stackkit.route.id: immich-tools-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "3000"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-immich-tools-remote.entrypoints: remote
+            traefik.http.routers.stackkit-immich-tools-remote.rule: Host(`immich-tools.home.example`)
+            traefik.http.routers.stackkit-immich-tools-remote.service: stackkit-immich-tools
+            traefik.http.routers.stackkit-immich-tools.entrypoints: websecure
+            traefik.http.routers.stackkit-immich-tools.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-immich-tools.rule: Host(`immich-tools.home.example`)
+            traefik.http.routers.stackkit-immich-tools.tls: "true"
+            traefik.http.routers.stackkit-immich-tools.tls.certresolver: stackkits
+            traefik.http.services.stackkit-immich-tools.loadbalancer.server.port: "3000"
+            traefik.http.services.stackkit-immich-tools.loadbalancer.server.scheme: http
+networks:
+    immich-power-tools-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    immich-power-tools-data: {}

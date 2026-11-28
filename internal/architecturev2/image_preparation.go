@@ -30,7 +30,7 @@ func NeutralImageProfile(id string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = verifyEmbeddedSourceHashesForRoot(embeddedProductBundleRoot, manifest); err != nil {
+	if _, err = verifiedEmbeddedSources(productAuthorityRole, manifest); err != nil {
 		return nil, err
 	}
 	if err = verifyEmbeddedDocumentHashesForRoot(embeddedProductBundleRoot, manifest); err != nil {
@@ -54,12 +54,13 @@ func ValidateNeutralImageManifest(raw []byte) error {
 	if err != nil {
 		return err
 	}
-	if err = verifyEmbeddedSourceHashesForRoot(embeddedProductBundleRoot, manifest); err != nil {
-		return err
-	}
-	source, err := embeddedBundleFS.ReadFile(embeddedProductBundleRoot + "/foundation/image_preparation.cue")
+	sources, err := verifiedEmbeddedSources(productAuthorityRole, manifest)
 	if err != nil {
 		return err
+	}
+	source := sources["foundation/image_preparation.cue"]
+	if source == nil {
+		return fmt.Errorf("embedded product authority manifest has no hash for foundation/image_preparation.cue")
 	}
 	// This source also refers to the catalog to build its projection. Supplying
 	// the verified generated catalog keeps both schema and projection closed.

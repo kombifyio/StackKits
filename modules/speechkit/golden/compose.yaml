@@ -1,0 +1,163 @@
+name: stackkit-ai-main
+services:
+    speechkit:
+        image: ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 1g
+                reservations:
+                    memory: 256m
+        depends_on:
+            speechkit-stt:
+                condition: service_started
+            speechkit-tts:
+                condition: service_started
+        environment:
+            SPEECHKIT_ALLOW_EMPTY_ORIGIN: "1"
+            SPEECHKIT_SERVER_TOKEN: ${STACKKIT_SECRET_SPEECHKIT_SPEECHKIT_SERVER_TOKEN:?required}
+        volumes:
+            - speechkit-config:/etc/speechkit
+            - speechkit-data:/var/lib/speechkit/data
+        networks:
+            - speechkit-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::18080
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: speech-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-speech
+            io.stackkit.route.id: speech-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "18080"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-speech-remote.entrypoints: remote
+            traefik.http.routers.stackkit-speech-remote.rule: Host(`speech.home.example`)
+            traefik.http.routers.stackkit-speech-remote.service: stackkit-speech
+            traefik.http.routers.stackkit-speech.entrypoints: websecure
+            traefik.http.routers.stackkit-speech.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-speech.rule: Host(`speech.home.example`)
+            traefik.http.routers.stackkit-speech.tls: "true"
+            traefik.http.routers.stackkit-speech.tls.certresolver: stackkits
+            traefik.http.services.stackkit-speech.loadbalancer.server.port: "18080"
+            traefik.http.services.stackkit-speech.loadbalancer.server.scheme: http
+    speechkit-discovery:
+        image: ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 64m
+                reservations:
+                    memory: 16m
+        command:
+            - --discovery-only
+            - --discovery-port
+            - "18080"
+            - --discovery-modes
+            - dictation,assist,voiceagent
+        entrypoint:
+            - /app/speechkit-server
+        depends_on:
+            speechkit:
+                condition: service_started
+        network_mode: host
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - /app/speechkit-server
+                - --discovery-only
+                - --probe
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    speechkit-stt:
+        image: ghcr.io/kombifyio/speechkit-server:v0.0.0-placeholder@sha256:0000000000000000000000000000000000000000000000000000000000000000
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: 500
+        deploy:
+            resources:
+                limits:
+                    memory: 3g
+                reservations:
+                    memory: 1g
+        entrypoint:
+            - /bin/sh
+            - -ec
+            - mkdir -p /var/lib/speechkit/models/parakeet-ultra-int8; test -s /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/encoder.int8.onnx && echo 'f4d06712d32431b1718eceba2153c314ac4425e8fe708a3534f5e56c5ad53697  /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/decoder.int8.onnx && echo '94373c6405c8149d1c9d1e9862514e0e3e88dab1c7de18fac9d5df9c6ba5efdd  /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/joiner.int8.onnx && echo '8a71aaccfdba3d451775507a889afd2257d2e754463fd81095a8c8f290f924c2  /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/tokens.txt && echo 'd58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d  /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt; }; exec /app/speechkit-stt-sherpa --host 0.0.0.0 --port 8080 --model /var/lib/speechkit/models/parakeet-ultra-int8 --inference-path /v1/audio/transcriptions
+        volumes:
+            - speechkit-stt-models:/var/lib/speechkit/models
+        networks:
+            - speechkit-internal
+            - stackkit-workload-egress
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+    speechkit-tts:
+        image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.9.0@sha256:ee3111d6a2c903ed62f3b4fa19543c6901205ed39fce3c177e895b34a8386b9c
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: 500
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 512m
+        networks:
+            - speechkit-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    speechkit-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    speechkit-config: {}
+    speechkit-data: {}
+    speechkit-stt-models: {}

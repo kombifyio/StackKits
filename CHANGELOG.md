@@ -1,5 +1,7 @@
 # Changelog
 
+- Removed: the unused pre-1.0 HTTP v1 tfvars and preview generators. Architecture v2 generation uses an Inventory-bound ResolvedPlan through the governed CLI/executor path.
+
 - Added: `stackkit service logs <workload>` reads a bounded tail of a Coolify-managed workload's component containers, and `stackkit service start|stop|restart` now controls the service's database components (for example Immich's postgres and redis) as well as its applications, as the quiesce path already did. Coolify has no log endpoint for service components, so the node's Docker engine reads the containers of the signed service UUID's Compose project (kombify-StackKits-2ujh.3.7). Source only; no Coolify support claim, no mode_matrix change.
 
 - Fixed: the public OSS release no longer embeds the private kombify registry endpoint, so the published stackkit binaries pass the release boundary gate again. The Paperwork bundle download and image pull take the registry host from the admitted image reference, and the sealed grant's signed audience must name that same registry before the CLI uses its bearer; the private caller keeps pinning the image (platform-tkrb8).
@@ -490,6 +492,81 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 * **compat:** grade the Cloud Kit public-VPS row from managed provider lanes: `scripts/compat/import-managed-evidence.mjs` imports Techstack managed Cloud Kit receipts (real Centron/IONOS VPS, pinned CLI, verified provider absence), and the row reports a pending receipt instead of "no automated lane"
 * **game:** Pterodactyl game use case (ADR-0043): Panel, MariaDB, Valkey and a Wings node with a governed Docker lifecycle-owner approval; `stackkit setup game` creates curated Minecraft Java and Bedrock servers with secure defaults, allow list and a protocol-level readiness check
 * **inventory:** the local inventory probe records the default Docker daemon so daemon-bound workloads resolve on a standalone host
+
+## 0.61.18 (2026-11-28)
+
+### Fixed
+
+* **oss,kvm:** drop internal/auth import from coolify proxy_guard and align fault-injection useCases
+
+## 0.61.17 (2026-11-28)
+
+### Fixed
+
+* **stackkits:** split diagnose statDisk for windows cross-compile
+
+## 0.61.16 (2026-11-28)
+
+### Added
+
+* **automation:** declare the private Automation pack with its hosted skill
+* **blueprint:** wire Phase 1E/2D CLI contracts and real-VM harness alignments
+* **coolify:** wire zero-custody coolify-cookie-scrubber sidecar into Marketplace runtime
+* **diagnose:** wire live ADR-0051 watchdog probes and command-result envelopes (Phase 3D)
+* **hostsecurity:** add inventory-bound observe SSH
+* **photos:** declare the first use-case pack for Immich with its hosted albums skill and knowledge
+* **release:** build and attest hosted use-case packs
+
+### Fixed
+
+* **apply:** allow checkpoint resume to retry abandoned non-completed ScopeOwner steps
+* **coolify:** start coolify-cookie-scrubber sidecar during Marketplace apply
+* **cue,oss:** batch ReadAllModules for publish-oss and clean up public StackKits standard
+* **homelab:** call the schema-expand producer .github at Go 1.27.4
+* **homelab:** run the Render download admission at the workspace revision that qualifies current main
+* **public-export:** keep hosted pack skills and pack knowledge out of every public projection
+
+## 0.61.15 (2026-11-28)
+
+### Added
+
+* **engine:** add #AppModuleV3 contract, internal/engine, core boundary and 3 golden-parity pilots
+* **modules,engine:** migrate all 41 remaining curated apps to #AppModuleV3 with 44/44 golden Compose parity
+* **stackkits:** cut over the use-case agent surface to V2
+
+### Fixed
+
+* **ci:** fetch full git tags in rack-kvm blueprint-candidate for GoReleaser snapshot version
+* **ci:** mint shared library read token in rack-kvm blueprint-candidate job
+* **ci:** pass --candidate-base-installer to build service-vm.py for Blueprint v5.1 rack-kvm runs
+* **oss-export:** include ADR-0051, ADR-0054 and ADR-0055 in public export manifest
+* **setup,os-compat:** admit manual policy in Clean Rollout Tier-2 discovery and fix real-VM KVM tier1/tier2 checks
+
+## 0.61.14 (2026-11-28)
+
+### Added
+
+* **apply,retry-appsetup:** emit stackkit.lifecycle-tiers/v1 and command-result/v1 for ADR-0055 KVM verification
+* **coolify,auth:** add Coolify 4.7.5+ isolation, zero-custody cookie-scrubber sidecar and scoped Agent facade
+* **diagnose:** implement ADR-0051 redacted snapshot, playbooks, open-default repair and watchdog
+* **installer:** add Go stackkit install, 69-line binary fetcher and SHA-256 digest-bound release gate
+* **lifecycle:** add Clean/Bootstrapped two-tier rollout, retry-appsetup and 3-zone address contract
+* **opentofu:** add live drift pair, unified node lease, --no-recreate adoption and sequential multi-root
+* **os-compat:** Blueprint v5.1 real-VM rack-kvm scenarios & VM220 smoke harness (Phases 1E/2D/3D)
+* **stackkits:** generalize First-Class in-place adoption profiles to Home Assistant, Vaultwarden, and Cloudreve
+
+### Fixed
+
+* **ci:** pass workspace source/receipt tokens to issue tracker-bridge@4f333b6457
+* **ci:** pin homelab-schema-expand.yml to post-rename .github SHA
+* **guards:** sign Guard G survival receipt headers and wire restore-drill joiner
+* **guards:** wire Guard C image-trust CLI, tighten Komodo/Coolify servicecontrol and Guard F probe order
+* **homelab:** run the Render download admission at the workspace revision that qualified the 37c46f0d recipe
+* **homelab:** run the Render download admission at the workspace revision that qualified the 4b36b522 recipe
+* **release:** package the application recovery receipt schema
+* **stackkits,homelab:** resolve P0 and P1 tech-debt audit findings across transfer relay, Compose adoption, and enrichment
+* **stackkits,homelab:** resolve pre-existing init panic, company-secrets test sorting, and application-facts parity
+* **stackkits:** isolate Guard J vantages, stop Guard H denial journal lock, enforce Dokploy plan-binding, sync STATUS
 
 ## 0.61.13 (2026-11-27)
 

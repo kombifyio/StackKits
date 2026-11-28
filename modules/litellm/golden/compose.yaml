@@ -1,0 +1,38 @@
+name: stackkit-ai-main
+services:
+    litellm:
+        image: ghcr.io/berriai/litellm:v1.105.0@sha256:60947db020b57e204823d3fbc8bb295c85be890d7c9adcc77fb4f5fc2fe410b2
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 512m
+        entrypoint:
+            - /bin/sh
+            - -ec
+            - 'mkdir -p /etc/litellm && printf ''model_list:\n  - model_name: "ollama/*"\n    litellm_params:\n      model: "ollama_chat/*"\n      api_base: "http://ollama:11434"\nlitellm_settings:\n  drop_params: true\n  check_provider_endpoint: true\ngeneral_settings:\n  master_key: os.environ/LITELLM_MASTER_KEY\n'' > /etc/litellm/config.yaml && exec /app/docker/prod_entrypoint.sh --config /etc/litellm/config.yaml --port 4000'
+        environment:
+            DISABLE_ADMIN_UI: "True"
+            LITELLM_LOCAL_MODEL_COST_MAP: "True"
+            LITELLM_LOG: INFO
+            LITELLM_MASTER_KEY: ${STACKKIT_SECRET_LITELLM_LITELLM_MASTER_KEY:?required}
+        networks:
+            - litellm-internal
+            - stackkit-workload-health
+        ports:
+            - 127.0.0.1::4000
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    litellm-internal:
+        internal: true
+    stackkit-workload-health: {}

@@ -294,14 +294,21 @@ func verifyArchitectureV2OpenTofuState(
 	if err != nil {
 		return nil, fmt.Errorf("select OpenTofu state verification target: %w", err)
 	}
-	if target != opentofu.UnitRef && target != opentofu.TerramateUnitRef {
+	owner := opentofu.Runtime{WorkspaceRoot: workspaceRoot}
+	expected, err := owner.AdoptedStateRoots()
+	if err != nil {
+		return nil, err
+	}
+	if target == opentofu.UnitRef || target == opentofu.TerramateUnitRef {
+		planned, err := expectedArchitectureV2OpenTofuStateRoots(workspaceRoot, plan, target)
+		if err != nil {
+			return nil, fmt.Errorf("bind live OpenTofu state roots: %w", err)
+		}
+		expected = append(expected, planned...)
+	} else if len(expected) == 0 {
 		return nil, nil
 	}
-	expected, err := expectedArchitectureV2OpenTofuStateRoots(workspaceRoot, plan, target)
-	if err != nil {
-		return nil, fmt.Errorf("bind live OpenTofu state roots: %w", err)
-	}
-	states, err := (opentofu.Runtime{WorkspaceRoot: workspaceRoot}).InspectStates(ctx, expected)
+	states, err := owner.InspectStates(ctx, expected)
 	if err != nil {
 		return nil, fmt.Errorf("verify live OpenTofu state: %w", err)
 	}

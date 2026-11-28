@@ -96,3 +96,66 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Zigbee2MQTT dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of zigbee2mqtt (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-zigbee2mqtt-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-zigbee2mqtt-runtime"
+	workloadRef:    "smart-home"
+	alternativeRef: "zigbee2mqtt"
+	release:        "2.14.1"
+	entryComponent: "zigbee2mqtt"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "zigbee"
+		targetPort:        8080
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "zigbee2mqtt-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"mqtt-password": purpose: "Custody secret slot mqtt-password for zigbee2mqtt"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "zigbee2mqtt", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"zigbee2mqtt-internal": {}
+	}
+	components: [
+		{
+			id:        "zigbee2mqtt"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["zigbee2mqtt"]
+			environment: {
+				Z2M_ONBOARD_NO_SERVER: "1"
+				ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED: "true"
+				ZIGBEE2MQTT_CONFIG_FRONTEND_PORT: "8080"
+				ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED: "true"
+				ZIGBEE2MQTT_CONFIG_MQTT_USER: "stackkit"
+				ZIGBEE2MQTT_CONFIG_SERIAL_PORT: "/dev/zigbee"
+				ZIGBEE2MQTT_DATA: "/app/data"
+			}
+			secretEnvironment: {
+				ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD: "mqtt-password"
+			}
+			volumes: [
+				{id: "data", target: "/app/data", class: "persistent", backup: true},
+			]
+			networks: ["zigbee2mqtt-internal"]
+			health: {kind: "http", path: "/", port: 8080}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

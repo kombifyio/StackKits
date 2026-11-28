@@ -49,6 +49,10 @@ func applicationStackOperations() []Operation {
 		{Argv: []string{"--no-outbound"}, Description: "Adopt without outbound Internet; published host ports stay and only answer connections made to them."},
 		{Argv: []string{"--http-port", "{httpPort}"}, Description: "The web port when the container exposes several."},
 		{Argv: []string{"--secret-env", "{environmentName}"}, Description: "Also classify this variable as a credential (repeatable); every value is hidden anyway."},
+		{Argv: []string{"--memory-mib", "{memoryMiB}"}, Description: "Memory limit in MiB for the adopted own application."},
+		{Argv: []string{"--cpus", "{cpus}"}, Description: "CPU limit for the adopted own application."},
+		{Argv: []string{"--adopt-compose-project"}, Description: "Adopt all services of a multi-service Docker Compose project together as homelab.own-application/v3."},
+		{Argv: []string{"--http-service", "{httpService}"}, Description: "Compose service name to route HTTP traffic to when adopting a multi-service Compose project."},
 	}
 	entry := func(operation, summary string, argv []string, optional []OptionalArgs, mutates bool) Operation {
 		return Operation{Operation: operation, Status: StatusAvailable, SinceRelease: SincePending, Summary: summary, Command: "stackkit app own", Argv: append(append([]string{}, base...), argv...), OptionalArgs: optional, Mutates: mutates, Requires: Requirements{OwnerApproval: mutates}, Inputs: []Input{}, Results: result, Events: []EventPhase{}, Modes: Modes{Standard: AdmissionAllowed, Advanced: AdmissionAllowed}}

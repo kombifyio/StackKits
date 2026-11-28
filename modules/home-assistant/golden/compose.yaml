@@ -1,0 +1,70 @@
+name: stackkit-smart-home-main
+services:
+    home-assistant:
+        image: ghcr.io/home-assistant/home-assistant:2026.9.4@sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 512m
+        entrypoint:
+            - /bin/sh
+            - /config/stackkits-init.sh
+        volumes:
+            - ./files/config_configuration.yaml:/config/configuration.yaml:ro
+            - ./files/config_stackkits-init.sh:/config/stackkits-init.sh:ro
+            - home-assistant-config:/config
+        networks:
+            - home-assistant-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::8123
+        labels:
+            io.stackkit.config-digest: sha256:1f4ba5d65fa32c4c34f99c20c9a3d384b1024c4ff0b228f4067ce1a4a2a50428
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: smart-home-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-smart-home
+            io.stackkit.route.id: smart-home-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8123"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-smart-home-remote.entrypoints: remote
+            traefik.http.routers.stackkit-smart-home-remote.rule: Host(`smart-home.home.example`)
+            traefik.http.routers.stackkit-smart-home-remote.service: stackkit-smart-home
+            traefik.http.routers.stackkit-smart-home.entrypoints: websecure
+            traefik.http.routers.stackkit-smart-home.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-smart-home.rule: Host(`smart-home.home.example`)
+            traefik.http.routers.stackkit-smart-home.tls: "true"
+            traefik.http.routers.stackkit-smart-home.tls.certresolver: stackkits
+            traefik.http.services.stackkit-smart-home.loadbalancer.server.port: "8123"
+            traefik.http.services.stackkit-smart-home.loadbalancer.server.scheme: http
+networks:
+    home-assistant-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    home-assistant-config: {}

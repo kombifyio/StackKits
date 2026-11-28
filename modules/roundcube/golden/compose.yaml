@@ -1,0 +1,86 @@
+name: stackkit-mail-main
+services:
+    roundcube:
+        image: docker.io/roundcube/roundcubemail:1.6.19-apache@sha256:f1256d1ce06ca5c52660f67f8511f3971def5d3b80aab3e3809df970489b1c46
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+                reservations:
+                    memory: 128m
+        command:
+            - apache2-foreground
+        entrypoint:
+            - /bin/sh
+            - /var/roundcube/config/stackkit/init.sh
+        environment:
+            ROUNDCUBEMAIL_DB_DIR: /var/roundcube/db
+            ROUNDCUBEMAIL_DB_TYPE: sqlite
+            ROUNDCUBEMAIL_DES_KEY: ${STACKKIT_SECRET_ROUNDCUBE_ROUNDCUBEMAIL_DES_KEY:?required}
+            ROUNDCUBEMAIL_PLUGINS: archive,zipdownload
+            ROUNDCUBEMAIL_REQUEST_PATH: /
+            ROUNDCUBEMAIL_SKIN: elastic
+            ROUNDCUBEMAIL_TEMP_DIR: /tmp/roundcube-temp
+        volumes:
+            - roundcube-config:/var/roundcube/config
+            - roundcube-database:/var/roundcube/db
+            - roundcube-mailbox:/var/roundcube/mailbox
+            - roundcube-temp:/tmp/roundcube-temp
+        networks:
+            - mail-internal
+            - stackkit-routing
+            - stackkit-workload-egress
+        ports:
+            - 127.0.0.1::80
+        stop_signal: SIGTERM
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: mail-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-mail
+            io.stackkit.route.id: mail-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "80"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-mail-remote.entrypoints: remote
+            traefik.http.routers.stackkit-mail-remote.rule: Host(`mail.home.example`)
+            traefik.http.routers.stackkit-mail-remote.service: stackkit-mail
+            traefik.http.routers.stackkit-mail.entrypoints: websecure
+            traefik.http.routers.stackkit-mail.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-mail.rule: Host(`mail.home.example`)
+            traefik.http.routers.stackkit-mail.tls: "true"
+            traefik.http.routers.stackkit-mail.tls.certresolver: stackkits
+            traefik.http.services.stackkit-mail.loadbalancer.server.port: "80"
+            traefik.http.services.stackkit-mail.loadbalancer.server.scheme: http
+networks:
+    mail-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    roundcube-config: {}
+    roundcube-database: {}
+    roundcube-mailbox: {}
+    roundcube-temp: {}

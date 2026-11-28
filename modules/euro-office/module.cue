@@ -110,3 +110,60 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Euro-Office dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of euro-office (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-euro-office-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-euro-office-runtime"
+	workloadRef:    "documents"
+	alternativeRef: "euro-office"
+	release:        "v9.3.4-hotfix.1"
+	entryComponent: "euro-office"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "office"
+		targetPort:        80
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "euro-office-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"jwt-secret": purpose: "Custody secret slot jwt-secret for euro-office"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "euro-office", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"euro-office-internal": {}
+	}
+	components: [
+		{
+			id:        "euro-office"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["euro-office"]
+			environment: {
+				JWT_ENABLED: "true"
+			}
+			secretEnvironment: {
+				JWT_SECRET: "jwt-secret"
+			}
+			volumes: [
+				{id: "data", target: "/var/www/euro-office/Data", class: "persistent", backup: true},
+			]
+			networks: ["euro-office-internal"]
+			health: {kind: "http", path: "/healthcheck", port: 80}
+			resources: {memoryLimit: "4g", memoryReservation: "2g"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

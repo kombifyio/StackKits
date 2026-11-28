@@ -268,11 +268,12 @@ Compose manager, not a standard PaaS. `platformFallback.enabled: true` with
 of these values establishes support at the current pin; that requires a
 current-pin lifecycle receipt.
 
-New installations use native v2 authoring: standalone Compose is the default
-until further PaaS platforms are available, and Coolify, Komodo and Dokploy
-are the optional Layer-2 PaaS platforms; 1.0 requires both paths. The
-Marketplace use case additionally installs Coolify as its engine (ADR-0042,
-ADR-0049).
+New installations use native v2 authoring: workloads render to Docker Compose
+and OpenTofu Stage 1 is the single core execution engine. Komodo, Dokploy and
+legacy core Coolify `4.1.2` are retired from 1.0 core execution; the `paas`
+values in this reference remain legacy compatibility metadata. The Marketplace use case
+optionally installs Coolify `4.7.5+` as its Layer-3 extension (ADR-0042,
+ADR-0049, ADR-0054).
 
 User `apps:` are customer-owned handoff metadata for a selected PaaS; StackKit
 does not deploy or manage them. Product-bundled L3 applications are not

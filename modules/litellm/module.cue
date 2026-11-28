@@ -86,3 +86,44 @@ Contract: foundation.#ModuleContract & {
 		output: description: "LiteLLM dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of litellm (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-litellm-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-litellm-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "litellm"
+	release:        "v1.105.0"
+	entryComponent: "litellm"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	secrets: {
+		"master-key": purpose: "Custody secret slot master-key for litellm"
+	}
+	networks: {
+		"litellm-internal": {}
+	}
+	components: [
+		{
+			id:        "litellm"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["litellm"]
+			entrypoint: ["/bin/sh", "-ec", "mkdir -p /etc/litellm && printf 'model_list:\\n  - model_name: \"ollama/*\"\\n    litellm_params:\\n      model: \"ollama_chat/*\"\\n      api_base: \"http://ollama:11434\"\\nlitellm_settings:\\n  drop_params: true\\n  check_provider_endpoint: true\\ngeneral_settings:\\n  master_key: os.environ/LITELLM_MASTER_KEY\\n' > /etc/litellm/config.yaml && exec /app/docker/prod_entrypoint.sh --config /etc/litellm/config.yaml --port 4000"]
+			environment: {
+				DISABLE_ADMIN_UI: "True"
+				LITELLM_LOCAL_MODEL_COST_MAP: "True"
+				LITELLM_LOG: "INFO"
+			}
+			secretEnvironment: {
+				LITELLM_MASTER_KEY: "master-key"
+			}
+			networks: ["litellm-internal"]
+			health: {kind: "http", path: "/health/liveliness", port: 4000}
+			resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

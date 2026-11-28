@@ -171,3 +171,92 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of passbolt (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-passbolt-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-passbolt-runtime"
+	workloadRef:    "vault"
+	alternativeRef: "passbolt"
+	release:        "5.16.0-1-ce-non-root"
+	entryComponent: "passbolt"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "vault"
+		targetPort:        8080
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "passbolt-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"database-password": purpose: "Custody secret slot database-password for passbolt"
+		"database-root-password": purpose: "Custody secret slot database-root-password for passbolt"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "passbolt", volumeRef: "gpg"},
+			{componentRef: "passbolt", volumeRef: "jwt"},
+			{componentRef: "passbolt-mariadb", volumeRef: "database"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"passbolt-internal": {}
+	}
+	components: [
+		{
+			id:        "passbolt"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["passbolt"]
+			command: ["/usr/bin/wait-for.sh", "-t", "0", "passbolt-mariadb:3306", "--", "/docker-entrypoint.sh"]
+			dependsOn: ["passbolt-mariadb"]
+			environment: {
+				DATASOURCES_DEFAULT_DATABASE: "passbolt"
+				DATASOURCES_DEFAULT_HOST: "passbolt-mariadb"
+				DATASOURCES_DEFAULT_USERNAME: "passbolt"
+				PASSBOLT_REGISTRATION_PUBLIC: "false"
+				PASSBOLT_SSL_FORCE: "false"
+			}
+			secretEnvironment: {
+				DATASOURCES_DEFAULT_PASSWORD: "database-password"
+			}
+			volumes: [
+				{id: "gpg", target: "/etc/passbolt/gpg", class: "persistent", backup: true},
+				{id: "jwt", target: "/etc/passbolt/jwt", class: "persistent", backup: true},
+			]
+			networks: ["passbolt-internal"]
+			health: {kind: "http", path: "/healthcheck/status.json", port: 8080}
+			resources: {memoryLimit: "1g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "passbolt-mariadb"
+			role:      "database"
+			lifecycle: "daemon"
+			image:     _images["passbolt-mariadb"]
+			environment: {
+				MARIADB_DATABASE: "passbolt"
+				MARIADB_USER: "passbolt"
+			}
+			secretEnvironment: {
+				MARIADB_PASSWORD: "database-password"
+				MARIADB_ROOT_PASSWORD: "database-root-password"
+			}
+			volumes: [
+				{id: "database", target: "/var/lib/mysql", class: "persistent", backup: true},
+			]
+			networks: ["passbolt-internal"]
+			health: {kind: "command", command: ["healthcheck.sh", "--connect", "--innodb_initialized"]}
+			resources: {memoryLimit: "1g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

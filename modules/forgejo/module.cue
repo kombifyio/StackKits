@@ -112,3 +112,66 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Forgejo dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of forgejo (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-forgejo-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-forgejo-runtime"
+	workloadRef:    "dev"
+	alternativeRef: "forgejo"
+	release:        "16.0.5-rootless"
+	entryComponent: "forgejo"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "git"
+		targetPort:        3000
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "forgejo-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "forgejo", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"forgejo-internal": {}
+	}
+	components: [
+		{
+			id:        "forgejo"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["forgejo"]
+			command: ["/bin/sh", "-ec", "forgejo migrate && users=$(forgejo admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Forgejo owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Forgejo users require explicit owner reconciliation' >&2; exit 1; }; password=$(cat \"$STACKKITS_OWNER_PASSWORD_FILE\"); forgejo admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$password\" --admin --must-change-password=false; fi && exec forgejo web"]
+			environment: {
+				FORGEJO__actions__ENABLED: "false"
+				FORGEJO__database__DB_TYPE: "sqlite3"
+				FORGEJO__database__PATH: "/var/lib/gitea/data/forgejo.db"
+				FORGEJO__repository__DEFAULT_PRIVATE: "private"
+				FORGEJO__repository__FORCE_PRIVATE: "true"
+				FORGEJO__security__INSTALL_LOCK: "true"
+				FORGEJO__security__REVERSE_PROXY_LIMIT: "0"
+				FORGEJO__server__DISABLE_SSH: "true"
+				FORGEJO__service__DISABLE_REGISTRATION: "true"
+				FORGEJO__service__REQUIRE_SIGNIN_VIEW: "true"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/var/lib/gitea", class: "persistent", backup: true},
+			]
+			networks: ["forgejo-internal"]
+			health: {kind: "http", path: "/api/healthz", port: 3000}
+			resources: {memoryLimit: "2g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

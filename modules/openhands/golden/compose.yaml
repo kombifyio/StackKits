@@ -1,0 +1,78 @@
+name: stackkit-ai-main
+services:
+    openhands:
+        image: ghcr.io/openhands/agent-canvas:1.24.0@sha256:ad0829a7082a71ddfd2d16c1fae5a2172e4ca5a34eba7f03b69bd5b9b1bc54d7
+        restart: unless-stopped
+        runtime: runsc
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 6g
+                    cpus: "2"
+                reservations:
+                    memory: 1g
+        entrypoint:
+            - /bin/sh
+            - -ec
+            - s=/home/openhands/.openhands/settings.json; if [ ! -e "$$s" ]; then printf '%s\n' "$$STACKKIT_OPENHANDS_SETTINGS_SEED" > "$$s"; chmod 600 "$$s"; fi; unset STACKKIT_OPENHANDS_SETTINGS_SEED; exec tini -- /opt/agent-canvas/entrypoint.sh
+        environment:
+            DO_NOT_TRACK: "1"
+            STACKKIT_OPENHANDS_SETTINGS_SEED: '{"schema_version":3,"agent_settings":{"schema_version":6,"agent_kind":"openhands","llm":{"model":"ollama_chat/qwen3.5:9b","base_url":"http://ollama:11434"}}}'
+            VITE_DO_NOT_TRACK: "1"
+        volumes:
+            - openhands-settings:/home/openhands/.openhands
+            - openhands-workspace:/projects
+        networks:
+            - openhands-internal
+            - stackkit-routing
+            - stackkit-workload-egress
+        ports:
+            - 127.0.0.1::8000
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: openhands-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-openhands
+            io.stackkit.route.id: openhands-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8000"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-openhands-remote.entrypoints: remote
+            traefik.http.routers.stackkit-openhands-remote.rule: Host(`openhands.home.example`)
+            traefik.http.routers.stackkit-openhands-remote.service: stackkit-openhands
+            traefik.http.routers.stackkit-openhands.entrypoints: websecure
+            traefik.http.routers.stackkit-openhands.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-openhands.rule: Host(`openhands.home.example`)
+            traefik.http.routers.stackkit-openhands.tls: "true"
+            traefik.http.routers.stackkit-openhands.tls.certresolver: stackkits
+            traefik.http.services.stackkit-openhands.loadbalancer.server.port: "8000"
+            traefik.http.services.stackkit-openhands.loadbalancer.server.scheme: http
+networks:
+    openhands-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    openhands-settings: {}
+    openhands-workspace: {}

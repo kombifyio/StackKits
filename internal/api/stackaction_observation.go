@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/docker"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	stackaction "github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
@@ -63,7 +63,7 @@ var runtimeHealthProbeLookupIPStackAction = func(ctx context.Context, host strin
 func collectRuntimeLiveObservationStackAction(
 	ctx context.Context,
 	resp stackActionResponse,
-	remote *preparedRuntimeTargetStackAction, refs []platformdeploy.DeploymentRef,
+	remote *preparedRuntimeTargetStackAction, refs []deploymentcontract.DeploymentRef,
 ) *stackaction.LiveObservation {
 	observedAt := time.Now().UTC()
 	observation := &stackaction.LiveObservation{
@@ -214,7 +214,7 @@ func runtimeObservationHostFailureStackAction(observation *stackaction.LiveObser
 	return observation
 }
 
-func runtimeObservationPlatformStackAction(deployDir string, refs []platformdeploy.DeploymentRef) *stackaction.PlatformObservation {
+func runtimeObservationPlatformStackAction(deployDir string, refs []deploymentcontract.DeploymentRef) *stackaction.PlatformObservation {
 	cfg := runtimeLoadPlatformConfigFileStackAction(deployDir)
 	platform := runtimeFirstNonEmptyStackAction(cfg.Platform)
 	if platform == "" && len(refs) > 0 {
@@ -234,7 +234,7 @@ func runtimeObservationPlatformStackAction(deployDir string, refs []platformdepl
 	return observation
 }
 
-func runtimePlatformServiceObservationStackAction(ctx context.Context, client runtimeObservationDockerClientStackAction, ref platformdeploy.DeploymentRef) stackaction.ServiceObservation {
+func runtimePlatformServiceObservationStackAction(ctx context.Context, client runtimeObservationDockerClientStackAction, ref deploymentcontract.DeploymentRef) stackaction.ServiceObservation {
 	service := stackaction.ServiceObservation{
 		Name:           runtimeFirstNonEmptyStackAction(ref.AppName, ref.ExternalID),
 		Status:         runtimeObservedServiceStatusStackAction(ref.ObservedStatus),
@@ -372,7 +372,7 @@ type runtimeHealthProbeTargetStackAction struct {
 func runtimeHealthProbeTargetsStackAction(deployDir string) map[string]runtimeHealthProbeTargetStackAction {
 	targets := map[string]runtimeHealthProbeTargetStackAction{}
 	for _, manifestPath := range runtimePlatformManifestPathsStackAction(deployDir) {
-		bundle, err := platformdeploy.LoadBundleManifest(manifestPath)
+		bundle, err := deploymentcontract.LoadBundleManifest(manifestPath)
 		if err != nil {
 			continue
 		}
@@ -401,20 +401,20 @@ func runtimePlatformManifestPathsStackAction(deployDir string) []string {
 	}
 }
 
-func runtimeProbeAppsStackAction(bundle platformdeploy.BundleManifest) []platformdeploy.AppManifest {
-	apps := make([]platformdeploy.AppManifest, 0, len(bundle.SystemApps)+len(bundle.Apps))
+func runtimeProbeAppsStackAction(bundle deploymentcontract.BundleManifest) []deploymentcontract.AppManifest {
+	apps := make([]deploymentcontract.AppManifest, 0, len(bundle.SystemApps)+len(bundle.Apps))
 	for _, app := range bundle.SystemApps {
 		apps = append(apps, app.AppManifest)
 	}
 	for _, app := range bundle.Apps {
-		if platformdeploy.IsStackKitOwnedApp(app) {
+		if deploymentcontract.IsStackKitOwnedApp(app) {
 			apps = append(apps, app)
 		}
 	}
 	return apps
 }
 
-func runtimeHealthProbeURLStackAction(app platformdeploy.AppManifest, healthPath string) (string, bool) {
+func runtimeHealthProbeURLStackAction(app deploymentcontract.AppManifest, healthPath string) (string, bool) {
 	base := runtimeFirstNonEmptyStackAction(app.RouteURL, app.URL)
 	if base == "" && strings.TrimSpace(app.Host) != "" {
 		base = "http://" + strings.TrimSpace(app.Host)

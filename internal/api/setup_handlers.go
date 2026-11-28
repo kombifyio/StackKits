@@ -22,8 +22,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
 	"github.com/kombifyio/stackkits/internal/config"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/servicecatalog"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
@@ -341,7 +341,7 @@ func (s *Server) runManifestServiceSetup(ctx context.Context, service servicecat
 			skerrors.WithField("manifest", manifestPath),
 		)
 	}
-	effectivePolicy := strings.TrimSpace(app.SetupPolicy)
+	effectivePolicy := strings.TrimSpace(string(app.SetupPolicy))
 	if effectivePolicy == "" {
 		effectivePolicy = servicecatalog.SetupPolicyManual
 	}
@@ -461,7 +461,7 @@ func isSetupWaitingForOwnerActivation(err *skerrors.StackKitError) bool {
 	return !ok || cleanup != "failed"
 }
 
-func isVaultwardenOwnerCompletionPending(service servicecatalog.Service, app platformdeploy.AppManifest, drop platformdeploy.SetupDropManifest) bool {
+func isVaultwardenOwnerCompletionPending(service servicecatalog.Service, app deploymentcontract.AppManifest, drop deploymentcontract.SetupDropManifest) bool {
 	return service.Key == "vault" && app.Name == "vaultwarden" && drop.Name == "vaultwarden-admin-handoff"
 }
 
@@ -484,10 +484,10 @@ func ownerActivationWaitingEvidence(serviceKey, appName, dropName string) map[st
 	return evidence
 }
 
-func (s *Server) loadSetupBundle() (platformdeploy.BundleManifest, string, error) {
+func (s *Server) loadSetupBundle() (deploymentcontract.BundleManifest, string, error) {
 	var lastErr error
 	for _, candidate := range setupManifestCandidates(s.config.BaseDir) {
-		bundle, err := platformdeploy.LoadBundleManifest(candidate)
+		bundle, err := deploymentcontract.LoadBundleManifest(candidate)
 		if err == nil {
 			return bundle, candidate, nil
 		}
@@ -496,7 +496,7 @@ func (s *Server) loadSetupBundle() (platformdeploy.BundleManifest, string, error
 	if lastErr == nil {
 		lastErr = fmt.Errorf("no manifest path candidates")
 	}
-	return platformdeploy.BundleManifest{}, "", lastErr
+	return deploymentcontract.BundleManifest{}, "", lastErr
 }
 
 func setupManifestCandidates(baseDir string) []string {
@@ -818,7 +818,7 @@ func leadingWhitespaceLen(s string) int {
 	return len(s)
 }
 
-func findSetupApp(bundle platformdeploy.BundleManifest, service servicecatalog.Service) (platformdeploy.AppManifest, bool) {
+func findSetupApp(bundle deploymentcontract.BundleManifest, service servicecatalog.Service) (deploymentcontract.AppManifest, bool) {
 	candidates := setupAppCandidates(service)
 	for _, app := range bundle.Apps {
 		if setupAppNameMatches(app.Name, candidates) || setupAppNameMatches(app.ServiceKey, candidates) {
@@ -831,7 +831,7 @@ func findSetupApp(bundle platformdeploy.BundleManifest, service servicecatalog.S
 			return app, true
 		}
 	}
-	return platformdeploy.AppManifest{}, false
+	return deploymentcontract.AppManifest{}, false
 }
 
 func setupAppCandidates(service servicecatalog.Service) map[string]struct{} {
@@ -850,7 +850,7 @@ func setupAppNameMatches(name string, candidates map[string]struct{}) bool {
 	return ok
 }
 
-func setupDropResponses(drops []platformdeploy.SetupDropManifest, status string) []setupDropResponse {
+func setupDropResponses(drops []deploymentcontract.SetupDropManifest, status string) []setupDropResponse {
 	out := make([]setupDropResponse, 0, len(drops))
 	for _, drop := range drops {
 		out = append(out, setupDropResponse{
@@ -865,7 +865,7 @@ func setupDropResponses(drops []platformdeploy.SetupDropManifest, status string)
 	return out
 }
 
-func setupDropResponseFromRun(drop platformdeploy.SetupDropManifest, run models.SetupRunState) setupDropResponse {
+func setupDropResponseFromRun(drop deploymentcontract.SetupDropManifest, run models.SetupRunState) setupDropResponse {
 	status := run.Status
 	if status == "" {
 		status = "ready"
@@ -904,7 +904,7 @@ func (s *Server) setupActionMode() string {
 	}
 }
 
-func (s *Server) startSetupRun(service servicecatalog.Service, app platformdeploy.AppManifest, drop platformdeploy.SetupDropManifest) (models.SetupRunState, bool, *models.DeploymentState, string, *skerrors.StackKitError) {
+func (s *Server) startSetupRun(service servicecatalog.Service, app deploymentcontract.AppManifest, drop deploymentcontract.SetupDropManifest) (models.SetupRunState, bool, *models.DeploymentState, string, *skerrors.StackKitError) {
 	state, statePath, err := s.loadSetupRunState()
 	if err != nil {
 		return models.SetupRunState{}, false, nil, "", err
@@ -938,7 +938,7 @@ func (s *Server) startSetupRun(service servicecatalog.Service, app platformdeplo
 	run.ServiceKey = service.Key
 	run.AppName = app.Name
 	run.DropName = drop.Name
-	run.Policy = app.SetupPolicy
+	run.Policy = string(app.SetupPolicy)
 	run.Status = models.SetupRunStatusRunning
 	run.Phase = models.BootstrapPhasePrepared
 	run.Attempts++
@@ -1097,7 +1097,7 @@ func findSetupRunIndex(runs []models.SetupRunState, serviceKey, appName, dropNam
 	return -1
 }
 
-func (s *Server) runSetupDrop(ctx context.Context, service servicecatalog.Service, app platformdeploy.AppManifest, drop platformdeploy.SetupDropManifest) (map[string]string, *skerrors.StackKitError) {
+func (s *Server) runSetupDrop(ctx context.Context, service servicecatalog.Service, app deploymentcontract.AppManifest, drop deploymentcontract.SetupDropManifest) (map[string]string, *skerrors.StackKitError) {
 	switch drop.Name {
 	case "cloudreve-owner-bootstrap":
 		return s.runCloudreveOwnerBootstrap(ctx)
@@ -1169,7 +1169,7 @@ func (s *Server) runCloudreveOwnerBootstrap(ctx context.Context) (evidence map[s
 	}, nil
 }
 
-func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app platformdeploy.AppManifest) (evidence map[string]string, returnErr *skerrors.StackKitError) {
+func (s *Server) runVaultwardenAdminHandoff(ctx context.Context, app deploymentcontract.AppManifest) (evidence map[string]string, returnErr *skerrors.StackKitError) {
 	_, tfvars, err := loadBaseHubTFVars(s.config.BaseDir)
 	if err != nil {
 		return nil, skerrors.NewValidationError(

@@ -1,0 +1,207 @@
+name: stackkit-photos-main
+services:
+    immich-machine-learning:
+        image: ghcr.io/immich-app/immich-machine-learning:v3.3.4@sha256:1ab8674e7cec41009abb3812de62a16cc1917e73d486233a5471b048d26fc14d
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: 500
+        deploy:
+            resources:
+                limits:
+                    memory: 3g
+                reservations:
+                    memory: 512m
+        volumes:
+            - immich-machine-learning-model-cache:/cache
+        networks:
+            - immich-internal
+            - stackkit-workload-egress
+        labels:
+            io.stackkit.health-failure: degraded
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - python3
+                - healthcheck.py
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    immich-postgres:
+        image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -500
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 256m
+        environment:
+            POSTGRES_DB: immich
+            POSTGRES_INITDB_ARGS: --data-checksums
+            POSTGRES_PASSWORD: ${STACKKIT_SECRET_IMMICH_POSTGRES_POSTGRES_PASSWORD:?required}
+            POSTGRES_USER: immich
+        volumes:
+            - immich-postgres-database:/var/lib/postgresql/data
+        networks:
+            - immich-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - -U
+                - immich
+                - -d
+                - postgres
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+            start_interval: 5s
+    immich-postgres-init:
+        image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+        command:
+            - sh
+            - -c
+            - until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'immich'" | grep -q 1 || createdb -h immich-postgres -U immich immich
+        depends_on:
+            immich-postgres:
+                condition: service_started
+        environment:
+            PGPASSWORD: ${STACKKIT_SECRET_IMMICH_POSTGRES_INIT_PGPASSWORD:?required}
+            PGUSER: immich
+        networks:
+            - immich-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+    immich-server:
+        image: ghcr.io/immich-app/immich-server:v3.3.4@sha256:f6475c58b07a8d89ec845aa8782731d36656c3c17d943e0a101dc6ed99a2e53f
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 3g
+                reservations:
+                    memory: 512m
+        depends_on:
+            immich-machine-learning:
+                condition: service_started
+            immich-postgres-init:
+                condition: service_completed_successfully
+            immich-valkey:
+                condition: service_started
+        environment:
+            DB_DATABASE_NAME: immich
+            DB_HOSTNAME: immich-postgres
+            DB_PASSWORD: ${STACKKIT_SECRET_IMMICH_SERVER_DB_PASSWORD:?required}
+            DB_PORT: "5432"
+            DB_USERNAME: immich
+            IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+            REDIS_HOSTNAME: immich-valkey
+            REDIS_PORT: "6379"
+        volumes:
+            - immich-server-library:/data
+        networks:
+            - immich-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::2283
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: photos-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-photos
+            io.stackkit.route.id: photos-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "2283"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-photos-remote.entrypoints: remote
+            traefik.http.routers.stackkit-photos-remote.rule: Host(`photos.home.example`)
+            traefik.http.routers.stackkit-photos-remote.service: stackkit-photos
+            traefik.http.routers.stackkit-photos.entrypoints: websecure
+            traefik.http.routers.stackkit-photos.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-photos.rule: Host(`photos.home.example`)
+            traefik.http.routers.stackkit-photos.tls: "true"
+            traefik.http.routers.stackkit-photos.tls.certresolver: stackkits
+            traefik.http.services.stackkit-photos.loadbalancer.server.port: "2283"
+            traefik.http.services.stackkit-photos.loadbalancer.server.scheme: http
+    immich-valkey:
+        image: docker.io/valkey/valkey:9@sha256:3b55fbaa0cd93cf0d9d961f405e4dfcc70efe325e2d84da207a0a8e6d8fde4f9
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -250
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 64m
+        command:
+            - valkey-server
+        networks:
+            - immich-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - redis-cli
+                - ping
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+networks:
+    immich-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    immich-machine-learning-model-cache: {}
+    immich-postgres-database: {}
+    immich-server-library: {}

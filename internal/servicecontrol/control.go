@@ -11,12 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -24,6 +22,7 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/lifecyclemutation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
@@ -31,8 +30,6 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
-	"github.com/kombifyio/stackkits/pkg/models"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -150,6 +147,8 @@ func (e *Error) Error() string { return e.Message }
 // physical Compose project of a Dokploy-managed workload and is empty for every
 // other adapter.
 type runtimeCommandRequest struct {
+	Workspace      string
+	CustodyDigest  string
 	Adapter        string
 	RuntimeRef     string
 	ComposePath    string
@@ -435,6 +434,8 @@ type runtimeAuthority struct {
 // is the signed physical Compose project of a Dokploy workload and is empty for
 // every other adapter.
 type runtimeTarget struct {
+	Workspace      string
+	CustodyDigest  string
 	Adapter        string
 	RuntimeRef     string
 	ComposePath    string
@@ -619,39 +620,47 @@ func serviceContractHash(definitions []serviceDefinition) (string, error) {
 }
 
 func (c *Controller) runtimeTarget(definition serviceDefinition, authority runtimeAuthority) (runtimeTarget, error) {
-	if definition.Adapter == dokployServiceAdapter {
-		return c.dokployRuntimeTarget(definition)
-	}
-	if definition.Adapter == applicationComposeAdapter || definition.Adapter == "komodo" || definition.Adapter == "coolify" {
+	custodyDigest := ""
+	var custody *deploymentcontract.HostDeployment
+	if definition.Adapter == applicationComposeAdapter || definition.Adapter == "komodo" || definition.Adapter == "coolify" || definition.Adapter == dokployServiceAdapter {
 		project := "stackkit-" + definition.RuntimeRef
-		present, err := platformdeploy.HasOwnerHostDeployment(c.workspace, project)
+		present, err := deploymentcontract.HasOwnerHostDeployment(c.workspace, project)
 		if err != nil {
 			return runtimeTarget{}, err
 		}
 		if present {
-			state, err := platformdeploy.LoadOwnerHostDeployment(c.workspace, project)
+			state, err := deploymentcontract.LoadOwnerHostDeployment(c.workspace, project)
 			if err != nil {
 				return runtimeTarget{}, err
 			}
+			custody = &state
+			custodyDigest = hostDeploymentDigest(state)
 			wanted := definition.Adapter
 			if b := state.PlanBinding; b != nil {
 				if b.PlanHash != authority.PlanHash || b.ServiceContractHash != authority.ServiceContractHash ||
 					b.ServiceKey != definition.Key || b.RuntimeRef != definition.RuntimeRef || b.SourceAdapter != definition.Adapter || b.ArtifactDigest != state.ArtifactDigest {
 					return runtimeTarget{}, &Error{ReasonCode: ReasonPlanChanged, Message: "service control differs from the signed manager/applied-plan binding"}
 				}
-				wanted = platformdeploy.HostDeploymentManager(state)
-				definition.Adapter = wanted
-				if wanted == standaloneComposeRuntimeAdapter {
-					definition.Adapter = applicationComposeAdapter
+				// Dokploy has no manager transfer: its custody stays bound to
+				// Dokploy, which RequireHostDeploymentManager below enforces.
+				if definition.Adapter != dokployServiceAdapter {
+					wanted = deploymentcontract.HostDeploymentManager(state)
+					definition.Adapter = wanted
+					if wanted == standaloneComposeRuntimeAdapter {
+						definition.Adapter = applicationComposeAdapter
+					}
 				}
 			}
 			if wanted == applicationComposeAdapter {
 				wanted = standaloneComposeRuntimeAdapter
 			}
-			if err := platformdeploy.RequireHostDeploymentManager(state, wanted); err != nil {
+			if err := deploymentcontract.RequireHostDeploymentManager(state, wanted); err != nil {
 				return runtimeTarget{}, &Error{ReasonCode: "workload_manager_conflict", Message: err.Error()}
 			}
 		}
+	}
+	if definition.Adapter == dokployServiceAdapter {
+		return c.dokployRuntimeTarget(definition)
 	}
 	if definition.Adapter == "compose" || definition.Adapter == applicationComposeAdapter {
 		path := filepath.Join(c.workspace, ".stackkit", "runtime", definition.RuntimeRef, "compose.yaml")
@@ -669,120 +678,44 @@ func (c *Controller) runtimeTarget(definition serviceDefinition, authority runti
 		if err != nil {
 			return runtimeTarget{}, err
 		}
-		return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: ref.ExternalID, HTTPConfig: cfg}, nil
+		return runtimeTarget{Workspace: c.workspace, CustodyDigest: custodyDigest, Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: ref.ExternalID, HTTPConfig: cfg}, nil
 	}
-	project := "stackkit-" + definition.RuntimeRef
-	present, err := platformdeploy.HasOwnerHostDeployment(c.workspace, project)
-	if err != nil {
+	if custody == nil {
+		return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "declared Komodo runtime has no signed deployment custody"}
+	}
+	if custody.Manager != "komodo" || custody.Signature == nil {
+		return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Message: "Komodo service requires signed custody with manager komodo"}
+	}
+	if err := deploymentcontract.RequireHostDeploymentManager(*custody, "komodo"); err != nil {
 		return runtimeTarget{}, err
 	}
-	if present {
-		state, err := platformdeploy.LoadOwnerHostDeployment(c.workspace, project)
-		if err != nil {
-			return runtimeTarget{}, err
-		}
-		if err = platformdeploy.RequireHostDeploymentManager(state, "komodo"); err != nil {
-			return runtimeTarget{}, err
-		}
-		cfg, err := platformdeploy.LoadOwnerKomodoConfigForServer(context.Background(), c.workspace, state.ServerID)
-		if err != nil {
-			return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied Komodo configuration is unavailable: " + err.Error()}
-		}
-		return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: state.Deployment.ExternalID, HTTPConfig: cfg}, nil
-	}
-	cfg, err := platformdeploy.LoadOwnerKomodoConfig(c.workspace)
+	cfg, err := platformdeploy.LoadOwnerKomodoConfigForServer(context.Background(), c.workspace, custody.ServerID)
 	if err != nil {
 		return runtimeTarget{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied Komodo configuration is unavailable: " + err.Error()}
 	}
-	ref, err := loadKomodoDeploymentRef(c.workspace, definition.RuntimeRef)
-	if err != nil {
-		return runtimeTarget{}, err
-	}
-	return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: ref.ExternalID, HTTPConfig: cfg}, nil
+	return runtimeTarget{Adapter: definition.Adapter, RuntimeRef: definition.RuntimeRef, ExternalID: custody.Deployment.ExternalID, HTTPConfig: cfg}, nil
 }
 
 // ManagerPlanBinding narrows an independently verified current Apply to the
 // controller's exact canonical service contract. It does not admit Apply.
-func (c *Controller) ManagerPlanBinding(state platformdeploy.HostDeployment, applyResultHash string) (platformdeploy.HostManagerPlanBinding, error) {
+func (c *Controller) ManagerPlanBinding(state deploymentcontract.HostDeployment, applyResultHash string) (deploymentcontract.HostManagerPlanBinding, error) {
 	authority, err := c.authority()
 	if err != nil {
-		return platformdeploy.HostManagerPlanBinding{}, err
+		return deploymentcontract.HostManagerPlanBinding{}, err
 	}
 	definition, ok := authority.Services[state.WorkloadRef]
 	if !ok || definition.RuntimeRef != state.WorkloadRef+"-"+state.NodeRef ||
-		(definition.Adapter != applicationComposeAdapter && definition.Adapter != "komodo" && definition.Adapter != "coolify") || !cursorPattern.MatchString(applyResultHash) {
-		return platformdeploy.HostManagerPlanBinding{}, errors.New("current applied plan has no exact node workload service control")
+		(definition.Adapter != applicationComposeAdapter && definition.Adapter != "komodo" && definition.Adapter != "coolify" && definition.Adapter != dokployServiceAdapter) ||
+		!cursorPattern.MatchString(applyResultHash) {
+		return deploymentcontract.HostManagerPlanBinding{}, errors.New("current applied plan has no exact node workload service control")
 	}
-	return platformdeploy.HostManagerPlanBinding{PlanHash: authority.PlanHash, ApplyResultHash: applyResultHash,
+	return deploymentcontract.HostManagerPlanBinding{PlanHash: authority.PlanHash, ApplyResultHash: applyResultHash,
 		ServiceContractHash: authority.ServiceContractHash, ServiceKey: definition.Key, RuntimeRef: definition.RuntimeRef,
 		SourceAdapter: definition.Adapter, ArtifactDigest: state.ArtifactDigest}, nil
 }
 
-func loadKomodoDeploymentRef(workspace, runtimeRef string) (platformdeploy.DeploymentRef, error) {
-	if runtimeRef != "" {
-		project := "stackkit-" + runtimeRef
-		present, err := platformdeploy.HasOwnerHostDeployment(workspace, project)
-		if err != nil {
-			return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Message: "native Komodo deployment custody is invalid"}
-		}
-		if present {
-			state, err := platformdeploy.LoadOwnerHostDeployment(workspace, project)
-			return state.Deployment, err
-		}
-	}
-	payload, err := readOwnerFile(workspace, ".stackkit/state.yaml")
-	if err != nil {
-		return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "owner-custodied deployment state is unavailable: " + err.Error()}
-	}
-	var state models.DeploymentState
-	if err := yaml.Unmarshal(payload, &state); err != nil {
-		return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Message: "decode owner-custodied deployment state: " + err.Error()}
-	}
-	matches := make([]models.PlatformAppState, 0, 1)
-	apps := append(append([]models.PlatformAppState(nil), state.PlatformSystemApps...), state.PlatformApps...)
-	for _, app := range apps {
-		if app.Name == runtimeRef && app.Platform == "komodo" && app.Management == platformdeploy.AppManagementManaged && app.ExternalID != "" && app.ExternalID == strings.TrimSpace(app.ExternalID) {
-			matches = append(matches, app)
-		}
-	}
-	if len(matches) != 1 {
-		return platformdeploy.DeploymentRef{}, &Error{ReasonCode: ReasonRuntimeUnavailable, Retryable: true, Message: "declared Komodo runtime has no unique managed deployment identity"}
-	}
-	return platformdeploy.DeploymentRef{Platform: "komodo", AppName: matches[0].Name, ExternalID: matches[0].ExternalID}, nil
-}
-
-func readOwnerFile(workspace, relative string) ([]byte, error) {
-	const maxOwnerFileBytes = 4 << 20
-	root, err := confinedfs.Open(workspace)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = root.Close() }()
-	view, err := root.View(".")
-	if err != nil {
-		return nil, err
-	}
-	file, err := view.Open(relative)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = file.Close() }()
-	info, err := file.Stat()
-	if err != nil || (runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0) {
-		return nil, errors.New("owner-custodied file is not private")
-	}
-	payload, err := io.ReadAll(io.LimitReader(file, maxOwnerFileBytes+1))
-	if err != nil {
-		return nil, err
-	}
-	if len(payload) > maxOwnerFileBytes {
-		return nil, errors.New("owner-custodied file exceeds size limit")
-	}
-	return payload, nil
-}
-
 func runtimeCommand(target runtimeTarget, args, componentRefs []string) runtimeCommandRequest {
-	return runtimeCommandRequest{Adapter: target.Adapter, RuntimeRef: target.RuntimeRef, ComposePath: target.ComposePath, ExternalID: target.ExternalID, RuntimeProject: target.RuntimeProject, HTTPConfig: target.HTTPConfig, Args: args, ComponentRefs: append([]string(nil), componentRefs...)}
+	return runtimeCommandRequest{Workspace: target.Workspace, CustodyDigest: target.CustodyDigest, Adapter: target.Adapter, RuntimeRef: target.RuntimeRef, ComposePath: target.ComposePath, ExternalID: target.ExternalID, RuntimeProject: target.RuntimeProject, HTTPConfig: target.HTTPConfig, Args: args, ComponentRefs: append([]string(nil), componentRefs...)}
 }
 
 func (c *Controller) loadState(authority runtimeAuthority, serviceKey string) (DesiredState, error) {
@@ -1036,7 +969,7 @@ func (osRunner) Run(ctx context.Context, request runtimeCommandRequest) (runtime
 	}
 	if request.Adapter == "komodo" {
 		adapter := platformdeploy.NewKomodoAdapter(request.HTTPConfig)
-		ref := platformdeploy.DeploymentRef{Platform: "komodo", AppName: request.RuntimeRef, ExternalID: request.ExternalID}
+		ref := deploymentcontract.DeploymentRef{Platform: "komodo", AppName: request.RuntimeRef, ExternalID: request.ExternalID}
 		if request.Args[0] == ActionLogs {
 			tail, _ := strconv.Atoi(request.Args[4])
 			output, err := adapter.ReadStackLogs(ctx, ref, request.ComponentRefs, tail)

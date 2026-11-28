@@ -84,3 +84,161 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Ollama application (internal)"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of ollama (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-private-ai-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-private-ai-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "ollama"
+	release:        "v0.11.3"
+	entryComponent: "open-webui"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: requiredSafetyInit: ["ollama-model-general", "ollama-model-coding", "ollama-model-vision"]
+	route: {
+		serviceRef:        "ai"
+		targetPort:        8080
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "ollama-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"owner-password": purpose: "Custody secret slot owner-password for ollama"
+		"session-key": purpose: "Custody secret slot session-key for ollama"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "open-webui", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"private-ai-internal": {}
+	}
+	components: [
+		{
+			id:        "open-webui"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["open-webui"]
+			dependsOn: ["ollama"]
+			environment: {
+				ENABLE_OPENAI_API: "false"
+				ENABLE_PERSISTENT_CONFIG: "false"
+				ENABLE_SIGNUP: "false"
+				HF_HUB_OFFLINE: "1"
+				OFFLINE_MODE: "true"
+				OLLAMA_BASE_URL: "http://ollama:11434"
+				RAG_EMBEDDING_MODEL_AUTO_UPDATE: "false"
+				WHISPER_MODEL_AUTO_UPDATE: "false"
+			}
+			secretEnvironment: {
+				WEBUI_ADMIN_PASSWORD: "owner-password"
+				WEBUI_SECRET_KEY: "session-key"
+			}
+			volumes: [
+				{id: "data", target: "/app/backend/data", class: "persistent", backup: true},
+			]
+			networks: ["private-ai-internal"]
+			health: {kind: "http", path: "/health", port: 8080}
+			resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ollama"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["ollama"]
+			environment: {
+				OLLAMA_CONTEXT_LENGTH: "8192"
+				OLLAMA_KEEP_ALIVE: "5m"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "models", target: "/root/.ollama", class: "persistent"},
+			]
+			networks: ["private-ai-internal"]
+			egress: true
+			health: {kind: "command", command: ["ollama", "list"]}
+			resources: {memoryLimit: "10g", memoryReservation: "1g"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "kombify-ai-connector"
+			role:      "application"
+			lifecycle: "daemon"
+			healthFailure: "degraded"
+			image:     _images["kombify-ai-connector"]
+			command: ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:20241", "run", "--token-file", "/run/secrets/kombify-ai-connector-token"]
+			dependsOn: ["ollama"]
+			environment: {}
+			secretEnvironment: {}
+			networks: ["private-ai-internal"]
+			egress: true
+			health: {kind: "command", command: ["cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready"]}
+			resources: {memoryLimit: "256m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ollama-model-general"
+			role:      "application"
+			lifecycle: "one-shot"
+			image:     _images["ollama-model-general"]
+			entrypoint: ["/bin/sh", "-c"]
+			command: ["set -u; model=\"$1\"; i=0; until ollama list >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 120 ]; then echo \"Ollama did not answer at $OLLAMA_HOST, so $model was not pulled\" >&2; exit 1; fi; sleep 1; done; if ollama show \"$model\" >/dev/null 2>&1; then echo \"$model is already present\"; else ollama pull \"$model\" || { echo \"Pulling $model into Ollama failed\" >&2; exit 1; }; fi; ollama list | awk 'NR > 1 {print $1}' | grep -qxF \"$model\" || { echo \"$model is not in the Ollama model list (/api/tags) after the pull\" >&2; exit 1; }; echo \"$model is installed\"", "ollama-model-pull"]
+			dependsOn: ["ollama"]
+			environment: {
+				OLLAMA_HOST: "http://ollama:11434"
+			}
+			secretEnvironment: {}
+			networks: ["private-ai-internal"]
+			health: {kind: "completion"}
+			resources: {memoryLimit: "256m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ollama-model-coding"
+			role:      "application"
+			lifecycle: "one-shot"
+			image:     _images["ollama-model-coding"]
+			entrypoint: ["/bin/sh", "-c"]
+			command: ["set -u; model=\"$1\"; i=0; until ollama list >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 120 ]; then echo \"Ollama did not answer at $OLLAMA_HOST, so $model was not pulled\" >&2; exit 1; fi; sleep 1; done; if ollama show \"$model\" >/dev/null 2>&1; then echo \"$model is already present\"; else ollama pull \"$model\" || { echo \"Pulling $model into Ollama failed\" >&2; exit 1; }; fi; ollama list | awk 'NR > 1 {print $1}' | grep -qxF \"$model\" || { echo \"$model is not in the Ollama model list (/api/tags) after the pull\" >&2; exit 1; }; echo \"$model is installed\"", "ollama-model-pull"]
+			dependsOn: ["ollama"]
+			environment: {
+				OLLAMA_HOST: "http://ollama:11434"
+			}
+			secretEnvironment: {}
+			networks: ["private-ai-internal"]
+			health: {kind: "completion"}
+			resources: {memoryLimit: "256m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ollama-model-vision"
+			role:      "application"
+			lifecycle: "one-shot"
+			image:     _images["ollama-model-vision"]
+			entrypoint: ["/bin/sh", "-c"]
+			command: ["set -u; model=\"$1\"; i=0; until ollama list >/dev/null 2>&1; do i=$((i+1)); if [ \"$i\" -ge 120 ]; then echo \"Ollama did not answer at $OLLAMA_HOST, so $model was not pulled\" >&2; exit 1; fi; sleep 1; done; if ollama show \"$model\" >/dev/null 2>&1; then echo \"$model is already present\"; else ollama pull \"$model\" || { echo \"Pulling $model into Ollama failed\" >&2; exit 1; }; fi; ollama list | awk 'NR > 1 {print $1}' | grep -qxF \"$model\" || { echo \"$model is not in the Ollama model list (/api/tags) after the pull\" >&2; exit 1; }; echo \"$model is installed\"", "ollama-model-pull"]
+			dependsOn: ["ollama"]
+			environment: {
+				OLLAMA_HOST: "http://ollama:11434"
+			}
+			secretEnvironment: {}
+			networks: ["private-ai-internal"]
+			health: {kind: "completion"}
+			resources: {memoryLimit: "256m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

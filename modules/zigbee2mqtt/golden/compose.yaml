@@ -1,0 +1,73 @@
+name: stackkit-smart-home-main
+services:
+    zigbee2mqtt:
+        image: ghcr.io/koenkk/zigbee2mqtt:2.14.1@sha256:fef0de769dcd04c27b3a6d277b61046eb96284bdd4198dcb1687c3a01b3020f3
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        environment:
+            Z2M_ONBOARD_NO_SERVER: "1"
+            ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED: "true"
+            ZIGBEE2MQTT_CONFIG_FRONTEND_PORT: "8080"
+            ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED: "true"
+            ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD: ${STACKKIT_SECRET_ZIGBEE2MQTT_ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD:?required}
+            ZIGBEE2MQTT_CONFIG_MQTT_USER: stackkit
+            ZIGBEE2MQTT_CONFIG_SERIAL_PORT: /dev/zigbee
+            ZIGBEE2MQTT_DATA: /app/data
+        volumes:
+            - zigbee2mqtt-data:/app/data
+        networks:
+            - stackkit-routing
+            - zigbee2mqtt-internal
+        ports:
+            - 127.0.0.1::8080
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: zigbee-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-zigbee
+            io.stackkit.route.id: zigbee-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8080"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-zigbee-remote.entrypoints: remote
+            traefik.http.routers.stackkit-zigbee-remote.rule: Host(`zigbee.home.example`)
+            traefik.http.routers.stackkit-zigbee-remote.service: stackkit-zigbee
+            traefik.http.routers.stackkit-zigbee.entrypoints: websecure
+            traefik.http.routers.stackkit-zigbee.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-zigbee.rule: Host(`zigbee.home.example`)
+            traefik.http.routers.stackkit-zigbee.tls: "true"
+            traefik.http.routers.stackkit-zigbee.tls.certresolver: stackkits
+            traefik.http.services.stackkit-zigbee.loadbalancer.server.port: "8080"
+            traefik.http.services.stackkit-zigbee.loadbalancer.server.scheme: http
+networks:
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    zigbee2mqtt-internal:
+        internal: true
+volumes:
+    zigbee2mqtt-data: {}

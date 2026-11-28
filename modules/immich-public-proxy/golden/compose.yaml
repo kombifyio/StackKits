@@ -1,0 +1,62 @@
+name: stackkit-photos-main
+services:
+    immich-public-proxy:
+        image: ghcr.io/alangrainger/immich-public-proxy:3.4.0@sha256:b442829bb99e25f39e2979bb45bb12a6db991d98a1cd90938799b84ab262692a
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+                reservations:
+                    memory: 64m
+        environment:
+            IMMICH_URL: http://immich-server:2283
+        networks:
+            - immich-public-proxy-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::3000
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: photos-share-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-photos-share
+            io.stackkit.route.id: photos-share-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "3000"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-photos-share-remote.entrypoints: remote
+            traefik.http.routers.stackkit-photos-share-remote.rule: Host(`photos-share.home.example`)
+            traefik.http.routers.stackkit-photos-share-remote.service: stackkit-photos-share
+            traefik.http.routers.stackkit-photos-share.entrypoints: websecure
+            traefik.http.routers.stackkit-photos-share.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-photos-share.rule: Host(`photos-share.home.example`)
+            traefik.http.routers.stackkit-photos-share.tls: "true"
+            traefik.http.routers.stackkit-photos-share.tls.certresolver: stackkits
+            traefik.http.services.stackkit-photos-share.loadbalancer.server.port: "3000"
+            traefik.http.services.stackkit-photos-share.loadbalancer.server.scheme: http
+networks:
+    immich-public-proxy-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true

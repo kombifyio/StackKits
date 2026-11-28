@@ -23,28 +23,24 @@ func LoadPackageSurfaces(repoRoot string) (map[string]Surface, error) {
 			continue
 		}
 		pkgDir := filepath.ToSlash(filepath.Join("use-cases", entry.Name()))
-		var pkg map[string]any
+		var pkg struct {
+			Metadata struct {
+				UseCaseRef string `json:"useCaseRef"`
+			} `json:"metadata"`
+			AgentSurface *Surface `json:"agentSurface"`
+		}
 		if err := loadCUE(repoRoot, pkgDir, "Package", &pkg); err != nil {
 			return nil, err
 		}
-		raw, ok := pkg["agentSurface"]
-		if !ok {
+		if pkg.AgentSurface == nil {
 			continue
 		}
-		encoded, err := json.Marshal(raw)
-		if err != nil {
-			return nil, fmt.Errorf("encode %s agentSurface: %w", entry.Name(), err)
-		}
-		var surface Surface
-		if err := json.Unmarshal(encoded, &surface); err != nil {
-			return nil, fmt.Errorf("decode %s agentSurface: %w", entry.Name(), err)
-		}
-		ref := nestedString(pkg, "metadata", "useCaseRef")
+		ref := pkg.Metadata.UseCaseRef
 		if ref == "" {
 			return nil, fmt.Errorf("package %s omits metadata.useCaseRef", entry.Name())
 		}
-		surface.Ref = ref
-		surfaces[ref] = surface
+		pkg.AgentSurface.Ref = ref
+		surfaces[ref] = *pkg.AgentSurface
 	}
 	return surfaces, nil
 }
@@ -69,17 +65,4 @@ func loadCUE(root, directory, expression string, target any) error {
 		return fmt.Errorf("decode %s.%s: %w", directory, expression, err)
 	}
 	return nil
-}
-
-func nestedString(object map[string]any, keys ...string) string {
-	current := any(object)
-	for _, key := range keys {
-		nested, ok := current.(map[string]any)
-		if !ok {
-			return ""
-		}
-		current = nested[key]
-	}
-	value, _ := current.(string)
-	return value
 }

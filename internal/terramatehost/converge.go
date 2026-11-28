@@ -131,15 +131,16 @@ func PackagedTools() (Tools, error) {
 
 // StackResult is the outcome of one affected stack.
 type StackResult struct {
-	StackID      string `json:"stackId"`
-	Role         string `json:"role"`
-	SiteRef      string `json:"siteRef"`
-	NodeRef      string `json:"nodeRef"`
-	RuntimeRoot  string `json:"runtimeRoot"`
-	Status       string `json:"status"`
-	PlanExitCode *int   `json:"planExitCode,omitempty"`
-	DurationMS   int64  `json:"durationMs"`
-	Detail       string `json:"detail,omitempty"`
+	StackID      string                    `json:"stackId"`
+	Role         string                    `json:"role"`
+	SiteRef      string                    `json:"siteRef"`
+	NodeRef      string                    `json:"nodeRef"`
+	RuntimeRoot  string                    `json:"runtimeRoot"`
+	Status       string                    `json:"status"`
+	PlanExitCode *int                      `json:"planExitCode,omitempty"`
+	LiveDrift    *opentofu.LiveDriftReport `json:"liveDrift,omitempty"`
+	DurationMS   int64                     `json:"durationMs"`
+	Detail       string                    `json:"detail,omitempty"`
 }
 
 // Report is the `stackkit.change-set-result/v1` document.
@@ -182,6 +183,11 @@ type ConvergeRequest struct {
 	Tools              Tools
 	Timeout            time.Duration
 	Event              EventFunc
+	// LiveDriftObserver optionally pairs every Stage-1 `tofu plan` check with
+	// live container/digest/health/route inspection (ADR-0054 §1). When set, a
+	// green `tofu plan` alone never reports StackConverged if live runtime
+	// containers drifted.
+	LiveDriftObserver *opentofu.LiveDriftObserver
 }
 
 // LocalRootRequired reports whether a stack's OpenTofu root must exist on its
@@ -381,7 +387,7 @@ func listRunOrder(ctx context.Context, workspace string, request ConvergeRequest
 
 func planStack(ctx context.Context, workspace string, request ConvergeRequest, stack terramatestackgraph.Stack, result StackResult) StackResult {
 	result, _ = runStackPlan(ctx, workspace, request, stack, result)
-	if result.Status == StackDrifted {
+	if result.Status == StackDrifted && strings.TrimSpace(result.Detail) == "" {
 		result.Detail = "tofu plan reports changes after apply"
 	}
 	return result
@@ -419,6 +425,20 @@ func runStackPlan(ctx context.Context, workspace string, request ConvergeRequest
 	result.PlanExitCode = &code
 	switch code {
 	case 0:
+		if request.LiveDriftObserver != nil {
+			if marker, markerErr := opentofu.ReadRootMarker(root); markerErr == nil && strings.TrimSpace(marker.ComposeProject) != "" {
+				live := request.LiveDriftObserver.Observe(ctx, opentofu.LiveDriftRequest{
+					ComposeProject: marker.ComposeProject,
+				})
+				result.LiveDrift = &live
+				combined := opentofu.CombinePlanAndLiveDrift(code, live)
+				if !combined.Converged {
+					result.Status = StackDrifted
+					result.Detail = boundedDetail(combined.Detail)
+					return result, run.Stdout
+				}
+			}
+		}
 		result.Status = StackConverged
 	case 2:
 		result.Status = StackDrifted

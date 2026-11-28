@@ -1,0 +1,276 @@
+name: stackkit-game-main
+services:
+    panel:
+        image: ghcr.io/calagopus/panel:1.2.4@sha256:95ee4a9ea6b3c1567179610ca8f5637f7e8d7f6bc4f97a4207afba6b9cd21d1a
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        entrypoint:
+            - /bin/sh
+            - /stackkit/panel-entrypoint.sh
+        depends_on:
+            panel-cache:
+                condition: service_started
+            panel-database:
+                condition: service_started
+        environment:
+            APP_ENABLE_WINGS_PROXY: "true"
+            APP_LOG_DIRECTORY: /var/log/calagopus
+            APP_PRIMARY: "true"
+            APP_USE_DECRYPTION_CACHE: "false"
+            APP_USE_INTERNAL_CACHE: "true"
+            DATABASE_MIGRATE: "true"
+            PORT: "8000"
+            REDIS_URL: redis://panel-cache
+            TZ: UTC
+        volumes:
+            - panel-data:/var/lib/calagopus
+            - panel-logs:/var/log/calagopus
+            - panel-stackkit:/stackkit
+        networks:
+            - game-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::8000
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: game-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-game
+            io.stackkit.route.id: game-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8000"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-game-remote.entrypoints: remote
+            traefik.http.routers.stackkit-game-remote.rule: Host(`game.home.example`)
+            traefik.http.routers.stackkit-game-remote.service: stackkit-game
+            traefik.http.routers.stackkit-game.entrypoints: websecure
+            traefik.http.routers.stackkit-game.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-game.rule: Host(`game.home.example`)
+            traefik.http.routers.stackkit-game.tls: "true"
+            traefik.http.routers.stackkit-game.tls.certresolver: stackkits
+            traefik.http.services.stackkit-game.loadbalancer.server.port: "8000"
+            traefik.http.services.stackkit-game.loadbalancer.server.scheme: http
+    panel-bootstrap:
+        image: ghcr.io/calagopus/panel:1.2.4@sha256:95ee4a9ea6b3c1567179610ca8f5637f7e8d7f6bc4f97a4207afba6b9cd21d1a
+        command:
+            - /stackkit/bootstrap-owner.sh
+        entrypoint:
+            - /bin/sh
+        depends_on:
+            panel:
+                condition: service_started
+        environment:
+            APP_ENABLE_WINGS_PROXY: "true"
+            APP_LOG_DIRECTORY: /var/log/calagopus
+            APP_PRIMARY: "true"
+            APP_USE_DECRYPTION_CACHE: "false"
+            APP_USE_INTERNAL_CACHE: "true"
+            DATABASE_MIGRATE: "true"
+            PORT: "8000"
+            REDIS_URL: redis://panel-cache
+            TZ: UTC
+        volumes:
+            - panel-bootstrap-stackkit:/stackkit
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+    panel-cache:
+        image: docker.io/valkey/valkey:9-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -250
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+                reservations:
+                    memory: 64m
+        command:
+            - valkey-server
+        volumes:
+            - panel-cache-cache:/data
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - valkey-cli
+                - ping
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    panel-database:
+        image: docker.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -500
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        environment:
+            POSTGRES_DB: panel
+            POSTGRES_PASSWORD: ${STACKKIT_SECRET_PANEL_DATABASE_POSTGRES_PASSWORD:?required}
+            POSTGRES_USER: panel
+        volumes:
+            - panel-database-database:/var/lib/postgresql
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - -U
+                - panel
+                - -d
+                - panel
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    panel-keys:
+        image: docker.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        command:
+            - /stackkit/keys.sh
+        entrypoint:
+            - /bin/sh
+        depends_on:
+            panel-bootstrap:
+                condition: service_completed_successfully
+        environment:
+            PGDATABASE: panel
+            PGHOST: panel-database
+            PGUSER: panel
+        volumes:
+            - panel-keys-stackkit:/stackkit
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+    wings:
+        image: ghcr.io/calagopus/wings:1.2.4@sha256:61417524f2701e0fa614c0816f219268c7ae1043d4d45b07bbbbacbe781c2e5a
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        command:
+            - --config
+            - /stackkit/game-data/config.yml
+        entrypoint:
+            - /bin/sh
+            - -c
+            - export CALAGOPUS_SYSTEM_ROOT_DIRECTORY="$$STACKKIT_GAME_DATA_HOST_PATH" CALAGOPUS_SYSTEM_PASSWD_DIRECTORY="$$STACKKIT_GAME_DATA_HOST_PATH/passwd"; exec /usr/bin/calagopus-wings "$$@"
+            - calagopus-wings
+        depends_on:
+            wings-bootstrap:
+                condition: service_completed_successfully
+        environment:
+            CALAGOPUS_DOCKER_FIREWALL_BACKEND: disabled
+            CALAGOPUS_DOCKER_NETWORK_INTERFACE: 10.213.0.1
+            CALAGOPUS_DOCKER_NETWORK_INTERFACES_V4_GATEWAY: 10.213.0.1
+            CALAGOPUS_DOCKER_NETWORK_INTERFACES_V4_SUBNET: 10.213.0.0/24
+            CALAGOPUS_DOCKER_NETWORK_MODE: sk_game_nw
+            CALAGOPUS_DOCKER_NETWORK_NAME: sk_game_nw
+            CALAGOPUS_IGNORE_PANEL_CONFIG_UPDATES: "true"
+            CALAGOPUS_IGNORE_PANEL_WINGS_UPGRADES: "true"
+            CALAGOPUS_SYSTEM_PASSWD_ENABLED: "true"
+            TZ: UTC
+            WINGS_GID: "988"
+            WINGS_UID: "988"
+            WINGS_USERNAME: calagopus
+        volumes:
+            - wings-data:/stackkit/game-data
+            - wings-logs:/var/log/calagopus-wings
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+    wings-bootstrap:
+        image: ghcr.io/calagopus/wings:1.2.4@sha256:61417524f2701e0fa614c0816f219268c7ae1043d4d45b07bbbbacbe781c2e5a
+        command:
+            - /stackkit/node.sh
+        entrypoint:
+            - /bin/sh
+        depends_on:
+            panel-keys:
+                condition: service_completed_successfully
+        volumes:
+            - wings-bootstrap-data:/stackkit/game-data
+            - wings-bootstrap-stackkit:/stackkit
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+networks:
+    game-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    panel-bootstrap-stackkit: {}
+    panel-cache-cache: {}
+    panel-data: {}
+    panel-database-database: {}
+    panel-keys-stackkit: {}
+    panel-logs: {}
+    panel-stackkit: {}
+    wings-bootstrap-data: {}
+    wings-bootstrap-stackkit: {}
+    wings-data: {}
+    wings-logs: {}

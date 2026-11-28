@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/pkg/models"
@@ -48,7 +49,7 @@ type runtimePlatformAdapterResultStackAction struct {
 }
 
 type runtimePlatformDeploymentEvidenceStackAction struct {
-	Refs       []platformdeploy.DeploymentRef
+	Refs       []deploymentcontract.DeploymentRef
 	SystemApps []models.PlatformAppState
 	Apps       []models.PlatformAppState
 	Failures   []platformdeploy.ComponentFailure
@@ -78,7 +79,7 @@ func runRuntimePlatformAppDeploymentsStackAction(ctx context.Context, deployDir 
 		}
 		manifestSeen = true
 
-		bundle, err := platformdeploy.LoadBundleManifest(manifestPath)
+		bundle, err := deploymentcontract.LoadBundleManifest(manifestPath)
 		if err != nil {
 			return evidence, checks, err
 		}
@@ -112,7 +113,7 @@ func runRuntimePlatformAppDeploymentsStackAction(ctx context.Context, deployDir 
 				}
 			}
 
-			deployed := append([]platformdeploy.DeploymentRef(nil), primary.Refs...)
+			deployed := append([]deploymentcontract.DeploymentRef(nil), primary.Refs...)
 			remaining := append([]platformdeploy.ComponentFailure(nil), primary.Failures...)
 			fallbackBundle := platformdeploy.StandaloneFallbackBundle(deployBundle, primary.Failures)
 			if runtimeDeployablePlatformAppCountStackAction(fallbackBundle) > 0 && !runtimeExplicitStandaloneFallbackStackAction(deployBundle) {
@@ -134,18 +135,18 @@ func runRuntimePlatformAppDeploymentsStackAction(ctx context.Context, deployDir 
 			systemApps, apps := runtimePlatformAppStatesStackAction(deployBundle, primary.Refs)
 			if strings.EqualFold(strings.TrimSpace(deployBundle.Platform), "none") {
 				for i := range systemApps {
-					systemApps[i].Management = platformdeploy.AppManagementFallback
+					systemApps[i].Management = deploymentcontract.AppManagementFallback
 				}
 				for i := range apps {
-					apps[i].Management = platformdeploy.AppManagementFallback
+					apps[i].Management = deploymentcontract.AppManagementFallback
 				}
 			}
 			fallbackSystemApps, fallbackApps := runtimePlatformAppStatesStackAction(fallbackBundle, deployed[len(primary.Refs):])
 			for i := range fallbackSystemApps {
-				fallbackSystemApps[i].Management = platformdeploy.AppManagementFallback
+				fallbackSystemApps[i].Management = deploymentcontract.AppManagementFallback
 			}
 			for i := range fallbackApps {
-				fallbackApps[i].Management = platformdeploy.AppManagementFallback
+				fallbackApps[i].Management = deploymentcontract.AppManagementFallback
 			}
 			systemApps = append(systemApps, fallbackSystemApps...)
 			apps = append(apps, fallbackApps...)
@@ -175,21 +176,21 @@ func runRuntimePlatformAppDeploymentsStackAction(ctx context.Context, deployDir 
 	return evidence, checks, nil
 }
 
-func runtimeDeployablePlatformAppCountStackAction(bundle platformdeploy.BundleManifest) int {
+func runtimeDeployablePlatformAppCountStackAction(bundle deploymentcontract.BundleManifest) int {
 	return len(bundle.SystemApps) + runtimeStackKitOwnedAppCountStackAction(bundle.Apps)
 }
 
-func runtimeExplicitStandaloneFallbackStackAction(bundle platformdeploy.BundleManifest) bool {
+func runtimeExplicitStandaloneFallbackStackAction(bundle deploymentcontract.BundleManifest) bool {
 	return bundle.Fallback.Enabled && bundle.Fallback.Mode == "standalone-compose" && strings.EqualFold(strings.TrimSpace(bundle.Platform), "none")
 }
 
-func runtimeDeploymentFailuresForBundleStackAction(bundle platformdeploy.BundleManifest, stage string, err error) []platformdeploy.ComponentFailure {
+func runtimeDeploymentFailuresForBundleStackAction(bundle deploymentcontract.BundleManifest, stage string, err error) []platformdeploy.ComponentFailure {
 	var failures []platformdeploy.ComponentFailure
 	for _, app := range bundle.SystemApps {
 		failures = append(failures, platformdeploy.ComponentFailure{AppName: app.Name, Platform: bundle.Platform, Stage: stage, Message: err.Error(), Retryable: true})
 	}
 	for _, app := range bundle.Apps {
-		if platformdeploy.IsStackKitOwnedApp(app) {
+		if deploymentcontract.IsStackKitOwnedApp(app) {
 			failures = append(failures, platformdeploy.ComponentFailure{AppName: app.Name, Platform: bundle.Platform, Stage: stage, Message: err.Error(), Retryable: true})
 		}
 	}
@@ -214,25 +215,25 @@ func runtimeRemainingPlatformFailuresStackAction(primary []platformdeploy.Compon
 	return append(remaining, fallback.Failures...)
 }
 
-func runtimePlatformFailureStatesStackAction(bundle platformdeploy.BundleManifest, failures []platformdeploy.ComponentFailure) ([]models.PlatformAppState, []models.PlatformAppState) {
-	systemByName := map[string]platformdeploy.SystemAppManifest{}
+func runtimePlatformFailureStatesStackAction(bundle deploymentcontract.BundleManifest, failures []platformdeploy.ComponentFailure) ([]models.PlatformAppState, []models.PlatformAppState) {
+	systemByName := map[string]deploymentcontract.SystemAppManifest{}
 	for _, app := range bundle.SystemApps {
 		systemByName[app.Name] = app
 	}
-	appByName := map[string]platformdeploy.AppManifest{}
+	appByName := map[string]deploymentcontract.AppManifest{}
 	for _, app := range bundle.Apps {
 		appByName[app.Name] = app
 	}
 	var systemApps, apps []models.PlatformAppState
 	for _, failure := range failures {
 		if app, ok := systemByName[failure.AppName]; ok {
-			state := runtimePlatformAppStateStackAction(platformdeploy.DeploymentRef{Platform: failure.Platform, AppName: failure.AppName, ObservedStatus: "error"}, app.AppManifest, app.Role)
+			state := runtimePlatformAppStateStackAction(deploymentcontract.DeploymentRef{Platform: failure.Platform, AppName: failure.AppName, ObservedStatus: "error"}, app.AppManifest, app.Role)
 			state.FailureStage, state.FailureMessage, state.Retryable = failure.Stage, failure.Message, failure.Retryable
 			systemApps = append(systemApps, state)
 			continue
 		}
 		if app, ok := appByName[failure.AppName]; ok {
-			state := runtimePlatformAppStateStackAction(platformdeploy.DeploymentRef{Platform: failure.Platform, AppName: failure.AppName, ObservedStatus: "error"}, app, "")
+			state := runtimePlatformAppStateStackAction(deploymentcontract.DeploymentRef{Platform: failure.Platform, AppName: failure.AppName, ObservedStatus: "error"}, app, "")
 			state.FailureStage, state.FailureMessage, state.Retryable = failure.Stage, failure.Message, failure.Retryable
 			apps = append(apps, state)
 		}
@@ -240,14 +241,14 @@ func runtimePlatformFailureStatesStackAction(bundle platformdeploy.BundleManifes
 	return systemApps, apps
 }
 
-func runtimePlatformAppStatesStackAction(bundle platformdeploy.BundleManifest, refs []platformdeploy.DeploymentRef) ([]models.PlatformAppState, []models.PlatformAppState) {
-	systemByName := make(map[string]platformdeploy.SystemAppManifest, len(bundle.SystemApps))
+func runtimePlatformAppStatesStackAction(bundle deploymentcontract.BundleManifest, refs []deploymentcontract.DeploymentRef) ([]models.PlatformAppState, []models.PlatformAppState) {
+	systemByName := make(map[string]deploymentcontract.SystemAppManifest, len(bundle.SystemApps))
 	for _, app := range bundle.SystemApps {
 		systemByName[app.Name] = app
 	}
-	appByName := make(map[string]platformdeploy.AppManifest, len(bundle.Apps))
+	appByName := make(map[string]deploymentcontract.AppManifest, len(bundle.Apps))
 	for _, app := range bundle.Apps {
-		if !platformdeploy.IsStackKitOwnedApp(app) {
+		if !deploymentcontract.IsStackKitOwnedApp(app) {
 			continue
 		}
 		appByName[app.Name] = app
@@ -267,24 +268,24 @@ func runtimePlatformAppStatesStackAction(bundle platformdeploy.BundleManifest, r
 	return systemApps, apps
 }
 
-func runtimePlatformAppStateStackAction(ref platformdeploy.DeploymentRef, app platformdeploy.AppManifest, role string) models.PlatformAppState {
+func runtimePlatformAppStateStackAction(ref deploymentcontract.DeploymentRef, app deploymentcontract.AppManifest, role string) models.PlatformAppState {
 	return models.PlatformAppState{
 		Name:           ref.AppName,
 		Role:           role,
 		Platform:       ref.Platform,
-		Management:     platformdeploy.AppManagementManaged,
+		Management:     deploymentcontract.AppManagementManaged,
 		ExternalID:     ref.ExternalID,
 		DeploymentID:   ref.DeploymentID,
 		ObservedStatus: ref.ObservedStatus,
 		ObservedAt:     ref.ObservedAt,
 		ComposePath:    app.ComposePath,
-		SetupPolicy:    app.SetupPolicy,
+		SetupPolicy:    string(app.SetupPolicy),
 		SetupDrops:     runtimeSetupDropsToStateStackAction(app.SetupDrops),
 		LastDeployed:   ref.LastDeployed,
 	}
 }
 
-func runtimeSetupDropsToStateStackAction(drops []platformdeploy.SetupDropManifest) []models.SetupDropSpec {
+func runtimeSetupDropsToStateStackAction(drops []deploymentcontract.SetupDropManifest) []models.SetupDropSpec {
 	if len(drops) == 0 {
 		return nil
 	}
@@ -304,11 +305,11 @@ func runtimeSetupDropsToStateStackAction(drops []platformdeploy.SetupDropManifes
 	return stateDrops
 }
 
-func runtimePlatformDeploymentBundlesStackAction(bundle platformdeploy.BundleManifest) []platformdeploy.BundleManifest {
-	groups := map[string]*platformdeploy.BundleManifest{}
+func runtimePlatformDeploymentBundlesStackAction(bundle deploymentcontract.BundleManifest) []deploymentcontract.BundleManifest {
+	groups := map[string]*deploymentcontract.BundleManifest{}
 	order := []string{}
 
-	ensure := func(platform string) *platformdeploy.BundleManifest {
+	ensure := func(platform string) *deploymentcontract.BundleManifest {
 		platform = strings.TrimSpace(platform)
 		if platform == "" {
 			platform = strings.TrimSpace(bundle.Platform)
@@ -317,7 +318,7 @@ func runtimePlatformDeploymentBundlesStackAction(bundle platformdeploy.BundleMan
 			platform = "none"
 		}
 		if _, ok := groups[platform]; !ok {
-			groups[platform] = &platformdeploy.BundleManifest{
+			groups[platform] = &deploymentcontract.BundleManifest{
 				Version:  bundle.Version,
 				Platform: platform,
 				Fallback: bundle.Fallback,
@@ -333,7 +334,7 @@ func runtimePlatformDeploymentBundlesStackAction(bundle platformdeploy.BundleMan
 		group.SystemApps = append(group.SystemApps, app)
 	}
 	for _, app := range bundle.Apps {
-		if !platformdeploy.IsStackKitOwnedApp(app) {
+		if !deploymentcontract.IsStackKitOwnedApp(app) {
 			continue
 		}
 		platform := runtimeFirstNonEmptyStackAction(app.Platform, app.ManagedBy, bundle.Platform)
@@ -341,7 +342,7 @@ func runtimePlatformDeploymentBundlesStackAction(bundle platformdeploy.BundleMan
 		group.Apps = append(group.Apps, app)
 	}
 
-	out := make([]platformdeploy.BundleManifest, 0, len(order))
+	out := make([]deploymentcontract.BundleManifest, 0, len(order))
 	for _, platform := range order {
 		group := groups[platform]
 		if len(group.SystemApps) == 0 && len(group.Apps) == 0 {
@@ -352,17 +353,17 @@ func runtimePlatformDeploymentBundlesStackAction(bundle platformdeploy.BundleMan
 	return out
 }
 
-func runtimeStackKitOwnedAppCountStackAction(apps []platformdeploy.AppManifest) int {
+func runtimeStackKitOwnedAppCountStackAction(apps []deploymentcontract.AppManifest) int {
 	count := 0
 	for _, app := range apps {
-		if platformdeploy.IsStackKitOwnedApp(app) {
+		if deploymentcontract.IsStackKitOwnedApp(app) {
 			count++
 		}
 	}
 	return count
 }
 
-func runtimePlatformAdapterForBundleStackAction(ctx context.Context, bundle platformdeploy.BundleManifest, deployDir string, options runtimePlatformDeployOptionsStackAction) (runtimePlatformAdapterResultStackAction, error) {
+func runtimePlatformAdapterForBundleStackAction(ctx context.Context, bundle deploymentcontract.BundleManifest, deployDir string, options runtimePlatformDeployOptionsStackAction) (runtimePlatformAdapterResultStackAction, error) {
 	switch strings.ToLower(strings.TrimSpace(bundle.Platform)) {
 	case "", "none":
 		localOptions := []platformdeploy.LocalComposeOption{}
@@ -402,7 +403,7 @@ func runtimePlatformAdapterForBundleStackAction(ctx context.Context, bundle plat
 	}
 }
 
-func runtimePlatformHTTPConfigForBundleStackAction(ctx context.Context, bundle platformdeploy.BundleManifest, deployDir string, options runtimePlatformDeployOptionsStackAction) (platformdeploy.HTTPConfig, bool, []stackActionCheck, func(), error) {
+func runtimePlatformHTTPConfigForBundleStackAction(ctx context.Context, bundle deploymentcontract.BundleManifest, deployDir string, options runtimePlatformDeployOptionsStackAction) (platformdeploy.HTTPConfig, bool, []stackActionCheck, func(), error) {
 	persisted := runtimeLoadPlatformConfigFileStackAction(deployDir)
 	cfg := platformdeploy.HTTPConfig{
 		BaseURL:                     runtimeFirstNonEmptyStackAction(runtimeFirstPlatformEnvStackAction(bundle.Platform, "endpoint"), persisted.endpointStackAction()),

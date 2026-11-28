@@ -95,3 +95,92 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Paperclip dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of paperclip (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-paperclip-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-paperclip-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "paperclip"
+	release:        "2026.916.1"
+	entryComponent: "paperclip"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "paperclip"
+		targetPort:        3100
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "paperclip-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"database-password": purpose: "Custody secret slot database-password for paperclip"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "paperclip", volumeRef: "home"},
+			{componentRef: "paperclip-postgres", volumeRef: "database"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"paperclip-internal": {}
+	}
+	components: [
+		{
+			id:        "paperclip"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["paperclip"]
+			entrypoint: ["/bin/sh", "-ec", "export DATABASE_URL=\"$(node -e 'const u = new URL(\"postgres://paperclip@paperclip-postgres:5432/paperclip\"); u.password = require(\"fs\").readFileSync(process.env.STACKKIT_PAPERCLIP_DB_PASSWORD_FILE, \"utf8\"); process.stdout.write(u.href);')\"; export BETTER_AUTH_SECRET=\"$(cat \"$STACKKIT_SESSION_SECRET_FILE\")\"; unset STACKKIT_PAPERCLIP_DB_PASSWORD_FILE STACKKIT_SESSION_SECRET_FILE; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"]
+			dependsOn: ["paperclip-postgres"]
+			environment: {
+				HOST: "0.0.0.0"
+				PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
+				PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
+				PAPERCLIP_HIDDEN_SETTINGS: "instance.general.feedbackDataSharingPreference"
+				PAPERCLIP_HOME: "/paperclip"
+				PAPERCLIP_INSTANCE_ID: "default"
+				PAPERCLIP_SETTING_DEFAULTS: "{\"feedbackDataSharingPreference\":\"not_allowed\"}"
+				PORT: "3100"
+				SERVE_UI: "true"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "home", target: "/paperclip", class: "persistent", backup: true},
+			]
+			networks: ["paperclip-internal"]
+			health: {kind: "http", path: "/api/health", port: 3100}
+			resources: {memoryLimit: "4g", memoryReservation: "512m", cpus: 2}
+			labels: {}
+			traits: {
+				sandboxRuntime: {runtime: "runsc"}
+			}
+		},
+		{
+			id:        "paperclip-postgres"
+			role:      "database"
+			lifecycle: "daemon"
+			image:     _images["paperclip-postgres"]
+			environment: {
+				POSTGRES_DB: "paperclip"
+				POSTGRES_USER: "paperclip"
+			}
+			secretEnvironment: {
+				POSTGRES_PASSWORD: "database-password"
+			}
+			volumes: [
+				{id: "database", target: "/var/lib/postgresql/data", class: "persistent", backup: true},
+			]
+			networks: ["paperclip-internal"]
+			health: {kind: "command", command: ["pg_isready", "-U", "paperclip", "-d", "paperclip"]}
+			resources: {memoryLimit: "1g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

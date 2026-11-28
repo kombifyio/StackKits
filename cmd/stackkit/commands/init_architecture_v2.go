@@ -41,7 +41,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	if err != nil {
 		return err
 	}
-	offlineBundle, err := admittedOfflineBundleForInit(cmd.Context(), dataProfile, wd)
+	offlineBundle, err := admittedOfflineBundleForInit(commandContext(cmd), dataProfile, wd)
 	if err != nil {
 		return err
 	}
@@ -67,16 +67,56 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 	}
 
 	var validation architecturev2.StackSpecValidation
+	var resolvedAxes *stackspecintent.OnboardingAxes
 	if strings.TrimSpace(initCandidateSpec) != "" {
 		validation, err = readArchitectureV2InitCandidate(cmd, service, profile, wd)
 		if err != nil {
 			return err
 		}
 	} else {
-		requestedDomain := strings.TrimSpace(initDomain)
-		domain, usedFallback, err := defaultArchitectureV2InitDomain(stackkitName, requestedDomain)
+		setupStyle, err := stackspecintent.ResolveSetupStyleFlags(initSetupStyle, initCleanRollout, commandFlagChanged(cmd, "setup-style"))
 		if err != nil {
 			return err
+		}
+		zoneKind, err := stackspecintent.ParseAddressZoneKind(initAddressZone)
+		if err != nil {
+			return err
+		}
+		requestedDomain := strings.TrimSpace(initDomain)
+		if zoneKind == stackspecintent.AddressZoneLocalOnly && requestedDomain == "" {
+			requestedDomain = stackspecintent.LocalOnlyCanonicalZone
+		}
+		if zoneKind == stackspecintent.AddressZoneLocalOnly && stackkitName == "cloud-kit" {
+			return fmt.Errorf("cloud-kit requires a public address zone (%q or %q); %q is only valid for local-only kits such as basement-kit",
+				stackspecintent.AddressZoneCustomDomain, stackspecintent.AddressZoneKombifyMe, stackspecintent.AddressZoneLocalOnly)
+		}
+		if zoneKind == stackspecintent.AddressZoneCustomDomain && requestedDomain == "" {
+			if initNonInteractive {
+				return fmt.Errorf("--address-zone=%s requires an explicit --domain (e.g. example.com)", stackspecintent.AddressZoneCustomDomain)
+			}
+			if prompt == nil {
+				prompt = newPrompter()
+			}
+			requestedDomain, err = prompt.inputString("Custom domain (e.g. example.com)", "")
+			if err != nil {
+				return fmt.Errorf("custom domain override: %w", err)
+			}
+			requestedDomain = strings.TrimSpace(requestedDomain)
+			if requestedDomain == "" {
+				return fmt.Errorf("--address-zone=%s requires a non-empty --domain", stackspecintent.AddressZoneCustomDomain)
+			}
+		}
+		var domain string
+		var usedFallback bool
+		if zoneKind == stackspecintent.AddressZoneCustomDomain {
+			// No-silent-downgrade guard: an explicit custom-domain zone never
+			// falls back to kombify.me.
+			domain = strings.ToLower(strings.Trim(requestedDomain, "."))
+		} else {
+			domain, usedFallback, err = defaultArchitectureV2InitDomain(stackkitName, requestedDomain)
+			if err != nil {
+				return err
+			}
 		}
 		if stackkitName == "cloud-kit" && requestedDomain == "" {
 			printInfo("No custom domain given; using kombify.me for public access")
@@ -107,6 +147,29 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		// any passkey can bind to it.
 		if err := admitArchitectureV2IdentityOrigin(domain); err != nil {
 			return err
+		}
+		// Validate the 3-axis onboarding contract (Workloads/Kit, Address Zone,
+		// Setup Style). Unbound bare kombify.me remains admissible for cloud-kit
+		// before `stackkit address bind`, unless an incompatible zone was requested.
+		unboundKombifyMe := stackkitName == "cloud-kit" && strings.EqualFold(strings.Trim(strings.TrimSpace(domain), "."), stackspecintent.KombifyMeParentDomain) &&
+			(zoneKind == "" || zoneKind == stackspecintent.AddressZoneKombifyMe)
+		if !unboundKombifyMe {
+			axes, axesErr := stackspecintent.ResolveOnboardingAxes(stackspecintent.OnboardingAxesInput{
+				Kit:               stackkitName,
+				UseCases:          initUseCases,
+				ZoneKind:          zoneKind,
+				Domain:            domain,
+				SetupStyle:        string(setupStyle),
+				CleanRollout:      initCleanRollout,
+				SetupStyleChanged: commandFlagChanged(cmd, "setup-style"),
+			})
+			if axesErr != nil {
+				return axesErr
+			}
+			resolvedAxes = &axes
+			if domain == "" && zoneKind == stackspecintent.AddressZoneLocalOnly {
+				domain = axes.AddressZone.Zone
+			}
 		}
 		if !initNonInteractive && !commandFlagChanged(cmd, "use-case") {
 			selected, picked, pickErr := pickKitOptionalUseCasesIfTerminal(os.Stderr)
@@ -165,6 +228,7 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 			HardwareProfile:     initHardwareProfile,
 			NtfyTopic:           initNotifyNtfyTopic,
 			NtfyServerURL:       initNotifyNtfyServer,
+			SetupStyle:          string(setupStyle),
 		})
 		if err != nil {
 			return fmt.Errorf("materialize %s initial StackSpec from CUE authority: %w", stackkitName, err)
@@ -313,6 +377,11 @@ func runArchitectureV2Init(cmd *cobra.Command, args []string, wd string) error {
 		printInfo("Local execution binding: %s / %s / %s", custody.Binding.SiteRef, custody.Binding.NodeRef, custody.Binding.ChannelRef)
 	}
 	printInfo("StackKit: %s", stackkitName)
+	if resolvedAxes != nil {
+		printInfo("Address zone: %s (%s; TLS: %s, cookies: %s)", resolvedAxes.AddressZone.Kind, resolvedAxes.AddressZone.Zone, resolvedAxes.AddressZone.TLSMode, resolvedAxes.AddressZone.CookieMode)
+	}
+	persistedStyle := stackspecintent.SetupStyleFromCanonicalStackSpec(validation.CanonicalStackSpec)
+	printInfo("Setup style: %s (Tier-1 core safety mandatory; Tier-2 automatic app personalization: %t)", persistedStyle, persistedStyle == stackspecintent.SetupStyleBootstrapped)
 	if strings.TrimSpace(initOwnerSource) != "local" {
 		printWarning("No local owner was established, so apply will refuse this workspace. Establish the owner with: %s", publicpath.CustodyRepairCommand(displayPath))
 	}
@@ -417,6 +486,12 @@ func resolveArchitectureV2InitOwnerSource() error {
 
 func validateArchitectureV2InitFlags(cmd *cobra.Command) error {
 	if err := validateInitCandidateFlags(cmd); err != nil {
+		return err
+	}
+	if _, err := stackspecintent.ResolveSetupStyleFlags(initSetupStyle, initCleanRollout, commandFlagChanged(cmd, "setup-style")); err != nil {
+		return err
+	}
+	if _, err := stackspecintent.ParseAddressZoneKind(initAddressZone); err != nil {
 		return err
 	}
 	apiVersion := architectureV2InitAPIVersion()

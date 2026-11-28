@@ -226,3 +226,143 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of ente-photos (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-ente-photos-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-ente-photos-runtime"
+	workloadRef:    "photos"
+	alternativeRef: "ente-photos"
+	release:        "alpine"
+	entryComponent: "ente-gateway"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "photos"
+		targetPort:        8080
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "ente-photos-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+		companionSubdomains: ["accounts", "api", "s3"]
+	}
+	secrets: {
+		"database-password": purpose: "Custody secret slot database-password for ente-photos"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "ente-museum", volumeRef: "data"},
+			{componentRef: "ente-postgres", volumeRef: "database"},
+			{componentRef: "ente-s3", volumeRef: "objects"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"ente-internal": {}
+	}
+	components: [
+		{
+			id:        "ente-gateway"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["ente-gateway"]
+			dependsOn: ["ente-web", "ente-museum", "ente-s3"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "config", target: "/etc/nginx/conf.d", class: "cache"},
+			]
+			networks: ["ente-internal"]
+			health: {kind: "http", path: "/stackkit-healthz", port: 8080}
+			resources: {memoryLimit: "128m", memoryReservation: "16m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ente-web"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["ente-web"]
+			dependsOn: ["ente-museum"]
+			environment: {}
+			secretEnvironment: {}
+			networks: ["ente-internal"]
+			health: {kind: "http", path: "/", port: 3000}
+			resources: {memoryLimit: "384m", memoryReservation: "64m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ente-museum"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["ente-museum"]
+			entrypoint: ["/bin/sh", "-ec"]
+			command: ["export ENTE_DB_PASSWORD=\"$(cat \"$STACKKIT_DB_PASSWORD_FILE\")\"; export ENTE_KEY_ENCRYPTION=\"$(cat \"$STACKKIT_ENCRYPTION_KEY_FILE\")\"; export ENTE_KEY_HASH=\"$(cat \"$STACKKIT_HASH_KEY_FILE\")\"; export ENTE_JWT_SECRET=\"$(cat \"$STACKKIT_JWT_SECRET_FILE\")\"; export ENTE_S3_B2_EU_CEN_KEY=\"$(cat \"$STACKKIT_S3_ACCESS_KEY_FILE\")\"; export ENTE_S3_B2_EU_CEN_SECRET=\"$(cat \"$STACKKIT_S3_SECRET_KEY_FILE\")\"; exec ./museum"]
+			dependsOn: ["ente-postgres", "ente-s3"]
+			environment: {
+				ENTE_DB_HOST: "ente-postgres"
+				ENTE_DB_NAME: "ente_db"
+				ENTE_DB_PORT: "5432"
+				ENTE_DB_SSLMODE: "disable"
+				ENTE_DB_USER: "pguser"
+				ENTE_S3_ARE_LOCAL_BUCKETS: "false"
+				ENTE_S3_B2_EU_CEN_BUCKET: "ente-photos"
+				ENTE_S3_B2_EU_CEN_REGION: "eu-central-1"
+				ENTE_S3_USE_PATH_STYLE_URLS: "true"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/data", class: "persistent", backup: true},
+			]
+			networks: ["ente-internal"]
+			egress: true
+			health: {kind: "http", path: "/ping", port: 8080}
+			resources: {memoryLimit: "768m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ente-postgres"
+			role:      "database"
+			lifecycle: "daemon"
+			image:     _images["ente-postgres"]
+			environment: {
+				POSTGRES_DB: "ente_db"
+				POSTGRES_USER: "pguser"
+			}
+			secretEnvironment: {
+				POSTGRES_PASSWORD: "database-password"
+			}
+			volumes: [
+				{id: "database", target: "/var/lib/postgresql/data", class: "persistent", backup: true},
+			]
+			networks: ["ente-internal"]
+			health: {kind: "command", command: ["pg_isready", "-U", "pguser", "-d", "ente_db"]}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ente-s3"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["ente-s3"]
+			entrypoint: ["/bin/sh", "-ec"]
+			command: ["mkdir -p /data/s3/ente-photos; export ROOT_ACCESS_KEY=\"$(cat \"$STACKKIT_S3_ACCESS_KEY_FILE\")\"; export ROOT_SECRET_KEY=\"$(cat \"$STACKKIT_S3_SECRET_KEY_FILE\")\"; exec /app/versitygw --port :7070 --region eu-central-1 posix /data/s3"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "objects", target: "/data/s3", class: "persistent", backup: true},
+			]
+			networks: ["ente-internal"]
+			health: {kind: "command", command: ["sh", "-c", "nc -z 127.0.0.1 7070"]}
+			resources: {memoryLimit: "256m", memoryReservation: "64m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

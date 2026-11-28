@@ -1,12 +1,14 @@
 ---
 adr: ADR-0049
 title: Marketplace on Coolify and the Layer-2 PaaS platform boundary
-status: Accepted
+status: Amended by ADR-0054 (D-2026-11-27-20)
 date: 2026-10-10
-last_verified: 2026-10-22
+last_verified: 2026-11-27
 ---
 
 # ADR-0049: Marketplace on Coolify and the Layer-2 PaaS platform boundary
+
+> **2026-11-27 Amendment (`D-2026-11-27-20`, [ADR-0054](ADR-0054-single-core-engine-and-coolify-extensibility-boundary.md)):** Coolify is narrowed solely to the optional Layer-3 Marketplace and Custom-Apps extensibility module at a single digest-pinned **4.7.5+** release (`AUTOUPDATE=false`, PocketID OIDC). Layer-2 PaaS core execution targets (Coolify core, Komodo, Dokploy, Runtipi, Dockhand) and legacy Full-Core Coolify `4.1.2` are retired for 1.0. Homelab Coolify relocation (`third_party/coolify-mirror/`) is retained until explicitly retired or replaced with parity.
 
 **Decision owner:** Marcel (2026-10-10, owner direction for the twelfth main
 intent "Marketplace"; engine choice accepted on the evidence below).
@@ -100,7 +102,7 @@ cell.
 
 ### Note 2026-11-12: Coolify 4.7 pin, token grant and owner-only sign-in
 
-Decision 1 now pins Coolify 4.7.5 by digest (platform-i0vm3j). A checkpointed
+Decision 1 now pins Coolify 4.7.5 by digest. A checkpointed
 upgrade moves an existing 4.4 installation to 4.7 and never back, because
 Coolify migrates its database forward on start. The bootstrap was checked
 against the 4.7.5 models (`OauthSetting`, `OauthIdentity`, `User`, `Team`,

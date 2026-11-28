@@ -73,3 +73,35 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Apache Tika application (internal)"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of tika (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-tika-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-tika-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "tika"
+	release:        "4.0.0-1"
+	entryComponent: "tika"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	secrets: {}
+	networks: {
+		"tika-internal": {}
+	}
+	components: [
+		{
+			id:        "tika"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["tika"]
+			environment: {}
+			secretEnvironment: {}
+			networks: ["tika-internal"]
+			health: {kind: "http", path: "/tika", port: 9998}
+			resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

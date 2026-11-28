@@ -231,3 +231,111 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of speechkit (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-speechkit-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-speechkit-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "speechkit"
+	release:        "v0.0.0-placeholder"
+	entryComponent: "speechkit"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "speech"
+		targetPort:        18080
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "speechkit-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"server-token": purpose: "Custody secret slot server-token for speechkit"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "speechkit", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"speechkit-internal": {}
+	}
+	components: [
+		{
+			id:        "speechkit"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["speechkit"]
+			dependsOn: ["speechkit-stt", "speechkit-tts"]
+			environment: {
+				SPEECHKIT_ALLOW_EMPTY_ORIGIN: "1"
+			}
+			secretEnvironment: {
+				SPEECHKIT_SERVER_TOKEN: "server-token"
+			}
+			volumes: [
+				{id: "data", target: "/var/lib/speechkit/data", class: "persistent", backup: true},
+				{id: "config", target: "/etc/speechkit", class: "cache"},
+			]
+			networks: ["speechkit-internal"]
+			health: {kind: "http", path: "/healthz", port: 18080}
+			resources: {memoryLimit: "1g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "speechkit-stt"
+			role:      "machine-learning"
+			lifecycle: "daemon"
+			image:     _images["speechkit-stt"]
+			entrypoint: ["/bin/sh", "-ec", "mkdir -p /var/lib/speechkit/models/parakeet-ultra-int8; test -s /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/encoder.int8.onnx && echo 'f4d06712d32431b1718eceba2153c314ac4425e8fe708a3534f5e56c5ad53697  /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/encoder.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/decoder.int8.onnx && echo '94373c6405c8149d1c9d1e9862514e0e3e88dab1c7de18fac9d5df9c6ba5efdd  /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/decoder.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/joiner.int8.onnx && echo '8a71aaccfdba3d451775507a889afd2257d2e754463fd81095a8c8f290f924c2  /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx.part /var/lib/speechkit/models/parakeet-ultra-int8/joiner.int8.onnx; }; test -s /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt || { curl -fsSL --retry 5 -o /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part https://huggingface.co/tpmaerk/parakeet-ultra-sherpa-onnx-int8/resolve/b86784a3a5356cbd126f710b61cd90c5fe5898f1/tokens.txt && echo 'd58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d  /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part' | sha256sum -c - && mv /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt.part /var/lib/speechkit/models/parakeet-ultra-int8/tokens.txt; }; exec /app/speechkit-stt-sherpa --host 0.0.0.0 --port 8080 --model /var/lib/speechkit/models/parakeet-ultra-int8 --inference-path /v1/audio/transcriptions"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "models", target: "/var/lib/speechkit/models", class: "cache"},
+			]
+			networks: ["speechkit-internal"]
+			egress: true
+			health: {kind: "http", path: "/health", port: 8080}
+			resources: {memoryLimit: "3g", memoryReservation: "1g"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "speechkit-tts"
+			role:      "machine-learning"
+			lifecycle: "daemon"
+			image:     _images["speechkit-tts"]
+			environment: {}
+			secretEnvironment: {}
+			networks: ["speechkit-internal"]
+			health: {kind: "http", path: "/health", port: 8880}
+			resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "speechkit-discovery"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["speechkit-discovery"]
+			entrypoint: ["/app/speechkit-server"]
+			command: ["--discovery-only", "--discovery-port", "18080", "--discovery-modes", "dictation,assist,voiceagent"]
+			dependsOn: ["speechkit"]
+			environment: {}
+			secretEnvironment: {}
+			networks: []
+			health: {kind: "command", command: ["/app/speechkit-server", "--discovery-only", "--probe"]}
+			resources: {memoryLimit: "64m", memoryReservation: "16m"}
+			labels: {}
+			traits: {
+				hostNetwork: true
+			}
+		},
+	]
+}

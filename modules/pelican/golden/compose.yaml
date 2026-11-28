@@ -1,0 +1,163 @@
+name: stackkit-game-main
+services:
+    panel:
+        image: ghcr.io/pelican/panel:v1.0.0-beta38@sha256:46f356f3fda423b1d43f0dc3c71efc056cd8b9bec365d1d7817306a17ee5694a
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 1g
+                reservations:
+                    memory: 256m
+        command:
+            - supervisord
+            - -n
+            - -c
+            - /etc/supervisord.conf
+        entrypoint:
+            - /bin/ash
+            - /stackkit/panel-entrypoint.sh
+        environment:
+            APP_DEBUG: "false"
+            APP_ENV: production
+            APP_INSTALLED: "true"
+            APP_TIMEZONE: UTC
+            BEHIND_PROXY: "true"
+            CACHE_STORE: file
+            DB_CONNECTION: sqlite
+            MAIL_MAILER: log
+            PHP_INI_SCAN_DIR: :/tmp/stackkit/php
+            QUEUE_CONNECTION: database
+            SESSION_DRIVER: file
+            TRUSTED_PROXIES: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+        volumes:
+            - panel-caddy:/etc/caddy
+            - panel-data:/pelican-data
+            - panel-stackkit:/stackkit
+        networks:
+            - game-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::80
+        stop_signal: SIGTERM
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: game-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-game
+            io.stackkit.route.id: game-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "80"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-game-remote.entrypoints: remote
+            traefik.http.routers.stackkit-game-remote.rule: Host(`game.home.example`)
+            traefik.http.routers.stackkit-game-remote.service: stackkit-game
+            traefik.http.routers.stackkit-game.entrypoints: websecure
+            traefik.http.routers.stackkit-game.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-game.rule: Host(`game.home.example`)
+            traefik.http.routers.stackkit-game.tls: "true"
+            traefik.http.routers.stackkit-game.tls.certresolver: stackkits
+            traefik.http.services.stackkit-game.loadbalancer.server.port: "80"
+            traefik.http.services.stackkit-game.loadbalancer.server.scheme: http
+    panel-bootstrap:
+        image: ghcr.io/pelican/panel:v1.0.0-beta38@sha256:46f356f3fda423b1d43f0dc3c71efc056cd8b9bec365d1d7817306a17ee5694a
+        command:
+            - /stackkit/bootstrap.sh
+        entrypoint:
+            - /bin/ash
+        depends_on:
+            panel:
+                condition: service_started
+        environment:
+            APP_DEBUG: "false"
+            APP_ENV: production
+            APP_INSTALLED: "true"
+            APP_TIMEZONE: UTC
+            BEHIND_PROXY: "true"
+            CACHE_STORE: file
+            DB_CONNECTION: sqlite
+            MAIL_MAILER: log
+            PHP_INI_SCAN_DIR: :/tmp/stackkit/php
+            QUEUE_CONNECTION: database
+            SESSION_DRIVER: file
+            TRUSTED_PROXIES: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+        volumes:
+            - panel-bootstrap-data:/stackkit/game-data
+            - panel-bootstrap-panel-data:/pelican-data
+            - panel-bootstrap-stackkit:/stackkit
+        networks:
+            - game-internal
+        stop_signal: SIGTERM
+        user: "0:0"
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+    wings:
+        image: ghcr.io/pelican/wings:v1.0.0-beta29@sha256:39837cfc49b0513313e57dc4b977a769cb784cf81af3f25a5ea46d869b4b0846
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        command:
+            - /usr/bin/wings
+            - --config
+            - /stackkit/game-data/config.yml
+        depends_on:
+            panel-bootstrap:
+                condition: service_completed_successfully
+        environment:
+            TZ: UTC
+            WINGS_GID: "988"
+            WINGS_UID: "988"
+            WINGS_USERNAME: pelican
+        volumes:
+            - wings-data:/stackkit/game-data
+            - wings-logs:/var/log/pelican
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    game-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    panel-bootstrap-data: {}
+    panel-bootstrap-panel-data: {}
+    panel-bootstrap-stackkit: {}
+    panel-caddy: {}
+    panel-data: {}
+    panel-stackkit: {}
+    wings-data: {}
+    wings-logs: {}

@@ -203,3 +203,108 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of nextcloud (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-nextcloud-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-nextcloud-runtime"
+	workloadRef:    "files"
+	alternativeRef: "nextcloud"
+	release:        "35.0.1-apache"
+	entryComponent: "nextcloud"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "files"
+		targetPort:        80
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "nextcloud-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"database-password": purpose: "Custody secret slot database-password for nextcloud"
+		"owner-password": purpose: "Custody secret slot owner-password for nextcloud"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "nextcloud", volumeRef: "html"},
+			{componentRef: "nextcloud-postgres", volumeRef: "database"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"nextcloud-internal": {}
+	}
+	components: [
+		{
+			id:        "nextcloud"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["nextcloud"]
+			dependsOn: ["nextcloud-postgres", "nextcloud-valkey"]
+			environment: {
+				NEXTCLOUD_ADMIN_USER: "owner"
+				OVERWRITEPROTOCOL: "https"
+				POSTGRES_DB: "nextcloud"
+				POSTGRES_HOST: "nextcloud-postgres"
+				POSTGRES_USER: "nextcloud"
+				REDIS_HOST: "nextcloud-valkey"
+				TRUSTED_PROXIES: "10.0.0.0/8 172.16.0.0/12 192.168.0.0/16"
+			}
+			secretEnvironment: {
+				NEXTCLOUD_ADMIN_PASSWORD: "owner-password"
+				POSTGRES_PASSWORD: "database-password"
+			}
+			volumes: [
+				{id: "html", target: "/var/www/html", class: "persistent", backup: true},
+			]
+			networks: ["nextcloud-internal"]
+			health: {kind: "http", path: "/status.php", port: 80}
+			resources: {memoryLimit: "3g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "nextcloud-postgres"
+			role:      "database"
+			lifecycle: "daemon"
+			image:     _images["nextcloud-postgres"]
+			environment: {
+				POSTGRES_DB: "nextcloud"
+				POSTGRES_USER: "nextcloud"
+			}
+			secretEnvironment: {
+				POSTGRES_PASSWORD: "database-password"
+			}
+			volumes: [
+				{id: "database", target: "/var/lib/postgresql", class: "persistent", backup: true},
+			]
+			networks: ["nextcloud-internal"]
+			health: {kind: "command", command: ["pg_isready", "-U", "nextcloud", "-d", "nextcloud"]}
+			resources: {memoryLimit: "1g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "nextcloud-valkey"
+			role:      "cache"
+			lifecycle: "daemon"
+			image:     _images["nextcloud-valkey"]
+			command: ["valkey-server"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "cache", target: "/data", class: "cache"},
+			]
+			networks: ["nextcloud-internal"]
+			health: {kind: "command", command: ["valkey-cli", "ping"]}
+			resources: {memoryLimit: "256m", memoryReservation: "64m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

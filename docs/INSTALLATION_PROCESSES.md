@@ -12,9 +12,11 @@ belong to Homelab; installing Modern definitions admits no standalone
 Advanced executor. Owner email initializes the node's own identity, not a
 kombify signup. Standalone Compose is the complete primary experience,
 applications included; the CLI is an optional interface to the shared
-lifecycle. Coolify, Komodo and Dokploy are Layer-2 PaaS platforms and later
-runtime targets (Marketplace installs Coolify as its engine); support needs a
-current-pin receipt ([ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md)).
+lifecycle. Komodo, Dokploy and legacy core Coolify `4.1.2` are Layer-2 PaaS
+engines retired from 1.0 core execution; Coolify `4.7.5+` remains only the
+optional Layer-3 Marketplace and custom-apps extension
+([ADR-0042](ADR/ADR-0042-standalone-default-and-optional-platforms.md),
+[ADR-0054](ADR/ADR-0054-single-core-engine-and-coolify-extensibility-boundary.md)).
 
 Not implemented: managed-serverless provisioning, SaaS placement beyond S1, the
 legacy v0.6 `stackkit app add` PaaS handoff on native installations, internal

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -102,6 +103,7 @@ func init() {
 type restoreDrillReport struct {
 	BackupRenewal       *wire.BackupRenewal         `json:"backupRenewal,omitempty"`
 	ApplicationRecovery *applicationRecoveryReceipt `json:"applicationRecovery,omitempty"`
+	BackupSurvival      json.RawMessage             `json:"backupSurvival,omitempty"`
 	SchemaVersion       string                      `json:"schemaVersion"`
 	Mode                string                      `json:"mode"`
 	Operation           string                      `json:"operation"`

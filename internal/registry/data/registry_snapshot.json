@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "source": "cue",
-  "generated_at": "2026-11-27T18:50:07Z",
+  "generated_at": "2026-11-28T16:44:36Z",
   "tools": [
     {
       "slug": "adguard-home",
@@ -614,6 +614,34 @@
       "default": false
     },
     {
+      "key": "marketplace",
+      "display_name": "Coolify",
+      "description": "Optional Layer-3 Marketplace (359 templates) and Custom-Apps/Git-build extensibility behind Kit-Traefik and zero-custody cookie-scrubber (never manages curated core apps)",
+      "tool_name": "coolify",
+      "module_slug": "coolify",
+      "local_slug": "marketplace",
+      "public_slug": "marketplace",
+      "identity_policy": "forwardauth",
+      "owner_provisioning_policy": "required",
+      "icon": "\u0026#128722;",
+      "logo_url": "https://cdn.simpleicons.org/coolify/ffffff",
+      "badge": "L3 · Marketplace",
+      "layer": "L3-application",
+      "section": "Applications",
+      "order": 60,
+      "enable_var": "enable_coolify",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/marketplace",
+      "vendor": {
+        "name": "Coolify",
+        "website": "https://coolify.io",
+        "docs": "https://coolify.io/docs",
+        "license": "Apache-2.0"
+      },
+      "setup_policy": "manual",
+      "delivery": {},
+      "default": false
+    },
+    {
       "key": "media",
       "display_name": "Jellyfin",
       "description": "Free media server for movies, TV, music, and photos",
@@ -990,6 +1018,19 @@
         "website": "https://www.comfy.org",
         "docs": "https://docs.comfy.org",
         "license": "GPL-3.0"
+      }
+    },
+    {
+      "tool_name": "coolify",
+      "module_slug": "coolify",
+      "display_name": "Coolify",
+      "service_key": "marketplace",
+      "guide_url": "https://docs.kombify.io/stackkits/apps/marketplace",
+      "vendor": {
+        "name": "Coolify",
+        "website": "https://coolify.io",
+        "docs": "https://coolify.io/docs",
+        "license": "Apache-2.0"
       }
     },
     {
@@ -1606,6 +1647,19 @@
       ]
     },
     {
+      "slug": "coolify",
+      "display_name": "Coolify",
+      "version": "4.7.5",
+      "layer": "L3-application",
+      "description": "Optional Layer-3 Marketplace (359 templates) and Custom-Apps/Git-build extensibility behind Kit-Traefik and zero-custody cookie-scrubber (never manages curated core apps)",
+      "contract_hash": "435e861bc2ea02c4b4cc125d5cf18d42773ac92fd944c5156abf250bca7d8ae6",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
+    },
+    {
       "slug": "crowdsec",
       "display_name": "CrowdSec",
       "version": "1.0.0",
@@ -2178,6 +2232,19 @@
         "pi"
       ],
       "core": true
+    },
+    {
+      "slug": "sites-framework",
+      "display_name": "kombify Sites Framework",
+      "version": "0.1.0",
+      "layer": "L3-application",
+      "description": "Optional self-hosted runtime for sites built with the open kombify Sites Framework (deck/topic-artifact Node 24 + sqlite-vec and web SvelteKit + PocketBase profiles)",
+      "contract_hash": "875e81e800beaf7691e4779c4fc05c0163e998bc137f5bdd6c3f3d3e4dee02c9",
+      "supported_contexts": [
+        "local",
+        "cloud",
+        "pi"
+      ]
     },
     {
       "slug": "socket-proxy",

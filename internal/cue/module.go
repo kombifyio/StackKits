@@ -2,6 +2,7 @@ package cue
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -164,19 +165,48 @@ func (r *ModuleReader) ReadModule(modulePath string) (ModuleContract, error) {
 }
 
 // ReadAllModules scans the modules directory and extracts all ModuleContracts.
+//
+// All module packages are loaded in one load.Instances call, so they share
+// one build.Instance per imported package and foundation is parsed and
+// compiled once rather than once per module. Results keep discovery order (sorted
+// directory names), and a failure names the module it belongs to.
 func (r *ModuleReader) ReadAllModules(modulesDir string) ([]ModuleContract, error) {
 	modulePaths, err := discoverModulePaths(modulesDir)
 	if err != nil {
 		return nil, err
 	}
+	if len(modulePaths) == 0 {
+		return nil, nil
+	}
 
-	var contracts []ModuleContract
-	for _, mp := range modulePaths {
-		contract, err := r.readModule(mp.Path)
+	args := make([]string, len(modulePaths))
+	for i, mp := range modulePaths {
+		args[i] = "./" + filepath.ToSlash(mp.Name)
+	}
+	instances := load.Instances(args, cueLoadConfig(modulesDir, modulesDir))
+	if len(instances) != len(modulePaths) {
+		return nil, fmt.Errorf("loaded %d CUE instances for %d modules in %s", len(instances), len(modulePaths), modulesDir)
+	}
+	for i, inst := range instances {
+		if inst.Err != nil {
+			return nil, fmt.Errorf("failed to read module %s: failed to load CUE instance: %w", modulePaths[i].Name, inst.Err)
+		}
+	}
+
+	// The instances share one build.Instance per imported package, and the
+	// context caches compiled packages per build.Instance, so foundation is
+	// compiled on the first BuildInstance and reused by the rest.
+	contracts := make([]ModuleContract, 0, len(modulePaths))
+	for i, mp := range modulePaths {
+		contract, err := contractFromValue(r.ctx.BuildInstance(instances[i]), mp.Path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read module %s: %w", mp.Name, err)
 		}
-		contracts = append(contracts, contract)
+		mc, err := r.extractContract(contract)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read module %s: %w", mp.Name, err)
+		}
+		contracts = append(contracts, mc)
 	}
 
 	return contracts, nil
@@ -196,17 +226,23 @@ func (r *ModuleReader) readModule(modulePath string) (ModuleContract, error) {
 		return ModuleContract{}, fmt.Errorf("failed to load CUE instance: %w", inst.Err)
 	}
 
-	value := r.ctx.BuildInstance(inst)
-	if err := value.Err(); err != nil {
-		return ModuleContract{}, fmt.Errorf("failed to build CUE value: %w", err)
+	contract, err := contractFromValue(r.ctx.BuildInstance(inst), modulePath)
+	if err != nil {
+		return ModuleContract{}, err
 	}
+	return r.extractContract(contract)
+}
 
+// contractFromValue checks a built module value and returns its Contract field.
+func contractFromValue(value cue.Value, modulePath string) (cue.Value, error) {
+	if err := value.Err(); err != nil {
+		return cue.Value{}, fmt.Errorf("failed to build CUE value: %w", err)
+	}
 	contract := value.LookupPath(cue.ParsePath("Contract"))
 	if !contract.Exists() {
-		return ModuleContract{}, fmt.Errorf("module at %s has no Contract definition", modulePath)
+		return cue.Value{}, fmt.Errorf("module at %s has no Contract definition", modulePath)
 	}
-
-	return r.extractContract(contract)
+	return contract, nil
 }
 
 // extractContract extracts a ModuleContract from a CUE Contract value.

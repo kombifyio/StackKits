@@ -86,3 +86,55 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Hermes Agent dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of hermes (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-hermes-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-hermes-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "hermes"
+	release:        "v2026.9.24"
+	entryComponent: "hermes"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "hermes", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"hermes-internal": {}
+	}
+	components: [
+		{
+			id:        "hermes"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["hermes"]
+			entrypoint: ["/bin/sh", "/opt/stackkit/start.sh"]
+			command: ["gateway", "run"]
+			environment: {
+				HERMES_DASHBOARD: "1"
+				HERMES_DASHBOARD_BASIC_AUTH_USERNAME: "owner"
+				HERMES_DASHBOARD_HOST: "0.0.0.0"
+				HERMES_DASHBOARD_PORT: "9119"
+				SEARXNG_URL: "http://searxng:8080"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/opt/data", class: "persistent", backup: true},
+				{id: "policy", target: "/opt/stackkit", class: "cache"},
+			]
+			networks: ["hermes-internal"]
+			egress: true
+			health: {kind: "http", path: "/api/status", port: 9119}
+			resources: {memoryLimit: "3g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

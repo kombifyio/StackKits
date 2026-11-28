@@ -1,0 +1,152 @@
+name: stackkit-files-main
+services:
+    nextcloud:
+        image: docker.io/library/nextcloud:35.0.1-apache@sha256:276547e033df451770dbf9c0065929e5ea179a613b1884bd3fa807ba1c2703e7
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 3g
+                reservations:
+                    memory: 512m
+        depends_on:
+            nextcloud-postgres:
+                condition: service_started
+            nextcloud-valkey:
+                condition: service_started
+        environment:
+            NEXTCLOUD_ADMIN_PASSWORD: ${STACKKIT_SECRET_NEXTCLOUD_NEXTCLOUD_ADMIN_PASSWORD:?required}
+            NEXTCLOUD_ADMIN_USER: owner
+            OVERWRITEPROTOCOL: https
+            POSTGRES_DB: nextcloud
+            POSTGRES_HOST: nextcloud-postgres
+            POSTGRES_PASSWORD: ${STACKKIT_SECRET_NEXTCLOUD_POSTGRES_PASSWORD:?required}
+            POSTGRES_USER: nextcloud
+            REDIS_HOST: nextcloud-valkey
+            TRUSTED_PROXIES: 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16
+        volumes:
+            - nextcloud-html:/var/www/html
+        networks:
+            - nextcloud-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::80
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: files-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-files
+            io.stackkit.route.id: files-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "80"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-files-remote.entrypoints: remote
+            traefik.http.routers.stackkit-files-remote.rule: Host(`files.home.example`)
+            traefik.http.routers.stackkit-files-remote.service: stackkit-files
+            traefik.http.routers.stackkit-files.entrypoints: websecure
+            traefik.http.routers.stackkit-files.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-files.rule: Host(`files.home.example`)
+            traefik.http.routers.stackkit-files.tls: "true"
+            traefik.http.routers.stackkit-files.tls.certresolver: stackkits
+            traefik.http.services.stackkit-files.loadbalancer.server.port: "80"
+            traefik.http.services.stackkit-files.loadbalancer.server.scheme: http
+    nextcloud-postgres:
+        image: docker.io/library/postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -500
+        deploy:
+            resources:
+                limits:
+                    memory: 1g
+                reservations:
+                    memory: 256m
+        environment:
+            POSTGRES_DB: nextcloud
+            POSTGRES_PASSWORD: ${STACKKIT_SECRET_NEXTCLOUD_POSTGRES_POSTGRES_PASSWORD:?required}
+            POSTGRES_USER: nextcloud
+        volumes:
+            - nextcloud-postgres-database:/var/lib/postgresql
+        networks:
+            - nextcloud-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - -U
+                - nextcloud
+                - -d
+                - nextcloud
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    nextcloud-valkey:
+        image: docker.io/valkey/valkey:9-alpine@sha256:a0dbf4c1d5708782907c10e2c72deff317518518b5288a58416981d9db95d30b
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -250
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+                reservations:
+                    memory: 64m
+        command:
+            - valkey-server
+        volumes:
+            - nextcloud-valkey-cache:/data
+        networks:
+            - nextcloud-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - valkey-cli
+                - ping
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+networks:
+    nextcloud-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    nextcloud-html: {}
+    nextcloud-postgres-database: {}
+    nextcloud-valkey-cache: {}

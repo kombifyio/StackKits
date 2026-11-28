@@ -344,7 +344,7 @@ requirement for owner-held local recovery.
 
 > Measured 2026-10-26 with Kopia 0.18.2 (the pinned `kopia-agent` image) against a
 > local S3-compatible server (MinIO, built from source, no TLS). This is a
-> design measurement for Guard G (`kombify-StackKits-yihy.1`). It is not
+> design measurement for Guard G. It is not
 > implemented in the CLI, not supported, and not evidence for any real target:
 > no `stackkit` command, custody record or Plan changes with it.
 
@@ -389,7 +389,7 @@ slice spans both repositories.
 
 ### Guard G survival proof (source slice)
 
-`internal/backupsurvival` is the deterministic, fail-closed judge of the table
+`internal/guardproof/backupsurvival` is the deterministic, fail-closed judge of the table
 above. It holds no credential and no backend client; a caller supplies a
 `Backend` port that enforces the real policy, and the package decides what the
 backend observably did.
@@ -409,12 +409,19 @@ backend observably did.
   and fails. The recovery identity then verifies the version, its bytes and its
   retention, restores into an isolated empty directory and compares SHA-256; the
   maintenance authority prunes a second disposable canary while the first stays.
-- **Receipt.** `stackkit.guard-backup-survival-receipt/v1` is hash-chained from
-  the binding digest, carries identity IDs and credential fingerprints only, and
-  `Verify` rejects an altered, truncated or over-claiming receipt. A receipt that
-  omits any of the required `notClaimed` bounds is invalid: backup-admin and
-  provider-account compromise, real recovery points, lock renewal, application
-  recovery and any target other than the bound backend.
+- **Receipt.** `stackkit.guard-backup-survival-receipt/v1` binds `apiVersion`,
+  `bindingDigest`, `backendRef`, optional `nodeId`/`workloadId`, `canary`,
+  `verdict`, `genesis`, `entries`, `headHash`, `notClaimed`, and `completedAt`
+  into domain-separated genesis (`backupsurvival/genesis/v1`), entry
+  (`backupsurvival/entry/v1`), and canonical receipt
+  (`backupsurvival/receipt/v1`) SHA-256 digests with an optional Ed25519
+  signature (`stackkit.guard-backup-survival-receipt/v1`), carries identity IDs
+  and credential fingerprints only, and `Verify` / `VerifyWithPublicKey` reject
+  an altered, truncated, unsigned (when a key is required), or over-claiming
+  receipt. A receipt that omits any of the required `notClaimed` bounds is
+  invalid: backup-admin and provider-account compromise, real recovery points,
+  lock renewal, application recovery and any target other than the bound
+  backend.
 
 Not yet: the object-lock backend adapter, its provisioning (Homelab provider
 lifecycle) and the live hosted-target run. The bead stays open until a Guard G

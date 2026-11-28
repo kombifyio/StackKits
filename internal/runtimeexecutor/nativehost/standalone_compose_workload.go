@@ -24,12 +24,12 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backupexec"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/imagepreparation"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/localowner"
 	"github.com/kombifyio/stackkits/internal/originca"
 	"github.com/kombifyio/stackkits/internal/ownappfirewall"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
 	"gopkg.in/yaml.v3"
 )
@@ -131,23 +131,23 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	ctx context.Context,
 	deployment SelectedPaaSWorkloadDeployment,
 ) (SelectedPaaSApplyReceipt, error) {
-	var managerState *platformdeploy.HostDeployment
+	var managerState *deploymentcontract.HostDeployment
 	if o != nil && o.adapterRef != "" && o.adapterRef != standaloneComposeAdapterRef {
 		return SelectedPaaSApplyReceipt{}, errors.New("selected platform owns workload mutation")
 	}
 	if o != nil {
 		project := "stackkit-" + deployment.WorkloadRef + "-" + deployment.NodeRef
-		present, err := platformdeploy.HasOwnerHostDeployment(o.workspaceRoot, project)
+		present, err := deploymentcontract.HasOwnerHostDeployment(o.workspaceRoot, project)
 		if err != nil {
 			return SelectedPaaSApplyReceipt{}, fmt.Errorf("read workload manager custody: %w", err)
 		}
 		if present {
-			state, err := platformdeploy.LoadOwnerHostDeployment(o.workspaceRoot, project)
+			state, err := deploymentcontract.LoadOwnerHostDeployment(o.workspaceRoot, project)
 			if err != nil {
 				return SelectedPaaSApplyReceipt{}, err
 			}
-			if err := platformdeploy.RequireHostDeploymentManager(state, standaloneComposeAdapterRef); err != nil {
-				return SelectedPaaSApplyReceipt{}, &WorkloadManagerConflictError{Project: project, CurrentManager: platformdeploy.HostDeploymentManager(state), RequestedManager: standaloneComposeAdapterRef}
+			if err := deploymentcontract.RequireHostDeploymentManager(state, standaloneComposeAdapterRef); err != nil {
+				return SelectedPaaSApplyReceipt{}, &WorkloadManagerConflictError{Project: project, CurrentManager: deploymentcontract.HostDeploymentManager(state), RequestedManager: standaloneComposeAdapterRef}
 			}
 			if state.WorkloadRef != deployment.WorkloadRef || state.InstanceRef != deployment.InstanceRef || state.SiteRef != deployment.SiteRef || state.NodeRef != deployment.NodeRef {
 				return SelectedPaaSApplyReceipt{}, errors.New("Compose manager custody differs from the exact workload node")
@@ -184,7 +184,7 @@ func (o *osStandaloneComposeWorkloadOperations) ApplyWorkload(
 	if managerState != nil {
 		managerState.ArtifactDigest = deployment.ArtifactDigest
 		managerState.PlanBinding = nil
-		if err := platformdeploy.SaveOwnerHostDeployment(o.workspaceRoot, project.name, *managerState); err != nil {
+		if err := deploymentcontract.SaveOwnerHostDeployment(o.workspaceRoot, project.name, *managerState); err != nil {
 			return SelectedPaaSApplyReceipt{}, err
 		}
 	}

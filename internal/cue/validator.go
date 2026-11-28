@@ -11,7 +11,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -703,8 +703,8 @@ func isRouteHost(value string) bool {
 }
 
 func isSetupPolicy(value string) bool {
-	switch value {
-	case platformdeploy.SetupPolicyManual, platformdeploy.SetupPolicyOnDemand, platformdeploy.SetupPolicyAutomatic:
+	switch deploymentcontract.SetupPolicy(value) {
+	case deploymentcontract.SetupPolicyManual, deploymentcontract.SetupPolicyOnDemand, deploymentcontract.SetupPolicyAutomatic:
 		return true
 	default:
 		return false

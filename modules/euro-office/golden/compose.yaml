@@ -1,0 +1,67 @@
+name: stackkit-documents-main
+services:
+    euro-office:
+        image: ghcr.io/euro-office/documentserver:v9.3.4-hotfix.1@sha256:889e681923d2dcc8bdfb92fe128d10e185fcff880d302b6a0c0c7bf339499290
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 4g
+                reservations:
+                    memory: 2g
+        environment:
+            JWT_ENABLED: "true"
+            JWT_SECRET: ${STACKKIT_SECRET_EURO_OFFICE_JWT_SECRET:?required}
+        volumes:
+            - euro-office-data:/var/www/euro-office/Data
+        networks:
+            - euro-office-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::80
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: office-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-office
+            io.stackkit.route.id: office-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "80"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-office-remote.entrypoints: remote
+            traefik.http.routers.stackkit-office-remote.rule: Host(`office.home.example`)
+            traefik.http.routers.stackkit-office-remote.service: stackkit-office
+            traefik.http.routers.stackkit-office.entrypoints: websecure
+            traefik.http.routers.stackkit-office.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-office.rule: Host(`office.home.example`)
+            traefik.http.routers.stackkit-office.tls: "true"
+            traefik.http.routers.stackkit-office.tls.certresolver: stackkits
+            traefik.http.services.stackkit-office.loadbalancer.server.port: "80"
+            traefik.http.services.stackkit-office.loadbalancer.server.scheme: http
+networks:
+    euro-office-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    euro-office-data: {}

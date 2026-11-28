@@ -225,6 +225,8 @@ func init() {
 	rootCmd.AddCommand(newWalletItemCommand())
 	rootCmd.AddCommand(serviceCmd)
 	rootCmd.AddCommand(newAddressCommand())
+	rootCmd.AddCommand(newCoolifyCommand())
+	rootCmd.AddCommand(newAdoptCommand())
 	rootCmd.AddCommand(newNetworkCommand())
 	rootCmd.AddCommand(newRelocateCommand())
 	rootCmd.AddCommand(newDeviceCommand())

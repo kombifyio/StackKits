@@ -60,7 +60,7 @@ export async function projectAuthorityBundle(authorityRootPath, exactSourceSha, 
   verifyContentDigest(fitsSource, "compute-tier-fits.json");
   verifyContentDigest(operationsSource, "operations.json");
 
-  const authorityBundleSha = await authorityBundleDigest(root);
+  const authorityBundleSha = await authorityBundleDigest(root, manifest.sourceHashes);
   const modules = indexById(arrayValue(catalogSource.modules), "metadata.id");
   const workloads = indexById(arrayValue(catalogSource.workloads), "metadata.id");
   const useCases = parseNativeUseCases(fitsSource, workloads);
@@ -715,11 +715,18 @@ function validateDocument(document, acceptedVersions, name) {
   if (!isObject(document) || typeof document.schemaVersion !== "string" || !acceptedVersions.has(document.schemaVersion)) fail(`${name} has an unknown schema version`);
 }
 
-async function authorityBundleDigest(root) {
+async function authorityBundleDigest(root, sourceHashes) {
   const entries = [];
   await walk(root, root, entries);
+  if (!isObject(sourceHashes) || Object.keys(sourceHashes).length === 0) fail("manifest source hashes are missing");
+  const documentPaths = new Set(entries.map((entry) => entry.path));
+  for (const [path, hash] of Object.entries(sourceHashes)) {
+    if (!/^(?:[\w-][\w.-]*\/)*[\w-][\w.-]*\.cue$/.test(path) || !/^sha256:[a-f0-9]{64}$/.test(hash)) fail(`invalid manifest source hash: ${path}`);
+    if (documentPaths.has(path)) fail(`authority bundle contains a duplicated CUE source: ${path}`);
+    entries.push({ path, hash: hash.slice("sha256:".length) });
+  }
   entries.sort((left, right) => left.path.localeCompare(right.path));
-  const payload = entries.map((entry) => `${entry.path}\0${sha256Hex(entry.bytes)}\n`).join("");
+  const payload = entries.map((entry) => `${entry.path}\0${entry.hash}\n`).join("");
   return sha256Hex(Buffer.from(payload, "utf8"));
 }
 
@@ -729,7 +736,7 @@ async function walk(root, current, entries) {
     const path = join(current, child.name);
     if (child.isSymbolicLink()) fail(`authority bundle must not contain symlinks: ${path}`);
     if (child.isDirectory()) await walk(root, path, entries);
-    else if (child.isFile()) entries.push({ path: relative(root, path).split(sep).join("/"), bytes: await readFile(path) });
+    else if (child.isFile()) entries.push({ path: relative(root, path).split(sep).join("/"), hash: sha256Hex(await readFile(path)) });
     else fail(`unsupported authority bundle entry: ${path}`);
   }
 }

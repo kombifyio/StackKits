@@ -119,3 +119,68 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Gitea dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of gitea (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-gitea-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-gitea-runtime"
+	workloadRef:    "dev"
+	alternativeRef: "gitea"
+	release:        "1.27.3-rootless"
+	entryComponent: "gitea"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "git"
+		targetPort:        3000
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "gitea-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "gitea", volumeRef: "data"},
+			{componentRef: "gitea", volumeRef: "config"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"gitea-internal": {}
+	}
+	components: [
+		{
+			id:        "gitea"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["gitea"]
+			command: ["/bin/sh", "-ec", "gitea -c \"$GITEA_APP_INI\" migrate && users=$(gitea -c \"$GITEA_APP_INI\" admin user list) && owner=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ && $2 == \"owner\" {print $3 \" \" $4 \" \" $5}') && if [ -n \"$owner\" ]; then [ \"$owner\" = \"$STACKKITS_OWNER_EMAIL true true\" ] || { echo 'Existing Gitea owner does not match local custody' >&2; exit 1; }; else count=$(printf '%s\\n' \"$users\" | awk '$1 ~ /^[0-9]+$/ {n++} END {print n+0}'); [ \"$count\" = 0 ] || { echo 'Existing Gitea users require explicit owner reconciliation' >&2; exit 1; }; password=$(cat \"$STACKKITS_OWNER_PASSWORD_FILE\"); gitea -c \"$GITEA_APP_INI\" admin user create --username owner --email \"$STACKKITS_OWNER_EMAIL\" --password \"$password\" --admin --must-change-password=false; fi && exec gitea -c \"$GITEA_APP_INI\" web"]
+			environment: {
+				GITEA__actions__ENABLED: "false"
+				GITEA__database__DB_TYPE: "sqlite3"
+				GITEA__database__PATH: "/var/lib/gitea/data/gitea.db"
+				GITEA__repository__DEFAULT_PRIVATE: "private"
+				GITEA__repository__FORCE_PRIVATE: "true"
+				GITEA__security__INSTALL_LOCK: "true"
+				GITEA__security__REVERSE_PROXY_LIMIT: "0"
+				GITEA__server__DISABLE_SSH: "true"
+				GITEA__service__DISABLE_REGISTRATION: "true"
+				GITEA__service__REQUIRE_SIGNIN_VIEW: "true"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/var/lib/gitea", class: "persistent", backup: true},
+				{id: "config", target: "/etc/gitea", class: "persistent", backup: true},
+			]
+			networks: ["gitea-internal"]
+			health: {kind: "http", path: "/api/healthz", port: 3000}
+			resources: {memoryLimit: "2g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

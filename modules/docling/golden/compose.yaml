@@ -1,0 +1,33 @@
+name: stackkit-ai-main
+services:
+    docling:
+        image: quay.io/docling-project/docling-serve-cpu:v1.35.0@sha256:79e5fcd19ab227ed36323fa5fa31820d14d53efc4f073417ba37be7931c7af0a
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 6g
+                reservations:
+                    memory: 1g
+        environment:
+            DOCLING_SERVE_ENABLE_UI: "false"
+            DOCLING_SERVE_MAX_SYNC_WAIT: "600"
+            HF_HUB_OFFLINE: "1"
+        networks:
+            - docling-internal
+            - stackkit-workload-health
+        ports:
+            - 127.0.0.1::5001
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    docling-internal:
+        internal: true
+    stackkit-workload-health: {}

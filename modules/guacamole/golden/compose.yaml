@@ -1,0 +1,93 @@
+name: stackkit-remote-main
+services:
+    guacamole:
+        image: docker.io/guacamole/guacamole:1.6.0@sha256:f344085e618bb05e22b964b0208dbd06d3468275bac70206f93805245e067b40
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        command:
+            - /bin/sh
+            - -ec
+            - set +x; set -eu; umask 077; [ "$$GUACAMOLE_HOME" = /dev/shm/stackkits-guacamole ]; [ "$$(stat -f -c %T /dev/shm)" = tmpfs ]; [ "$$STACKKITS_OWNER_PASSWORD_FILE" = /run/secrets/owner-password ]; [ -s "$$STACKKITS_OWNER_PASSWORD_FILE" ]; [ -n "$$STACKKITS_REMOTE_CONNECTION_XML" ]; [ ! -L "$$GUACAMOLE_HOME" ]; mkdir -p "$$GUACAMOLE_HOME"; chmod 700 "$$GUACAMOLE_HOME"; sum=$$(sha256sum < "$$STACKKITS_OWNER_PASSWORD_FILE"); hash=$${sum%% *}; [ "$${#hash}" = 64 ]; case "$$hash" in *[!0-9a-f]*) exit 1 ;; esac; mapping=$$(mktemp "$$GUACAMOLE_HOME/.user-mapping.XXXXXX"); trap 'rm -f "$$mapping"' EXIT HUP INT TERM; printf '<?xml version="1.0" encoding="UTF-8"?><user-mapping><authorize username="owner" password="%s" encoding="sha256">%s</authorize></user-mapping>\n' "$$hash" "$$STACKKITS_REMOTE_CONNECTION_XML" > "$$mapping"; chmod 600 "$$mapping"; mv -f "$$mapping" "$$GUACAMOLE_HOME/user-mapping.xml"; trap - EXIT HUP INT TERM; unset hash sum mapping STACKKITS_REMOTE_CONNECTION_XML STACKKITS_OWNER_PASSWORD_FILE; exec /opt/guacamole/bin/entrypoint.sh
+        depends_on:
+            guacd:
+                condition: service_started
+        environment:
+            GUACAMOLE_HOME: /dev/shm/stackkits-guacamole
+            GUACD_HOSTNAME: guacd
+            GUACD_PORT: "4822"
+            WEBAPP_CONTEXT: ROOT
+        networks:
+            - guacamole-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::8080
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: remote-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-remote
+            io.stackkit.route.id: remote-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8080"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-remote-remote.entrypoints: remote
+            traefik.http.routers.stackkit-remote-remote.rule: Host(`remote.home.example`)
+            traefik.http.routers.stackkit-remote-remote.service: stackkit-remote
+            traefik.http.routers.stackkit-remote.entrypoints: websecure
+            traefik.http.routers.stackkit-remote.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-remote.rule: Host(`remote.home.example`)
+            traefik.http.routers.stackkit-remote.tls: "true"
+            traefik.http.routers.stackkit-remote.tls.certresolver: stackkits
+            traefik.http.services.stackkit-remote.loadbalancer.server.port: "8080"
+            traefik.http.services.stackkit-remote.loadbalancer.server.scheme: http
+    guacd:
+        image: docker.io/guacamole/guacd:1.6.0@sha256:8974eaa9ba32f713daf311e7cc8cd7e4cdfba1edea39eed75524e78ef4b08f4f
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        networks:
+            - guacamole-internal
+            - stackkit-workload-egress
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - nc
+                - -z
+                - 127.0.0.1
+                - "4822"
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+networks:
+    guacamole-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}

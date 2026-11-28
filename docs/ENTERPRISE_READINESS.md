@@ -98,9 +98,8 @@ The remaining blockers for an Enterprise Public OSS production claim are:
   published release contents; a released CLI with a candidate installer script
   is installer evidence, not released-archive evidence,
 - host compatibility is asserted by policy rather than by evidence: the OS
-  matrix is not yet fed by `HostConformanceReceipt`s
-  (`kombify-StackKits-y8go.21`, `.22`),
-- Runtime upgrade and rollback VM proof (`kombify-StackKits-3hw.1`). Its own
+  matrix is not yet fed by `HostConformanceReceipt`s,
+- Runtime upgrade and rollback VM proof. Its own
   owner note declares it is never a v0.x release gate; it is an Enterprise
   blocker only,
 - install modes `bare` and `advanced` remain `scaffolding` (no verification

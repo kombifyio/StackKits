@@ -112,3 +112,55 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Emby dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of emby (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-emby-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-emby-runtime"
+	workloadRef:    "media"
+	alternativeRef: "emby"
+	release:        "4.10.0.40"
+	entryComponent: "emby"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "media"
+		targetPort:        8096
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "emby-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "emby", volumeRef: "config"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"emby-internal": {}
+	}
+	components: [
+		{
+			id:        "emby"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["emby"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "config", target: "/config", class: "persistent", backup: true},
+				{id: "library", target: "/media", class: "persistent", readOnly: true},
+			]
+			networks: ["emby-internal"]
+			health: {kind: "http", path: "/emby/System/Ping", port: 8096}
+			resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

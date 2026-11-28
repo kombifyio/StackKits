@@ -5,6 +5,8 @@ import (
 	"errors"
 	"path/filepath"
 	"regexp"
+
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 )
 
 var handoverIDPattern = regexp.MustCompile(`^handover-[0-9a-f]{32}$`)
@@ -60,7 +62,7 @@ func (a *KomodoAdapter) CreateHostStackForHandover(ctx context.Context, project,
 	if err := a.validateConfig(); err != nil {
 		return DeploymentRef{}, err
 	}
-	if !hostProjectPattern.MatchString(project) || !filepath.IsAbs(directory) || filepath.Clean(directory) != directory || filepath.Base(directory) != project || a.cfg.ServerID == "" {
+	if !deploymentcontract.ValidHostProject(project) || !filepath.IsAbs(directory) || filepath.Clean(directory) != directory || filepath.Base(directory) != project || a.cfg.ServerID == "" {
 		return DeploymentRef{}, errors.New("Core handover requires the exact host project and target server")
 	}
 	manifest := AppManifest{Name: project, HostDirectory: directory, ComposePath: "compose.yaml"}

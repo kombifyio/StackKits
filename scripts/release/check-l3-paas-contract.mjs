@@ -77,24 +77,143 @@ async function collectL3Modules(repoRoot) {
   return l3.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function validateModuleContracts(modules, failures) {
+// Delivery contracts an #AppModuleV3 declaration may name (ADR-0055). A
+// migrated module is rendered by internal/engine and wrapped in the Stage 1
+// OpenTofu root ("opentofu-stage1") or handed to the standalone Compose owner
+// ("compose"); either way StackKits owns the Compose project directly.
+const APP_MODULE_V3_CONTRACTS = new Set(['opentofu-stage1', 'compose']);
+
+// cueBlockEnd returns the index just past the brace that closes the block
+// opened at `open`, skipping CUE strings ("...", """...""") and comments.
+function cueBlockEnd(text, open) {
+  let depth = 0;
+  for (let i = open; i < text.length; i += 1) {
+    if (text.startsWith('"""', i)) {
+      const close = text.indexOf('"""', i + 3);
+      if (close < 0) return -1;
+      i = close + 2;
+    } else if (text[i] === '"') {
+      i += 1;
+      while (i < text.length && text[i] !== '"') i += text[i] === '\\' ? 2 : 1;
+    } else if (text.startsWith('//', i)) {
+      const newline = text.indexOf('\n', i);
+      i = newline < 0 ? text.length : newline;
+    } else if (text[i] === '{') {
+      depth += 1;
+    } else if (text[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return -1;
+}
+
+// splitAppModuleV3 separates the top-level AppModuleV3 declaration from the
+// legacy Contract text of a module file.
+function splitAppModuleV3(text) {
+  const match = /^AppModuleV3:\s*foundation\.#AppModuleV3\s*&\s*\{/m.exec(text);
+  if (!match) return { legacy: text, appModule: null };
+  const open = match.index + match[0].length - 1;
+  const end = cueBlockEnd(text, open);
+  if (end < 0) return { legacy: text, appModule: '' };
+  return { legacy: text.slice(0, match.index) + text.slice(end), appModule: text.slice(open, end) };
+}
+
+function managedByLabels(text) {
+  return [...text.matchAll(/"stackkit\.managed-by":\s*"([^"]*)"/g)].map((m) => m[1]);
+}
+
+async function validateAppModuleV3(mod, appModule, failures) {
+  const delivery = /delivery:\s*\{([^}]*)\}/.exec(appModule);
+  const contract = delivery && /contract:\s*"([^"]+)"/.exec(delivery[1]);
+  if (!contract || !APP_MODULE_V3_CONTRACTS.has(contract[1])) {
+    failures.push(`${mod.file}: AppModuleV3 must declare delivery.contract "opentofu-stage1" or "compose"`);
+    return null;
+  }
+  const managedBy = /managedBy:\s*"([^"]+)"/.exec(delivery[1]);
+  if (managedBy && managedBy[1] !== contract[1]) {
+    failures.push(`${mod.file}: AppModuleV3 delivery.managedBy must equal its contract "${contract[1]}"`);
+  }
+  if (!/moduleRef:\s*"stackkits-[a-z0-9-]+-runtime"/.test(appModule)) {
+    failures.push(`${mod.file}: AppModuleV3 must name its stackkits-*-runtime moduleRef`);
+  }
+  if (/dokploy/.test(appModule)) {
+    failures.push(`${mod.file}: AppModuleV3 must not hard-code a Dokploy delivery`);
+  }
+  // A migrated module pins its Compose parity with the legacy owner.
+  const golden = path.join(path.dirname(mod.file), 'golden', 'compose.yaml');
+  if (!(await exists(golden))) {
+    failures.push(`${mod.file}: AppModuleV3 module must pin its rendered Compose in golden/compose.yaml`);
+  }
+  return contract[1];
+}
+
+async function validateModuleContracts(modules, failures) {
+  let migrated = 0;
   for (const mod of modules) {
-    if (!/delivery\s*:/.test(mod.text)) {
+    const { legacy, appModule } = splitAppModuleV3(mod.text);
+    // ADR-0054 §3: Coolify 4.7.5+ is the optional Layer-3 extensibility module
+    // itself (Marketplace & Custom Apps), never a curated core app managed by
+    // another PaaS. Verify its isolation marker and skip the PaaS-owned check.
+    if (mod.name === 'coolify' && /"stackkit\.extensibility\.curated-core-apps":\s*"false"/.test(mod.text)) {
+      if (/managedBy:\s*"dokploy"/.test(mod.text) || managedByLabels(mod.text).includes('dokploy')) {
+        failures.push(`${mod.file}: optional L3 extensibility module must not hard-code Dokploy ownership`);
+      }
       continue;
     }
-    if (!/delivery:\s*{[\s\S]*type:\s*"paas"[\s\S]*managedBy:\s*"selected-paas"[\s\S]*}/m.test(mod.text)) {
-      failures.push(`${mod.file}: L3 module delivery contract must declare type="paas" and managedBy="selected-paas"`);
+    let v3Contract = null;
+    if (appModule !== null) {
+      if (appModule === '') {
+        failures.push(`${mod.file}: AppModuleV3 declaration is not a closed CUE block`);
+        continue;
+      }
+      v3Contract = await validateAppModuleV3(mod, appModule, failures);
+      migrated += 1;
     }
-    if (/"stackkit\.managed-by":\s*"compose"/.test(mod.text)) {
-      failures.push(`${mod.file}: StackKit-owned/default L3 module must not label services stackkit.managed-by="compose"`);
+    // Hard-coded Dokploy ownership is drift on every module, migrated or not.
+    if (/managedBy:\s*"dokploy"/.test(mod.text) || managedByLabels(mod.text).includes('dokploy')) {
+      failures.push(`${mod.file}: L3 module must not hard-code Dokploy ownership; use the selected PaaS or an AppModuleV3 contract`);
     }
-    if (!/"stackkit\.managed-by":\s*"selected-paas"/.test(mod.text)) {
-      failures.push(`${mod.file}: StackKit-owned/default L3 module services must label stackkit.managed-by="selected-paas"`);
+    const allowed = new Set(['selected-paas']);
+    if (v3Contract) allowed.add(v3Contract);
+    const delivery = /delivery:\s*\{([^}]*)\}/.exec(legacy);
+    for (const label of managedByLabels(legacy)) {
+      // Modules without a delivery contract keep their own labels until they
+      // migrate; only the AppModuleV3 owners need the declaration.
+      const scoped = delivery || v3Contract || APP_MODULE_V3_CONTRACTS.has(label);
+      if (scoped && !allowed.has(label)) {
+        failures.push(
+          v3Contract
+            ? `${mod.file}: service label stackkit.managed-by="${label}" differs from selected-paas and the AppModuleV3 contract "${v3Contract}"`
+            : `${mod.file}: StackKit-owned/default L3 module must not label services stackkit.managed-by="${label}" without an AppModuleV3 declaration`,
+        );
+      }
     }
-    if (!/"stackkit\.layer":\s*"3-application"/.test(mod.text)) {
+    if (!delivery) {
+      continue;
+    }
+    const type = /type:\s*"([^"]+)"/.exec(delivery[1]);
+    const managedBy = /managedBy:\s*"([^"]+)"/.exec(delivery[1]);
+    if (!type || type[1] !== 'paas' || !managedBy) {
+      failures.push(`${mod.file}: L3 module delivery contract must declare type="paas" and a managedBy owner`);
+    } else if (APP_MODULE_V3_CONTRACTS.has(managedBy[1])) {
+      // The new delivery owners are admitted only through a declaration the
+      // engine renders; a bare managedBy would leave the module unmanaged.
+      if (managedBy[1] !== v3Contract) {
+        failures.push(`${mod.file}: managedBy="${managedBy[1]}" requires a matching AppModuleV3 delivery contract`);
+      }
+    } else if (managedBy[1] !== 'selected-paas') {
+      failures.push(`${mod.file}: L3 module delivery contract must declare managedBy="selected-paas" or an AppModuleV3 contract`);
+    }
+    const labels = managedByLabels(legacy);
+    if (!labels.some((label) => allowed.has(label))) {
+      failures.push(`${mod.file}: StackKit-owned/default L3 module services must label stackkit.managed-by="selected-paas"${v3Contract ? ` or "${v3Contract}"` : ''}`);
+    }
+    if (!/"stackkit\.layer":\s*"3-application"/.test(legacy)) {
       failures.push(`${mod.file}: StackKit-owned/default L3 module services must label stackkit.layer="3-application"`);
     }
   }
+  return migrated;
 }
 
 async function validateBaseKitServices(repoRoot, failures) {
@@ -329,7 +448,7 @@ async function main() {
   const modules = await collectL3Modules(repoRoot);
   const failures = [];
 
-  validateModuleContracts(modules, failures);
+  const migrated = await validateModuleContracts(modules, failures);
   await validateBaseKitServices(repoRoot, failures);
   await validateGeneratedFiles(opts.generated.map((p) => path.resolve(p)), failures);
 
@@ -341,8 +460,10 @@ async function main() {
     process.exit(1);
   }
 
-  const moduleContracts = modules.filter((mod) => /delivery\s*:/.test(mod.text)).length;
-  console.log(`Default StackKit-owned L3 PaaS contract check passed (${moduleContracts} module contract(s))`);
+  const moduleContracts = modules.filter((mod) => /delivery\s*:/.test(splitAppModuleV3(mod.text).legacy)).length;
+  console.log(
+    `Default StackKit-owned L3 PaaS contract check passed (${moduleContracts} legacy module contract(s), ${migrated} AppModuleV3 module(s))`,
+  );
 }
 
 main().catch((err) => {

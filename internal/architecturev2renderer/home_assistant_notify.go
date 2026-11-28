@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/engine"
 )
 
 const (
@@ -13,7 +15,7 @@ const (
 	// secrets file are bind-mounted, apart from the owner's own secrets.yaml.
 	HomeAssistantNotifyTarget = "/config/stackkit-notify"
 	// homeAssistantNotifyInclude is the one configuration line the right adds.
-	homeAssistantNotifyInclude = "notify: !include stackkit-notify/notify.yaml"
+	homeAssistantNotifyInclude = engine.HomeAssistantNotifyInclude
 )
 
 // HomeAssistantNotifyDescriptor is the opt-in "kombify notify" right of the

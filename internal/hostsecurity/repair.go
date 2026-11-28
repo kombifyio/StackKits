@@ -234,7 +234,7 @@ func outcomeOf(steps []RepairStep) Outcome {
 // path the firewall already admits.
 var repairOrder = []string{
 	ControlSysctl, ControlUnattended, ControlBruteForce, ControlFirewall, ControlSSHPort,
-	ControlSSHPassword, ControlSSHRootLogin, ControlSSHUserCA, ControlSSHHostCertificate,
+	ControlSSHPassword, ControlSSHRootLogin, ControlSSHUserCA, ControlSSHObserve, ControlSSHHostCertificate,
 }
 
 //nolint:gocyclo // One linear selection over every control and the ways it can be unrepairable.
@@ -318,8 +318,8 @@ func (r *repairer) step(ctx context.Context, id string, repairable map[string]bo
 		err = r.repairBruteForce(ctx)
 	case ControlFirewall:
 		err = r.repairFirewall(ctx)
-	case ControlSSHUserCA:
-		err = r.repairSSHUserCA(ctx)
+	case ControlSSHUserCA, ControlSSHObserve:
+		err = r.repairSSHUserCA(ctx, id)
 	case ControlSSHHostCertificate:
 		err = r.repairSSHHostCertificate(ctx)
 	default:

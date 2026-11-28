@@ -439,3 +439,132 @@ Contract: foundation.#ModuleContract & {
 			"""
 	}
 }
+
+// AppModuleV3 is the complete #AppModuleV3 declaration of the Photos workload
+// (ADR-0055 Stage 1 pilot). internal/engine renders it into the same Compose
+// project the standalone Compose owner emits today for
+// stackkits-immich-runtime; modules/immich/golden/compose.yaml pins that
+// output. The legacy Contract above stays until Phase 2.
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-immich-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-immich-runtime"
+	workloadRef:    "photos"
+	alternativeRef: "immich"
+	release:        "v3.3.4"
+	entryComponent: "immich-server"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {
+		requiredSafetyInit: ["immich-postgres-init"]
+		optionalAppsetupRef: "setup/immich-owner-bootstrap"
+	}
+	route: {
+		serviceRef:        "photos"
+		targetPort:        2283
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "immich-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: "database-password": purpose: "Immich PostgreSQL password shared by the server, the database and its init job"
+	backup: {
+		volumes: [
+			{componentRef: "immich-server", volumeRef:   "library"},
+			{componentRef: "immich-postgres", volumeRef: "database"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: "immich-internal": {}
+	components: [{
+		id:        "immich-server"
+		role:      "application"
+		lifecycle: "daemon"
+		image:     _images["immich-server"]
+		dependsOn: ["immich-machine-learning", "immich-postgres-init", "immich-valkey"]
+		environment: {
+			DB_DATABASE_NAME:            "immich"
+			DB_HOSTNAME:                 "immich-postgres"
+			DB_PORT:                     "5432"
+			DB_USERNAME:                 "immich"
+			IMMICH_MACHINE_LEARNING_URL: "http://immich-machine-learning:3003"
+			REDIS_HOSTNAME:              "immich-valkey"
+			REDIS_PORT:                  "6379"
+		}
+		secretEnvironment: DB_PASSWORD: "database-password"
+		volumes: [{id: "library", target: "/data", class: "persistent", backup: true}]
+		networks: ["immich-internal"]
+		health: {kind: "http", path: "/api/server/ping", port: 2283}
+		resources: {memoryLimit: "3g", memoryReservation: "512m"}
+		labels: {}
+		traits: {
+			homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["NODE_EXTRA_CA_CERTS"]}
+			pocketIDClient: {
+				callbackURLs: ["{{origin}}/auth/login", "{{origin}}/user-settings", "app.immich:///oauth-callback", "https://kombify.io/app/immich-oauth"]
+				environment: IMMICH_CONFIG_FILE: "/etc/stackkit/immich.json"
+				configuration: {
+					target: "/etc/stackkit/immich.json"
+					body:   "{\"oauth\":{\"autoLaunch\":true,\"autoRegister\":true,\"buttonText\":\"Continue with Pocket ID\",\"clientId\":\"{{clientId}}\",\"clientSecret\":\"{{clientSecret}}\",\"enabled\":true,\"issuerUrl\":\"{{issuer}}\",\"mobileOverrideEnabled\":true,\"mobileRedirectUri\":\"https://kombify.io/app/immich-oauth\",\"profileSigningAlgorithm\":\"none\",\"roleClaim\":\"immich_role\",\"scope\":\"openid email profile\",\"signingAlgorithm\":\"RS256\",\"tokenEndpointAuthMethod\":\"client_secret_post\"}}"
+				}
+			}
+		}
+	}, {
+		id:            "immich-machine-learning"
+		role:          "machine-learning"
+		lifecycle:     "daemon"
+		healthFailure: "degraded"
+		image:         _images["immich-machine-learning"]
+		environment: {}
+		secretEnvironment: {}
+		egress: true
+		volumes: [{id: "model-cache", target: "/cache", class: "cache"}]
+		networks: ["immich-internal"]
+		health: {kind: "command", command: ["python3", "healthcheck.py"]}
+		resources: {memoryLimit: "3g", memoryReservation: "512m"}
+		labels: {}
+	}, {
+		id:        "immich-postgres"
+		role:      "database"
+		lifecycle: "daemon"
+		image:     _images["immich-postgres"]
+		environment: {
+			POSTGRES_DB:          "immich"
+			POSTGRES_INITDB_ARGS: "--data-checksums"
+			POSTGRES_USER:        "immich"
+		}
+		secretEnvironment: POSTGRES_PASSWORD: "database-password"
+		volumes: [{id: "database", target: "/var/lib/postgresql/data", class: "persistent", backup: true}]
+		networks: ["immich-internal"]
+		// The image declares HEALTHCHECK --start-interval=5s; pinning it keeps
+		// the configured value the observed one on both executions.
+		health: {kind: "command", command: ["pg_isready", "-U", "immich", "-d", "postgres"], startInterval: "5s"}
+		resources: {memoryLimit: "2g", memoryReservation: "256m"}
+		labels: {}
+	}, {
+		id:        "immich-postgres-init"
+		role:      "database-init"
+		lifecycle: "one-shot"
+		image:     _images["immich-postgres-init"]
+		command: ["sh", "-c", "until pg_isready -h immich-postgres -U immich -d postgres; do sleep 1; done; psql -h immich-postgres -U immich -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname = 'immich'\" | grep -q 1 || createdb -h immich-postgres -U immich immich"]
+		dependsOn: ["immich-postgres"]
+		environment: PGUSER:       "immich"
+		secretEnvironment: PGPASSWORD: "database-password"
+		networks: ["immich-internal"]
+		health: kind: "completion"
+		resources: memoryLimit: "256m"
+		labels: {}
+	}, {
+		id:        "immich-valkey"
+		role:      "cache"
+		lifecycle: "daemon"
+		image:     _images["immich-valkey"]
+		command: ["valkey-server"]
+		environment: {}
+		secretEnvironment: {}
+		networks: ["immich-internal"]
+		health: {kind: "command", command: ["redis-cli", "ping"]}
+		resources: {memoryLimit: "512m", memoryReservation: "64m"}
+		labels: {}
+	}]
+}

@@ -1,0 +1,76 @@
+name: stackkit-wiki-main
+services:
+    wiki:
+        image: api.kombify.io/kombiverselabs/kombify-knowledge-node:git-092c18ccacfaa36acfa7cefa424c1136c0092481@sha256:cd0cbd69cf48dd03530d9054d1c2831f7b03c7b724f4fce593c8283a9a78699b
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        command:
+            - serve
+            - -initialize
+        entrypoint:
+            - /app/wiki
+        environment:
+            WIKI_FILE: /var/lib/wiki/wiki.db
+            WIKI_LISTEN: 0.0.0.0:8484
+            WIKI_READ_BEARER: ${STACKKIT_SECRET_WIKI_WIKI_READ_BEARER:?required}
+            WIKI_WRITE_BEARER: ${STACKKIT_SECRET_WIKI_WIKI_WRITE_BEARER:?required}
+        volumes:
+            - wiki-state:/var/lib/wiki
+        networks:
+            - stackkit-routing
+            - stackkit-workload-egress
+            - wiki-internal
+        ports:
+            - 127.0.0.1::8484
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: wiki-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-wiki
+            io.stackkit.route.id: wiki-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8484"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-wiki-remote.entrypoints: remote
+            traefik.http.routers.stackkit-wiki-remote.rule: Host(`wiki.home.example`)
+            traefik.http.routers.stackkit-wiki-remote.service: stackkit-wiki
+            traefik.http.routers.stackkit-wiki.entrypoints: websecure
+            traefik.http.routers.stackkit-wiki.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-wiki.rule: Host(`wiki.home.example`)
+            traefik.http.routers.stackkit-wiki.tls: "true"
+            traefik.http.routers.stackkit-wiki.tls.certresolver: stackkits
+            traefik.http.services.stackkit-wiki.loadbalancer.server.port: "8484"
+            traefik.http.services.stackkit-wiki.loadbalancer.server.scheme: http
+networks:
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+    wiki-internal:
+        internal: true
+volumes:
+    wiki-state: {}

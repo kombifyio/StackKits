@@ -1,0 +1,64 @@
+name: stackkit-smart-home-main
+services:
+    esphome:
+        image: ghcr.io/esphome/esphome:2026.9.0@sha256:f6509fcf917a732fd80058567b237d5b9286b9dc6c8dde1b655fbb69ebd600ad
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 256m
+        volumes:
+            - esphome-config:/config
+        networks:
+            - esphome-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::6052
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: esphome-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-esphome
+            io.stackkit.route.id: esphome-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "6052"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-esphome-remote.entrypoints: remote
+            traefik.http.routers.stackkit-esphome-remote.rule: Host(`esphome.home.example`)
+            traefik.http.routers.stackkit-esphome-remote.service: stackkit-esphome
+            traefik.http.routers.stackkit-esphome.entrypoints: websecure
+            traefik.http.routers.stackkit-esphome.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-esphome.rule: Host(`esphome.home.example`)
+            traefik.http.routers.stackkit-esphome.tls: "true"
+            traefik.http.routers.stackkit-esphome.tls.certresolver: stackkits
+            traefik.http.services.stackkit-esphome.loadbalancer.server.port: "6052"
+            traefik.http.services.stackkit-esphome.loadbalancer.server.scheme: http
+networks:
+    esphome-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    esphome-config: {}

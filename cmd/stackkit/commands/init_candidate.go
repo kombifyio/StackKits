@@ -58,12 +58,12 @@ func validateInitCandidateFlags(cmd *cobra.Command) error {
 	if strings.TrimSpace(initCandidateSpec) == "" {
 		return nil
 	}
-	for _, flag := range []string{"api-version", "catalog-defaults", "name", "domain", "platform", "use-case", "use-case-alternative", "use-case-capability", "data-capacity", "compute-tier", "module-compute-profile", "module-storage-profile", "module-accelerator-profile", "hardware-profile", "enable"} {
+	for _, flag := range []string{"api-version", "catalog-defaults", "name", "domain", "address-zone", "setup-style", "clean-rollout", "platform", "use-case", "use-case-alternative", "use-case-capability", "data-capacity", "compute-tier", "module-compute-profile", "module-storage-profile", "module-accelerator-profile", "hardware-profile", "enable"} {
 		if commandFlagChanged(cmd, flag) {
 			return fmt.Errorf("--candidate-spec cannot be combined with authoring override --%s", flag)
 		}
 	}
-	if initCatalogDefaults || initName != "" || initDomain != "" || initPlatform != "" || initComputeTier != "" || initHardwareProfile != "" ||
+	if initCatalogDefaults || initName != "" || initDomain != "" || initAddressZone != "" || initSetupStyle != "" || initCleanRollout || initPlatform != "" || initComputeTier != "" || initHardwareProfile != "" ||
 		len(initDataCapacity)+len(initUseCases)+len(initUseCaseAlternatives)+len(initUseCaseCapabilities)+len(initModuleComputeProfiles)+len(initModuleStorageProfiles)+len(initModuleAcceleratorProfiles)+len(initEnableCapabilities) > 0 {
 		return fmt.Errorf("--candidate-spec cannot be combined with authoring overrides")
 	}

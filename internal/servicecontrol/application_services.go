@@ -8,8 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/logging"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 )
 
 // applicationComposeAdapter controls one selected application workload that
@@ -146,7 +146,7 @@ func runApplicationCompose(ctx context.Context, request runtimeCommandRequest) (
 	if err != nil {
 		return runtimeCommandOutput{}, err
 	}
-	if err := platformdeploy.RequireComposeWorkloadOwner(workspace, filepath.Base(directory)); err != nil {
+	if err := deploymentcontract.RequireComposeWorkloadOwner(workspace, filepath.Base(directory)); err != nil {
 		return runtimeCommandOutput{}, &Error{ReasonCode: "workload_manager_conflict", Message: err.Error()}
 	}
 	return runBoundedCompose(ctx, request, directory, "stackkit-"+request.RuntimeRef)

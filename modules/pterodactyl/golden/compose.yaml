@@ -1,0 +1,242 @@
+name: stackkit-game-main
+services:
+    panel:
+        image: ghcr.io/pterodactyl/panel:v1.15.1@sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 1g
+                reservations:
+                    memory: 384m
+        command:
+            - supervisord
+            - -n
+            - -c
+            - /etc/supervisord.conf
+        entrypoint:
+            - /bin/ash
+            - /stackkit/panel-entrypoint.sh
+        depends_on:
+            panel-cache:
+                condition: service_started
+            panel-database:
+                condition: service_started
+        environment:
+            APP_ENV: production
+            APP_ENVIRONMENT_ONLY: "false"
+            APP_TIMEZONE: UTC
+            CACHE_DRIVER: redis
+            DB_DATABASE: panel
+            DB_HOST: panel-database
+            DB_PORT: "3306"
+            DB_USERNAME: pterodactyl
+            MAIL_DRIVER: log
+            PTERODACTYL_TELEMETRY_ENABLED: "false"
+            QUEUE_DRIVER: redis
+            RECAPTCHA_ENABLED: "false"
+            REDIS_HOST: panel-cache
+            SESSION_DRIVER: redis
+            TRUSTED_PROXIES: '*'
+        volumes:
+            - panel-nginx:/etc/nginx/http.d
+            - panel-stackkit:/stackkit
+            - panel-var:/app/var
+        networks:
+            - game-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::80
+        stop_signal: SIGTERM
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: game-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-game
+            io.stackkit.route.id: game-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "80"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-game-remote.entrypoints: remote
+            traefik.http.routers.stackkit-game-remote.rule: Host(`game.home.example`)
+            traefik.http.routers.stackkit-game-remote.service: stackkit-game
+            traefik.http.routers.stackkit-game.entrypoints: websecure
+            traefik.http.routers.stackkit-game.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-game.rule: Host(`game.home.example`)
+            traefik.http.routers.stackkit-game.tls: "true"
+            traefik.http.routers.stackkit-game.tls.certresolver: stackkits
+            traefik.http.services.stackkit-game.loadbalancer.server.port: "80"
+            traefik.http.services.stackkit-game.loadbalancer.server.scheme: http
+    panel-bootstrap:
+        image: ghcr.io/pterodactyl/panel:v1.15.1@sha256:bbf51a5501ff1492946816490d5275250570d3358124bad12c6b75f0077facf2
+        command:
+            - /stackkit/bootstrap.sh
+        entrypoint:
+            - /bin/ash
+        depends_on:
+            panel:
+                condition: service_started
+        environment:
+            APP_ENV: production
+            APP_ENVIRONMENT_ONLY: "false"
+            APP_TIMEZONE: UTC
+            CACHE_DRIVER: redis
+            DB_DATABASE: panel
+            DB_HOST: panel-database
+            DB_PORT: "3306"
+            DB_USERNAME: pterodactyl
+            MAIL_DRIVER: log
+            PTERODACTYL_TELEMETRY_ENABLED: "false"
+            QUEUE_DRIVER: redis
+            RECAPTCHA_ENABLED: "false"
+            REDIS_HOST: panel-cache
+            SESSION_DRIVER: redis
+            TRUSTED_PROXIES: '*'
+        volumes:
+            - panel-bootstrap-data:/stackkit/game-data
+            - panel-bootstrap-stackkit:/stackkit
+        networks:
+            - game-internal
+        stop_signal: SIGTERM
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+    panel-cache:
+        image: docker.io/valkey/valkey:8.1-alpine@sha256:32627109abf6f741121096b45c732f758876803efd7b2e1018ebc0350d117119
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -250
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+                reservations:
+                    memory: 64m
+        command:
+            - valkey-server
+        volumes:
+            - panel-cache-cache:/data
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - valkey-cli
+                - ping
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    panel-database:
+        image: docker.io/library/mariadb:11.8@sha256:de4cf325ed1fc8a22460b4f285de7b9e06d89edbd593505e678ec480f86e501b
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -500
+        deploy:
+            resources:
+                limits:
+                    memory: 768m
+                reservations:
+                    memory: 256m
+        environment:
+            MARIADB_DATABASE: panel
+            MARIADB_PASSWORD: ${STACKKIT_SECRET_PANEL_DATABASE_MARIADB_PASSWORD:?required}
+            MARIADB_ROOT_PASSWORD: ${STACKKIT_SECRET_PANEL_DATABASE_MARIADB_ROOT_PASSWORD:?required}
+            MARIADB_USER: pterodactyl
+        volumes:
+            - panel-database-database:/var/lib/mysql
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - healthcheck.sh
+                - --connect
+                - --innodb_initialized
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    wings:
+        image: ghcr.io/pterodactyl/wings:v1.13.3@sha256:c89b9b9a48a992d8cfd488837bfd76426c2af07579699b4fe41f9e910701405c
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        command:
+            - --config
+            - /stackkit/game-data/config.yml
+        depends_on:
+            panel-bootstrap:
+                condition: service_completed_successfully
+        environment:
+            TZ: UTC
+            WINGS_GID: "988"
+            WINGS_UID: "988"
+            WINGS_USERNAME: pterodactyl
+        volumes:
+            - wings-data:/stackkit/game-data
+            - wings-logs:/var/log/pterodactyl
+        networks:
+            - game-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    game-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    panel-bootstrap-data: {}
+    panel-bootstrap-stackkit: {}
+    panel-cache-cache: {}
+    panel-database-database: {}
+    panel-nginx: {}
+    panel-stackkit: {}
+    panel-var: {}
+    wings-data: {}
+    wings-logs: {}

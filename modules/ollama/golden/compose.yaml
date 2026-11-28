@@ -1,0 +1,223 @@
+name: stackkit-ai-main
+services:
+    kombify-ai-connector:
+        image: docker.io/cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+        command:
+            - tunnel
+            - --no-autoupdate
+            - --metrics
+            - 127.0.0.1:20241
+            - run
+            - --token-file
+            - /run/secrets/kombify-ai-connector-token
+        depends_on:
+            ollama:
+                condition: service_started
+        networks:
+            - private-ai-internal
+            - stackkit-workload-egress
+        labels:
+            io.stackkit.health-failure: degraded
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - cloudflared
+                - tunnel
+                - --metrics
+                - 127.0.0.1:20241
+                - ready
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    ollama:
+        image: docker.io/ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 10g
+                reservations:
+                    memory: 1g
+        environment:
+            OLLAMA_CONTEXT_LENGTH: "8192"
+            OLLAMA_KEEP_ALIVE: 5m
+        volumes:
+            - ollama-models:/root/.ollama
+        networks:
+            - private-ai-internal
+            - stackkit-workload-egress
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - ollama
+                - list
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    ollama-model-coding:
+        image: docker.io/ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+        command:
+            - set -u; model="$$1"; i=0; until ollama list >/dev/null 2>&1; do i=$$((i+1)); if [ "$$i" -ge 120 ]; then echo "Ollama did not answer at $$OLLAMA_HOST, so $$model was not pulled" >&2; exit 1; fi; sleep 1; done; if ollama show "$$model" >/dev/null 2>&1; then echo "$$model is already present"; else ollama pull "$$model" || { echo "Pulling $$model into Ollama failed" >&2; exit 1; }; fi; ollama list | awk 'NR > 1 {print $$1}' | grep -qxF "$$model" || { echo "$$model is not in the Ollama model list (/api/tags) after the pull" >&2; exit 1; }; echo "$$model is installed"
+            - ollama-model-pull
+        entrypoint:
+            - /bin/sh
+            - -c
+        depends_on:
+            ollama:
+                condition: service_started
+        environment:
+            OLLAMA_HOST: http://ollama:11434
+        networks:
+            - private-ai-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+    ollama-model-general:
+        image: docker.io/ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+        command:
+            - set -u; model="$$1"; i=0; until ollama list >/dev/null 2>&1; do i=$$((i+1)); if [ "$$i" -ge 120 ]; then echo "Ollama did not answer at $$OLLAMA_HOST, so $$model was not pulled" >&2; exit 1; fi; sleep 1; done; if ollama show "$$model" >/dev/null 2>&1; then echo "$$model is already present"; else ollama pull "$$model" || { echo "Pulling $$model into Ollama failed" >&2; exit 1; }; fi; ollama list | awk 'NR > 1 {print $$1}' | grep -qxF "$$model" || { echo "$$model is not in the Ollama model list (/api/tags) after the pull" >&2; exit 1; }; echo "$$model is installed"
+            - ollama-model-pull
+        entrypoint:
+            - /bin/sh
+            - -c
+        depends_on:
+            ollama:
+                condition: service_started
+        environment:
+            OLLAMA_HOST: http://ollama:11434
+        networks:
+            - private-ai-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+    ollama-model-vision:
+        image: docker.io/ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+        command:
+            - set -u; model="$$1"; i=0; until ollama list >/dev/null 2>&1; do i=$$((i+1)); if [ "$$i" -ge 120 ]; then echo "Ollama did not answer at $$OLLAMA_HOST, so $$model was not pulled" >&2; exit 1; fi; sleep 1; done; if ollama show "$$model" >/dev/null 2>&1; then echo "$$model is already present"; else ollama pull "$$model" || { echo "Pulling $$model into Ollama failed" >&2; exit 1; }; fi; ollama list | awk 'NR > 1 {print $$1}' | grep -qxF "$$model" || { echo "$$model is not in the Ollama model list (/api/tags) after the pull" >&2; exit 1; }; echo "$$model is installed"
+            - ollama-model-pull
+        entrypoint:
+            - /bin/sh
+            - -c
+        depends_on:
+            ollama:
+                condition: service_started
+        environment:
+            OLLAMA_HOST: http://ollama:11434
+        networks:
+            - private-ai-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: one-shot
+    open-webui:
+        image: ghcr.io/open-webui/open-webui:v0.11.3@sha256:41daa0cf2561a5d4c8d1ff31ee2a98d93ab4d3ac2605cac69366ff6a3374a933
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 512m
+        depends_on:
+            ollama:
+                condition: service_started
+        environment:
+            ENABLE_OPENAI_API: "false"
+            ENABLE_PERSISTENT_CONFIG: "false"
+            ENABLE_SIGNUP: "false"
+            HF_HUB_OFFLINE: "1"
+            OFFLINE_MODE: "true"
+            OLLAMA_BASE_URL: http://ollama:11434
+            RAG_EMBEDDING_MODEL_AUTO_UPDATE: "false"
+            WEBUI_ADMIN_PASSWORD: ${STACKKIT_SECRET_OPEN_WEBUI_WEBUI_ADMIN_PASSWORD:?required}
+            WEBUI_SECRET_KEY: ${STACKKIT_SECRET_OPEN_WEBUI_WEBUI_SECRET_KEY:?required}
+            WHISPER_MODEL_AUTO_UPDATE: "false"
+        volumes:
+            - open-webui-data:/app/backend/data
+        networks:
+            - private-ai-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::8080
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: ai-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-ai
+            io.stackkit.route.id: ai-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8080"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-ai-remote.entrypoints: remote
+            traefik.http.routers.stackkit-ai-remote.rule: Host(`ai.home.example`)
+            traefik.http.routers.stackkit-ai-remote.service: stackkit-ai
+            traefik.http.routers.stackkit-ai.entrypoints: websecure
+            traefik.http.routers.stackkit-ai.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-ai.rule: Host(`ai.home.example`)
+            traefik.http.routers.stackkit-ai.tls: "true"
+            traefik.http.routers.stackkit-ai.tls.certresolver: stackkits
+            traefik.http.services.stackkit-ai.loadbalancer.server.port: "8080"
+            traefik.http.services.stackkit-ai.loadbalancer.server.scheme: http
+networks:
+    private-ai-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    ollama-models: {}
+    open-webui-data: {}

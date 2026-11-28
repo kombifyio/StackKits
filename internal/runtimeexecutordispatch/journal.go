@@ -25,6 +25,32 @@ type preparedExecution struct {
 	platform, platformBound bool
 }
 
+type journalObserverKey struct{}
+type journalParentKey struct{}
+type JournalObserver struct {
+	Completed     func(string, runtimeexecutor.RuntimeTarget, bool) error
+	MayRetry      func(runtimeexecutor.RuntimeTarget) bool
+	BeforeExecute func(runtimeexecutor.RuntimeTarget) error
+}
+
+func WithJournalObserver(ctx context.Context, observe JournalObserver) context.Context {
+	return context.WithValue(ctx, journalObserverKey{}, observe)
+}
+
+func observeJournalCommit(ctx context.Context, child preparedExecution, replayed bool) error {
+	observe, _ := ctx.Value(journalObserverKey{}).(JournalObserver)
+	if observe.Completed == nil {
+		return nil
+	}
+	for _, target := range child.request.RuntimeTargets {
+		digest, _ := ctx.Value(journalParentKey{}).(string)
+		if err := observe.Completed(digest, target, replayed); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // criticalRuntimeTargets reports whether a prepared child carries core work.
 //
 // The steps of one operation are independent by construction. A workload that
@@ -88,6 +114,10 @@ func executePrepared(
 	if nilRuntimeApplyJournal(journal) {
 		return executePreparedDirect(ctx, prepared)
 	}
+	if ctx.Value(journalParentKey{}) == nil {
+		ctx = context.WithValue(ctx, journalParentKey{}, parent.RequestDigest)
+	}
+	observer, _ := ctx.Value(journalObserverKey{}).(JournalObserver)
 
 	steps := make([]runtimeapply.Step, 0, len(prepared))
 	for _, child := range prepared {
@@ -136,14 +166,47 @@ func executePrepared(
 		}
 	} else {
 		operationState = reservation.Snapshot.State
+		states = indexStepSnapshots(*reservation.Snapshot)
 		for _, state := range reservation.Snapshot.Steps {
 			if state.State == runtimeapply.StepRunning {
+				for _, child := range prepared {
+					if child.request.RequestDigest != state.RequestDigest || observer.MayRetry == nil {
+						continue
+					}
+					router, local := child.executor.(*OwnerRouter)
+					retry := child.scope == ScopeChannel && local && !nilRuntimeApplyJournal(router.journal)
+					if child.scope == ScopeOwner {
+						retry = true
+						for _, target := range child.request.RuntimeTargets {
+							if !observer.MayRetry(target) {
+								retry = false
+								break
+							}
+						}
+					}
+					if !retry {
+						continue
+					}
+					commit := runtimeapply.StepCommit{OperationID: operation.OperationID, FenceToken: reservation.FenceToken, StepID: state.StepID, RequestDigest: state.RequestDigest, ExpectedState: runtimeapply.StepRunning, State: runtimeapply.StepFailed, FailureCode: runtimeapply.FailureCancelled}
+					snapshot, err := safeJournalCommit(ctx, journal, commit)
+					if err != nil {
+						return runtimeexecutor.ExecutionOutcome{}, err
+					}
+					if err = validateCommittedSnapshot(operation, snapshot, states, commit); err != nil {
+						return runtimeexecutor.ExecutionOutcome{}, err
+					}
+					states = indexStepSnapshots(snapshot)
+					operationState = snapshot.State
+					break
+				}
+				if states[state.RequestDigest].State == runtimeapply.StepFailed {
+					continue
+				}
 				return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf(
 					"runtime Apply step %q remains running; durable abandoned-operation reconciliation is required",
 					state.StepID,
 				)
 			}
-			states[state.RequestDigest] = state
 		}
 	}
 
@@ -162,11 +225,21 @@ func executePrepared(
 				return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("runtime Apply step %q has invalid replay evidence", child.label)
 			}
 			appendResult(&outcome, *state.Result)
+			if err := observeJournalCommit(ctx, child, true); err != nil {
+				return runtimeexecutor.ExecutionOutcome{}, err
+			}
 			observeReplayed(ctx, child, index+1, len(prepared))
 			continue
 		}
 		if state.State != runtimeapply.StepPending && state.State != runtimeapply.StepFailed {
 			return runtimeexecutor.ExecutionOutcome{}, fmt.Errorf("runtime Apply step %q has non-executable state %q", child.label, state.State)
+		}
+		if observer.BeforeExecute != nil && child.scope == ScopeOwner {
+			for _, target := range child.request.RuntimeTargets {
+				if err := observer.BeforeExecute(target); err != nil {
+					return runtimeexecutor.ExecutionOutcome{}, err
+				}
+			}
 		}
 
 		running := runtimeapply.StepCommit{
@@ -234,6 +307,9 @@ func executePrepared(
 		states = indexStepSnapshots(snapshot)
 		settled = snapshot
 		appendResult(&outcome, result)
+		if err := observeJournalCommit(ctx, child, false); err != nil {
+			return runtimeexecutor.ExecutionOutcome{}, err
+		}
 	}
 
 	if len(failures) > 0 {
@@ -316,6 +392,9 @@ func replayPrepared(
 		}
 		appendResult(&outcome, *state.Result)
 		observeReplayed(ctx, child, index+1, len(prepared))
+		if err := observeJournalCommit(ctx, child, true); err != nil {
+			return runtimeexecutor.ExecutionOutcome{}, err
+		}
 	}
 	sortExecutionOutcome(&outcome)
 	return outcome, nil

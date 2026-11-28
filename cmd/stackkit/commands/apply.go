@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	"github.com/kombifyio/stackkits/internal/rollout"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/opentofu"
+	"github.com/kombifyio/stackkits/internal/stackspecintent"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +17,9 @@ var (
 	applyVerifyStrict       bool
 	applySkipPlatformApps   bool
 	applyJSON               bool
+	applyNoRecreate         bool
+	applySetupStyle         string
+	applyCleanRollout       bool
 	applyV2ExecutionOptions architectureV2ExecutionCLIOptions
 )
 
@@ -45,12 +50,15 @@ validation, and neither prompts: the plan is approved when it is generated.`,
 }
 
 func init() {
+	applyCmd.Flags().BoolVar(&applyNoRecreate, "no-recreate", false, "Verify the existing deployment and converge adopted Compose projects without replacing containers")
 	applyCmd.Flags().BoolVar(&applyAutoApprove, "auto-approve", false, "Accepted for compatibility; native Apply never prompts")
 	applyCmd.Flags().BoolVar(&applyVerify, "verify", false, "No effect: run stackkit verify after Apply instead")
 	applyCmd.Flags().BoolVar(&applyVerifyHTTP, "verify-http", false, "No effect: run stackkit verify --http after Apply instead")
 	applyCmd.Flags().BoolVar(&applyVerifyStrict, "verify-strict", false, "No effect: run stackkit verify after Apply instead")
 	applyCmd.Flags().BoolVar(&applySkipPlatformApps, "skip-platform-apps", false, "No effect: native Apply has no separate platform-app stage")
 	applyCmd.Flags().BoolVar(&applyJSON, "json", false, "Emit the versioned Apply result and runtime observations as machine-readable JSON")
+	applyCmd.Flags().StringVar(&applySetupStyle, "setup-style", "", "Tier-2 app personalization style for this Apply (bootstrapped or clean; defaults to spec intent)")
+	applyCmd.Flags().BoolVar(&applyCleanRollout, "clean-rollout", false, "Shorthand for --setup-style=clean (keeps mandatory Tier-1 safety init; skips Tier-2 automatic app personalization)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.inventoryPath, "inventory", "", "Architecture v2 observed Inventory (otherwise one conventional inventory file is selected)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.planPath, "resolved-plan", "", "Architecture v2 canonical ResolvedPlan (default: <outputRoot>/.stackkit/resolved-plan.json)")
 	applyCmd.Flags().StringVar(&applyV2ExecutionOptions.manifestPath, "artifact-manifest", "", "Architecture v2 generation manifest (default: <outputRoot>/.stackkit/generation-manifest.json)")
@@ -67,19 +75,22 @@ func init() {
 
 func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	machineResultWritten := false
+	var finishCheckpoint func() error
+	applyOptions := applyV2ExecutionOptions
+	applyOptions.afterApply = func(finish func() error) { finishCheckpoint = finish }
 	var pendingResult *architectureV2ApplyCommandResult
-	applyV2ExecutionOptions.applySink = nil
+	applyOptions.applySink = nil
 	if applyJSON {
-		applyV2ExecutionOptions.applySink = func(result architectureV2ApplyCommandResult) error {
+		applyOptions.applySink = func(result architectureV2ApplyCommandResult) error {
 			// Runtime convergence is not command completion: the synchronous
 			// post-hooks still have to finish before the terminal result.
 			pendingResult = &result
 			return nil
 		}
 	}
-	applyV2ExecutionOptions.legacyPlanFile = ""
+	applyOptions.legacyPlanFile = ""
 	if len(args) > 0 {
-		applyV2ExecutionOptions.legacyPlanFile = args[0]
+		applyOptions.legacyPlanFile = args[0]
 	}
 	defer func() {
 		if retErr != nil {
@@ -103,12 +114,42 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	// workspace being valid, and an operator who passed one deserves to know
 	// even when Apply stops earlier for another reason.
 	noteInertApplyFlags(cmd)
+	var setupStyleOverride stackspecintent.SetupStyle
+	if applyCleanRollout || commandFlagChanged(cmd, "setup-style") {
+		resolvedStyle, styleErr := stackspecintent.ResolveSetupStyleFlags(applySetupStyle, applyCleanRollout, commandFlagChanged(cmd, "setup-style"))
+		if styleErr != nil {
+			return styleErr
+		}
+		setupStyleOverride = resolvedStyle
+	}
 	stopHeartbeat := startLifecycleHeartbeat(
 		"Applying the StackKit. Resolving the plan, pulling images, and waiting for health checks can take several minutes.",
 		"Still applying",
 	)
 	defer stopHeartbeat()
 	wd := getWorkDir()
+	if applyNoRecreate {
+		options := applyOptions
+		options.context = cmd.Context()
+		var report architectureV2VerifyReport
+		options.verifySink = func(result architectureV2VerifyReport) error { report = result; return nil }
+		handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Verify, options)
+		if err != nil {
+			return err
+		}
+		if !handled || report.Runtime == nil || !report.Runtime.Live {
+			return fmt.Errorf("--no-recreate requires a verified live installation; refusing normal Apply")
+		}
+		return withLifecycleMutation(wd, "apply", func() error {
+			adopted, err := (opentofu.Runtime{WorkspaceRoot: wd}).ConvergeAdoptions(cmd.Context())
+			if err != nil {
+				return err
+			}
+			err = writeCommandResult(cmd, "apply", map[string]any{"noRecreate": true, "planHash": report.PlanHash, "adopted": adopted})
+			machineResultWritten = err == nil
+			return err
+		})
+	}
 	if err := admitApplyBeforeDeployObservability(wd, specFile); err != nil {
 		return err
 	}
@@ -118,7 +159,7 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 	rolloutEvent("apply", "started", "apply started", map[string]string{
 		"auto_approve": strconv.FormatBool(applyAutoApprove),
 	})
-	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyV2ExecutionOptions); handled {
+	if handled, err := newArchitectureV2ExecutionGate().preflight(wd, specFile, architectureV2Apply, applyOptions); handled {
 		if err == nil {
 			// The runtime converged: the local backup follows the re-signed
 			// Apply (an upgraded CLI re-signs it even for an unchanged spec)
@@ -127,13 +168,24 @@ func runApply(cmd *cobra.Command, args []string) (retErr error) {
 			runApplyPostHook("backup-rebind", "Carrying forward local backup configuration", func() {
 				runAutomaticBackupRebind(cmd.Context(), wd)
 			})
+			var ownerOutcomes []automaticOwnerSetupOutcome
 			runApplyPostHook("owner-setup", "Setting up application owners", func() {
-				runAutomaticOwnerSetup(cmd.Context(), wd)
+				ownerOutcomes = runAutomaticOwnerSetupWithOptions(cmd.Context(), wd, automaticOwnerSetupOptions{
+					SetupStyleOverride: setupStyleOverride,
+				})
 			})
+			if pendingResult != nil {
+				pendingResult.Lifecycle = buildLifecycleTiersReport(wd, setupStyleOverride, ownerOutcomes)
+			}
 			// A server carried to another network recovers by itself.
 			runApplyPostHook("network-watch", "Configuring network recovery", func() {
 				runAutomaticNetworkWatch(cmd.Context(), wd)
 			})
+			if finishCheckpoint != nil {
+				if err := finishCheckpoint(); err != nil {
+					return err
+				}
+			}
 		}
 		if pendingResult != nil {
 			writeErr := writeCommandResult(cmd, cmd.CommandPath(), *pendingResult)

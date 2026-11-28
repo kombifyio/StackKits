@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 )
 
 // DokployComposeState is the exact readback of one recorded compose service:
@@ -56,7 +58,7 @@ func (a *DokployAdapter) ComposeState(ctx context.Context, ref DeploymentRef) (D
 	if observed.ComposeID != ref.ExternalID || observed.Name != ref.AppName || observed.EnvironmentID != a.cfg.EnvironmentID ||
 		observed.ServerID != a.cfg.ServerID || observed.SourceType != "raw" || observed.ComposeType != "docker-compose" ||
 		observed.Randomize || observed.Isolated || observed.Command != "" || len(observed.Domains) != 0 || len(observed.Mounts) != 0 ||
-		!dokployIDPattern.MatchString(observed.AppName) {
+		!deploymentcontract.ValidDokployID(observed.AppName) {
 		return DokployComposeState{}, errors.New("dokploy compose readback differs from the recorded raw workload placement")
 	}
 	state := DokployComposeState{AppName: observed.AppName, Status: observed.Status, ComposeFile: observed.ComposeFile}

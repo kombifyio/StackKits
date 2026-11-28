@@ -34,6 +34,7 @@ type nativeSetupOptions struct {
 	mediaFile                                     string
 	mediaLibraryCreate                            func() (bool, error)
 	ownerApproved, completeOnboarding, outputJSON bool
+	degradeOnFailure                              bool
 	connectorRequest                              *appsetup.HomeAssistantConnectorRequest
 	connectorIntent                               string
 	connectorDependencies                         *homeAssistantConnectorDependencies
@@ -205,7 +206,16 @@ func executeNativeSetup(ctx context.Context, workspace, workload string, options
 				}
 			}
 			fail := func(cause error) error {
-				_, journalErr := store.Transition(contract, applicationlifecycle.TransitionRequest{ID: operationID, Status: applicationlifecycle.StatusFailed, LastError: "application setup did not complete; retry the same operation after correcting its reported cause", Now: time.Now().UTC()})
+				status := applicationlifecycle.StatusFailed
+				diagnostic := "application setup did not complete; retry the same operation after correcting its reported cause"
+				if options.degradeOnFailure {
+					status = applicationlifecycle.StatusBootstrapDegraded
+					diagnostic = fmt.Sprintf(
+						"Tier-2 app personalization degraded (%s); application remains private behind Access Gate. Retry with `stackkit retry-appsetup %s` or `stackkit setup %s --owner-approve`",
+						cause.Error(), workload, workload,
+					)
+				}
+				_, journalErr := store.Transition(contract, applicationlifecycle.TransitionRequest{ID: operationID, Status: status, LastError: diagnostic, Now: time.Now().UTC()})
 				return errors.Join(cause, journalErr)
 			}
 			var observed nativeOwnerSetupObservation
@@ -293,7 +303,7 @@ func beginNativeSetupWithIntent(store applicationlifecycle.Store, contract appli
 			continue
 		}
 		if operation.Stage == "setup" && operation.OperationRef == "stackkit.setup" && operation.Authority == authority && (requested == "" || requested == operation.ID) {
-			if (operation.Status == applicationlifecycle.StatusRunning || operation.Status == applicationlifecycle.StatusFailed) && operation.IntentDigest != intent {
+			if (operation.Status == applicationlifecycle.StatusRunning || operation.Status == applicationlifecycle.StatusFailed || operation.Status == applicationlifecycle.StatusBootstrapDegraded) && operation.IntentDigest != intent {
 				return "", errors.New("setup operation intent changed")
 			}
 			if operation.Status == applicationlifecycle.StatusRunning {
@@ -301,7 +311,9 @@ func beginNativeSetupWithIntent(store applicationlifecycle.Store, contract appli
 				// another live process still runs it.
 				return operation.ID, store.ClaimRunningOperation(contract, operation.ID)
 			}
-			if operation.Status == applicationlifecycle.StatusFailed {
+			if operation.Status == applicationlifecycle.StatusFailed ||
+				operation.Status == applicationlifecycle.StatusBootstrapDegraded ||
+				operation.Status == applicationlifecycle.StatusSkippedCleanRollout {
 				_, err := store.Transition(contract, applicationlifecycle.TransitionRequest{ID: operation.ID, Status: applicationlifecycle.StatusRunning, Now: time.Now().UTC()})
 				return operation.ID, err
 			}

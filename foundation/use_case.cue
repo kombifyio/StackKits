@@ -90,7 +90,9 @@ import "list"
 	// agentSurface is the closed handoff generate writes to
 	// `.stackkit/agent-surface.json`. It does not install workloads, invent a
 	// product MCP, or replace Architecture v2 delivery.
-	agentSurface?: #UseCaseAgentSurfaceV1
+	agentSurface?: #UseCaseAgentSurfaceV2 & {
+		knowledge?: domain: "usecase-\(metadata.useCaseRef)"
+	}
 
 	if agentSurface != _|_ && connectors != _|_ {
 		_nativeConnectorsHaveProductMcps: [
@@ -288,19 +290,28 @@ import "list"
 	description: string
 }
 
-// #UseCaseAgentSurfaceV1 is what StackKits may generate after a use case is
-// selected: lifecycle MCP, product MCP only when the product owns one, APIs,
-// skills, client fragments, CLI helpers, and whether a config baseline exists.
-// Secrets never appear here. Homelab Unifier reads it; Apply does not.
-#UseCaseAgentSurfaceV1: {
+// #UseCaseAgentSurfaceV2 describes the local agent handoff and the references
+// for a release-owned hosted pack. It grants no app operations or access.
+#UseCaseAgentSurfaceV2: {
+	version?:     =~"^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$"
 	equipPolicy:  "on-generate" | "on-apply" | "manual"
 	lifecycleMcp: #UseCaseLifecycleMCP
 	productMcps: [...#UseCaseProductMCP] | *[]
 	apis: [...#UseCaseAgentAPI] | *[]
 	skills: [...#UseCaseAgentSkill] | *[]
+	operations: [...#UseCaseAgentOperation] | *[]
+	knowledge?: #UseCaseAgentKnowledge
 	clientPlugins: [...#UseCaseClientPlugin] | *[]
 	cliHelpers: [...#UseCaseCLIHelper] | *[]
 	configBaseline: #UseCaseConfigBaseline
+
+	if len(operations) > 0 || knowledge != _|_ || len([for skill in skills if skill.surface == "hosted" {skill.id}]) > 0 {
+		version!: string
+	}
+	_operationIDsUnique: list.UniqueItems([for operation in operations {operation.id}]) & true
+	_skillOperationRefs: [for skill in skills for operationID in skill.operations {
+		[for operation in operations if operation.id == operationID {operation.id}] & list.MinItems(1)
+	}]
 }
 
 #UseCaseLifecycleMCP: {
@@ -339,6 +350,41 @@ import "list"
 	audience: "stack-operator" | "product-user"
 	source:   "stackkits" | "product"
 	path:     string
+	surface:  *"local" | "hosted"
+	alternatives: [...#UseCaseModuleSlug] | *[]
+	operations: [...#UseCaseAgentOperationID] | *[]
+	_selectorsUnique:    list.UniqueItems(alternatives) & true
+	_operationIDsUnique: list.UniqueItems(operations) & true
+	if surface == "hosted" {
+		source:       "stackkits"
+		path:         =~"^use-cases/[a-z][a-z0-9-]+/agent/[^/]+/SKILL\\.md$"
+		alternatives: list.MinItems(1)
+	}
+}
+
+#UseCaseAgentOperationID: =~"^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$"
+
+#UseCaseAgentOperation: {
+	id: #UseCaseAgentOperationID
+	alternatives: [...#UseCaseModuleSlug] & list.MinItems(1)
+	_selectorsUnique: list.UniqueItems(alternatives) & true
+	inputSchema: {
+		type:                 "object"
+		additionalProperties: false
+		...
+	}
+	effect: "read" | "reversible_write" | "external_write" | "destructive" | "cost_bearing"
+	via: {kind: "adapter"} | {
+		kind:         "product-mcp"
+		tool:         string & =~"^.+$"
+		schemaDigest: =~"^sha256:[a-f0-9]{64}$"
+	}
+}
+
+#UseCaseAgentKnowledge: {
+	domain: =~"^usecase-[a-z][a-z0-9-]+$"
+	articles: [...string & =~"^.+$"] | *[]
+	securityNotes: [#UseCaseModuleSlug]: string & =~"^.+$"
 }
 
 #UseCaseClientPlugin: {

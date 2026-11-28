@@ -15,8 +15,184 @@ import (
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 )
 
-const AdoptionProfile = "home-assistant-container-in-place/v1"
-const AdoptionSchemaVersion = "stackkit.application-adoption/v1"
+const (
+	// AdoptionProfile is retained as an alias for the Home Assistant profile for
+	// backward compatibility with existing callers.
+	AdoptionProfile              = "home-assistant-container-in-place/v1"
+	HomeAssistantAdoptionProfile = "home-assistant-container-in-place/v1"
+	VaultwardenAdoptionProfile   = "vaultwarden-container-in-place/v1"
+	CloudreveAdoptionProfile     = "cloudreve-container-in-place/v1"
+	AdoptionSchemaVersion        = "stackkit.application-adoption/v1"
+)
+
+// AdoptionProfileSpec defines a supported First-Class in-place adoption
+// profile. Each profile owns only container power state and source
+// verification; native accounts, configuration, and persistent data remain
+// native-owned and are verified read-only.
+type AdoptionProfileSpec struct {
+	ProfileRef         string
+	PackageRef         string
+	WorkloadRef        string
+	Alternative        string
+	DisplayName        string
+	DataMount          string
+	DefaultPort        int
+	PortEnvVar         string
+	OfficialImageRepos []string
+	SafeEnvKeys        []string
+	HashedOnlyEnvKeys  []string
+	HealthProbePaths   []string
+	DefaultOwnerFile   string
+	RequiresOwnerGrant bool
+	AllowHostNetwork   bool
+	AllowSerialDevices bool
+}
+
+var adoptionProfileRegistry = []AdoptionProfileSpec{
+	{
+		ProfileRef:  HomeAssistantAdoptionProfile,
+		PackageRef:  "smart-home",
+		WorkloadRef: "smart-home",
+		Alternative: "home-assistant",
+		DisplayName: "Home Assistant",
+		DataMount:   "/config",
+		DefaultPort: 8123,
+		OfficialImageRepos: []string{
+			"ghcr.io/home-assistant/home-assistant",
+			"homeassistant/home-assistant",
+			"lscr.io/linuxserver/homeassistant",
+		},
+		SafeEnvKeys: []string{
+			"TZ",
+			"LANG",
+			"LC_ALL",
+			"PUID",
+			"PGID",
+			"UMASK",
+			"DISABLE_JEMALLOC",
+		},
+		HealthProbePaths:   []string{"/api/config"},
+		DefaultOwnerFile:   ".stackkit/setup/home-assistant-owner.json",
+		RequiresOwnerGrant: true,
+		AllowHostNetwork:   true,
+		AllowSerialDevices: true,
+	},
+	{
+		ProfileRef:  VaultwardenAdoptionProfile,
+		PackageRef:  "vault",
+		WorkloadRef: "vault",
+		Alternative: "vaultwarden",
+		DisplayName: "Vaultwarden",
+		DataMount:   "/data",
+		DefaultPort: 80,
+		PortEnvVar:  "ROCKET_PORT",
+		OfficialImageRepos: []string{
+			"vaultwarden/server",
+			"ghcr.io/dani-garcia/vaultwarden",
+		},
+		SafeEnvKeys: []string{
+			"TZ",
+			"DOMAIN",
+			"SIGNUPS_ALLOWED",
+			"ROCKET_PORT",
+			"WEBSOCKET_ENABLED",
+		},
+		HashedOnlyEnvKeys:  []string{"ADMIN_TOKEN"},
+		HealthProbePaths:   []string{"/alive"},
+		RequiresOwnerGrant: false,
+		AllowHostNetwork:   true,
+		AllowSerialDevices: false,
+	},
+	{
+		ProfileRef:  CloudreveAdoptionProfile,
+		PackageRef:  "files",
+		WorkloadRef: "files",
+		Alternative: "cloudreve",
+		DisplayName: "Cloudreve",
+		DataMount:   "/cloudreve/data",
+		DefaultPort: 5212,
+		PortEnvVar:  "CR_CONF_SYSTEM_LISTEN",
+		OfficialImageRepos: []string{
+			"cloudreve/cloudreve",
+			"ghcr.io/cloudreve/cloudreve",
+		},
+		SafeEnvKeys: []string{
+			"TZ",
+			"CR_CONF_SYSTEM_LISTEN",
+			"PUID",
+			"PGID",
+		},
+		HealthProbePaths:   []string{"/api/v4/site/ping", "/api/v3/site/ping"},
+		RequiresOwnerGrant: false,
+		AllowHostNetwork:   true,
+		AllowSerialDevices: false,
+	},
+}
+
+// SupportedAdoptionProfiles returns a copy of all registered First-Class
+// in-place adoption profiles.
+func SupportedAdoptionProfiles() []AdoptionProfileSpec {
+	out := make([]AdoptionProfileSpec, len(adoptionProfileRegistry))
+	for i, p := range adoptionProfileRegistry {
+		p.OfficialImageRepos = slices.Clone(p.OfficialImageRepos)
+		p.SafeEnvKeys = slices.Clone(p.SafeEnvKeys)
+		p.HashedOnlyEnvKeys = slices.Clone(p.HashedOnlyEnvKeys)
+		p.HealthProbePaths = slices.Clone(p.HealthProbePaths)
+		out[i] = p
+	}
+	return out
+}
+
+// LookupAdoptionProfile resolves a First-Class in-place adoption profile by
+// profileRef.
+func LookupAdoptionProfile(profileRef string) (AdoptionProfileSpec, bool) {
+	for _, p := range adoptionProfileRegistry {
+		if p.ProfileRef == profileRef {
+			p.OfficialImageRepos = slices.Clone(p.OfficialImageRepos)
+			p.SafeEnvKeys = slices.Clone(p.SafeEnvKeys)
+			p.HashedOnlyEnvKeys = slices.Clone(p.HashedOnlyEnvKeys)
+			p.HealthProbePaths = slices.Clone(p.HealthProbePaths)
+			return p, true
+		}
+	}
+	return AdoptionProfileSpec{}, false
+}
+
+// LookupAdoptionProfileByWorkload resolves a First-Class in-place adoption
+// profile by workloadRef (or packageRef).
+func LookupAdoptionProfileByWorkload(workload string) (AdoptionProfileSpec, bool) {
+	for _, p := range adoptionProfileRegistry {
+		if p.WorkloadRef == workload || p.PackageRef == workload {
+			p.OfficialImageRepos = slices.Clone(p.OfficialImageRepos)
+			p.SafeEnvKeys = slices.Clone(p.SafeEnvKeys)
+			p.HashedOnlyEnvKeys = slices.Clone(p.HashedOnlyEnvKeys)
+			p.HealthProbePaths = slices.Clone(p.HealthProbePaths)
+			return p, true
+		}
+	}
+	return AdoptionProfileSpec{}, false
+}
+
+// IsSupportedAdoptionProfile reports whether profileRef is a registered
+// First-Class in-place adoption profile.
+func IsSupportedAdoptionProfile(profileRef string) bool {
+	_, ok := LookupAdoptionProfile(profileRef)
+	return ok
+}
+
+// DefaultAdoptionStage returns the standard non-destructive adopt lifecycle
+// stage contract used for First-Class in-place adoption profiles.
+func DefaultAdoptionStage() StageContract {
+	return StageContract{
+		Name:          "adopt",
+		Operations:    []string{"stackkit.application.adopt", "stackkit.application.release", "stackkit.application.control"},
+		Phases:        []string{"inspect", "authorize", "verify", "bind"},
+		Evidence:      []string{"adoption-result"},
+		Mutation:      true,
+		Destructive:   false,
+		OwnerApproval: true,
+	}
+}
 
 type AdoptionContract struct {
 	ProfileRef      string   `json:"profileRef"`
@@ -72,27 +248,27 @@ type AdoptionNotice struct {
 	Message  string `json:"message"`
 }
 
-func adoptionNotices(source AdoptionSource) []AdoptionNotice {
+func adoptionNotices(profile AdoptionProfileSpec, source AdoptionSource) []AdoptionNotice {
 	var notices []AdoptionNotice
 	if source.HasCustomComponents {
 		notices = append(notices, AdoptionNotice{
 			Code:     "custom_components_preserved",
 			Severity: "warning",
-			Message:  "Home Assistant custom_components/ (such as HACS) detected in /config; preserved read-only under native ownership.",
+			Message:  fmt.Sprintf("%s custom_components/ (such as HACS) detected in %s; preserved read-only under native ownership.", profile.DisplayName, profile.DataMount),
 		})
 	}
 	if source.HasExternalRecorder {
 		notices = append(notices, AdoptionNotice{
 			Code:     "external_recorder_preserved",
 			Severity: "warning",
-			Message:  "External recorder configuration (db_url) detected in /config; preserved read-only under native ownership.",
+			Message:  fmt.Sprintf("External recorder configuration (db_url) detected in %s; preserved read-only under native ownership.", profile.DataMount),
 		})
 	}
 	if source.VersionDrift {
 		notices = append(notices, AdoptionNotice{
 			Code:     "image_version_drift",
 			Severity: "warning",
-			Message:  "Running official Home Assistant image digest differs from the catalog pin; in-place power control is admitted without container recreation.",
+			Message:  fmt.Sprintf("Running official %s image digest differs from the catalog pin; in-place power control is admitted without container recreation.", profile.DisplayName),
 		})
 	}
 	if len(source.PreservedDevices) > 0 {
@@ -106,7 +282,7 @@ func adoptionNotices(source AdoptionSource) []AdoptionNotice {
 		notices = append(notices, AdoptionNotice{
 			Code:     "host_network_preserved",
 			Severity: "info",
-			Message:  "Host networking is preserved in place; owner verification probed http://127.0.0.1:8123.",
+			Message:  fmt.Sprintf("Host networking is preserved in place; owner verification probed http://127.0.0.1:%d.", profile.DefaultPort),
 		})
 	}
 	return notices
@@ -156,11 +332,15 @@ type AdoptionReceipt struct {
 }
 
 func NewAdoptionPlan(contract Contract, source AdoptionSource, ownerRef string) (AdoptionPlan, error) {
-	if contract.Adoption == nil || contract.Adoption.ProfileRef != AdoptionProfile || contract.Delivery.AdapterRef != "standalone-compose" || contract.WorkloadRef != "smart-home" {
+	if contract.Adoption == nil || contract.Delivery.AdapterRef != "standalone-compose" {
+		return AdoptionPlan{}, errors.New("application adoption is unsupported for the selected lifecycle and runtime adapter")
+	}
+	profile, ok := LookupAdoptionProfile(contract.Adoption.ProfileRef)
+	if !ok || contract.WorkloadRef != profile.WorkloadRef {
 		return AdoptionPlan{}, errors.New("application adoption is unsupported for the selected lifecycle and runtime adapter")
 	}
 	a := contract.Adoption
-	p := AdoptionPlan{SchemaVersion: AdoptionSchemaVersion, APIVersion: "stackkit.application-adoption-plan/v1", Authority: authorityFromContract(contract), WorkloadRef: contract.WorkloadRef, ProfileRef: a.ProfileRef, Mode: a.Mode, Source: source, OwnedFields: a.OwnedFields, PreservedFields: a.PreservedFields, AdmittedOperations: a.Operations, VerifiedOwnerRef: ownerRef, Notices: adoptionNotices(source)}
+	p := AdoptionPlan{SchemaVersion: AdoptionSchemaVersion, APIVersion: "stackkit.application-adoption-plan/v1", Authority: authorityFromContract(contract), WorkloadRef: contract.WorkloadRef, ProfileRef: a.ProfileRef, Mode: a.Mode, Source: source, OwnedFields: a.OwnedFields, PreservedFields: a.PreservedFields, AdmittedOperations: a.Operations, VerifiedOwnerRef: ownerRef, Notices: adoptionNotices(profile, source)}
 	raw, err := resolvedplan.CanonicalJSON(p)
 	if contract.AdoptionBaselinePlanHash != "" {
 		raw, err = resolvedplan.CanonicalJSON(map[string]any{"plan": p, "baselinePlanHash": contract.AdoptionBaselinePlanHash})
@@ -282,7 +462,8 @@ func (store Store) AdoptionBinding(workload string) (AdoptionReceipt, bool, erro
 		if err := localevidence.VerifyOwnerLifecycleMutation(store.Workspace, payload, receipt.Signature); err != nil {
 			return AdoptionReceipt{}, false, err
 		}
-		if receipt.Result.Authority != op.Authority || receipt.Result.OperationID != op.ID || receipt.Result.WorkloadRef != workload || receipt.Result.ProfileRef != AdoptionProfile || (receipt.Result.Status != "verified" && receipt.Result.Status != "released") {
+		profile, ok := LookupAdoptionProfile(receipt.Result.ProfileRef)
+		if receipt.Result.Authority != op.Authority || receipt.Result.OperationID != op.ID || receipt.Result.WorkloadRef != workload || !ok || profile.WorkloadRef != workload || (receipt.Result.Status != "verified" && receipt.Result.Status != "released") {
 			return AdoptionReceipt{}, false, errors.New("adoption receipt does not bind its lifecycle operation")
 		}
 		receipt.Evidence = e
@@ -304,13 +485,14 @@ func AdoptionIntentDigest(verb, action string, result AdoptionResult) (string, e
 }
 
 func (store Store) RequireNoAdoption() error {
-	// Only this explicitly supported module can currently acquire a binding.
-	_, bound, err := store.AdoptionBinding("smart-home")
-	if err != nil {
-		return err
-	}
-	if bound {
-		return errors.New("application_binding_preserved: release the adopted smart-home lifecycle before any fresh apply, generate, setup or removal; release retains its container, accounts and data")
+	for _, profile := range adoptionProfileRegistry {
+		_, bound, err := store.AdoptionBinding(profile.WorkloadRef)
+		if err != nil {
+			return err
+		}
+		if bound {
+			return fmt.Errorf("application_binding_preserved: release the adopted %s lifecycle before any fresh apply, generate, setup or removal; release retains its container, accounts and data", profile.WorkloadRef)
+		}
 	}
 	return nil
 }

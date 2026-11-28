@@ -30,6 +30,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/api"
 	"github.com/kombifyio/stackkits/internal/auth"
+	"github.com/kombifyio/stackkits/internal/auth/cookiescrubber"
 	"github.com/kombifyio/stackkits/internal/federationcontrol"
 	"github.com/kombifyio/stackkits/internal/identity"
 	"github.com/kombifyio/stackkits/internal/localorigin"
@@ -74,9 +75,55 @@ func main() {
 	hubListen := flag.String("hub-listen", "", "Optional Homelab Hub listener for the core routers: the Hub PWA and the device-facing identity routes; disabled by default")
 	identityBaseDir := flag.String("identity-base-dir", "", "Workspace that holds the Authority's verification custody, device registry and applied plan for the enrollment listener, the Access Gate verifier and the Hub (default: --base-dir)")
 	identitySignerSocket := flag.String("identity-signer-socket", "", "Unix socket of the host-side identity signer (stackkit device signer), which holds the Owner custody: the enrollment listener's certificate and the Owner recovery routes; without it both fail closed")
+	mode := flag.String("mode", "", "Server mode: api (default) or cookie-scrubber (isolated zero-custody reverse proxy; or set STACKKIT_SERVER_MODE)")
+	scrubberListen := flag.String("scrubber-listen", "", "Listen address for --mode=cookie-scrubber (or set STACKKIT_SCRUBBER_LISTEN; default :8085)")
+	scrubberUpstream := flag.String("scrubber-upstream", "", "Upstream HTTP URL for --mode=cookie-scrubber (or set STACKKIT_SCRUBBER_UPSTREAM)")
+	scrubberTinyAuthCookies := flag.String("scrubber-tinyauth-cookies", "", "Comma-separated TinyAuth cookie names to scrub in --mode=cookie-scrubber (or set STACKKIT_SCRUBBER_TINYAUTH_COOKIES)")
 	flag.Parse()
 
 	setupLogging(*logLevel)
+
+	serverMode := strings.ToLower(strings.TrimSpace(firstNonEmpty(*mode, os.Getenv("STACKKIT_SERVER_MODE"), "api")))
+	switch serverMode {
+	case "cookie-scrubber":
+		// Zero-custody mode: boot ONLY the isolated cookie-scrubber HTTP server.
+		// ZERO custody/identity verifier initialization, ZERO signer socket,
+		// ZERO MCP token, ZERO workspace or Docker access.
+		if *identitySignerSocket != "" || *identityBaseDir != "" || *mcpToken != "" || *mcpAllowWrite ||
+			*apiKey != "" || *baseDir != "" || *accessGateListen != "" || *hubListen != "" ||
+			*homeEnrollListen != "" || *originListen != "" || *controlListen != "" || *edgeListen != "" {
+			slog.Error("cookie-scrubber mode forbids custody, API, identity, signer, MCP, and workspace flags")
+			os.Exit(1)
+		}
+		listen := firstNonEmpty(*scrubberListen, os.Getenv("STACKKIT_SCRUBBER_LISTEN"), ":8085")
+		upstream := firstNonEmpty(*scrubberUpstream, os.Getenv("STACKKIT_SCRUBBER_UPSTREAM"))
+		parsedUpstream, err := cookiescrubber.ValidateUpstreamURL(upstream)
+		if err != nil {
+			slog.Error("cookie-scrubber configuration rejected", "error", err)
+			os.Exit(1)
+		}
+		tinyAuthCookies := cookiescrubber.ParseTinyAuthCookieNames(firstNonEmpty(*scrubberTinyAuthCookies, os.Getenv("STACKKIT_SCRUBBER_TINYAUTH_COOKIES")))
+		scrubberServer, err := cookiescrubber.NewServer(listen, cookiescrubber.Config{
+			UpstreamURL:         parsedUpstream.String(),
+			TinyAuthCookieNames: tinyAuthCookies,
+			HealthPath:          cookiescrubber.DefaultHealthPath,
+		})
+		if err != nil {
+			slog.Error("cookie-scrubber configuration rejected", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("starting kombify StackKits zero-custody cookie-scrubber",
+			"version", Version,
+			"listen", listen,
+			"upstream", parsedUpstream.String(),
+		)
+		runServer(scrubberServer)
+		return
+	case "api":
+	default:
+		slog.Error("unsupported server mode; expected api or cookie-scrubber", "mode", serverMode)
+		os.Exit(1)
+	}
 
 	cfg, cfgErr := resolveConfig(*port, *baseDir, *apiKey, *corsOrigins, *rateLimit, *logDir, *trustedProxies, *mcpToken, *mcpAllowWrite, *allowUnauthenticated, *allowWildcardCORS)
 	if cfgErr != nil {
@@ -521,6 +568,15 @@ func firstEnv(keys ...string) string {
 	for _, key := range keys {
 		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			return value
+		}
+	}
+	return ""
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""

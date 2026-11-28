@@ -1,0 +1,69 @@
+name: stackkit-media-main
+services:
+    navidrome:
+        image: docker.io/deluan/navidrome:0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        environment:
+            ND_DATAFOLDER: /data
+            ND_MUSICFOLDER: /music
+        volumes:
+            - navidrome-data:/data
+            - navidrome-library:/music:ro
+        networks:
+            - navidrome-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::4533
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: music-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-music
+            io.stackkit.route.id: music-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "4533"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-music-remote.entrypoints: remote
+            traefik.http.routers.stackkit-music-remote.rule: Host(`music.home.example`)
+            traefik.http.routers.stackkit-music-remote.service: stackkit-music
+            traefik.http.routers.stackkit-music.entrypoints: websecure
+            traefik.http.routers.stackkit-music.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-music.rule: Host(`music.home.example`)
+            traefik.http.routers.stackkit-music.tls: "true"
+            traefik.http.routers.stackkit-music.tls.certresolver: stackkits
+            traefik.http.services.stackkit-music.loadbalancer.server.port: "4533"
+            traefik.http.services.stackkit-music.loadbalancer.server.scheme: http
+networks:
+    navidrome-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    navidrome-data: {}
+    navidrome-library: {}

@@ -116,3 +116,65 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Audiobookshelf dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of audiobookshelf (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-audiobookshelf-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-audiobookshelf-runtime"
+	workloadRef:    "media"
+	alternativeRef: "audiobookshelf"
+	release:        "2.36.1"
+	entryComponent: "audiobookshelf"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "audiobooks"
+		targetPort:        80
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "audiobookshelf-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "audiobookshelf", volumeRef: "config"},
+			{componentRef: "audiobookshelf", volumeRef: "metadata"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"audiobookshelf-internal": {}
+	}
+	components: [
+		{
+			id:        "audiobookshelf"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["audiobookshelf"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "config", target: "/config", class: "persistent", backup: true},
+				{id: "metadata", target: "/metadata", class: "persistent", backup: true},
+				{id: "library", target: "/audiobooks", class: "persistent", readOnly: true},
+			]
+			networks: ["audiobookshelf-internal"]
+			health: {kind: "http", path: "/healthcheck", port: 80}
+			resources: {memoryLimit: "1g", memoryReservation: "128m"}
+			labels: {}
+			traits: {
+				homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["NODE_EXTRA_CA_CERTS"]}
+				pocketIDClient: {
+					callbackURLs: ["{{origin}}/auth/openid/callback", "{{origin}}/auth/openid/mobile-redirect"]
+					environment: {
+						ROUTER_BASE_PATH: ""
+					}
+				}
+			}
+		},
+	]
+}

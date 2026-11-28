@@ -1,0 +1,67 @@
+name: stackkit-vault-main
+services:
+    vaultwarden:
+        image: ghcr.io/dani-garcia/vaultwarden:1.37.2@sha256:094b5689ed81549bd293418395c7cf495ae9d960fc2d4928cef2083ef913d912
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 64m
+        environment:
+            ADMIN_TOKEN: ${STACKKIT_SECRET_VAULTWARDEN_ADMIN_TOKEN:?required}
+            SIGNUPS_ALLOWED: "false"
+        volumes:
+            - vaultwarden-data:/data
+        networks:
+            - stackkit-routing
+            - vaultwarden-internal
+        ports:
+            - 127.0.0.1::80
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: vault-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-vault
+            io.stackkit.route.id: vault-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "80"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-vault-remote.entrypoints: remote
+            traefik.http.routers.stackkit-vault-remote.rule: Host(`vault.home.example`)
+            traefik.http.routers.stackkit-vault-remote.service: stackkit-vault
+            traefik.http.routers.stackkit-vault.entrypoints: websecure
+            traefik.http.routers.stackkit-vault.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-vault.rule: Host(`vault.home.example`)
+            traefik.http.routers.stackkit-vault.tls: "true"
+            traefik.http.routers.stackkit-vault.tls.certresolver: stackkits
+            traefik.http.services.stackkit-vault.loadbalancer.server.port: "80"
+            traefik.http.services.stackkit-vault.loadbalancer.server.scheme: http
+networks:
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    vaultwarden-internal:
+        internal: true
+volumes:
+    vaultwarden-data: {}

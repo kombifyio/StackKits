@@ -204,9 +204,6 @@ linters:
       - path: "internal/cue/validator\\.go"
         linters:
           - gocyclo
-      - path: "internal/operations/spec\\.go"
-        linters:
-          - gocyclo
       - path: "internal/servicecatalog/.*\\.go"
         linters:
           - gocyclo

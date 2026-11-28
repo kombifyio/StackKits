@@ -100,6 +100,10 @@ func (e Engine) Verify(ctx context.Context, options Options) Evidence {
 	controls := []Control{run.firewall(ctx)}
 	controls = append(controls, run.ssh(ctx)...)
 	controls = append(controls, run.sshAccess(ctx)...)
+	observe, endpoint := run.sshObserve(ctx)
+	if observe.ID != "" {
+		controls = append(controls, observe)
+	}
 	controls = append(controls,
 		run.bruteForce(ctx), run.unattendedUpgrades(ctx), run.pendingSecurity(ctx),
 		run.rebootRequired(), run.sysctl(),
@@ -116,7 +120,19 @@ func (e Engine) Verify(ctx context.Context, options Options) Evidence {
 	controls, evidence.Exceptions = applyExceptions(controls, exceptions, now)
 	evidence.Controls = controls
 	evidence.Overall = overall(controls)
+	if endpoint != nil && hasCompliantControl(controls, ControlSSHUserCA) && hasCompliantControl(controls, ControlSSHObserve) {
+		evidence.ObserveSSH = endpoint
+	}
 	return evidence
+}
+
+func hasCompliantControl(controls []Control, id string) bool {
+	for _, control := range controls {
+		if control.ID == id {
+			return control.State == StateCompliant
+		}
+	}
+	return false
 }
 
 // observation carries the per-run state the control observers share.

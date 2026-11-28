@@ -82,3 +82,51 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Qdrant application (internal)"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of qdrant (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-qdrant-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-qdrant-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "qdrant"
+	release:        "v1.20.0"
+	entryComponent: "qdrant"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	secrets: {
+		"api-key": purpose: "Custody secret slot api-key for qdrant"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "qdrant", volumeRef: "storage"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"qdrant-internal": {}
+	}
+	components: [
+		{
+			id:        "qdrant"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["qdrant"]
+			environment: {
+				QDRANT__TELEMETRY_DISABLED: "true"
+			}
+			secretEnvironment: {
+				QDRANT__SERVICE__API_KEY: "api-key"
+			}
+			volumes: [
+				{id: "storage", target: "/qdrant/storage", class: "persistent", backup: true},
+			]
+			networks: ["qdrant-internal"]
+			health: {kind: "http", path: "/healthz", port: 6333}
+			resources: {memoryLimit: "2g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

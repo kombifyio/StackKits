@@ -1432,6 +1432,72 @@
         "informational": true
       },
       "installation": null
+    },
+    {
+      "runId": 46052562533,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-27T18:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "",
+          "version": ""
+        },
+        "result": "failed",
+        "failure": null,
+        "recordedAt": "2026-11-27T20:32:03.946455+00:00",
+        "phases": [],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
+    },
+    {
+      "runId": 46118417115,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-28T06:45:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "",
+          "version": ""
+        },
+        "result": "failed",
+        "failure": null,
+        "recordedAt": "2026-11-28T08:30:17.355685+00:00",
+        "phases": [],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
+    },
+    {
+      "runId": 46140424517,
+      "record": {
+        "schemaVersion": "kombify.slot-package-run/v1",
+        "slot": "2026-11-28T11:30:00Z",
+        "line": "stable",
+        "product": "stackkits",
+        "package": "StackKits CLI with its kits and Techstack",
+        "release": {
+          "tag": "",
+          "version": ""
+        },
+        "result": "failed",
+        "failure": null,
+        "recordedAt": "2026-11-28T13:14:11.674289+00:00",
+        "phases": [],
+        "firstReachableApp": null,
+        "secondsFromInstallCommand": null,
+        "informational": true
+      },
+      "installation": null
     }
   ]
 }

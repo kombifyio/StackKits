@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,63 +20,163 @@ import (
 	"github.com/kombifyio/stackkits/internal/confinedfs"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
+	"github.com/kombifyio/stackkits/internal/stackspecintent"
 )
 
 // automaticOwnerSetupTimeout bounds one application's owner setup; it is the
 // `stackkit setup` budget for an owner account.
 const automaticOwnerSetupTimeout = 3 * time.Minute
 
-// Outcomes of the automatic owner setup of one workload.
+// Outcomes of the automatic owner setup (Tier 2) of one workload.
 const (
-	automaticSetupSucceeded     = "succeeded"
-	automaticSetupFailed        = "failed"
-	automaticSetupAlreadyDone   = "already-set-up"
-	automaticSetupOwnerRequired = "owner-input-required"
+	automaticSetupSucceeded           = "succeeded"
+	automaticSetupFailed              = "failed"
+	automaticSetupBootstrapDegraded   = applicationlifecycle.StatusBootstrapDegraded
+	automaticSetupSkippedCleanRollout = applicationlifecycle.StatusSkippedCleanRollout
+	automaticSetupAlreadyDone         = "already-set-up"
+	automaticSetupOwnerRequired       = "owner-input-required"
 )
+
+const cleanRolloutSkipDetail = "Clean Rollout skipped Tier-2 automatic app personalization; application remains private behind Access Gate for its own first-run wizard"
+
+// automaticOwnerSetupOptions configures Tier-2 automatic app personalization.
+type automaticOwnerSetupOptions struct {
+	SetupStyleOverride stackspecintent.SetupStyle
+	WorkloadFilter     string
+	OnlyDegraded       bool
+}
 
 // automaticOwnerSetupOutcome is the secret-free result for one workload.
 type automaticOwnerSetupOutcome struct {
-	WorkloadRef string
-	ActionRef   string
-	Status      string
-	Detail      string
+	WorkloadRef string `json:"workloadRef"`
+	ActionRef   string `json:"actionRef,omitempty"`
+	Status      string `json:"status"`
+	Detail      string `json:"detail,omitempty"`
 }
 
-// automaticOwnerSetup realizes the owner account of every applied workload
-// whose Plan declares one on-demand native owner setup action, after the
-// runtime of the plan converged. It is the product promise that the owner
-// is already set up in every tool, on every execution path: standalone
-// Apply, the Homelab-managed rollout, change-set apply and Advanced
-// reconcile all end here, and each runs the same code as `stackkit setup`
-// (executeNativeSetup), recorded in the application lifecycle.
+const lifecycleTiersSchemaVersion = "stackkit.lifecycle-tiers/v1"
+
+// lifecycleTiersReport is the secret-free ADR-0055 two-tier rollout summary
+// emitted under `data.lifecycle` by `stackkit apply --json`.
+type lifecycleTiersReport struct {
+	SchemaVersion string               `json:"schemaVersion"`
+	SetupStyle    string               `json:"setupStyle"`
+	Tier1         lifecycleTier1Report `json:"tier1"`
+	Tier2         lifecycleTier2Report `json:"tier2"`
+}
+
+type lifecycleTier1Report struct {
+	Status string `json:"status"`
+}
+
+type lifecycleTier2Report struct {
+	Status       string                    `json:"status"`
+	Applications []lifecycleTier2AppReport `json:"applications"`
+}
+
+type lifecycleTier2AppReport struct {
+	Application string `json:"application"`
+	Status      string `json:"status"`
+	Exposure    string `json:"exposure"`
+	RetryAction string `json:"retryAction,omitempty"`
+}
+
+func buildLifecycleTiersReport(
+	workspace string,
+	setupStyleOverride stackspecintent.SetupStyle,
+	outcomes []automaticOwnerSetupOutcome,
+) *lifecycleTiersReport {
+	style := setupStyleOverride
+	if style == "" {
+		if setup, err := newAutomaticOwnerSetup(context.Background(), workspace); err == nil {
+			style = stackspecintent.SetupStyleFromResolvedPlan(setup.plan)
+		}
+	}
+	if style == "" {
+		style = stackspecintent.SetupStyleBootstrapped
+	}
+	apps := make([]lifecycleTier2AppReport, 0, len(outcomes))
+	anyDegraded := false
+	for _, outcome := range outcomes {
+		if strings.TrimSpace(outcome.WorkloadRef) == "" {
+			continue
+		}
+		app := lifecycleTier2AppReport{
+			Application: outcome.WorkloadRef,
+			Exposure:    "access-gate",
+		}
+		switch outcome.Status {
+		case automaticSetupSucceeded, automaticSetupAlreadyDone:
+			app.Status = "passed"
+		case automaticSetupSkippedCleanRollout, automaticSetupOwnerRequired:
+			app.Status = "setup-pending"
+			app.RetryAction = "retry-appsetup"
+		case automaticSetupBootstrapDegraded, automaticSetupFailed:
+			app.Status = automaticSetupBootstrapDegraded
+			app.RetryAction = "retry-appsetup"
+			anyDegraded = true
+		default:
+			app.Status = "setup-pending"
+			app.RetryAction = "retry-appsetup"
+		}
+		apps = append(apps, app)
+	}
+	tier2Status := "passed"
+	if style == stackspecintent.SetupStyleClean {
+		tier2Status = automaticSetupSkippedCleanRollout
+	} else if anyDegraded {
+		tier2Status = automaticSetupBootstrapDegraded
+	}
+	return &lifecycleTiersReport{
+		SchemaVersion: lifecycleTiersSchemaVersion,
+		SetupStyle:    string(style),
+		Tier1:         lifecycleTier1Report{Status: "passed"},
+		Tier2: lifecycleTier2Report{
+			Status:       tier2Status,
+			Applications: apps,
+		},
+	}
+}
+
+// automaticOwnerSetup realizes Tier-2 optional application personalization
+// (owner account / OIDC bootstrap) after mandatory Tier-1 Core rollout and
+// safety initialization have converged.
 //
-// Credentials come from the private credentials file the action's setup
-// guide names when the owner or orchestrator placed one before Apply;
-// otherwise from the owner custody identity (email, username, display name)
-// and a new random password, written owner-only to that same file, so
-// `stackkit setup <workload>` repairs with the same account. A workload with
-// a succeeded setup for the current authority is not set up again. Actions that
-// need owner decisions
-// the Plan does not hold (the game server EULA and profile, mailbox and mail
-// domain, and the Vault SMTP account) are reported as owner-input-required and
-// stay with `stackkit setup`. A pre-staged Vault SMTP document is consumed by
-// this same automatic path.
+// In Clean Rollout (`clean`), Tier-2 personalization is explicitly skipped
+// (`skipped-clean-rollout`) while every application remains private behind
+// Access Gate so the user can complete each app's own first-run wizard.
+//
+// In Bootstrapped (`bootstrapped`, default), Tier-2 runs after Tier 1 is
+// healthy. Any failure records `bootstrap_degraded` in applicationlifecycle
+// without ever failing Core/OpenTofu apply, keeping the application private
+// behind Access Gate until retried via `stackkit retry-appsetup [workload]` or
+// `stackkit setup <workload> --owner-approve`.
 type automaticOwnerSetup struct {
-	workspace string
-	owner     localevidence.OwnerProjection
-	contracts []applicationlifecycle.Contract
-	plan      resolvedplan.ResolvedPlan
-	supports  map[string]appsetup.NativeActionSupport
-	execute   func(ctx context.Context, workload string, options nativeSetupOptions) error
+	workspace      string
+	owner          localevidence.OwnerProjection
+	contracts      []applicationlifecycle.Contract
+	plan           resolvedplan.ResolvedPlan
+	supports       map[string]appsetup.NativeActionSupport
+	setupStyle     stackspecintent.SetupStyle
+	workloadFilter string
+	onlyDegraded   bool
+	execute        func(ctx context.Context, workload string, options nativeSetupOptions) error
 }
 
-// runAutomaticOwnerSetup runs after a converged top-level Apply, change-set
-// apply or Advanced reconcile. A joined child (the target apply of a change
-// set) leaves the setup to its parent, which holds the lifecycle mutation.
-// Failures never undo the converged runtime: each is reported as an
-// `owner-setup` rollout event, recorded as a failed setup operation, and
-// retried by the next Apply or by `stackkit setup <workload>`.
+// runAutomaticOwnerSetup runs Tier-2 app personalization after a converged
+// top-level Apply, change-set apply, or Advanced reconcile using the SetupStyle
+// persisted in the ResolvedPlan (defaulting to Bootstrapped).
 func runAutomaticOwnerSetup(ctx context.Context, workspace string) []automaticOwnerSetupOutcome {
+	return runAutomaticOwnerSetupWithOptions(ctx, workspace, automaticOwnerSetupOptions{})
+}
+
+// runAutomaticOwnerSetupWithOptions runs Tier-2 app personalization with
+// optional SetupStyle or workload filters. Tier-2 failures NEVER fail
+// Core/OpenTofu apply: each degraded workload is recorded as
+// `bootstrap_degraded` in applicationlifecycle and stays private behind Access
+// Gate until retried with `stackkit retry-appsetup [workload]` or `stackkit
+// setup <workload> --owner-approve`.
+func runAutomaticOwnerSetupWithOptions(ctx context.Context, workspace string, opts automaticOwnerSetupOptions) []automaticOwnerSetupOutcome {
 	if strings.TrimSpace(lifecycleJoinOperation) != "" {
 		return nil
 	}
@@ -85,28 +186,78 @@ func runAutomaticOwnerSetup(ctx context.Context, workspace string) []automaticOw
 	setup, err := newAutomaticOwnerSetup(ctx, workspace)
 	if err != nil {
 		rolloutFailure("owner-setup", fmt.Errorf("application owner setup could not start: %w", err))
-		return []automaticOwnerSetupOutcome{{Status: automaticSetupFailed, Detail: err.Error()}}
+		return []automaticOwnerSetupOutcome{{Status: automaticSetupBootstrapDegraded, Detail: err.Error()}}
 	}
+	setup.setupStyle = stackspecintent.SetupStyleFromResolvedPlan(setup.plan)
+	if opts.SetupStyleOverride != "" {
+		setup.setupStyle = opts.SetupStyleOverride
+	}
+	setup.workloadFilter = strings.TrimSpace(opts.WorkloadFilter)
+	setup.onlyDegraded = opts.OnlyDegraded
 	if !setup.declared() {
 		return nil
 	}
-	rolloutEvent("owner-setup", "started", "setting up application owners", nil)
+	if setup.setupStyle == stackspecintent.SetupStyleClean {
+		rolloutEvent("owner-setup", "skipped", "Clean Rollout skipped Tier-2 automatic app personalization; apps remain private behind Access Gate", map[string]string{
+			"setupStyle": string(stackspecintent.SetupStyleClean),
+			"outcome":    automaticSetupSkippedCleanRollout,
+		})
+		outcomes := setup.run(ctx)
+		skipped := 0
+		for _, outcome := range outcomes {
+			attributes := map[string]string{
+				"workloadRef": outcome.WorkloadRef,
+				"actionRef":   outcome.ActionRef,
+				"outcome":     outcome.Status,
+				"setupStyle":  string(stackspecintent.SetupStyleClean),
+			}
+			status := "succeeded"
+			if outcome.Status == automaticSetupSkippedCleanRollout {
+				status = "skipped"
+				skipped++
+			}
+			rolloutEvent("owner-setup.workload", status, outcome.WorkloadRef+" "+outcome.Status, attributes)
+		}
+		printInfo(
+			"Clean Rollout: Tier-1 core safety init completed; skipped Tier-2 automatic app personalization for %d app(s). Apps remain private behind Access Gate for their own first-run wizards (or run `stackkit setup <workload> --owner-approve`).",
+			skipped,
+		)
+		return outcomes
+	}
+
+	rolloutEvent("owner-setup", "started", "setting up application owners", map[string]string{
+		"setupStyle": string(setup.setupStyle),
+	})
 	outcomes := setup.run(ctx)
-	failed := 0
+	degraded := 0
 	for _, outcome := range outcomes {
-		attributes := map[string]string{"workloadRef": outcome.WorkloadRef, "actionRef": outcome.ActionRef, "outcome": outcome.Status}
+		attributes := map[string]string{
+			"workloadRef": outcome.WorkloadRef,
+			"actionRef":   outcome.ActionRef,
+			"outcome":     outcome.Status,
+			"setupStyle":  string(setup.setupStyle),
+		}
 		status := "succeeded"
-		if outcome.Status == automaticSetupFailed {
-			status = "failed"
-			failed++
-			printWarning("%s owner setup did not complete: %s; retry with `stackkit setup %s --owner-approve`", outcome.WorkloadRef, outcome.Detail, outcome.WorkloadRef)
+		if outcome.Status == automaticSetupBootstrapDegraded || outcome.Status == automaticSetupFailed {
+			status = "degraded"
+			attributes["state"] = automaticSetupBootstrapDegraded
+			degraded++
+			printWarning(
+				"%s Tier-2 app setup degraded (%s): %s; application remains private behind Access Gate. Retry with `stackkit retry-appsetup %s` or `stackkit setup %s --owner-approve`, or complete its first-run wizard behind Access Gate",
+				outcome.WorkloadRef, automaticSetupBootstrapDegraded, outcome.Detail, outcome.WorkloadRef, outcome.WorkloadRef,
+			)
 		}
 		rolloutEvent("owner-setup.workload", status, outcome.WorkloadRef+" "+outcome.Status, attributes)
 	}
-	if failed > 0 {
-		rolloutEvent("owner-setup", "failed", fmt.Sprintf("%d application owner setups did not complete", failed), nil)
+	if degraded > 0 {
+		rolloutEvent("owner-setup", "degraded", fmt.Sprintf("%d application Tier-2 setups degraded; Core/Tier-1 remains healthy", degraded), map[string]string{
+			"state":         automaticSetupBootstrapDegraded,
+			"degradedCount": strconv.Itoa(degraded),
+		})
 	} else {
-		rolloutEvent("owner-setup", "succeeded", "application owners set up", nil)
+		rolloutEvent("owner-setup", "succeeded", "application owners set up", map[string]string{
+			"setupStyle": string(setup.setupStyle),
+		})
 	}
 	return outcomes
 }
@@ -156,7 +307,7 @@ func (s *automaticOwnerSetup) declared() bool {
 
 func (s *automaticOwnerSetup) action(contract applicationlifecycle.Contract) (string, appsetup.NativeActionDescription, bool) {
 	setup := architectureV2SetupInput(s.plan, contract, nil)
-	if _, staged := contract.Stages["setup"]; !staged || setup.Policy != "on-demand" || len(setup.ActionRefs) != 1 {
+	if _, staged := contract.Stages["setup"]; !staged || (setup.Policy != stackspecintent.ApplicationDefaultBootstrapped && setup.Policy != stackspecintent.ApplicationDefaultCleanRollout) || len(setup.ActionRefs) != 1 {
 		return "", appsetup.NativeActionDescription{}, false
 	}
 	description, supported := appsetup.DescribeNativeAction(setup.ActionRefs[0], s.supports[contract.WorkloadRef])
@@ -168,10 +319,32 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 	sort.Slice(contracts, func(i, j int) bool { return contracts[i].WorkloadRef < contracts[j].WorkloadRef })
 	store := applicationlifecycle.Store{Workspace: s.workspace}
 	var outcomes []automaticOwnerSetupOutcome
+	degrade := func(contract applicationlifecycle.Contract, action, detail string) automaticOwnerSetupOutcome {
+		recordBootstrapDegradedIfMissing(store, contract, detail)
+		return automaticOwnerSetupOutcome{
+			WorkloadRef: contract.WorkloadRef,
+			ActionRef:   action,
+			Status:      automaticSetupBootstrapDegraded,
+			Detail:      detail,
+		}
+	}
 	for _, contract := range contracts {
+		if s.workloadFilter != "" && contract.WorkloadRef != s.workloadFilter {
+			continue
+		}
 		action, description, supported := s.action(contract)
 		if !supported {
 			continue
+		}
+		if s.onlyDegraded {
+			needsRetry, _, retryErr := store.NeedsAppSetupRetry(contract)
+			if retryErr != nil {
+				outcomes = append(outcomes, degrade(contract, action, retryErr.Error()))
+				continue
+			}
+			if !needsRetry {
+				continue
+			}
 		}
 		outcome := automaticOwnerSetupOutcome{WorkloadRef: contract.WorkloadRef, ActionRef: action}
 		done, previouslySetUp, err := automaticSetupCompletion(store, contract)
@@ -184,11 +357,17 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 			}
 		}
 		if err != nil {
-			outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
-			outcomes = append(outcomes, outcome)
+			outcomes = append(outcomes, degrade(contract, action, err.Error()))
 			continue
 		} else if done {
 			outcome.Status = automaticSetupAlreadyDone
+			outcomes = append(outcomes, outcome)
+			continue
+		}
+		if s.setupStyle == stackspecintent.SetupStyleClean {
+			_, _ = store.RecordSkippedCleanRollout(contract, cleanRolloutSkipDetail, time.Now().UTC())
+			outcome.Status = automaticSetupSkippedCleanRollout
+			outcome.Detail = cleanRolloutSkipDetail
 			outcomes = append(outcomes, outcome)
 			continue
 		}
@@ -196,12 +375,12 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 			// The application already bootstrapped from its sealed workload
 			// secret. Observe that account through the same setup lifecycle;
 			// never generate a replacement password or credential document.
-			if err := s.execute(ctx, contract.WorkloadRef, nativeSetupOptions{ownerApproved: true}); err != nil {
-				outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
+			if err := s.execute(ctx, contract.WorkloadRef, nativeSetupOptions{ownerApproved: true, degradeOnFailure: true}); err != nil {
+				outcomes = append(outcomes, degrade(contract, action, err.Error()))
 			} else {
 				outcome.Status = automaticSetupSucceeded
+				outcomes = append(outcomes, outcome)
 			}
-			outcomes = append(outcomes, outcome)
 			continue
 		}
 		credentials, automatic := automaticOwnerCredentials(action, s.owner)
@@ -217,40 +396,47 @@ func (s *automaticOwnerSetup) run(ctx context.Context) []automaticOwnerSetupOutc
 				outcomes = append(outcomes, outcome)
 				continue
 			} else if err != nil {
-				outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
-				outcomes = append(outcomes, outcome)
+				outcomes = append(outcomes, degrade(contract, action, err.Error()))
 				continue
 			}
 		}
 		if previouslySetUp {
 			// A changed contract needs fresh SSO readback, not a replacement owner.
 			if _, err := os.Lstat(filepath.Join(s.workspace, description.CredentialsFile)); err != nil {
-				outcome.Status = automaticSetupFailed
-				outcome.Detail = fmt.Sprintf("restore the existing application owner credentials to %s and retry setup; an established owner password is never regenerated", description.CredentialsFile)
-				outcomes = append(outcomes, outcome)
+				detail := fmt.Sprintf("restore the existing application owner credentials to %s and retry setup; an established owner password is never regenerated", description.CredentialsFile)
+				outcomes = append(outcomes, degrade(contract, action, detail))
 				continue
 			}
 		}
 		if err := ensureAutomaticSetupCredentials(s.workspace, description.CredentialsFile, credentials); err != nil {
-			outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
-			outcomes = append(outcomes, outcome)
+			outcomes = append(outcomes, degrade(contract, action, err.Error()))
 			continue
 		}
 		err = s.execute(ctx, contract.WorkloadRef, nativeSetupOptions{
-			credentialsFile: description.CredentialsFile, ownerApproved: true,
+			credentialsFile:    description.CredentialsFile,
+			ownerApproved:      true,
 			completeOnboarding: description.SupportsOnboardingCompletion,
+			degradeOnFailure:   true,
 		})
 		if err != nil {
-			outcome.Status, outcome.Detail = automaticSetupFailed, err.Error()
+			detail := err.Error()
 			if action == "jellyfin-owner-bootstrap" || action == "home-assistant-owner-bootstrap" {
-				outcome.Detail += fmt.Sprintf("; if this application already has an owner, restore that owner’s credentials to %s and retry; setup does not reset existing passwords", description.CredentialsFile)
+				detail += fmt.Sprintf("; if this application already has an owner, restore that owner’s credentials to %s and retry; setup does not reset existing passwords", description.CredentialsFile)
 			}
-		} else {
-			outcome.Status = automaticSetupSucceeded
+			outcomes = append(outcomes, degrade(contract, action, detail))
+			continue
 		}
+		outcome.Status = automaticSetupSucceeded
 		outcomes = append(outcomes, outcome)
 	}
 	return outcomes
+}
+
+func recordBootstrapDegradedIfMissing(store applicationlifecycle.Store, contract applicationlifecycle.Contract, detail string) {
+	if needsRetry, op, err := store.NeedsAppSetupRetry(contract); err == nil && needsRetry && op.Status == applicationlifecycle.StatusBootstrapDegraded {
+		return
+	}
+	_, _ = store.RecordBootstrapDegraded(contract, detail, time.Now().UTC())
 }
 
 // Historical setup cannot prove a new Plan's identity/plugin configuration.

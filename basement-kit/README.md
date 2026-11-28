@@ -20,7 +20,7 @@ As of 2026-06-10 the release default is the slice exercised by the fresh Ubuntu 
 | Docker API isolation | Docker socket via target daemon | generated |
 | Reverse proxy | StackKits router | the native default core owns the traffic path; a PaaS router owns it only for an explicitly selected `paas: coolify` on the legacy path |
 | Local access | scoped LAN DNS + Owner-CA HTTPS | canonical `*.lab.home` URLs on enrolled devices for a homelab declared local-only; a homelab with a kombify.me name or its own domain uses public names (`id.<name>`) from setup; no router/DHCP change |
-| Optional platforms | none by default | Marketplace optionally installs Coolify as its application engine; Coolify, Komodo and Dokploy are the Layer-2 PaaS platforms and later runtime targets. Current support requires a receipt at the installed pin (ADR-0049). |
+| Optional platforms | none by default | Marketplace optionally installs Coolify `4.7.5+` as its Layer-3 extension; Komodo, Dokploy and legacy core Coolify `4.1.2` are Layer-2 PaaS engines retired from 1.0 core execution by ADR-0054. Current support requires a receipt at the installed pin (ADR-0049). |
 | Passkey identity | `pocketid` | mandatory default |
 | Login gateway | `tinyauth` | generated with PocketID OIDC provider config |
 | Node Hub | `dashboard` | StackKits node-local onboarding, protected technical bootstrap access reveal, service matrix, and public how-to links at `base.<domain>` |
@@ -205,7 +205,7 @@ Coolify receives a generated policy-compliant root password through its official
 
 Komodo is selected explicitly through `paas: komodo` on this compatibility path. Its operations-platform implementation remains draft until a current-pin receipt covers bootstrap, deployment identity, routing, status and data operations. The paragraph above describes the explicit legacy `paas: coolify` path. The generated rollout installs Komodo Core, Periphery, and MongoDB, creates the initial local admin from generated technical bootstrap credentials, disables further registration, creates a Komodo API key through the HTTP API, and writes `.stackkit/platform.json` with `apiKey`/`apiSecret` plus the same bootstrap-evidence shape. Initial Komodo routing is StackKit-owned Traefik, not a Komodo-owned router; the Core API host port is loopback-bound in bridge mode for node-local bootstrap.
 
-Dokploy is a Layer-2 PaaS platform and a later runtime target. Its remaining legacy adapter code does not establish a supported selection; support requires a current-pin receipt.
+Dokploy is a Layer-2 PaaS engine retired from 1.0 core execution by ADR-0054. Its remaining legacy adapter code does not establish a supported selection; support requires a current-pin receipt.
 
 ## Current Gaps
 

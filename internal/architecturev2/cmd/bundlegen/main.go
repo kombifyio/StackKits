@@ -1,6 +1,6 @@
 // Command bundlegen builds the deterministic embedded Architecture v2
-// authority projection. CUE remains the source of truth; this command copies
-// the validation schemas and exports only the concrete catalog/Definitions.
+// authority projection. CUE remains the source of truth; this command hashes
+// the canonical schemas and exports the concrete JSON documents.
 package main
 
 import (
@@ -567,9 +567,6 @@ func generateBundleProjection(repoRoot, staging string, source sourceManifest, p
 		if err := rejectProductFixtureNamespace(relativePath, data); err != nil {
 			return err
 		}
-		if err := writeGenerated(stagingRoot, relativePath, data); err != nil {
-			return err
-		}
 		result.SourceHashes[relativePath] = contentHash(data)
 	}
 
@@ -700,9 +697,6 @@ func generateContractFixtureBundle(repoRoot, staging string, source sourceManife
 		seen[relativePath] = struct{}{}
 		data, err := readCanonicalSource(filepath.Join(repoRoot, filepath.FromSlash(relativePath)))
 		if err != nil {
-			return err
-		}
-		if err := writeGenerated(stagingRoot, relativePath, data); err != nil {
 			return err
 		}
 		result.SourceHashes[relativePath] = contentHash(data)

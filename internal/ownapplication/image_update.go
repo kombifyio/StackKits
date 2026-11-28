@@ -36,10 +36,10 @@ type ImageUpdateRequest struct {
 	OwnerApproved bool
 	HelperImage   string
 	PlanHash      string
-	// ImageIdentity is the Guard C evidence of the candidate image. When it is
-	// present the update verifies the signer, issuer and digest against the
-	// node's installed trust before anything stops, and the admitted identity is retained
-	// with the previous image for a deterministic reversal.
+	// ImageIdentity is the Guard C evidence of the candidate image. Installed
+	// node trust makes it mandatory for stateless applications. The update
+	// verifies its signer, issuer and digest before anything stops and retains
+	// the admitted identity with the previous image for a deterministic reversal.
 	ImageIdentity *ImageIdentityEvidence
 }
 
@@ -263,6 +263,10 @@ func UpdateImage(ctx context.Context, workspace string, installation contract.In
 	if current.Operation.Status != "succeeded" || current.TransitionFrom != nil {
 		return refuse(ReasonPending, "an own application operation is pending; inspect status and reconcile it first")
 	}
+	trust, trustErr := updateImageTrust(workspace, req.ImageIdentity, current, true)
+	if trustErr != nil {
+		return refuse(ReasonIdentityRefused, trustErr.Error()+"; nothing changed")
+	}
 	if checkpointBlocks(current.Checkpoint) {
 		// A checkpoint whose rollback did not restore it (or whose update never
 		// verified) is the only intact data: no new update may replace it.
@@ -312,9 +316,6 @@ func UpdateImage(ctx context.Context, workspace string, installation contract.In
 			if hasVolume {
 				return refuse(ReasonIdentityRefused, "an image identity admission covers one stateless one-container update; this application declares a volume and takes a data checkpoint")
 			}
-			if _, e := loadNodeImageTrust(workspace); e != nil {
-				return refuse(ReasonIdentityRefused, e.Error()+"; nothing changed")
-			}
 		}
 		review := update
 		review.DryRun = true
@@ -355,11 +356,7 @@ func UpdateImage(ctx context.Context, workspace string, installation contract.In
 		if hasVolume {
 			return refuse(ReasonIdentityRefused, "an image identity admission covers one stateless one-container update; this application declares a volume and takes a data checkpoint")
 		}
-		trust, e := loadNodeImageTrust(workspace)
-		if e != nil {
-			return refuse(ReasonIdentityRefused, e.Error()+"; nothing changed")
-		}
-		receipt, e := admitImageIdentity(ctx, *req.ImageIdentity, trust, req.Name, req.OperationID, out.Target.Image, req.ResolvedImage, admittedImage(current.Bundle, current.Revision))
+		receipt, e := admitImageIdentity(ctx, *req.ImageIdentity, *trust, req.Name, req.OperationID, out.Target.Image, req.ResolvedImage, admittedImage(current.Bundle, current.Revision))
 		if e != nil {
 			return refuse(ReasonIdentityRefused, e.Error()+"; nothing changed")
 		}

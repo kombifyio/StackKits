@@ -190,3 +190,78 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of vaultwarden (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-vaultwarden-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-vaultwarden-runtime"
+	workloadRef:    "vault"
+	alternativeRef: "vaultwarden"
+	release:        "1.37.2"
+	entryComponent: "vaultwarden"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "vault"
+		targetPort:        80
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "vaultwarden-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"admin-token": purpose: "Custody secret slot admin-token for vaultwarden"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "vaultwarden", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"vaultwarden-internal": {}
+	}
+	components: [
+		{
+			id:        "vaultwarden"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["vaultwarden"]
+			environment: {
+				SIGNUPS_ALLOWED: "false"
+			}
+			secretEnvironment: {
+				ADMIN_TOKEN: "admin-token"
+			}
+			volumes: [
+				{id: "data", target: "/data", class: "persistent", backup: true},
+			]
+			networks: ["vaultwarden-internal"]
+			health: {kind: "http", path: "/alive", port: 80}
+			resources: {memoryLimit: "512m", memoryReservation: "64m"}
+			labels: {}
+			traits: {
+				homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["SSL_CERT_FILE"]}
+				pocketIDClient: {
+					callbackURLs: ["{{origin}}/identity/connect/oidc-signin"]
+					environment: {
+						DOMAIN: "{{origin}}"
+						SSO_ALLOW_UNKNOWN_EMAIL_VERIFICATION: "false"
+						SSO_AUTHORITY: "{{issuer}}"
+						SSO_AUTH_ONLY_NOT_SESSION: "true"
+						SSO_CLIENT_ID: "{{clientId}}"
+						SSO_CLIENT_SECRET: "{{clientSecret}}"
+						SSO_ENABLED: "true"
+						SSO_ONLY: "false"
+						SSO_PKCE: "true"
+						SSO_SCOPES: "email profile"
+						SSO_SIGNUPS_MATCH_EMAIL: "true"
+					}
+				}
+			}
+		},
+	]
+}

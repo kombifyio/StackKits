@@ -21,6 +21,7 @@ import (
 var contractPackageRoots = []string{
 	"advancedcapability",
 	"applyevidence",
+	"canonicaljson",
 	"datasubject",
 	"internal/referenceid",
 	"providerexecutor",

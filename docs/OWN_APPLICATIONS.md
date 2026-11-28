@@ -779,7 +779,7 @@ writes, and every call requires `operation_confirmation: "stackkit.app.own"`
 and `owner_approved: true`, including previews and reads. Existing per-call
 agent approval and execution receipts still apply. Local `--owner-approve` is
 the existing self-asserted CLI convention, not independent proof of a person
-approving; the common receipt-bound approval gap is recorded on platform-8f0n2.20 (following the notes on platform-8f0n2.1). File arguments stay inside
+approving; a common receipt-bound approval is not available yet. File arguments stay inside
 the MCP workspace. Read the local `stackkit_homelab_agent` prompt/profile before
 operating an own application; it is also available through
 `stackkit agent prompt homelab-agent`.

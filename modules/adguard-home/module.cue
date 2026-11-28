@@ -80,3 +80,62 @@ Contract: foundation.#ModuleContract & {
 		output: description: "AdGuard Home dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of adguard-home (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-adguard-home-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-adguard-home-runtime"
+	workloadRef:    "network"
+	alternativeRef: "adguard-home"
+	release:        "v0.107.79"
+	entryComponent: "adguard-home"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "dns"
+		targetPort:        8080
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "adguard-home-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"owner-password": purpose: "Custody secret slot owner-password for adguard-home"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "adguard-home", volumeRef: "config"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"adguard-home-internal": {}
+	}
+	components: [
+		{
+			id:        "adguard-home"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["adguard-home"]
+			entrypoint: ["/bin/sh"]
+			command: ["-ec", "set +x; set -eu; umask 077; [ \"$STACKKITS_OWNER_HASH_FILE\" = /run/secrets/adguard-owner-bcrypt ]; [ -s \"$STACKKITS_OWNER_HASH_FILE\" ]; [ -n \"$STACKKITS_DNS_CONFIG_JSON\" ]; hash=$(base64 -d < \"$STACKKITS_OWNER_HASH_FILE\"); case \"$hash\" in '$2a$'*|'$2b$'*|'$2y$'*) ;; *) exit 1 ;; esac; [ \"${#hash}\" = 60 ]; case \"$hash\" in *[!A-Za-z0-9./$]*) exit 1 ;; esac; conf=/opt/adguardhome/conf; [ ! -L \"$conf\" ]; mkdir -p \"$conf\"; chmod 700 \"$conf\"; file=$(mktemp \"$conf/.AdGuardHome.XXXXXX\"); trap 'rm -f \"$file\"' EXIT HUP INT TERM; printf '%s\\n' \"$STACKKITS_DNS_CONFIG_JSON\" | sed \"s|@@OWNER_BCRYPT@@|$hash|g\" > \"$file\"; chmod 600 \"$file\"; mv -f \"$file\" \"$conf/AdGuardHome.yaml\"; trap - EXIT HUP INT TERM; unset hash file STACKKITS_DNS_CONFIG_JSON STACKKITS_OWNER_HASH_FILE; exec /opt/adguardhome/AdGuardHome -c \"$conf/AdGuardHome.yaml\" -w /opt/adguardhome/work --no-check-update"]
+			environment: {}
+			secretEnvironment: {
+				STACKKITS_OWNER_HASH_FILE: "owner-password"
+			}
+			volumes: [
+				{id: "config", target: "/opt/adguardhome/conf", class: "persistent", backup: true},
+				{id: "work", target: "/opt/adguardhome/work", class: "persistent"},
+			]
+			networks: ["adguard-home-internal"]
+			egress: true
+			health: {kind: "http", path: "/login.html", port: 8080}
+			resources: {memoryLimit: "256m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

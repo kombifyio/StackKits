@@ -130,3 +130,73 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Roundcube Webmail dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of roundcube (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-roundcube-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-roundcube-runtime"
+	workloadRef:    "mail"
+	alternativeRef: "roundcube"
+	release:        "1.6.19-apache"
+	entryComponent: "roundcube"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "mail"
+		targetPort:        80
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "roundcube-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"session-key": purpose: "Custody secret slot session-key for roundcube"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "roundcube", volumeRef: "database"},
+			{componentRef: "roundcube", volumeRef: "mailbox"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"mail-internal": {}
+	}
+	components: [
+		{
+			id:        "roundcube"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["roundcube"]
+			entrypoint: ["/bin/sh", "/var/roundcube/config/stackkit/init.sh"]
+			command: ["apache2-foreground"]
+			stopSignal: "SIGTERM"
+			environment: {
+				ROUNDCUBEMAIL_DB_DIR: "/var/roundcube/db"
+				ROUNDCUBEMAIL_DB_TYPE: "sqlite"
+				ROUNDCUBEMAIL_PLUGINS: "archive,zipdownload"
+				ROUNDCUBEMAIL_REQUEST_PATH: "/"
+				ROUNDCUBEMAIL_SKIN: "elastic"
+				ROUNDCUBEMAIL_TEMP_DIR: "/tmp/roundcube-temp"
+			}
+			secretEnvironment: {
+				ROUNDCUBEMAIL_DES_KEY: "session-key"
+			}
+			volumes: [
+				{id: "database", target: "/var/roundcube/db", class: "persistent", backup: true},
+				{id: "mailbox", target: "/var/roundcube/mailbox", class: "persistent", backup: true},
+				{id: "config", target: "/var/roundcube/config", class: "cache"},
+				{id: "temp", target: "/tmp/roundcube-temp", class: "cache"},
+			]
+			networks: ["mail-internal"]
+			egress: true
+			health: {kind: "http", path: "/", port: 80}
+			resources: {memoryLimit: "256m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

@@ -95,3 +95,66 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Immich Power Tools dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of immich-power-tools (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-immich-power-tools-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-immich-power-tools-runtime"
+	workloadRef:    "photos"
+	alternativeRef: "immich-power-tools"
+	release:        "0.24.0"
+	entryComponent: "immich-power-tools"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "immich-tools"
+		targetPort:        3000
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "immich-power-tools-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"database-password": purpose: "Custody secret slot database-password for immich-power-tools"
+		"immich-api-key": purpose: "Custody secret slot immich-api-key for immich-power-tools"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "immich-power-tools", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"immich-power-tools-internal": {}
+	}
+	components: [
+		{
+			id:        "immich-power-tools"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["immich-power-tools"]
+			environment: {
+				DB_DATABASE_NAME: "immich"
+				DB_HOST: "immich-postgres"
+				DB_PORT: "5432"
+				DB_USERNAME: "immich"
+				IMMICH_URL: "http://immich-server:2283"
+			}
+			secretEnvironment: {
+				DB_PASSWORD: "database-password"
+				IMMICH_API_KEY: "immich-api-key"
+			}
+			volumes: [
+				{id: "data", target: "/app/data", class: "persistent", backup: true},
+			]
+			networks: ["immich-power-tools-internal"]
+			health: {kind: "http", path: "/api/health", port: 3000}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

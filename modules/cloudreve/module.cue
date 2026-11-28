@@ -230,3 +230,50 @@ Contract: foundation.#ModuleContract & {
 			"""
 	}
 }
+
+// AppModuleV3 is the complete #AppModuleV3 declaration of the Files workload
+// (ADR-0055 Stage 1 pilot). internal/engine renders it into the same Compose
+// project the standalone Compose owner emits today for
+// stackkits-cloudreve-runtime; modules/cloudreve/golden/compose.yaml pins that
+// output. The legacy Contract above stays until Phase 2.
+AppModuleV3: foundation.#AppModuleV3 & {
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-cloudreve-runtime"
+	workloadRef:    "files"
+	alternativeRef: "cloudreve"
+	release:        "4.18.0"
+	entryComponent: "cloudreve"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: optionalAppsetupRef: "setup/cloudreve-owner-bootstrap"
+	route: {
+		serviceRef:        "files"
+		targetPort:        5212
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "cloudreve-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [{componentRef: "cloudreve", volumeRef: "data"}]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: "cloudreve-internal": {}
+	components: [{
+		id:        "cloudreve"
+		role:      "application"
+		lifecycle: "daemon"
+		image:     foundation.AppModuleV3CatalogImages["stackkits-cloudreve-runtime"]["cloudreve"]
+		environment: {}
+		secretEnvironment: {}
+		// Cloudreve links shares to its own HTTPS root URL.
+		environmentFromRoute: CR_SETTING_siteURL: "https-root-url"
+		volumes: [{id: "data", target: "/cloudreve/data", class: "persistent", backup: true}]
+		networks: ["cloudreve-internal"]
+		health: {kind: "http", path: "/", port: 5212}
+		resources: {memoryLimit: "1g", memoryReservation: "128m"}
+		labels: {}
+	}]
+}

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/kombifyio/stackkits/internal/applyledger"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	skerrors "github.com/kombifyio/stackkits/internal/errors"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	sshpin "github.com/kombifyio/stackkits/internal/ssh"
 	stackaction "github.com/kombifyio/stackkits/internal/stackaction"
 	"github.com/kombifyio/stackkits/internal/tofu"
@@ -107,7 +107,7 @@ func runOpenTofuRolloutStackAction(ctx context.Context, resp stackActionResponse
 	return updated, http.StatusOK, nil
 }
 
-func stackActionDeploymentRefs(refs []platformdeploy.DeploymentRef) []stackaction.DeploymentRef {
+func stackActionDeploymentRefs(refs []deploymentcontract.DeploymentRef) []stackaction.DeploymentRef {
 	out := make([]stackaction.DeploymentRef, 0, len(refs))
 	for _, ref := range refs {
 		out = append(out, stackaction.DeploymentRef{

@@ -612,14 +612,19 @@ func execute(ctx context.Context, workspace string, i contract.Installation, req
 		if err = b.Validate(); err != nil {
 			return out, err
 		}
+		var updateTrust *ImageIdentityTrust
+		if req.Action == "update" {
+			imageChanged := !ownApplicationSameImages(current.Bundle.Application, b.Application) || current.Bundle.ResolvedImage != b.ResolvedImage
+			updateTrust, err = updateImageTrust(workspace, req.ImageIdentity, current, imageChanged)
+			if err != nil {
+				return out, err
+			}
+		}
 		if req.ImageIdentity != nil {
 			if b.Application.IsProject() || len(applicationVolumes(b)) != 0 || b.Application.HasVolume() {
 				return out, errors.New("image identity admission covers one stateless one-container image change; this application declares a project or a volume")
 			}
-			trust, trustErr := loadNodeImageTrust(workspace)
-			if trustErr != nil {
-				return out, trustErr
-			}
+			trust := *updateTrust
 			receipt, e := admitImageIdentity(ctx, *req.ImageIdentity, trust, req.Name, req.OperationID, b.Application.Image, b.ResolvedImage, admittedImage(current.Bundle, current.Revision))
 			if e != nil {
 				return out, e

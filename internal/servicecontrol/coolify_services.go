@@ -1,7 +1,11 @@
 package servicecontrol
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -13,6 +17,7 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/logging"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/runtimeexecutor/nativehost"
 )
 
 // coolifyServiceIDPattern bounds the signed Coolify service UUID before it
@@ -21,6 +26,26 @@ import (
 var coolifyServiceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 func runCoolifyService(ctx context.Context, request runtimeCommandRequest) (runtimeCommandOutput, error) {
+	// Re-read signed custody after target resolution, including for logs. A
+	// transfer, removal or replacement invalidates the queued request.
+	state, err := platformdeploy.LoadOwnerHostDeployment(request.Workspace, "stackkit-"+request.RuntimeRef)
+	if err != nil {
+		return runtimeCommandOutput{}, err
+	}
+	if err := platformdeploy.RequireHostDeploymentManager(state, "coolify"); err != nil {
+		return runtimeCommandOutput{}, err
+	}
+	if state.Signature == nil || request.CustodyDigest == "" || hostDeploymentDigest(state) != request.CustodyDigest || state.Deployment.ExternalID != request.ExternalID {
+		return runtimeCommandOutput{}, errors.New("Coolify service custody changed during service control")
+	}
+	cfg, ref, err := nativehost.LoadOwnedCoolifyServiceConfig(ctx, request.Workspace, "stackkit-"+request.RuntimeRef)
+	if err != nil {
+		return runtimeCommandOutput{}, err
+	}
+	if ref.Platform != state.Deployment.Platform || ref.AppName != state.Deployment.AppName || ref.ExternalID != state.Deployment.ExternalID {
+		return runtimeCommandOutput{}, errors.New("Coolify service identity changed during service control")
+	}
+	request.HTTPConfig = cfg
 	action := request.Args[0]
 	if action == ActionLogs {
 		return runCoolifyLogs(ctx, request)
@@ -28,7 +53,6 @@ func runCoolifyService(ctx context.Context, request runtimeCommandRequest) (runt
 	if action != ActionStop && action != ActionStart && action != ActionRestart {
 		return runtimeCommandOutput{}, errors.New("Coolify service control requires logs, start, stop or restart")
 	}
-	ref := platformdeploy.DeploymentRef{Platform: "coolify", AppName: "stackkit-" + request.RuntimeRef, ExternalID: request.ExternalID}
 	adapter := platformdeploy.NewCoolifyAdapter(request.HTTPConfig)
 	// ServiceComponents includes the service's database components (for example
 	// Immich's postgres), which Coolify lists outside its applications; the
@@ -65,11 +89,11 @@ func runCoolifyService(ctx context.Context, request runtimeCommandRequest) (runt
 			return runtimeCommandOutput{}, err
 		}
 	}
-	state := DesiredRunning
+	observedState := DesiredRunning
 	if action == ActionStop {
-		state = DesiredStopped
+		observedState = DesiredStopped
 	}
-	return runtimeCommandOutput{ObservedState: state}, nil
+	return runtimeCommandOutput{ObservedState: observedState}, nil
 }
 
 // runCoolifyLogs reads one bounded, non-following log tail of the exact
@@ -89,8 +113,10 @@ func runCoolifyLogs(ctx context.Context, request runtimeCommandRequest) (runtime
 		text string
 	}
 	var lines []line
+	remaining := maxCoolifyLogBytes
+	retainedBytes := 0
 	for _, name := range request.ComponentRefs {
-		ids, err := dockerOutput(ctx, "ps", "--all", "--quiet", "--no-trunc",
+		ids, err := dockerOutput(ctx, &remaining, "ps", "--all", "--quiet", "--no-trunc",
 			"--filter", "label=com.docker.compose.project="+request.ExternalID,
 			"--filter", "label=com.docker.compose.service="+name)
 		if err != nil {
@@ -101,15 +127,19 @@ func runCoolifyLogs(ctx context.Context, request runtimeCommandRequest) (runtime
 			return runtimeCommandOutput{}, errors.New("Coolify service has no container for a declared component")
 		}
 		for _, id := range containers {
-			raw, err := dockerOutput(ctx, "logs", "--timestamps", "--tail", strconv.Itoa(tail), id)
+			raw, err := dockerOutput(ctx, &remaining, "logs", "--timestamps", "--tail", strconv.Itoa(tail), id)
 			if err != nil {
 				return runtimeCommandOutput{}, err
 			}
-			for _, text := range strings.Split(strings.TrimRight(string(raw), "\n"), "\n") {
+			for text := range strings.SplitSeq(strings.TrimRight(string(raw), "\n"), "\n") {
 				if text == "" {
 					continue
 				}
 				entry := line{text: name + " | " + text}
+				retainedBytes += len(entry.text) + 1
+				if retainedBytes > maxCoolifyLogBytes || len(lines) >= maxCoolifyLogLines {
+					return runtimeCommandOutput{}, errors.New("Coolify service log tail exceeds its total output bound")
+				}
 				if field, _, ok := strings.Cut(text, " "); ok {
 					if parsed, err := time.Parse(time.RFC3339Nano, field); err == nil {
 						entry.at = parsed
@@ -128,14 +158,47 @@ func runCoolifyLogs(ctx context.Context, request runtimeCommandRequest) (runtime
 	return runtimeCommandOutput{Bytes: []byte(out.String())}, nil
 }
 
-func dockerOutput(ctx context.Context, args ...string) ([]byte, error) {
+const (
+	maxCoolifyLogBytes   = 4 << 20
+	maxCoolifyLogLines   = 4096
+	maxCoolifyErrorBytes = 4096
+)
+
+func hostDeploymentDigest(state platformdeploy.HostDeployment) string {
+	payload, _ := json.Marshal(state)
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
+}
+
+// Docker stdout and stderr share one writer and one budget across all
+// components/containers. CombinedOutput would allocate before applying a cap.
+type coolifyOutputBuffer struct {
+	buffer    bytes.Buffer
+	remaining *int
+}
+
+func (b *coolifyOutputBuffer) Write(p []byte) (int, error) {
+	if len(p) > *b.remaining {
+		return 0, errors.New("Coolify Docker output exceeds its total byte bound")
+	}
+	n, err := b.buffer.Write(p)
+	*b.remaining -= n
+	return n, err
+}
+
+func dockerOutput(ctx context.Context, remaining *int, args ...string) ([]byte, error) {
 	command := exec.CommandContext(ctx, "docker", args...) //nolint:gosec // finite arguments built from validated labels and container IDs
 	command.Env = []string{"LANG=C", "LC_ALL=C"}
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("docker %s: %s", args[0], logging.RedactText(string(output)))
+	output := &coolifyOutputBuffer{remaining: remaining}
+	command.Stdout, command.Stderr = output, output
+	if err := command.Run(); err != nil {
+		excerpt := logging.RedactText(output.buffer.String())
+		if len(excerpt) > maxCoolifyErrorBytes {
+			excerpt = excerpt[:maxCoolifyErrorBytes] + " [truncated]"
+		}
+		return nil, fmt.Errorf("docker %s: %w: %s", args[0], err, excerpt)
 	}
-	return output, nil
+	return output.buffer.Bytes(), nil
 }
 
 func waitCoolifyServicePhase(ctx context.Context, adapter *platformdeploy.CoolifyAdapter, ref platformdeploy.DeploymentRef, selected map[string]string, phase string) error {

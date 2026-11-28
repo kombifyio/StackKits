@@ -1,0 +1,72 @@
+name: stackkit-mail-server-main
+services:
+    stalwart:
+        image: docker.io/stalwartlabs/stalwart:v0.16.23@sha256:be215678796691bc39bdda918ecc50d14a9032a099a1d1950e51950aec7e2592
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 1g
+                reservations:
+                    memory: 512m
+        entrypoint:
+            - /bin/sh
+            - -c
+            - 'set -eu; printf ''%s'' ''{"@type":"RocksDb","path":"/var/lib/stalwart/"}'' > /etc/stalwart/config.json; secret=$$(cat "$$STACKKIT_ADMIN_SECRET_FILE"); export STALWART_RECOVERY_ADMIN="admin:$${secret:?}"; unset secret; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json & pid=$$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$$((i+1)); [ "$$i" -lt 90 ] || exit 1; sleep 1; done; printf ''user = "%s"\n'' "$$STALWART_RECOVERY_ADMIN" | curl -fsS -K - -H ''Content-Type: application/json'' -o /tmp/stackkit-seed.json -d ''{"using":["urn:ietf:params:jmap:core","urn:stalwart:jmap"],"methodCalls":[["x:Tracer/get",{"properties":["id"]},"t0"],["x:Tracer/set",{"#destroy":{"resultOf":"t0","name":"x:Tracer/get","path":"/list/*/id"},"create":{"stdout":{"@type":"Stdout","level":"info","ansi":false}}},"t1"],["x:NetworkListener/set",{"create":{"submission":{"name":"submission","bind":{"[::]:587":true},"protocol":"smtp","tlsImplicit":false}}},"l1"]]}'' http://127.0.0.1:8080/jmap/; grep -q ''"submission":{"id"'' /tmp/stackkit-seed.json; grep -q ''"stdout":{"id"'' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill "$$pid"; wait "$$pid" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json'
+        volumes:
+            - stalwart-config:/etc/stalwart
+            - stalwart-data:/var/lib/stalwart
+        networks:
+            - mail-server-internal
+            - stackkit-routing
+            - stackkit-workload-egress
+        ports:
+            - 127.0.0.1::8080
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: mail-server-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-mail-server
+            io.stackkit.route.id: mail-server-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8080"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-mail-server-remote.entrypoints: remote
+            traefik.http.routers.stackkit-mail-server-remote.rule: Host(`mail-server.home.example`)
+            traefik.http.routers.stackkit-mail-server-remote.service: stackkit-mail-server
+            traefik.http.routers.stackkit-mail-server.entrypoints: websecure
+            traefik.http.routers.stackkit-mail-server.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-mail-server.rule: Host(`mail-server.home.example`)
+            traefik.http.routers.stackkit-mail-server.tls: "true"
+            traefik.http.routers.stackkit-mail-server.tls.certresolver: stackkits
+            traefik.http.services.stackkit-mail-server.loadbalancer.server.port: "8080"
+            traefik.http.services.stackkit-mail-server.loadbalancer.server.scheme: http
+networks:
+    mail-server-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    stalwart-config: {}
+    stalwart-data: {}

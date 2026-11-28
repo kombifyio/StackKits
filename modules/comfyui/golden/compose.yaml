@@ -1,0 +1,81 @@
+name: stackkit-ai-main
+services:
+    comfyui:
+        image: ghcr.io/saladtechnologies/comfyui-api:comfy0.35.0-torch2.13.0-cuda13.0-runtime@sha256:5cc4f79f21e61b9da46e94286c29ef8185520117452027a6f5574cf6125c0ff8
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 28g
+                reservations:
+                    memory: 2g
+        command:
+            - python
+            - main.py
+            - --listen
+            - 0.0.0.0
+            - --port
+            - "8188"
+            - --disable-all-custom-nodes
+            - --disable-api-nodes
+        volumes:
+            - comfyui-input:/opt/ComfyUI/input
+            - comfyui-models:/opt/ComfyUI/models
+            - comfyui-output:/opt/ComfyUI/output
+            - comfyui-user:/opt/ComfyUI/user
+        networks:
+            - comfyui-internal
+            - stackkit-routing
+            - stackkit-workload-egress
+        ports:
+            - 127.0.0.1::8188
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: comfyui-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-comfyui
+            io.stackkit.route.id: comfyui-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8188"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-comfyui-remote.entrypoints: remote
+            traefik.http.routers.stackkit-comfyui-remote.rule: Host(`comfyui.home.example`)
+            traefik.http.routers.stackkit-comfyui-remote.service: stackkit-comfyui
+            traefik.http.routers.stackkit-comfyui.entrypoints: websecure
+            traefik.http.routers.stackkit-comfyui.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-comfyui.rule: Host(`comfyui.home.example`)
+            traefik.http.routers.stackkit-comfyui.tls: "true"
+            traefik.http.routers.stackkit-comfyui.tls.certresolver: stackkits
+            traefik.http.services.stackkit-comfyui.loadbalancer.server.port: "8188"
+            traefik.http.services.stackkit-comfyui.loadbalancer.server.scheme: http
+networks:
+    comfyui-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    comfyui-input: {}
+    comfyui-models: {}
+    comfyui-output: {}
+    comfyui-user: {}

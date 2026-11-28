@@ -101,6 +101,10 @@
     "applicationRecovery": {
       "$ref": "stackkit-application-recovery-receipt-v1.schema.json"
     },
+    "backupSurvival": {
+      "type": "object",
+      "description": "Optional Guard G backup survival receipt or bound survival envelope."
+    },
     "startedAt": { "type": "string", "format": "date-time" },
     "completedAt": { "type": "string", "format": "date-time" }
   }

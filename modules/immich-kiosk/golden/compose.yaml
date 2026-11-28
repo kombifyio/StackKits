@@ -1,0 +1,67 @@
+name: stackkit-photos-main
+services:
+    immich-kiosk:
+        image: ghcr.io/damongolding/immich-kiosk:0.45.0@sha256:49d04d67d3cb313124bcb041a0113878c7e91f3f01eca663a3f5ba2646ec0b51
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+                reservations:
+                    memory: 64m
+        environment:
+            KIOSK_IMMICH_API_KEY: ${STACKKIT_SECRET_IMMICH_KIOSK_KIOSK_IMMICH_API_KEY:?required}
+            KIOSK_IMMICH_URL: http://immich-server:2283
+        volumes:
+            - immich-kiosk-config:/config
+        networks:
+            - immich-kiosk-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::3000
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: kiosk-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-kiosk
+            io.stackkit.route.id: kiosk-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "3000"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-kiosk-remote.entrypoints: remote
+            traefik.http.routers.stackkit-kiosk-remote.rule: Host(`kiosk.home.example`)
+            traefik.http.routers.stackkit-kiosk-remote.service: stackkit-kiosk
+            traefik.http.routers.stackkit-kiosk.entrypoints: websecure
+            traefik.http.routers.stackkit-kiosk.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-kiosk.rule: Host(`kiosk.home.example`)
+            traefik.http.routers.stackkit-kiosk.tls: "true"
+            traefik.http.routers.stackkit-kiosk.tls.certresolver: stackkits
+            traefik.http.services.stackkit-kiosk.loadbalancer.server.port: "3000"
+            traefik.http.services.stackkit-kiosk.loadbalancer.server.scheme: http
+networks:
+    immich-kiosk-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    immich-kiosk-config: {}

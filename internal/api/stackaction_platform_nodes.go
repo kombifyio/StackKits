@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	sshpin "github.com/kombifyio/stackkits/internal/ssh"
 	stackaction "github.com/kombifyio/stackkits/internal/stackaction"
@@ -158,7 +159,7 @@ func runtimePlatformNamesFromManifestsStackAction(deployDir string) []string {
 		if _, err := os.Stat(manifestPath); err != nil {
 			continue
 		}
-		bundle, err := platformdeploy.LoadBundleManifest(manifestPath)
+		bundle, err := deploymentcontract.LoadBundleManifest(manifestPath)
 		if err != nil {
 			continue
 		}

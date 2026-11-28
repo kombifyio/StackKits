@@ -246,7 +246,12 @@ Package: foundation.#UseCasePackage & {
 		}
 	}
 
+	// The Photos pack (ADR-0056). It declares and grants nothing: the Gateway
+	// admits each operation as its own catalogue row, and a server carries the
+	// pack only while its applied state names this version and `immich`.
+	// `ente-photos` and `immich-lite` have no operation, skill or note here.
 	agentSurface: {
+		version:     "0.1.0"
 		equipPolicy: "on-generate"
 		lifecycleMcp: {}
 		productMcps: []
@@ -257,11 +262,71 @@ Package: foundation.#UseCasePackage & {
 			auth:     "immich-auth"
 		}]
 		skills: [{
+			// The local Owner job: owner credentials and direct REST on the
+			// installed kit. It is never part of the hosted pack.
 			id:       "family-vault"
 			audience: "product-user"
 			source:   "stackkits"
 			path:     "use-cases/photos/agent/family-vault/SKILL.md"
+		}, {
+			id:       "photo-albums"
+			audience: "product-user"
+			source:   "stackkits"
+			path:     "use-cases/photos/agent/photo-albums/SKILL.md"
+			surface:  "hosted"
+			alternatives: ["immich"]
+			operations: ["photos.albums.list", "photos.album.create"]
 		}]
+		// Ids, parameters and bounds are the typed app contract's, which the
+		// agent adapter, the Gateway relay and the host executor each enforce.
+		// Where the three bound a text differently, the schema carries the
+		// tightest one. The contract types no result: the host passes the
+		// app's own answer through.
+		operations: [{
+			id: "photos.albums.list"
+			alternatives: ["immich"]
+			inputSchema: {
+				type:                 "object"
+				additionalProperties: false
+				properties: limit: {type: "integer", minimum: 1, maximum: 100}
+			}
+			effect: "read"
+			via: kind: "adapter"
+		}, {
+			// Declared with the contract and referenced by no skill. It stays
+			// unadmitted until its own proof.
+			id: "photos.search"
+			alternatives: ["immich"]
+			inputSchema: {
+				type:                 "object"
+				additionalProperties: false
+				required: ["query"]
+				properties: {
+					query: {type: "string", minLength: 1, maxLength: 200, pattern: "^[^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F][^\\x00-\\x1F\\x7F]*$"}
+					limit: {type: "integer", minimum: 1, maximum: 100}
+				}
+			}
+			effect: "read"
+			via: kind: "adapter"
+		}, {
+			// The Gateway files the owner's approval of the exact request as an
+			// `external_write` before it dispatches.
+			id: "photos.album.create"
+			alternatives: ["immich"]
+			inputSchema: {
+				type:                 "object"
+				additionalProperties: false
+				required: ["name"]
+				properties: name: {type: "string", minLength: 1, maxLength: 120, pattern: "^[^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F][^\\x00-\\x1F\\x7F]*$"}
+			}
+			effect: "external_write"
+			via: kind: "adapter"
+		}]
+		knowledge: {
+			domain: "usecase-photos"
+			articles: ["immich-albums-and-api-keys"]
+			securityNotes: immich: "immich-library-text-reaches-the-agent"
+		}
 		cliHelpers: [{
 			command: "stackkit agent mcp-config"
 			purpose: "Print the stackkit lifecycle MCP client connection."

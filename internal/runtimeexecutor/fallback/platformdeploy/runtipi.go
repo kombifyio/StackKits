@@ -9,11 +9,11 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"gopkg.in/yaml.v3"
 )
 
@@ -111,8 +111,6 @@ func (a *RuntipiAdapter) authenticate(ctx context.Context, endpoint, username, p
 	return nil
 }
 
-var runtipiAppName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,49}$`)
-
 // RuntipiAppObservation is platform readback, not a substitute for the node's
 // image, application-readiness and persistent-data observations.
 type RuntipiAppObservation struct {
@@ -199,7 +197,7 @@ func (a *RuntipiAdapter) UserContext(ctx context.Context) (RuntipiUserContext, e
 }
 
 func runtipiURN(name string) (string, error) {
-	if !runtipiAppName.MatchString(name) {
+	if !deploymentcontract.ValidRuntipiAppName(name) {
 		return "", errors.New("Runtipi custom app requires a node-owned name of at most 50 lowercase characters")
 	}
 	return name + ":_user", nil
@@ -443,7 +441,7 @@ func (a *RuntipiAdapter) Install(ctx context.Context, ref DeploymentRef, localSu
 	}
 	payload := map[string]any{"exposed": false, "exposedLocal": localSubdomain != "", "openPort": false, "enableAuth": true, "isVisibleOnGuestDashboard": false, "forcePull": false}
 	if localSubdomain != "" {
-		if !runtipiAppName.MatchString(localSubdomain) {
+		if !deploymentcontract.ValidRuntipiAppName(localSubdomain) {
 			return errors.New("Runtipi local subdomain differs from its closed app-name contract")
 		}
 		payload["localSubdomain"] = localSubdomain

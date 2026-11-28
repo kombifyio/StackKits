@@ -1,0 +1,122 @@
+name: stackkit-ai-main
+services:
+    paperclip:
+        image: ghcr.io/paperclipai/paperclip:2026.916.1@sha256:a02ac35ac41df911af477422ea0e781cf41d2b2c600c66f0a5ac9d8c63f52c2c
+        restart: unless-stopped
+        runtime: runsc
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 4g
+                    cpus: "2"
+                reservations:
+                    memory: 512m
+        entrypoint:
+            - /bin/sh
+            - -ec
+            - export DATABASE_URL="$$(node -e 'const u = new URL("postgres://paperclip@paperclip-postgres:5432/paperclip"); u.password = require("fs").readFileSync(process.env.STACKKIT_PAPERCLIP_DB_PASSWORD_FILE, "utf8"); process.stdout.write(u.href);')"; export BETTER_AUTH_SECRET="$$(cat "$$STACKKIT_SESSION_SECRET_FILE")"; unset STACKKIT_PAPERCLIP_DB_PASSWORD_FILE STACKKIT_SESSION_SECRET_FILE; exec /usr/bin/tini -- docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js
+        depends_on:
+            paperclip-postgres:
+                condition: service_started
+        environment:
+            HOST: 0.0.0.0
+            PAPERCLIP_DEPLOYMENT_EXPOSURE: private
+            PAPERCLIP_DEPLOYMENT_MODE: authenticated
+            PAPERCLIP_HIDDEN_SETTINGS: instance.general.feedbackDataSharingPreference
+            PAPERCLIP_HOME: /paperclip
+            PAPERCLIP_INSTANCE_ID: default
+            PAPERCLIP_SETTING_DEFAULTS: '{"feedbackDataSharingPreference":"not_allowed"}'
+            PORT: "3100"
+            SERVE_UI: "true"
+        volumes:
+            - paperclip-home:/paperclip
+        networks:
+            - paperclip-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::3100
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: paperclip-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-paperclip
+            io.stackkit.route.id: paperclip-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "3100"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-paperclip-remote.entrypoints: remote
+            traefik.http.routers.stackkit-paperclip-remote.rule: Host(`paperclip.home.example`)
+            traefik.http.routers.stackkit-paperclip-remote.service: stackkit-paperclip
+            traefik.http.routers.stackkit-paperclip.entrypoints: websecure
+            traefik.http.routers.stackkit-paperclip.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-paperclip.rule: Host(`paperclip.home.example`)
+            traefik.http.routers.stackkit-paperclip.tls: "true"
+            traefik.http.routers.stackkit-paperclip.tls.certresolver: stackkits
+            traefik.http.services.stackkit-paperclip.loadbalancer.server.port: "3100"
+            traefik.http.services.stackkit-paperclip.loadbalancer.server.scheme: http
+    paperclip-postgres:
+        image: docker.io/library/postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -500
+        deploy:
+            resources:
+                limits:
+                    memory: 1g
+                reservations:
+                    memory: 256m
+        environment:
+            POSTGRES_DB: paperclip
+            POSTGRES_PASSWORD: ${STACKKIT_SECRET_PAPERCLIP_POSTGRES_POSTGRES_PASSWORD:?required}
+            POSTGRES_USER: paperclip
+        volumes:
+            - paperclip-postgres-database:/var/lib/postgresql/data
+        networks:
+            - paperclip-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - -U
+                - paperclip
+                - -d
+                - paperclip
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+networks:
+    paperclip-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    paperclip-home: {}
+    paperclip-postgres-database: {}

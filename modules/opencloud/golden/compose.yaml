@@ -1,0 +1,75 @@
+name: stackkit-files-main
+services:
+    opencloud:
+        image: docker.io/opencloudeu/opencloud-rolling:8.1.0@sha256:8fc64ca861739cc62095cd558814f2eba6a90acf5998d884e439b33a47875da8
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                    cpus: "1"
+                reservations:
+                    memory: 1g
+        environment:
+            IDM_ADMIN_PASSWORD: ${STACKKIT_SECRET_OPENCLOUD_IDM_ADMIN_PASSWORD:?required}
+            IDM_CREATE_DEMO_USERS: "false"
+            OC_BASE_DATA_PATH: /var/lib/opencloud
+            OC_CONFIG_DIR: /etc/opencloud
+            OC_INSECURE: "false"
+            PROXY_ENABLE_BASIC_AUTH: "false"
+            PROXY_TLS: "false"
+        volumes:
+            - opencloud-config:/etc/opencloud
+            - opencloud-data:/var/lib/opencloud
+        networks:
+            - opencloud-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::9200
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: files-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-files
+            io.stackkit.route.id: files-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "9200"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-files-remote.entrypoints: remote
+            traefik.http.routers.stackkit-files-remote.rule: Host(`files.home.example`)
+            traefik.http.routers.stackkit-files-remote.service: stackkit-files
+            traefik.http.routers.stackkit-files.entrypoints: websecure
+            traefik.http.routers.stackkit-files.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-files.rule: Host(`files.home.example`)
+            traefik.http.routers.stackkit-files.tls: "true"
+            traefik.http.routers.stackkit-files.tls.certresolver: stackkits
+            traefik.http.services.stackkit-files.loadbalancer.server.port: "9200"
+            traefik.http.services.stackkit-files.loadbalancer.server.scheme: http
+networks:
+    opencloud-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    opencloud-config: {}
+    opencloud-data: {}

@@ -6,11 +6,11 @@ import (
 
 	"github.com/kombifyio/stackkits/internal/actionableerror"
 	"github.com/kombifyio/stackkits/internal/applicationlifecycle"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localevidence"
 	"github.com/kombifyio/stackkits/internal/resolvedplan"
 	"github.com/kombifyio/stackkits/internal/restoreactivation"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 )
 
 type unsupportedBackupDelivery struct {
@@ -70,22 +70,22 @@ func requireNativeBackupManagerDelivery(workspace string, targets []generationar
 			continue
 		}
 		project := "stackkit-" + target.WorkloadRef + "-" + binding.NodeRef
-		present, err := platformdeploy.HasOwnerHostDeployment(workspace, project)
+		present, err := deploymentcontract.HasOwnerHostDeployment(workspace, project)
 		if err != nil {
 			return err
 		}
 		if !present {
 			continue
 		}
-		state, err := platformdeploy.LoadOwnerHostDeployment(workspace, project)
+		state, err := deploymentcontract.LoadOwnerHostDeployment(workspace, project)
 		if err != nil {
 			return err
 		}
 		if state.WorkloadRef != target.WorkloadRef || state.InstanceRef != target.InstanceRef || state.SiteRef != binding.SiteRef || state.NodeRef != binding.NodeRef {
 			return fmt.Errorf("backup refuses workload custody for another instance or node")
 		}
-		manager := platformdeploy.HostDeploymentManager(state)
-		if err := platformdeploy.RequireHostDeploymentManager(state, manager); err != nil {
+		manager := deploymentcontract.HostDeploymentManager(state)
+		if err := deploymentcontract.RequireHostDeploymentManager(state, manager); err != nil {
 			return &pendingBackupManagerDelivery{workload: target.WorkloadRef, operation: state.Handover.ID}
 		}
 		if manager != target.RuntimeAdapter.ID {

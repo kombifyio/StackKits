@@ -226,3 +226,127 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of paperless-ngx (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-paperless-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-paperless-runtime"
+	workloadRef:    "documents"
+	alternativeRef: "paperless-ngx"
+	release:        "3.1.3"
+	entryComponent: "paperless"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "documents"
+		targetPort:        8000
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "paperless-ngx-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"database-password": purpose: "Custody secret slot database-password for paperless-ngx"
+		"owner-password": purpose: "Custody secret slot owner-password for paperless-ngx"
+		"session-key": purpose: "Custody secret slot session-key for paperless-ngx"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "paperless", volumeRef: "data"},
+			{componentRef: "paperless", volumeRef: "media"},
+			{componentRef: "paperless", volumeRef: "consume"},
+			{componentRef: "paperless-postgres", volumeRef: "database"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"paperless-internal": {}
+	}
+	components: [
+		{
+			id:        "paperless"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["paperless"]
+			dependsOn: ["paperless-postgres", "paperless-valkey"]
+			environment: {
+				PAPERLESS_ADMIN_USER: "owner"
+				PAPERLESS_DBENGINE: "postgresql"
+				PAPERLESS_DBHOST: "paperless-postgres"
+				PAPERLESS_DBNAME: "paperless"
+				PAPERLESS_DBUSER: "paperless"
+				PAPERLESS_REDIS: "redis://paperless-valkey:6379"
+			}
+			secretEnvironment: {
+				PAPERLESS_ADMIN_PASSWORD: "owner-password"
+				PAPERLESS_DBPASS: "database-password"
+				PAPERLESS_SECRET_KEY: "session-key"
+			}
+			volumes: [
+				{id: "data", target: "/usr/src/paperless/data", class: "persistent", backup: true},
+				{id: "media", target: "/usr/src/paperless/media", class: "persistent", backup: true},
+				{id: "consume", target: "/usr/src/paperless/consume", class: "persistent", backup: true},
+				{id: "export", target: "/usr/src/paperless/export", class: "persistent"},
+			]
+			networks: ["paperless-internal"]
+			health: {kind: "http", path: "/", port: 8000}
+			resources: {memoryLimit: "2g", memoryReservation: "768m"}
+			labels: {}
+			traits: {
+				homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["REQUESTS_CA_BUNDLE", "SSL_CERT_FILE"]}
+				pocketIDClient: {
+					callbackPath: "/accounts/oidc/pocketid/login/callback/"
+					environment: {
+						PAPERLESS_APPS: "allauth.socialaccount.providers.openid_connect"
+						PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS: "true"
+						PAPERLESS_SOCIALACCOUNT_PROVIDERS: "{\"openid_connect\":{\"SCOPE\":[\"openid\",\"profile\",\"email\",\"groups\"],\"OAUTH_PKCE_ENABLED\":true,\"APPS\":[{\"provider_id\":\"pocketid\",\"name\":\"Pocket ID\",\"client_id\":\"{{clientId}}\",\"secret\":\"{{clientSecret}}\",\"settings\":{\"server_url\":\"{{issuer}}\"}}]}}"
+						PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS: "true"
+						PAPERLESS_SOCIAL_ACCOUNT_SYNC_SUPERUSER_GROUP: "owners"
+						PAPERLESS_SOCIAL_AUTO_SIGNUP: "true"
+					}
+				}
+			}
+		},
+		{
+			id:        "paperless-postgres"
+			role:      "database"
+			lifecycle: "daemon"
+			image:     _images["paperless-postgres"]
+			environment: {
+				POSTGRES_DB: "paperless"
+				POSTGRES_USER: "paperless"
+			}
+			secretEnvironment: {
+				POSTGRES_PASSWORD: "database-password"
+			}
+			volumes: [
+				{id: "database", target: "/var/lib/postgresql", class: "persistent", backup: true},
+			]
+			networks: ["paperless-internal"]
+			health: {kind: "command", command: ["pg_isready", "-U", "paperless", "-d", "paperless"]}
+			resources: {memoryLimit: "1g", memoryReservation: "384m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "paperless-valkey"
+			role:      "cache"
+			lifecycle: "daemon"
+			image:     _images["paperless-valkey"]
+			command: ["valkey-server"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "cache", target: "/data", class: "cache"},
+			]
+			networks: ["paperless-internal"]
+			health: {kind: "command", command: ["valkey-cli", "ping"]}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

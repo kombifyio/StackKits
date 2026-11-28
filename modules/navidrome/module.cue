@@ -105,3 +105,58 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Navidrome dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of navidrome (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-navidrome-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-navidrome-runtime"
+	workloadRef:    "media"
+	alternativeRef: "navidrome"
+	release:        "0.64.2"
+	entryComponent: "navidrome"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "music"
+		targetPort:        4533
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "navidrome-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "navidrome", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"navidrome-internal": {}
+	}
+	components: [
+		{
+			id:        "navidrome"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["navidrome"]
+			environment: {
+				ND_DATAFOLDER: "/data"
+				ND_MUSICFOLDER: "/music"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/data", class: "persistent", backup: true},
+				{id: "library", target: "/music", class: "persistent", readOnly: true},
+			]
+			networks: ["navidrome-internal"]
+			health: {kind: "http", path: "/ping", port: 4533}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

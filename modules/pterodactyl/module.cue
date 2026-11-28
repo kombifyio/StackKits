@@ -244,3 +244,183 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of pterodactyl (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-pterodactyl-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-pterodactyl-runtime"
+	workloadRef:    "game"
+	alternativeRef: "pterodactyl"
+	release:        "v1.15.1"
+	entryComponent: "panel"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: requiredSafetyInit: ["panel-bootstrap"]
+	route: {
+		serviceRef:        "game"
+		targetPort:        80
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "pterodactyl-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"database-password": purpose: "Custody secret slot database-password for pterodactyl"
+		"database-root-password": purpose: "Custody secret slot database-root-password for pterodactyl"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "panel", volumeRef: "var"},
+			{componentRef: "panel-database", volumeRef: "database"},
+			{componentRef: "panel-bootstrap", volumeRef: "data"},
+			{componentRef: "wings", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"game-internal": {}
+	}
+	components: [
+		{
+			id:        "panel"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["panel"]
+			entrypoint: ["/bin/ash", "/stackkit/panel-entrypoint.sh"]
+			command: ["supervisord", "-n", "-c", "/etc/supervisord.conf"]
+			stopSignal: "SIGTERM"
+			dependsOn: ["panel-cache", "panel-database"]
+			environment: {
+				APP_ENV: "production"
+				APP_ENVIRONMENT_ONLY: "false"
+				APP_TIMEZONE: "UTC"
+				CACHE_DRIVER: "redis"
+				DB_DATABASE: "panel"
+				DB_HOST: "panel-database"
+				DB_PORT: "3306"
+				DB_USERNAME: "pterodactyl"
+				MAIL_DRIVER: "log"
+				PTERODACTYL_TELEMETRY_ENABLED: "false"
+				QUEUE_DRIVER: "redis"
+				RECAPTCHA_ENABLED: "false"
+				REDIS_HOST: "panel-cache"
+				SESSION_DRIVER: "redis"
+				TRUSTED_PROXIES: "*"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "var", target: "/app/var", class: "persistent", backup: true},
+				{id: "nginx", target: "/etc/nginx/http.d", class: "cache"},
+				{id: "stackkit", target: "/stackkit", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "http", path: "/auth/login", port: 80}
+			resources: {memoryLimit: "1g", memoryReservation: "384m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "panel-database"
+			role:      "database"
+			lifecycle: "daemon"
+			image:     _images["panel-database"]
+			environment: {
+				MARIADB_DATABASE: "panel"
+				MARIADB_USER: "pterodactyl"
+			}
+			secretEnvironment: {
+				MARIADB_PASSWORD: "database-password"
+				MARIADB_ROOT_PASSWORD: "database-root-password"
+			}
+			volumes: [
+				{id: "database", target: "/var/lib/mysql", class: "persistent", backup: true},
+			]
+			networks: ["game-internal"]
+			health: {kind: "command", command: ["healthcheck.sh", "--connect", "--innodb_initialized"]}
+			resources: {memoryLimit: "768m", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "panel-cache"
+			role:      "cache"
+			lifecycle: "daemon"
+			image:     _images["panel-cache"]
+			command: ["valkey-server"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "cache", target: "/data", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "command", command: ["valkey-cli", "ping"]}
+			resources: {memoryLimit: "256m", memoryReservation: "64m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "panel-bootstrap"
+			role:      "database-init"
+			lifecycle: "one-shot"
+			image:     _images["panel-bootstrap"]
+			entrypoint: ["/bin/ash"]
+			command: ["/stackkit/bootstrap.sh"]
+			stopSignal: "SIGTERM"
+			dependsOn: ["panel"]
+			environment: {
+				APP_ENV: "production"
+				APP_ENVIRONMENT_ONLY: "false"
+				APP_TIMEZONE: "UTC"
+				CACHE_DRIVER: "redis"
+				DB_DATABASE: "panel"
+				DB_HOST: "panel-database"
+				DB_PORT: "3306"
+				DB_USERNAME: "pterodactyl"
+				MAIL_DRIVER: "log"
+				PTERODACTYL_TELEMETRY_ENABLED: "false"
+				QUEUE_DRIVER: "redis"
+				RECAPTCHA_ENABLED: "false"
+				REDIS_HOST: "panel-cache"
+				SESSION_DRIVER: "redis"
+				TRUSTED_PROXIES: "*"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "stackkit", target: "/stackkit", class: "cache"},
+				{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true},
+			]
+			networks: ["game-internal"]
+			health: {kind: "completion"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "wings"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["wings"]
+			command: ["--config", "/stackkit/game-data/config.yml"]
+			dependsOn: ["panel-bootstrap"]
+			environment: {
+				TZ: "UTC"
+				WINGS_GID: "988"
+				WINGS_UID: "988"
+				WINGS_USERNAME: "pterodactyl"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true},
+				{id: "logs", target: "/var/log/pterodactyl", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "completion"}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {
+				dockerLifecycleOwner: true
+			}
+		},
+	]
+}

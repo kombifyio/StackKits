@@ -91,3 +91,64 @@ Contract: foundation.#ModuleContract & {
 		output: description: "OpenHands dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of openhands (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-openhands-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-openhands-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "openhands"
+	release:        "1.24.0"
+	entryComponent: "openhands"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "openhands"
+		targetPort:        8000
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "openhands-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "openhands", volumeRef: "settings"},
+			{componentRef: "openhands", volumeRef: "workspace"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"openhands-internal": {}
+	}
+	components: [
+		{
+			id:        "openhands"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["openhands"]
+			entrypoint: ["/bin/sh", "-ec", "s=/home/openhands/.openhands/settings.json; if [ ! -e \"$s\" ]; then printf '%s\\n' \"$STACKKIT_OPENHANDS_SETTINGS_SEED\" > \"$s\"; chmod 600 \"$s\"; fi; unset STACKKIT_OPENHANDS_SETTINGS_SEED; exec tini -- /opt/agent-canvas/entrypoint.sh"]
+			environment: {
+				DO_NOT_TRACK: "1"
+				STACKKIT_OPENHANDS_SETTINGS_SEED: "{\"schema_version\":3,\"agent_settings\":{\"schema_version\":6,\"agent_kind\":\"openhands\",\"llm\":{\"model\":\"ollama_chat/qwen3.5:9b\",\"base_url\":\"http://ollama:11434\"}}}"
+				VITE_DO_NOT_TRACK: "1"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "settings", target: "/home/openhands/.openhands", class: "persistent", backup: true},
+				{id: "workspace", target: "/projects", class: "persistent", backup: true},
+			]
+			networks: ["openhands-internal"]
+			egress: true
+			health: {kind: "http", path: "/alive", port: 8000}
+			resources: {memoryLimit: "6g", memoryReservation: "1g", cpus: 2}
+			labels: {}
+			traits: {
+				sandboxRuntime: {runtime: "runsc"}
+			}
+		},
+	]
+}

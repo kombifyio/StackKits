@@ -215,6 +215,9 @@ func (o *osMarketplaceOperations) ApplyMarketplace(ctx context.Context, d archit
 		args = append(args, "--force-recreate")
 	}
 	args = append(args, "coolify")
+	if scrubberBinary, scrubberErr := marketplaceCookieScrubberBinary(); scrubberErr == nil && scrubberBinary != "" {
+		args = append(args, "coolify-cookie-scrubber")
+	}
 	if _, err := o.compose(ctx, directory, nil, args...); err != nil {
 		return MarketplaceObservation{}, fmt.Errorf("start Marketplace application: %w", err)
 	}
@@ -483,6 +486,7 @@ func (o *osMarketplaceOperations) prepareMarketplace(view confinedfs.View, s mar
 			return err
 		}
 	}
+	scrubberBinary, scrubberErr := marketplaceCookieScrubberBinary()
 	services := map[string]any{}
 	for _, c := range d.Components {
 		entry := map[string]any{"image": c.ImageRef + "@" + c.ImageDigest, "restart": "unless-stopped", "mem_limit": c.MemoryLimit, "networks": []string{"marketplace"}, "labels": map[string]string{"stackkit.owner.ref": s.OwnerRef, "stackkit.owner.node": s.NodeRef, "stackkit.owner.workload": "marketplace", "traefik.enable": "false"}}
@@ -492,11 +496,19 @@ func (o *osMarketplaceOperations) prepareMarketplace(view confinedfs.View, s mar
 			entry["ports"] = []string{"127.0.0.1::8080"}
 			entry["extra_hosts"] = extraHosts
 			entry["volumes"] = []string{"./coolify.env:/var/www/html/.env:ro", "./ca-bundle.crt:/etc/ssl/certs/stackkit-ca-bundle.crt:ro", "./php-trust.ini:/usr/local/etc/php/conf.d/zzzz-stackkit-trust.ini:ro", "marketplace-ssh:/var/www/html/storage/app/ssh", "marketplace-applications:/var/www/html/storage/app/applications", "marketplace-databases:/var/www/html/storage/app/databases", "marketplace-services:/var/www/html/storage/app/services", "marketplace-backups:/var/www/html/storage/app/backups", "marketplace-images:/var/www/html/storage/app/images"}
-			entry["networks"] = []string{"marketplace", "kit-core"}
-			if d.Route.ID != "" {
-				labels := standaloneComposeRouteLabels(d.Route, false)
-				labels["stackkit.owner.ref"], labels["stackkit.owner.node"], labels["stackkit.owner.workload"] = s.OwnerRef, s.NodeRef, "marketplace"
-				entry["labels"] = labels
+			if scrubberErr == nil && scrubberBinary != "" {
+				coolifyNets := []string{"marketplace", "coolify-edge"}
+				if d.KitRef != "basement-kit" {
+					coolifyNets = append(coolifyNets, "kit-core")
+				}
+				entry["networks"] = coolifyNets
+			} else {
+				entry["networks"] = []string{"marketplace", "kit-core"}
+				if d.Route.ID != "" {
+					labels := standaloneComposeRouteLabels(d.Route, false)
+					labels["stackkit.owner.ref"], labels["stackkit.owner.node"], labels["stackkit.owner.workload"] = s.OwnerRef, s.NodeRef, "marketplace"
+					entry["labels"] = labels
+				}
 			}
 			entry["depends_on"] = map[string]any{"postgres": map[string]string{"condition": "service_healthy"}, "redis": map[string]string{"condition": "service_healthy"}}
 			entry["healthcheck"] = map[string]any{"test": []string{"CMD-SHELL", "curl --fail http://127.0.0.1:8080/api/health && curl --fail http://127.0.0.1:6001/up"}, "interval": "5s", "start_period": "60s", "retries": 36, "timeout": "3s"}
@@ -512,17 +524,90 @@ func (o *osMarketplaceOperations) prepareMarketplace(view confinedfs.View, s mar
 		}
 		services[c.ID] = entry
 	}
+	networks := map[string]any{
+		"marketplace": map[string]any{},
+		"kit-core":    map[string]any{"external": true, "name": coreNetwork},
+	}
+	if scrubberErr == nil && scrubberBinary != "" {
+		networks["coolify-edge"] = map[string]any{}
+		scrubberLabels := map[string]string{
+			"stackkit.owner.ref":      s.OwnerRef,
+			"stackkit.owner.node":     s.NodeRef,
+			"stackkit.owner.workload": "marketplace",
+			"traefik.enable":          "false",
+		}
+		if d.Route.ID != "" {
+			scrubberRoute := d.Route
+			scrubberRoute.TargetPort = 8089
+			scrubberLabels = standaloneComposeRouteLabels(scrubberRoute, false)
+			scrubberLabels["stackkit.owner.ref"] = s.OwnerRef
+			scrubberLabels["stackkit.owner.node"] = s.NodeRef
+			scrubberLabels["stackkit.owner.workload"] = "marketplace"
+			scrubberLabels["traefik.docker.network"] = coreNetwork
+		}
+		services["coolify-cookie-scrubber"] = map[string]any{
+			"image":        "docker.io/library/alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6",
+			"restart":      "unless-stopped",
+			"mem_limit":    "128m",
+			"user":         "65532:65532",
+			"read_only":    true,
+			"cap_drop":     []string{"ALL"},
+			"security_opt": []string{"no-new-privileges:true"},
+			"networks":     []string{"kit-core", "coolify-edge"},
+			"volumes":      []string{scrubberBinary + ":/usr/local/bin/stackkit-server:ro"},
+			"command": []string{
+				"/usr/local/bin/stackkit-server",
+				"--mode=cookie-scrubber",
+				"--scrubber-listen=0.0.0.0:8089",
+				"--scrubber-upstream=http://coolify:8080",
+				"--scrubber-tinyauth-cookies=tinyauth,tinyauth_session",
+			},
+			"depends_on": map[string]any{"coolify": map[string]string{"condition": "service_healthy"}},
+			"healthcheck": map[string]any{
+				"test":         []string{"CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8089/.well-known/stackkit/cookie-scrubber/healthz"},
+				"interval":     "5s",
+				"timeout":      "3s",
+				"retries":      12,
+				"start_period": "5s",
+			},
+			"labels": scrubberLabels,
+		}
+	}
 	volumes := map[string]any{}
 	for _, name := range []string{"marketplace-postgres", "marketplace-redis", "marketplace-ssh", "marketplace-applications", "marketplace-databases", "marketplace-services", "marketplace-backups", "marketplace-images"} {
 		volumes[name] = map[string]any{}
 	}
-	raw, err := yaml.Marshal(map[string]any{"name": marketplaceProject, "services": services, "volumes": volumes, "networks": map[string]any{"marketplace": map[string]any{}, "kit-core": map[string]any{"external": true, "name": coreNetwork}}})
+	raw, err := yaml.Marshal(map[string]any{"name": marketplaceProject, "services": services, "volumes": volumes, "networks": networks})
 	if err != nil {
 		return err
 	}
 	defer clear(raw)
 	_, err = view.WriteAtomic0600("compose.yaml", raw)
 	return err
+}
+
+func marketplaceCookieScrubberBinary() (string, error) {
+	binary, err := releaseStackKitServerBinary()
+	if err != nil {
+		return "", err
+	}
+	abs, err := filepath.Abs(binary)
+	if err != nil {
+		return "", err
+	}
+	// Ensure the read-only binary mount never sits inside a .stackkit custody path.
+	if strings.Contains(filepath.ToSlash(abs), "/.stackkit/") {
+		stageDir := "/run/stackkit-cookie-scrubber"
+		if mkErr := os.MkdirAll(stageDir, 0o755); mkErr != nil {
+			return "", mkErr
+		}
+		target := filepath.Join(stageDir, "stackkit-server")
+		if _, _, stageErr := stageStackKitServerBinary(abs, target); stageErr != nil {
+			return "", stageErr
+		}
+		return target, nil
+	}
+	return abs, nil
 }
 
 // marketplaceIssuerHosts keeps the canonical Pocket ID issuer reachable from

@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
-	"regexp"
-)
 
-var dokployIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
+)
 
 // DokployProviderCompose retains the API's physical identity. AppName is the
 // randomized Docker project name, not the display name in DeploymentRef.
@@ -50,7 +49,7 @@ func (a *DokployAdapter) LatestProviderDeployment(ctx context.Context, ref Deplo
 	var history []DokployProviderDeployment
 	path := "/api/deployment.allByType?" + url.Values{"id": {ref.ExternalID}, "type": {"compose"}}.Encode()
 	if _, _, err := a.client.getJSON(ctx, path, &history); err != nil || len(history) == 0 ||
-		!dokployIDPattern.MatchString(history[0].DeploymentID) || history[0].Status != "done" {
+		!deploymentcontract.ValidDokployID(history[0].DeploymentID) || history[0].Status != "done" {
 		return empty, errors.New("Dokploy requires an independently observed successful deployment-history record")
 	}
 	return history[0], nil
@@ -60,7 +59,7 @@ func (a *DokployAdapter) LatestProviderDeployment(ctx context.Context, ref Deplo
 // exact parent relationship before importing any workload. Names never select
 // a project or environment. An empty serverId means Dokploy's own host.
 func (a *DokployAdapter) RequireProviderEnvironment(ctx context.Context, projectID string) error {
-	if !dokployIDPattern.MatchString(projectID) || !dokployIDPattern.MatchString(a.cfg.EnvironmentID) {
+	if !deploymentcontract.ValidDokployID(projectID) || !deploymentcontract.ValidDokployID(a.cfg.EnvironmentID) {
 		return errors.New("Dokploy provider requires the bootstrap's exact projectId and environmentId")
 	}
 	var project struct {
@@ -95,7 +94,7 @@ func (a *DokployAdapter) RequireProviderEnvironment(ctx context.Context, project
 // deploys or removes a service. The existing adapter remains the API owner.
 func (a *DokployAdapter) RequireProviderCompose(ctx context.Context, ref DeploymentRef) (DokployProviderCompose, error) {
 	var observed DokployProviderCompose
-	if !dokployIDPattern.MatchString(ref.ExternalID) || validateDokployRef(ref) != nil {
+	if !deploymentcontract.ValidDokployID(ref.ExternalID) || validateDokployRef(ref) != nil {
 		return observed, errors.New("Dokploy provider requires an explicit recorded composeId")
 	}
 	path := "/api/compose.one?" + url.Values{"composeId": {ref.ExternalID}}.Encode()

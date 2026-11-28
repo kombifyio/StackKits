@@ -78,3 +78,44 @@ Contract: foundation.#ModuleContract & {
 		output: description: "SearXNG application (internal)"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of searxng (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-searxng-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-searxng-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "searxng"
+	release:        "2026.9.25-12f8b6515"
+	entryComponent: "searxng"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	secrets: {
+		"searxng-secret": purpose: "Custody secret slot searxng-secret for searxng"
+	}
+	networks: {
+		"searxng-internal": {}
+	}
+	components: [
+		{
+			id:        "searxng"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["searxng"]
+			entrypoint: ["/bin/sh", "-ec", "printf 'use_default_settings: true\\nsearch:\\n  formats:\\n    - html\\n    - json\\n' > /etc/searxng/settings.yml && if [ -f /run/stackkit/secrets/searxng-settings.yml ]; then cat /run/stackkit/secrets/searxng-settings.yml >> /etc/searxng/settings.yml && chmod 0600 /etc/searxng/settings.yml; fi && exec /usr/local/searxng/entrypoint.sh"]
+			environment: {
+				SEARXNG_LIMITER: "false"
+				SEARXNG_PUBLIC_INSTANCE: "false"
+			}
+			secretEnvironment: {
+				SEARXNG_SECRET: "searxng-secret"
+			}
+			networks: ["searxng-internal"]
+			egress: true
+			health: {kind: "http", path: "/healthz", port: 8080}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

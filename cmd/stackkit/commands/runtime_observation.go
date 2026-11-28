@@ -49,6 +49,7 @@ type architectureV2RuntimeObservationInput struct {
 }
 
 type architectureV2ApplyCommandResult struct {
+	Checkpoint    *applyResumeReport                `json:"checkpoint,omitempty"`
 	SchemaVersion string                            `json:"schemaVersion"`
 	Status        string                            `json:"status"`
 	Apply         architecturev2.ApplyResultSummary `json:"apply"`
@@ -61,6 +62,10 @@ type architectureV2ApplyCommandResult struct {
 	// ExecutionScope names the host tuple of a multi-host Apply. Units of
 	// other hosts appear in Outcomes as out_of_scope.
 	ExecutionScope *generationartifact.ApplyExecutionScope `json:"executionScope,omitempty"`
+	// Lifecycle reports the ADR-0055 two-tier rollout state (Tier-1 safety vs.
+	// Tier-2 optional application personalization) using schema
+	// stackkit.lifecycle-tiers/v1.
+	Lifecycle *lifecycleTiersReport `json:"lifecycle,omitempty"`
 }
 
 type runtimeObservationPlanProjection struct {

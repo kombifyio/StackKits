@@ -12,10 +12,10 @@ import (
 	"github.com/kombifyio/stackkits/internal/architecturev2renderer"
 	"github.com/kombifyio/stackkits/internal/backuplifecycle"
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/generationartifact"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
 	"github.com/kombifyio/stackkits/internal/localevidence"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 )
 
 // ApplicationTransferSecretBindings resolves CUE secret slots from verified
@@ -180,7 +180,7 @@ func RequireApplicationTransferTargetAbsent(ctx context.Context, workspace strin
 		} else if !errors.Is(e, os.ErrNotExist) {
 			return e
 		}
-		present, e := platformdeploy.HasOwnerHostDeployment(workspace, g.ComposeProject)
+		present, e := deploymentcontract.HasOwnerHostDeployment(workspace, g.ComposeProject)
 		if e != nil {
 			return e
 		}

@@ -292,7 +292,7 @@ Definition: foundation.#ProductKitDefinition & {
 			}
 			generation: {
 				strategy: "kit-template"
-				target:   "compose"
+				target:   Definition.generation.defaultTarget
 			}
 			system: {}
 			storage: {}

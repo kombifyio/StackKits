@@ -216,3 +216,79 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the complete #AppModuleV3 declaration of the Smart Home
+// workload (ADR-0055 Stage 1 pilot). internal/engine renders it into the same
+// Compose project the standalone Compose owner emits today for
+// stackkits-home-assistant-runtime; modules/home-assistant/golden/compose.yaml
+// pins that output. The legacy Contract above stays until Phase 2.
+AppModuleV3: foundation.#AppModuleV3 & {
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-home-assistant-runtime"
+	workloadRef:    "smart-home"
+	alternativeRef: "home-assistant"
+	release:        "2026.9.4"
+	entryComponent: "home-assistant"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: optionalAppsetupRef: "setup/home-assistant-owner-bootstrap"
+	route: {
+		serviceRef:        "smart-home"
+		targetPort:        8123
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "home-assistant-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	// The StackKits-owned baseline and the seeding entrypoint are generated
+	// by pure config renderers and bind-mounted read-only into /config.
+	configFiles: [
+		{componentRef: "home-assistant", target: "/config/configuration.yaml", configRendererRef: "config/home-assistant-configuration-yaml"},
+		{componentRef: "home-assistant", target: "/config/stackkits-init.sh", configRendererRef:  "config/home-assistant-init-script"},
+	]
+	backup: {
+		volumes: [{componentRef: "home-assistant", volumeRef: "config"}]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: "home-assistant-internal": {}
+	components: [{
+		id:        "home-assistant"
+		role:      "application"
+		lifecycle: "daemon"
+		image:     foundation.AppModuleV3CatalogImages["stackkits-home-assistant-runtime"]["home-assistant"]
+		entrypoint: ["/bin/sh", "/config/stackkits-init.sh"]
+		environment: {}
+		secretEnvironment: {}
+		volumes: [{id: "config", target: "/config", class: "persistent", backup: true}]
+		networks: ["home-assistant-internal"]
+		health: {kind: "http", path: "/", port: 8123}
+		resources: {memoryLimit: "2g", memoryReservation: "512m"}
+		labels: {}
+		traits: {
+			bundledPlugin: {
+				kind:    "hass-oidc"
+				version: "1.2.1"
+				sha256:  "sha256:e5badaaacaa63cfd6fe733924a05e76d75058836190398598fb24de57cd47ccd"
+				artifacts: {
+					patch:          "stackkit-owner-binding-v1"
+					patchSHA256:    "sha256:052c4e0b85b962a5fad74e395f250f4d5cf9eff63fa5be68fc1c4494535d1a8a"
+					aiofilesSHA256: "sha256:abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695"
+					joserfcSHA256:  "sha256:17e5d7a5a35e65442b05efc435a3d5d46696ffa2c8a2ed0eea6f63fc268e3224"
+				}
+			}
+			homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["SSL_CERT_FILE"]}
+			pocketIDClient: {
+				publicClient: true
+				callbackPath: "/auth/oidc/callback"
+				environment: {}
+				configuration: {
+					target: "/config/stackkit-oidc.yaml"
+					body:   "client_id: \"{{clientId}}\"\ndiscovery_url: \"{{issuer}}/.well-known/openid-configuration\"\nroles:\n  admin: admins\n  user: household\nclaims:\n  username: sub\n  groups: groups\nfeatures:\n  automatic_user_linking: false\n  force_https: true\n  default_redirect: false\nnetwork:\n  tls_verify: true\n  tls_ca_path: /etc/stackkit/ca-bundle.pem"
+				}
+			}
+			homeAssistantNotify: {settingRef: "kombify-notify", target: "/config/stackkit-notify"}
+		}
+	}]
+}

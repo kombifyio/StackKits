@@ -1,0 +1,117 @@
+name: stackkit-ai-main
+services:
+    anythingllm:
+        image: docker.io/mintplexlabs/anythingllm:1.16.2@sha256:480b0f105efd6a4c8a4cde82713fe81348d75c979a24a38e9ed8e236bed0fd17
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 512m
+        entrypoint:
+            - /bin/bash
+            - -ec
+            - touch /app/server/storage/.env && ln -sfn /app/server/storage/.env /app/server/.env && exec /usr/local/bin/docker-entrypoint.sh
+        depends_on:
+            ollama:
+                condition: service_started
+        environment:
+            AUTH_TOKEN: ${STACKKIT_SECRET_ANYTHINGLLM_AUTH_TOKEN:?required}
+            DISABLE_TELEMETRY: "true"
+            EMBEDDING_BASE_PATH: http://ollama:11434
+            EMBEDDING_ENGINE: ollama
+            JWT_SECRET: ${STACKKIT_SECRET_ANYTHINGLLM_JWT_SECRET:?required}
+            LLM_PROVIDER: ollama
+            OLLAMA_BASE_PATH: http://ollama:11434
+            SERVER_PORT: "3001"
+            STORAGE_DIR: /app/server/storage
+        volumes:
+            - anythingllm-storage:/app/server/storage
+        networks:
+            - private-ai-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::3001
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: ai-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-ai
+            io.stackkit.route.id: ai-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "3001"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-ai-remote.entrypoints: remote
+            traefik.http.routers.stackkit-ai-remote.rule: Host(`ai.home.example`)
+            traefik.http.routers.stackkit-ai-remote.service: stackkit-ai
+            traefik.http.routers.stackkit-ai.entrypoints: websecure
+            traefik.http.routers.stackkit-ai.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-ai.rule: Host(`ai.home.example`)
+            traefik.http.routers.stackkit-ai.tls: "true"
+            traefik.http.routers.stackkit-ai.tls.certresolver: stackkits
+            traefik.http.services.stackkit-ai.loadbalancer.server.port: "3001"
+            traefik.http.services.stackkit-ai.loadbalancer.server.scheme: http
+    ollama:
+        image: docker.io/ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 10g
+                reservations:
+                    memory: 1g
+        environment:
+            OLLAMA_KEEP_ALIVE: 5m
+        volumes:
+            - ollama-models:/root/.ollama
+        networks:
+            - private-ai-internal
+            - stackkit-workload-egress
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - ollama
+                - list
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+networks:
+    private-ai-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    anythingllm-storage: {}
+    ollama-models: {}

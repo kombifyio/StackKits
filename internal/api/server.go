@@ -173,10 +173,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/v1/validate", s.handleValidateSpec)
 	s.mux.HandleFunc("POST /api/v1/validate/partial", s.handleValidatePartial)
 
-	// Generation
-	s.mux.HandleFunc("POST /api/v1/generate/tfvars", s.handleGenerateTFVars)
-	s.mux.HandleFunc("POST /api/v1/generate/preview", s.handleGeneratePreview)
-
 	// Logs
 	s.mux.HandleFunc("GET /api/v1/logs", s.handleListLogs)
 	s.mux.HandleFunc("GET /api/v1/logs/latest", s.handleGetLatestLog)

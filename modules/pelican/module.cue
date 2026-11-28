@@ -154,3 +154,136 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of pelican (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-pelican-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-pelican-runtime"
+	workloadRef:    "game"
+	alternativeRef: "pelican"
+	release:        "v1.0.0-beta38"
+	entryComponent: "panel"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: requiredSafetyInit: ["panel-bootstrap"]
+	route: {
+		serviceRef:        "game"
+		targetPort:        80
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "pelican-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "panel", volumeRef: "data"},
+			{componentRef: "panel-bootstrap", volumeRef: "panel-data"},
+			{componentRef: "panel-bootstrap", volumeRef: "data"},
+			{componentRef: "wings", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"game-internal": {}
+	}
+	components: [
+		{
+			id:        "panel"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["panel"]
+			entrypoint: ["/bin/ash", "/stackkit/panel-entrypoint.sh"]
+			command: ["supervisord", "-n", "-c", "/etc/supervisord.conf"]
+			stopSignal: "SIGTERM"
+			environment: {
+				APP_DEBUG: "false"
+				APP_ENV: "production"
+				APP_INSTALLED: "true"
+				APP_TIMEZONE: "UTC"
+				BEHIND_PROXY: "true"
+				CACHE_STORE: "file"
+				DB_CONNECTION: "sqlite"
+				MAIL_MAILER: "log"
+				PHP_INI_SCAN_DIR: ":/tmp/stackkit/php"
+				QUEUE_CONNECTION: "database"
+				SESSION_DRIVER: "file"
+				TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/pelican-data", class: "persistent", backup: true},
+				{id: "caddy", target: "/etc/caddy", class: "cache"},
+				{id: "stackkit", target: "/stackkit", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "http", path: "/up", port: 80}
+			resources: {memoryLimit: "1g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "panel-bootstrap"
+			role:      "database-init"
+			lifecycle: "one-shot"
+			image:     _images["panel-bootstrap"]
+			entrypoint: ["/bin/ash"]
+			command: ["/stackkit/bootstrap.sh"]
+			stopSignal: "SIGTERM"
+			dependsOn: ["panel"]
+			environment: {
+				APP_DEBUG: "false"
+				APP_ENV: "production"
+				APP_INSTALLED: "true"
+				APP_TIMEZONE: "UTC"
+				BEHIND_PROXY: "true"
+				CACHE_STORE: "file"
+				DB_CONNECTION: "sqlite"
+				MAIL_MAILER: "log"
+				PHP_INI_SCAN_DIR: ":/tmp/stackkit/php"
+				QUEUE_CONNECTION: "database"
+				SESSION_DRIVER: "file"
+				TRUSTED_PROXIES: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "stackkit", target: "/stackkit", class: "cache"},
+				{id: "panel-data", target: "/pelican-data", class: "persistent", backup: true},
+				{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true},
+			]
+			networks: ["game-internal"]
+			health: {kind: "completion"}
+			security: user: "0:0"
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "wings"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["wings"]
+			command: ["/usr/bin/wings", "--config", "/stackkit/game-data/config.yml"]
+			dependsOn: ["panel-bootstrap"]
+			environment: {
+				TZ: "UTC"
+				WINGS_GID: "988"
+				WINGS_UID: "988"
+				WINGS_USERNAME: "pelican"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true},
+				{id: "logs", target: "/var/log/pelican", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "completion"}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {
+				dockerLifecycleOwner: true
+			}
+		},
+	]
+}

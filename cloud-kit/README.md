@@ -26,10 +26,9 @@ kit definition binds the cloud-specific networking, ingress, DNS, and TLS deltas
 
 The native platform baseline (standalone Compose, PocketID + TinyAuth identity,
 Uptime Kuma, explicitly selected applications) and the Golden-Rules contract are identical — see [basement-kit/README.md](../basement-kit/README.md)
-for the shared platform and security details. Coolify, Komodo and Dokploy are the
-Layer-2 PaaS platforms and later runtime targets, required for 1.0 alongside the
-Compose default;
-Marketplace additionally installs Coolify as the engine of its use case. Current-pin runtime receipts govern support claims.
+for the shared platform and security details. Komodo, Dokploy and legacy core
+Coolify `4.1.2` are Layer-2 PaaS engines retired from 1.0 core execution by ADR-0054;
+Marketplace optionally installs Coolify `4.7.5+` as its Layer-3 extension. Current-pin runtime receipts govern support claims.
 
 Remote reachability is a platform promise for both kits. Each installation
 uses its own domain or a `*.kombify.me` address through the declared access

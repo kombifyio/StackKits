@@ -16,7 +16,7 @@ import (
 var embeddedCatalog []byte
 
 const (
-	SchemaVersion    = "stackkit.agent-surface/v1"
+	SchemaVersion    = "stackkit.agent-surface/v2"
 	WorkspaceRelPath = ".stackkit/agent-surface.json"
 )
 
@@ -47,10 +47,33 @@ type API struct {
 }
 
 type Skill struct {
-	ID       string `json:"id"`
-	Audience string `json:"audience"`
-	Source   string `json:"source"`
-	Path     string `json:"path"`
+	ID           string   `json:"id"`
+	Audience     string   `json:"audience"`
+	Source       string   `json:"source"`
+	Path         string   `json:"path"`
+	Surface      string   `json:"surface"`
+	Alternatives []string `json:"alternatives"`
+	Operations   []string `json:"operations"`
+}
+
+type Operation struct {
+	ID           string          `json:"id"`
+	Alternatives []string        `json:"alternatives"`
+	InputSchema  json.RawMessage `json:"inputSchema"`
+	Effect       string          `json:"effect"`
+	Via          OperationRoute  `json:"via"`
+}
+
+type OperationRoute struct {
+	Kind         string `json:"kind"`
+	Tool         string `json:"tool,omitempty"`
+	SchemaDigest string `json:"schemaDigest,omitempty"`
+}
+
+type Knowledge struct {
+	Domain        string            `json:"domain"`
+	Articles      []string          `json:"articles"`
+	SecurityNotes map[string]string `json:"securityNotes"`
 }
 
 type CLIHelper struct {
@@ -66,11 +89,14 @@ type ConfigBaseline struct {
 
 type Surface struct {
 	Ref            string         `json:"ref"`
+	Version        string         `json:"version,omitempty"`
 	EquipPolicy    string         `json:"equipPolicy"`
 	LifecycleMCP   LifecycleMCP   `json:"lifecycleMcp"`
 	ProductMCPs    []ProductMCP   `json:"productMcps"`
 	APIs           []API          `json:"apis"`
 	Skills         []Skill        `json:"skills"`
+	Operations     []Operation    `json:"operations"`
+	Knowledge      *Knowledge     `json:"knowledge,omitempty"`
 	CLIHelpers     []CLIHelper    `json:"cliHelpers"`
 	ConfigBaseline ConfigBaseline `json:"configBaseline"`
 }
@@ -130,9 +156,16 @@ func Project(selected []string, catalog map[string]Surface) Document {
 		if surface.APIs == nil {
 			surface.APIs = []API{}
 		}
-		if surface.Skills == nil {
-			surface.Skills = []Skill{}
+		localSkills := make([]Skill, 0, len(surface.Skills))
+		for _, skill := range surface.Skills {
+			if skill.Surface == "local" {
+				localSkills = append(localSkills, skill)
+			}
 		}
+		surface.Skills = localSkills
+		surface.Version = ""
+		surface.Operations = []Operation{}
+		surface.Knowledge = nil
 		if surface.CLIHelpers == nil {
 			surface.CLIHelpers = []CLIHelper{}
 		}

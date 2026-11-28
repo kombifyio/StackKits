@@ -197,3 +197,65 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of jellyfin (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-jellyfin-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-jellyfin-runtime"
+	workloadRef:    "media"
+	alternativeRef: "jellyfin"
+	release:        "12.1"
+	entryComponent: "jellyfin"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "media"
+		targetPort:        8096
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "jellyfin-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "jellyfin", volumeRef: "config"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"jellyfin-internal": {}
+	}
+	components: [
+		{
+			id:        "jellyfin"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["jellyfin"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "config", target: "/config", class: "persistent", backup: true},
+				{id: "cache", target: "/cache", class: "cache"},
+				{id: "library", target: "/media", class: "persistent", readOnly: true},
+			]
+			networks: ["jellyfin-internal"]
+			health: {kind: "http", path: "/health", port: 8096}
+			resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			labels: {}
+			traits: {
+				homeIdentityAccess: {caBundleTarget: "/etc/stackkit/ca-bundle.pem", caBundleEnvironment: ["SSL_CERT_FILE"]}
+				pocketIDClient: {
+					callbackURLs: ["{{origin}}/sso/OID/redirect/pocketid", "{{origin}}/sso/OID/r/pocketid"]
+					environment: {
+						JELLYFIN_PublishedServerUrl: "{{origin}}"
+					}
+				}
+				bundledPlugin: {kind: "jellyfin-sso", version: "5.1.1", sha256: "sha256:db126b4763bda3a3754fa2103232fc03ef1bf929cfeda35f2e9af39c875233b1"}
+			}
+		},
+	]
+}

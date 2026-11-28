@@ -120,3 +120,89 @@ Contract: foundation.#ModuleContract & {
 		output: description: "AnythingLLM dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of anythingllm (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-anythingllm-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-anythingllm-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "anythingllm"
+	release:        "1.16.2"
+	entryComponent: "anythingllm"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "ai"
+		targetPort:        3001
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "anythingllm-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"owner-password": purpose: "Custody secret slot owner-password for anythingllm"
+		"session-key": purpose: "Custody secret slot session-key for anythingllm"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "anythingllm", volumeRef: "storage"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"private-ai-internal": {}
+	}
+	components: [
+		{
+			id:        "anythingllm"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["anythingllm"]
+			entrypoint: ["/bin/bash", "-ec", "touch /app/server/storage/.env && ln -sfn /app/server/storage/.env /app/server/.env && exec /usr/local/bin/docker-entrypoint.sh"]
+			dependsOn: ["ollama"]
+			environment: {
+				DISABLE_TELEMETRY: "true"
+				EMBEDDING_BASE_PATH: "http://ollama:11434"
+				EMBEDDING_ENGINE: "ollama"
+				LLM_PROVIDER: "ollama"
+				OLLAMA_BASE_PATH: "http://ollama:11434"
+				SERVER_PORT: "3001"
+				STORAGE_DIR: "/app/server/storage"
+			}
+			secretEnvironment: {
+				AUTH_TOKEN: "owner-password"
+				JWT_SECRET: "session-key"
+			}
+			volumes: [
+				{id: "storage", target: "/app/server/storage", class: "persistent", backup: true},
+			]
+			networks: ["private-ai-internal"]
+			health: {kind: "http", path: "/api/ping", port: 3001}
+			resources: {memoryLimit: "2g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "ollama"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["ollama"]
+			environment: {
+				OLLAMA_KEEP_ALIVE: "5m"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "models", target: "/root/.ollama", class: "persistent"},
+			]
+			networks: ["private-ai-internal"]
+			egress: true
+			health: {kind: "command", command: ["ollama", "list"]}
+			resources: {memoryLimit: "10g", memoryReservation: "1g"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

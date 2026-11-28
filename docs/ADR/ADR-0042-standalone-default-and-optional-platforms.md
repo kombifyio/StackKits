@@ -1,15 +1,17 @@
 ---
 adr: ADR-0042
 title: Standalone Compose default and optional platform adapters
-status: Accepted
+status: Superseded in part by ADR-0054 (D-2026-11-27-20)
 date: 2026-09-06
-last_verified: 2026-10-22
+last_verified: 2026-11-27
 ---
 
 # ADR-0042: Standalone Compose default and optional platform adapters
 
+> **2026-11-27 Amendment (`D-2026-11-27-20`, [ADR-0054](ADR-0054-single-core-engine-and-coolify-extensibility-boundary.md)):** Layer-2 PaaS core execution targets (Komodo, Dokploy, Runtipi, Dockge, Dockhand, and Coolify as a core workload manager) are retired for 1.0. Curated StackKits workloads execute exclusively via OpenTofu Stage 1 over Compose on canonical per-stack roots (`layout.go`); Coolify 4.7.5+ remains solely as the optional Layer-3 Marketplace and Custom-Apps extensibility module. Ownership, single-owner-per-workload, and custody invariants below remain in force.
+
 **Decision owner:** Marcel, explicit product decision on 2026-09-06.
-**Implementation and integration:** tracked by `kombify-StackKits-fc91.2.3`;
+**Implementation and integration:** tracked separately;
 accepting this decision does not claim implementation or runtime acceptance.
 
 **Related:** ADR-0031, ADR-0035, ADR-0039, ADR-0040, ADR-0045 (execution

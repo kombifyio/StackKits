@@ -33,6 +33,9 @@ var (
 	initNotifyNtfyServer          string
 	initName                      string
 	initDomain                    string
+	initAddressZone               string
+	initSetupStyle                string
+	initCleanRollout              bool
 	initMode                      string
 	initOutputDir                 string
 	initForce                     bool
@@ -119,6 +122,9 @@ func init() {
 	initCmd.Flags().StringVar(&initNotifyNtfyTopic, "notify-ntfy-topic", "", "Declare an ntfy owner notification channel (spec.notifications); interactive init asks when omitted")
 	initCmd.Flags().StringVar(&initNotifyNtfyServer, "notify-ntfy-server", "", "ntfy server URL for --notify-ntfy-topic (default https://ntfy.sh)")
 	initCmd.Flags().StringVar(&initDomain, "domain", "", "Domain override for the generated stack spec")
+	initCmd.Flags().StringVar(&initAddressZone, "address-zone", "", "Address zone axis (custom-domain, kombify-me, or local-only); inferred from --domain and Kit when omitted")
+	initCmd.Flags().StringVar(&initSetupStyle, "setup-style", "", "Setup style axis for Tier-2 app personalization (bootstrapped or clean; default bootstrapped)")
+	initCmd.Flags().BoolVar(&initCleanRollout, "clean-rollout", false, "Shorthand for --setup-style=clean (runs mandatory Tier-1 safety init only; skips Tier-2 automatic app personalization)")
 	initCmd.Flags().BoolVar(&initLocalDNS, "local-dns", false, "v0.6 compatibility only: use Kombify Point local DNS names")
 	initCmd.Flags().StringVar(&initLocalName, "local-name", "", "v0.6 compatibility only: local DNS short name for --local-dns")
 	initCmd.Flags().StringVar(&initMode, "mode", "", "v0.6 compatibility only: installation mode (bare, bootstrapped, advanced)")

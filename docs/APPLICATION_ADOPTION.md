@@ -4,7 +4,7 @@ StackKits takes over an existing application in one of two ways:
 
 | Path | Container | Contract | Takes over |
 | --- | --- | --- | --- |
-| `stackkit application` (this page) | kept in place, same container ID | `home-assistant-container-in-place/v1` lifecycle profile | power control and source verification only |
+| `stackkit application` (this page) | kept in place, same container ID | First-Class in-place lifecycle profiles (`home-assistant-container-in-place/v1`, `vaultwarden-container-in-place/v1`, `cloudreve-container-in-place/v1`) | power control and source verification only |
 | `stackkit app own --from-container` ("Stack it") | **recreated** as a new container (new ID, bounded downtime); the original is stopped and retained | `homelab.own-application/v4`, profile `own-application-adopted/v1` | the full own-application lifecycle: update (also to a newer tag), rollback, start, stop, restart, backup, logs, status |
 
 "Stack it" works for any single container that fits its rules and is described
@@ -82,34 +82,40 @@ Refusals (status `refused`): `refused_already_managed` (`container`),
 `reason`; the outbound one suggests `--no-outbound`).
 
 `stackkit application` adopts a supported existing native application without
-recreating its container or bootstrapping native accounts. The first admitted
-profile is Home Assistant Container from an official image repository
-(`ghcr.io/home-assistant/home-assistant`, `homeassistant/home-assistant`, or
-`lscr.io/linuxserver/homeassistant`) with an immutable `RepoDigest` on
-`linux/amd64` or `linux/arm64`, run either via Compose or standalone `docker run`,
-with one initialized, exclusive persistent `/config` mount, non-privileged
-execution, either host networking (`http://127.0.0.1:8123`) or a locally bound
-published `8123/tcp` listener, optional USB/serial radio devices
-(`/dev/ttyUSB*`, `/dev/ttyACM*`, `/dev/ttyAMA*`, `/dev/serial/by-id/*`,
-`/dev/serial/by-path/*`, `/dev/hidraw*`), and optional benign runtime
-environment overrides (`TZ`, `LANG`, `LC_ALL`, `PUID`, `PGID`, `UMASK`,
-`DISABLE_JEMALLOC`). Custom integrations (`custom_components/`), external
-recorders (`db_url:`), and official image digest drift are recorded as
-structured preservation notices while keeping `/config` read-only and hashed.
-Privileged containers, raw disk/memory devices, shared `/config` mounts,
-modified image entrypoints/commands, and unqualified or local-only images remain
-refused.
+recreating its container or bootstrapping native accounts. All admitted
+First-Class in-place profiles require an official image repository with an
+immutable `RepoDigest` on `linux/amd64` or `linux/arm64`, run either via
+Compose or standalone `docker run`, with one initialized, exclusive persistent
+data mount, non-privileged execution, and a locally bound HTTP listener (or
+host networking). Privileged containers, raw disk/memory devices, shared data
+mounts, modified image entrypoints/commands, and unqualified or local-only
+images remain refused.
+
+### Supported First-Class in-place profiles
+
+| Workload / Package | Profile | Official images | Data mount | Default port | Verification | Safe env allowlist |
+| --- | --- | --- | --- | --- | --- | --- |
+| `smart-home` (Home Assistant) | `home-assistant-container-in-place/v1` | `ghcr.io/home-assistant/home-assistant`, `homeassistant/home-assistant`, `lscr.io/linuxserver/homeassistant` | `/config` (RW bind or volume) | `8123` | Read-only `/config` hash + existing native Owner grant (`--owner-file`) | `TZ`, `LANG`, `LC_ALL`, `PUID`, `PGID`, `UMASK`, `DISABLE_JEMALLOC` |
+| `vault` (Vaultwarden) | `vaultwarden-container-in-place/v1` | `vaultwarden/server`, `ghcr.io/dani-garcia/vaultwarden` | `/data` (RW bind or volume) | `80` (or `ROCKET_PORT`) | Read-only `/data` hash (`db.sqlite3` / `config.json`) + local `GET /alive` | `TZ`, `DOMAIN`, `SIGNUPS_ALLOWED`, `ROCKET_PORT`, `WEBSOCKET_ENABLED`, `ADMIN_TOKEN` (hashed-only in digest) |
+| `files` (Cloudreve) | `cloudreve-container-in-place/v1` | `cloudreve/cloudreve`, `ghcr.io/cloudreve/cloudreve` | `/cloudreve/data` (RW bind or volume) | `5212` (or `CR_CONF_SYSTEM_LISTEN`) | Read-only `/cloudreve/data` hash + local `GET /api/v4/site/ping` or `/api/v3/site/ping` | `TZ`, `CR_CONF_SYSTEM_LISTEN`, `PUID`, `PGID` |
+
+For Home Assistant, optional USB/serial radio devices (`/dev/ttyUSB*`,
+`/dev/ttyACM*`, `/dev/ttyAMA*`, `/dev/serial/by-id/*`, `/dev/serial/by-path/*`,
+`/dev/hidraw*`), custom integrations (`custom_components/`), external recorders
+(`db_url:`), and official image digest drift are recorded as structured
+preservation notices while keeping `/config` read-only and hashed.
 
 The workspace needs its existing canonical StackSpec, resolved plan and local
-Owner custody. Smart Home need not already be selected: inspection prepares its
-proposed selection through the existing CUE authoring and resolver in memory,
-at the Owner's exact local site and node. It preserves the running StackSpec and
-plan files, and binds the proposal to their retained baseline. No generation or
-Apply runs. Later operations deterministically derive the same authority and
-refuse a changed baseline.
+Owner custody. The target workload (`smart-home`, `vault`, or `files`) need not
+already be selected: inspection prepares its proposed selection through the
+existing CUE authoring and resolver in memory, at the Owner's exact local site
+and node. It preserves the running StackSpec and plan files, and binds the
+proposal to their retained baseline. No generation or Apply runs. Later
+operations deterministically derive the same authority and refuse a changed
+baseline.
 
-Sign in through native Home Assistant and place an existing current Owner grant
-in a private workspace-relative file, default
+For `smart-home`, sign in through native Home Assistant and place an existing
+current Owner grant in a private workspace-relative file, default
 `.stackkit/setup/home-assistant-owner.json`:
 
 ```json
@@ -121,13 +127,14 @@ issue tokens, reset passwords or replace accounts. An absent, expired or
 unverified Owner grant returns actionable denial guidance.
 
 ```sh
-stackkit application inspect smart-home --container-id <full-container-id> --json
-stackkit application adopt smart-home --container-id <full-container-id> \
+# Replace <workload> with smart-home, vault, or files
+stackkit application inspect <workload> --container-id <full-container-id> --json
+stackkit application adopt <workload> --container-id <full-container-id> \
   --plan-digest <reviewed-plan-digest> --operation-id <stable-id> --owner-approve --json
-stackkit application verify smart-home --json
-stackkit application control smart-home --action restart \
+stackkit application verify <workload> --json
+stackkit application control <workload> --action restart \
   --operation-id <stable-id> --owner-approve --json
-stackkit application release smart-home --operation-id <stable-id> --owner-approve --json
+stackkit application release <workload> --operation-id <stable-id> --owner-approve --json
 ```
 
 The existing lifecycle journal holds signed Owner evidence. The adopted scope

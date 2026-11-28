@@ -80,6 +80,11 @@ func newApplicationCommand() *cobra.Command {
 func init() { rootCmd.AddCommand(newApplicationCommand()) }
 
 func loadAdoptionContract(workspace, workload string) (applicationlifecycle.Contract, error) {
+	profile, ok := applicationlifecycle.LookupAdoptionProfileByWorkload(workload)
+	if !ok {
+		return applicationlifecycle.Contract{}, errors.New("unsupported_source: selected module has no executable application adoption profile")
+	}
+	workload = profile.WorkloadRef
 	service, err := newArchitectureV2CLIService(workspace, "", os.Getenv(architectureAuthorityRootEnv))
 	if err != nil {
 		return applicationlifecycle.Contract{}, err
@@ -161,35 +166,104 @@ func loadAdoptionContract(workspace, workload string) (applicationlifecycle.Cont
 	if err != nil {
 		return contract, err
 	}
-	if contract.Adoption == nil || contract.Adoption.ProfileRef != applicationlifecycle.AdoptionProfile || contract.Delivery.AdapterRef != "standalone-compose" {
+	if contract.Adoption == nil {
+		imageRef, imageDigest, version := resolveWorkloadImageFromPlan(resolved.Plan, workload)
+		contract.Adoption = &applicationlifecycle.AdoptionContract{
+			ProfileRef:      profile.ProfileRef,
+			Mode:            "adopt_in_place",
+			SourceRuntime:   "docker-compose",
+			ImageRef:        imageRef,
+			ImageDigest:     imageDigest,
+			Version:         version,
+			OwnedFields:     []string{"container.power-state"},
+			PreservedFields: []string{"accounts", "configuration", "persistentData"},
+			Operations:      []string{"verify", "start", "stop", "restart", "release"},
+		}
+	}
+	if _, hasAdopt := contract.Stages["adopt"]; !hasAdopt {
+		if contract.Stages == nil {
+			contract.Stages = map[string]applicationlifecycle.StageContract{}
+		}
+		contract.Stages["adopt"] = applicationlifecycle.DefaultAdoptionStage()
+	}
+	if !applicationlifecycle.IsSupportedAdoptionProfile(contract.Adoption.ProfileRef) || contract.Delivery.AdapterRef != "standalone-compose" {
 		return contract, errors.New("unsupported_source: selected module has no executable application adoption profile")
 	}
 	contract.AdoptionBaselinePlanHash, _ = baseline["planHash"].(string)
 	return contract, nil
 }
 
+func resolveWorkloadImageFromPlan(plan resolvedplan.ResolvedPlan, workloadRef string) (imageRef, imageDigest, version string) {
+	workloads, _ := plan["workloads"].([]any)
+	moduleRef := ""
+	for _, item := range workloads {
+		w, _ := item.(map[string]any)
+		if id, _ := w["id"].(string); id == workloadRef {
+			moduleRef, _ = w["moduleRef"].(string)
+			break
+		}
+	}
+	if moduleRef == "" {
+		return "", "", ""
+	}
+	modules, _ := plan["modules"].([]any)
+	for _, item := range modules {
+		m, _ := item.(map[string]any)
+		id, _ := m["id"].(string)
+		if id != moduleRef {
+			if meta, _ := m["metadata"].(map[string]any); meta != nil {
+				id, _ = meta["id"].(string)
+			}
+		}
+		if id != moduleRef {
+			continue
+		}
+		runtimeObj, _ := m["runtime"].(map[string]any)
+		imgObj, _ := runtimeObj["image"].(map[string]any)
+		imageRef, _ = imgObj["ref"].(string)
+		imageDigest, _ = imgObj["digest"].(string)
+		if _, tag, ok := strings.Cut(imageRef, ":"); ok {
+			version = tag
+		}
+		return imageRef, imageDigest, version
+	}
+	return "", "", ""
+}
+
 func inspectApplicationPlan(ctx context.Context, workspace string, contract applicationlifecycle.Contract, o applicationOptions) (applicationlifecycle.AdoptionPlan, error) {
+	profile, ok := applicationlifecycle.LookupAdoptionProfile(contract.Adoption.ProfileRef)
+	if !ok {
+		return applicationlifecycle.AdoptionPlan{}, errors.New("unsupported_source: selected module has no executable application adoption profile")
+	}
 	observed, err := nativehost.InspectApplicationAdoption(ctx, o.containerID, *contract.Adoption, true)
 	if err != nil {
 		return applicationlifecycle.AdoptionPlan{}, err
 	}
-	var grant struct {
-		AccessToken string `json:"accessToken"`
-	}
-	if err := readNativeSetupCredentialJSON(workspace, o.ownerFile, &grant); err != nil {
-		return applicationlifecycle.AdoptionPlan{}, fmt.Errorf("missing_native_grant: existing private native Owner grant is unavailable: %w", err)
-	}
-	defer func() { grant.AccessToken = "" }()
-	expectedVersion := contract.Adoption.Version
-	if observed.Source.VersionDrift {
-		expectedVersion = ""
-	}
-	owner, err := appsetup.VerifyHomeAssistantExistingOwner(ctx, nil, observed.Endpoint, grant.AccessToken, expectedVersion)
-	if err != nil {
-		return applicationlifecycle.AdoptionPlan{}, fmt.Errorf("missing_native_grant: existing native Owner grant could not be verified: %w", err)
-	}
-	if owner.UserID != observed.NativeOwnerRef {
-		return applicationlifecycle.AdoptionPlan{}, errors.New("source_identity_conflict: authenticated native Owner does not belong to the inspected source account store")
+	verifiedOwnerRef := observed.NativeOwnerRef
+	if profile.RequiresOwnerGrant {
+		var grant struct {
+			AccessToken string `json:"accessToken"`
+		}
+		if err := readNativeSetupCredentialJSON(workspace, o.ownerFile, &grant); err != nil {
+			return applicationlifecycle.AdoptionPlan{}, fmt.Errorf("missing_native_grant: existing private native Owner grant is unavailable: %w", err)
+		}
+		defer func() { grant.AccessToken = "" }()
+		expectedVersion := contract.Adoption.Version
+		if observed.Source.VersionDrift {
+			expectedVersion = ""
+		}
+		owner, err := appsetup.VerifyHomeAssistantExistingOwner(ctx, nil, observed.Endpoint, grant.AccessToken, expectedVersion)
+		if err != nil {
+			return applicationlifecycle.AdoptionPlan{}, fmt.Errorf("missing_native_grant: existing native Owner grant could not be verified: %w", err)
+		}
+		if owner.UserID != observed.NativeOwnerRef {
+			return applicationlifecycle.AdoptionPlan{}, errors.New("source_identity_conflict: authenticated native Owner does not belong to the inspected source account store")
+		}
+		verifiedOwnerRef = owner.UserID
+	} else {
+		if err := nativehost.ProbeAdoptedApplicationHealth(ctx, profile.ProfileRef, observed.Endpoint); err != nil {
+			return applicationlifecycle.AdoptionPlan{}, err
+		}
 	}
 	final, err := nativehost.InspectApplicationAdoption(ctx, o.containerID, *contract.Adoption, true)
 	if err != nil {
@@ -198,7 +272,7 @@ func inspectApplicationPlan(ctx context.Context, workspace string, contract appl
 	if !final.Source.Equal(observed.Source) {
 		return applicationlifecycle.AdoptionPlan{}, errors.New("stale_revision: application changed during source assessment; inspect again")
 	}
-	return applicationlifecycle.NewAdoptionPlan(contract, final.Source, owner.UserID)
+	return applicationlifecycle.NewAdoptionPlan(contract, final.Source, verifiedOwnerRef)
 }
 
 func executeApplication(ctx context.Context, workspace, workload, verb string, o applicationOptions) (any, error) {
@@ -410,19 +484,19 @@ func applicationCommandError(err error) error {
 		return nil
 	}
 	for _, detail := range []struct{ reason, message, guidance string }{
-		{"unsupported_source", "The existing application is outside the supported adoption profile.", "Use an admitted official Home Assistant container (Compose or standalone Docker) with one exclusive /config mount, non-privileged runtime, and supported listener or host networking."},
-		{"missing_native_grant", "The existing native Owner grant is missing, private custody is invalid, or authentication could not be verified.", "Place a current existing Home Assistant Owner accessToken in the private workspace-relative --owner-file; keep native sign-in and token issuance in Home Assistant."},
+		{"unsupported_source", "The existing application is outside the supported adoption profile.", "Use an admitted official container for a supported First-Class profile (smart-home/Home Assistant, vault/Vaultwarden, or files/Cloudreve) with one exclusive persistent data mount, non-privileged runtime, and supported listener or host networking."},
+		{"missing_native_grant", "The existing native Owner grant is missing, private custody is invalid, or authentication could not be verified.", "Place a current existing native Owner accessToken in the private workspace-relative --owner-file; keep native sign-in and token issuance in the application."},
 		{"source_identity_conflict", "The inspected application does not match the approved source identity.", "Select the full immutable container ID, exact admitted image and matching native Owner, then inspect again."},
 		{"stale_revision", "The application or resolved lifecycle authority changed after approval.", "Inspect the current source and authority and review the new plan digest before a new adoption attempt."},
 		{"operation_conflict", "The operation identifier belongs to another application intent or needs reconciliation.", "Reconcile the existing operation before approving another action; do not reuse its identifier for different intent."},
 		{"outcome_unknown", "A retained application control dispatch has no proven outcome.", "Read back the retained operation and exact source. Do not repeat the dispatched power action."},
 		{"missing_preservation_evidence", "Preservation of the existing application could not be proved.", "Restore readable supported configuration and exclusive source access, then inspect again."},
-		{"source_unavailable", "The existing application is unavailable for authenticated inspection.", "Restore the native application to its running state, then inspect it with a current native Owner grant."},
+		{"source_unavailable", "The existing application is unavailable for authenticated inspection.", "Restore the native application to its running state, then inspect it again."},
 		{"owner_approval_required", "The application operation has no explicit Owner approval.", "Review the exact application intent and submit --owner-approve for that operation."},
 	} {
 		if strings.Contains(err.Error(), detail.reason+":") {
 			return &applicationFailure{err, detail.reason, detail.message, detail.guidance}
 		}
 	}
-	return &applicationFailure{err, "application_adoption_unavailable", "The application adoption operation could not be verified.", "Inspect the canonical selected Smart Home lifecycle, local Owner custody and current supported source before retrying."}
+	return &applicationFailure{err, "application_adoption_unavailable", "The application adoption operation could not be verified.", "Inspect the canonical selected application lifecycle, local Owner custody and current supported source before retrying."}
 }

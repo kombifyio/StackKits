@@ -1,0 +1,240 @@
+name: stackkit-photos-main
+services:
+    ente-gateway:
+        image: docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 128m
+                reservations:
+                    memory: 16m
+        depends_on:
+            ente-museum:
+                condition: service_started
+            ente-s3:
+                condition: service_started
+            ente-web:
+                condition: service_started
+        volumes:
+            - ente-gateway-config:/etc/nginx/conf.d
+        networks:
+            - ente-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::8080
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: photos-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-photos
+            io.stackkit.route.id: photos-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8080"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-photos-accounts-remote.entrypoints: remote
+            traefik.http.routers.stackkit-photos-accounts-remote.rule: Host(`photos-accounts.home.example`)
+            traefik.http.routers.stackkit-photos-accounts-remote.service: stackkit-photos
+            traefik.http.routers.stackkit-photos-accounts.entrypoints: websecure
+            traefik.http.routers.stackkit-photos-accounts.rule: Host(`photos-accounts.home.example`)
+            traefik.http.routers.stackkit-photos-accounts.service: stackkit-photos
+            traefik.http.routers.stackkit-photos-accounts.tls: "true"
+            traefik.http.routers.stackkit-photos-accounts.tls.certresolver: stackkits
+            traefik.http.routers.stackkit-photos-api-remote.entrypoints: remote
+            traefik.http.routers.stackkit-photos-api-remote.rule: Host(`photos-api.home.example`)
+            traefik.http.routers.stackkit-photos-api-remote.service: stackkit-photos
+            traefik.http.routers.stackkit-photos-api.entrypoints: websecure
+            traefik.http.routers.stackkit-photos-api.rule: Host(`photos-api.home.example`)
+            traefik.http.routers.stackkit-photos-api.service: stackkit-photos
+            traefik.http.routers.stackkit-photos-api.tls: "true"
+            traefik.http.routers.stackkit-photos-api.tls.certresolver: stackkits
+            traefik.http.routers.stackkit-photos-remote.entrypoints: remote
+            traefik.http.routers.stackkit-photos-remote.rule: Host(`photos.home.example`)
+            traefik.http.routers.stackkit-photos-remote.service: stackkit-photos
+            traefik.http.routers.stackkit-photos-s3-remote.entrypoints: remote
+            traefik.http.routers.stackkit-photos-s3-remote.rule: Host(`photos-s3.home.example`)
+            traefik.http.routers.stackkit-photos-s3-remote.service: stackkit-photos
+            traefik.http.routers.stackkit-photos-s3.entrypoints: websecure
+            traefik.http.routers.stackkit-photos-s3.rule: Host(`photos-s3.home.example`)
+            traefik.http.routers.stackkit-photos-s3.service: stackkit-photos
+            traefik.http.routers.stackkit-photos-s3.tls: "true"
+            traefik.http.routers.stackkit-photos-s3.tls.certresolver: stackkits
+            traefik.http.routers.stackkit-photos.entrypoints: websecure
+            traefik.http.routers.stackkit-photos.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-photos.rule: Host(`photos.home.example`)
+            traefik.http.routers.stackkit-photos.tls: "true"
+            traefik.http.routers.stackkit-photos.tls.certresolver: stackkits
+            traefik.http.services.stackkit-photos.loadbalancer.server.port: "8080"
+            traefik.http.services.stackkit-photos.loadbalancer.server.scheme: http
+    ente-museum:
+        image: ghcr.io/ente/server:163f45c26f130090abed03649530f53d2d976565@sha256:3511ff25db3bf950abeb3983928eeadeed7f53b690ee94704c14be72fa719b1d
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 768m
+                reservations:
+                    memory: 128m
+        command:
+            - export ENTE_DB_PASSWORD="$$(cat "$$STACKKIT_DB_PASSWORD_FILE")"; export ENTE_KEY_ENCRYPTION="$$(cat "$$STACKKIT_ENCRYPTION_KEY_FILE")"; export ENTE_KEY_HASH="$$(cat "$$STACKKIT_HASH_KEY_FILE")"; export ENTE_JWT_SECRET="$$(cat "$$STACKKIT_JWT_SECRET_FILE")"; export ENTE_S3_B2_EU_CEN_KEY="$$(cat "$$STACKKIT_S3_ACCESS_KEY_FILE")"; export ENTE_S3_B2_EU_CEN_SECRET="$$(cat "$$STACKKIT_S3_SECRET_KEY_FILE")"; exec ./museum
+        entrypoint:
+            - /bin/sh
+            - -ec
+        depends_on:
+            ente-postgres:
+                condition: service_started
+            ente-s3:
+                condition: service_started
+        environment:
+            ENTE_DB_HOST: ente-postgres
+            ENTE_DB_NAME: ente_db
+            ENTE_DB_PORT: "5432"
+            ENTE_DB_SSLMODE: disable
+            ENTE_DB_USER: pguser
+            ENTE_S3_ARE_LOCAL_BUCKETS: "false"
+            ENTE_S3_B2_EU_CEN_BUCKET: ente-photos
+            ENTE_S3_B2_EU_CEN_REGION: eu-central-1
+            ENTE_S3_USE_PATH_STYLE_URLS: "true"
+        volumes:
+            - ente-museum-data:/data
+        networks:
+            - ente-internal
+            - stackkit-workload-egress
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+    ente-postgres:
+        image: docker.io/library/postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -500
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        environment:
+            POSTGRES_DB: ente_db
+            POSTGRES_PASSWORD: ${STACKKIT_SECRET_ENTE_POSTGRES_POSTGRES_PASSWORD:?required}
+            POSTGRES_USER: pguser
+        volumes:
+            - ente-postgres-database:/var/lib/postgresql/data
+        networks:
+            - ente-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - -U
+                - pguser
+                - -d
+                - ente_db
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    ente-s3:
+        image: docker.io/versity/versitygw:v1.0.15@sha256:19149f23f9ccf8fd37ed65ef9d2279b6e558e5e4cc78049531c3f1848b740d46
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 256m
+                reservations:
+                    memory: 64m
+        command:
+            - mkdir -p /data/s3/ente-photos; export ROOT_ACCESS_KEY="$$(cat "$$STACKKIT_S3_ACCESS_KEY_FILE")"; export ROOT_SECRET_KEY="$$(cat "$$STACKKIT_S3_SECRET_KEY_FILE")"; exec /app/versitygw --port :7070 --region eu-central-1 posix /data/s3
+        entrypoint:
+            - /bin/sh
+            - -ec
+        volumes:
+            - ente-s3-objects:/data/s3
+        networks:
+            - ente-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+        healthcheck:
+            test:
+                - CMD
+                - sh
+                - -c
+                - nc -z 127.0.0.1 7070
+            interval: 10s
+            timeout: 5s
+            retries: 12
+            start_period: 10s
+    ente-web:
+        image: ghcr.io/ente/web:1a623f325ad9b6ba68e23c1298eb6cf4486f27c8@sha256:200a1d33e369459662177ec601f8b267e088f4966f7124562aa81cd0528cea52
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 384m
+                reservations:
+                    memory: 64m
+        depends_on:
+            ente-museum:
+                condition: service_started
+        networks:
+            - ente-internal
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    ente-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+    stackkit-workload-egress: {}
+volumes:
+    ente-gateway-config: {}
+    ente-museum-data: {}
+    ente-postgres-database: {}
+    ente-s3-objects: {}

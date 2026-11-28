@@ -1,0 +1,39 @@
+name: stackkit-ai-main
+services:
+    searxng:
+        image: docker.io/searxng/searxng:2026.9.25-12f8b6515@sha256:5286edb35782454ab8a102c5eff6b54bff745853191b46aeead95f225aa6dfb6
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 512m
+                reservations:
+                    memory: 128m
+        entrypoint:
+            - /bin/sh
+            - -ec
+            - 'printf ''use_default_settings: true\nsearch:\n  formats:\n    - html\n    - json\n'' > /etc/searxng/settings.yml && if [ -f /run/stackkit/secrets/searxng-settings.yml ]; then cat /run/stackkit/secrets/searxng-settings.yml >> /etc/searxng/settings.yml && chmod 0600 /etc/searxng/settings.yml; fi && exec /usr/local/searxng/entrypoint.sh'
+        environment:
+            SEARXNG_LIMITER: "false"
+            SEARXNG_PUBLIC_INSTANCE: "false"
+            SEARXNG_SECRET: ${STACKKIT_SECRET_SEARXNG_SEARXNG_SECRET:?required}
+        networks:
+            - searxng-internal
+            - stackkit-workload-egress
+            - stackkit-workload-health
+        ports:
+            - 127.0.0.1::8080
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    searxng-internal:
+        internal: true
+    stackkit-workload-egress: {}
+    stackkit-workload-health: {}

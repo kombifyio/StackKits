@@ -235,3 +235,216 @@ Contract: foundation.#ModuleContract & {
 		}
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of calagopus (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-calagopus-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-calagopus-runtime"
+	workloadRef:    "game"
+	alternativeRef: "calagopus"
+	release:        "1.2.4"
+	entryComponent: "panel"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: requiredSafetyInit: ["panel-bootstrap", "panel-keys", "wings-bootstrap"]
+	route: {
+		serviceRef:        "game"
+		targetPort:        8000
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "calagopus-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"database-password": purpose: "Custody secret slot database-password for calagopus"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "panel", volumeRef: "data"},
+			{componentRef: "panel-database", volumeRef: "database"},
+			{componentRef: "wings-bootstrap", volumeRef: "data"},
+			{componentRef: "wings", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"game-internal": {}
+	}
+	components: [
+		{
+			id:        "panel"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["panel"]
+			entrypoint: ["/bin/sh", "/stackkit/panel-entrypoint.sh"]
+			dependsOn: ["panel-cache", "panel-database"]
+			environment: {
+				APP_ENABLE_WINGS_PROXY: "true"
+				APP_LOG_DIRECTORY: "/var/log/calagopus"
+				APP_PRIMARY: "true"
+				APP_USE_DECRYPTION_CACHE: "false"
+				APP_USE_INTERNAL_CACHE: "true"
+				DATABASE_MIGRATE: "true"
+				PORT: "8000"
+				REDIS_URL: "redis://panel-cache"
+				TZ: "UTC"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/var/lib/calagopus", class: "persistent", backup: true},
+				{id: "logs", target: "/var/log/calagopus", class: "cache"},
+				{id: "stackkit", target: "/stackkit", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "http", path: "/", port: 8000}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "panel-database"
+			role:      "database"
+			lifecycle: "daemon"
+			image:     _images["panel-database"]
+			environment: {
+				POSTGRES_DB: "panel"
+				POSTGRES_USER: "panel"
+			}
+			secretEnvironment: {
+				POSTGRES_PASSWORD: "database-password"
+			}
+			volumes: [
+				{id: "database", target: "/var/lib/postgresql", class: "persistent", backup: true},
+			]
+			networks: ["game-internal"]
+			health: {kind: "command", command: ["pg_isready", "-U", "panel", "-d", "panel"]}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "panel-cache"
+			role:      "cache"
+			lifecycle: "daemon"
+			image:     _images["panel-cache"]
+			command: ["valkey-server"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "cache", target: "/data", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "command", command: ["valkey-cli", "ping"]}
+			resources: {memoryLimit: "256m", memoryReservation: "64m"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "panel-bootstrap"
+			role:      "database-init"
+			lifecycle: "one-shot"
+			image:     _images["panel-bootstrap"]
+			entrypoint: ["/bin/sh"]
+			command: ["/stackkit/bootstrap-owner.sh"]
+			dependsOn: ["panel"]
+			environment: {
+				APP_ENABLE_WINGS_PROXY: "true"
+				APP_LOG_DIRECTORY: "/var/log/calagopus"
+				APP_PRIMARY: "true"
+				APP_USE_DECRYPTION_CACHE: "false"
+				APP_USE_INTERNAL_CACHE: "true"
+				DATABASE_MIGRATE: "true"
+				PORT: "8000"
+				REDIS_URL: "redis://panel-cache"
+				TZ: "UTC"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "stackkit", target: "/stackkit", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "completion"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "panel-keys"
+			role:      "database-init"
+			lifecycle: "one-shot"
+			image:     _images["panel-keys"]
+			entrypoint: ["/bin/sh"]
+			command: ["/stackkit/keys.sh"]
+			dependsOn: ["panel-bootstrap"]
+			environment: {
+				PGDATABASE: "panel"
+				PGHOST: "panel-database"
+				PGUSER: "panel"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "stackkit", target: "/stackkit", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "completion"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "wings-bootstrap"
+			role:      "database-init"
+			lifecycle: "one-shot"
+			image:     _images["wings-bootstrap"]
+			entrypoint: ["/bin/sh"]
+			command: ["/stackkit/node.sh"]
+			dependsOn: ["panel-keys"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "stackkit", target: "/stackkit", class: "cache"},
+				{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true},
+			]
+			networks: ["game-internal"]
+			health: {kind: "completion"}
+			labels: {}
+			traits: {}
+		},
+		{
+			id:        "wings"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["wings"]
+			entrypoint: ["/bin/sh", "-c", "export CALAGOPUS_SYSTEM_ROOT_DIRECTORY=\"$STACKKIT_GAME_DATA_HOST_PATH\" CALAGOPUS_SYSTEM_PASSWD_DIRECTORY=\"$STACKKIT_GAME_DATA_HOST_PATH/passwd\"; exec /usr/bin/calagopus-wings \"$@\"", "calagopus-wings"]
+			command: ["--config", "/stackkit/game-data/config.yml"]
+			dependsOn: ["wings-bootstrap"]
+			environment: {
+				CALAGOPUS_DOCKER_FIREWALL_BACKEND: "disabled"
+				CALAGOPUS_DOCKER_NETWORK_INTERFACE: "10.213.0.1"
+				CALAGOPUS_DOCKER_NETWORK_INTERFACES_V4_GATEWAY: "10.213.0.1"
+				CALAGOPUS_DOCKER_NETWORK_INTERFACES_V4_SUBNET: "10.213.0.0/24"
+				CALAGOPUS_DOCKER_NETWORK_MODE: "sk_game_nw"
+				CALAGOPUS_DOCKER_NETWORK_NAME: "sk_game_nw"
+				CALAGOPUS_IGNORE_PANEL_CONFIG_UPDATES: "true"
+				CALAGOPUS_IGNORE_PANEL_WINGS_UPGRADES: "true"
+				CALAGOPUS_SYSTEM_PASSWD_ENABLED: "true"
+				TZ: "UTC"
+				WINGS_GID: "988"
+				WINGS_UID: "988"
+				WINGS_USERNAME: "calagopus"
+			}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/stackkit/game-data", class: "persistent", backup: true},
+				{id: "logs", target: "/var/log/calagopus-wings", class: "cache"},
+			]
+			networks: ["game-internal"]
+			health: {kind: "completion"}
+			resources: {memoryLimit: "512m", memoryReservation: "128m"}
+			labels: {}
+			traits: {
+				dockerLifecycleOwner: true
+			}
+		},
+	]
+}

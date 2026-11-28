@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/pkg/models"
 )
 
@@ -43,10 +43,10 @@ func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 	}
 	sort.Strings(names)
 
-	bundle := platformdeploy.BundleManifest{
+	bundle := deploymentcontract.BundleManifest{
 		Version:  "stackkit.platform-apps/v2",
 		Platform: platform,
-		Apps:     make([]platformdeploy.AppManifest, 0, len(names)),
+		Apps:     make([]deploymentcontract.AppManifest, 0, len(names)),
 	}
 
 	for _, appName := range names {
@@ -59,10 +59,10 @@ func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 			return fmt.Errorf("write app compose manifest %s: %w", appName, err)
 		}
 
-		bundle.Apps = append(bundle.Apps, platformdeploy.AppManifest{
+		bundle.Apps = append(bundle.Apps, deploymentcontract.AppManifest{
 			Name:        appName,
 			Kind:        app.Kind,
-			Ownership:   platformdeploy.AppOwnershipCustomer,
+			Ownership:   deploymentcontract.AppOwnershipCustomer,
 			Platform:    platform,
 			ManagedBy:   platform,
 			Image:       app.Image,
@@ -75,7 +75,7 @@ func GenerateAppsTF(spec *models.StackSpec, outputDir string) error {
 			ComposeYAML: compose,
 			Env:         app.Env,
 			Secrets:     app.Secrets,
-			SetupPolicy: app.Setup.Policy,
+			SetupPolicy: deploymentcontract.SetupPolicy(app.Setup.Policy),
 			SetupDrops:  appSetupDropsToManifest(app.Setup.Drops),
 		})
 		writePlatformComposeResource(&sb, appName, composeRelPath, compose)
@@ -129,7 +129,7 @@ func normalizedAppSpec(spec *models.StackSpec, name string, app models.AppSpec) 
 		app.Health.Path = "/health"
 	}
 	if app.Setup.Policy == "" {
-		app.Setup.Policy = platformdeploy.SetupPolicyManual
+		app.Setup.Policy = string(deploymentcontract.SetupPolicyManual)
 	}
 	if app.Route.Auth == "" {
 		app.Route.Auth = routeAuthLogin
@@ -140,13 +140,13 @@ func normalizedAppSpec(spec *models.StackSpec, name string, app models.AppSpec) 
 	return app
 }
 
-func appSetupDropsToManifest(drops []models.SetupDropSpec) []platformdeploy.SetupDropManifest {
+func appSetupDropsToManifest(drops []models.SetupDropSpec) []deploymentcontract.SetupDropManifest {
 	if len(drops) == 0 {
 		return nil
 	}
-	manifestDrops := make([]platformdeploy.SetupDropManifest, 0, len(drops))
+	manifestDrops := make([]deploymentcontract.SetupDropManifest, 0, len(drops))
 	for _, drop := range drops {
-		manifestDrops = append(manifestDrops, platformdeploy.SetupDropManifest{
+		manifestDrops = append(manifestDrops, deploymentcontract.SetupDropManifest{
 			Name:          drop.Name,
 			Version:       drop.Version,
 			Runner:        drop.Runner,

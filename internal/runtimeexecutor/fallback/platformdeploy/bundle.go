@@ -2,51 +2,19 @@ package platformdeploy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 )
 
 func LoadBundleManifest(path string) (BundleManifest, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return BundleManifest{}, fmt.Errorf("read platform app manifest: %w", err)
-	}
+	return deploymentcontract.LoadBundleManifest(path)
+}
 
-	var bundle BundleManifest
-	if err := json.Unmarshal(data, &bundle); err != nil {
-		return BundleManifest{}, fmt.Errorf("decode platform app manifest: %w", err)
-	}
-
-	for i := range bundle.Apps {
-		app := &bundle.Apps[i]
-		defaultAppPlatform(app, bundle.Platform)
-		if app.ComposeYAML != "" || app.ComposePath == "" {
-			continue
-		}
-		compose, err := readComposeForManifest(path, app.ComposePath)
-		if err != nil {
-			return BundleManifest{}, err
-		}
-		app.ComposeYAML = compose
-	}
-	for i := range bundle.SystemApps {
-		app := &bundle.SystemApps[i].AppManifest
-		defaultAppPlatform(app, bundle.Platform)
-		if app.ComposeYAML != "" || app.ComposePath == "" {
-			continue
-		}
-		compose, err := readComposeForManifest(path, app.ComposePath)
-		if err != nil {
-			return BundleManifest{}, err
-		}
-		app.ComposeYAML = compose
-	}
-
-	return bundle, nil
+func IsStackKitOwnedApp(app AppManifest) bool {
+	return deploymentcontract.IsStackKitOwnedApp(app)
 }
 
 // ApplyBundle applies StackKit-owned systemApps and StackKit-owned/default L3
@@ -62,7 +30,7 @@ func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([
 	}
 	for _, systemApp := range bundle.SystemApps {
 		app := systemApp.AppManifest
-		defaultAppPlatform(&app, bundle.Platform)
+		app.ApplyDefaults(bundle.Platform)
 		ref, err := adapter.ApplyCompose(ctx, app)
 		if err != nil {
 			return append(systemRefs, appRefs...), fmt.Errorf("deploy platform system app %q: %w", app.Name, err)
@@ -80,7 +48,7 @@ func ApplyBundle(ctx context.Context, adapter Adapter, bundle BundleManifest) ([
 		if !IsStackKitOwnedApp(app) {
 			continue
 		}
-		defaultAppPlatform(&app, bundle.Platform)
+		app.ApplyDefaults(bundle.Platform)
 		ref, err := adapter.ApplyCompose(ctx, app)
 		if err != nil {
 			return append(systemRefs, appRefs...), fmt.Errorf("deploy StackKit L3 app %q: %w", app.Name, err)
@@ -116,7 +84,7 @@ func ApplyBundleResilient(ctx context.Context, adapter Adapter, bundle BundleMan
 	}
 
 	for _, app := range apps {
-		defaultAppPlatform(&app, bundle.Platform)
+		app.ApplyDefaults(bundle.Platform)
 		ref, err := adapter.ApplyCompose(ctx, app)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -235,44 +203,4 @@ func observeDeployments(ctx context.Context, adapter Adapter, refs []DeploymentR
 		observed = append(observed, next)
 	}
 	return observed, nil
-}
-
-// IsStackKitOwnedApp reports whether this L3 app belongs to the StackKit-owned
-// product surface. If no PaaS adapter is configured, callers may record it as
-// unmanaged state rather than deploying it.
-func IsStackKitOwnedApp(app AppManifest) bool {
-	return app.Ownership == AppOwnershipStackKit
-}
-
-func defaultAppPlatform(app *AppManifest, platform string) {
-	if app.ManagedBy == "" {
-		app.ManagedBy = platform
-	}
-	if app.Platform == "" {
-		app.Platform = platform
-	}
-	if app.SetupPolicy == "" {
-		app.SetupPolicy = SetupPolicyManual
-	}
-}
-
-func readComposeForManifest(manifestPath, composePath string) (string, error) {
-	candidates := []string{composePath}
-	if !filepath.IsAbs(composePath) {
-		manifestDir := filepath.Dir(manifestPath)
-		candidates = []string{
-			filepath.Join(manifestDir, composePath),
-			filepath.Join(filepath.Dir(manifestDir), composePath),
-		}
-	}
-
-	var lastErr error
-	for _, candidate := range candidates {
-		data, err := os.ReadFile(candidate)
-		if err == nil {
-			return string(data), nil
-		}
-		lastErr = err
-	}
-	return "", fmt.Errorf("read compose file %q referenced by %s: %w", composePath, manifestPath, lastErr)
 }

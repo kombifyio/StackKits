@@ -88,3 +88,46 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Immich Public Proxy dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of immich-public-proxy (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-immich-public-proxy-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-immich-public-proxy-runtime"
+	workloadRef:    "photos"
+	alternativeRef: "immich-public-proxy"
+	release:        "3.4.0"
+	entryComponent: "immich-public-proxy"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "photos-share"
+		targetPort:        3000
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "immich-public-proxy-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	networks: {
+		"immich-public-proxy-internal": {}
+	}
+	components: [
+		{
+			id:        "immich-public-proxy"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["immich-public-proxy"]
+			environment: {
+				IMMICH_URL: "http://immich-server:2283"
+			}
+			secretEnvironment: {}
+			networks: ["immich-public-proxy-internal"]
+			health: {kind: "http", path: "/share/healthcheck", port: 3000}
+			resources: {memoryLimit: "256m", memoryReservation: "64m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

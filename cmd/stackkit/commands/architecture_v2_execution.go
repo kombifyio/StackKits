@@ -83,6 +83,7 @@ type architectureV2ExecutionCLIOptions struct {
 	inspectionSink      func(generationartifact.PlanInspection) error
 	verifiedPlanSink    func(generationartifact.VerifiedPlan) error
 	applySink           func(architectureV2ApplyCommandResult) error
+	afterApply          func(func() error)
 	verifySink          func(architectureV2VerifyReport) error
 	verifyOffline       bool
 	httpProbe           bool
@@ -1042,6 +1043,11 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		return err
 	}
 	options.executionScope = local.scope
+	checkpoint, err := openApplyCheckpoint(wd, transaction, persisted.Binding().PlanHash, roots, local.binding.NodeRef)
+	if err != nil {
+		return err
+	}
+	executionContext = checkpoint.context(executionContext)
 	applyInput := architecturev2.ProductApplyInput{
 		Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions,
 	}
@@ -1065,12 +1071,17 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 	if err := runtimeprofile.InvalidateRILAuthority(); err != nil {
 		return fmt.Errorf("invalidate RIL applied-profile authority before Product Apply: %w", err)
 	}
-	result, err := executeArchitectureV2ProductApply(
-		executionContext,
-		applyAuthority,
-		applyInput,
-		architecturev2.ResolveInput{StackSpec: options.stackSpecData, Inventory: options.inventoryData},
-	)
+	var result architecturev2.VerifiedApplyResult
+	if len(checkpoint.previous) > 0 {
+		result, err = applyAuthority.ReconcileProductApply(executionContext, architecturev2.ProductApplyReconcileInput{Current: current, Workspace: transaction, OutputLock: outputLock, Versions: g.versions, RequestDigest: checkpoint.RequestDigest})
+	} else {
+		result, err = executeArchitectureV2ProductApply(
+			executionContext,
+			applyAuthority,
+			applyInput,
+			architecturev2.ResolveInput{StackSpec: options.stackSpecData, Inventory: options.inventoryData},
+		)
+	}
 	if err != nil {
 		// The durable journal knows which units ran, which failed, and which
 		// were never attempted. Report that instead of one opaque error, so an
@@ -1208,7 +1219,11 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		}
 	}
 	if options.applySink != nil {
-		return options.applySink(applyOutput)
+		applyOutput.Checkpoint = checkpoint.resumeReport()
+		if err := options.applySink(applyOutput); err != nil {
+			return err
+		}
+		return checkpoint.finish(options.afterApply)
 	}
 	printSuccess("Architecture v2 Apply completed: %s", result.ResultHash())
 	if access.SecondDevice != nil {
@@ -1219,7 +1234,7 @@ func (g architectureV2ExecutionGate) verifyV2Generation(wd string, mode architec
 		fmt.Printf("Client trust: copy %s to a Linux NetworkManager client, review CA %s, then run sudo sh enroll-linux.sh --approve.\n", filepath.Join(wd, access.ClientTrust.LinuxProfilePath), access.ClientTrust.CAFingerprint)
 	}
 	printStackKitsMCPAccess(wd, access)
-	return nil
+	return checkpoint.finish(options.afterApply)
 }
 
 // printStackKitsMCPAccess tells the owner where the Core's MCP endpoint and

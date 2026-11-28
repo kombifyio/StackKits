@@ -1053,6 +1053,33 @@
             "{environmentName}"
           ],
           "description": "Also classify this variable as a credential (repeatable); every value is hidden anyway."
+        },
+        {
+          "argv": [
+            "--memory-mib",
+            "{memoryMiB}"
+          ],
+          "description": "Memory limit in MiB for the adopted own application."
+        },
+        {
+          "argv": [
+            "--cpus",
+            "{cpus}"
+          ],
+          "description": "CPU limit for the adopted own application."
+        },
+        {
+          "argv": [
+            "--adopt-compose-project"
+          ],
+          "description": "Adopt all services of a multi-service Docker Compose project together as homelab.own-application/v3."
+        },
+        {
+          "argv": [
+            "--http-service",
+            "{httpService}"
+          ],
+          "description": "Compose service name to route HTTP traffic to when adopting a multi-service Compose project."
         }
       ],
       "mutates": true,
@@ -1115,6 +1142,33 @@
             "{environmentName}"
           ],
           "description": "Also classify this variable as a credential (repeatable); every value is hidden anyway."
+        },
+        {
+          "argv": [
+            "--memory-mib",
+            "{memoryMiB}"
+          ],
+          "description": "Memory limit in MiB for the adopted own application."
+        },
+        {
+          "argv": [
+            "--cpus",
+            "{cpus}"
+          ],
+          "description": "CPU limit for the adopted own application."
+        },
+        {
+          "argv": [
+            "--adopt-compose-project"
+          ],
+          "description": "Adopt all services of a multi-service Docker Compose project together as homelab.own-application/v3."
+        },
+        {
+          "argv": [
+            "--http-service",
+            "{httpService}"
+          ],
+          "description": "Compose service name to route HTTP traffic to when adopting a multi-service Compose project."
         }
       ],
       "mutates": false,

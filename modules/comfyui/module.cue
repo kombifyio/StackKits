@@ -101,3 +101,61 @@ Contract: foundation.#ModuleContract & {
 		output: description: "ComfyUI dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of comfyui (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-comfyui-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-comfyui-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "comfyui"
+	release:        "comfy0.35.0-torch2.13.0-cuda13.0-runtime"
+	entryComponent: "comfyui"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "comfyui"
+		targetPort:        8188
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "comfyui-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "comfyui", volumeRef: "user"},
+			{componentRef: "comfyui", volumeRef: "input"},
+			{componentRef: "comfyui", volumeRef: "output"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"comfyui-internal": {}
+	}
+	components: [
+		{
+			id:        "comfyui"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["comfyui"]
+			command: ["python", "main.py", "--listen", "0.0.0.0", "--port", "8188", "--disable-all-custom-nodes", "--disable-api-nodes"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "user", target: "/opt/ComfyUI/user", class: "persistent", backup: true},
+				{id: "input", target: "/opt/ComfyUI/input", class: "persistent", backup: true},
+				{id: "output", target: "/opt/ComfyUI/output", class: "persistent", backup: true},
+				{id: "models", target: "/opt/ComfyUI/models", class: "persistent"},
+			]
+			networks: ["comfyui-internal"]
+			egress: true
+			health: {kind: "http", path: "/system_stats", port: 8188}
+			resources: {memoryLimit: "28g", memoryReservation: "2g"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

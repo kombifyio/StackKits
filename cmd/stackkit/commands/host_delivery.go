@@ -352,6 +352,7 @@ type sshApplyResult struct {
 	Users               []string `json:"users,omitempty"`
 	HostCertificatePath string   `json:"hostCertificatePath,omitempty"`
 	CleanupPending      []string `json:"cleanupPending,omitempty"`
+	ObserveFailure      string   `json:"observeFailure,omitempty"`
 	Changes             []string `json:"changes,omitempty"`
 }
 
@@ -377,8 +378,9 @@ sshd:
     certifies, only if it names every --host-name (default: the system
     hostname) and is currently valid.
 
-sshd is reloaded only after 'sshd -t' accepts the new configuration; a change
-that fails is rolled back. The applied state is recorded in owner custody, so
+sshd is reloaded only after 'sshd -t' accepts the new configuration. A failed
+observe grant is reported separately and does not undo valid admin CA trust.
+The desired state is recorded in owner custody, so
 'host security verify' reports drift and 'host security repair' reinstalls it.`,
 		Example: `  sudo stackkit host ssh apply --tenant-ref "$TENANT" --owner-approve < envelope.json`,
 		Args:    cobra.NoArgs,
@@ -494,10 +496,14 @@ func applySSHDelivery(cmd *cobra.Command, workspace string, raw []byte, tenantRe
 		}
 	}
 	result.State, result.TrustedCAKeys, result.Changes, result.CleanupPending = "trusted", len(keys), applied.Changes, applied.CleanupPending
+	result.ObserveFailure = applied.ObserveFailure
 	if len(keys) == 0 {
 		result.State = "revoked"
 	}
 	for user := range principals {
+		if user == hostsecurity.SSHObserveUser && applied.ObserveFailure != "" {
+			continue
+		}
 		result.Users = append(result.Users, user)
 	}
 	sort.Strings(result.Users)

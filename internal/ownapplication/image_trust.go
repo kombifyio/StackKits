@@ -173,13 +173,8 @@ func LoadImageIdentityTrust(workspace string) (ImageIdentityTrust, error) {
 	if err != nil {
 		return ImageIdentityTrust{}, err
 	}
-	var trust ImageIdentityTrust
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(&trust) != nil || decoder.Decode(new(any)) != io.EOF {
-		return ImageIdentityTrust{}, errors.New("image identity trust document is malformed")
-	}
-	if err = trust.Validate(); err != nil {
+	trust, err := ParseImageIdentityTrust(raw)
+	if err != nil {
 		return ImageIdentityTrust{}, err
 	}
 	authority, err := localevidence.LoadHomeAuthorityPublic(workspace)
@@ -192,6 +187,49 @@ func LoadImageIdentityTrust(workspace string) (ImageIdentityTrust, error) {
 	return trust, nil
 }
 
+// ParseImageIdentityTrust decodes a bounded, closed node policy. Its signature
+// is checked by LoadImageIdentityTrust, or replaced under Owner custody by Save.
+func ParseImageIdentityTrust(raw []byte) (ImageIdentityTrust, error) {
+	if len(raw) == 0 || len(raw) > maxImageIdentityTrust {
+		return ImageIdentityTrust{}, errors.New("image identity trust exceeds its bound")
+	}
+	var trust ImageIdentityTrust
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(&trust) != nil || decoder.Decode(new(any)) != io.EOF {
+		return ImageIdentityTrust{}, errors.New("image identity trust document is malformed")
+	}
+	if err := trust.Validate(); err != nil {
+		return ImageIdentityTrust{}, err
+	}
+	return trust, nil
+}
+
 // loadNodeImageTrust is the composition seam. Tests replace it with an
 // in-memory node trust; production always reads the installed document.
 var loadNodeImageTrust = LoadImageIdentityTrust
+
+// updateImageTrust requires evidence for stateless one-container image changes
+// under configured trust. Retained admissions and explicit evidence always
+// require trust, even if its file disappears. Other non-image, stateful and
+// project updates do not need an image admission.
+func updateImageTrust(workspace string, evidence *ImageIdentityEvidence, current Record, imageChanged bool) (*ImageIdentityTrust, error) {
+	if evidence == nil && current.Admission == nil && current.PreviousAdmission == nil &&
+		(!imageChanged || current.Bundle.Application.IsProject() || current.Bundle.Application.HasVolume()) {
+		return nil, nil
+	}
+	trust, err := loadNodeImageTrust(workspace)
+	if errors.Is(err, ErrImageIdentityTrustUnavailable) && evidence == nil && current.Admission == nil && current.PreviousAdmission == nil {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if evidence == nil {
+		return nil, errors.New("installed image identity trust requires a Sigstore bundle for this update")
+	}
+	if err := evidence.Validate(); err != nil {
+		return nil, err
+	}
+	return &trust, nil
+}

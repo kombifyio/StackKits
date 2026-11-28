@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,7 +38,7 @@ var coolifyRecipeDecorations = map[string]bool{"env_file": true}
 // authorized node recipe, read-only: no derived secret file is written. The
 // API withholds stored recipes from the node token, so the Marketplace's own
 // application container reads it, as Marketplace observation already does.
-func requireCoolifyServiceRecipe(ctx context.Context, marketplace *osMarketplaceOperations, ref platformdeploy.DeploymentRef, project standaloneComposeProject) error {
+func requireCoolifyServiceRecipe(ctx context.Context, marketplace *osMarketplaceOperations, ref deploymentcontract.DeploymentRef, project standaloneComposeProject) error {
 	expected, err := platformNodeCompose(NativeWorkloadCompose{ProjectName: project.name, Directory: project.directory, Compose: project.compose, EnvFile: standaloneComposeEnvFile, project: project})
 	if err != nil {
 		return err

@@ -171,8 +171,6 @@ Clients may pass `X-Request-ID`; otherwise the server generates one and returns 
 | `GET` | `/api/v1/stackkits/{name}/defaults` | Read versioned initial StackSpec authoring data. | Yes |
 | `POST` | `/api/v1/validate` | Validate v2 against CUE or v1 as read-only migration input. | Yes |
 | `POST` | `/api/v1/validate/partial` | Validate versioned initial StackSpec authoring input. | Yes |
-| `POST` | `/api/v1/generate/tfvars` | Exact-v0.6 compatibility generator; not advertised on native v0.7. | Yes |
-| `POST` | `/api/v1/generate/preview` | Exact-v0.6 compatibility preview; not advertised on native v0.7. | Yes |
 | `GET` | `/api/v1/status` | Read node-local StackKit rollout status. | Yes |
 | `POST` | `/api/v1/verify` | Run node-local read-only verification. | Yes |
 | `POST` | `/api/v1/doctor` | Exact-v0.6 compatibility diagnostics; native v0.7+ returns `501 operational_surface_unavailable`. | Yes |
@@ -228,12 +226,10 @@ sets `operational: false`, includes the complete `migration_report`, and never
 passes through generation admission. Unknown v1 fields make the read-only
 validation result invalid rather than being discarded.
 
-The old `/api/v1/generate/tfvars` and `/api/v1/generate/preview` routes remain
-callable only to provide exact-v0.6 compatibility or a typed native-line
-migration error. Native v0.7 capability discovery omits them. Architecture v2
-generation is `StackSpec + Inventory -> ResolvedPlan -> generation
-authorization -> executor`; spec-only HTTP input cannot produce tfvars or a
-readiness preview.
+Architecture v2 generation is `StackSpec + Inventory -> ResolvedPlan ->
+generation authorization -> executor`; spec-only HTTP input cannot produce
+tfvars or a readiness preview. The pre-1.0 v1 generation endpoints have been
+removed; use the governed CLI/executor path.
 
 ## Management
 

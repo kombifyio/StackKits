@@ -1,0 +1,29 @@
+name: stackkit-ai-main
+services:
+    tika:
+        image: docker.io/apache/tika:4.0.0-1@sha256:a8b442501f601fb15015de974f9afe13dd242b0f14e49a2b144fadcb214a555b
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 512m
+        networks:
+            - stackkit-workload-health
+            - tika-internal
+        ports:
+            - 127.0.0.1::9998
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+networks:
+    stackkit-workload-health: {}
+    tika-internal:
+        internal: true

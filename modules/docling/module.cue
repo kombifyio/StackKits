@@ -79,3 +79,39 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Docling application (internal)"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of docling (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-docling-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-docling-runtime"
+	workloadRef:    "ai"
+	alternativeRef: "docling"
+	release:        "v1.35.0"
+	entryComponent: "docling"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	secrets: {}
+	networks: {
+		"docling-internal": {}
+	}
+	components: [
+		{
+			id:        "docling"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["docling"]
+			environment: {
+				DOCLING_SERVE_ENABLE_UI: "false"
+				DOCLING_SERVE_MAX_SYNC_WAIT: "600"
+				HF_HUB_OFFLINE: "1"
+			}
+			secretEnvironment: {}
+			networks: ["docling-internal"]
+			health: {kind: "http", path: "/health", port: 5001}
+			resources: {memoryLimit: "6g", memoryReservation: "1g"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

@@ -1,0 +1,66 @@
+name: stackkit-media-main
+services:
+    emby:
+        image: docker.io/emby/embyserver:4.10.0.40@sha256:3aafff933d3f28d23ed0bc201022abe71c0aa80deb17177566c726b9bbc686c6
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-file: "3"
+                max-size: 10m
+        oom_score_adj: -100
+        deploy:
+            resources:
+                limits:
+                    memory: 2g
+                reservations:
+                    memory: 512m
+        volumes:
+            - emby-config:/config
+            - emby-library:/media:ro
+        networks:
+            - emby-internal
+            - stackkit-routing
+        ports:
+            - 127.0.0.1::8096
+        labels:
+            io.stackkit.health-failure: blocking
+            io.stackkit.lifecycle: daemon
+            io.stackkit.remote-listener: "true"
+            io.stackkit.route.backend-pool-ref: media-pool-aaaaaaaaaaaa
+            io.stackkit.route.core-module-ref: stackkits-basement-core-runtime
+            io.stackkit.route.exposure: remote-private
+            io.stackkit.route.health-gate-ref: route-media
+            io.stackkit.route.id: media-remote-private
+            io.stackkit.route.path: /
+            io.stackkit.route.port: "443"
+            io.stackkit.route.protocol: https
+            io.stackkit.route.target-port: "8096"
+            io.stackkit.route.tls.issuer-ref: home-ca
+            io.stackkit.route.tls.min-version: "1.2"
+            io.stackkit.route.tls.mode: terminate-at-edge
+            io.stackkit.route.tls.owner-capability-ref: home-tls-owner
+            io.stackkit.route.tls.profile-ref: home-tls
+            io.stackkit.route.tls.required: "true"
+            io.stackkit.route.upstream-protocol: http
+            traefik.docker.network: stackkit-basement-core
+            traefik.enable: "true"
+            traefik.http.routers.stackkit-media-remote.entrypoints: remote
+            traefik.http.routers.stackkit-media-remote.rule: Host(`media.home.example`)
+            traefik.http.routers.stackkit-media-remote.service: stackkit-media
+            traefik.http.routers.stackkit-media.entrypoints: websecure
+            traefik.http.routers.stackkit-media.middlewares: stackkit-access-gate-lan@docker,stackkit-forward-auth@docker
+            traefik.http.routers.stackkit-media.rule: Host(`media.home.example`)
+            traefik.http.routers.stackkit-media.tls: "true"
+            traefik.http.routers.stackkit-media.tls.certresolver: stackkits
+            traefik.http.services.stackkit-media.loadbalancer.server.port: "8096"
+            traefik.http.services.stackkit-media.loadbalancer.server.scheme: http
+networks:
+    emby-internal:
+        internal: true
+    stackkit-routing:
+        name: stackkit-basement-core
+        external: true
+volumes:
+    emby-config: {}
+    emby-library: {}

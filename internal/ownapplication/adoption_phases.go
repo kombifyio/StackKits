@@ -579,11 +579,15 @@ func rollbackAdoption(ctx context.Context, workspace string, docker nativehost.O
 	return nil
 }
 
-func matchesAdoptedRecord(app contract.Application, checkpoint AdoptionCheckpoint) bool {
+func matchesAdoptedRecord(record Record, checkpoint AdoptionCheckpoint) bool {
+	app := record.Bundle.Application
 	if app.IsAdopted() {
 		return app.AdoptedFrom != nil && app.AdoptedFrom.ContainerID == checkpoint.ContainerID
 	}
-	return app.IsProject() && checkpoint.ComposeProject != ""
+	return app.IsProject() && checkpoint.ComposeProject != "" &&
+		app.Name == checkpoint.Name &&
+		checkpoint.OperationID != "" &&
+		record.Operation.ID == checkpoint.OperationID
 }
 
 // removeAdopted removes the rebuilt application through the reviewed
@@ -599,7 +603,7 @@ func removeAdopted(ctx context.Context, workspace string, req AdoptionRequest, n
 	if !exists || record.State == "removed" {
 		return nil
 	}
-	if !matchesAdoptedRecord(record.Bundle.Application, checkpoint) {
+	if !matchesAdoptedRecord(record, checkpoint) {
 		return nil
 	}
 	review, err := Execute(ctx, workspace, req.Installation, Request{Action: "remove", Name: name, DryRun: true})
@@ -631,7 +635,7 @@ func verifyAdoption(ctx context.Context, workspace string, docker nativehost.Own
 		return result, err
 	}
 	record, exists := state.Applications[checkpoint.Name]
-	if !exists || !matchesAdoptedRecord(record.Bundle.Application, checkpoint) {
+	if !exists || !matchesAdoptedRecord(record, checkpoint) {
 		result.Outcome = outcomeForPhase(checkpoint.Phase)
 		result.Notice = "No adopted application is recorded for this container (adoption " + checkpoint.Phase + ")."
 		return result, nil
@@ -709,15 +713,19 @@ func restoreOriginal(ctx context.Context, workspace string, docker nativehost.Ow
 	if err := removeAdopted(ctx, workspace, req, checkpoint.Name, checkpoint, operation, hooks); err != nil {
 		return result, err
 	}
+	var problems []string
 	for _, orig := range checkpoint.originals() {
 		if err := docker.SetRestartPolicy(ctx, orig.ContainerID, orig.RestartPolicy); err != nil {
-			return result, fmt.Errorf("restore the original's restart policy: %w", err)
+			problems = append(problems, "restore the original's restart policy: "+err.Error())
 		}
 		if orig.Running {
 			if err := docker.Start(ctx, orig.ContainerID); err != nil {
-				return result, fmt.Errorf("start the original: %w", err)
+				problems = append(problems, "start the original: "+err.Error())
 			}
 		}
+	}
+	if len(problems) != 0 {
+		return result, errors.New(strings.Join(problems, "; "))
 	}
 	recovered := checkpoint.Phase != "adopted"
 	checkpoint.Phase, checkpoint.At = "restored", time.Now().UTC()
@@ -728,12 +736,58 @@ func restoreOriginal(ctx context.Context, workspace string, docker nativehost.Ow
 		return result, err
 	}
 	result.Outcome, result.OriginalState = outcomeForPhase(checkpoint.Phase), originalsState(ctx, docker, checkpoint)
-	result.Notice = "The original is back with its own restart policy. The rebuilt application is removed; its named volume " + checkpoint.DataVolume + " is retained"
+	result.Notice = "The original is back with its own restart policy. The rebuilt application is removed; " + checkpointRetainedVolumeNotice(checkpoint)
 	if !recovered {
 		result.Notice += " with any data written since the adoption"
 	}
 	result.Notice += "."
 	return result, nil
+}
+
+func checkpointRetainedVolumeNotice(checkpoint AdoptionCheckpoint) string {
+	origs := checkpoint.originals()
+	if len(origs) <= 1 {
+		vol := checkpoint.DataVolume
+		if vol == "" && len(origs) == 1 {
+			vol = origs[0].DataVolume
+		}
+		return "its named volume " + vol + " is retained"
+	}
+	var vols []string
+	for _, orig := range origs {
+		if orig.DataVolume != "" {
+			vols = append(vols, orig.DataVolume)
+		}
+	}
+	switch len(vols) {
+	case 0:
+		return "its named volumes are retained"
+	case 1:
+		return "its named volume " + vols[0] + " is retained"
+	default:
+		return "its named volumes (" + strings.Join(vols, ", ") + ") are retained"
+	}
+}
+
+func checkpointDataSourceNotice(checkpoint AdoptionCheckpoint) string {
+	origs := checkpoint.originals()
+	if len(origs) <= 1 {
+		src := checkpoint.DataSource
+		if src == "" && len(origs) == 1 {
+			src = origs[0].DataSource
+		}
+		return "The original container is removed. Its data source (" + src + ") is kept; delete it yourself when you no longer need it."
+	}
+	var srcs []string
+	for _, orig := range origs {
+		if orig.DataSource != "" {
+			srcs = append(srcs, orig.DataSource)
+		}
+	}
+	if len(srcs) == 0 {
+		return "The original containers are removed. Their data sources are kept; delete them yourself when you no longer need them."
+	}
+	return "The original containers are removed. Their data sources (" + strings.Join(srcs, ", ") + ") are kept; delete them yourself when you no longer need them."
 }
 
 // releaseOriginal removes the retained original once the adopted application
@@ -761,7 +815,7 @@ func releaseOriginal(ctx context.Context, workspace string, docker nativehost.Ow
 		return result, err
 	}
 	record, exists := state.Applications[checkpoint.Name]
-	if !exists || record.State != "running" || record.Operation.Status != "succeeded" || !matchesAdoptedRecord(record.Bundle.Application, checkpoint) {
+	if !exists || record.State != "running" || record.Operation.Status != "succeeded" || !matchesAdoptedRecord(record, checkpoint) {
 		return result, errors.New("the adopted application is not running from this container in signed custody; the original stays")
 	}
 	for _, orig := range checkpoint.originals() {
@@ -779,7 +833,7 @@ func releaseOriginal(ctx context.Context, workspace string, docker nativehost.Ow
 		return result, err
 	}
 	result.Outcome, result.OriginalState = "released", "removed"
-	result.Notice = "The original container is removed. Its data source (" + checkpoint.DataSource + ") is kept; delete it yourself when you no longer need it."
+	result.Notice = checkpointDataSourceNotice(checkpoint)
 	return result, nil
 }
 

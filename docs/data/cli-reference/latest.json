@@ -1149,6 +1149,12 @@
           "required": false
         },
         {
+          "name": "adopt-compose-project",
+          "type": "bool",
+          "description": "Adoption: adopt all services (2..8) of the container's Compose project as a homelab.own-application/v3 project",
+          "required": false
+        },
+        {
           "name": "allow-major",
           "type": "bool",
           "description": "With --image-tag: admit a different major version, or a running image that names no version; never a downgrade or another variant",
@@ -1212,6 +1218,18 @@
           "name": "http-port",
           "type": "int",
           "description": "Adoption: the container's web port when it exposes several",
+          "required": false
+        },
+        {
+          "name": "http-service",
+          "type": "string",
+          "description": "Adoption (--adopt-compose-project): the Compose service that serves the routed HTTP port when multiple candidates exist",
+          "required": false
+        },
+        {
+          "name": "image-identity-file",
+          "type": "string",
+          "description": "Sigstore bundle for a stateless one-container image change; required with installed node image trust or retained image admission",
           "required": false
         },
         {
@@ -1323,6 +1341,72 @@
           "required": false
         }
       ],
+      "subcommands": [
+        "stackkit app own image-trust"
+      ]
+    },
+    {
+      "path": "stackkit app own image-trust",
+      "name": "image-trust",
+      "parent": "stackkit app own",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit app own image-trust [flags]",
+      "short": "Install or verify the Owner-custodied image signer policy",
+      "description": "Install or verify a node-wide Sigstore image signer policy under existing Owner custody. Once installed, stateless one-container image changes require --image-identity-file. Updates to applications with a current or previous image admission also require evidence, even if trust is missing; explicitly supplied evidence always requires installed trust. Applications without retained admissions can still perform non-image updates and stateful or project image updates without image evidence. Guard C currently admits only stateless one-container image changes. The trustedRoot JSON field contains base64-encoded Sigstore trusted-root bytes.",
+      "runnable": false,
+      "examples": [],
+      "flags": [],
+      "subcommands": [
+        "stackkit app own image-trust install",
+        "stackkit app own image-trust verify"
+      ]
+    },
+    {
+      "path": "stackkit app own image-trust install",
+      "name": "install",
+      "parent": "stackkit app own image-trust",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit app own image-trust install [flags]",
+      "short": "Install a Sigstore root and exact signer allowlist under local Owner custody",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "document",
+          "type": "string",
+          "description": "JSON policy with schemaVersion, trustedRoot, trustedRootSha256 and signers",
+          "required": true
+        },
+        {
+          "name": "expect-sha256",
+          "type": "string",
+          "description": "Independent sha256:<hex> pin of the exact policy document",
+          "required": true
+        },
+        {
+          "name": "owner-approve",
+          "type": "bool",
+          "description": "Approve installing this local node image trust policy",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit app own image-trust verify",
+      "name": "verify",
+      "parent": "stackkit app own image-trust",
+      "aliases": [],
+      "group": "reference",
+      "usage": "stackkit app own image-trust verify [flags]",
+      "short": "Verify the installed image trust policy and its Owner signature",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [],
       "subcommands": []
     },
     {
@@ -1762,6 +1846,7 @@
         "stackkit backup transfer-finish",
         "stackkit backup transfer-import",
         "stackkit backup transfer-prepare",
+        "stackkit backup transfer-push",
         "stackkit backup transfer-recover",
         "stackkit backup transfer-resume",
         "stackkit backup transfer-serve",
@@ -2757,11 +2842,17 @@
       "aliases": [],
       "group": "care",
       "usage": "stackkit backup transfer-fetch [flags]",
-      "short": "Download one transfer archive from the source node and keep it only when its digest matches",
+      "short": "Download one transfer archive from the source node or HTTPS relay and keep it only when its digest matches",
       "description": "",
       "runnable": true,
       "examples": [],
       "flags": [
+        {
+          "name": "allow-insecure-loopback",
+          "type": "bool",
+          "description": "Allow http://127.0.0.1, http://[::1], or http://localhost for local testing only",
+          "required": false
+        },
         {
           "name": "archive-sha256",
           "type": "string",
@@ -2769,9 +2860,21 @@
           "required": false
         },
         {
+          "name": "bearer-env",
+          "type": "string",
+          "description": "Environment variable containing the single-use Bearer download token (only with --from-url)",
+          "required": false
+        },
+        {
           "name": "from",
           "type": "string",
-          "description": "Source HOST:PORT that transfer-serve shares on",
+          "description": "Source HOST:PORT that transfer-serve shares on (mutually exclusive with --from-url)",
+          "required": false
+        },
+        {
+          "name": "from-url",
+          "type": "string",
+          "description": "HTTPS relay URL to download the encrypted transfer archive from (mutually exclusive with --from)",
           "required": false
         },
         {
@@ -2782,10 +2885,16 @@
           "required": false
         },
         {
+          "name": "token-file",
+          "type": "string",
+          "description": "File containing the single-use Bearer download token (only with --from-url)",
+          "required": false
+        },
+        {
           "name": "wait",
           "type": "duration",
           "default": "2m0s",
-          "description": "Wait this long for the source share to come up",
+          "description": "Wait this long for the source share or relay upload to become ready",
           "required": false
         }
       ],
@@ -3019,6 +3128,58 @@
           "name": "transfer-id",
           "type": "string",
           "description": "Required exact transfer admission value",
+          "required": false
+        }
+      ],
+      "subcommands": []
+    },
+    {
+      "path": "stackkit backup transfer-push",
+      "name": "transfer-push",
+      "parent": "stackkit backup",
+      "aliases": [],
+      "group": "care",
+      "usage": "stackkit backup transfer-push [flags]",
+      "short": "Upload one exported transfer ciphertext to an HTTPS relay URL",
+      "description": "",
+      "runnable": true,
+      "examples": [],
+      "flags": [
+        {
+          "name": "allow-insecure-loopback",
+          "type": "bool",
+          "description": "Allow http://127.0.0.1, http://[::1], or http://localhost for local testing only",
+          "required": false
+        },
+        {
+          "name": "bearer-env",
+          "type": "string",
+          "description": "Environment variable containing the single-use Bearer upload token",
+          "required": false
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "description": "Export directory transfer-export wrote",
+          "required": false
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "description": "HTTPS relay URL to upload the encrypted transfer archive to",
+          "required": false
+        },
+        {
+          "name": "token-file",
+          "type": "string",
+          "description": "File containing the single-use Bearer upload token",
+          "required": false
+        },
+        {
+          "name": "ttl",
+          "type": "duration",
+          "default": "30m0s",
+          "description": "Maximum time allowed for the relay upload (up to 2h)",
           "required": false
         }
       ],

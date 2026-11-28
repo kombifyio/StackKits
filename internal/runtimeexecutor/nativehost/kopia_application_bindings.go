@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	"github.com/kombifyio/stackkits/internal/confinedfs"
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"github.com/kombifyio/stackkits/internal/docker"
 	"github.com/kombifyio/stackkits/internal/localbackuppolicy"
-	"github.com/kombifyio/stackkits/internal/runtimeexecutor/fallback/platformdeploy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,18 +94,18 @@ func bindKopiaApplicationHostPaths(ctx context.Context, workspace, site, node st
 		if !application || !strings.HasPrefix(project, "stackkit-") {
 			continue
 		}
-		present, err := platformdeploy.HasOwnerHostDeployment(workspace, project)
+		present, err := deploymentcontract.HasOwnerHostDeployment(workspace, project)
 		if err != nil {
 			return nil, err
 		}
 		if !present {
 			continue
 		}
-		state, err := platformdeploy.LoadOwnerHostDeployment(workspace, project)
+		state, err := deploymentcontract.LoadOwnerHostDeployment(workspace, project)
 		if err != nil {
 			return nil, err
 		}
-		if platformdeploy.HostDeploymentManager(state) != "coolify" {
+		if deploymentcontract.HostDeploymentManager(state) != "coolify" {
 			continue
 		}
 		if state.SiteRef != site || state.NodeRef != node {

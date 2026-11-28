@@ -200,7 +200,22 @@ func (store Store) SetupRuns(contract Contract, applyResultHash, actionRef strin
 			PlanHash: contract.PlanHash, Policy: "on-demand", Status: operation.Status,
 			LastStarted: operation.StartedAt, LastFinished: operation.CompletedAt,
 			Error: operation.LastError}
-		if operation.Status == StatusSucceeded {
+		if operation.Status == StatusBootstrapDegraded {
+			run.Status = StatusBootstrapDegraded
+			run.Phase = "degraded"
+			run.Message = fmt.Sprintf(
+				"Tier-2 automatic app personalization degraded; application remains private behind Access Gate. Retry with `stackkit retry-appsetup %s` or `stackkit setup %s --owner-approve`, or complete its first-run wizard behind Access Gate",
+				contract.WorkloadRef, contract.WorkloadRef,
+			)
+		} else if operation.Status == StatusSkippedCleanRollout {
+			run.Status = StatusSkippedCleanRollout
+			run.Phase = "clean-rollout"
+			run.Error = ""
+			run.Message = operation.LastError
+			if strings.TrimSpace(run.Message) == "" {
+				run.Message = "Clean Rollout skipped Tier-2 automatic app personalization; application remains private behind Access Gate for its own first-run wizard"
+			}
+		} else if operation.Status == StatusSucceeded {
 			run.Status, run.Phase = "completed", "verified"
 			for _, evidence := range operation.Evidence {
 				if evidence.Kind != "setup-result" {

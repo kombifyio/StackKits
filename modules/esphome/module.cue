@@ -95,3 +95,54 @@ Contract: foundation.#ModuleContract & {
 		output: description: "ESPHome dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of esphome (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-esphome-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-esphome-runtime"
+	workloadRef:    "smart-home"
+	alternativeRef: "esphome"
+	release:        "2026.9.0"
+	entryComponent: "esphome"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "esphome"
+		targetPort:        6052
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "esphome-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "esphome", volumeRef: "config"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"esphome-internal": {}
+	}
+	components: [
+		{
+			id:        "esphome"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["esphome"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "config", target: "/config", class: "persistent", backup: true},
+			]
+			networks: ["esphome-internal"]
+			health: {kind: "http", path: "/", port: 6052}
+			resources: {memoryLimit: "2g", memoryReservation: "256m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

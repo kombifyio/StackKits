@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/kombifyio/stackkits/cmd/stackkit/commands"
+	"github.com/kombifyio/stackkits/internal/hostsecurity"
 	"github.com/kombifyio/stackkits/internal/ownappfirewall"
 	"github.com/kombifyio/stackkits/internal/ownapplication"
 	"github.com/kombifyio/stackkits/internal/runtimeprofile"
@@ -21,6 +22,9 @@ var (
 )
 
 func main() {
+	if code, handled := hostsecurity.ObserveEntrypoint(os.Args[1:]); handled {
+		os.Exit(code)
+	}
 	if len(os.Args) == 3 && os.Args[1] == "--own-egress-watch" {
 		if err := ownappfirewall.WatchMain(os.Args[2]); err != nil {
 			fmt.Fprintln(os.Stderr, err)

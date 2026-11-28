@@ -100,3 +100,57 @@ Contract: foundation.#ModuleContract & {
 		output: description: "Stalwart Mail Server dashboard"
 	}
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of stalwart (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-stalwart-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-stalwart-runtime"
+	workloadRef:    "mail-server"
+	alternativeRef: "stalwart"
+	release:        "v0.16.23"
+	entryComponent: "stalwart"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "mail-server"
+		targetPort:        8080
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "stalwart-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {}
+	backup: {
+		volumes: [
+			{componentRef: "stalwart", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"mail-server-internal": {}
+	}
+	components: [
+		{
+			id:        "stalwart"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["stalwart"]
+			entrypoint: ["/bin/sh", "-c", "set -eu; printf '%s' '{\"@type\":\"RocksDb\",\"path\":\"/var/lib/stalwart/\"}' > /etc/stalwart/config.json; secret=$(cat \"$STACKKIT_ADMIN_SECRET_FILE\"); export STALWART_RECOVERY_ADMIN=\"admin:${secret:?}\"; unset secret; if [ ! -f /var/lib/stalwart/.stackkit-seed-v1 ]; then /usr/local/bin/stalwart --config /etc/stalwart/config.json & pid=$!; i=0; until curl -fs -o /dev/null http://127.0.0.1:8080/healthz/ready; do i=$((i+1)); [ \"$i\" -lt 90 ] || exit 1; sleep 1; done; printf 'user = \"%s\"\\n' \"$STALWART_RECOVERY_ADMIN\" | curl -fsS -K - -H 'Content-Type: application/json' -o /tmp/stackkit-seed.json -d '{\"using\":[\"urn:ietf:params:jmap:core\",\"urn:stalwart:jmap\"],\"methodCalls\":[[\"x:Tracer/get\",{\"properties\":[\"id\"]},\"t0\"],[\"x:Tracer/set\",{\"#destroy\":{\"resultOf\":\"t0\",\"name\":\"x:Tracer/get\",\"path\":\"/list/*/id\"},\"create\":{\"stdout\":{\"@type\":\"Stdout\",\"level\":\"info\",\"ansi\":false}}},\"t1\"],[\"x:NetworkListener/set\",{\"create\":{\"submission\":{\"name\":\"submission\",\"bind\":{\"[::]:587\":true},\"protocol\":\"smtp\",\"tlsImplicit\":false}}},\"l1\"]]}' http://127.0.0.1:8080/jmap/; grep -q '\"submission\":{\"id\"' /tmp/stackkit-seed.json; grep -q '\"stdout\":{\"id\"' /tmp/stackkit-seed.json; rm -f /tmp/stackkit-seed.json; kill \"$pid\"; wait \"$pid\" || true; touch /var/lib/stalwart/.stackkit-seed-v1; fi; exec /usr/local/bin/stalwart --config /etc/stalwart/config.json"]
+			environment: {}
+			secretEnvironment: {}
+			volumes: [
+				{id: "data", target: "/var/lib/stalwart", class: "persistent", backup: true},
+				{id: "config", target: "/etc/stalwart", class: "cache"},
+			]
+			networks: ["mail-server-internal"]
+			egress: true
+			health: {kind: "http", path: "/healthz/ready", port: 8080}
+			resources: {memoryLimit: "1g", memoryReservation: "512m"}
+			labels: {}
+			traits: {}
+		},
+	]
+}

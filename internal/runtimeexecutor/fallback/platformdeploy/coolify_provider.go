@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 
+	"github.com/kombifyio/stackkits/internal/deploymentcontract"
 	"gopkg.in/yaml.v3"
 )
 
@@ -36,7 +37,7 @@ func (a *CoolifyAdapter) RequireProviderService(ctx context.Context, ref Deploym
 	if ref.Platform != "coolify" || ref.ExternalID == "" || ref.AppName == "" ||
 		a.cfg.ProjectUUID == "" || a.cfg.ServerID == "" || a.cfg.EnvironmentID != "production" ||
 		(len(expectedRecipes) == 0 && heldRecipeDigest == "") ||
-		(heldRecipeDigest != "" && !hostArtifactDigestPattern.MatchString(heldRecipeDigest)) {
+		(heldRecipeDigest != "" && !deploymentcontract.ValidArtifactDigest(heldRecipeDigest)) {
 		return errors.New("Coolify provider requires the held service and its node recipe")
 	}
 	var service struct {

@@ -25,11 +25,13 @@ const (
 	APIVersion = "stackkit.application-lifecycle-state/v1"
 	stateRoot  = ".stackkit/lifecycle/applications"
 
-	StatusRunning          = "running"
-	StatusSucceeded        = "succeeded"
-	StatusFailed           = "failed"
-	StatusRecoveryRequired = "recovery-required"
-	StatusRecovered        = "recovered"
+	StatusRunning             = "running"
+	StatusSucceeded           = "succeeded"
+	StatusFailed              = "failed"
+	StatusBootstrapDegraded   = "bootstrap_degraded"
+	StatusSkippedCleanRollout = "skipped-clean-rollout"
+	StatusRecoveryRequired    = "recovery-required"
+	StatusRecovered           = "recovered"
 )
 
 var (
@@ -300,7 +302,7 @@ func decodeContract(object map[string]any, planHash string) (Contract, error) {
 			return Contract{}, err
 		}
 		var adoption AdoptionContract
-		if err := json.Unmarshal(body, &adoption); err != nil || adoption.ProfileRef != AdoptionProfile || !digestPattern.MatchString(adoption.ImageDigest) {
+		if err := json.Unmarshal(body, &adoption); err != nil || !IsSupportedAdoptionProfile(adoption.ProfileRef) || !digestPattern.MatchString(adoption.ImageDigest) {
 			return Contract{}, errors.New("resolved application adoption contract is invalid")
 		}
 		contract.Adoption = &adoption
@@ -579,6 +581,13 @@ func (store Store) transitionRecorded(contract Contract, request TransitionReque
 				return errors.New("failed application lifecycle operation requires a diagnostic")
 			}
 			operation.CompletedAt = now
+		case StatusBootstrapDegraded:
+			if operation.LastError == "" {
+				return errors.New("bootstrap_degraded application lifecycle operation requires a diagnostic")
+			}
+			operation.CompletedAt = now
+		case StatusSkippedCleanRollout:
+			operation.CompletedAt = now
 		case StatusRecoveryRequired:
 			if operation.LastError == "" || operation.RecoveryRef == "" {
 				return errors.New("recovery-required operation needs a diagnostic and recovery reference")
@@ -772,9 +781,13 @@ func validateTransition(from, to string) error {
 	allowed := false
 	switch from {
 	case StatusRunning:
-		allowed = to == StatusSucceeded || to == StatusFailed || to == StatusRecoveryRequired
+		allowed = to == StatusSucceeded || to == StatusFailed || to == StatusBootstrapDegraded || to == StatusSkippedCleanRollout || to == StatusRecoveryRequired
 	case StatusFailed:
 		allowed = to == StatusRunning || to == StatusRecoveryRequired
+	case StatusBootstrapDegraded:
+		allowed = to == StatusRunning || to == StatusRecoveryRequired
+	case StatusSkippedCleanRollout:
+		allowed = to == StatusRunning
 	case StatusRecoveryRequired:
 		allowed = to == StatusSucceeded || to == StatusRecovered
 	case StatusRecovered:
@@ -784,6 +797,99 @@ func validateTransition(from, to string) error {
 		return fmt.Errorf("application lifecycle transition %s -> %s is not allowed", from, to)
 	}
 	return nil
+}
+
+// RecordBootstrapDegraded records a Tier-2 automatic app personalization
+// degradation for the current Plan without disturbing Core/Tier-1 runtime
+// state. The application stays private/setup-pending behind Access Gate until
+// retried via `stackkit retry-appsetup` or `stackkit setup`.
+func (store Store) RecordBootstrapDegraded(contract Contract, reason string, now time.Time) (State, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "Tier-2 automatic app personalization did not complete; application remains private behind Access Gate"
+	}
+	return store.recordTier2SetupStatus(contract, StatusBootstrapDegraded, reason, now)
+}
+
+// RecordSkippedCleanRollout records that Clean Rollout explicitly skipped
+// Tier-2 automatic app personalization, keeping the application private behind
+// Access Gate for its own first-run wizard.
+func (store Store) RecordSkippedCleanRollout(contract Contract, reason string, now time.Time) (State, error) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "Clean Rollout skipped Tier-2 automatic app personalization; application remains private behind Access Gate for its own first-run wizard"
+	}
+	return store.recordTier2SetupStatus(contract, StatusSkippedCleanRollout, reason, now)
+}
+
+// NeedsAppSetupRetry reports whether the workload's latest current-authority
+// setup operation is in a retryable degraded or failed state.
+func (store Store) NeedsAppSetupRetry(contract Contract) (bool, Operation, error) {
+	state, err := store.Load(contract)
+	if err != nil {
+		return false, Operation{}, err
+	}
+	authority := authorityFromContract(contract)
+	for index := len(state.Operations) - 1; index >= 0; index-- {
+		op := state.Operations[index]
+		if op.Stage != "setup" || op.OperationRef != "stackkit.setup" || op.Authority != authority {
+			continue
+		}
+		if op.Status == StatusBootstrapDegraded || op.Status == StatusFailed {
+			return true, op, nil
+		}
+		return false, op, nil
+	}
+	return false, Operation{}, nil
+}
+
+func (store Store) recordTier2SetupStatus(contract Contract, targetStatus, note string, now time.Time) (State, error) {
+	now = normalizedNow(now)
+	state, err := store.Load(contract)
+	if err != nil {
+		return State{}, err
+	}
+	authority := authorityFromContract(contract)
+	if current := currentOperation(state); current != nil &&
+		current.Stage == "setup" && current.OperationRef == "stackkit.setup" && current.Authority == authority {
+		switch current.Status {
+		case StatusRunning:
+			return store.Transition(contract, TransitionRequest{
+				ID:        current.ID,
+				Status:    targetStatus,
+				LastError: note,
+				Now:       now,
+			})
+		case StatusFailed, StatusBootstrapDegraded, StatusSkippedCleanRollout:
+			if _, err := store.Transition(contract, TransitionRequest{ID: current.ID, Status: StatusRunning, Now: now}); err != nil {
+				return State{}, err
+			}
+			return store.Transition(contract, TransitionRequest{
+				ID:        current.ID,
+				Status:    targetStatus,
+				LastError: note,
+				Now:       now,
+			})
+		}
+	}
+	opID, err := NewOperationID("stackkit.setup")
+	if err != nil {
+		return State{}, err
+	}
+	if _, err := store.Begin(contract, BeginRequest{
+		ID:           opID,
+		Stage:        "setup",
+		OperationRef: "stackkit.setup",
+		Now:          now,
+	}); err != nil {
+		return State{}, err
+	}
+	return store.Transition(contract, TransitionRequest{
+		ID:        opID,
+		Status:    targetStatus,
+		LastError: note,
+		Now:       now,
+	})
 }
 
 func newState(contract Contract) State {

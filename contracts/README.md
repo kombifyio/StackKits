@@ -20,6 +20,7 @@ they have no release line of their own.
 | `applyevidence` | Producer contract for Ed25519-sealed pre-Apply evidence bundles | Evidence producer: enrollment, keys, observation |
 | `datasubject` | Account export and erasure request, signed receipt and completion rule | Coordinator and participants |
 | `advancedcapability` | Generated Advanced-capability and trust-bundle wire from `contract.json` | Homelab issues, StackKits verifies |
+| `canonicaljson` | Deterministic Go JSON encoding and domain-separated `sha256:` digest primitive shared by Guard receipts | Shared deterministic digest primitive (standard library only) |
 
 `compatibility/` holds the consumer lock schema; it is not a Go package.
 

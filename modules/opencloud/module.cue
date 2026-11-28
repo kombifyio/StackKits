@@ -183,3 +183,67 @@ Contract: foundation.#ModuleContract & {
 	}
 
 }
+
+// AppModuleV3 is the #AppModuleV3 declaration of opencloud (ADR-0055 Phase 2A).
+AppModuleV3: foundation.#AppModuleV3 & {
+	let _images = foundation.AppModuleV3CatalogImages["stackkits-opencloud-runtime"]
+	apiVersion:     "stackkit.app-module/v3"
+	moduleRef:      "stackkits-opencloud-runtime"
+	workloadRef:    "files"
+	alternativeRef: "opencloud"
+	release:        "8.1.0"
+	entryComponent: "opencloud"
+	delivery: {contract: "opentofu-stage1", resourcePrefix: "workload"}
+	lifecycle: {}
+	route: {
+		serviceRef:        "files"
+		targetPort:        9200
+		upstreamProtocol:  "http"
+		ingressAuth:       "forward-auth"
+		healthRef:         "opencloud-http"
+		requiredPrivilege: "user"
+		allowedExposures: ["local", "remote-private", "public"]
+	}
+	secrets: {
+		"owner-password": purpose: "Custody secret slot owner-password for opencloud"
+	}
+	backup: {
+		volumes: [
+			{componentRef: "opencloud", volumeRef: "config"},
+			{componentRef: "opencloud", volumeRef: "data"},
+		]
+		hookRef:  "hook/quiesce-stop"
+		probeRef: "probe/http-status"
+	}
+	networks: {
+		"opencloud-internal": {}
+	}
+	components: [
+		{
+			id:        "opencloud"
+			role:      "application"
+			lifecycle: "daemon"
+			image:     _images["opencloud"]
+			environment: {
+				IDM_CREATE_DEMO_USERS: "false"
+				OC_BASE_DATA_PATH: "/var/lib/opencloud"
+				OC_CONFIG_DIR: "/etc/opencloud"
+				OC_INSECURE: "false"
+				PROXY_ENABLE_BASIC_AUTH: "false"
+				PROXY_TLS: "false"
+			}
+			secretEnvironment: {
+				IDM_ADMIN_PASSWORD: "owner-password"
+			}
+			volumes: [
+				{id: "config", target: "/etc/opencloud", class: "persistent", backup: true},
+				{id: "data", target: "/var/lib/opencloud", class: "persistent", backup: true},
+			]
+			networks: ["opencloud-internal"]
+			health: {kind: "http", path: "/", port: 9200}
+			resources: {memoryLimit: "2g", memoryReservation: "1g", cpus: 1}
+			labels: {}
+			traits: {}
+		},
+	]
+}
